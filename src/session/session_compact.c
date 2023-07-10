@@ -159,6 +159,8 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_UNUSED(cfg);
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     WT_RET(__wt_session_get_dhandle(session, session->dhandle->name, NULL, NULL, 0));
 
     /* Set compact active on the handle. */
@@ -257,7 +259,7 @@ __compact_worker(WT_SESSION_IMPL *session)
             if (session->op_handle[i]->compact_skip)
                 continue;
 
-            __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW, NULL);
+            __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW);
             __wt_verbose_debug2(
               session, WT_VERB_COMPACT, "%s: compact pass %u", session->op_handle[i]->name, loop);
 

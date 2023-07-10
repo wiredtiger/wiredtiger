@@ -294,13 +294,13 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         WT_CURSOR_BACKUP_CHECK_STOP(othercb);
 
     /* Special backup cursor to query incremental IDs. */
-    if (WT_STRING_MATCH("backup:query_id", uri, strlen("backup:query_id"))) {
+    if (WT_STRING_MATCH("backup:query_id", uri, strlen(uri))) {
         /* Top level cursor code does not allow a URI and cursor. We don't need to check here. */
         WT_ASSERT(session, othercb == NULL);
         if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
             WT_RET_MSG(session, EINVAL, "Incremental backup is not configured");
         F_SET(cb, WT_CURBACKUP_QUERYID);
-    } else if (WT_STRING_MATCH("backup:export", uri, strlen("backup:export")))
+    } else if (WT_STRING_MATCH("backup:export", uri, strlen(uri)))
         /* Special backup cursor for export operation. */
         F_SET(cb, WT_CURBACKUP_EXPORT);
 
@@ -474,6 +474,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     conn = S2C(session);
     incremental_config = log_config = false;
     is_dup = othercb != NULL;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     /*
      * Per-file offset incremental hot backup configurations take a starting checkpoint and optional
@@ -679,6 +682,9 @@ __backup_start(
     srcfs = NULL;
     dest = NULL;
     is_dup = othercb != NULL;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     cb->next = 0;
     cb->list = NULL;

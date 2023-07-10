@@ -523,6 +523,10 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
+    Config('cache_stuck_timeout_ms', '300000', r'''
+        the number of milliseconds to wait before a stuck cache times out in diagnostic mode.
+        Default will wait for 5 minutes, 0 will wait forever''',
+        min=0),
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and adjust the cache
         usage by that amount (for example, if there is 10GB of data in cache, a percentage of
@@ -546,6 +550,10 @@ connection_runtime_config = [
             periodic checkpoints''',
             min='0', max='100000'),
         ]),
+    Config('checkpoint_cleanup', 'none', r'''
+        control how aggressively obsolete content is removed when creating checkpoints.
+        Default to none, which means no additional work is done to find obsolete content.
+        ''', choices=['none', 'reclaim_space']),
     Config('chunk_cache', '', r'''
         chunk cache configuration options''',
         type='category', subconfig=[
@@ -627,6 +635,9 @@ connection_runtime_config = [
             operations for tables with logging turned off. This additional logging information
             is intended for debugging and is informational only, that is, it is ignored during
             recovery''',
+            type='boolean'),
+        Config('tiered_flush_error_continue', 'false', r'''
+            on a write to tiered storage, continue when an error occurs.''',
             type='boolean'),
         Config('update_restore_evict', 'false', r'''
             if true, control all dirty page evictions through forcing update restore eviction.''',
@@ -721,6 +732,10 @@ connection_runtime_config = [
             interval in seconds at which to check for files that are inactive and close them''',
             min=1, max=100000),
         ]),
+    Config('generation_drain_timeout_ms', '240000', r'''
+        the number of milliseconds to wait for a resource to drain before timing out in diagnostic
+        mode. Default will wait for 4 minutes, 0 will wait forever''',
+        min=0),
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
@@ -763,10 +778,11 @@ connection_runtime_config = [
         ]),
     Config('operation_timeout_ms', '0', r'''
         if non-zero, a requested limit on the number of elapsed real time milliseconds
-        application threads will take to complete database operations. Time is measured from the
-        start of each WiredTiger API call. There is no guarantee any operation will not take
-        longer than this amount of time. If WiredTiger notices the limit has been exceeded, an
-        operation may return a WT_ROLLBACK error. The default of 0 is to have no limit''',
+        application threads will take to complete database operations. This setting only applies
+        inside of a transaction. Time is measured from the start of each WiredTiger API call. There
+        is no guarantee any operation will not take longer than this amount of time. If WiredTiger
+        notices the limit has been exceeded, an operation may return a WT_ROLLBACK error. The
+        default of 0 is to have no limit.''',
         min=0),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See @ref operation_tracking for
@@ -822,13 +838,14 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_handle',
-        'checkpoint_slow', 'checkpoint_stop', 'compact_slow', 'evict_reposition',
-        'failpoint_eviction_fail_after_reconciliation',
+        'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
+        'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'compact_slow',
+        'evict_reposition', 'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',
-        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'split_8', 'tiered_flush_finish']),
+        'history_store_search', 'history_store_sweep_race', 'prefix_compare',
+        'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
+        'sleep_before_read_overflow_onpage','split_1', 'split_2', 'split_3', 'split_4', 'split_5',
+        'split_6', 'split_7', 'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -1793,8 +1810,8 @@ methods = {
         configure flushing objects to tiered storage after checkpoint''',
         type='category', subconfig= [
             Config('enabled', 'false', r'''
-                if true, perform one iteration of object switching and flushing objects to
-                tiered storage''',
+                if true and tiered storage is in use, perform one iteration of object switching
+                and flushing objects to tiered storage''',
                 type='boolean'),
             Config('force', 'false', r'''
                 if false (the default), flush_tier of any individual object may be skipped if the

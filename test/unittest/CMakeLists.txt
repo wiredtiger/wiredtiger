@@ -15,6 +15,7 @@ else()
         tests/test_tailq.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
+        tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
     )

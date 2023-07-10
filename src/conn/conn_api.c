@@ -2108,6 +2108,12 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.tiered_flush_error_continue", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
@@ -2337,29 +2343,6 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
      *
      * Fail points are also defined in this list and will occur randomly when enabled.
      */
-    static const WT_NAME_FLAG stress_types[] = {
-      {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
-      {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
-      {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
-      {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
-      {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
-      {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
-      {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
-      {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
-      {"failpoint_eviction_fail_after_reconciliation",
-        WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
-      {"failpoint_history_delete_key_from_ts",
-        WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
-      {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
-      {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
-      {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
-      {"prepare_checkpoint_delay", WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY},
-      {"sleep_before_read_overflow_onpage", WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE},
-      {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
-      {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
-      {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
-      {"split_7", WT_TIMING_STRESS_SPLIT_7}, {"split_8", WT_TIMING_STRESS_SPLIT_8},
-      {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH}, {NULL, 0}};
     WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -2371,7 +2354,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "timing_stress_for_test", &cval));
 
     flags = 0;
-    for (ft = stress_types; ft->name != NULL; ft++) {
+    for (ft = __wt_stress_types; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
             LF_SET(ft->flag);
         WT_RET_NOTFOUND_OK(ret);
@@ -2948,6 +2931,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (cval.val)
         F_SET(conn, WT_CONN_CACHE_CURSORS);
 
+    WT_ERR(__wt_config_gets(session, cfg, "checkpoint_cleanup", &cval));
+    if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
+        F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
+
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
     if (cval.val)
         F_SET(conn, WT_CONN_CKPT_SYNC);
@@ -2982,6 +2969,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         } else
             WT_ERR_NOTFOUND_OK(ret, false);
     }
+
+    WT_ERR(__wt_config_gets(session, cfg, "generation_drain_timeout_ms", &cval));
+    conn->gen_drain_timeout_ms = (uint64_t)cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
     conn->mmap = cval.val != 0;

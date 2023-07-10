@@ -33,7 +33,6 @@ BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
-BClmvxz
 BLKCACHE
 BLmRrSVv
 BOOL
@@ -73,6 +72,7 @@ CentOS
 Checkpointing
 Checksums
 CityHash
+ClmSvxz
 CloseHandle
 CmP
 Codec
@@ -230,7 +230,9 @@ MRXB
 MRXBOPC
 MSDN
 MSVC
+MSan
 MUTEX
+MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
@@ -329,6 +331,7 @@ SDK
 SIMD
 SLVG
 SMT
+SPINLOCK
 SSHH
 SSq
 STR
@@ -782,6 +785,7 @@ gettimeofday
 getv
 ggg
 github
+globfree
 gobare
 goesc
 gostring
@@ -894,11 +898,11 @@ libmemkind
 libs
 libsodium
 libwiredtiger
+lifecycle
 linux
 llll
 llu
 llvm
-ln
 loadtext
 loc
 localTime
@@ -1111,6 +1115,7 @@ readlock
 readonly
 readunlock
 realloc
+reallocations
 recency
 recno
 recnos
@@ -1120,6 +1125,7 @@ reconfiguring
 recsize
 rectype
 recurse
+reentrant
 refp
 regionp
 relocked
@@ -1139,7 +1145,6 @@ rmw
 rng
 rotN
 rotn
-rp
 rpc
 rts
 ru
@@ -1173,6 +1178,7 @@ sizev
 skiplist
 skiplists
 skipp
+skippable
 slvg
 sn
 snaplen

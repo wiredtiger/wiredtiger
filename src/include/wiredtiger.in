@@ -1985,21 +1985,19 @@ struct __wt_session {
      * @config{flush_tier = (, configure flushing objects to tiered storage after checkpoint., a set
      * of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * enabled, if true\, perform one iteration of object switching and flushing objects to tiered
-     * storage., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;force, if false
-     * (the default)\, flush_tier of any individual object may be skipped if the underlying object
-     * has not been modified since the previous flush_tier.  If true\, this option forces the
-     * flush_tier., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;sync, wait
-     * for all objects to be flushed to the shared storage to the level specified.  When false\, do
-     * not wait for any objects to be written to the tiered storage system but return immediately
-     * after generating the objects and work units for an internal thread.  When true\, the caller
-     * waits until all work queued for this call to be completely processed before returning., a
-     * boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;timeout, amount of time\, in
-     * seconds\, to wait for flushing of objects to complete.  WiredTiger returns EBUSY if the
-     * timeout is reached.  A value of zero disables the timeout., an integer; default \c 0.}
+     * enabled, if true and tiered storage is in use\, perform one iteration of object switching and
+     * flushing objects to tiered storage., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;force, if false (the default)\, flush_tier of any individual
+     * object may be skipped if the underlying object has not been modified since the previous
+     * flush_tier.  If true\, this option forces the flush_tier., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;sync, wait for all objects to be flushed to the shared
+     * storage to the level specified.  When false\, do not wait for any objects to be written to
+     * the tiered storage system but return immediately after generating the objects and work units
+     * for an internal thread.  When true\, the caller waits until all work queued for this call to
+     * be completely processed before returning., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;timeout, amount of time\, in seconds\, to wait for flushing
+     * of objects to complete.  WiredTiger returns EBUSY if the timeout is reached.  A value of zero
+     * disables the timeout., an integer; default \c 0.}
      * @config{ ),,}
      * @config{force, if false (the default)\, checkpoints may be skipped if the underlying object
      * has not been modified.  If true\, this option forces the checkpoint., a boolean flag; default
@@ -2191,6 +2189,9 @@ struct __wt_connection {
      * @config{cache_size, maximum heap memory to allocate for the cache.  A database should
      * configure either \c cache_size or \c shared_cache but not both., an integer between \c 1MB
      * and \c 10TB; default \c 100MB.}
+     * @config{cache_stuck_timeout_ms, the number of milliseconds to wait before a stuck cache times
+     * out in diagnostic mode.  Default will wait for 5 minutes\, 0 will wait forever., an integer
+     * greater than or equal to \c 0; default \c 300000.}
      * @config{checkpoint = (, periodically checkpoint the database.  Enabling the checkpoint server
      * uses a session from the configured \c session_max., a set of related configuration options
      * defined as follows.}
@@ -2203,6 +2204,10 @@ struct __wt_connection {
      * seconds to wait between each checkpoint; setting this value above 0 configures periodic
      * checkpoints., an integer between \c 0 and \c 100000; default \c 0.}
      * @config{ ),,}
+     * @config{checkpoint_cleanup, control how aggressively obsolete content is removed when
+     * creating checkpoints.  Default to none\, which means no additional work is done to find
+     * obsolete content., a string\, chosen from the following options: \c "none"\, \c
+     * "reclaim_space"; default \c none.}
      * @config{chunk_cache = (, chunk cache configuration options., a set of related configuration
      * options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory or
@@ -2275,8 +2280,11 @@ struct __wt_connection {
      * information is intended for debugging and is informational only\, that is\, it is ignored
      * during recovery., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * update_restore_evict, if true\, control all dirty page evictions through forcing update
-     * restore eviction., a boolean flag; default \c false.}
+     * tiered_flush_error_continue, on a write to tiered storage\, continue when an error occurs., a
+     * boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if
+     * true\, control all dirty page evictions through forcing update restore eviction., a boolean
+     * flag; default \c false.}
      * @config{ ),,}
      * @config{error_prefix, prefix string for error messages., a string; default empty.}
      * @config{eviction = (, eviction configuration options., a set of related configuration options
@@ -2350,6 +2358,9 @@ struct __wt_connection {
      * for files that are inactive and close them., an integer between \c 1 and \c 100000; default
      * \c 10.}
      * @config{ ),,}
+     * @config{generation_drain_timeout_ms, the number of milliseconds to wait for a resource to
+     * drain before timing out in diagnostic mode.  Default will wait for 4 minutes\, 0 will wait
+     * forever., an integer greater than or equal to \c 0; default \c 240000.}
      * @config{history_store = (, history store configuration options., a set of related
      * configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the
@@ -2397,11 +2408,12 @@ struct __wt_connection {
      * handle from the configured session_max., an integer between \c 3 and \c 20; default \c 4.}
      * @config{ ),,}
      * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed real
-     * time milliseconds application threads will take to complete database operations.  Time is
-     * measured from the start of each WiredTiger API call.  There is no guarantee any operation
-     * will not take longer than this amount of time.  If WiredTiger notices the limit has been
-     * exceeded\, an operation may return a WT_ROLLBACK error.  The default of 0 is to have no
-     * limit., an integer greater than or equal to \c 0; default \c 0.}
+     * time milliseconds application threads will take to complete database operations.  This
+     * setting only applies inside of a transaction.  Time is measured from the start of each
+     * WiredTiger API call.  There is no guarantee any operation will not take longer than this
+     * amount of time.  If WiredTiger notices the limit has been exceeded\, an operation may return
+     * a WT_ROLLBACK error.  The default of 0 is to have no limit., an integer greater than or equal
+     * to \c 0; default \c 0.}
      * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
      * operation_tracking for more information., a set of related configuration options defined as
      * follows.}
@@ -2935,6 +2947,9 @@ struct __wt_connection {
  * @config{cache_size, maximum heap memory to allocate for the cache.  A database should configure
  * either \c cache_size or \c shared_cache but not both., an integer between \c 1MB and \c 10TB;
  * default \c 100MB.}
+ * @config{cache_stuck_timeout_ms, the number of milliseconds to wait before a stuck cache times out
+ * in diagnostic mode.  Default will wait for 5 minutes\, 0 will wait forever., an integer greater
+ * than or equal to \c 0; default \c 300000.}
  * @config{checkpoint = (, periodically checkpoint the database.  Enabling the checkpoint server
  * uses a session from the configured \c session_max., a set of related configuration options
  * defined as follows.}
@@ -2947,6 +2962,9 @@ struct __wt_connection {
  * between each checkpoint; setting this value above 0 configures periodic checkpoints., an integer
  * between \c 0 and \c 100000; default \c 0.}
  * @config{ ),,}
+ * @config{checkpoint_cleanup, control how aggressively obsolete content is removed when creating
+ * checkpoints.  Default to none\, which means no additional work is done to find obsolete content.,
+ * a string\, chosen from the following options: \c "none"\, \c "reclaim_space"; default \c none.}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
  * @config{chunk_cache = (, chunk cache configuration options., a set of related configuration
@@ -3031,9 +3049,10 @@ struct __wt_connection {
  * even operations for tables with logging turned off.  This additional logging information is
  * intended for debugging and is informational only\, that is\, it is ignored during recovery., a
  * boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\,
- * control all dirty page evictions through forcing update restore eviction., a boolean flag;
- * default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;tiered_flush_error_continue, on
+ * a write to tiered storage\, continue when an error occurs., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\, control all dirty page evictions
+ * through forcing update restore eviction., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c FILE_FLAG_NO_BUFFERING on Windows to
  * access files.  Options are given as a list\, such as <code>"direct_io=[data]"</code>. Configuring
@@ -3144,6 +3163,9 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_scan_interval, interval in seconds at which to check for
  * files that are inactive and close them., an integer between \c 1 and \c 100000; default \c 10.}
  * @config{ ),,}
+ * @config{generation_drain_timeout_ms, the number of milliseconds to wait for a resource to drain
+ * before timing out in diagnostic mode.  Default will wait for 4 minutes\, 0 will wait forever., an
+ * integer greater than or equal to \c 0; default \c 240000.}
  * @config{hash = (, manage resources used by hash bucket arrays.  All values must be a power of
  * two.  Note that setting large values can significantly increase memory usage inside WiredTiger.,
  * a set of related configuration options defined as follows.}
@@ -3224,11 +3246,11 @@ struct __wt_connection {
  * for primary processes and use RPC for secondary processes). <b>Not yet supported in
  * WiredTiger</b>., a boolean flag; default \c false.}
  * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed real time
- * milliseconds application threads will take to complete database operations.  Time is measured
- * from the start of each WiredTiger API call.  There is no guarantee any operation will not take
- * longer than this amount of time.  If WiredTiger notices the limit has been exceeded\, an
- * operation may return a WT_ROLLBACK error.  The default of 0 is to have no limit., an integer
- * greater than or equal to \c 0; default \c 0.}
+ * milliseconds application threads will take to complete database operations.  This setting only
+ * applies inside of a transaction.  Time is measured from the start of each WiredTiger API call.
+ * There is no guarantee any operation will not take longer than this amount of time.  If WiredTiger
+ * notices the limit has been exceeded\, an operation may return a WT_ROLLBACK error.  The default
+ * of 0 is to have no limit., an integer greater than or equal to \c 0; default \c 0.}
  * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
  * operation_tracking for more information., a set of related configuration options defined as
  * follows.}
@@ -5722,10 +5744,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_LEAF		1150
 /*! cache: maximum bytes configured */
 #define	WT_STAT_CONN_CACHE_BYTES_MAX			1151
+/*! cache: maximum milliseconds spent at a single eviction */
+#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_MILLISECONDS	1152
 /*! cache: maximum page size seen at eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1152
-/*! cache: maximum seconds spent at a single eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_SECONDS	1153
+#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1153
 /*! cache: modified pages evicted */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY		1154
 /*! cache: modified pages evicted by application threads */
@@ -5817,62 +5839,65 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_HS_INSERT_FULL_UPDATE	1187
 /*! cache: the number of times reverse modify inserted to history store */
 #define	WT_STAT_CONN_CACHE_HS_INSERT_REVERSE_MODIFY	1188
+/*!
+ * cache: total milliseconds spent inside reentrant history store
+ * evictions in a reconciliation
+ */
+#define	WT_STAT_CONN_CACHE_REENTRY_HS_EVICTION_MILLISECONDS	1189
 /*! cache: tracked bytes belonging to internal pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1189
+#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1190
 /*! cache: tracked bytes belonging to leaf pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1190
+#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1191
 /*! cache: tracked dirty bytes in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_DIRTY			1191
+#define	WT_STAT_CONN_CACHE_BYTES_DIRTY			1192
 /*! cache: tracked dirty pages in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1192
+#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1193
 /*! cache: uncommitted truncate blocked page eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE	1193
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE	1194
 /*! cache: unmodified pages evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_CLEAN		1194
+#define	WT_STAT_CONN_CACHE_EVICTION_CLEAN		1195
 /*! capacity: background fsync file handles considered */
-#define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1195
+#define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1196
 /*! capacity: background fsync file handles synced */
-#define	WT_STAT_CONN_FSYNC_ALL_FH			1196
+#define	WT_STAT_CONN_FSYNC_ALL_FH			1197
 /*! capacity: background fsync time (msecs) */
-#define	WT_STAT_CONN_FSYNC_ALL_TIME			1197
+#define	WT_STAT_CONN_FSYNC_ALL_TIME			1198
 /*! capacity: bytes read */
-#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1198
+#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1199
 /*! capacity: bytes written for checkpoint */
-#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1199
+#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1200
 /*! capacity: bytes written for eviction */
-#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1200
+#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1201
 /*! capacity: bytes written for log */
-#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1201
+#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1202
 /*! capacity: bytes written total */
-#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1202
+#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1203
 /*! capacity: threshold to call fsync */
-#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1203
+#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1204
 /*! capacity: time waiting due to total capacity (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1204
+#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1205
 /*! capacity: time waiting during checkpoint (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1205
+#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1206
 /*! capacity: time waiting during eviction (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1206
+#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1207
 /*! capacity: time waiting during logging (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1207
+#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1208
 /*! capacity: time waiting during read (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_READ			1208
+#define	WT_STAT_CONN_CAPACITY_TIME_READ			1209
 /*! checkpoint-cleanup: pages added for eviction */
-#define	WT_STAT_CONN_CC_PAGES_EVICT			1209
+#define	WT_STAT_CONN_CC_PAGES_EVICT			1210
 /*! checkpoint-cleanup: pages removed */
-#define	WT_STAT_CONN_CC_PAGES_REMOVED			1210
+#define	WT_STAT_CONN_CC_PAGES_REMOVED			1211
 /*! checkpoint-cleanup: pages skipped during tree walk */
-#define	WT_STAT_CONN_CC_PAGES_WALK_SKIPPED		1211
+#define	WT_STAT_CONN_CC_PAGES_WALK_SKIPPED		1212
 /*! checkpoint-cleanup: pages visited */
-#define	WT_STAT_CONN_CC_PAGES_VISITED			1212
+#define	WT_STAT_CONN_CC_PAGES_VISITED			1213
 /*! chunk-cache: aggregate number of spanned chunks on read */
-#define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_READ	1213
+#define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_READ	1214
 /*! chunk-cache: aggregate number of spanned chunks on remove */
-#define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_REMOVE	1214
+#define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_REMOVE	1215
 /*! chunk-cache: chunks evicted */
-#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_EVICTED		1215
-/*! chunk-cache: chunks removed on becoming invalid */
-#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_INVALIDATED	1216
+#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_EVICTED		1216
 /*! chunk-cache: could not allocate due to exceeding capacity */
 #define	WT_STAT_CONN_CHUNK_CACHE_EXCEEDED_CAPACITY	1217
 /*! chunk-cache: lookups */
@@ -6344,18 +6369,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1425
 /*! reconciliation: leaf-page overflow keys */
 #define	WT_STAT_CONN_REC_OVERFLOW_KEY_LEAF		1426
-/*! reconciliation: maximum seconds spent in a reconciliation call */
-#define	WT_STAT_CONN_REC_MAXIMUM_SECONDS		1427
+/*! reconciliation: maximum milliseconds spent in a reconciliation call */
+#define	WT_STAT_CONN_REC_MAXIMUM_MILLISECONDS		1427
 /*!
- * reconciliation: maximum seconds spent in building a disk image in a
- * reconciliation
+ * reconciliation: maximum milliseconds spent in building a disk image in
+ * a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_SECONDS	1428
+#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS	1428
 /*!
- * reconciliation: maximum seconds spent in moving updates to the history
- * store in a reconciliation
+ * reconciliation: maximum milliseconds spent in moving updates to the
+ * history store in a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_SECONDS	1429
+#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS	1429
 /*! reconciliation: page reconciliation calls */
 #define	WT_STAT_CONN_REC_PAGES				1430
 /*! reconciliation: page reconciliation calls for eviction */
@@ -6576,216 +6601,221 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_KEY_REPEATED	1514
 /*! transaction: Number of prepared updates rolled back */
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_ROLLEDBACK	1515
+/*!
+ * transaction: a reader raced with a prepared transaction commit and
+ * skipped an update or updates
+ */
+#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_COMMIT	1516
 /*! transaction: checkpoint has acquired a snapshot for its transaction */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SNAPSHOT_ACQUIRED	1516
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SNAPSHOT_ACQUIRED	1517
 /*! transaction: number of times overflow removed value is read */
-#define	WT_STAT_CONN_TXN_READ_OVERFLOW_REMOVE		1517
+#define	WT_STAT_CONN_TXN_READ_OVERFLOW_REMOVE		1518
 /*! transaction: oldest pinned transaction ID rolled back for eviction */
-#define	WT_STAT_CONN_TXN_ROLLBACK_OLDEST_PINNED		1518
+#define	WT_STAT_CONN_TXN_ROLLBACK_OLDEST_PINNED		1519
 /*! transaction: prepared transactions */
-#define	WT_STAT_CONN_TXN_PREPARE			1519
+#define	WT_STAT_CONN_TXN_PREPARE			1520
 /*! transaction: prepared transactions committed */
-#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1520
+#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1521
 /*! transaction: prepared transactions currently active */
-#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1521
+#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1522
 /*! transaction: prepared transactions rolled back */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1522
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1523
 /*! transaction: query timestamp calls */
-#define	WT_STAT_CONN_TXN_QUERY_TS			1523
+#define	WT_STAT_CONN_TXN_QUERY_TS			1524
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1524
+#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1525
 /*! transaction: rollback to stable calls */
-#define	WT_STAT_CONN_TXN_RTS				1525
+#define	WT_STAT_CONN_TXN_RTS				1526
 /*!
  * transaction: rollback to stable history store keys that would have
  * been swept in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	1526
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	1527
 /*!
  * transaction: rollback to stable history store records with stop
  * timestamps older than newer records
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1527
+#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1528
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1528
+#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1529
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1529
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1530
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1530
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1531
 /*!
  * transaction: rollback to stable keys that would have been removed in
  * non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED_DRYRUN	1531
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED_DRYRUN	1532
 /*!
  * transaction: rollback to stable keys that would have been restored in
  * non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED_DRYRUN	1532
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED_DRYRUN	1533
 /*! transaction: rollback to stable pages visited */
-#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1533
+#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1534
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1534
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1535
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1535
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1536
 /*! transaction: rollback to stable skipping delete rle */
-#define	WT_STAT_CONN_TXN_RTS_DELETE_RLE_SKIPPED		1536
+#define	WT_STAT_CONN_TXN_RTS_DELETE_RLE_SKIPPED		1537
 /*! transaction: rollback to stable skipping stable rle */
-#define	WT_STAT_CONN_TXN_RTS_STABLE_RLE_SKIPPED		1537
+#define	WT_STAT_CONN_TXN_RTS_STABLE_RLE_SKIPPED		1538
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1538
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1539
 /*!
  * transaction: rollback to stable tombstones from history store that
  * would have been restored in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	1539
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	1540
 /*! transaction: rollback to stable tree walk skipping pages */
-#define	WT_STAT_CONN_TXN_RTS_TREE_WALK_SKIP_PAGES	1540
+#define	WT_STAT_CONN_TXN_RTS_TREE_WALK_SKIP_PAGES	1541
 /*! transaction: rollback to stable updates aborted */
-#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1541
+#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1542
 /*!
  * transaction: rollback to stable updates from history store that would
  * have been restored in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	1542
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	1543
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1543
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1544
 /*!
  * transaction: rollback to stable updates that would have been aborted
  * in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED_DRYRUN		1544
+#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED_DRYRUN		1545
 /*!
  * transaction: rollback to stable updates that would have been removed
  * from history store in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED_DRYRUN		1545
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED_DRYRUN		1546
 /*! transaction: sessions scanned in each walk of concurrent sessions */
-#define	WT_STAT_CONN_TXN_SESSIONS_WALKED		1546
+#define	WT_STAT_CONN_TXN_SESSIONS_WALKED		1547
 /*! transaction: set timestamp calls */
-#define	WT_STAT_CONN_TXN_SET_TS				1547
+#define	WT_STAT_CONN_TXN_SET_TS				1548
 /*! transaction: set timestamp durable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1548
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1549
 /*! transaction: set timestamp durable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1549
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1550
 /*! transaction: set timestamp oldest calls */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1550
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1551
 /*! transaction: set timestamp oldest updates */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1551
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1552
 /*! transaction: set timestamp stable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1552
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1553
 /*! transaction: set timestamp stable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1553
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1554
 /*! transaction: transaction begins */
-#define	WT_STAT_CONN_TXN_BEGIN				1554
+#define	WT_STAT_CONN_TXN_BEGIN				1555
 /*! transaction: transaction checkpoint currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1555
+#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1556
 /*!
  * transaction: transaction checkpoint currently running for history
  * store file
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING_HS		1556
+#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING_HS		1557
 /*! transaction: transaction checkpoint generation */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1557
+#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1558
 /*!
  * transaction: transaction checkpoint history store file duration
  * (usecs)
  */
-#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1558
+#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1559
 /*! transaction: transaction checkpoint max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1559
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1560
 /*! transaction: transaction checkpoint min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1560
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1561
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * all handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1561
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1562
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * applied handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1562
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1563
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * skipped handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_SKIP	1563
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_SKIP	1564
 /*! transaction: transaction checkpoint most recent handles applied */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_APPLIED	1564
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_APPLIED	1565
 /*! transaction: transaction checkpoint most recent handles skipped */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_SKIPPED	1565
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_SKIPPED	1566
 /*! transaction: transaction checkpoint most recent handles walked */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_WALKED	1566
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_WALKED	1567
 /*! transaction: transaction checkpoint most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1567
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1568
 /*! transaction: transaction checkpoint prepare currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1568
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1569
 /*! transaction: transaction checkpoint prepare max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1569
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1570
 /*! transaction: transaction checkpoint prepare min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1570
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1571
 /*! transaction: transaction checkpoint prepare most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1571
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1572
 /*! transaction: transaction checkpoint prepare total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1572
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1573
 /*! transaction: transaction checkpoint scrub dirty target */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1573
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1574
 /*! transaction: transaction checkpoint scrub time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1574
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1575
 /*! transaction: transaction checkpoint stop timing stress active */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_STOP_STRESS_ACTIVE	1575
+#define	WT_STAT_CONN_TXN_CHECKPOINT_STOP_STRESS_ACTIVE	1576
 /*! transaction: transaction checkpoint total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1576
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1577
 /*! transaction: transaction checkpoints */
-#define	WT_STAT_CONN_TXN_CHECKPOINT			1577
+#define	WT_STAT_CONN_TXN_CHECKPOINT			1578
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1578
+#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1579
 /*!
  * transaction: transaction checkpoints skipped because database was
  * clean
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1579
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1580
 /*!
  * transaction: transaction fsync calls for checkpoint after allocating
  * the transaction ID
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1580
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1581
 /*!
  * transaction: transaction fsync duration for checkpoint after
  * allocating the transaction ID (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1581
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1582
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1582
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1583
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1583
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1584
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1584
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1585
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1585
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1586
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1586
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1587
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1587
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1588
 /*! transaction: transaction read timestamp of the oldest active reader */
-#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1588
+#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1589
 /*! transaction: transaction rollback to stable currently running */
-#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1589
+#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1590
 /*! transaction: transaction walk of concurrent sessions */
-#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1590
+#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1591
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1591
+#define	WT_STAT_CONN_TXN_COMMIT				1592
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1592
+#define	WT_STAT_CONN_TXN_ROLLBACK			1593
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1593
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1594
 
 /*!
  * @}
@@ -7469,88 +7499,91 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2233
 /*! reconciliation: overflow values written */
 #define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2234
-/*! reconciliation: page checksum matches */
-#define	WT_STAT_DSRC_REC_PAGE_MATCH			2235
 /*! reconciliation: page reconciliation calls */
-#define	WT_STAT_DSRC_REC_PAGES				2236
+#define	WT_STAT_DSRC_REC_PAGES				2235
 /*! reconciliation: page reconciliation calls for eviction */
-#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2237
+#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2236
 /*! reconciliation: pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE			2238
+#define	WT_STAT_DSRC_REC_PAGE_DELETE			2237
 /*!
  * reconciliation: pages written including an aggregated newest start
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2239
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2238
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2240
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2239
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2241
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2240
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2242
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2241
 /*!
  * reconciliation: pages written including an aggregated newest
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2243
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2242
 /*!
  * reconciliation: pages written including an aggregated oldest start
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2244
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2243
 /*! reconciliation: pages written including an aggregated prepare */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2245
+#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2244
 /*! reconciliation: pages written including at least one prepare */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2246
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2245
 /*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2247
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2246
 /*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2248
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2247
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2249
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2248
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2250
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2249
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2251
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2250
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2252
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2251
 /*! reconciliation: records written including a prepare */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2253
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2252
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2254
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2253
 /*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2255
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2254
 /*! reconciliation: records written including a start transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2256
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2255
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2257
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2256
 /*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2258
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2257
 /*! reconciliation: records written including a stop transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2259
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2258
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2260
+#define	WT_STAT_DSRC_SESSION_COMPACT			2259
+/*!
+ * transaction: a reader raced with a prepared transaction commit and
+ * skipped an update or updates
+ */
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT	2260
 /*! transaction: checkpoint has acquired a snapshot for its transaction */
 #define	WT_STAT_DSRC_TXN_CHECKPOINT_SNAPSHOT_ACQUIRED	2261
 /*! transaction: number of times overflow removed value is read */

@@ -138,15 +138,6 @@ struct __wt_addr {
 #define WT_ADDR_LEAF 2    /* Leaf page */
 #define WT_ADDR_LEAF_NO 3 /* Leaf page, no overflow */
     uint8_t type;
-
-    /*
-     * If an address is both as an address for the previous and the current multi-block
-     * reconciliations, that is, a block we're writing matches the block written the last time, it
-     * will appear in both the current boundary points as well as the page modification's list of
-     * previous blocks. The reuse flag is how we know that's happening so the block is treated
-     * correctly (not free'd on error, for example).
-     */
-    uint8_t reuse;
 };
 
 /*
@@ -277,14 +268,7 @@ struct __wt_multi {
     uint32_t supd_entries;
     bool supd_restore; /* Whether to restore saved update chains to this page */
 
-    /*
-     * Disk image was written: address, size and checksum. On subsequent reconciliations of this
-     * page, we avoid writing the block if it's unchanged by comparing size and checksum; the reuse
-     * flag is set when the block is unchanged and we're reusing a previous address.
-     */
-    WT_ADDR addr;
-    uint32_t size;
-    uint32_t checksum;
+    WT_ADDR addr; /* Disk image written address */
 };
 
 /*
@@ -555,6 +539,21 @@ struct __wt_col_fix_tw {
 /* WT_COL_FIX_TW_CELL gets the cell pointer from a WT_COL_FIX_TW_ENTRY. */
 #define WT_COL_FIX_TW_CELL(page, entry) ((WT_CELL *)((uint8_t *)(page)->dsk + (entry)->cell_offset))
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * WT_SPLIT_HIST --
+ *	State information of a split at a single point in time.
+ */
+struct __wt_split_page_hist {
+    const char *name;
+    const char *func;
+    uint64_t split_gen;
+    uint32_t entries;
+    uint32_t time_sec;
+    uint16_t line;
+};
+#endif
+
 /*
  * WT_PAGE --
  *	The WT_PAGE structure describes the in-memory page information.
@@ -686,18 +685,6 @@ struct __wt_page {
     uint32_t prefix_start; /* Best page prefix starting slot */
     uint32_t prefix_stop;  /* Maximum slot to which the best page prefix applies */
 
-#define WT_PAGE_IS_INTERNAL(page) \
-    ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
-#define WT_PAGE_INVALID 0       /* Invalid page */
-#define WT_PAGE_BLOCK_MANAGER 1 /* Block-manager page */
-#define WT_PAGE_COL_FIX 2       /* Col-store fixed-len leaf */
-#define WT_PAGE_COL_INT 3       /* Col-store internal page */
-#define WT_PAGE_COL_VAR 4       /* Col-store var-length leaf page */
-#define WT_PAGE_OVFL 5          /* Overflow page */
-#define WT_PAGE_ROW_INT 6       /* Row-store internal page */
-#define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
-    uint8_t type;               /* Page type */
-
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_BUILD_KEYS 0x001u         /* Keys have been built in memory */
 #define WT_PAGE_COMPACTION_WRITE 0x002u   /* Writing the page for compaction */
@@ -712,20 +699,38 @@ struct __wt_page {
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags_atomic;                /* Atomic flags, use F_*_ATOMIC_16 */
 
-    uint8_t unused; /* Unused padding */
+#define WT_PAGE_IS_INTERNAL(page) \
+    ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
+#define WT_PAGE_INVALID 0       /* Invalid page */
+#define WT_PAGE_BLOCK_MANAGER 1 /* Block-manager page */
+#define WT_PAGE_COL_FIX 2       /* Col-store fixed-len leaf */
+#define WT_PAGE_COL_INT 3       /* Col-store internal page */
+#define WT_PAGE_COL_VAR 4       /* Col-store var-length leaf page */
+#define WT_PAGE_OVFL 5          /* Overflow page */
+#define WT_PAGE_ROW_INT 6       /* Row-store internal page */
+#define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
+    uint8_t type;               /* Page type */
+
+    /* 1 byte hole expected. */
 
     size_t memory_footprint; /* Memory attached to the page */
 
-    /* Page's on-disk representation: NULL for pages created in memory. */
-    const WT_PAGE_HEADER *dsk;
-
     /* If/when the page is modified, we need lots more information. */
     WT_PAGE_MODIFY *modify;
+
+    /* Page's on-disk representation: NULL for pages created in memory. */
+    const WT_PAGE_HEADER *dsk;
 
     /*
      * !!!
      * This is the 64 byte boundary, try to keep hot fields above here.
      */
+
+    /*
+     * The allocated memory for the page's disk image, solely used for cache tracking purposes. The
+     * 'dsk' variable above contains the actual size of the page contained in the disk image.
+     */
+    size_t dsk_alloc_size;
 
 /*
  * The page's read generation acts as an LRU value for each page in the
@@ -758,6 +763,25 @@ struct __wt_page {
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
+
+#ifdef HAVE_DIAGNOSTIC
+#define WT_SPLIT_SAVE_STATE_MAX 3
+    WT_SPLIT_PAGE_HIST split_hist[WT_SPLIT_SAVE_STATE_MAX];
+    uint64_t splitoff;
+
+#define WT_SPLIT_PAGE_SAVE_STATE(page, session, e, g)                                \
+    do {                                                                             \
+        (page)->split_hist[(page)->splitoff].name = (session)->name;                 \
+        __wt_seconds32((session), &(page)->split_hist[(page)->splitoff].time_sec);   \
+        (page)->split_hist[(page)->splitoff].func = __PRETTY_FUNCTION__;             \
+        (page)->split_hist[(page)->splitoff].line = (uint16_t)__LINE__;              \
+        (page)->split_hist[(page)->splitoff].split_gen = (uint32_t)(g);              \
+        (page)->split_hist[(page)->splitoff].entries = (uint32_t)(e);                \
+        (page)->splitoff = ((page)->splitoff + 1) % WT_ELEMENTS((page)->split_hist); \
+    } while (0)
+#else
+#define WT_SPLIT_PAGE_SAVE_STATE(page, session, e, g)
+#endif
 };
 
 /*
@@ -1303,6 +1327,7 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
+/* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
 #define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
@@ -1314,6 +1339,30 @@ struct __wt_update {
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
+/* There are several cases we should select the update irrespective of visibility to write to the
+ * disk image:
+ *
+ * 1. A previous reconciliation selected this update as writing anything that is older
+ * undoes the previous work.
+ *
+ * 2. The update is restored from the disk image as writing anything that is older undoes
+ * the previous work.
+ *
+ * 3. An earlier reconciliation performed an update-restore eviction and this update was
+ * restored from disk.
+ *
+ * 4. We rolled back a prepared transaction and restored an update from the history store.
+ *
+ * 5. We rolled back a prepared transaction and aim to delete the following update from the
+ * history store.
+ *
+ * These scenarios can happen if the current reconciliation has a limited visibility of
+ * updates compared to one of the previous reconciliations. This is important as it is never
+ * ok to undo the work of the previous reconciliations.
+ */
+#define WT_UPDATE_SELECT_FOR_DS                                                      \
+    WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
+      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
@@ -1326,6 +1375,12 @@ struct __wt_update {
  * to ensure the compiler hasn't inserted padding.
  */
 #define WT_UPDATE_SIZE 47
+
+/*
+ * If there is no value, ensure that the memory allocation size matches that returned by sizeof().
+ * Otherwise bit-exact tools like MSan may infer the structure is not completely initialized.
+ */
+#define WT_UPDATE_SIZE_NOVALUE (sizeof(struct __wt_update))
 
 /*
  * The memory size of an update: include some padding because this is such a common case that

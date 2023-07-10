@@ -68,7 +68,8 @@ __rts_btree_walk_page_skip(
                   WT_RTS_VERB_TAG_SKIP_DEL_NULL "ref=%p: deleted page walk skipped", (void *)ref);
             else {
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-                  "%p: deleted page walk skipped page_del %s", (void *)ref,
+                  WT_RTS_VERB_TAG_SKIP_DEL "ref=%p: deleted page walk skipped page_del %s",
+                  (void *)ref,
                   __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
                     page_del->txnid, time_string));
             }
@@ -120,18 +121,26 @@ __rts_btree_walk_page_skip(
 static int
 __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
+    struct timespec rollback_timer;
     WT_DECL_RET;
     WT_REF *ref;
+    uint64_t rollback_msg_count;
+
+    /* Initialize the verbose tracking timer. */
+    __wt_epoch(session, &rollback_timer);
+    rollback_msg_count = 0;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while (
       (ret = __wt_tree_walk_custom_skip(session, &ref, __rts_btree_walk_page_skip,
          &rollback_timestamp, WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
-      ref != NULL)
+      ref != NULL) {
+        __wt_rts_progress_msg(session, rollback_timer, 0, &rollback_msg_count, true);
+
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_RET(__wt_rts_btree_abort_updates(session, ref, rollback_timestamp));
-
+    }
     return (ret);
 }
 
@@ -151,7 +160,7 @@ __wt_rts_btree_walk_btree_apply(
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, modified;
+    bool dhandle_allocated, has_txn_updates_gt_than_ckpt_snap, modified;
     bool prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
@@ -165,22 +174,18 @@ __wt_rts_btree_walk_btree_apply(
 
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
-    durable_ts_found = prepared_updates = has_txn_updates_gt_than_ckpt_snap = false;
+    prepared_updates = has_txn_updates_gt_than_ckpt_snap = false;
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
-        if (ret == 0) {
+        if (ret == 0)
             newest_start_durable_ts = WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
-            durable_ts_found = true;
-        }
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
-        if (ret == 0) {
+        if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
-            durable_ts_found = true;
-        }
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "prepare", &value);
         if (ret == 0) {
@@ -227,13 +232,11 @@ __wt_rts_btree_walk_btree_apply(
     }
 
     /*
-     * The rollback to stable will skip the tables during recovery and shutdown in the following
-     * conditions.
-     * 1. Empty table or newly-created table.
-     * 2. Table has timestamped updates without a stable timestamp.
+     * During recovery, a table is skipped by RTS if one of the conditions is met:
+     * 1. The table is empty or newly-created.
+     * 2. The table has timestamped updates without a stable timestamp.
      */
-    if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
-          F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT)) &&
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
       (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_FILE_SKIP "skipping rollback to stable on file=%s because %s", uri,
@@ -247,8 +250,7 @@ __wt_rts_btree_walk_btree_apply(
      * 1. The dhandle is present in the cache and tree is modified.
      * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
      * 3. The checkpoint has prepared updates written to disk.
-     * 4. There is no durable timestamp in any checkpoint.
-     * 5. The checkpoint newest txn is greater than snapshot min txn id.
+     * 4. The checkpoint newest txn is greater than checkpoint snapshot min txn id.
      */
     WT_WITHOUT_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(
@@ -256,13 +258,10 @@ __wt_rts_btree_walk_btree_apply(
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    if (modified || max_durable_ts > rollback_timestamp || prepared_updates || !durable_ts_found ||
+    if (modified || max_durable_ts > rollback_timestamp || prepared_updates ||
       has_txn_updates_gt_than_ckpt_snap) {
-        /*
-         * Open a handle; we're potentially opening a lot of handles and there's no reason to cache
-         * all of them for future unknown use, discard on close.
-         */
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_DISCARD);
+        /* Open a handle for processing. */
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
         if (ret != 0)
             WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
               ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
@@ -271,14 +270,13 @@ __wt_rts_btree_walk_btree_apply(
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_TREE
           "rolling back tree. modified=%s, durable_timestamp=%s > stable_timestamp=%s: %s, "
-          "has_prepared_updates=%s, durable_timestamp_not_found=%s, txnid=%" PRIu64
-          " > recovery_checkpoint_snap_min=%" PRIu64 ": %s",
+          "has_prepared_updates=%s, txnid=%" PRIu64 " > recovery_checkpoint_snap_min=%" PRIu64
+          ": %s",
           S2BT(session)->modified ? "true" : "false",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
           max_durable_ts > rollback_timestamp ? "true" : "false",
-          prepared_updates ? "true" : "false", !durable_ts_found ? "true" : "false", rollback_txnid,
-          S2C(session)->recovery_ckpt_snap_min,
+          prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
         WT_ERR(__wt_rts_btree_walk_btree(session, rollback_timestamp));

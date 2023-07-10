@@ -172,10 +172,12 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
  *     in the btree code which the application is looking at when we call its comparison function.
  */
 static inline int
-__wt_lex_compare_skip(const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
+__wt_lex_compare_skip(
+  WT_SESSION_IMPL *session, const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
 {
     size_t len, usz, tsz;
     const uint8_t *userp, *treep;
+    int ret_val;
 
     usz = user_item->size;
     tsz = tree_item->size;
@@ -231,15 +233,36 @@ __wt_lex_compare_skip(const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t
         len += remain;
     }
 #endif
+    ret_val = 0;
     /*
      * Use the non-vectorized version for the remaining bytes and for the small key sizes.
      */
     for (; len > 0; --len, ++userp, ++treep, ++*matchp)
-        if (*userp != *treep)
-            return (*userp < *treep ? -1 : 1);
+        if (*userp != *treep) {
+            ret_val = *userp < *treep ? -1 : 1;
+            break;
+        }
 
     /* Contents are equal up to the smallest length. */
-    return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+    if (ret_val == 0)
+        ret_val = ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * There are various optimizations in the code to skip comparing prefixes that are known to be
+     * the same. If configured, check that the prefixes actually match.
+     */
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREFIX_COMPARE)) {
+        int full_cmp_ret;
+        full_cmp_ret = __wt_lex_compare(user_item, tree_item);
+        WT_ASSERT_ALWAYS(NULL, full_cmp_ret == ret_val,
+          "Comparison that skipped prefix returned different result than a full comparison");
+    }
+#else
+    WT_UNUSED(session);
+#endif
+
+    return (ret_val);
 }
 
 /*
@@ -252,7 +275,7 @@ __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM
   const WT_ITEM *tree_item, int *cmpp, size_t *matchp)
 {
     if (collator == NULL) {
-        *cmpp = __wt_lex_compare_skip(user_item, tree_item, matchp);
+        *cmpp = __wt_lex_compare_skip(session, user_item, tree_item, matchp);
         return (0);
     }
     return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
