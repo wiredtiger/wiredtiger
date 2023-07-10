@@ -73,17 +73,15 @@ __med3(void *a, void *b, void *c, wt_cmp_t cmp, void *context)
 #endif
 
     if (CMP(a, b, context) < 0) {
-        if (CMP(b, c, context) < 0) {
+        if (CMP(b, c, context) < 0)
             return (b);
-        } else {
+        else
             return (CMP(a, c, context) < 0 ? c : a);
-        }
     } else {
-        if (CMP(b, c, context) > 0) {
+        if (CMP(b, c, context) > 0)
             return (b);
-        } else {
+        else
             return (CMP(a, c, context) < 0 ? a : c);
-        }
     }
 }
 
@@ -203,7 +201,15 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
         WT_ASSERT(NULL, highest_gt_median >= hi_unknown);
         WT_ASSERT(NULL, hi_pseudomedian >= (highest_gt_median + elem_sz));
 
-        /* Swap our pivot back into the correct place. */
+        /*
+         * Swap our pivot back into the correct place. We need the size_t casts because subtracting
+         * pointers yields a ptrdiff_t, which is signed, but we're assigning to a size_t (because
+         * we're measuring the size of an object) and having this signed makes no logical sense. It
+         * would also break the arithmetic we do later on. The compiler (correctly) complains about
+         * this, but we know a little bit more. Specifically, we know that the right hand side is
+         * always less than the left-hand side (modulo bugs - see assertions above), so we can get
+         * away with a cast.
+         */
         lhs_unsorted =
           WT_MIN((size_t)(lowest_lt_median - a), (size_t)(lo_unknown - lowest_lt_median));
         __swap_bytes(a, lo_unknown - lhs_unsorted, lhs_unsorted);
