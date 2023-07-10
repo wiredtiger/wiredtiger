@@ -25,27 +25,34 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_txn21.py
-#   Transactions: smoke test the operation timeout API
-#
 
 import wiredtiger, wttest
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
+from wtscenario import make_scenarios
 
-class test_txn21(wttest.WiredTigerTestCase):
-    # Transaction-level configuration.
-    def test_operation_timeout_txn(self):
-        # Test during begin.
-        self.session.begin_transaction('operation_timeout_ms=2000')
-        self.session.rollback_transaction()
+# test_tiered21.py
+#    Check for incompatible tiered configuration options.
+class test_tiered21(TieredConfigMixin, wttest.WiredTigerTestCase):
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered21',
+                                                 tiered_only=True)
+    scenarios = make_scenarios(storage_sources)
 
-        # Test during rollback.
-        self.session.begin_transaction()
-        self.session.rollback_transaction('operation_timeout_ms=2000')
+    # Opening a connection with a specific additional configuration.
+    def open_with(self, additional_config):
+        return self.open_conn('.', self.conn_config() + additional_config)
 
-        # Test during commit.
-        self.session.begin_transaction()
-        self.session.commit_transaction('operation_timeout_ms=2000')
+    # Check different options when opening the database.
+    def test_options(self):
+        self.close_conn()
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+                                       lambda: self.open_with('in_memory=true'),
+                                       '/not compatible with/')
+
+    # Check reconfigure.
+    def test_reconfigure(self):
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+                                       lambda: self.conn.reconfigure('in_memory=true'),
+                                       '/unknown configuration key/')
 
 if __name__ == '__main__':
     wttest.run()
