@@ -636,7 +636,7 @@ thread_ckpt_run(void *arg)
         flush_tier = false;
         testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
 
-        /* Set the configurations based on whether we're flushing. */
+        /* Set the configuration based on whether we're flushing. */
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
 
         /*
