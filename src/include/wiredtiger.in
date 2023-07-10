@@ -886,30 +886,6 @@ struct __wt_session {
      */
     int __F(reconfigure)(WT_SESSION *session, const char *config);
 
-#ifndef DOXYGEN
-    /*!
-     * Initiate a single operation to manage tiered storage.
-     *
-     * @param session the session handle
-     * @configstart{WT_SESSION.flush_tier, see dist/api_data.py}
-     * @config{force, force sharing of all data., a boolean flag; default \c false.}
-     * @config{lock_wait, wait for locks\, if \c lock_wait=false\, fail if any required locks are
-     * not available immediately., a boolean flag; default \c true.}
-     * @config{sync, wait for all objects to be flushed to the shared storage to the level
-     * specified.  The \c off setting does not wait for any objects to be written to the tiered
-     * storage system but returns immediately after generating the objects and work units for an
-     * internal thread.  The \c on setting causes the caller to wait until all work queued for this
-     * call to be completely processed before returning., a string\, chosen from the following
-     * options: \c "off"\, \c "on"; default \c on.}
-     * @config{timeout, maximum amount of time to allow for waiting for previous flushing of
-     * objects\, in seconds.  The actual amount of time spent waiting may exceed the configured
-     * value.  A value of zero disables the timeout., an integer; default \c 0.}
-     * @configend
-     * @errors
-     */
-    int __F(flush_tier)(WT_SESSION *session, const char *config);
-#endif
-
     /*!
      * Return information about an error as a string.
      *
@@ -1744,7 +1720,7 @@ struct __wt_session {
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
      * amount of time.  If WiredTiger notices the limit has been exceeded\, an operation may return
-     * a WT_ROLLBACK error.  Default is to have no limit., an integer greater than or equal to \c 1;
+     * a WT_ROLLBACK error.  Default is to have no limit., an integer greater than or equal to \c 0;
      * default \c 0.}
      * @config{priority, priority of the transaction for resolving conflicts.  Transactions with
      * higher values are less likely to abort., an integer between \c -100 and \c 100; default \c
@@ -1803,7 +1779,7 @@ struct __wt_session {
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
      * amount of time.  If WiredTiger notices the limit has been exceeded\, an operation may return
-     * a WT_ROLLBACK error.  Default is to have no limit., an integer greater than or equal to \c 1;
+     * a WT_ROLLBACK error.  Default is to have no limit., an integer greater than or equal to \c 0;
      * default \c 0.}
      * @config{sync, override whether to sync log records when the transaction commits.  The default
      * is inherited from ::wiredtiger_open \c transaction_sync.  The \c off setting does not wait
@@ -1857,7 +1833,7 @@ struct __wt_session {
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
      * amount of time.  If WiredTiger notices the limit has been exceeded\, an operation may return
-     * a WT_ROLLBACK error.  Default is to have no limit., an integer greater than or equal to \c 1;
+     * a WT_ROLLBACK error.  Default is to have no limit., an integer greater than or equal to \c 0;
      * default \c 0.}
      * @configend
      * @errors
@@ -2407,13 +2383,8 @@ struct __wt_connection {
      * threads to manage merging LSM trees in the database.  Each worker thread uses a session
      * handle from the configured session_max., an integer between \c 3 and \c 20; default \c 4.}
      * @config{ ),,}
-     * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed real
-     * time milliseconds application threads will take to complete database operations.  This
-     * setting only applies inside of a transaction.  Time is measured from the start of each
-     * WiredTiger API call.  There is no guarantee any operation will not take longer than this
-     * amount of time.  If WiredTiger notices the limit has been exceeded\, an operation may return
-     * a WT_ROLLBACK error.  The default of 0 is to have no limit., an integer greater than or equal
-     * to \c 0; default \c 0.}
+     * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
+     * compatibility., an integer greater than or equal to \c 0; default \c 0.}
      * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
      * operation_tracking for more information., a set of related configuration options defined as
      * follows.}
@@ -3245,12 +3216,8 @@ struct __wt_connection {
  * @config{multiprocess, permit sharing between processes (will automatically start an RPC server
  * for primary processes and use RPC for secondary processes). <b>Not yet supported in
  * WiredTiger</b>., a boolean flag; default \c false.}
- * @config{operation_timeout_ms, if non-zero\, a requested limit on the number of elapsed real time
- * milliseconds application threads will take to complete database operations.  This setting only
- * applies inside of a transaction.  Time is measured from the start of each WiredTiger API call.
- * There is no guarantee any operation will not take longer than this amount of time.  If WiredTiger
- * notices the limit has been exceeded\, an operation may return a WT_ROLLBACK error.  The default
- * of 0 is to have no limit., an integer greater than or equal to \c 0; default \c 0.}
+ * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
+ * compatibility., an integer greater than or equal to \c 0; default \c 0.}
  * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
  * operation_tracking for more information., a set of related configuration options defined as
  * follows.}
@@ -7499,156 +7466,154 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2233
 /*! reconciliation: overflow values written */
 #define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2234
-/*! reconciliation: page checksum matches */
-#define	WT_STAT_DSRC_REC_PAGE_MATCH			2235
 /*! reconciliation: page reconciliation calls */
-#define	WT_STAT_DSRC_REC_PAGES				2236
+#define	WT_STAT_DSRC_REC_PAGES				2235
 /*! reconciliation: page reconciliation calls for eviction */
-#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2237
+#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2236
 /*! reconciliation: pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE			2238
+#define	WT_STAT_DSRC_REC_PAGE_DELETE			2237
 /*!
  * reconciliation: pages written including an aggregated newest start
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2239
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2238
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2240
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2239
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2241
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2240
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2242
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2241
 /*!
  * reconciliation: pages written including an aggregated newest
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2243
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2242
 /*!
  * reconciliation: pages written including an aggregated oldest start
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2244
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2243
 /*! reconciliation: pages written including an aggregated prepare */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2245
+#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2244
 /*! reconciliation: pages written including at least one prepare */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2246
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2245
 /*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2247
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2246
 /*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2248
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2247
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2249
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2248
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2250
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2249
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2251
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2250
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2252
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2251
 /*! reconciliation: records written including a prepare */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2253
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2252
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2254
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2253
 /*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2255
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2254
 /*! reconciliation: records written including a start transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2256
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2255
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2257
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2256
 /*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2258
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2257
 /*! reconciliation: records written including a stop transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2259
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2258
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2260
+#define	WT_STAT_DSRC_SESSION_COMPACT			2259
 /*!
  * transaction: a reader raced with a prepared transaction commit and
  * skipped an update or updates
  */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT	2261
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT	2260
 /*! transaction: checkpoint has acquired a snapshot for its transaction */
-#define	WT_STAT_DSRC_TXN_CHECKPOINT_SNAPSHOT_ACQUIRED	2262
+#define	WT_STAT_DSRC_TXN_CHECKPOINT_SNAPSHOT_ACQUIRED	2261
 /*! transaction: number of times overflow removed value is read */
-#define	WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE		2263
+#define	WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE		2262
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2264
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2263
 /*!
  * transaction: rollback to stable history store keys that would have
  * been swept in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	2265
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	2264
 /*!
  * transaction: rollback to stable history store records with stop
  * timestamps older than newer records
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2266
+#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2265
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2267
+#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2266
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2268
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2267
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2269
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2268
 /*!
  * transaction: rollback to stable keys that would have been removed in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED_DRYRUN	2270
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED_DRYRUN	2269
 /*!
  * transaction: rollback to stable keys that would have been restored in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED_DRYRUN	2271
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED_DRYRUN	2270
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2272
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2271
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2273
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2272
 /*! transaction: rollback to stable skipping delete rle */
-#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2274
+#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2273
 /*! transaction: rollback to stable skipping stable rle */
-#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2275
+#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2274
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2276
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2275
 /*!
  * transaction: rollback to stable tombstones from history store that
  * would have been restored in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	2277
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	2276
 /*!
  * transaction: rollback to stable updates from history store that would
  * have been restored in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	2278
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	2277
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2279
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2278
 /*!
  * transaction: rollback to stable updates that would have been removed
  * from history store in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN		2280
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN		2279
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2281
+#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2280
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2282
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2281
 
 /*!
  * @}
