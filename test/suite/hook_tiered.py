@@ -96,15 +96,15 @@ def wiredtiger_open_tiered(ignored_self, args):
     # however, we alter several other API methods that would do weird things with
     # a different tiered_storage configuration. So better to skip the test entirely.
     if 'tiered_storage=' in curconfig:
-        skipTest("cannot run tiered hook on a test that already uses tiered storage")
+        skip_test("cannot run tiered hook on a test that already uses tiered storage")
 
     # Similarly if this test is already set up to run tiered vs non-tiered scenario, let's
     # not get in the way.
     if hasattr(testcase, 'tiered_conn_config'):
-        skipTest("cannot run tiered hook on a test that already includes TieredConfigMixin")
+        skip_test("cannot run tiered hook on a test that already includes TieredConfigMixin")
 
     if 'in_memory=true' in curconfig:
-        skipTest("cannot run tiered hook on a test that is in-memory")
+        skip_test("cannot run tiered hook on a test that is in-memory")
 
     # Mark this test as readonly, but don't disallow it.  See testcase_is_readonly().
     if 'readonly=true' in curconfig:
@@ -163,7 +163,7 @@ def testcase_has_skipped():
     testcase = WiredTigerTestCase.currentTestCase()
     return testcase.skipped
 
-def skipTest(comment):
+def skip_test(comment):
     testcase = WiredTigerTestCase.currentTestCase()
     testcase.skipTest(comment)
 
@@ -192,7 +192,7 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     if config == None:
         config = ''
     if 'name=' in config:
-        skipTest('named checkpoints do not work in tiered storage')
+        skip_test('named checkpoints do not work in tiered storage')
     # We cannot call flush_tier on a readonly connection.
     if not testcase_is_readonly():
         # FIXME-WT-11047 enable flush_tier on checkpoint.
@@ -238,9 +238,9 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 # do statistics on (tiered) table data sources, as that is not yet supported.
 def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
     if uri != None and (uri.startswith("statistics:table:") or uri.startswith("statistics:file:")):
-        skipTest("statistics on tiered tables not yet implemented")
+        skip_test("statistics on tiered tables not yet implemented")
     if uri != None and uri.startswith("backup:"):
-        skipTest("backup on tiered tables not yet implemented")
+        skip_test("backup on tiered tables not yet implemented")
     return orig_session_open_cursor(session_self, uri, dupcursor, config)
 
 # Called to replace Session.rename
