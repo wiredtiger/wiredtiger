@@ -49,7 +49,7 @@ typedef int wt_cmp_t(const void *, const void *);
  *     Swap the contents of two arbitrary values of a given size.
  */
 static inline void
-__swap_bytes(uint8_t *a, uint8_t *b, size_t size)
+__swap_bytes(uint8_t *restrict a, uint8_t *restrict b, size_t size)
 {
     uint8_t tmp;
 
