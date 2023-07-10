@@ -15,13 +15,30 @@
 
 namespace {
 
-const uint8_t COMPOUND_MAGIC_B = 123;
-const uint64_t COMPOUND_MAGIC_C = 0xdeadbeefBAADF00D;
 struct compound_test_type {
+    static constexpr uint8_t COMPOUND_MAGIC_B = 123;
+    static constexpr uint64_t COMPOUND_MAGIC_C = 0xdeadbeefBAADF00D;
+
     int a;
     uint8_t b;
     uint64_t c;
+
+    compound_test_type()
+        : a(0)
+        , b(COMPOUND_MAGIC_B)
+        , c(COMPOUND_MAGIC_C)
+    {}
+
+    compound_test_type(int val)
+        : a(val)
+        , b(COMPOUND_MAGIC_B)
+        , c(COMPOUND_MAGIC_C)
+    {}
 };
+
+bool operator<(const compound_test_type &lhs, const compound_test_type &rhs) {
+    return lhs.a < rhs.a;
+}
 
 class random_generator {
     std::random_device rnd_device;
@@ -43,19 +60,11 @@ public:
         return rv;
     }
 
-    std::vector<struct compound_test_type>
+    std::vector<compound_test_type>
     make_compound_vector(size_t size)
     {
-        std::vector<struct compound_test_type> rv(size);
-        auto rnd = [this]() {
-            struct compound_test_type t;
-            t.a = this->dist(this->mersenne_engine);
-            t.b = COMPOUND_MAGIC_B;
-            t.c = COMPOUND_MAGIC_C;
-
-            return t;
-        };
-
+        std::vector<compound_test_type> rv(size);
+        auto rnd = [this]() { return compound_test_type(this->dist(this->mersenne_engine)); };
         std::generate(begin(rv), end(rv), rnd);
 
         return rv;
@@ -74,8 +83,8 @@ simple_cmp(const void *a, const void *b)
 int
 compound_cmp(const void *a, const void *b)
 {
-    auto lhs = *(static_cast<const struct compound_test_type *>(a));
-    auto rhs = *(static_cast<const struct compound_test_type *>(b));
+    auto lhs = *(static_cast<const compound_test_type *>(a));
+    auto rhs = *(static_cast<const compound_test_type *>(b));
 
     return lhs.a - rhs.a;
 }
@@ -121,15 +130,14 @@ TEST_CASE("Single element", "[qsort]")
 TEST_CASE("Compound type", "[qsort]")
 {
     random_generator rand_gen;
-    std::vector<struct compound_test_type> input{rand_gen.make_compound_vector(1000)};
+    std::vector<compound_test_type> input{rand_gen.make_compound_vector(1000)};
 
     __wt_qsort(&input[0], input.size(), sizeof(input[0]), compound_cmp);
 
+    CHECK(std::is_sorted(input.begin(), input.end()));
     for (int i = 0; i < 1000; i++) {
-        if (i != 0)
-            CHECK(input[i - 1].a <= input[i].a);
-        CHECK(input[i].b == COMPOUND_MAGIC_B);
-        CHECK(input[i].c == COMPOUND_MAGIC_C);
+        CHECK(input[i].b == compound_test_type::COMPOUND_MAGIC_B);
+        CHECK(input[i].c == compound_test_type::COMPOUND_MAGIC_C);
     }
 }
 
