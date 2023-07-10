@@ -1405,15 +1405,16 @@ config_run_length(void)
             config_single(NULL, "runs.timer=360", false);
     }
 
-    /* There are combinations that can cause out of disk space issues. Prevent that if possible.
-     * Due to CONFIG.stress, runs.timer is often considered explicit so override if absolutely
-     * needed.
+    /*
+     * There are combinations that can cause out of disk space issues and here we try to prevent
+     * those. CONFIG.stress causes runs.timer to be considered explicit which limits when we can
+     * override the run length to extreme cases.
      */
     if (GV(RUNS_TIMER) > 10 && GV(LOGGING) && !GV(LOGGING_REMOVE) && GV(BACKUP) &&
       GV(OPS_SALVAGE)) {
-        config_single(NULL, "runs.timer=10", true);
         WARN(
           "limiting runs.timer=%d as logging=1, backup=1, ops.salvage=1, and logging.remove=0", 10);
+        config_single(NULL, "runs.timer=10", true);
     }
 }
 
