@@ -115,7 +115,7 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
       *lowest_lt_median, *pseudomedian;
 
     WT_ASSERT(NULL, cmp != NULL);
-    if (nmemb < 2)
+    if (UNLIKELY(nmemb < 2))
         return;
 
     a = arr; /* Avoid arithmetic on void pointers. */
@@ -135,24 +135,25 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
 
         /* Take middle element as median for small arrays. */
         pseudomedian = a + (nmemb / 2) * elem_sz;
-        lo_pseudomedian = a;
-        hi_pseudomedian = a + (nmemb - 1) * elem_sz;
+        if (nmemb > WT_QSORT_INSERT_THRESHOLD) {
+            lo_pseudomedian = a;
+            hi_pseudomedian = a + (nmemb - 1) * elem_sz;
+            /*
+             * For larger arrays, do more work to find a good median - here, it's a "pseudo-median"
+             * of nine samples.
+             */
+            if (nmemb > WT_QSORT_LARGE_THRESHOLD) {
+                size_t median_dist = (nmemb / 8) * elem_sz;
 
-        /*
-         * For larger arrays, do more work to find a good median - here, it's a "pseudo-median" of
-         * nine samples.
-         */
-        if (nmemb > WT_QSORT_LARGE_THRESHOLD) {
-            size_t median_dist = (nmemb / 8) * elem_sz;
-
-            lo_pseudomedian = __med3(lo_pseudomedian, lo_pseudomedian + median_dist,
-              lo_pseudomedian + 2 * median_dist, cmp, context);
-            pseudomedian = __med3(
-              pseudomedian - median_dist, pseudomedian, pseudomedian + median_dist, cmp, context);
-            hi_pseudomedian = __med3(hi_pseudomedian - 2 * median_dist,
-              hi_pseudomedian - median_dist, hi_pseudomedian, cmp, context);
+                lo_pseudomedian = __med3(lo_pseudomedian, lo_pseudomedian + median_dist,
+                  lo_pseudomedian + 2 * median_dist, cmp, context);
+                pseudomedian = __med3(pseudomedian - median_dist, pseudomedian,
+                  pseudomedian + median_dist, cmp, context);
+                hi_pseudomedian = __med3(hi_pseudomedian - 2 * median_dist,
+                  hi_pseudomedian - median_dist, hi_pseudomedian, cmp, context);
+            }
+            pseudomedian = __med3(lo_pseudomedian, pseudomedian, hi_pseudomedian, cmp, context);
         }
-        pseudomedian = __med3(lo_pseudomedian, pseudomedian, hi_pseudomedian, cmp, context);
 
         __swap_bytes(a, pseudomedian, elem_sz);
         lowest_lt_median = lo_unknown = a + elem_sz;
@@ -178,6 +179,7 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
 
             if (lo_unknown > hi_unknown)
                 break;
+
             __swap_bytes(lo_unknown, hi_unknown, elem_sz);
             swapped = true;
             lo_unknown += elem_sz;
@@ -206,7 +208,7 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
           WT_MIN((size_t)(lowest_lt_median - a), (size_t)(lo_unknown - lowest_lt_median));
         __swap_bytes(a, lo_unknown - lhs_unsorted, lhs_unsorted);
         lhs_unsorted = WT_MIN((size_t)(highest_gt_median - hi_unknown),
-          (size_t)(hi_pseudomedian - (highest_gt_median - elem_sz)));
+          (size_t)(hi_pseudomedian - highest_gt_median) - elem_sz);
         __swap_bytes(lo_unknown, hi_pseudomedian - lhs_unsorted, lhs_unsorted);
 
         lhs_unsorted = (size_t)(lo_unknown - lowest_lt_median);
@@ -219,6 +221,7 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
             if (rhs_unsorted > elem_sz) {
                 a = hi_pseudomedian - rhs_unsorted;
                 nmemb = rhs_unsorted / elem_sz;
+                continue;
             } else
                 break;
         } else {
@@ -227,9 +230,10 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
                 __qsort(
                   hi_pseudomedian - rhs_unsorted, rhs_unsorted / elem_sz, elem_sz, cmp, context);
 
-            if (lhs_unsorted > elem_sz)
+            if (lhs_unsorted > elem_sz) {
                 nmemb = lhs_unsorted / elem_sz;
-            else
+                continue;
+            } else
                 break;
         }
     }
