@@ -114,7 +114,9 @@ __tiered_push_new_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     /*
      * Bump the in use count lock on the dhandle, this is kept until the work unit is freed. This
-     * prevents an otherwise idle dhandle from being swept and freed.
+     * prevents an otherwise idle dhandle from being swept and freed. We do not need to hold the
+     * dhandle list lock here because our session currently holds a reference to the tiered entry
+     * when pushing this work and the handle cannot be swept out from under us.
      */
     WT_DHANDLE_ACQUIRE((WT_DATA_HANDLE *)&entry->tiered->iface);
     __tiered_push_work_internal(session, entry);
