@@ -21,3 +21,5 @@ wiredtiger_unpack_start
 wiredtiger_unpack_str
 wiredtiger_unpack_uint
 wiredtiger_version
+# MSan instrumentation that appears when -fsanitize-memory-track-origins is used.
+__msan_track_origins
