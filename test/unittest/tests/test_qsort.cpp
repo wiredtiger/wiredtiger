@@ -23,20 +23,14 @@ struct compound_test_type {
     uint8_t b;
     uint64_t c;
 
-    compound_test_type()
-        : a(0)
-        , b(COMPOUND_MAGIC_B)
-        , c(COMPOUND_MAGIC_C)
-    {}
+    compound_test_type() : a(0), b(COMPOUND_MAGIC_B), c(COMPOUND_MAGIC_C) {}
 
-    compound_test_type(int val)
-        : a(val)
-        , b(COMPOUND_MAGIC_B)
-        , c(COMPOUND_MAGIC_C)
-    {}
+    compound_test_type(int val) : a(val), b(COMPOUND_MAGIC_B), c(COMPOUND_MAGIC_C) {}
 };
 
-bool operator<(const compound_test_type &lhs, const compound_test_type &rhs) {
+bool
+operator<(const compound_test_type &lhs, const compound_test_type &rhs)
+{
     return lhs.a < rhs.a;
 }
 

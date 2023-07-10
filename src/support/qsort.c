@@ -49,7 +49,7 @@ typedef int wt_cmp_t(const void *, const void *);
  *     Swap the contents of two arbitrary values of a given size.
  */
 static inline void
-__swap_bytes(uint8_t *restrict a, uint8_t *restrict b, size_t size)
+__swap_bytes(uint8_t *a, uint8_t *b, size_t size)
 {
     uint8_t tmp;
 
@@ -93,9 +93,10 @@ static void
 __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
 {
     /*
-     * This is originally from "Engineering a Sort Function", by Jon L. Bentley and Douglas
-     * M. McIlroy ("Software - Practice and Experience, Vol. 23(11)", November 1993). It's been
-     * massaged into a form suitable for WiredTiger, initially by Luke Pearson.
+     * This is very similar to the version in FreeBSD, which itself is originally from "Engineering
+     * a Sort Function", by Jon L. Bentley and Douglas M. McIlroy ("Software - Practice and
+     * Experience, Vol. 23(11)", November 1993). From there it was massaged into a form suitable for
+     * WiredTiger.
      *
      * It's not simple, so some description of where all these variables point is in order:
      * -----------------------------------------------
