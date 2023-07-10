@@ -180,7 +180,7 @@ SoftwareCodecDeflate::doCompressData(
     job_ptr->flags = QPL_FLAG_FIRST | QPL_FLAG_DYNAMIC_HUFFMAN | QPL_FLAG_GZIP_MODE |
       QPL_FLAG_LAST | QPL_FLAG_OMIT_VERIFY;
 
-    // Device IO TLB miss has big perf impact for accelerators, so we need to avoid page fault on buffers related to accelerator.
+    // Touch dest buffer in advance to avoid page fault on it triggered by accelerator.
     for(uint32_t p = 0; p < dest_size; p += 4096)
         dest[p] = 0;
 
@@ -208,7 +208,7 @@ SoftwareCodecDeflate::doDecompressData(
     job_ptr->available_out = uncompressed_size;
     job_ptr->flags = QPL_FLAG_FIRST | QPL_FLAG_GZIP_MODE | QPL_FLAG_LAST;
 
-    // Device IO TLB miss has big perf impact for accelerators, so we need to avoid page fault on buffers related to accelerator.
+    // Touch dest buffer in advance to avoid page fault on it triggered by accelerator.
     for(uint32_t p = 0; p < uncompressed_size; p += 4096)
         dest[p] = 0;
 
