@@ -503,27 +503,6 @@ config_run(void)
 
     /* Adjust run length if needed. */
     config_run_length();
-    /*
-     * Run-length is configured by a number of operations and a timer.
-     *
-     * If the operation count and the timer are both configured, do nothing. If only the timer is
-     * configured, clear the operations count. If only the operation count is configured, limit the
-     * run to 6 hours. If neither is configured, leave the operations count alone and limit the run
-     * to 30 minutes.
-     *
-     * In other words, if we rolled the dice on everything, do a short run. If we chose a number of
-     * operations but the rest of the configuration means operations take a long time to complete
-     * (for example, a small cache and many worker threads), don't let it run forever.
-     */
-    if (config_explicit(NULL, "runs.timer")) {
-        if (!config_explicit(NULL, "runs.ops"))
-            config_single(NULL, "runs.ops=0", false);
-    } else {
-        if (!config_explicit(NULL, "runs.ops"))
-            config_single(NULL, "runs.timer=30", false);
-        else
-            config_single(NULL, "runs.timer=360", false);
-    }
 
     config_random_generators_before_run();
 }
