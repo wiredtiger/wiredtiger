@@ -7,6 +7,7 @@
  */
 
 #include <algorithm>
+#include <list>
 #include <vector>
 
 #include <catch2/catch.hpp>
@@ -139,13 +140,17 @@ TEST_CASE("Check contents", "[qsort]")
 {
     random_generator rand_gen;
     std::vector<int> input{rand_gen.make_vector(10000)};
-    std::vector<int> input_copy{input};
+    std::list<int> input_copy(input.begin(), input.end());
 
     __wt_qsort(&input[0], input.size(), sizeof(input[0]), simple_cmp);
 
     CHECK(std::is_sorted(input.begin(), input.end()));
-    for (int i = 0; i < 10000; i++)
-        CHECK(std::find(input_copy.begin(), input_copy.end(), input[i]) != input_copy.end());
+
+    for (int i = 0; i < 10000; i++) {
+        auto match = std::find(input_copy.begin(), input_copy.end(), input[i]);
+        CHECK(match != input_copy.end());
+        input_copy.erase(match);
+    }
 }
 
 TEST_CASE("Test context argument for comparator", "[qsort]")
