@@ -152,8 +152,8 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
-        __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE, "freeing pointer=%p off=%lu, size=%lu, "
-                           "hash.name=%s, hash.objectid=%u, hash.offset=%lu",
+        __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE, "freeing pointer=%p off=%ld, size=%lu, "
+                           "hash.name=%s, hash.objectid=%u, hash.offset=%ld",
                            (void *)(chunk->chunk_memory), chunk->chunk_offset, chunk->chunk_size,
                            chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->hash_id.offset);
         __wt_free(session, chunk->chunk_memory);
@@ -357,8 +357,8 @@ retry:
                  */
                 chunk->access_count++;
 
-                __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE, "get(): pointer=%p, off=%lu, size=%lu, "
-                                   "hash.name=%s, hash.objectid=%u, hash.offset=%lu",
+                __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE, "get(): pointer=%p, off=%ld, size=%lu, "
+                                   "hash.name=%s, hash.objectid=%u, hash.offset=%ld",
                                    (void *)(chunk->chunk_memory), chunk->chunk_offset, chunk->chunk_size,
                                    chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->hash_id.offset);
 
