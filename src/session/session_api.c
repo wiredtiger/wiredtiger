@@ -235,7 +235,7 @@ __session_clear(WT_SESSION_IMPL *session)
      */
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
-    session->hazard_inuse = 0;
+    WT_C_MEMMODEL_ATOMIC_STORE(&session->hazard_inuse, 0, WT_ATOMIC_SEQ_CST);
     session->nhazard = 0;
 }
 
@@ -2494,6 +2494,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
+    WT_HAZARD *hazard;
     uint32_t i, session_cnt;
 
     *sessionp = NULL;
@@ -2548,7 +2549,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * problem because sessions are long-lived and will diverge into different parts of the value
      * space, and what we care about are small values, that is, the low-order bits.
      */
-    if (WT_SESSION_FIRST_USE(session_ret))
+    WT_C_MEMMODEL_ATOMIC_LOAD(hazard, &session_ret->hazard, WT_ATOMIC_RELAXED);
+    if (WT_SESSION_FIRST_USE(hazard))
         __wt_random_init(&session_ret->rnd);
 
     __wt_event_handler_set(
@@ -2583,10 +2585,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * The session's hazard pointer memory isn't discarded during normal session close because
      * access to it isn't serialized. Allocate the first time we open this session.
      */
-    if (WT_SESSION_FIRST_USE(session_ret)) {
+    if (WT_SESSION_FIRST_USE(hazard)) {
         WT_ERR(__wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazard));
         session_ret->hazard_size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        session_ret->hazard_inuse = 0;
+        WT_C_MEMMODEL_ATOMIC_STORE(&session_ret->hazard_inuse, 0, WT_ATOMIC_SEQ_CST);
         session_ret->nhazard = 0;
     }
 

@@ -29,21 +29,21 @@ hazard_grow(WT_SESSION_IMPL *session)
      */
     size = session->hazard_size;
     WT_RET(__wt_calloc_def(session, size * 2, &nhazard));
-    memcpy(nhazard, session->hazard, size * sizeof(WT_HAZARD));
+    WT_C_MEMMODEL_ATOMIC_LOAD(ohazard, &session->hazard, WT_ATOMIC_RELAXED);
+    memcpy(nhazard, ohazard, size * sizeof(WT_HAZARD));
 
     /*
      * Swap the new hazard pointer array into place after initialization is complete (initialization
      * must complete before eviction can see the new hazard pointer array), then schedule the
      * original to be freed.
      */
-    ohazard = session->hazard;
-    WT_PUBLISH(session->hazard, nhazard);
+    WT_C_MEMMODEL_ATOMIC_STORE(&session->hazard, nhazard, WT_ATOMIC_SEQ_CST);
 
     /*
      * Increase the size of the session's pointer array after swapping it into place (the session's
      * reference must be updated before eviction can see the new size).
      */
-    WT_PUBLISH(session->hazard_size, (uint32_t)(size * 2));
+    session->hazard_size = (uint32_t)(size * 2);
 
     /*
      * Threads using the hazard pointer array from now on will use the new one. Increment the hazard
@@ -68,10 +68,13 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 #endif
 )
 {
-    WT_HAZARD *hp;
+    WT_HAZARD *hp, *head;
+    WT_REF *tmp;
+    uint32_t hazard_inuse;
     uint8_t current_state;
 
     *busyp = false;
+    tmp = NULL;
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
@@ -88,25 +91,23 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     }
 
     /* If we have filled the current hazard pointer array, grow it. */
+    WT_C_MEMMODEL_ATOMIC_LOAD(hazard_inuse, &session->hazard_inuse, WT_ATOMIC_RELAXED);
     if (session->nhazard >= session->hazard_size) {
         WT_ASSERT(session,
-          session->nhazard == session->hazard_size &&
-            session->hazard_inuse == session->hazard_size);
+          session->nhazard == session->hazard_size && hazard_inuse == session->hazard_size);
         WT_RET(hazard_grow(session));
     }
 
     /*
      * If there are no available hazard pointer slots, make another one visible.
      */
-    if (session->nhazard >= session->hazard_inuse) {
-        WT_ASSERT(session,
-          session->nhazard == session->hazard_inuse &&
-            session->hazard_inuse < session->hazard_size);
-        hp = &session->hazard[session->hazard_inuse++];
+    WT_C_MEMMODEL_ATOMIC_LOAD(head, &session->hazard, WT_ATOMIC_RELAXED);
+    if (session->nhazard >= hazard_inuse) {
+        WT_ASSERT(session, session->nhazard == hazard_inuse && hazard_inuse < session->hazard_size);
+        hp = &head[hazard_inuse];
+        WT_C_MEMMODEL_ATOMIC_STORE(&session->hazard_inuse, ++hazard_inuse, WT_ATOMIC_SEQ_CST);
     } else {
-        WT_ASSERT(session,
-          session->nhazard < session->hazard_inuse &&
-            session->hazard_inuse <= session->hazard_size);
+        WT_ASSERT(session, session->nhazard < hazard_inuse && hazard_inuse <= session->hazard_size);
 
         /*
          * There must be an empty slot in the array, find it. Skip most of the active slots by
@@ -114,15 +115,16 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
          * is expensive. If we reach the end of the array, continue the search from the beginning of
          * the array.
          */
-        for (hp = session->hazard + session->nhazard;; ++hp) {
-            if (hp >= session->hazard + session->hazard_inuse)
-                hp = session->hazard;
-            if (hp->ref == NULL)
+        for (hp = head + session->nhazard;; ++hp) {
+            if (hp >= head + hazard_inuse)
+                hp = head;
+            WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
+            if (tmp == NULL)
                 break;
         }
     }
 
-    WT_ASSERT(session, hp->ref == NULL);
+    WT_ASSERT(session, tmp == NULL);
 
     /*
      * Do the dance:
@@ -135,13 +137,11 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      * see our hazard pointer before it discards the page (the eviction server sets the state to
      * WT_REF_LOCKED, then flushes memory and checks the hazard pointers).
      */
-    hp->ref = ref;
 #ifdef HAVE_DIAGNOSTIC
     hp->func = func;
     hp->line = line;
 #endif
-    /* Publish the hazard pointer before reading page's state. */
-    WT_FULL_BARRIER();
+    WT_C_MEMMODEL_ATOMIC_STORE(&hp->ref, ref, WT_ATOMIC_SEQ_CST);
 
     /*
      * Check if the page state is still valid, where valid means a state of WT_REF_MEM.
@@ -149,12 +149,6 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     current_state = ref->state;
     if (current_state == WT_REF_MEM) {
         ++session->nhazard;
-
-        /*
-         * Callers require a barrier here so operations holding the hazard pointer see consistent
-         * data.
-         */
-        WT_READ_BARRIER();
         return (0);
     }
 
@@ -167,7 +161,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      * We don't bother publishing this update: the worst case is we prevent some random page from
      * being evicted.
      */
-    hp->ref = NULL;
+    WT_C_MEMMODEL_ATOMIC_STORE(&hp->ref, NULL, WT_ATOMIC_SEQ_CST);
     *busyp = true;
     return (0);
 }
@@ -179,7 +173,9 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 int
 __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_HAZARD *hp;
+    WT_HAZARD *hp, *head;
+    WT_REF *tmp;
+    uint32_t hazard_inuse;
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
@@ -188,14 +184,21 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Clear the caller's hazard pointer. The common pattern is LIFO, so do a reverse search.
      */
-    for (hp = session->hazard + session->hazard_inuse - 1; hp >= session->hazard; --hp)
-        if (hp->ref == ref) {
+    /* Relaxed is enough here as hazard pointer is always set and cleared by the same session in the
+     * same thread. */
+    WT_C_MEMMODEL_ATOMIC_LOAD(head, &session->hazard, WT_ATOMIC_RELAXED);
+    WT_C_MEMMODEL_ATOMIC_LOAD(hazard_inuse, &session->hazard_inuse, WT_ATOMIC_RELAXED);
+    for (hp = head + hazard_inuse - 1; hp >= head; --hp) {
+        /* Relaxed is enough here as hazard pointer is always set and cleared by the same session in
+         * the same thread. */
+        WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
+        if (tmp == ref) {
             /*
              * We don't publish the hazard pointer clear in the general case. It's not required for
              * correctness; it gives an eviction thread faster access to the page were the page
              * selected for eviction.
              */
-            hp->ref = NULL;
+            WT_C_MEMMODEL_ATOMIC_STORE(&hp->ref, NULL, WT_ATOMIC_SEQ_CST);
 
             /*
              * If this was the last hazard pointer in the session, reset the size so that checks can
@@ -205,9 +208,10 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
              * active references can never be less than the number of in-use slots.
              */
             if (--session->nhazard == 0)
-                WT_PUBLISH(session->hazard_inuse, 0);
+                WT_C_MEMMODEL_ATOMIC_STORE(&session->hazard_inuse, 0, WT_ATOMIC_SEQ_CST);
             return (0);
         }
+    }
 
     /*
      * A serious error, we should always find the hazard pointer. Panic, because using a page we
@@ -224,18 +228,25 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 void
 __wt_hazard_close(WT_SESSION_IMPL *session)
 {
-    WT_HAZARD *hp;
+    WT_HAZARD *hp, *head;
+    WT_REF *tmp;
+    uint32_t hazard_inuse;
     bool found;
 
     /*
      * Check for a set hazard pointer and complain if we find one. We could just check the session's
      * hazard pointer count, but this is a useful diagnostic.
      */
-    for (found = false, hp = session->hazard; hp < session->hazard + session->hazard_inuse; ++hp)
-        if (hp->ref != NULL) {
+    /* Relaxed is enough here as it is called only in session close, which is thread local. */
+    WT_C_MEMMODEL_ATOMIC_LOAD(head, &session->hazard, WT_ATOMIC_RELAXED);
+    WT_C_MEMMODEL_ATOMIC_LOAD(hazard_inuse, &session->hazard_inuse, WT_ATOMIC_RELAXED);
+    for (found = false, hp = head; hp < head + hazard_inuse; ++hp) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
+        if (tmp != NULL) {
             found = true;
             break;
         }
+    }
     if (session->nhazard == 0 && !found)
         return;
 
@@ -254,11 +265,13 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
      * We don't panic: this shouldn't be a correctness issue (at least, I can't think of a reason it
      * would be).
      */
-    for (hp = session->hazard; hp < session->hazard + session->hazard_inuse; ++hp)
-        if (hp->ref != NULL) {
-            hp->ref = NULL;
+    for (hp = head; hp < head + hazard_inuse; ++hp) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
+        if (tmp != NULL) {
+            WT_C_MEMMODEL_ATOMIC_STORE(&hp->ref, NULL, WT_ATOMIC_SEQ_CST);
             --session->nhazard;
         }
+    }
 
     if (session->nhazard != 0)
         __wt_errx(session, "session %p: close hazard pointer table: count didn't match entries",
@@ -281,8 +294,8 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
      * Use a barrier instead of marking the fields volatile because we don't want to slow down the
      * rest of the hazard pointer functions that don't need special treatment.
      */
-    WT_ORDERED_READ(*hazard_inusep, session->hazard_inuse);
-    WT_ORDERED_READ(*hazardp, session->hazard);
+    WT_C_MEMMODEL_ATOMIC_LOAD(*hazard_inusep, &session->hazard_inuse, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(*hazardp, &session->hazard, WT_ATOMIC_SEQ_CST);
 }
 
 /*
@@ -294,6 +307,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
 {
     WT_CONNECTION_IMPL *conn;
     WT_HAZARD *hp;
+    WT_REF *tmp;
     WT_SESSION_IMPL *s;
     uint32_t i, j, hazard_inuse, max, session_cnt, walk_cnt;
 
@@ -332,7 +346,8 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
 
         for (j = 0; j < hazard_inuse; ++hp, ++j) {
             ++walk_cnt;
-            if (hp->ref == ref) {
+            WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_SEQ_CST);
+            if (tmp == ref) {
                 WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
                 if (sessionp != NULL)
                     *sessionp = s;
@@ -358,14 +373,18 @@ u_int
 __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_HAZARD *hp;
+    WT_REF *tmp;
     uint32_t i, hazard_inuse;
     u_int count;
 
     hazard_get_reference(session, &hp, &hazard_inuse);
 
-    for (count = 0, i = 0; i < hazard_inuse; ++hp, ++i)
-        if (hp->ref == ref)
+    for (count = 0, i = 0; i < hazard_inuse; ++hp, ++i) {
+        /* This function is only called by the thread runs the same session. */
+        WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
+        if (tmp == ref)
             ++count;
+    }
 
     return (count);
 }
@@ -378,6 +397,7 @@ bool
 __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 {
     WT_HAZARD *hp;
+    WT_REF *tmp;
     WT_SESSION_IMPL *s;
     int i;
 
@@ -389,6 +409,9 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
             break;
         __wt_sleep(0, 10 * WT_THOUSAND);
     }
+
+    /* We have read the hazard pointer with sequential consistency before. */
+    WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
 #ifdef HAVE_DIAGNOSTIC
     /*
      * In diagnostic mode we also track the file and line where the hazard pointer is set. If this
@@ -396,10 +419,10 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
      */
     __wt_errx(session,
       "hazard pointer reference to discarded object: (%p: session %p name %s: %s, line %d)",
-      (void *)hp->ref, (void *)s, s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
+      (void *)tmp, (void *)s, s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
 #else
     __wt_errx(session, "hazard pointer reference to discarded object: (%p: session %p name %s)",
-      (void *)hp->ref, (void *)s, s->name == NULL ? "UNKNOWN" : s->name);
+      (void *)tmp, (void *)s, s->name == NULL ? "UNKNOWN" : s->name);
 #endif
     return (false);
 }
@@ -412,11 +435,18 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 static void
 __hazard_dump(WT_SESSION_IMPL *session)
 {
-    WT_HAZARD *hp;
+    WT_HAZARD *hp, *head;
+    WT_REF *tmp;
+    uint32_t hazard_inuse;
 
-    for (hp = session->hazard; hp < session->hazard + session->hazard_inuse; ++hp)
-        if (hp->ref != NULL)
+    /* This is only called in close so relaxed enough.*/
+    WT_C_MEMMODEL_ATOMIC_LOAD(head, &session->hazard, WT_ATOMIC_RELAXED);
+    WT_C_MEMMODEL_ATOMIC_LOAD(hazard_inuse, &session->hazard_inuse, WT_ATOMIC_RELAXED);
+    for (hp = head; hp < head + hazard_inuse; ++hp) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
+        if (tmp != NULL)
             __wt_errx(session, "session %p: hazard pointer %p: %s, line %d", (void *)session,
-              (void *)hp->ref, hp->func, hp->line);
+              (void *)tmp, hp->func, hp->line);
+    }
 }
 #endif

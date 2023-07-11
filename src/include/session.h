@@ -23,7 +23,7 @@ struct __wt_data_handle_cache {
  *	A hazard pointer.
  */
 struct __wt_hazard {
-    WT_REF *ref; /* Page reference */
+    WT_ATOMIC_TYPE(WT_REF *) ref; /* Page reference */
 #ifdef HAVE_DIAGNOSTIC
     const char *func; /* Function/line hazard acquired */
     int line;
@@ -325,16 +325,16 @@ struct __wt_session_impl {
  * Use the non-NULL state of the hazard field to know if the session has previously been
  * initialized.
  */
-#define WT_SESSION_FIRST_USE(s) ((s)->hazard == NULL)
+#define WT_SESSION_FIRST_USE(hazard) (hazard == NULL)
 
 /*
  * The hazard pointer array grows as necessary, initialize with 250 slots.
  */
 #define WT_SESSION_INITIAL_HAZARD_SLOTS 250
-    uint32_t hazard_size;  /* Hazard pointer array slots */
-    uint32_t hazard_inuse; /* Hazard pointer array slots in-use */
-    uint32_t nhazard;      /* Count of active hazard pointers */
-    WT_HAZARD *hazard;     /* Hazard pointer array */
+    uint32_t hazard_size;                  /* Hazard pointer array slots */
+    WT_ATOMIC_TYPE(uint32_t) hazard_inuse; /* Hazard pointer array slots in-use */
+    uint32_t nhazard;                      /* Count of active hazard pointers */
+    WT_ATOMIC_TYPE(WT_HAZARD *) hazard;    /* Hazard pointer array */
 
     /*
      * Operation tracking.
