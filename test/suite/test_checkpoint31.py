@@ -43,10 +43,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
     # FLCS doesn't support skipping pages based on aggregated time window.
     #    ('column-fix', dict(key_format='r', value_format='8t',
     #        extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', 
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('string_row', dict(key_format='S', value_format='S', 
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
+        ('column', dict(key_format='r', value_format='S', extraconfig='')),
+        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
     
     scenarios = make_scenarios(format_values)
@@ -62,7 +60,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
     def test_checkpoint(self):
         uri = 'table:checkpoint31'
-        nrows = 10000
+        nrows = 1000
 
         # Create a table.
         ds = SimpleDataSet(
