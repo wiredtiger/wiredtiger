@@ -2281,7 +2281,6 @@ __wt_btcur_skip_inmem_reconcile_page(WT_SESSION_IMPL *session, WT_REF *ref, bool
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
     uint32_t i;
-    bool do_visibility_check;
 
     *skipp = false;
 
@@ -2299,7 +2298,6 @@ __wt_btcur_skip_inmem_reconcile_page(WT_SESSION_IMPL *session, WT_REF *ref, bool
      * otherwise we'd never mark anything as obsolete.
      */
     WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
-    do_visibility_check = false;
     mod = ref->page->modify;
     if (mod->rec_result == WT_PM_REC_EMPTY)
         *skipp = true;
@@ -2307,15 +2305,12 @@ __wt_btcur_skip_inmem_reconcile_page(WT_SESSION_IMPL *session, WT_REF *ref, bool
         /* Calculate the max stop time point by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &multi->addr.ta);
-        do_visibility_check = true;
-    } else if (mod->rec_result == WT_PM_REC_REPLACE) {
+    } else if (mod->rec_result == WT_PM_REC_REPLACE)
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &mod->mod_replace.ta);
-        do_visibility_check = true;
-    }
 
     WT_PAGE_UNLOCK(session, ref->page);
 
-    if (do_visibility_check)
+    if (!(*skipp) && WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
         *skipp = __wt_txn_snap_min_visible(session, newest_ta.newest_stop_txn,
           newest_ta.newest_stop_ts, newest_ta.newest_stop_durable_ts);
 
@@ -2403,7 +2398,7 @@ __wt_btcur_skip_page(
          * Otherwise, check the timestamp information. We base this decision on the aggregate stop
          * point added to the page during the last reconciliation.
          */
-        if (addr.ta.newest_stop_txn != WT_TXN_MAX && addr.ta.newest_stop_ts != WT_TS_MAX &&
+        if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
