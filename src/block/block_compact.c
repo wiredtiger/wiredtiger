@@ -553,6 +553,8 @@ __wt_block_compact_page_rewrite(
     uint8_t *endp;
     bool discard_block;
 
+    __wt_verbose_debug2(session, WT_VERB_BLOCK, "compacting %s", block->name);
+
     *skipp = true;  /* Return a default skip. */
     new_offset = 0; /* -Werror=maybe-uninitialized */
 

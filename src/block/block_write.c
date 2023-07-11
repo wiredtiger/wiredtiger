@@ -230,6 +230,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
     fh = block->fh;
     objectid = block->objectid;
 
+    __wt_verbose_debug2(session, WT_VERB_BLOCK, "writing %s", block->name);
     /* Buffers should be aligned for writing. */
     if (!F_ISSET(buf, WT_ITEM_ALIGNED)) {
         WT_ASSERT(session, F_ISSET(buf, WT_ITEM_ALIGNED));
@@ -326,6 +327,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
     blk->checksum = __wt_bswap32(blk->checksum);
 #endif
 
+    __wt_chunkcache_dbg_remove(session, block->name);
     /* Write the block. */
     if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
         if (!caller_locked)

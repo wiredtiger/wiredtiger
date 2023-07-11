@@ -296,6 +296,8 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
 
+    __wt_verbose_debug2(session, WT_VERB_BLOCK, "desc_write %s", fh->name);
+
     /* If in-memory, we don't read or write the descriptor structure. */
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         return (0);

@@ -312,6 +312,7 @@ retry:
                 }
                 /* Found the needed chunk. */
                 chunk_cached = true;
+                __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s (offset=%" PRId64 ", size=%u) was cached", block->name, offset, size);
                 WT_ASSERT(session,
                   WT_BLOCK_OVERLAPS_CHUNK(chunk->chunk_offset, offset + (wt_off_t)already_read,
                     chunk->chunk_size, remains_to_read));
@@ -344,6 +345,7 @@ retry:
         }
         /* The chunk is not cached. Allocate space for it. Prepare for reading it from storage. */
         if (!chunk_cached) {
+            __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s (offset=%" PRId64 ", size=%u) not cached", block->name, offset, size);
             WT_STAT_CONN_INCR(session, chunk_cache_misses);
             if ((ret = __chunkcache_alloc_chunk(
                    session, offset + (wt_off_t)already_read, block, &hash_id, &chunk)) != 0) {
@@ -453,6 +455,36 @@ __wt_chunkcache_remove(
 
         if (remains_to_remove > 0)
             WT_STAT_CONN_INCR(session, chunk_cache_spans_chunks_remove);
+    }
+}
+
+void
+__wt_chunkcache_dbg_remove(
+  WT_SESSION_IMPL *session, const char *name)
+{
+    int i;
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
+
+    chunkcache = &S2C(session)->chunkcache;
+    if (chunkcache->chunkcache_exiting)
+        return;
+
+    for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
+        __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
+        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+        {
+            while (!chunk->valid);
+            if (strcmp(name, chunk->hash_id.objectname) == 0) {
+                TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, i), chunk, next_chunk);
+                __chunkcache_free_chunk(session, chunk);
+                __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE,
+                             "dbg evicted chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
+                             (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                             chunk->chunk_offset, (uint64_t)chunk->chunk_size);
+            }
+        }
+        __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
     }
 }
 

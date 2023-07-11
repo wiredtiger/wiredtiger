@@ -1296,6 +1296,8 @@ __wt_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIS
     WT_EXT *ext, **astack[WT_SKIP_MAXDEPTH];
     wt_off_t size;
 
+    __wt_chunkcache_dbg_remove(session, block->name);
+
     /*
      * Check if the last available extent is at the end of the file, and if so, truncate the file
      * and discard the extent.
