@@ -474,6 +474,8 @@ __block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off
     if (block->size < block->allocsize)
         WT_RET_MSG(session, EINVAL, "file has no description information");
 
+    __wt_chunkcache_dbg_remove(session, block->name);
+
     /*
      * Make sure we don't allocate past the maximum file size.  There's no
      * easy way to know the maximum wt_off_t on a system, limit growth to
@@ -1023,6 +1025,8 @@ __block_merge(
 {
     WT_EXT *ext, *after, *before;
 
+    __wt_chunkcache_dbg_remove(session, block->name);
+
     /*
      * Retrieve the records preceding/following the offset. If the records are contiguous with the
      * free'd offset, combine records.
@@ -1066,7 +1070,7 @@ __block_merge(
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
         __wt_verbose_debug2(session, WT_VERB_BLOCK,
-          "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
+          "%s,%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name, block->name,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)off,
           (intmax_t)(off + ext->size + size));
 
@@ -1080,7 +1084,7 @@ __block_merge(
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
         __wt_verbose_debug2(session, WT_VERB_BLOCK,
-          "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
+          "%s,%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name, block->name,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)ext->off,
           (intmax_t)(ext->off + ext->size + size));
 

@@ -46,6 +46,7 @@ struct __wt_chunkcache_bucket {
     /* This queue contains all chunks that mapped to this bucket. */
     TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chunk) colliding_chunks;
     WT_SPINLOCK bucket_lock;
+    uint64_t op_count;
 };
 
 /*
@@ -60,6 +61,7 @@ struct __wt_chunkcache {
 #ifdef ENABLE_MEMKIND
     struct memkind *memkind; /* Lets us use jemalloc over a file. */
 #endif
+    WT_SPINLOCK chunkcache_lock;
     uint64_t bytes_used; /* amount of data currently in cache */
     uint64_t capacity;   /* maximum allowed capacity */
     bool chunkcache_exiting;

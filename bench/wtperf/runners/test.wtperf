@@ -1,0 +1,5 @@
+conn_config="cache_size=50MB,eviction=(threads_max=8),chunk_cache=[enabled=true,chunk_size=100MB]"
+table_count=5
+icount=5000
+threads=((count=10,reads=1),(count=10,updates=1))
+run_time=120
