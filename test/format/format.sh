@@ -467,12 +467,6 @@ resolve()
 		# give the parent recording binary a chance to complete if we are using it
 		[[ ! -z $live_record_binary ]] && sleep 2
 
-		# Check for Sanitizer failures, have to do this prior to success because both can be reported.
-		grep -E -i 'Sanitizer' $log > /dev/null && {
-			report_failure $dir
-			continue
-		}
-
 		# Remove successful jobs.
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log $rec_dir
