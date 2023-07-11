@@ -517,7 +517,7 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[], bool
     if (cfg == NULL)
         return (0);
 
-    /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
+    /* Retrieve the maximum operation time. */
     WT_RET(__wt_config_gets_def(session, cfg, "operation_timeout_ms", 0, &cval));
 
     /*
@@ -1129,6 +1129,10 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     /* Resolve the prepared update to be a committed update. */
     __txn_resolve_prepared_update(session, upd);
+
+    /* Sleep for 100ms in the prepared resolution path if configured. */
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
+        __wt_sleep(0, 100000);
     WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
 }
 
@@ -1427,32 +1431,31 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         WT_ERR(__txn_fixup_hs_update(session, hs_cursor));
 
 prepare_verify:
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED)) {
+    /*
+     * If we are committing a prepared transaction we can check that we resolved the whole update
+     * chain. As long as we don't walk past a globally visible update we are guaranteed that the
+     * update chain won't be freed concurrently. In the commit case prepared updates cannot become
+     * globally visible before we finish resolving them, this is an implicit contract within
+     * WiredTiger.
+     *
+     * In the rollback case the updates are changed to aborted and in theory a newer update could be
+     * added to the chain concurrently and become globally visible. Thus our updates could be freed.
+     * We don't walk the chain in rollback for that reason.
+     */
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) && commit) {
         for (; head_upd != NULL; head_upd = head_upd->next) {
             /*
-             * Assert if we still have an update from the current transaction that hasn't been
-             * resolved or aborted.
+             * Ignore aborted updates. We could have them in the middle of the relevant update
+             * chain, as a result of the cursor reserve API.
              */
-            WT_ASSERT_ALWAYS(session,
-              head_upd->txnid == WT_TXN_ABORTED || head_upd->prepare_state == WT_PREPARE_RESOLVED ||
-                head_upd->txnid != txn->id,
-              "Failed to resolve all updates associated with a prepared transaction");
-
             if (head_upd->txnid == WT_TXN_ABORTED)
                 continue;
-
-            /*
-             * If we restored an update from the history store, it should be the last update on the
-             * chain.
-             */
-            if (!commit && resolve_case == RESOLVE_PREPARE_ON_DISK &&
-              head_upd->type == WT_UPDATE_STANDARD && F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
-                WT_ASSERT_ALWAYS(session, head_upd->next == NULL,
-                  "Rolling back a prepared transaction resulted in an invalid update chain");
-
-            /* We have traversed all the non-obsolete updates. */
-            if (WT_UPDATE_DATA_VALUE(head_upd) && __wt_txn_upd_visible_all(session, head_upd))
+            /* Exit once we have visited all updates from the current transaction. */
+            if (head_upd->txnid != txn->id)
                 break;
+            /* Any update we find should be resolved. */
+            WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
+              "A prepared update wasn't resolved when it should be");
         }
     }
 
@@ -1497,6 +1500,7 @@ __txn_mod_compare(const void *a, const void *b)
 int
 __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -1514,6 +1518,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
 
     conn = S2C(session);
+    cache = conn->cache;
     cursor = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
@@ -1651,7 +1656,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * transaction timestamp. Those records should already have the original time window
                  * when they are inserted into the history store.
                  */
-                if (conn->cache->hs_fileid != 0 && op->btree->id == conn->cache->hs_fileid)
+                if (cache->hs_fileid != 0 && op->btree->id == cache->hs_fileid)
                     break;
 
                 __wt_txn_op_set_timestamp(session, op);
@@ -1672,7 +1677,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * the total mod_count.
                  */
                 if ((i * 36) % txn->mod_count == 0)
-                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION, NULL);
+                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1);
 
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;

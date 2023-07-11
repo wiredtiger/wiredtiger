@@ -777,11 +777,7 @@ connection_runtime_config = [
             type='boolean')
         ]),
     Config('operation_timeout_ms', '0', r'''
-        if non-zero, a requested limit on the number of elapsed real time milliseconds
-        application threads will take to complete database operations. Time is measured from the
-        start of each WiredTiger API call. There is no guarantee any operation will not take
-        longer than this amount of time. If WiredTiger notices the limit has been exceeded, an
-        operation may return a WT_ROLLBACK error. The default of 0 is to have no limit''',
+        this option is no longer supported, retained for backward compatibility.''',
         min=0),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See @ref operation_tracking for
@@ -842,9 +838,9 @@ connection_runtime_config = [
         'evict_reposition', 'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prefix_compare',
-        'prepare_checkpoint_delay', 'prepare_resolution','sleep_before_read_overflow_onpage',
-        'split_1', 'split_2', 'split_3', 'split_4', 'split_5','split_6', 'split_7', 'split_8',
-        'tiered_flush_finish']),
+        'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
+        'sleep_before_read_overflow_onpage','split_1', 'split_2', 'split_3', 'split_4', 'split_5',
+        'split_6', 'split_7', 'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -1598,28 +1594,6 @@ methods = {
         type='boolean'),
 ]),
 
-'WT_SESSION.flush_tier' : Method([
-    Config('force', 'false', r'''
-        force sharing of all data''',
-        type='boolean'),
-    Config('lock_wait', 'true', r'''
-        wait for locks, if \c lock_wait=false, fail if any required locks are not available
-        immediately''',
-        type='boolean'),
-    Config('sync', 'on', r'''
-        wait for all objects to be flushed to the shared storage to the level specified. The \c
-        off setting does not wait for any objects to be written to the tiered storage system but
-        returns immediately after generating the objects and work units for an internal thread.
-        The \c on setting causes the caller to wait until all work queued for this call to be
-        completely processed before returning''',
-        choices=['off', 'on']),
-    Config('timeout', '0', r'''
-        maximum amount of time to allow for waiting for previous flushing of objects, in
-        seconds. The actual amount of time spent waiting may exceed the configured value. A
-        value of zero disables the timeout''',
-        type='int'),
-]),
-
 'WT_SESSION.strerror' : Method([]),
 
 'WT_SESSION.truncate' : Method([]),
@@ -1690,7 +1664,7 @@ methods = {
         API call. There is no guarantee any operation will not take longer than this amount of time.
         If WiredTiger notices the limit has been exceeded, an operation may return a WT_ROLLBACK
         error. Default is to have no limit''',
-        min=1),
+        min=0),
     Config('priority', 0, r'''
         priority of the transaction for resolving conflicts. Transactions with higher values
         are less likely to abort''',
@@ -1743,7 +1717,7 @@ methods = {
         API call. There is no guarantee any operation will not take longer than this amount of time.
         If WiredTiger notices the limit has been exceeded, an operation may return a WT_ROLLBACK
         error. Default is to have no limit''',
-        min=1),
+        min=0),
     Config('sync', '', r'''
         override whether to sync log records when the transaction commits. The default is inherited
         from ::wiredtiger_open \c transaction_sync. The \c off setting does not wait for records
@@ -1793,7 +1767,7 @@ methods = {
         API call. There is no guarantee any operation will not take longer than this amount of time.
         If WiredTiger notices the limit has been exceeded, an operation may return a WT_ROLLBACK
         error. Default is to have no limit''',
-        min=1),
+        min=0),
 ]),
 
 'WT_SESSION.checkpoint' : Method([

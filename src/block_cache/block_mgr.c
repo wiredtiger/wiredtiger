@@ -22,13 +22,6 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
 
-    /* We shouldn't have any read requests in progress. */
-    WT_ASSERT(session, block->read_count == 0);
-
-    /* You can't close files during a checkpoint. */
-    WT_ASSERT(
-      session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
-
     conn = S2C(session);
     __wt_spin_lock(session, &conn->block_lock);
     if (block->ref > 0 && --block->ref > 0) {
@@ -41,6 +34,10 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     bucket = hash & (conn->hash_size - 1);
     WT_CONN_BLOCK_REMOVE(conn, block, bucket);
     __wt_spin_unlock(session, &conn->block_lock);
+
+    /* You can't close files during a checkpoint. */
+    WT_ASSERT(
+      session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
 
     if (block->sync_on_checkpoint)
         WT_RET(__wt_fsync(session, block->fh, true));
