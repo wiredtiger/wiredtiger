@@ -278,9 +278,6 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     if (cbt->page_obsolete_deleted_count > WT_BTREE_DELETE_THRESHOLD) {
         WT_RET(__wt_page_dirty_and_evict_soon(session, cbt->ref));
         WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
-    } else if (!cbt->valid_data) {
-        __wt_page_evict_soon(session, cbt->ref);
-        WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
     }
 
     cbt->page_obsolete_deleted_count = 0;
