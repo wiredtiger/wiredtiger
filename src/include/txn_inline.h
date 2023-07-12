@@ -793,25 +793,18 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 }
 
 /*
- * __wt_txn_visible --
- *     Can the current transaction see the given ID / timestamp?
+ * __wt_txn_timestamp_visible --
+ *     Can the current transaction see the given timestamp?
  */
 static inline bool
-__wt_txn_visible(
-  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+__wt_txn_timestamp_visible(
+  WT_SESSION_IMPL *session, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
 
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    if (!__txn_visible_id(session, id))
-        return (false);
-
-    /* Transactions read their writes, regardless of timestamps. */
-    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->id)
-        return (true);
 
     /* Timestamp check. */
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_READ) || timestamp == WT_TS_NONE)
@@ -830,6 +823,47 @@ __wt_txn_visible(
           (durable_timestamp <= txn->checkpoint_stable_timestamp));
 
     return (timestamp <= txn_shared->read_timestamp);
+}
+
+/*
+ * __wt_txn_snap_min_visible --
+ *     Can the current transaction snapshot minimum/read timestamp see the given ID/timestamp? This
+ *     visibility check should only be used when assessing broader visibility based on aggregated
+ *     time window. It does not reflect whether a specific update is visible to a transaction.
+ */
+static inline bool
+__wt_txn_snap_min_visible(
+  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+{
+    /* Transaction snapshot minimum check. */
+    if (!WT_TXNID_LT(id, session->txn->snap_min))
+        return (false);
+
+    /* Transactions read their writes, regardless of timestamps. */
+    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->id)
+        return (true);
+
+    /* Timestamp check. */
+    return (__wt_txn_timestamp_visible(session, timestamp, durable_timestamp));
+}
+
+/*
+ * __wt_txn_visible --
+ *     Can the current transaction see the given ID/timestamp?
+ */
+static inline bool
+__wt_txn_visible(
+  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+{
+    if (!__txn_visible_id(session, id))
+        return (false);
+
+    /* Transactions read their writes, regardless of timestamps. */
+    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->id)
+        return (true);
+
+    /* Timestamp check. */
+    return (__wt_txn_timestamp_visible(session, timestamp, durable_timestamp));
 }
 
 /*
@@ -929,7 +963,11 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
         upd->size = WT_STORE_SIZE(value->size);
         memcpy(upd->data, value->data, value->size);
     }
-    upd->type = (uint8_t)modify_type;
+    /*
+     * This field is const but we need to set it once at allocation time, to do so temporarily cast
+     * as a non-const.
+     */
+    *(uint8_t *)&upd->type = (uint8_t)modify_type;
 
     *updp = upd;
     if (sizep != NULL)
@@ -958,7 +996,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 {
     WT_VISIBLE_TYPE upd_visible;
     uint64_t prepare_txnid;
-    uint8_t prepare_state, type;
+    uint8_t prepare_state;
 
     prepare_txnid = WT_TXN_NONE;
 
@@ -969,9 +1007,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
     __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
-        WT_ORDERED_READ(type, upd->type);
         /* Skip reserved place-holders, they're never visible. */
-        if (type == WT_UPDATE_RESERVE)
+        if (upd->type == WT_UPDATE_RESERVE)
             continue;
 
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
@@ -1011,7 +1048,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * the time window already has a stop time set then we must have seen a tombstone prior to
          * ours in the update list, and therefore don't need to do this again.
          */
-        if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
+        if (upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
@@ -1040,7 +1077,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * history store instead of on-disk value.
          */
         if (upd->txnid != WT_TXN_ABORTED && restored_updp != NULL &&
-          F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) && type == WT_UPDATE_STANDARD) {
+          F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) && upd->type == WT_UPDATE_STANDARD) {
             WT_ASSERT(session, *restored_updp == NULL);
             *restored_updp = upd;
         }
@@ -1187,7 +1224,7 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
+        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }
