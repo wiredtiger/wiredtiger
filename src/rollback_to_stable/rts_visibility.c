@@ -123,9 +123,9 @@ __wt_rts_visibility_page_needs_abort(
       ref->page_del != NULL) {
         tag = "page_del info";
         durable_ts = ref->page_del->durable_timestamp;
-        prepared = ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
-          ref->page_del->prepare_state == WT_PREPARE_LOCKED;
-        newest_txn = ref->page_del->txnid;
+        prepared = ref->page_del->prepare_state_shared == WT_PREPARE_INPROGRESS ||
+          ref->page_del->prepare_state_shared == WT_PREPARE_LOCKED;
+        newest_txn = ref->page_del->txnid_shared;
         result = (durable_ts > rollback_timestamp) || prepared ||
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (!__wt_off_page(ref->home, addr)) {

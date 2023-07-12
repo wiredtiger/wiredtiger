@@ -168,14 +168,14 @@
  * page of identical tombstones; this operation is equivalent to applying WT_TIME_AGGREGATE_UPDATE
  * for each tombstone. Note that it does not affect the start times.
  */
-#define WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, ta, page_del)                    \
-    do {                                                                            \
-        WT_ASSERT(session, (ta)->init_merge == 1);                                  \
-        (ta)->newest_stop_durable_ts =                                              \
-          WT_MAX((page_del)->durable_timestamp, (ta)->newest_stop_durable_ts);      \
-        (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);             \
-        (ta)->newest_stop_ts = WT_MAX((page_del)->timestamp, (ta)->newest_stop_ts); \
-        (ta)->newest_stop_txn = WT_MAX((page_del)->txnid, (ta)->newest_stop_txn);   \
+#define WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, ta, page_del)                         \
+    do {                                                                                 \
+        WT_ASSERT(session, (ta)->init_merge == 1);                                       \
+        (ta)->newest_stop_durable_ts =                                                   \
+          WT_MAX((page_del)->durable_timestamp, (ta)->newest_stop_durable_ts);           \
+        (ta)->newest_txn = WT_MAX((page_del)->txnid_shared, (ta)->newest_txn);           \
+        (ta)->newest_stop_ts = WT_MAX((page_del)->timestamp, (ta)->newest_stop_ts);      \
+        (ta)->newest_stop_txn = WT_MAX((page_del)->txnid_shared, (ta)->newest_stop_txn); \
     } while (0)
 
 /* Merge an aggregated time window into another - choosing the most conservative value from each. */

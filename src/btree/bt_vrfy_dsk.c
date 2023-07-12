@@ -286,12 +286,12 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
           "; time aggregate %s",
           cell_num - 1, tag, unpack->page_del.durable_timestamp,
           __wt_time_aggregate_to_string(&unpack->ta, time_string));
-    if (unpack->ta.newest_txn > unpack->page_del.txnid)
+    if (unpack->ta.newest_txn > unpack->page_del.txnid_shared)
         WT_RET_VRFY(session,
           "fast-delete cell %" PRIu32
           " on page at %s has invalid newest transaction; should be <= %" PRIu64
           "; time aggregate %s",
-          cell_num - 1, tag, unpack->page_del.txnid,
+          cell_num - 1, tag, unpack->page_del.txnid_shared,
           __wt_time_aggregate_to_string(&unpack->ta, time_string));
     if (unpack->ta.newest_stop_ts != WT_TS_MAX &&
       unpack->ta.newest_stop_ts > unpack->page_del.timestamp)
@@ -302,12 +302,12 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
           cell_num - 1, tag, unpack->page_del.timestamp,
           __wt_time_aggregate_to_string(&unpack->ta, time_string));
     if (unpack->ta.newest_stop_txn != WT_TXN_MAX &&
-      unpack->ta.newest_stop_txn > unpack->page_del.txnid)
+      unpack->ta.newest_stop_txn > unpack->page_del.txnid_shared)
         WT_RET_VRFY(session,
           "fast-delete cell %" PRIu32
           " on page at %s has invalid newest stop transaction; should be <= %" PRIu64
           "; time aggregate %s",
-          cell_num - 1, tag, unpack->page_del.txnid,
+          cell_num - 1, tag, unpack->page_del.txnid_shared,
           __wt_time_aggregate_to_string(&unpack->ta, time_string));
 
     /*
@@ -316,9 +316,9 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
      */
     WT_TIME_AGGREGATE_COPY(&ta_with_delete, &unpack->ta);
     ta_with_delete.newest_stop_durable_ts = unpack->page_del.durable_timestamp;
-    ta_with_delete.newest_txn = unpack->page_del.txnid;
+    ta_with_delete.newest_txn = unpack->page_del.txnid_shared;
     ta_with_delete.newest_stop_ts = unpack->page_del.timestamp;
-    ta_with_delete.newest_stop_txn = unpack->page_del.txnid;
+    ta_with_delete.newest_stop_txn = unpack->page_del.txnid_shared;
     ret = __wt_time_aggregate_validate(session, &ta_with_delete, addr != NULL ? &addr->ta : NULL,
       F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE));
     if (ret != 0)
@@ -331,7 +331,7 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
      * unpack code, so just assert about them. Prepared fast-truncates are not allowed to be
      * evicted.
      */
-    WT_ASSERT(session, unpack->page_del.prepare_state == 0);
+    WT_ASSERT(session, unpack->page_del.prepare_state_shared == 0);
     WT_ASSERT(session, unpack->page_del.previous_ref_state == WT_REF_DISK);
     WT_ASSERT(session, unpack->page_del.committed == true);
 

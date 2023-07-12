@@ -433,10 +433,10 @@ __tombstone_update_alloc(
      * page_del pointer is null.
      */
     if (page_del != NULL) {
-        upd->txnid = page_del->txnid;
+        upd->txnid = page_del->txnid_shared;
         upd->durable_ts = page_del->durable_timestamp;
         upd->start_ts = page_del->timestamp;
-        upd->prepare_state = page_del->prepare_state;
+        upd->prepare_state = page_del->prepare_state_shared;
     }
     *updp = upd;
     return (0);
@@ -645,7 +645,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
     /* Track the prepared, fast-truncate pages we've had to instantiate. */
-    if (page_del != NULL && page_del->prepare_state != WT_PREPARE_INIT)
+    if (page_del != NULL && page_del->prepare_state_shared != WT_PREPARE_INIT)
         WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
 
     /*

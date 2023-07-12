@@ -583,8 +583,8 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
         if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
             page_del = &unpack->page_del;
             WT_RET(ds->f(ds, ", page_del : %s",
-              __wt_time_point_to_string(
-                page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
+              __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
+                page_del->txnid_shared, time_string)));
         }
     /* FALLTHROUGH */
     case WT_CELL_ADDR_INT:
@@ -1693,8 +1693,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (ref->page_del != NULL) {
         page_del = ref->page_del;
         WT_RET(ds->f(ds, ", page_del : %s",
-          __wt_time_point_to_string(
-            page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
+          __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
+            page_del->txnid_shared, time_string)));
     }
     return (ds->f(ds, "\n"));
 }

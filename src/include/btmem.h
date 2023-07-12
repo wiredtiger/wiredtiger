@@ -897,7 +897,7 @@ struct __wt_page_deleted {
      * from memory rather than using the local variable, mark the shared transaction IDs volatile to
      * prevent unexpected repeated/reordered reads.
      */
-    volatile uint64_t txnid; /* Transaction ID */
+    volatile uint64_t txnid_shared; /* Transaction ID */
 
     wt_timestamp_t timestamp; /* Timestamps */
     wt_timestamp_t durable_timestamp;
@@ -906,7 +906,7 @@ struct __wt_page_deleted {
      * The prepare state is used for transaction prepare to manage visibility and propagating the
      * prepare state to the updates generated at instantiation time.
      */
-    volatile uint8_t prepare_state;
+    volatile uint8_t prepare_state_shared;
 
     /*
      * The previous state of the WT_REF; if the fast-truncate transaction is rolled back without the
