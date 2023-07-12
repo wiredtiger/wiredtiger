@@ -125,7 +125,10 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
         }
     }
 
+#ifdef HAVE_DIAGNOSTIC
+    WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
     WT_ASSERT(session, tmp == NULL);
+#endif
 
     /*
      * Do the dance:
