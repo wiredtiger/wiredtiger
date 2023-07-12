@@ -1295,18 +1295,27 @@ __wt_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIS
 {
     WT_EXT *ext, **astack[WT_SKIP_MAXDEPTH];
     wt_off_t size;
+    WT_DECL_RET;
 
+    if (S2C(session)->chunkcache.configured)
+        __wt_writelock(session, &S2C(session)->chunkcache.cache_rwlock);
     __wt_chunkcache_dbg_remove(session, block->name);
 
     /*
      * Check if the last available extent is at the end of the file, and if so, truncate the file
      * and discard the extent.
      */
-    if ((ext = __block_off_srch_last(el->off, astack)) == NULL)
+    if ((ext = __block_off_srch_last(el->off, astack)) == NULL) {
+        if (S2C(session)->chunkcache.configured)
+            __wt_writeunlock(session, &S2C(session)->chunkcache.cache_rwlock);
         return (0);
+    }
     WT_ASSERT(session, ext->off + ext->size <= block->size);
-    if (ext->off + ext->size < block->size)
+    if (ext->off + ext->size < block->size) {
+        if (S2C(session)->chunkcache.configured)
+            __wt_writeunlock(session, &S2C(session)->chunkcache.cache_rwlock);
         return (0);
+    }
 
     /*
      * Remove the extent list entry. (Save the value, we need it to reset the cached file size, and
@@ -1316,7 +1325,11 @@ __wt_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIS
     WT_RET(__block_off_remove(session, block, el, size, NULL));
 
     /* Truncate the file. */
-    return (__wt_block_truncate(session, block, size));
+    ret = __wt_block_truncate(session, block, size);
+    if (S2C(session)->chunkcache.configured)
+        __wt_writeunlock(session, &S2C(session)->chunkcache.cache_rwlock);
+
+    return (ret);
 }
 
 /*

@@ -327,9 +327,13 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
     blk->checksum = __wt_bswap32(blk->checksum);
 #endif
 
+    if (S2C(session)->chunkcache.configured)
+        __wt_writelock(session, &S2C(session)->chunkcache.cache_rwlock);
     __wt_chunkcache_dbg_remove(session, block->name);
     /* Write the block. */
     if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
+        if (S2C(session)->chunkcache.configured)
+            __wt_writeunlock(session, &S2C(session)->chunkcache.cache_rwlock);
         if (!caller_locked)
             __wt_spin_lock(session, &block->live_lock);
         WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)align_size));
@@ -337,6 +341,8 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
             __wt_spin_unlock(session, &block->live_lock);
         WT_RET(ret);
     }
+    if (S2C(session)->chunkcache.configured)
+        __wt_writeunlock(session, &S2C(session)->chunkcache.cache_rwlock);
 
     /*
      * Optionally schedule writes for dirty pages in the system buffer cache, but only if the

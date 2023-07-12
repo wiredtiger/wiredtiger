@@ -300,7 +300,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_STAT_CONN_INCR(session, chunk_cache_lookups);
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "get taking read lock 1");
-    __wt_writelock(session, &chunkcache->cache_rwlock);
+    __wt_readlock(session, &chunkcache->cache_rwlock);
     /* A block may span two (or more) chunks. Loop until we have read all the data. */
     while (remains_to_read > 0) {
         /* Find the bucket for the chunk containing this offset. */
@@ -366,7 +366,7 @@ retry:
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
                 __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "get releasing write lock");
                 /* __wt_writeunlock(session, &chunkcache->cache_rwlock); */
-                __wt_writeunlock(session, &chunkcache->cache_rwlock);
+                __wt_readunlock(session, &chunkcache->cache_rwlock);
                 return (ret);
             }
             /*
@@ -386,7 +386,7 @@ retry:
                 WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
                 __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "get releasing write lock");
                 /* __wt_writeunlock(session, &chunkcache->cache_rwlock); */
-                __wt_writeunlock(session, &chunkcache->cache_rwlock);
+                __wt_readunlock(session, &chunkcache->cache_rwlock);
                 return (ret);
             }
 
@@ -410,7 +410,7 @@ retry:
         }
     }
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "get releasing read lock");
-    __wt_writeunlock(session, &chunkcache->cache_rwlock);
+    __wt_readunlock(session, &chunkcache->cache_rwlock);
     *cache_hit = true;
     return (0);
 }
@@ -502,7 +502,6 @@ __wt_chunkcache_dbg_remove(
         return;
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "remove_dbg taking write lock");
-    __wt_writelock(session, &chunkcache->cache_rwlock);
     for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
         __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
@@ -519,7 +518,6 @@ __wt_chunkcache_dbg_remove(
         __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
     }
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "remove_dbg releasing write lock");
-    __wt_writeunlock(session, &chunkcache->cache_rwlock);
 }
 
 /*
