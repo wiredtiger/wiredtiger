@@ -467,11 +467,11 @@ resolve()
 		# give the parent recording binary a chance to complete if we are using it
 		[[ ! -z $live_record_binary ]] && sleep 2
 
-		# Process group leader dumped core: so it is a bug, in contrast to spurious cores
-		# from killing zombifieed child processes. This is to guard against spuriously
+		# Process group leader dumped core: so it is a bug, in contrast to any spurious cores
+		# from killing zombified child processes. This is to guard against spuriously
 		# missing memory sanitizer errors, which has occured historically even when
 		# abort_on_error=1 was passed to MSan.
-		[[ -f "dump_t.${pid}.core" ]] {
+		[[ -f "dump_t.${pid}.core" ]] && {
 		    report_failure $dir
 		    continue
 		}
