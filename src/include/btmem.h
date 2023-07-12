@@ -715,16 +715,22 @@ struct __wt_page {
 
     size_t memory_footprint; /* Memory attached to the page */
 
-    /* Page's on-disk representation: NULL for pages created in memory. */
-    const WT_PAGE_HEADER *dsk;
-
     /* If/when the page is modified, we need lots more information. */
     WT_PAGE_MODIFY *modify;
+
+    /* Page's on-disk representation: NULL for pages created in memory. */
+    const WT_PAGE_HEADER *dsk;
 
     /*
      * !!!
      * This is the 64 byte boundary, try to keep hot fields above here.
      */
+
+    /*
+     * The allocated memory for the page's disk image, solely used for cache tracking purposes. The
+     * 'dsk' variable above contains the actual size of the page contained in the disk image.
+     */
+    size_t dsk_alloc_size;
 
 /*
  * The page's read generation acts as an LRU value for each page in the
@@ -1309,7 +1315,7 @@ struct __wt_update {
 #define WT_UPDATE_RESERVE 2   /* reserved */
 #define WT_UPDATE_STANDARD 3  /* complete value */
 #define WT_UPDATE_TOMBSTONE 4 /* deleted */
-    uint8_t type;             /* type (one byte to conserve memory) */
+    const uint8_t type;       /* type (one byte to conserve memory) */
 
 /* If the update includes a complete value. */
 #define WT_UPDATE_DATA_VALUE(upd) \
@@ -1321,6 +1327,7 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
+/* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
 #define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
@@ -1332,6 +1339,30 @@ struct __wt_update {
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
+/* There are several cases we should select the update irrespective of visibility to write to the
+ * disk image:
+ *
+ * 1. A previous reconciliation selected this update as writing anything that is older
+ * undoes the previous work.
+ *
+ * 2. The update is restored from the disk image as writing anything that is older undoes
+ * the previous work.
+ *
+ * 3. An earlier reconciliation performed an update-restore eviction and this update was
+ * restored from disk.
+ *
+ * 4. We rolled back a prepared transaction and restored an update from the history store.
+ *
+ * 5. We rolled back a prepared transaction and aim to delete the following update from the
+ * history store.
+ *
+ * These scenarios can happen if the current reconciliation has a limited visibility of
+ * updates compared to one of the previous reconciliations. This is important as it is never
+ * ok to undo the work of the previous reconciliations.
+ */
+#define WT_UPDATE_SELECT_FOR_DS                                                      \
+    WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
+      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
