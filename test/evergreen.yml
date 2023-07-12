@@ -4568,6 +4568,14 @@ tasks:
                 cat $t && rm $t
             fi
 
+            # Code complexity statistics
+
+            python3 "../metrixplusplus/metrix++.py" view --format=python > code_complexity_summary.txt
+            python3 "../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > metrixpp.csv
+
+            cd ../test/evergreen
+            python3 code_complexity_analysis.py -s ../../src/code_complexity_summary.txt -d ../../src/metrixpp.csv -o atlas_code_statistics.json
+
     #############################
     # Performance Tests for lsm #
     #############################
