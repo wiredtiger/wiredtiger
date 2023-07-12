@@ -290,7 +290,7 @@ __col_var_last_recno(WT_REF *ref)
     WT_COL_RLE *repeat;
     WT_PAGE *page;
 
-    page = ref->page;
+    page = ref->page_shared;
 
     /*
      * If there's an append list, there may be more records on the page. This function ignores those
@@ -312,7 +312,7 @@ __col_fix_last_recno(WT_REF *ref)
 {
     WT_PAGE *page;
 
-    page = ref->page;
+    page = ref->page_shared;
 
     /*
      * If there's an append list, there may be more records on the page. This function ignores those
@@ -333,7 +333,7 @@ __col_var_search(WT_REF *ref, uint64_t recno, uint64_t *start_recnop)
     uint64_t start_recno;
     uint32_t base, indx, limit, start_indx;
 
-    page = ref->page;
+    page = ref->page_shared;
 
     /*
      * Find the matching slot.

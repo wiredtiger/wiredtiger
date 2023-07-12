@@ -50,7 +50,7 @@ __rts_btree_walk_page_skip(
      */
     if (ref->state == WT_REF_DELETED &&
       WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED)) {
-        page_del = ref->page_del;
+        page_del = ref->page_del_shared;
         if (page_del == NULL ||
           (__wt_rts_visibility_txn_visible_id(session, page_del->txnid_shared) &&
             page_del->durable_timestamp <= rollback_timestamp)) {
@@ -106,11 +106,11 @@ __rts_btree_walk_page_skip(
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     }
 
-    reconciled = ref->page && ref->page->modify ? true : false;
+    reconciled = ref->page_shared && ref->page_shared->modify ? true : false;
 
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
       WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped, reconciled info=%d", (void *)ref,
-      reconciled ? ref->page->modify->rec_result : 0);
+      reconciled ? ref->page_shared->modify->rec_result : 0);
     return (0);
 }
 
@@ -344,7 +344,7 @@ __wt_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         return (0);
 
     /* There is nothing to do on an empty tree. */
-    if (btree->root.page == NULL)
+    if (btree->root.page_shared == NULL)
         return (0);
 
     return (__rts_btree_walk(session, rollback_timestamp));

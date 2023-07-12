@@ -171,7 +171,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     hs_cursor = version_cursor->hs_cursor;
     file_cursor = version_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     twp = NULL;
     upd_found = false;
     first = upd = tombstone = NULL;
@@ -520,7 +520,7 @@ __curversion_search(WT_CURSOR *cursor)
      * If we position on a key, set next update of the version cursor to be the first update on the
      * key if any.
      */
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         if (cbt->ins != NULL)

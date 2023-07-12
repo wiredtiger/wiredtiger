@@ -114,7 +114,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     previous_state = ref->state;
     if (previous_state == WT_REF_MEM &&
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
-        if (__wt_page_is_modified(ref->page)) {
+        if (__wt_page_is_modified(ref->page_shared)) {
             WT_REF_SET_STATE(ref, previous_state);
             return (0);
         }
@@ -148,7 +148,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * cleared the final traces of the previous deletion and instantiation. Furthermore, any prior
      * deletion must have committed or another attempt would have failed with an update conflict.
      */
-    WT_ASSERT(session, ref->page_del == NULL);
+    WT_ASSERT(session, ref->page_del_shared == NULL);
 
     /*
      * We cannot truncate pages that have overflow key/value items as the overflow blocks have to be
@@ -184,8 +184,8 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
     /* Allocate and initialize the page-deleted structure. */
-    WT_ERR(__wt_calloc_one(session, &ref->page_del));
-    ref->page_del->previous_ref_state = previous_state;
+    WT_ERR(__wt_calloc_one(session, &ref->page_del_shared));
+    ref->page_del_shared->previous_ref_state = previous_state;
 
     /* History store truncation is non-transactional. */
     if (!WT_IS_HS(session->dhandle))
@@ -199,7 +199,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     return (0);
 
 err:
-    __wt_free(session, ref->page_del);
+    __wt_free(session, ref->page_del_shared);
 
     /* Publish the page to its previous state, ensuring visibility. */
     WT_REF_SET_STATE(ref, previous_state);
@@ -218,7 +218,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
     uint8_t current_state;
     bool locked;
 
-    /* Lock the reference. We cannot access ref->page_del except when locked. */
+    /* Lock the reference. We cannot access ref->page_del_shared except when locked. */
     for (locked = false, sleep_usecs = yield_count = 0;;) {
         switch (current_state = ref->state) {
         case WT_REF_LOCKED:
@@ -256,15 +256,15 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      * the update list to be null to be conservative.
      */
     if (current_state == WT_REF_DELETED) {
-        current_state = ref->page_del->previous_ref_state;
+        current_state = ref->page_del_shared->previous_ref_state;
         /*
          * Don't set the WT_PAGE_DELETED transaction ID to aborted; instead, just discard the
          * structure. This avoids having to check for an aborted delete in other situations.
          */
-        __wt_free(session, ref->page_del);
+        __wt_free(session, ref->page_del_shared);
     } else {
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        if ((updp = ref->page->modify->inst_updates) != NULL) {
+        WT_ASSERT(session, ref->page_shared != NULL && ref->page_shared->modify != NULL);
+        if ((updp = ref->page_shared->modify->inst_updates) != NULL) {
             /*
              * Walk any list of update structures and abort them. We can't use the normal read path
              * to get the pages with updates (the original page may have split, so there may be more
@@ -275,16 +275,16 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
             for (; *updp != NULL; ++updp)
                 (*updp)->txnid = WT_TXN_ABORTED;
             /* Now discard the updates. */
-            __wt_free(session, ref->page->modify->inst_updates);
+            __wt_free(session, ref->page_shared->modify->inst_updates);
         }
         /*
          * Drop any page_deleted information remaining in the ref. Note that while this must have
          * been an instantiated page, the information (and flag) is only kept until the page is
          * reconciled for the first time after instantiation, so it might not be set now.
          */
-        if (ref->page->modify->instantiated) {
-            ref->page->modify->instantiated = false;
-            __wt_free(session, ref->page_del);
+        if (ref->page_shared->modify->instantiated) {
+            ref->page_shared->modify->instantiated = false;
+            __wt_free(session, ref->page_del_shared);
         }
     }
 
@@ -304,10 +304,11 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_REF *child;
 
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
-    if (ref->page != NULL) {
-        WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
-            if (child->state == WT_REF_DELETED && child->page_del != NULL)
-                __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
+    if (ref->page_shared != NULL) {
+        WT_INTL_FOREACH_BEGIN (session, ref->page_shared, child) {
+            if (child->state == WT_REF_DELETED && child->page_del_shared != NULL)
+                __cell_redo_page_del_cleanup(
+                  session, ref->page_shared->dsk, child->page_del_shared);
         }
         WT_INTL_FOREACH_END;
     }
@@ -397,10 +398,10 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      * prepared transaction rolls back we'd then be in trouble.
      */
     if (visible_all)
-        skip = discard = __wt_page_del_visible_all(session, ref->page_del, true);
+        skip = discard = __wt_page_del_visible_all(session, ref->page_del_shared, true);
     else {
-        skip = __wt_page_del_visible(session, ref->page_del, true);
-        discard = skip ? __wt_page_del_visible_all(session, ref->page_del, true) : false;
+        skip = __wt_page_del_visible(session, ref->page_del_shared, true);
+        discard = skip ? __wt_page_del_visible_all(session, ref->page_del_shared, true) : false;
     }
 
     /*
@@ -408,8 +409,8 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      * only read when the ref state is locked. It is worth checking every time we come through
      * because once this is freed, we no longer need synchronization to check the ref.
      */
-    if (discard && ref->page_del != NULL)
-        __wt_overwrite_and_free(session, ref->page_del);
+    if (discard && ref->page_del_shared != NULL)
+        __wt_overwrite_and_free(session, ref->page_del_shared);
 
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
     return (skip);
@@ -487,7 +488,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     uint64_t j, recno, rle;
     uint32_t i;
 
-    page = ref->page;
+    page = ref->page_shared;
     upd = NULL;
 
     /*
@@ -563,7 +564,7 @@ __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_d
     size_t size, total_size;
     uint32_t i;
 
-    page = ref->page;
+    page = ref->page_shared;
     upd = NULL;
     total_size = 0;
 
@@ -632,8 +633,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * finding the updates any other way would become a problem.
      */
 
-    page = ref->page;
-    page_del = ref->page_del;
+    page = ref->page_shared;
+    page_del = ref->page_del_shared;
     update_list = NULL;
 
     /* Fast-truncate only happens to leaf pages, and FLCS isn't supported. */

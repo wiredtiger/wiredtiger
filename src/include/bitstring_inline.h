@@ -291,7 +291,7 @@ static inline uint8_t
 __bit_getv_recno(WT_REF *ref, uint64_t recno, uint8_t width)
 {
 	return (__bit_getv(
-	    ref->page->pg_fix_bitf, recno - ref->ref_recno, width));
+	    ref->page_shared->pg_fix_bitf, recno - ref->ref_recno, width));
 }
 
 /*

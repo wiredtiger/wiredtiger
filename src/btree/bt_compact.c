@@ -28,7 +28,7 @@ __compact_page_inmem_check_addrs(WT_SESSION_IMPL *session, WT_REF *ref, bool *sk
     bm = S2BT(session)->bm;
 
     /* If the page is currently clean, test the original addresses. */
-    if (__wt_page_evict_clean(ref->page))
+    if (__wt_page_evict_clean(ref->page_shared))
         return (__wt_ref_addr_copy(session, ref, &addr) ?
             bm->compact_page_skip(bm, session, addr.addr, addr.size, skipp) :
             0);
@@ -37,7 +37,7 @@ __compact_page_inmem_check_addrs(WT_SESSION_IMPL *session, WT_REF *ref, bool *sk
      * If the page is a replacement, test the replacement addresses. Ignore empty pages, they get
      * merged into the parent.
      */
-    mod = ref->page->modify;
+    mod = ref->page_shared->modify;
     if (mod->rec_result == WT_PM_REC_REPLACE)
         return (
           bm->compact_page_skip(bm, session, mod->mod_replace.addr, mod->mod_replace.size, skipp));
@@ -74,20 +74,20 @@ __compact_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      *
      * Check clean page addresses, and mark page and tree dirty if the page needs to be rewritten.
      */
-    if (__wt_page_is_modified(ref->page))
+    if (__wt_page_is_modified(ref->page_shared))
         *skipp = false;
     else {
         WT_RET(__compact_page_inmem_check_addrs(session, ref, skipp));
 
         if (!*skipp) {
-            WT_RET(__wt_page_modify_init(session, ref->page));
-            __wt_page_modify_set(session, ref->page);
+            WT_RET(__wt_page_modify_init(session, ref->page_shared));
+            __wt_page_modify_set(session, ref->page_shared);
         }
     }
 
     /* If rewriting the page, have reconciliation write new blocks. */
     if (!*skipp)
-        F_SET_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
+        F_SET_ATOMIC_16(ref->page_shared, WT_PAGE_COMPACTION_WRITE);
 
     return (0);
 }
@@ -112,10 +112,10 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     addr = ref->addr;
     WT_ASSERT(session, addr != NULL);
 
-    if (__wt_off_page(ref->home, addr))
+    if (__wt_off_page(ref->home_shared, addr))
         __wt_free(session, addr->addr);
     else {
-        __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
+        __wt_cell_unpack_addr(session, ref->home_shared->dsk, (WT_CELL *)addr, &unpack);
 
         WT_RET(__wt_calloc_one(session, &addr));
         addr->ta.newest_start_durable_ts = unpack.ta.newest_start_durable_ts;
@@ -251,7 +251,7 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
      * visit them individually.
      */
     overall_progress = false;
-    WT_INTL_FOREACH_BEGIN (session, parent->page, ref) {
+    WT_INTL_FOREACH_BEGIN (session, parent->page_shared, ref) {
         if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
             WT_ERR(__compact_page(session, ref, &skipp));
             if (!skipp)

@@ -737,7 +737,7 @@ __curfile_reopen_int(WT_CURSOR *cursor)
     if (ret == 0) {
         /* Assert a valid tree (we didn't race with eviction). */
         WT_ASSERT(session, WT_DHANDLE_BTREE(dhandle));
-        WT_ASSERT(session, ((WT_BTREE *)dhandle->handle)->root.page != NULL);
+        WT_ASSERT(session, ((WT_BTREE *)dhandle->handle)->root.page_shared != NULL);
 
         btree = CUR2BT(cursor);
         cursor->internal_uri = btree->dhandle->name;

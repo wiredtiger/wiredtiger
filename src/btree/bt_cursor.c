@@ -160,7 +160,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
      * Fail if the page is flagged for forced eviction (so we periodically release pages grown too
      * large).
      */
-    if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
+    if (cbt->ref->page_shared->read_gen == WT_READGEN_OLDEST)
         return (false);
 
     return (true);
@@ -312,7 +312,7 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     *valid = false;
     session = CUR2S(cbt);
     upd = NULL;
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     key_out_of_bounds = false;
 
     /* For all row-store cases we can extract the key from cbt->tmp if the compare value is zero. */
@@ -386,7 +386,7 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     key_out_of_bounds = false;
     btree = CUR2BT(cbt);
     session = CUR2S(cbt);
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     upd = NULL;
 
     /*
@@ -674,8 +674,9 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
          */
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
-        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
-            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        else if (cbt->ref->page_shared->modify != NULL &&
+          cbt->ref->page_shared->modify->mod_row_update != NULL)
+            upd = cbt->ref->page_shared->modify->mod_row_update[cbt->slot];
         break;
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
@@ -957,7 +958,7 @@ __btcur_search_near_row_pinned_page(WT_CURSOR_BTREE *cbt, bool *validp)
      * temporary buffer.
      */
     if (leaf_found &&
-      (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
+      (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page_shared->entries - 1)))
         WT_RET(__wt_cursor_valid(cbt, validp, true));
 
     return (0);
@@ -1299,7 +1300,7 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
     WT_UPDATE *upd;
 
     btree = CUR2BT(cbt);
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     session = CUR2S(cbt);
     upd = NULL;
 
@@ -1731,7 +1732,7 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
     int i;
 
     cursor = &cbt->iface;
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     session = CUR2S(cbt);
 
     upd = NULL;

@@ -20,7 +20,7 @@ __key_return(WT_CURSOR_BTREE *cbt)
     WT_PAGE *page;
     WT_ROW *rip;
 
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     cursor = &cbt->iface;
 
     if (page->type == WT_PAGE_ROW_LEAF) {
@@ -111,7 +111,7 @@ __wt_col_fix_get_time_window(
     uint64_t start_recno, this_recno;
     u_int hi, lo, mid;
 
-    page = ref->page;
+    page = ref->page_shared;
     start_recno = ref->ref_recno;
 
     if (!WT_COL_FIX_TWS_SET(page))
@@ -163,7 +163,7 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
 
     if (cbt->slot == UINT32_MAX)
         return (false);
@@ -227,7 +227,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
     session = CUR2S(cbt);
     btree = S2BT(session);
 
-    page = ref->page;
+    page = ref->page_shared;
     cursor = &cbt->iface;
 
     switch (page->type) {

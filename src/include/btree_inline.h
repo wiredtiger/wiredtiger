@@ -13,7 +13,7 @@
 static inline bool
 __wt_ref_is_root(WT_REF *ref)
 {
-    return (ref->home == NULL);
+    return (ref->home_shared == NULL);
 }
 
 /*
@@ -102,7 +102,7 @@ __wt_page_evict_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
     WT_PAGE *page;
 
     btree = S2BT(session);
-    page = ref->page;
+    page = ref->page_shared;
 
     /*
      * Attempt to evict pages with the special "oldest" read generation. This is set for pages that
@@ -213,7 +213,7 @@ __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
-    root_page = btree->root.page;
+    root_page = btree->root.page_shared;
 
     bytes_inmem = btree->bytes_inmem;
     bytes_root = root_page == NULL ? 0 : root_page->memory_footprint;
@@ -873,7 +873,7 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
      * marking the original parent and all of the newly-created children as dirty. In other words,
      * if we have the wrong parent page, everything was marked dirty already.
      */
-    parent = ref->home;
+    parent = ref->home_shared;
     WT_RET(__wt_page_modify_init(session, parent));
     if (page_only)
         __wt_page_only_modify_set(session, parent);
@@ -1532,7 +1532,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     WT_PAGE *page;
 
     unpack = &_unpack;
-    page = ref->home;
+    page = ref->home_shared;
     copy->del_set = false;
 
     /*
@@ -1880,7 +1880,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
 
-    page = ref->page;
+    page = ref->page_shared;
     mod = page->modify;
 
     /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
@@ -1914,7 +1914,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * matter the size of the key.)
      */
     if (__wt_btree_syncing_by_other_session(session) &&
-      F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS)) {
+      F_ISSET_ATOMIC_16(ref->home_shared, WT_PAGE_INTL_OVERFLOW_KEYS)) {
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_overflow_keys);
         return (false);
     }
@@ -1987,7 +1987,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * Discard our hazard pointer. Ignore pages we don't have and the root page, which sticks in
      * memory, regardless.
      */
-    if (ref == NULL || ref->page == NULL || __wt_ref_is_root(ref))
+    if (ref == NULL || ref->page_shared == NULL || __wt_ref_is_root(ref))
         return (0);
 
     /*
@@ -2059,7 +2059,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
     WT_REF *first;
 
     btree = S2BT(session);
-    root = btree->root.page;
+    root = btree->root.page_shared;
 
     /* Check for a non-existent tree. */
     if (root == NULL)
@@ -2082,7 +2082,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
      * We're reaching down into the page without a hazard pointer, but that's OK because we know
      * that no-eviction is set and so the page cannot disappear.
      */
-    child = first->page;
+    child = first->page_shared;
     if (child->type != WT_PAGE_ROW_LEAF) /* not a single leaf page */
         return (true);
 
@@ -2166,7 +2166,7 @@ __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *sa
      * this code, don't re-order that acquisition with this check.
      */
     WT_BARRIER();
-    WT_INTL_INDEX_GET(session, ref->home, pindex);
+    WT_INTL_INDEX_GET(session, ref->home_shared, pindex);
     return (pindex != saved_pindex);
 }
 
@@ -2326,7 +2326,8 @@ __wt_btcur_skip_page(
      * In all cases, make use of the option to __wt_page_del_visible to hide prepared transactions,
      * as we shouldn't skip pages where the deletion is prepared but not committed.
      */
-    if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
+    if (previous_state == WT_REF_DELETED &&
+      __wt_page_del_visible(session, ref->page_del_shared, true)) {
         *skipp = true;
         goto unlock;
     }
@@ -2337,7 +2338,7 @@ __wt_btcur_skip_page(
      * nor the timestamp information is necessarily up to date.
      */
     if ((previous_state == WT_REF_DISK ||
-          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
+          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page_shared))) &&
       __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {

@@ -170,7 +170,7 @@ __random_leaf_insert(WT_CURSOR_BTREE *cbt, bool *validp)
 
     *validp = false;
 
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     session = CUR2S(cbt);
 
     /* Check for a large insert list with no items, that's common when tables are newly created. */
@@ -237,9 +237,9 @@ __random_leaf_disk(WT_CURSOR_BTREE *cbt, bool *validp)
 
     *validp = false;
 
-    page = cbt->ref->page;
+    page = cbt->ref->page_shared;
     session = CUR2S(cbt);
-    entries = cbt->ref->page->entries;
+    entries = cbt->ref->page_shared->entries;
 
     /* This is a relatively cheap test, so try several times. */
     for (retry = 0; retry < WT_RANDOM_DISK_RETRY; ++retry) {
@@ -278,7 +278,7 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
      * Ignoring large insert lists could skew the results, but enough disk-based entries should span
      * a reasonable chunk of the name space.
      */
-    if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH) {
+    if (cbt->ref->page_shared->entries > WT_RANDOM_DISK_ENOUGH) {
         WT_RET(__random_leaf_disk(cbt, &valid));
         if (valid)
             return (__cursor_kv_return(cbt, cbt->upd_value));
@@ -293,8 +293,8 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
      * Try again if there are at least a few hundred disk-based entries or this is a page as we read
      * it from disk, it might be a normal leaf page with big items.
      */
-    if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH / 5 ||
-      (cbt->ref->page->dsk != NULL && cbt->ref->page->modify == NULL)) {
+    if (cbt->ref->page_shared->entries > WT_RANDOM_DISK_ENOUGH / 5 ||
+      (cbt->ref->page_shared->dsk != NULL && cbt->ref->page_shared->modify == NULL)) {
         WT_RET(__random_leaf_disk(cbt, &valid));
         if (valid)
             return (__cursor_kv_return(cbt, cbt->upd_value));
@@ -391,7 +391,7 @@ restart:
         if (F_ISSET(current, WT_REF_FLAG_LEAF))
             break;
 
-        page = current->page;
+        page = current->page_shared;
         WT_INTL_INDEX_GET(session, page, pindex);
         entries = pindex->entries;
 

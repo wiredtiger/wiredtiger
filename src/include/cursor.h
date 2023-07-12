@@ -612,4 +612,4 @@ struct __wt_cursor_version {
  *
  * This is primarily used by cursor bound checking logic.
  */
-#define WT_CURSOR_IS_POSITIONED(cbt) (cbt->ref != NULL && cbt->ref->page != NULL)
+#define WT_CURSOR_IS_POSITIONED(cbt) (cbt->ref != NULL && cbt->ref->page_shared != NULL)

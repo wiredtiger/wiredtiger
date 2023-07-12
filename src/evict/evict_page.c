@@ -20,7 +20,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 static inline void
 __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
 {
-    WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page != NULL);
+    WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page_shared != NULL);
 
     WT_REF_SET_STATE(ref, previous_state);
 }
@@ -83,7 +83,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * here will explode because the identity of the matching history store checkpoint isn't
      * available.
      */
-    if (ref->page != NULL && !__wt_page_evict_clean(ref->page)) {
+    if (ref->page_shared != NULL && !__wt_page_evict_clean(ref->page_shared)) {
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
         WT_RET(__wt_curhs_cache(session));
     }
@@ -191,7 +191,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     bool clean_page, closing, inmem_split, tree_dead;
 
     conn = S2C(session);
-    page = ref->page;
+    page = ref->page_shared;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
     clean_page = false;
@@ -360,7 +360,7 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * have already been freed.
      */
     if (!LF_ISSET(WT_EVICT_CALL_NO_SPLIT | WT_EVICT_CALL_CLOSING)) {
-        parent = ref->home;
+        parent = ref->home_shared;
         WT_INTL_INDEX_GET(session, parent, pindex);
         ndeleted = __wt_atomic_addv32(&pindex->deleted_entries, 1);
 
@@ -415,10 +415,10 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * We might discard an instantiated deleted page, because instantiated pages are not marked
      * dirty by default. Check this before discarding the modify structure in __wt_ref_out.
      */
-    if (ref->page->modify != NULL && ref->page->modify->instantiated)
+    if (ref->page_shared->modify != NULL && ref->page_shared->modify->instantiated)
         instantiated = true;
     else {
-        WT_ASSERT(session, ref->page_del == NULL);
+        WT_ASSERT(session, ref->page_del_shared == NULL);
         instantiated = false;
     }
 
@@ -457,7 +457,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     bool closing;
     void *tmp;
 
-    mod = ref->page->modify;
+    mod = ref->page_shared->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
     WT_ASSERT(session, ref->addr == NULL);
@@ -514,7 +514,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * memory, else discard the page.
          */
         if (mod->mod_disk_image == NULL) {
-            __wt_page_modify_clear(session, ref->page);
+            __wt_page_modify_clear(session, ref->page_shared);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);
         } else {
@@ -560,7 +560,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * child list forward, then backward, to ensure we don't race with a cursor walking in the
      * opposite direction from our check.
      */
-    WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+    WT_INTL_FOREACH_BEGIN (session, parent->page_shared, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
         case WT_REF_DELETED: /* On-disk, deleted */
@@ -570,7 +570,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
         }
     }
     WT_INTL_FOREACH_END;
-    WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
+    WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page_shared, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
         case WT_REF_DELETED: /* On-disk, deleted */
@@ -593,7 +593,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * The fast check is done and there are no cursors in the child pages. Make sure the child
      * WT_REF structures pages can be discarded.
      */
-    WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+    WT_INTL_FOREACH_BEGIN (session, parent->page_shared, child) {
         switch (child->state) {
         case WT_REF_DISK: /* On-disk */
             break;
@@ -645,14 +645,14 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
              * the special-case logic for prepared transactions in __wt_page_del_visible; prepared
              * transactions aren't committed so they'll fail the first check.
              */
-            if (!__wt_page_del_committed_set(child->page_del))
+            if (!__wt_page_del_committed_set(child->page_del_shared))
                 visible = false;
             else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
-                visible = __wt_page_del_visible(session, child->page_del, false);
+                visible = __wt_page_del_visible(session, child->page_del_shared, false);
             else if (F_ISSET(session, WT_SESSION_EVICTION))
                 visible = true;
             else
-                visible = __wt_page_del_visible_all(session, child->page_del, false);
+                visible = __wt_page_del_visible_all(session, child->page_del_shared, false);
             /* FIXME-WT-9780: is there a reason this doesn't use WT_REF_UNLOCK? */
             child->state = WT_REF_DELETED;
             if (!visible)
@@ -684,7 +684,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     btree = S2BT(session);
     conn = S2C(session);
-    page = ref->page;
+    page = ref->page_shared;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
     /*
@@ -889,7 +889,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * Success: assert that the page is clean or reconciliation was configured to save updates.
      */
     WT_ASSERT(session,
-      !__wt_page_is_modified(ref->page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
+      !__wt_page_is_modified(ref->page_shared) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
         WT_IS_METADATA(btree->dhandle));
 
     return (0);

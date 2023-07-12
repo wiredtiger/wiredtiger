@@ -36,7 +36,7 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      */
     if (cbt->ins == NULL) {
         session = CUR2S(cbt);
-        page = cbt->ref->page;
+        page = cbt->ref->page_shared;
         WT_ASSERT(session, cbt->slot < page->entries);
         rip = &page->pg_row[cbt->slot];
         WT_ASSERT_ALWAYS(session, __wt_row_leaf_key(session, page, rip, &key, false) == 0,

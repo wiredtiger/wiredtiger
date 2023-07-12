@@ -34,7 +34,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     /*
      * We do discard objects without pages in memory. If that's the case, we're done.
      */
-    if (btree->root.page == NULL)
+    if (btree->root.page_shared == NULL)
         return (0);
 
     /* Make sure the oldest transaction ID is up-to-date. */
@@ -48,7 +48,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     next_ref = NULL;
     WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
     while ((ref = next_ref) != NULL) {
-        page = ref->page;
+        page = ref->page_shared;
 
         /*
          * Eviction can fail when a page in the evicted page's subtree switches state. For example,

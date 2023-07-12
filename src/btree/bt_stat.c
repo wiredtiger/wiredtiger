@@ -95,7 +95,7 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
     while ((ret = __wt_tree_walk(session, &next_walk,
               WT_READ_NO_GEN | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
       next_walk != NULL) {
-        WT_WITH_PAGE_INDEX(session, ret = __stat_page(session, next_walk->page, stats));
+        WT_WITH_PAGE_INDEX(session, ret = __stat_page(session, next_walk->page_shared, stats));
         WT_ERR(ret);
     }
 

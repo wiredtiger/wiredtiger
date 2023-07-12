@@ -42,7 +42,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
                WT_READ_VISIBLE_ALL) == 0 &&
       next_walk != NULL) {
         ++seen_count;
-        page = next_walk->page;
+        page = next_walk->page_shared;
         if (page->memory_footprint > max_pagesize)
             max_pagesize = page->memory_footprint;
 
@@ -132,9 +132,9 @@ __wt_curstat_cache_walk(WT_SESSION_IMPL *session)
     WT_STAT_DATA_SET(session, cache_state_gen_current, conn->cache->evict_pass_gen);
 
     /* Root page statistics */
-    root_idx = WT_INTL_INDEX_GET_SAFE(btree->root.page);
+    root_idx = WT_INTL_INDEX_GET_SAFE(btree->root.page_shared);
     WT_STAT_DATA_SET(session, cache_state_root_entries, root_idx->entries);
-    WT_STAT_DATA_SET(session, cache_state_root_size, btree->root.page->memory_footprint);
+    WT_STAT_DATA_SET(session, cache_state_root_size, btree->root.page_shared->memory_footprint);
 
     __evict_stat_walk(session);
 }

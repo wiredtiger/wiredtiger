@@ -248,8 +248,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
      */
     if (previous_state != WT_REF_DELETED) {
         WT_ASSERT(session, previous_state == WT_REF_MEM);
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        if ((updp = ref->page->modify->inst_updates) != NULL)
+        WT_ASSERT(session, ref->page_shared != NULL && ref->page_shared->modify != NULL);
+        if ((updp = ref->page_shared->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = ts;
                 /*
@@ -261,7 +261,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
                     (*updp)->durable_ts = txn->durable_timestamp;
             }
     }
-    page_del = ref->page_del;
+    page_del = ref->page_del_shared;
     if (page_del != NULL) {
         page_del->timestamp = ts;
         if (commit)
@@ -308,14 +308,14 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      */
     if (previous_state != WT_REF_DELETED) {
         WT_ASSERT(session, previous_state == WT_REF_MEM);
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        if ((updp = ref->page->modify->inst_updates) != NULL)
+        WT_ASSERT(session, ref->page_shared != NULL && ref->page_shared->modify != NULL);
+        if ((updp = ref->page_shared->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = txn->commit_timestamp;
                 (*updp)->durable_ts = txn->durable_timestamp;
             }
     }
-    page_del = ref->page_del;
+    page_del = ref->page_del_shared;
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = txn->commit_timestamp;
         page_del->durable_timestamp = txn->durable_timestamp;
@@ -442,7 +442,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * This access to the WT_PAGE_DELETED structure is safe; caller has the WT_REF locked, and in
      * fact just allocated the structure to fill in.
      */
-    ref->page_del->txnid_shared = txn->id;
+    ref->page_del_shared->txnid_shared = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
     if (__wt_log_op(session))
@@ -1148,7 +1148,7 @@ retry:
     WT_ASSERT(session, cbt->upd_value->type == WT_UPDATE_INVALID);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
-    if (cbt->ref->page->dsk == NULL) {
+    if (cbt->ref->page_shared->dsk == NULL) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }

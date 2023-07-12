@@ -20,7 +20,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     size_t footprint;
 
     btree = S2BT(session);
-    page = ref->page;
+    page = ref->page_shared;
 
     /* Leaf pages only. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -137,7 +137,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ASSERT(session, previous_state == WT_REF_DELETED);
-        WT_ASSERT(session, ref->page_del == NULL);
+        WT_ASSERT(session, ref->page_del_shared == NULL);
         WT_ERR(__wt_btree_new_leaf_page(session, ref));
         goto skip_read;
     }
@@ -168,13 +168,14 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          * work to avoid that.
          */
         WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-        if (ref->page_del != NULL && __wt_page_del_visible_all(session, ref->page_del, true))
-            __wt_overwrite_and_free(session, ref->page_del);
+        if (ref->page_del_shared != NULL &&
+          __wt_page_del_visible_all(session, ref->page_del_shared, true))
+            __wt_overwrite_and_free(session, ref->page_del_shared);
 
-        if (ref->page_del == NULL) {
+        if (ref->page_del_shared == NULL) {
             WT_ERR(__wt_btree_new_leaf_page(session, ref));
-            WT_ERR(__wt_page_modify_init(session, ref->page));
-            ref->page->modify->instantiated = true;
+            WT_ERR(__wt_page_modify_init(session, ref->page_shared));
+            ref->page_shared->modify->instantiated = true;
             goto skip_read;
         }
     }
@@ -213,13 +214,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * page_del gets cleared and set to NULL if the deletion is found to be globally visible; this
      * can happen in any of several places.
      */
-    WT_ASSERT(
-      session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
+    WT_ASSERT(session,
+      previous_state != WT_REF_DISK || (ref->page_del_shared == NULL && addr.del_set == false));
 
     if (previous_state == WT_REF_DELETED) {
         if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
-            WT_ERR(__wt_page_modify_init(session, ref->page));
-            ref->page->modify->instantiated = true;
+            WT_ERR(__wt_page_modify_init(session, ref->page_shared));
+            ref->page_shared->modify->instantiated = true;
         } else
             WT_ERR(__wt_delete_page_instantiate(session, ref));
     }
@@ -236,7 +237,7 @@ err:
      * If the function building an in-memory version of the page failed, it discarded the page, but
      * not the disk image. Discard the page and separately discard the disk image in all cases.
      */
-    if (ref->page != NULL)
+    if (ref->page_shared != NULL)
         __wt_ref_out(session, ref);
 
     F_CLR(ref, WT_REF_FLAG_READING);
@@ -384,7 +385,7 @@ read:
              * skip forced eviction if the page can't split.
              */
             if (F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
-              !__wt_leaf_page_can_split(session, ref->page))
+              !__wt_leaf_page_can_split(session, ref->page_shared))
                 goto skip_evict;
 
             /*
@@ -442,7 +443,7 @@ skip_evict:
              * generation and the page isn't already flagged for forced eviction, update the page
              * read generation.
              */
-            page = ref->page;
+            page = ref->page_shared;
             if (page->read_gen == WT_READGEN_NOTSET) {
                 if (wont_need)
                     page->read_gen = WT_READGEN_WONT_NEED;

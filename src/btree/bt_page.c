@@ -229,7 +229,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
     uint8_t v;
 
     btree = S2BT(session);
-    page = ref->page;
+    page = ref->page_shared;
     upd = NULL;
     total_size = 0;
 
@@ -456,7 +456,7 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, size_t
             page->pg_intl_parent_ref = ref;
             break;
         }
-        ref->page = page;
+        ref->page_shared = page;
     }
 
     *pagep = page;
@@ -639,8 +639,8 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
 
     btree = S2BT(session);
 
-    ref->home = home;
-    ref->pindex_hint = hint;
+    ref->home_shared = home;
+    ref->pindex_hint_shared = hint;
     ref->addr = addr;
     ref->ref_recno = recno;
     F_SET(ref, internal ? WT_REF_FLAG_INTERNAL : WT_REF_FLAG_LEAF);
@@ -654,8 +654,8 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
          * fast-delete state for the page.
          */
         if (page_del != NULL && F_ISSET(home->dsk, WT_PAGE_FT_UPDATE)) {
-            WT_RET(__wt_calloc_one(session, &ref->page_del));
-            *ref->page_del = *page_del;
+            WT_RET(__wt_calloc_one(session, &ref->page_del_shared));
+            *ref->page_del_shared = *page_del;
         }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
@@ -845,8 +845,8 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     hint = 0;
     WT_CELL_FOREACH_ADDR (session, page->dsk, unpack) {
         ref = *refp;
-        ref->home = page;
-        ref->pindex_hint = hint++;
+        ref->home_shared = page;
+        ref->pindex_hint_shared = hint++;
 
         switch (unpack.type) {
         case WT_CELL_ADDR_INT:
@@ -889,8 +889,8 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
              * Recreate the fast-delete state for the page.
              */
             if (F_ISSET(page->dsk, WT_PAGE_FT_UPDATE)) {
-                WT_ERR(__wt_calloc_one(session, &ref->page_del));
-                *ref->page_del = unpack.page_del;
+                WT_ERR(__wt_calloc_one(session, &ref->page_del_shared));
+                *ref->page_del_shared = unpack.page_del;
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
