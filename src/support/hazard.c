@@ -105,7 +105,8 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     if (session->nhazard >= hazard_inuse) {
         WT_ASSERT(session, session->nhazard == hazard_inuse && hazard_inuse < session->hazard_size);
         hp = &head[hazard_inuse];
-        WT_C_MEMMODEL_ATOMIC_STORE(&session->hazard_inuse, ++hazard_inuse, WT_ATOMIC_SEQ_CST);
+        ++hazard_inuse;
+        WT_C_MEMMODEL_ATOMIC_STORE(&session->hazard_inuse, hazrd_inuse, WT_ATOMIC_SEQ_CST);
     } else {
         WT_ASSERT(session, session->nhazard < hazard_inuse && hazard_inuse <= session->hazard_size);
 
