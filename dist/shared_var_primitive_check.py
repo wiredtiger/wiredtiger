@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 import subprocess, re
 
-# This script has two purposes:
-#   - It checks for changes involving WiredTiger primitives and warns about that if it finds one.
-#   - It also checks for changes involving shared variables and again warns.
+# This script reviews all changes made to the code base since it diverged from the develop branch.
+# If the diff involves:
+# - the use of WiredTiger concurrency primitives
+# - variables that are accessed by multiple threads outside the protection of a mutex
+#   (indicated by the variable having a `_shared` suffix)
+# This script will warn the user so they can perform a careful review of the changes.
 primitives = [
     "__wt_atomic_.*",
     "F_CLR_ATOMIC",
@@ -31,17 +34,14 @@ primitives = [
     "WT_WRITE_BARRIER",
 ]
 
-# Excluded strings for shared var check.
+# These strings are false positives when matching against _shared. Ignore them in search results.
 exclude = [
-    "__session_find_shared_dhandle",
     "__wt_track_shared",
     "checkpoint_txn_shared",
-    "confchk_wiredtiger_open_shared_cache_subconfigs",
-    "is_tier_shared",
+    "is_tiered_shared",
     "now_shared",
     "remove_shared",
     "tiered_shared",
-    "txn_shared_list",
     "txn_shared",
     "was_shared",
 ]
@@ -58,36 +58,29 @@ diff = subprocess.run(command, capture_output=True, cwd=root.strip(), text=True,
 # Iterate over the primitive list and search for them.
 found_primitives = []
 for primitive in primitives:
-    if (re.search(start_regex + primitive, diff, re.MULTILINE)):
+    if re.search(start_regex + primitive, diff, re.MULTILINE):
         found_primitives.append(primitive)
 
 # Iterate over the diff line by line and search for shared variables.
 shared_vars = set()
-shared_var_regex = start_regex + "?([a-z_]+_shared)"
 for line in diff.split('\n'):
-    shared_var_capture = re.search(shared_var_regex, line.strip())
-    if (shared_var_capture is not None):
-        variable = shared_var_capture.group(2)
-        excluded = False
-        # Exclude various existing variables.
-        for i in exclude:
-            if (re.search(i, variable)):
-                excluded = True
-                break
-        if not excluded:
-            shared_vars.add(variable)
+    if line.startswith("+") or line.startswith("-"):
+        for m in re.finditer("([a-z_]+_shared)[^a-z_]", line):
+            if m[1] not in exclude:
+                shared_vars.add(m[1])
 
 # If we found any primitives or shared variables log a warning.
-if (len(found_primitives) != 0):
+if len(found_primitives) != 0:
     print("### Primitive check ###")
     print("Code changes made since this branch diverged from develop include the following"
         " concurrency control primitives: " + str(found_primitives))
     print("If you have made modifications to code involving a primitive it could have unexpected"
         " behaviour, please do so with care.")
         
-if (len(shared_vars) != 0):
+if len(shared_vars) != 0:
     print("### Shared variable check ###")
     print("Code changes made since this branch diverged from develop include the following"
         " shared variables: " + str(shared_vars))
     print("If you have made modifications to code involving a shared variable it could have"
           " unexpected behaviour, please do so with care.")
+    print("If you believe this is incorrect please add the shared variable to the exclude list.")
