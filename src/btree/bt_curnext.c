@@ -188,6 +188,7 @@ restart_read:
 
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
+            cbt->valid_data = true;
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
@@ -316,6 +317,7 @@ restart_read:
          * and the cell is cacheable (it might not be if it's not globally visible), reuse the
          * previous return data to avoid repeatedly decoding items.
          */
+        cbt->valid_data = true;
         if (cbt->cip_saved == cip && F_ISSET(cbt, WT_CBT_CACHEABLE_RLE_CELL)) {
             F_CLR(&cbt->iface, WT_CURSTD_VALUE_EXT);
             F_SET(&cbt->iface, WT_CURSTD_VALUE_INT);
@@ -368,6 +370,8 @@ restart_read:
         if (cbt->upd_value->type == WT_UPDATE_INVALID ||
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             ++*skippedp;
+            if (cbt->upd_value->type == WT_UPDATE_INVALID)
+                cbt->valid_data = true;
             continue;
         }
         __wt_value_return(cbt, cbt->upd_value);
@@ -484,6 +488,7 @@ restart_read_insert:
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
+                cbt->valid_data = true;
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
@@ -552,6 +557,7 @@ restart_read_page:
         WT_RET(__wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, first_upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
+            cbt->valid_data = true;
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
@@ -951,7 +957,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
               (newpage && cbt->page_obsolete_deleted_count > 0)) {
                 WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
                 WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
-            } else if (!cbt->valid_data) {
+            } else if (page->type != WT_PAGE_COL_FIX && !cbt->valid_data) {
                 __wt_page_evict_soon(session, cbt->ref);
                 WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
             }
