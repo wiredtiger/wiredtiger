@@ -278,7 +278,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
     dryrun = S2C(session)->rts->dryrun;
 
-    page = ref->page_shared;
+    page = ref->page;
 
     hs_cursor = NULL;
     tombstone = upd = NULL;
@@ -624,7 +624,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool prepared;
 
-    page = ref->page_shared;
+    page = ref->page;
     upd = NULL;
 
     /* Initialize the on-disk stable version flag. */
@@ -801,7 +801,7 @@ __rts_btree_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     uint32_t i, j, stable_updates_count;
     bool is_ondisk_stable;
 
-    page = ref->page_shared;
+    page = ref->page;
     /*
      * If a disk image exists, start from the provided recno; or else start from 0.
      */
@@ -915,7 +915,7 @@ __rts_btree_abort_col_fix_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t tw
     uint8_t value;
 
     btree = S2BT(session);
-    page = ref->page_shared;
+    page = ref->page;
 
     /* Unpack the cell to get the time window. */
     cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
@@ -944,7 +944,7 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     uint32_t ins_recno_offset, recno_offset, numtws, tw;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
-    page = ref->page_shared;
+    page = ref->page;
     WT_ASSERT(session, page != NULL);
 
     /*
@@ -1025,7 +1025,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool have_key, stable_update_found;
 
-    page = ref->page_shared;
+    page = ref->page;
 
     WT_RET(__wt_scr_alloc(session, 0, &key));
 
@@ -1106,7 +1106,7 @@ __wt_rts_btree_abort_updates(
      * newer than the given timestamp. As eviction writes the newest version to page, even a clean
      * page may also contain modifications that need rollback.
      */
-    page = ref->page_shared;
+    page = ref->page;
     modified = __wt_page_is_modified(page);
     if (!modified && !__wt_rts_visibility_page_needs_abort(session, ref, rollback_timestamp)) {
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,

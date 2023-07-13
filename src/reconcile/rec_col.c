@@ -219,7 +219,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_TIME_AGGREGATE ft_ta, ta;
 
     btree = S2BT(session);
-    page = pageref->page_shared;
+    page = pageref->page;
     child = NULL;
     WT_TIME_AGGREGATE_INIT(&ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
@@ -241,7 +241,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          */
         WT_ERR(__wt_rec_child_modify(session, r, ref, &cms));
         addr = NULL;
-        child = ref->page_shared;
+        child = ref->page;
         page_del = NULL;
 
         switch (cms.state) {
@@ -481,7 +481,7 @@ __wt_rec_col_fix(
      * type, but that could change so be careful.
      */
     memset(&unpack, 0, sizeof(unpack));
-    page = pageref->page_shared;
+    page = pageref->page;
     upd = NULL;
     /* Track the start of the current page we're working on. Changes when we split. */
     curstartrecno = pageref->ref_recno;
@@ -1215,7 +1215,7 @@ __wt_rec_col_var(
 
     btree = S2BT(session);
     vpack = &_vpack;
-    page = pageref->page_shared;
+    page = pageref->page;
     WT_TIME_WINDOW_INIT(&clear_tw);
     twp = NULL;
     upd = NULL;

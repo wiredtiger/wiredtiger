@@ -455,7 +455,7 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_K
     const void *key_data;
 
     session = CUR2S(cbt);
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
 
     kb = &cbt->iface.key;
 

@@ -944,14 +944,14 @@ struct __wt_ref_hist {
  *	A single in-memory page and state information.
  */
 struct __wt_ref {
-    WT_PAGE *page_shared; /* Page */
+    WT_PAGE *page; /* Page */
 
     /*
      * When the tree deepens as a result of a split, the home page value changes. Don't cache it, we
      * need to see that change when looking up our slot in the page's index structure.
      */
-    WT_PAGE *volatile home_shared;        /* Reference page */
-    volatile uint32_t pindex_hint_shared; /* Reference page index hint */
+    WT_PAGE *volatile home;        /* Reference page */
+    volatile uint32_t pindex_hint; /* Reference page index hint */
 
     uint8_t unused[2]; /* Padding: before the flags field so flags can be easily expanded. */
 
@@ -1078,16 +1078,16 @@ struct __wt_ref {
      *
      * 2. The WT_REF state is WT_REF_MEM. The page is either an ordinary page or an instantiated
      * deleted page.
-     *    - If ref->page_shared->modify is NULL, the page is ordinary.
-     *    - If ref->page_shared->modify->instantiated is false and
-     * ref->page_shared->modify->inst_updates is NULL, the page is ordinary.
-     *    - If ref->page_shared->modify->instantiated is true, the page is instantiated and has not
-     * yet been reconciled. ref->page_del_shared is either NULL (meaning the deletion is globally
-     * visible) or contains information about the transaction that deleted the page. This
-     * information is only meaningful either (a) in relation to the existing on-disk page rather
-     * than the in- memory page (this can be needed to reconcile the parent internal page) or (b) if
-     * the page is clean.
-     *    - If ref->page_shared->modify->inst_updates is not NULL, the page is instantiated and the
+     *    - If ref->page->modify is NULL, the page is ordinary.
+     *    - If ref->page->modify->instantiated is false and ref->page->modify->inst_updates is NULL,
+     *      the page is ordinary.
+     *    - If ref->page->modify->instantiated is true, the page is instantiated and has not yet
+     *      been reconciled. ref->page_del is either NULL (meaning the deletion is globally visible)
+     *      or contains information about the transaction that deleted the page. This information is
+     *      only meaningful either (a) in relation to the existing on-disk page rather than the in-
+     *      memory page (this can be needed to reconcile the parent internal page) or (b) if the
+     *      page is clean.
+     *    - If ref->page->modify->inst_updates is not NULL, the page is instantiated and the
      *      transaction that deleted it has not resolved yet. The update list is used during commit
      *      or rollback to find the updates created during instantiation.
      *
@@ -1107,7 +1107,7 @@ struct __wt_ref {
      * disk, a page instantiated after its parent was read from disk will always have inst_updates
      * set to NULL.
      */
-    WT_PAGE_DELETED *page_del_shared; /* Page-delete information for a deleted page. */
+    WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
 #ifdef HAVE_REF_TRACK
 /*

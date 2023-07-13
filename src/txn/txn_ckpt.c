@@ -2223,8 +2223,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * this call. Also, marking the btree dirty at this stage will unnecessarily mark the connection
      * as dirty causing checkpoint-skip code to fail.
      */
-    WT_ERR(__wt_page_modify_init(session, btree->root.page_shared));
-    __wt_page_only_modify_set(session, btree->root.page_shared);
+    WT_ERR(__wt_page_modify_init(session, btree->root.page));
+    __wt_page_only_modify_set(session, btree->root.page);
 
     /*
      * Clear the tree's modified flag; any changes before we clear the flag are guaranteed to be

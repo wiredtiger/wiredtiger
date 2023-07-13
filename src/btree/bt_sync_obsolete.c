@@ -30,8 +30,8 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
      * page modification only after acquiring the hazard pointer to protect against the page being
      * freed in parallel.
      */
-    WT_ASSERT(session, ref->page_shared != NULL);
-    if (__wt_page_is_modified(ref->page_shared))
+    WT_ASSERT(session, ref->page != NULL);
+    if (__wt_page_is_modified(ref->page))
         return (0);
 
     /*
@@ -42,7 +42,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
     do_visibility_check = obsolete = ovfl_items = false;
 
-    mod = ref->page_shared->modify;
+    mod = ref->page->modify;
     if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY) {
         tag = "reconciled empty";
 
@@ -84,8 +84,8 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
          * overflow items.
          */
         if (ovfl_items) {
-            WT_RET(__wt_page_modify_init(session, ref->page_shared));
-            __wt_page_modify_set(session, ref->page_shared);
+            WT_RET(__wt_page_modify_init(session, ref->page));
+            __wt_page_modify_set(session, ref->page);
         }
 
         /* Mark the obsolete page to evict soon. */
@@ -109,7 +109,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_PAGE_DELETED *page_del;
 
-    page_del = ref->page_del_shared;
+    page_del = ref->page_del;
     if (page_del == NULL ||
       __wt_txn_visible_all(session, page_del->txnid_shared, page_del->durable_timestamp)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, true));
@@ -204,7 +204,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Ignore internal pages, these are taken care of during reconciliation. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
-          "%p: skipping internal page with parent: %p", (void *)ref, (void *)ref->home_shared);
+          "%p: skipping internal page with parent: %p", (void *)ref, (void *)ref->home);
         return (0);
     }
 
@@ -271,15 +271,15 @@ __wt_sync_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_REF *ref;
     uint32_t slot;
 
-    WT_ASSERT_ALWAYS(session, WT_PAGE_IS_INTERNAL(parent->page_shared),
+    WT_ASSERT_ALWAYS(session, WT_PAGE_IS_INTERNAL(parent->page),
       "Checkpoint obsolete cleanup requires an internal page");
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
     __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
       "%p: traversing the internal page %p for obsolete child pages", (void *)parent,
-      (void *)parent->page_shared);
+      (void *)parent->page);
 
-    WT_INTL_INDEX_GET(session, parent->page_shared, pindex);
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 

@@ -33,7 +33,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 
     btree = CUR2BT(cbt);
     ins = NULL;
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
     session = CUR2S(cbt);
     last_upd = NULL;
     upd = upd_arg;

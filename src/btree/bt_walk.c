@@ -30,7 +30,7 @@ __ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp,
          * Copy the parent page's index value: the page can split at any time, but the index's value
          * is always valid, even if it's not up-to-date.
          */
-        WT_INTL_INDEX_GET(session, ref->home_shared, pindex);
+        WT_INTL_INDEX_GET(session, ref->home, pindex);
         entries = pindex->entries;
 
         /*
@@ -41,7 +41,7 @@ __ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp,
          * It's not an error for the reference hint to be wrong, it just means the first retrieval
          * (which sets the hint for subsequent retrievals), is slower.
          */
-        slot = ref->pindex_hint_shared;
+        slot = ref->pindex_hint;
         if (slot >= entries)
             slot = entries - 1;
         if (pindex->index[slot] == ref)
@@ -93,7 +93,7 @@ __ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, u
          * Find our parent slot on the next higher internal page, the slot from which we move to a
          * next/prev slot, checking that we haven't reached the root.
          */
-        parent_ref = ref->home_shared->pg_intl_parent_ref;
+        parent_ref = ref->home->pg_intl_parent_ref;
         if (__wt_ref_is_root(parent_ref))
             break;
         __ref_index_slot(session, parent_ref, pindexp, slotp);
@@ -136,7 +136,7 @@ __ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, u
          * our search doesn't point to the same page as that initial
          * WT_REF, there's a race and we start over again.
          */
-        if (ref->home_shared == parent_ref->page_shared)
+        if (ref->home == parent_ref->page)
             break;
     }
 
@@ -173,7 +173,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * for reading an old version of the parent's page index and then reading a new version of the
      * child's page index.
      */
-    WT_INTL_INDEX_GET(session, ref->page_shared, pindex);
+    WT_INTL_INDEX_GET(session, ref->page, pindex);
     if (__wt_split_descent_race(session, ref, *pindexp))
         return (true);
 
@@ -225,7 +225,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * until the page-index is updated, but I'm not willing to debug that
      * one if I'm wrong.)
      */
-    if (pindex->index[pindex->entries - 1]->home_shared != ref->page_shared)
+    if (pindex->index[pindex->entries - 1]->home != ref->page)
         return (true);
 
     *pindexp = pindex;
@@ -332,7 +332,7 @@ restart:
 
         if ((ref = ref_orig) == NULL) {
             ref = &btree->root;
-            WT_INTL_INDEX_GET(session, ref->page_shared, pindex);
+            WT_INTL_INDEX_GET(session, ref->page, pindex);
             slot = prev ? pindex->entries - 1 : 0;
             goto descend;
         }
@@ -417,8 +417,8 @@ descend:
              * incorrect in some workloads.
              */
             ref = pindex->index[slot];
-            if (ref->pindex_hint_shared != slot)
-                ref->pindex_hint_shared = slot;
+            if (ref->pindex_hint != slot)
+                ref->pindex_hint = slot;
 
             /*
              * If we see any child states other than deleted, the page isn't empty.
@@ -480,7 +480,7 @@ descend:
                         goto restart;
                     slot = pindex->entries - 1;
                 } else {
-                    WT_INTL_INDEX_GET(session, ref->page_shared, pindex);
+                    WT_INTL_INDEX_GET(session, ref->page, pindex);
                     slot = 0;
                 }
                 continue;

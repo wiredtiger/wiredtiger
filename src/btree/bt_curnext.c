@@ -81,7 +81,7 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -221,7 +221,7 @@ __cursor_var_next(
     uint64_t rle, rle_start;
 
     session = CUR2S(cbt);
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
 
     rle_start = 0; /* -Werror=maybe-uninitialized */
     *skippedp = 0;
@@ -398,7 +398,7 @@ __cursor_row_next(
     WT_SESSION_IMPL *session;
 
     key = &cbt->iface.key;
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
     session = CUR2S(cbt);
     *key_out_of_boundsp = false;
     *skippedp = 0;
@@ -630,14 +630,14 @@ err:
 int
 __wt_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
 {
-    switch (cbt->ref->page_shared->type) {
+    switch (cbt->ref->page->type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         return (__cursor_key_order_check_col(session, cbt, next));
     case WT_PAGE_ROW_LEAF:
         return (__cursor_key_order_check_row(session, cbt, next));
     default:
-        return (__wt_illegal_value(session, cbt->ref->page_shared->type));
+        return (__wt_illegal_value(session, cbt->ref->page->type));
     }
     /* NOTREACHED */
 }
@@ -661,7 +661,7 @@ __wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
      * Cursor searches set the position for cursor movements, set the last-key value for diagnostic
      * checking.
      */
-    switch (cbt->ref->page_shared->type) {
+    switch (cbt->ref->page->type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         cbt->lastrecno = cbt->recno;
@@ -669,7 +669,7 @@ __wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
     case WT_PAGE_ROW_LEAF:
         return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
     default:
-        return (__wt_illegal_value(session, cbt->ref->page_shared->type));
+        return (__wt_illegal_value(session, cbt->ref->page->type));
     }
     /* NOTREACHED */
 }
@@ -728,7 +728,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
         return;
     }
 
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
     if (page->type == WT_PAGE_ROW_LEAF) {
         /*
          * For row-store pages, we need a single item that tells us the part of the page we're
@@ -822,7 +822,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     for (newpage = false;; newpage = true, restart = false) {
-        page = cbt->ref == NULL ? NULL : cbt->ref->page_shared;
+        page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
             /* The page cannot be NULL if the above flag is set. */

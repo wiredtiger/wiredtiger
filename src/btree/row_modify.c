@@ -58,7 +58,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     bool added_to_txn, inserted_to_update_chain;
 
     ins = NULL;
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
     session = CUR2S(cbt);
     last_upd = NULL;
     upd = upd_arg;
@@ -347,7 +347,7 @@ __wt_update_obsolete_check(
     u_int count;
 
     next = NULL;
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
     /* If we can't lock it, don't scan, that's okay. */

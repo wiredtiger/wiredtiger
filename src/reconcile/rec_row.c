@@ -352,7 +352,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         WT_ERR(__wt_rec_child_modify(session, r, ref, &cms));
         addr = ref->addr;
-        child = ref->page_shared;
+        child = ref->page;
 
         switch (cms.state) {
         case WT_CHILD_IGNORE:
@@ -700,7 +700,7 @@ __wt_rec_row_leaf(
     const void *key_data;
 
     btree = S2BT(session);
-    page = pageref->page_shared;
+    page = pageref->page;
     twp = NULL;
     upd = NULL;
     slvg_skip = salvage == NULL ? 0 : salvage->skip;

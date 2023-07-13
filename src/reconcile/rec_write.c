@@ -37,7 +37,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
     btree = S2BT(session);
     conn = S2C(session);
-    page = ref->page_shared;
+    page = ref->page;
 
     session->reconcile_timeline.reconcile_start = __wt_clock(session);
 
@@ -99,7 +99,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
 
     /* If writing a page in service of compaction, we're done, clear the flag. */
-    F_CLR_ATOMIC_16(ref->page_shared, WT_PAGE_COMPACTION_WRITE);
+    F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
 
 err:
     if (page_locked)
@@ -146,7 +146,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
     WT_PAGE_MODIFY *mod;
     uint64_t oldest_id;
 
-    mod = ref->page_shared->modify;
+    mod = ref->page->modify;
     oldest_id = __wt_txn_oldest_id(session);
 
     /*
@@ -252,7 +252,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     void *addr;
 
     btree = S2BT(session);
-    page = ref->page_shared;
+    page = ref->page;
 
     if (*page_lockedp)
         WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
@@ -504,7 +504,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 
         WT_ERR(
           __wt_multi_to_ref(session, next, &mod->mod_multi[i], &pindex->index[i], NULL, false));
-        pindex->index[i]->home_shared = next;
+        pindex->index[i]->home = next;
     }
 
     /*
@@ -548,7 +548,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     uint64_t ckpt_txn;
 
     btree = S2BT(session);
-    page = ref->page_shared;
+    page = ref->page;
 
     /*
      * Reconciliation is not re-entrant, make sure that doesn't happen. Our caller sets
@@ -1190,7 +1190,7 @@ __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, ui
         if (__wt_ref_is_root(ref))
             WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
         else
-            __wt_ref_key(ref->home_shared, ref, &chunk->key.data, &chunk->key.size);
+            __wt_ref_key(ref->home, ref, &chunk->key.data, &chunk->key.size);
     } else
         chunk->recno = recno;
 
@@ -2200,9 +2200,9 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
      * Get a reference to the empty leaf page; we have exclusive access so we can take a copy of the
      * page, confident the parent won't split.
      */
-    pindex = WT_INTL_INDEX_GET_SAFE(btree->root.page_shared);
+    pindex = WT_INTL_INDEX_GET_SAFE(btree->root.page);
     cbulk->ref = pindex->index[0];
-    cbulk->leaf = cbulk->ref->page_shared;
+    cbulk->leaf = cbulk->ref->page;
 
     WT_RET(__rec_init(session, cbulk->ref, 0, NULL, &cbulk->reconcile));
     r = cbulk->reconcile;
@@ -2251,12 +2251,12 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     __rec_write_page_status(session, r);
 
     /* Mark the page's parent and the tree dirty. */
-    parent = r->ref->home_shared;
+    parent = r->ref->home;
     WT_ERR(__wt_page_modify_init(session, parent));
     __wt_page_modify_set(session, parent);
 
 err:
-    r->ref->page_shared->modify->flags = 0;
+    r->ref->page->modify->flags = 0;
     WT_TRET(__rec_cleanup(session, r));
     WT_TRET(__rec_destroy(session, &cbulk->reconcile));
 
@@ -2524,12 +2524,12 @@ split:
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this
-     * is the only place in the system that potentially touches ref->page_del_shared without locking
-     * the ref. There are two other pieces of code it can interact with: transaction rollback and
-     * parent internal page reconciliation. We use __wt_free_page_del here and in transaction
-     * rollback to make the deletion atomic. Reconciliation of the parent is locked out for the
-     * following reasons: first, if we are evicting the leaf here, eviction has the ref locked, and
-     * the parent will wait for it; and if we are checkpointing the leaf, we can't simultaneously be
+     * is the only place in the system that potentially touches ref->page_del without locking the
+     * ref. There are two other pieces of code it can interact with: transaction rollback and parent
+     * internal page reconciliation. We use __wt_free_page_del here and in transaction rollback to
+     * make the deletion atomic. Reconciliation of the parent is locked out for the following
+     * reasons: first, if we are evicting the leaf here, eviction has the ref locked, and the parent
+     * will wait for it; and if we are checkpointing the leaf, we can't simultaneously be
      * checkpointing the parent, and we can't be evicting the parent either because internal pages
      * can't be evicted while they have in-memory children.
      */
@@ -2553,7 +2553,7 @@ split:
         /* Check the instantiated flag again in case it got cleared while we waited. */
         if (mod->instantiated) {
             mod->instantiated = false;
-            __wt_free(session, ref->page_del_shared);
+            __wt_free(session, ref->page_del);
         }
 
         if (!F_ISSET(r, WT_REC_EVICT))

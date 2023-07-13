@@ -21,7 +21,7 @@ __rec_child_deleted(
     bool visible, visible_all;
 
     visible = visible_all = false;
-    page_del = ref->page_del_shared;
+    page_del = ref->page_del;
 
     cmsp->state = WT_CHILD_IGNORE;
 
@@ -180,7 +180,7 @@ __rec_child_deleted(
     WT_RET(__wt_ref_block_free(session, ref));
 
     /* Globally visible fast-truncate information is never used again, a NULL value is identical. */
-    __wt_overwrite_and_free(session, ref->page_del_shared);
+    __wt_overwrite_and_free(session, ref->page_del);
 
     return (0);
 }
@@ -218,7 +218,7 @@ __wt_rec_child_modify(
             /* On disk, not modified by definition. */
             WT_ASSERT(session, ref->addr != NULL);
             /* DISK pages do not have fast-truncate info. */
-            WT_ASSERT(session, ref->page_del_shared == NULL);
+            WT_ASSERT(session, ref->page_del == NULL);
             goto done;
 
         case WT_REF_DELETED:
@@ -297,7 +297,7 @@ __wt_rec_child_modify(
              * The child is potentially modified if the page's modify structure has been created. If
              * the modify structure exists and the page has been reconciled, set that state.
              */
-            mod = ref->page_shared->modify;
+            mod = ref->page->modify;
             if (mod != NULL && mod->rec_result != 0) {
                 cmsp->state = WT_CHILD_MODIFIED;
                 goto done;

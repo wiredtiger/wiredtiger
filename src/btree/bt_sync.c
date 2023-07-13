@@ -22,7 +22,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
-    mod = ref->page_shared->modify;
+    mod = ref->page->modify;
     txn = session->txn;
 
     /*
@@ -268,7 +268,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * pages that have been updated since the write phase leaves started): checkpoint will
              * have to visit them anyway.
              */
-            page = walk->page_shared;
+            page = walk->page;
             if (__wt_page_is_modified(page) && WT_TXNID_LT(page->modify->update_txn, oldest_id)) {
                 if (txn->isolation == WT_ISO_READ_COMMITTED)
                     __wt_txn_get_snapshot(session);
@@ -357,7 +357,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(ret);
             }
 
-            page = walk->page_shared;
+            page = walk->page;
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to

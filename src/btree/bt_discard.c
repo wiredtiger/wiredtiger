@@ -45,9 +45,9 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session,
       !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
-        !__wt_gen_active(session, WT_GEN_SPLIT, ref->page_shared->pg_intl_split_gen));
+        !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
-    __wt_page_out(session, &ref->page_shared);
+    __wt_page_out(session, &ref->page);
 }
 
 /*
@@ -256,17 +256,17 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
      * instantiated concurrently which changes the addr field. Once we swap in NULL we effectively
      * own the addr. Then provided the addr is off page we can free the memory.
      *
-     * However as we could be the child of a page being split the ref->home_shared pointer which
-     * tells us whether the addr is on or off page could change concurrently. To avoid this we save
-     * the home pointer before we do the compare and swap. While the second ordered read should be
-     * sufficient we use an ordered read on the ref->home_shared pointer as that is the standard
-     * mechanism to guarantee we read the current value.
+     * However as we could be the child of a page being split the ref->home pointer which tells us
+     * whether the addr is on or off page could change concurrently. To avoid this we save the home
+     * pointer before we do the compare and swap. While the second ordered read should be sufficient
+     * we use an ordered read on the ref->home pointer as that is the standard mechanism to
+     * guarantee we read the current value.
      *
      * We don't reread this value inside loop as if it was to change then we would be pointing at a
      * new parent, which would mean that our ref->addr must have been instantiated and thus we are
      * safe to free it at the end of this function.
      */
-    WT_ORDERED_READ(home, ref->home_shared);
+    WT_ORDERED_READ(home, ref->home);
     do {
         WT_ORDERED_READ(ref_addr, ref->addr);
         if (ref_addr == NULL)
@@ -310,11 +310,11 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
      * The page may have been marked dirty as well; page discard checks for that, so we mark it
      * clean explicitly.)
      */
-    if (free_pages && ref->page_shared != NULL) {
-        WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page_shared),
+    if (free_pages && ref->page != NULL) {
+        WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
           "Attempting to discard ref to a page being reconciled");
-        __wt_page_modify_clear(session, ref->page_shared);
-        __wt_page_out(session, &ref->page_shared);
+        __wt_page_modify_clear(session, ref->page);
+        __wt_page_out(session, &ref->page);
     }
 
     /*
@@ -336,7 +336,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     __wt_ref_addr_free(session, ref);
 
     /* Free any backing fast-truncate memory. */
-    __wt_free(session, ref->page_del_shared);
+    __wt_free(session, ref->page_del);
 
     __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
 }

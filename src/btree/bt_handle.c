@@ -590,7 +590,7 @@ __wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bo
     WT_UNUSED(session); /* Used in a macro for diagnostic builds */
     memset(root_ref, 0, sizeof(*root_ref));
 
-    root_ref->page_shared = root;
+    root_ref->page = root;
     F_SET(root_ref, WT_REF_FLAG_INTERNAL);
     WT_REF_SET_STATE(root_ref, WT_REF_MEM);
 
@@ -716,8 +716,8 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
         pindex = WT_INTL_INDEX_GET_SAFE(root);
         ref = pindex->index[0];
-        ref->home_shared = root;
-        ref->page_shared = NULL;
+        ref->home = root;
+        ref->page = NULL;
         ref->addr = NULL;
         F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -729,8 +729,8 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
         pindex = WT_INTL_INDEX_GET_SAFE(root);
         ref = pindex->index[0];
-        ref->home_shared = root;
-        ref->page_shared = NULL;
+        ref->home = root;
+        ref->page = NULL;
         ref->addr = NULL;
         F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -743,8 +743,8 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         WT_ERR(__wt_btree_new_leaf_page(session, ref));
         F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
-        WT_ERR(__wt_page_modify_init(session, ref->page_shared));
-        __wt_page_only_modify_set(session, ref->page_shared);
+        WT_ERR(__wt_page_modify_init(session, ref->page));
+        __wt_page_only_modify_set(session, ref->page);
     }
 
     /* Finish initializing the root, root reference links. */
@@ -753,8 +753,8 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
     return (0);
 
 err:
-    if (ref != NULL && ref->page_shared != NULL)
-        __wt_page_out(session, &ref->page_shared);
+    if (ref != NULL && ref->page != NULL)
+        __wt_page_out(session, &ref->page);
     if (root != NULL)
         __wt_page_out(session, &root);
     return (ret);
@@ -773,13 +773,13 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     switch (btree->type) {
     case BTREE_COL_FIX:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page_shared));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page));
         break;
     case BTREE_COL_VAR:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page_shared));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page));
         break;
     case BTREE_ROW:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page_shared));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
         break;
     }
 
@@ -814,7 +814,7 @@ __btree_preload(WT_SESSION_IMPL *session)
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Pre-load the second-level internal pages. */
-    WT_INTL_FOREACH_BEGIN (session, btree->root.page_shared, ref)
+    WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr)) {
             WT_ERR(__wt_blkcache_read(session, tmp, addr.addr, addr.size));
             ++block_preload;
@@ -866,7 +866,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     if (next_walk == NULL)
         return (WT_NOTFOUND);
 
-    page = next_walk->page_shared;
+    page = next_walk->page;
     btree->last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
                                                         __col_fix_last_recno(next_walk);
 

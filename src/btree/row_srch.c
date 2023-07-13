@@ -311,8 +311,8 @@ __check_leaf_key_range(
      * First, confirm we have the right parent page-index slot, and quit if we don't. We don't
      * search for the correct slot, that would make this cheap test expensive.
      */
-    WT_INTL_INDEX_GET(session, leaf->home_shared, pindex);
-    indx = leaf->pindex_hint_shared;
+    WT_INTL_INDEX_GET(session, leaf->home, pindex);
+    indx = leaf->pindex_hint;
     if (indx >= pindex->entries || pindex->index[indx] != leaf)
         return (0);
 
@@ -323,7 +323,7 @@ __check_leaf_key_range(
      * build it, it may not be a valid key.
      */
     if (indx != 0) {
-        __wt_ref_key(leaf->home_shared, leaf, &item->data, &item->size);
+        __wt_ref_key(leaf->home, leaf, &item->data, &item->size);
         WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
         if (cmp < 0) {
             cbt->compare = 1; /* page keys > search key */
@@ -337,7 +337,7 @@ __check_leaf_key_range(
      */
     ++indx;
     if (indx < pindex->entries) {
-        __wt_ref_key(leaf->home_shared, pindex->index[indx], &item->data, &item->size);
+        __wt_ref_key(leaf->home, pindex->index[indx], &item->data, &item->size);
         WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
         if (cmp >= 0) {
             cbt->compare = -1; /* page keys < search key */
@@ -426,7 +426,7 @@ restart:
     current = &btree->root;
     for (depth = 2, pindex = NULL;; ++depth) {
         parent_pindex = pindex;
-        page = current->page_shared;
+        page = current->page;
         if (page->type != WT_PAGE_ROW_INT)
             break;
 
@@ -583,7 +583,7 @@ descend:
         btree->maximum_depth = depth;
 
 leaf_only:
-    page = current->page_shared;
+    page = current->page;
     cbt->ref = current;
 
     /*

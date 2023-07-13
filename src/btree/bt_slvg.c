@@ -194,13 +194,13 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
     /*
      * We may not have found any pages during salvage and there's no tree to flush.
      */
-    if (root->page_shared != NULL) {
+    if (root->page != NULL) {
         /* Make sure that the saved checkpoint information has been cleared. */
         WT_ASSERT(session, btree->ckpt == NULL);
 
         btree->ckpt = ckptbase;
         ret = __wt_evict(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
-        root->page_shared = NULL;
+        root->page = NULL;
         btree->ckpt = NULL;
         WT_ERR(ret);
     }
@@ -403,7 +403,7 @@ err:
     WT_TRET(bm->salvage_end(bm, session));
 
     /* Discard any root page we created. */
-    if (ss->root_ref.page_shared != NULL)
+    if (ss->root_ref.page != NULL)
         __wt_ref_out(session, &ss->root_ref);
 
     /* Discard the leaf and overflow page memory. */
@@ -1220,8 +1220,8 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
             continue;
 
         ref = *refp++;
-        ref->home_shared = page;
-        ref->page_shared = NULL;
+        ref->home = page;
+        ref->page = NULL;
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
@@ -1286,7 +1286,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 
     /* Get the original page, including the full in-memory setup. */
     WT_RET(__wt_page_in(session, ref, 0));
-    page = ref->page_shared;
+    page = ref->page;
 
     save_col_var = page->pg_var;
     save_entries = page->entries;
@@ -1826,8 +1826,8 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
             continue;
 
         ref = *refp++;
-        ref->home_shared = page;
-        ref->page_shared = NULL;
+        ref->home = page;
+        ref->page = NULL;
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
@@ -1910,7 +1910,7 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_S
 
     /* Get the original page, including the full in-memory setup. */
     WT_ERR(__wt_page_in(session, ref, 0));
-    page = ref->page_shared;
+    page = ref->page;
 
     /*
      * Figure out how many page keys we want to take and how many we want to skip.
@@ -1965,7 +1965,7 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_S
      */
     rip = page->pg_row + skip_start;
     WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-    WT_ERR(__wt_row_ikey_incr(session, ref->home_shared, 0, key->data, key->size, ref));
+    WT_ERR(__wt_row_ikey_incr(session, ref->home, 0, key->data, key->size, ref));
 
     /* Set the referenced flag on overflow pages we're using. */
     if (trk->trk_ovfl_cnt != 0)

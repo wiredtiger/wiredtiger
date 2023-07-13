@@ -42,8 +42,8 @@ __check_leaf_key_range(WT_SESSION_IMPL *session, uint64_t recno, WT_REF *leaf, W
      * do that latter check before looking at the indx slot of the array
      * for a match to leaf (in other words, our page hint might be wrong).
      */
-    WT_INTL_INDEX_GET(session, leaf->home_shared, pindex);
-    indx = leaf->pindex_hint_shared;
+    WT_INTL_INDEX_GET(session, leaf->home, pindex);
+    indx = leaf->pindex_hint;
     if (indx + 1 < pindex->entries && pindex->index[indx] == leaf)
         if (recno >= pindex->index[indx + 1]->ref_recno) {
             cbt->compare = -1; /* page keys < search key */
@@ -126,7 +126,7 @@ restart:
     current = &btree->root;
     for (depth = 2, pindex = NULL;; ++depth) {
         parent_pindex = pindex;
-        page = current->page_shared;
+        page = current->page;
         if (page->type != WT_PAGE_COL_INT)
             break;
 
@@ -203,7 +203,7 @@ descend:
         btree->maximum_depth = depth;
 
 leaf_only:
-    page = current->page_shared;
+    page = current->page;
     cbt->ref = current;
 
     /*

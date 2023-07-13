@@ -263,7 +263,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             if (WT_VRFY_DUMP(vs))
                 WT_ERR(__wt_msg(session, "Root: %s %s",
                   __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1),
-                  __wt_page_type_string(btree->root.page_shared->type)));
+                  __wt_page_type_string(btree->root.page->type)));
 
             __wt_evict_file_exclusive_off(session);
 
@@ -432,7 +432,7 @@ __verify_tree(
     btree = S2BT(session);
     bm = btree->bm;
     unpack = &_unpack;
-    page = ref->page_shared;
+    page = ref->page;
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
@@ -621,7 +621,7 @@ celltype_err:
             }
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack_addr(session, child_ref->home_shared->dsk, child_ref->addr, unpack);
+            __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -662,7 +662,7 @@ celltype_err:
                 WT_RET(__verify_row_int_key_order(session, page, child_ref, entry, vs));
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack_addr(session, child_ref->home_shared->dsk, child_ref->addr, unpack);
+            __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -753,7 +753,7 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
     int cmp;
 
     btree = S2BT(session);
-    page = ref->page_shared;
+    page = ref->page;
 
     /*
      * If a tree is empty (just created), it won't have keys; if there are no keys, we're done.
@@ -953,7 +953,7 @@ __verify_page_content_int(
     WT_TIME_AGGREGATE *ta;
     uint32_t cell_num;
 
-    page = ref->page_shared;
+    page = ref->page;
     dsk = page->dsk;
     ta = &unpack.ta;
 
@@ -1017,7 +1017,7 @@ __verify_page_content_fix(
     uint32_t cell_num, numtws, recno_offset, tw;
     uint8_t *p;
 
-    page = ref->page_shared;
+    page = ref->page;
 
     /* Count the keys. */
     vs->records_so_far += page->entries;
@@ -1100,7 +1100,7 @@ __verify_page_content_leaf(
     uint8_t *p;
     bool found_ovfl;
 
-    page = ref->page_shared;
+    page = ref->page;
     dsk = page->dsk;
     rip = page->pg_row;
     tw = &unpack.tw;
@@ -1179,8 +1179,8 @@ __verify_page_content_leaf(
         WT_RET_MSG(session, WT_ERROR,
           "page at %s, of type %s and referenced in its parent by a cell of type %s, contains "
           "overflow items",
-          __verify_addr_string(session, ref, vs->tmp1),
-          __wt_page_type_string(ref->page_shared->type), __wt_cell_type_string(parent->raw));
+          __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
+          __wt_cell_type_string(parent->raw));
 
     return (0);
 }

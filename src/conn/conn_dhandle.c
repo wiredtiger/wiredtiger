@@ -997,7 +997,7 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
          * now outdated. Currently this is only known to happen in the page_del structure associated
          * with truncated pages.
          */
-        if (btree->root.page_shared == NULL)
+        if (btree->root.page == NULL)
             continue;
 
         WT_WITH_BTREE(session, btree, ret = __wt_delete_redo_window_cleanup(session));

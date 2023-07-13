@@ -97,7 +97,7 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_UNUSED(session);
 
-    ref->page_shared->read_gen = WT_READGEN_OLDEST;
+    ref->page->read_gen = WT_READGEN_OLDEST;
 }
 
 /*
@@ -107,8 +107,8 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 static inline int
 __wt_page_dirty_and_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_RET(__wt_page_modify_init(session, ref->page_shared));
-    __wt_page_modify_set(session, ref->page_shared);
+    WT_RET(__wt_page_modify_init(session, ref->page));
+    __wt_page_modify_set(session, ref->page);
     __wt_page_evict_soon(session, ref);
 
     return (0);

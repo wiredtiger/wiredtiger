@@ -242,7 +242,7 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -389,7 +389,7 @@ __cursor_var_prev(
     uint64_t rle, rle_start;
 
     session = CUR2S(cbt);
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
 
     rle_start = 0; /* -Werror=maybe-uninitialized */
     *skippedp = 0;
@@ -574,7 +574,7 @@ __cursor_row_prev(
     WT_SESSION_IMPL *session;
 
     key = &cbt->iface.key;
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
     session = CUR2S(cbt);
     *skippedp = 0;
 
@@ -789,7 +789,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     for (newpage = false;; newpage = true, restart = false) {
         /* Calls with key only flag should never restart. */
         WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY) || !restart);
-        page = cbt->ref == NULL ? NULL : cbt->ref->page_shared;
+        page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
         /*
          * Column-store pages may have appended entries. Handle it separately from the usual cursor

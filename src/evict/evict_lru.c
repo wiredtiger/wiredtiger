@@ -66,7 +66,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     uint64_t read_gen;
 
     btree = S2BT(session);
-    page = ref->page_shared;
+    page = ref->page;
 
     /* Any page set to the oldest generation should be discarded. */
     if (WT_READGEN_EVICT_SOON(page->read_gen))
@@ -147,8 +147,8 @@ static inline void
 __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
-        WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page_shared, WT_PAGE_EVICT_LRU));
-        F_CLR_ATOMIC_16(e->ref->page_shared, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
+        WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
+        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
     }
     e->ref = NULL;
     e->btree = WT_DEBUG_POINT;
@@ -185,7 +185,7 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
             }
         __wt_spin_unlock(session, &cache->evict_queues[q].evict_lock);
     }
-    WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page_shared, WT_PAGE_EVICT_LRU));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
 }
 
 /*
@@ -202,7 +202,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, __wt_ref_is_root(ref) || ref->state == WT_REF_LOCKED);
 
     /* Fast path: if the page isn't in the queue, don't bother searching. */
-    if (!F_ISSET_ATOMIC_16(ref->page_shared, WT_PAGE_EVICT_LRU))
+    if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
         return;
     cache = S2C(session)->cache;
 
@@ -1553,7 +1553,7 @@ retry:
          * If a handle is being discarded, it will still be marked open, but won't have a root page.
          */
         if (btree->evict_disabled == 0 && !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
-            if (btree->evict_disabled == 0 && btree->root.page_shared != NULL) {
+            if (btree->evict_disabled == 0 && btree->root.page != NULL) {
                 /*
                  * Remember the file to visit first, next loop.
                  */
@@ -1631,10 +1631,10 @@ __evict_push_candidate(
      * Threads can race to queue a page (e.g., an ordinary LRU walk can race with a page being
      * queued for urgent eviction).
      */
-    orig_flags = new_flags = ref->page_shared->flags_atomic;
+    orig_flags = new_flags = ref->page->flags_atomic;
     FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
     if (orig_flags == new_flags ||
-      !__wt_atomic_cas16(&ref->page_shared->flags_atomic, orig_flags, new_flags))
+      !__wt_atomic_cas16(&ref->page->flags_atomic, orig_flags, new_flags))
         return (false);
 
     /* Keep track of the maximum slot we are using. */
@@ -1651,8 +1651,8 @@ __evict_push_candidate(
 
     /* Adjust for size when doing dirty eviction. */
     if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) && evict->score != WT_READGEN_OLDEST &&
-      evict->score != UINT64_MAX && !__wt_page_is_modified(ref->page_shared))
-        evict->score += WT_MEGABYTE - WT_MIN(WT_MEGABYTE, ref->page_shared->memory_footprint);
+      evict->score != UINT64_MAX && !__wt_page_is_modified(ref->page))
+        evict->score += WT_MEGABYTE - WT_MIN(WT_MEGABYTE, ref->page->memory_footprint);
 
     return (true);
 }
@@ -1898,7 +1898,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
     for (evict = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
          evict < end && (ret == 0 || ret == WT_NOTFOUND);
-         last_parent = ref == NULL ? NULL : ref->home_shared,
+         last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
         /*
          * Check whether we're finding a good ratio of candidates vs pages seen. Some workloads
@@ -1960,7 +1960,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (__wt_ref_is_root(ref))
             continue;
 
-        page = ref->page_shared;
+        page = ref->page;
         modified = __wt_page_is_modified(page);
         page->evict_pass_gen = cache->evict_pass_gen;
 
@@ -2119,14 +2119,14 @@ fast:
      */
     if (ref != NULL) {
         if (__wt_ref_is_root(ref) || evict == start || give_up ||
-          ref->page_shared->memory_footprint >= btree->splitmempage) {
+          ref->page->memory_footprint >= btree->splitmempage) {
             if (restarts == 0)
                 WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
             WT_RET(__wt_page_release(cache->walk_session, ref, walk_flags));
             ref = NULL;
         } else
             while (ref != NULL &&
-              (ref->state != WT_REF_MEM || WT_READGEN_EVICT_SOON(ref->page_shared->read_gen)))
+              (ref->state != WT_REF_MEM || WT_READGEN_EVICT_SOON(ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         btree->evict_ref = ref;
     }
@@ -2264,7 +2264,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
          */
         if (!urgent_ok &&
           (is_server || !F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD)) &&
-          __wt_page_is_modified(evict->ref->page_shared)) {
+          __wt_page_is_modified(evict->ref->page)) {
             --evict;
             break;
         }
@@ -2340,7 +2340,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     else if (F_ISSET(session, WT_SESSION_INTERNAL))
         WT_STAT_CONN_INCR(session, cache_eviction_worker_evicting);
     else {
-        if (__wt_page_is_modified(ref->page_shared))
+        if (__wt_page_is_modified(ref->page))
             WT_STAT_CONN_INCR(session, cache_eviction_app_dirty);
         WT_STAT_CONN_INCR(session, cache_eviction_app);
         cache->app_evicts++;
@@ -2354,7 +2354,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
      * that point, eviction has already unlocked the page and some other thread may have evicted it
      * by the time we look at it.
      */
-    __wt_cache_read_gen_bump(session, ref->page_shared);
+    __wt_cache_read_gen_bump(session, ref->page);
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
 
@@ -2526,7 +2526,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Root pages should never be evicted via LRU. */
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
-    page = ref->page_shared;
+    page = ref->page;
     if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
         return (false);
 
@@ -2647,7 +2647,7 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
     while (__wt_tree_walk(session, &next_walk,
              WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_WAIT | WT_READ_VISIBLE_ALL) == 0 &&
       next_walk != NULL) {
-        page = next_walk->page_shared;
+        page = next_walk->page;
         size = page->memory_footprint;
 
         if (F_ISSET(next_walk, WT_REF_FLAG_INTERNAL)) {

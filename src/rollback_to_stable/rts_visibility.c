@@ -86,7 +86,7 @@ __wt_rts_visibility_page_needs_abort(
     bool prepared, result;
 
     addr = ref->addr;
-    mod = ref->page_shared == NULL ? NULL : ref->page_shared->modify;
+    mod = ref->page == NULL ? NULL : ref->page->modify;
     durable_ts = WT_TS_NONE;
     newest_txn = WT_TXN_NONE;
     tag = "undefined state";
@@ -119,19 +119,19 @@ __wt_rts_visibility_page_needs_abort(
                 prepared = true;
         }
         result = (durable_ts > rollback_timestamp) || prepared;
-    } else if (mod != NULL && mod->instantiated && !__wt_page_is_modified(ref->page_shared) &&
-      ref->page_del_shared != NULL) {
+    } else if (mod != NULL && mod->instantiated && !__wt_page_is_modified(ref->page) &&
+      ref->page_del != NULL) {
         tag = "page_del info";
-        durable_ts = ref->page_del_shared->durable_timestamp;
-        prepared = ref->page_del_shared->prepare_state_shared == WT_PREPARE_INPROGRESS ||
-          ref->page_del_shared->prepare_state_shared == WT_PREPARE_LOCKED;
-        newest_txn = ref->page_del_shared->txnid_shared;
+        durable_ts = ref->page_del->durable_timestamp;
+        prepared = ref->page_del->prepare_state_shared == WT_PREPARE_INPROGRESS ||
+          ref->page_del->prepare_state_shared == WT_PREPARE_LOCKED;
+        newest_txn = ref->page_del->txnid_shared;
         result = (durable_ts > rollback_timestamp) || prepared ||
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
-    } else if (!__wt_off_page(ref->home_shared, addr)) {
+    } else if (!__wt_off_page(ref->home, addr)) {
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
-        __wt_cell_unpack_addr(session, ref->home_shared->dsk, (WT_CELL *)addr, &vpack);
+        __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
         durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
         newest_txn = vpack.ta.newest_txn;

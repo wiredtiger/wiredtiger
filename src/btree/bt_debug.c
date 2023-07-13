@@ -864,7 +864,7 @@ __debug_tree_shape_info(WT_REF *ref, char *buf, size_t len)
     uint64_t v;
     const char *unit;
 
-    page = ref->page_shared;
+    page = ref->page;
     v = page->memory_footprint;
 
     if (v > WT_GIGABYTE) {
@@ -905,7 +905,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
           "I"
           "%d %s\n",
           level * 3, " ", level, __debug_tree_shape_info(ref, buf, sizeof(buf))));
-        WT_INTL_FOREACH_BEGIN (session, ref->page_shared, walk) {
+        WT_INTL_FOREACH_BEGIN (session, ref->page, walk) {
             if (walk->state == WT_REF_MEM)
                 WT_RET(__debug_tree_shape_worker(ds, walk, level + 1));
         }
@@ -1124,13 +1124,13 @@ __debug_page(WT_DBG *ds, WT_REF *ref)
     WT_ERR(ret);
 
     /* Dump the page. */
-    switch (ref->page_shared->type) {
+    switch (ref->page->type) {
     case WT_PAGE_COL_FIX:
         if (F_ISSET(ds, WT_DEBUG_TREE_LEAF))
             WT_ERR(__debug_page_col_fix(ds, ref));
         break;
     case WT_PAGE_COL_INT:
-        WT_WITH_PAGE_INDEX(session, ret = __debug_page_col_int(ds, ref->page_shared));
+        WT_WITH_PAGE_INDEX(session, ret = __debug_page_col_int(ds, ref->page));
         WT_ERR(ret);
         break;
     case WT_PAGE_COL_VAR:
@@ -1138,15 +1138,15 @@ __debug_page(WT_DBG *ds, WT_REF *ref)
             WT_ERR(__debug_page_col_var(ds, ref));
         break;
     case WT_PAGE_ROW_INT:
-        WT_WITH_PAGE_INDEX(session, ret = __debug_page_row_int(ds, ref->page_shared));
+        WT_WITH_PAGE_INDEX(session, ret = __debug_page_row_int(ds, ref->page));
         WT_ERR(ret);
         break;
     case WT_PAGE_ROW_LEAF:
         if (F_ISSET(ds, WT_DEBUG_TREE_LEAF))
-            WT_ERR(__debug_page_row_leaf(ds, ref->page_shared));
+            WT_ERR(__debug_page_row_leaf(ds, ref->page));
         break;
     default:
-        WT_ERR(__wt_illegal_value(session, ref->page_shared->type));
+        WT_ERR(__wt_illegal_value(session, ref->page->type));
     }
 
 err:
@@ -1167,7 +1167,7 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     uint64_t split_gen;
     uint32_t entries;
 
-    page = ref->page_shared;
+    page = ref->page;
     session = ds->session;
     mod = page->modify;
     split_gen = 0;
@@ -1276,7 +1276,7 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
 
     session = ds->session;
     btree = S2BT(session);
-    page = ref->page_shared;
+    page = ref->page;
     dsk = page->dsk;
     recno = ref->ref_recno;
 
@@ -1374,7 +1374,7 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
     char tag[64];
 
     unpack = &_unpack;
-    page = ref->page_shared;
+    page = ref->page;
     session = ds->session;
     recno = ref->ref_recno;
 
@@ -1690,8 +1690,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
         WT_RET(ds->f(ds, ", %s, %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
           __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
-    if (ref->page_del_shared != NULL) {
-        page_del = ref->page_del_shared;
+    if (ref->page_del != NULL) {
+        page_del = ref->page_del;
         WT_RET(ds->f(ds, ", page_del : %s",
           __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
             page_del->txnid_shared, time_string)));

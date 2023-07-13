@@ -1213,7 +1213,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * operation to prevent eviction evicting the page while resolving the prepared updates.
      */
     cbt = (WT_CURSOR_BTREE *)(*cursorp);
-    page = cbt->ref->page_shared;
+    page = cbt->ref->page;
 
     /*
      * If the prepared update is a single tombstone, we don't need to do anything special and we can
@@ -1737,12 +1737,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
              * also be a non-NULL page_del to update.
              */
             if (previous_state != WT_REF_DELETED) {
-                WT_ASSERT(session,
-                  op->u.ref->page_shared != NULL && op->u.ref->page_shared->modify != NULL);
-                __wt_free(session, op->u.ref->page_shared->modify->inst_updates);
+                WT_ASSERT(session, op->u.ref->page != NULL && op->u.ref->page->modify != NULL);
+                __wt_free(session, op->u.ref->page->modify->inst_updates);
             }
-            if (op->u.ref->page_del_shared != NULL)
-                op->u.ref->page_del_shared->committed = true;
+            if (op->u.ref->page_del != NULL)
+                op->u.ref->page_del->committed = true;
             WT_REF_UNLOCK(op->u.ref, previous_state);
         }
         __wt_txn_op_free(session, op);
