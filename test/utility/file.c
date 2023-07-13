@@ -298,7 +298,7 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
     buf = dmalloc(COPY_BUF_SIZE);
     for (offset = 0, n = 0;; offset += n) {
         WT_SYSCALL_RETRY((n = pread(rfd, buf, COPY_BUF_SIZE, offset)) < 0 ? -1 : 0, ret);
-        testutil_assert_errno(ret == 0);
+        testutil_check(ret);
         if (n == 0)
             break;
         testutil_assert_errno(write(wfd, buf, (size_t)n) == n);
