@@ -373,8 +373,8 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
 
         /* We should never be in an in-progress prepared state. */
         WT_ASSERT(session,
-          page_del->prepare_state_shared == WT_PREPARE_INIT ||
-            page_del->prepare_state_shared == WT_PREPARE_RESOLVED);
+          page_del->prepare_state == WT_PREPARE_INIT ||
+            page_del->prepare_state == WT_PREPARE_RESOLVED);
     }
 
     /*

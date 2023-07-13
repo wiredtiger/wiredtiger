@@ -214,7 +214,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     if (page_del != NULL && __wt_process.fast_truncate_2022) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid_shared));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
     }
@@ -881,11 +881,11 @@ copy_cell_restart:
     if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
         page_del = &unpack_addr->page_del;
         WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid_shared));
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
-        page_del->prepare_state_shared = 0;         /* No prepare can have been in progress. */
+        page_del->prepare_state = 0;                /* No prepare can have been in progress. */
         page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
         page_del->committed = true;                 /* There is no running transaction. */
         page_del->selected_for_write = true;
@@ -996,10 +996,10 @@ __cell_page_del_window_cleanup(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_d
      * The fast-truncate times are a stop time for the whole page; this code should match the stop
      * txn and stop time logic for KV cells.
      */
-    if (page_del->txnid_shared != WT_TXN_MAX) {
+    if (page_del->txnid != WT_TXN_MAX) {
         if (clearedp != NULL)
             *clearedp = true;
-        page_del->txnid_shared = WT_TXN_NONE;
+        page_del->txnid = WT_TXN_NONE;
         /* As above, only for non-timestamped tables. */
         if (page_del->timestamp == WT_TS_MAX) {
             page_del->timestamp = WT_TS_NONE;

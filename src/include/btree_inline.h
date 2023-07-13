@@ -1582,9 +1582,9 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
             copy->del = unpack->page_del;
         else {
             /* It's a legacy page; create default delete information. */
-            copy->del.txnid_shared = WT_TXN_NONE;
+            copy->del.txnid = WT_TXN_NONE;
             copy->del.timestamp = copy->del.durable_timestamp = WT_TS_NONE;
-            copy->del.prepare_state_shared = 0;
+            copy->del.prepare_state = 0;
             copy->del.previous_ref_state = WT_REF_DISK;
             copy->del.committed = true;
         }
@@ -1648,15 +1648,15 @@ __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, b
         return (true);
 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
-    WT_ASSERT(session, page_del->txnid_shared != WT_TXN_ABORTED);
+    WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
 
     if (hide_prepared) {
-        WT_ORDERED_READ(prepare_state, page_del->prepare_state_shared);
+        WT_ORDERED_READ(prepare_state, page_del->prepare_state);
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
             return (false);
     }
 
-    return (__wt_txn_visible_all(session, page_del->txnid_shared, page_del->durable_timestamp));
+    return (__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp));
 }
 
 /*
@@ -1674,16 +1674,16 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
         return (true);
 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
-    WT_ASSERT(session, page_del->txnid_shared != WT_TXN_ABORTED);
+    WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
 
     if (hide_prepared) {
-        WT_ORDERED_READ(prepare_state, page_del->prepare_state_shared);
+        WT_ORDERED_READ(prepare_state, page_del->prepare_state);
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
             return (false);
     }
 
-    return (__wt_txn_visible(
-      session, page_del->txnid_shared, page_del->timestamp, page_del->durable_timestamp));
+    return (
+      __wt_txn_visible(session, page_del->txnid, page_del->timestamp, page_del->durable_timestamp));
 }
 
 /*

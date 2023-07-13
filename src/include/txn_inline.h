@@ -266,7 +266,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
         page_del->timestamp = ts;
         if (commit)
             page_del->durable_timestamp = txn->durable_timestamp;
-        WT_PUBLISH(page_del->prepare_state_shared, prepare_state);
+        WT_PUBLISH(page_del->prepare_state, prepare_state);
     }
 
     WT_REF_UNLOCK(ref, previous_state);
@@ -442,7 +442,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * This access to the WT_PAGE_DELETED structure is safe; caller has the WT_REF locked, and in
      * fact just allocated the structure to fill in.
      */
-    ref->page_del->txnid_shared = txn->id;
+    ref->page_del->txnid = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
     if (__wt_log_op(session))
