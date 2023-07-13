@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/sh
 
 # Common shell functions shared across dist/ scripts
 
