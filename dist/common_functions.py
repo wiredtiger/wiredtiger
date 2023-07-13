@@ -1,8 +1,19 @@
 #!/bin/python3
 
-import subprocess
+# Common functions that can be shared across dist/ scripts.
+# To call a function `func` from a Python script use:
+#     ```
+#     import common_functions
+#     common_functions.func()
+#     ```
+# To call a function `func` from the command line or shell script use:
+#     ```
+#     python3 ./common_functions.py func [optional_arguments_to_function]
+#     ```
 
-# Common Python functions shared across dist/ scripts
+import inspect
+import subprocess
+import sys
 
 def last_commit_from_dev():
     # Find the commit from develop at which point the current branch diverged.
@@ -18,3 +29,23 @@ def last_commit_from_dev():
 
     return subprocess.run(f"git rev-parse {commit_on_dev}", 
         shell=True, capture_output=True, text=True).stdout.strip()
+
+if __name__ == "__main__":
+    # Allow users to execute any function defined in this file via the command line.
+    # If a function name is provided and that function is defined in this file then execute 
+    # it along with any provided arguments.
+    functions = dict(inspect.getmembers(sys.modules[__name__], predicate=inspect.isfunction))
+
+    if len(sys.argv) > 1:
+        name, *args = sys.argv[1:]
+
+        if name in functions:
+            print(functions[name](*args))
+            sys.exit(0)
+        else:
+            print(f"Function name '{name}' not recognised!")
+            print(f"Available functions are {list(functions.keys())}")
+    else:
+        print("Usage: `python3 ./common_functions.py function_name [function_args...]`")
+
+    sys.exit(1)
