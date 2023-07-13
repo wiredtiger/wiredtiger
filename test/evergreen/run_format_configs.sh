@@ -49,7 +49,8 @@ wait_for_process()
 
 				let "running--"
 
-				config_name=`egrep "\[${process}\]" $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
+				# Grep for the exact process id in the temp file.
+				config_name=`egrep -w "${process}" $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
 				if [ $exit_status -ne "0" ]; then
 					let "failure++"
 					[ -f WT_TEST_${config_name}/CONFIG ] && cat WT_TEST_${config_name}/CONFIG
@@ -105,7 +106,7 @@ do
 	PID="$!"
 	PID_LIST+=("$PID")
 
-	echo "[${PID}]:$config" >> $tmp_file
+	echo "${PID}:$config" >> $tmp_file
 
 	if [ ${running} -ge ${parallel_jobs} ]; then
 		wait_for_process
