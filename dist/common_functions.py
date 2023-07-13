@@ -14,9 +14,7 @@ def last_commit_from_dev():
     earliest_commit = subprocess.run( "git rev-list HEAD...develop | tail -n 1", 
         shell=True, capture_output=True, text=True).stdout
 
-    if earliest_commit != "":
-        return subprocess.run(f"git rev-parse {earliest_commit}~", 
-            shell=True, capture_output=True, text=True).stdout
-    else:
-        return subprocess.run(f"git rev-parse HEAD", 
-            shell=True, capture_output=True, text=True).stdout    
+    commit_on_dev = f"{earliest_commit}~" if earliest_commit else "HEAD"
+
+    return subprocess.run(f"git rev-parse {commit_on_dev}", 
+        shell=True, capture_output=True, text=True).stdout.strip()

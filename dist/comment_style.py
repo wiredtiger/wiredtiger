@@ -132,7 +132,7 @@ if __name__ == '__main__':
         -o \( -name \"*.in\" ! -name \"Makefile.in\" \) \
         -o -name \"*.cpp\" -o -name \"*.i\" "
     if args.fast:
-        since_dev = common_functions.last_commit_from_dev
+        since_dev = common_functions.last_commit_from_dev()
         command = f"git diff --name-only {since_dev} bench \
             examples ext src test | grep -E '(.c|.h|.cpp|.in|.i)$'"
 
