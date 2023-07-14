@@ -70,8 +70,8 @@
             *(ptr) = (value);                            \
             break;                                       \
         case WT_ATOMIC_SEQ_CST:                          \
-            *(ptr) = (value);                            \
             WT_FULL_BARRIER();                           \
+            *(ptr) = (value);                            \
             break;                                       \
         }                                                \
     } while (0)
