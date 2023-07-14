@@ -68,8 +68,10 @@
         case WT_ATOMIC_RELAXED:                          \
         case WT_ATOMIC_ACQUIRE:                          \
             *(ptr) = (value);                            \
+            break;                                       \
         case WT_ATOMIC_SEQ_CST:                          \
             WT_FULL_BARRIER();                           \
+            *(ptr) = (value);                            \
             break;                                       \
         }                                                \
     } while (0)
