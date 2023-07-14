@@ -59,20 +59,19 @@
         }                                             \
     } while (0)
 
-#define WT_C_MEMMODEL_ATOMIC_STORE(ptr, value, memorder)                     \
-    do {                                                                     \
-        switch (memorder) {                                                  \
-        case WT_ATOMIC_RELEASE:                                              \
-        case WT_ATOMIC_ACQ_REL:                                              \
-            WT_BARRIER();                                                    \
-        case WT_ATOMIC_RELAXED:                                              \
-        case WT_ATOMIC_ACQUIRE:                                              \
-            *(ptr) = (value);                                                \
-            break;                                                           \
-        case WT_ATOMIC_SEQ_CST:                                              \
-            _InterlockedExchange64((volatile __int64 *)ptr, (int64_t)value); \
-            break;                                                           \
-        }                                                                    \
+#define WT_C_MEMMODEL_ATOMIC_STORE(ptr, value, memorder) \
+    do {                                                 \
+        switch (memorder) {                              \
+        case WT_ATOMIC_RELEASE:                          \
+        case WT_ATOMIC_ACQ_REL:                          \
+            WT_BARRIER();                                \
+        case WT_ATOMIC_RELAXED:                          \
+        case WT_ATOMIC_ACQUIRE:                          \
+            *(ptr) = (value);                            \
+        case WT_ATOMIC_SEQ_CST:                          \
+            WT_FULL_BARRIER();                           \
+            break;                                       \
+        }                                                \
     } while (0)
 
 #define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                     \
