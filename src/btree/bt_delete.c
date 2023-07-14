@@ -126,7 +126,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* Allocate and initialize the page-deleted structure. */
     WT_ERR(__wt_calloc_one(session, &ref->ft_info.del));
-    ref->ft_info.del->previous_state = previous_state;
+    ref->ft_info.del->previous_ref_state = previous_state;
 
     WT_ERR(__wt_txn_modify_page_delete(session, ref));
 
@@ -193,7 +193,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      * a hazard pointer. We're safe since pages with unresolved transactions aren't going anywhere.
      */
     if (current_state == WT_REF_DELETED)
-        current_state = ref->ft_info.del->previous_state;
+        current_state = ref->ft_info.del->previous_ref_state;
     else if ((updp = ref->ft_info.update) != NULL)
         for (; *updp != NULL; ++updp)
             (*updp)->txnid = WT_TXN_ABORTED;
