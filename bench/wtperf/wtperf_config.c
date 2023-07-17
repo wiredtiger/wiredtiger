@@ -828,8 +828,8 @@ config_sanity(WTPERF *wtperf)
             }
         }
 
-    if (opts->chunkcache_config == NULL) {
-        fprintf(stderr, "chunkcache_config was null, somehow.\n");
+    if (opts->chunk_cache_config == NULL) {
+        fprintf(stderr, "chunk_cache_config was null, somehow.\n");
         return (EINVAL);
     }
 
@@ -943,11 +943,11 @@ config_opt_print(WTPERF *wtperf)
       "\t"
       "Connection configuration: %s\n",
       opts->conn_config);
-    if (opts->chunkcache_config != NULL)
+    if (opts->chunk_cache_config != NULL)
         printf(
           "\t"
           "Chunk cache configuration: %s\n",
-          opts->chunkcache_config);
+          opts->chunk_cache_config);
     if (opts->sess_config != NULL)
         printf(
           "\t"
@@ -1084,25 +1084,24 @@ char *
 config_reopen(CONFIG_OPTS *opts)
 {
     char *ret;
-    size_t chunkcache_cfg_len, req_len;
+    size_t chunk_cache_cfg_len, req_len;
 
-    chunkcache_cfg_len = strlen(opts->chunkcache_config);
-    req_len = strlen(opts->conn_config) + 2; /* Spare null bytes from the two extra config strings. */
+    chunk_cache_cfg_len = strlen(opts->chunk_cache_config);
+    req_len = strlen(opts->conn_config) + 1;
     opts->reopen_connection = true;
     if (opts->readonly)
         req_len += strlen(READONLY_CONFIG);
-    if (chunkcache_cfg_len != 0)
-        req_len += chunkcache_cfg_len;
+    if (chunk_cache_cfg_len != 0)
+        req_len += chunk_cache_cfg_len;
 
     ret = dmalloc(req_len);
-    if (opts->readonly && chunkcache_cfg_len != 0)
+    if (opts->readonly && chunk_cache_cfg_len != 0)
         testutil_snprintf(
-          ret, req_len, "%s%s%s", opts->conn_config, READONLY_CONFIG, opts->chunkcache_config);
+          ret, req_len, "%s%s%s", opts->conn_config, READONLY_CONFIG, opts->chunk_cache_config);
     else if (opts->readonly)
-        testutil_snprintf(
-          ret, req_len, "%s%s", opts->conn_config, READONLY_CONFIG);
-    else if (chunkcache_cfg_len != 0)
-        testutil_snprintf(ret, req_len, "%s%s", opts->conn_config, opts->chunkcache_config);
+        testutil_snprintf(ret, req_len, "%s%s", opts->conn_config, READONLY_CONFIG);
+    else if (chunk_cache_cfg_len != 0)
+        testutil_snprintf(ret, req_len, "%s%s", opts->conn_config, opts->chunk_cache_config);
     else
         testutil_snprintf(ret, req_len, "%s", opts->conn_config);
 

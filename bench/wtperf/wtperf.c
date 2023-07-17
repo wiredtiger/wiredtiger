@@ -1683,9 +1683,7 @@ execute_populate(WTPERF *wtperf)
 static bool
 need_reopen(CONFIG_OPTS *opts)
 {
-    return opts->readonly
-        || opts->reopen_connection
-        || (strlen(opts->chunkcache_config) != 0);
+    return opts->readonly || opts->reopen_connection || (strlen(opts->chunk_cache_config) != 0);
 }
 
 static int
