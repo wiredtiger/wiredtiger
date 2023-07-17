@@ -353,7 +353,7 @@ __verify_row_key_order_check(
     int cmp;
 
     btree = S2BT(vi->session);
-    WT_RET(__wt_compare(vi->session, S2BT(vi->session)->collator, last, current, &cmp));
+    WT_RET(__wt_compare(vi->session, btree->collator, last, current, &cmp));
     if (cmp < 0)
         return (0);
 
