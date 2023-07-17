@@ -670,7 +670,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_TIME_WINDOW tw;
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
-    WT_PAGE_DELETED *page_del;
+    WT_PAGE_DELETED page_del;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
     uint64_t v;
@@ -854,20 +854,19 @@ copy_cell_restart:
      * database files if we are downgrading from newer versions.
      */
     if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
-        page_del = &unpack_addr->page_del;
-        WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
-        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
-        WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
-        page_del->prepare_state = 0;            /* No prepare can have been in progress. */
-        page_del->previous_state = WT_REF_DISK; /* The leaf page is on disk. */
-        page_del->committed = 1;                /* There is no running transaction. */
+        WT_RET(
+          __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del.txnid));
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del.timestamp));
+        WT_RET(
+          __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del.durable_timestamp));
+        page_del.prepare_state = 0;            /* No prepare can have been in progress. */
+        page_del.previous_state = WT_REF_DISK; /* The leaf page is on disk. */
+        page_del.committed = 1;                /* There is no running transaction. */
 
         /* Avoid a stale transaction ID on restart. */
         if (dsk->write_gen <= S2BT(session)->base_write_gen &&
           !F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
-            page_del->txnid = WT_TXN_NONE;
+            page_del.txnid = WT_TXN_NONE;
     }
 
     /*
