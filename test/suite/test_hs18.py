@@ -107,17 +107,20 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction('no_timestamp=true')
-        cursor[self.create_key(1)] = value4
+        cursor.set_key(self.create_key(1))
+        cursor.set_value(value4)
+        cursor.update()
         self.session.commit_transaction()
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor[self.create_key(1)] = value5
+        cursor.set_key(self.create_key(1))
+        cursor.set_value(value5)
+        cursor.update()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
         # Check our value is still correct.
@@ -175,17 +178,20 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.check_value(cursor3, value1)
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction('no_timestamp=true')
-        cursor[self.create_key(1)] = value4
+        cursor.set_key(self.create_key(1))
+        cursor.set_value(value4)
+        cursor.update()
         self.session.commit_transaction()
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor[self.create_key(1)] = value5
+        cursor.set_key(self.create_key(1))
+        cursor.set_value(value5)
+        cursor.update()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
         # Check our value is still correct.
@@ -246,7 +252,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Check our value is still correct.
@@ -258,7 +263,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Check our value is still correct.
@@ -308,7 +312,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.start_txn(sessions, cursors, values, 2)
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
@@ -325,7 +328,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Validate all values are visible and correct.
@@ -378,7 +380,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.start_txn(sessions, cursors, values, 2)
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
@@ -414,7 +415,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.start_txn(sessions, cursors, values, 6)
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Validate all values are visible and correct.
@@ -438,7 +438,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
         # Evict the update using a debug cursor
-        cursor.reset()
         self.evict_key(uri)
 
         # Validate all values are visible and correct.
