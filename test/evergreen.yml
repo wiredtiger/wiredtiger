@@ -4549,14 +4549,16 @@ tasks:
             # Install Metrix++, ensuring it is outside the 'src' directory
             git clone https://github.com/metrixplusplus/metrixplusplus metrixplusplus
 
+            mkdir -p code_statistics_report
+
             # We only want complexity measures for the 'src' directory
             cd src
 
-            python "../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
-            python "../metrixplusplus/metrix++.py" view
+            python3 "../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
+            python3 "../metrixplusplus/metrix++.py" view
 
             # Set the cyclomatic complexity limit to 20
-            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
+            python3 "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
 
             # Fail if there are functions with cyclomatic complexity larger than 91
             python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:91 > $t
@@ -4568,13 +4570,21 @@ tasks:
                 cat $t && rm $t
             fi
 
-            # Code complexity statistics
+            # Generate the code complexity statistics and upload the analysis into Atlas charts
+            virtualenv -p python3 venv
+            source venv/bin/activate
+            pip3 install pandas
 
-            python3 "../metrixplusplus/metrix++.py" view --format=python > code_complexity_summary.txt
-            python3 "../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > metrixpp.csv
+            python3 "../metrixplusplus/metrix++.py" view --format=python > ../code_statistics_report/code_complexity_summary.json
+            python3 "../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../code_statistics_report/metrixpp.csv
 
-            cd ../test/evergreen
-            python3 code_complexity_analysis.py -s ../../src/code_complexity_summary.txt -d ../../src/metrixpp.csv -o atlas_code_statistics.json
+            python3 ../test/evergreen/code_complexity_analysis.py -s ../code_statistics_report/code_complexity_summary.json -d ../code_statistics_report/metrixpp.csv -o ../code_statistics_report/atlas_out_code_complexity.json
+      - func: "upload stats to atlas"
+        vars:
+          stats_dir: ./wiredtiger/code_statistics_report
+          test-name: code_complexity
+          # Override the collection name to use the code complexity collection.
+          collection: CodeComplexity
 
     #############################
     # Performance Tests for lsm #
