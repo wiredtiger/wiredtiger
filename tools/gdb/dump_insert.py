@@ -1,16 +1,13 @@
 import gdb, sys
  
-f = open("dump.txt", "w")
-inserts = {}
- 
 # This script walks an insert list in WiredTiger, it does so by traversing the bottom level of the
 # skip list and printing the next pointer array. It dumps the data to "dump.txt" as the content
 # is often too large for the terminal.
 #
 # It takes a WT_INSERT_HEAD structure and a key format. In order to use it in gdb it must first be
 # sourced. Example usage:
-# source(dump_insert.py)
-# insert_list_dump WT_INSERT_HEAD,S
+# source dump_insert.py
+# dump_insert WT_INSERT_HEAD,S
 #
 # It supports 3 key formats: u, i, S.
 class insert():
@@ -19,17 +16,18 @@ class insert():
         self.address = address
         self.next_array = next_array
  
-    def print(self):
-        f.write("Key: " + str(self.key) + " Address: " + self.address + " Next array: " + str(self.next_array) + "\n")
+    def print(self, output_file):
+        output_file.write("Key: " + str(self.key) + " Address: " + self.address + " Next array: " + str(self.next_array) + "\n")
  
-class insert_list_dump(gdb.Command):
+class dump_insert(gdb.Command):
     key_format = 'S'
+    inserts = {}
     def __init__(self):
-        super(insert_list_dump, self).__init__("insert_list_dump", gdb.COMMAND_DATA)
+        super(dump_insert, self).__init__("dump_insert", gdb.COMMAND_DATA)
 
     def usage(self):
         print("usage:")
-        print("insert_list_dump WT_INSERT_HEAD,key_format")
+        print("dump_insert WT_INSERT_HEAD,key_format")
         exit(1)
 
     def decode_key(self, key):
@@ -40,7 +38,7 @@ class insert_list_dump(gdb.Command):
         elif self.key_format == 'i':
             return(key)
         else:
-            print("Invalid key format supplied.")
+            print(f"Invalid key format supplied: {self.key_format}")
             self.usage()
         
     def get_key(self, insert):
@@ -49,7 +47,7 @@ class insert_list_dump(gdb.Command):
         decoded_key = self.decode_key(key)
         return decoded_key
  
-    def walk_level(self, head, id):
+    def walk_level(self, head, level, output_file):
         current = head[0]
         while current != 0x0:
             key = self.get_key(current)
@@ -58,18 +56,22 @@ class insert_list_dump(gdb.Command):
                 next.append(str(current['next'][i]))
                 if (str(current['next'][i]) == "0x0"):
                     break
-            inserts.update({key : insert(key, str(current), next)})
-            inserts[key].print()
+            self.inserts.update({key : insert(key, str(current), next)})
+            self.inserts[key].print(output_file)
             current = current['next'][0]
  
     def invoke(self, args, from_tty):
+        # Clear the data.
+        self.inserts = {}
+        # Initialize the output file.
+        output_file = open("dump.txt", "w")
         arg_array = args.split(',')
         self.key_format = arg_array[1].strip()
         print("Parsing the passed in WT_INSERT_HEAD...")
         wt_insert_head = gdb.parse_and_eval(arg_array[0])
         print("Walking the insert list...")
-        self.walk_level(wt_insert_head['head'], 0)
-        print("Complete...")
+        self.walk_level(wt_insert_head['head'], 0, output_file)
+        print("Complete. Details have been written to dump.txt")
  
 # This registers our class to the gdb runtime at "source" time.
-insert_list_dump()
+dump_insert()
