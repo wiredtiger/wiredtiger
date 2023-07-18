@@ -73,6 +73,33 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
 }
 
 /*
+ * __wt_remove_tiered_local --
+ *     While locked, if the handle is not open, remove the local object.
+ */
+int
+__wt_remove_tiered_local(WT_SESSION_IMPL *session, const char *object, bool *removed)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+    *removed = false;
+    __wt_spin_lock(session, &conn->fh_lock);
+    if (__wt_handle_is_open(session, object)) {
+        __wt_spin_unlock(session, &conn->fh_lock);
+        return (0);
+    } else {
+        __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
+        WT_ERR(__wt_fs_remove(session, object, false));
+        WT_STAT_CONN_INCR(session, local_objects_removed);
+        *removed = true;
+    }
+err:
+    __wt_spin_unlock(session, &conn->fh_lock);
+    return (0);
+}
+
+/*
  * __handle_search --
  *     Search for a matching handle.
  */
