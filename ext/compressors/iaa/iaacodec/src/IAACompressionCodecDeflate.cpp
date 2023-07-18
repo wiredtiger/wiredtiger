@@ -1,5 +1,6 @@
 #include <thread>
 #include <cstdio>
+#include <stdlib.h>
 #include "IAACompressionCodecDeflate.h"
 
 namespace DB::IAA {
@@ -58,11 +59,23 @@ DeflateJobHWPool::~DeflateJobHWPool()
 HardwareCodecDeflate::HardwareCodecDeflate(WT_COMPRESSOR *compressor, WT_SESSION *session)
 {
     hwEnabled = DeflateJobHWPool::instance(compressor, session).jobPoolReady();
+    pageSize = (int)getpagesize();
 }
 
 HardwareCodecDeflate::~HardwareCodecDeflate()
 {
     // Nothing to do.
+}
+
+inline void
+HardwareCodecDeflate::memPageSet(uint8_t *dest, int len) const
+{
+    if (dest == NULL || len < 0) {
+        return;
+    }
+    // Touch dest buffer in advance to avoid page fault on it triggered by accelerator.
+    for (uint32_t p = 0; p < len; p += pageSize)
+        dest[p] = 0;
 }
 
 uint32_t
@@ -85,6 +98,8 @@ HardwareCodecDeflate::doCompressData(
     job_ptr->available_out = dest_size;
     job_ptr->flags = QPL_FLAG_FIRST | QPL_FLAG_DYNAMIC_HUFFMAN | QPL_FLAG_GZIP_MODE |
       QPL_FLAG_LAST | QPL_FLAG_OMIT_VERIFY;
+
+    memPageSet(dest, dest_size);
 
     // Compression
     status = qpl_execute_job(job_ptr);
@@ -116,6 +131,8 @@ HardwareCodecDeflate::doDecompressData(
     job_ptr->available_in = source_size;
     job_ptr->available_out = uncompressed_size;
     job_ptr->flags = QPL_FLAG_FIRST | QPL_FLAG_GZIP_MODE | QPL_FLAG_LAST;
+
+    memPageSet(dest, uncompressed_size);
 
     // Decompression
     status = qpl_execute_job(job_ptr);
@@ -180,10 +197,6 @@ SoftwareCodecDeflate::doCompressData(
     job_ptr->flags = QPL_FLAG_FIRST | QPL_FLAG_DYNAMIC_HUFFMAN | QPL_FLAG_GZIP_MODE |
       QPL_FLAG_LAST | QPL_FLAG_OMIT_VERIFY;
 
-    // Touch dest buffer in advance to avoid page fault on it triggered by accelerator.
-    for(uint32_t p = 0; p < dest_size; p += 4096)
-        dest[p] = 0;
-
     // Compression
     status = qpl_execute_job(job_ptr);
     if (status != QPL_STS_OK) {
@@ -207,10 +220,6 @@ SoftwareCodecDeflate::doDecompressData(
     job_ptr->available_in = source_size;
     job_ptr->available_out = uncompressed_size;
     job_ptr->flags = QPL_FLAG_FIRST | QPL_FLAG_GZIP_MODE | QPL_FLAG_LAST;
-
-    // Touch dest buffer in advance to avoid page fault on it triggered by accelerator.
-    for(uint32_t p = 0; p < uncompressed_size; p += 4096)
-        dest[p] = 0;
 
     // Decompression
     status = qpl_execute_job(job_ptr);
