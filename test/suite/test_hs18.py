@@ -51,6 +51,11 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_value(), value)
         cursor.reset()
 
+    def update_kv(self, cursor, key, value):
+        cursor.set_key(key)
+        cursor.set_value(value)
+        cursor.update()
+
     def start_txn(self, sessions, cursors, values, i):
         # Start a transaction that will see update 0.
         sessions[i].begin_transaction()
@@ -111,23 +116,23 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction('no_timestamp=true')
-        cursor.set_key(self.create_key(1))
-        cursor.set_value(value4)
-        cursor.update()
+        # Update the key and leave the cursor pinned to the page.
+        self.update_kv(cursor, self.create_key(1), value4)
         self.session.commit_transaction()
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(1))
-        cursor.set_value(value5)
-        cursor.update()
+        # Update the key and leave the cursor pinned to the page.
+        self.update_kv(cursor, self.create_key(1), value5)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
 
-        # Evict the update using a debug cursor
+        # Reset the cursor to evict the page.
         cursor.reset()
+
+        # Evict the update using a debug cursor
         self.evict_key(uri)
 
         # Check our value is still correct.
@@ -182,24 +187,24 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction('no_timestamp=true')
-        cursor.set_key(self.create_key(1))
-        cursor.set_value(value4)
-        cursor.update()
+        # Update the key and leave the cursor pinned to the page.
+        self.update_kv(cursor, self.create_key(1), value4)
         self.session.commit_transaction()
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(1))
-        cursor.set_value(value5)
-        cursor.update()
+        # Update the key and leave the cursor pinned to the page.
+        self.update_kv(cursor, self.create_key(1), value5)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
         # Check our value is still correct.
         self.check_value(cursor2, value1)
         self.check_value(cursor3, value1)
 
-        # Evict the update using a debug cursor
+        # Reset the cursor to evict the page.
         cursor.reset()
+
+        # Evict the update using a debug cursor
         self.evict_key(uri)
 
         # Check our value is still correct.
