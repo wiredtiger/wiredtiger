@@ -1,14 +1,17 @@
 import argparse
 import ast
-from collections import defaultdict
 import csv
-from heapq import nlargest
 import json
 import os.path
 import pandas as pd
+import sys
+
+from collections import defaultdict
+from heapq import nlargest
 
 def get_atlas_compatible_code_statistics(summaryFile, dataFile, outfile='atlas_code_complexity.json'):
     ''' Generate the Atlas compatible format report. '''
+
     atlasFormat = {
                 'Test Name': "Code Complexity",
                 'config': {},
@@ -24,6 +27,11 @@ def get_atlas_compatible_code_statistics(summaryFile, dataFile, outfile='atlas_c
 
 def get_code_complexity(summaryFile, dataFile):
     ''' Generate a list of intended contents from the complexity analysis. '''
+
+    global dataFrame
+    global topNRegions
+    dataFrame = pd.read_csv(dataFile)
+    topNRegions = 5
     resultList = []
     complexityDict = {}
     complexityDict['Average'] = get_average(summaryFile)
@@ -34,7 +42,8 @@ def get_code_complexity(summaryFile, dataFile):
     return (resultList)
 
 def get_region_list(dataFile):
-    ''' Retrieve topNRegions/functions with the highest cyclomatic complexity values. '''
+    ''' Retrieve topN Regions/functions with the highest cyclomatic complexity values. '''
+
     top5 = dataFrame.nlargest(topNRegions, 'std.code.complexity:cyclomatic')
     atlasFormat = {}
     for index, row in top5.iterrows():
@@ -43,35 +52,34 @@ def get_region_list(dataFile):
     return (atlasFormat)
 
 def get_complexity_ranges_list(dataFile):
-    ''' Retrieve 3 set of cyclomatic complexity ranges, above 30, above 50 and above 90. '''
+    ''' Retrieve 3 set of cyclomatic complexity ranges, above 20, above 50 and above 90. '''
+
     rangesList = [20, 50, 90]
     atlasFormat = {}
     for i in rangesList:
         aboveRangeString = 'Above ' + str(i)
-        atlasFormat[aboveRangeString] = get_complexity_max_limit(dataFile, i)
+        atlasFormat[aboveRangeString] = get_complexity_max_limit(i)
 
     return (atlasFormat)
 
-def get_complexity_max_limit(complexity_data_path: str, max_limit:int):
+def get_complexity_max_limit(max_limit: int):
     ''' Retrieve the number of cyclomatic complexity values above the max_limit. '''
+
     columnName = 'std.code.complexity:cyclomatic'
     # Select column 'std.code.complexity:cyclomatic' from the dataframe
     column = dataFrame[columnName]
     # Get count of values greater than max_limit in the column 'std.code.complexity:cyclomatic'
     count = column[column > max_limit].count()
-    """
-    Pandas aggregation functions (like sum, count and mean) returns a NumPy int64 type number not a Python integer.
-    Object of type int64 is not JSON serializable so need to convert into an int.
-    """
+
+    # Pandas aggregation functions (like sum, count and mean) returns a NumPy int64 type number not a Python integer.
+    # Object of type int64 is not JSON serializable so need to convert into an int.
+
     return (int(count))
 
 def get_average(complexity_summary_file):
     ''' Retrieve the cyclomatic code complexity value '''
-    with open(complexity_summary_file, 'r') as f:
-        data = f.read()
-
-    # Below is the format of complexity_summary_file, we are intersted in extracting the "avg" value of std.code.complexity.
     """
+    Below is the format of complexity_summary_file, we would extract the "avg" value of std.code.complexity.
     {
         "view": [
             {
@@ -103,10 +111,18 @@ def get_average(complexity_summary_file):
     }
     """
 
+    with open(complexity_summary_file, 'r') as f:
+        data = f.read()
+
     d = ast.literal_eval(data)
     newDictionary = d["view"]
 
-    return (newDictionary[0]['data']['aggregated-data']['std.code.complexity']['cyclomatic']['avg'])
+    try:
+        average = newDictionary[0]['data']['aggregated-data']['std.code.complexity']['cyclomatic']['avg']
+    except Exception as e:
+        sys.exit(f"The summary file '{complexity_summary_file}' does not have cyclomatic code complexity average value. {e.text}")
+
+    return (average)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -115,11 +131,6 @@ def main():
     parser.add_argument('-d', '--data_file', help='Code complexity data file in the csv format')
 
     args = parser.parse_args()
-    global dataFrame
-    global topNRegions
-
-    dataFrame = pd.read_csv(args.data_file)
-    topNRegions = 5
     get_atlas_compatible_code_statistics(args.summary, args.data_file, args.outfile)
 
 if __name__ == '__main__':
