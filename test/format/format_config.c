@@ -421,7 +421,7 @@ config_table(TABLE *table, void *arg)
         }
 
         /*
-         * We don't support the hs_search stress point with pareto distribution in predicatable
+         * We don't support the hs_search stress point with pareto distribution in predictable
          * replay as it prevents us stopping in time.
          */
         if (GV(STRESS_HS_SEARCH) && TV(OPS_PARETO)) {
