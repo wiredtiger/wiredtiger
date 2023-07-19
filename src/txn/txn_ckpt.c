@@ -345,7 +345,6 @@ __checkpoint_apply_to_dhandles(
 
     /* If we have already locked the handles, apply the operation. */
     for (i = 0; i < session->ckpt_handle_next; ++i) {
-        WT_STAT_CONN_INCR(session, checkpoint_handle_checked);
         if (session->ckpt_handle[i] == NULL)
             continue;
         WT_WITH_DHANDLE(session, session->ckpt_handle[i], ret = (*op)(session, cfg));

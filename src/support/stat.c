@@ -1506,47 +1506,45 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
-  "checkpoint: last potentially expensive operation attempted",
+  "checkpoint: checkpoints skipped because database was clean",
+  "checkpoint: fsync calls after allocating the transaction ID",
+  "checkpoint: fsync duration after allocating the transaction ID (usecs)",
+  "checkpoint: generation",
+  "checkpoint: max time (msecs)",
+  "checkpoint: min time (msecs)",
+  "checkpoint: most recent duration for gathering all handles (usecs)",
+  "checkpoint: most recent duration for gathering applied handles (usecs)",
+  "checkpoint: most recent duration for gathering skipped handles (usecs)",
+  "checkpoint: most recent handles applied",
+  "checkpoint: most recent handles skipped",
+  "checkpoint: most recent handles walked",
+  "checkpoint: most recent time (msecs)",
   "checkpoint: number of checkpoints started",
   "checkpoint: number of custom data sources checkpointed",
-  "checkpoint: number of files synced as part of checkpoint",
-  "checkpoint: number of handles visited after checkpoint writes complete",
-  "checkpoint: number of history store pages that checkpoint caused to be reconciled",
-  "checkpoint: number of internal pages visited by a checkpoint",
-  "checkpoint: number of leaf pages visited by a checkpoint",
+  "checkpoint: number of files synced",
+  "checkpoint: number of handles visited after writes complete",
+  "checkpoint: number of history store pages caused to be reconciled",
+  "checkpoint: number of internal pages visited",
+  "checkpoint: number of leaf pages visited",
   "checkpoint: number of older named checkpoints altered to include new checkpoint",
   "checkpoint: number of older named checkpoints updated during reconciliation",
-  "checkpoint: number of pages that checkpoint caused to be reconciled",
-  "checkpoint: number of pages that checkpoint read into the cache",
+  "checkpoint: number of pages caused to be reconciled",
+  "checkpoint: number of pages read into the cache",
   "checkpoint: pages added for eviction during checkpoint cleanup",
   "checkpoint: pages removed during checkpoint cleanup",
   "checkpoint: pages skipped during checkpoint cleanup tree walk",
   "checkpoint: pages visited during checkpoint cleanup",
-  "checkpoint: transaction checkpoint data handle operation applied",
-  "checkpoint: transaction checkpoint generation",
-  "checkpoint: transaction checkpoint max time (msecs)",
-  "checkpoint: transaction checkpoint min time (msecs)",
-  "checkpoint: transaction checkpoint most recent duration for gathering all handles (usecs)",
-  "checkpoint: transaction checkpoint most recent duration for gathering applied handles (usecs)",
-  "checkpoint: transaction checkpoint most recent duration for gathering skipped handles (usecs)",
-  "checkpoint: transaction checkpoint most recent handles applied",
-  "checkpoint: transaction checkpoint most recent handles skipped",
-  "checkpoint: transaction checkpoint most recent handles walked",
-  "checkpoint: transaction checkpoint most recent time (msecs)",
-  "checkpoint: transaction checkpoint prepare currently running",
-  "checkpoint: transaction checkpoint prepare max time (msecs)",
-  "checkpoint: transaction checkpoint prepare min time (msecs)",
-  "checkpoint: transaction checkpoint prepare most recent time (msecs)",
-  "checkpoint: transaction checkpoint prepare total time (msecs)",
-  "checkpoint: transaction checkpoint scrub dirty target",
-  "checkpoint: transaction checkpoint scrub time (msecs)",
-  "checkpoint: transaction checkpoint stop timing stress active",
-  "checkpoint: transaction checkpoint total time (msecs)",
+  "checkpoint: prepare currently running",
+  "checkpoint: prepare max time (msecs)",
+  "checkpoint: prepare min time (msecs)",
+  "checkpoint: prepare most recent time (msecs)",
+  "checkpoint: prepare total time (msecs)",
+  "checkpoint: progress state",
+  "checkpoint: scrub dirty target",
+  "checkpoint: scrub time (msecs)",
+  "checkpoint: stop timing stress active",
+  "checkpoint: total time (msecs)",
   "checkpoint: transaction checkpoints due to obsolete pages",
-  "checkpoint: transaction checkpoints skipped because database was clean",
-  "checkpoint: transaction fsync calls for checkpoint after allocating the transaction ID",
-  "checkpoint: transaction fsync duration for checkpoint after allocating the transaction ID "
-  "(usecs)",
   "checkpoint: wait cycles while cache dirty level is decreasing",
   "chunk-cache: aggregate number of spanned chunks on read",
   "chunk-cache: aggregate number of spanned chunks on remove",
@@ -2162,7 +2160,19 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
     stats->checkpoint_snapshot_acquired = 0;
-    /* not clearing checkpoint_state */
+    stats->checkpoint_skipped = 0;
+    stats->checkpoint_fsync_post = 0;
+    /* not clearing checkpoint_fsync_post_duration */
+    /* not clearing checkpoint_generation */
+    /* not clearing checkpoint_time_max */
+    /* not clearing checkpoint_time_min */
+    /* not clearing checkpoint_handle_duration */
+    /* not clearing checkpoint_handle_duration_apply */
+    /* not clearing checkpoint_handle_duration_skip */
+    stats->checkpoint_handle_applied = 0;
+    stats->checkpoint_handle_skipped = 0;
+    stats->checkpoint_handle_walked = 0;
+    /* not clearing checkpoint_time_recent */
     stats->checkpoints = 0;
     stats->checkpoint_custom_dsrc = 0;
     stats->checkpoint_sync = 0;
@@ -2178,30 +2188,17 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_cleanup_pages_removed = 0;
     stats->checkpoint_cleanup_pages_walk_skipped = 0;
     stats->checkpoint_cleanup_pages_visited = 0;
-    stats->checkpoint_handle_checked = 0;
-    /* not clearing checkpoint_generation */
-    /* not clearing checkpoint_time_max */
-    /* not clearing checkpoint_time_min */
-    /* not clearing checkpoint_handle_duration */
-    /* not clearing checkpoint_handle_duration_apply */
-    /* not clearing checkpoint_handle_duration_skip */
-    stats->checkpoint_handle_applied = 0;
-    stats->checkpoint_handle_skipped = 0;
-    stats->checkpoint_handle_walked = 0;
-    /* not clearing checkpoint_time_recent */
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
     /* not clearing checkpoint_prep_min */
     /* not clearing checkpoint_prep_recent */
     /* not clearing checkpoint_prep_total */
+    /* not clearing checkpoint_state */
     /* not clearing checkpoint_scrub_target */
     /* not clearing checkpoint_scrub_time */
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_time_total */
     stats->checkpoint_obsolete_applied = 0;
-    stats->checkpoint_skipped = 0;
-    stats->checkpoint_fsync_post = 0;
-    /* not clearing checkpoint_fsync_post_duration */
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->chunk_cache_spans_chunks_read = 0;
     stats->chunk_cache_spans_chunks_remove = 0;
@@ -2822,7 +2819,19 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
     to->checkpoint_snapshot_acquired += WT_STAT_READ(from, checkpoint_snapshot_acquired);
-    to->checkpoint_state += WT_STAT_READ(from, checkpoint_state);
+    to->checkpoint_skipped += WT_STAT_READ(from, checkpoint_skipped);
+    to->checkpoint_fsync_post += WT_STAT_READ(from, checkpoint_fsync_post);
+    to->checkpoint_fsync_post_duration += WT_STAT_READ(from, checkpoint_fsync_post_duration);
+    to->checkpoint_generation += WT_STAT_READ(from, checkpoint_generation);
+    to->checkpoint_time_max += WT_STAT_READ(from, checkpoint_time_max);
+    to->checkpoint_time_min += WT_STAT_READ(from, checkpoint_time_min);
+    to->checkpoint_handle_duration += WT_STAT_READ(from, checkpoint_handle_duration);
+    to->checkpoint_handle_duration_apply += WT_STAT_READ(from, checkpoint_handle_duration_apply);
+    to->checkpoint_handle_duration_skip += WT_STAT_READ(from, checkpoint_handle_duration_skip);
+    to->checkpoint_handle_applied += WT_STAT_READ(from, checkpoint_handle_applied);
+    to->checkpoint_handle_skipped += WT_STAT_READ(from, checkpoint_handle_skipped);
+    to->checkpoint_handle_walked += WT_STAT_READ(from, checkpoint_handle_walked);
+    to->checkpoint_time_recent += WT_STAT_READ(from, checkpoint_time_recent);
     to->checkpoints += WT_STAT_READ(from, checkpoints);
     to->checkpoint_custom_dsrc += WT_STAT_READ(from, checkpoint_custom_dsrc);
     to->checkpoint_sync += WT_STAT_READ(from, checkpoint_sync);
@@ -2839,30 +2848,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_cleanup_pages_walk_skipped +=
       WT_STAT_READ(from, checkpoint_cleanup_pages_walk_skipped);
     to->checkpoint_cleanup_pages_visited += WT_STAT_READ(from, checkpoint_cleanup_pages_visited);
-    to->checkpoint_handle_checked += WT_STAT_READ(from, checkpoint_handle_checked);
-    to->checkpoint_generation += WT_STAT_READ(from, checkpoint_generation);
-    to->checkpoint_time_max += WT_STAT_READ(from, checkpoint_time_max);
-    to->checkpoint_time_min += WT_STAT_READ(from, checkpoint_time_min);
-    to->checkpoint_handle_duration += WT_STAT_READ(from, checkpoint_handle_duration);
-    to->checkpoint_handle_duration_apply += WT_STAT_READ(from, checkpoint_handle_duration_apply);
-    to->checkpoint_handle_duration_skip += WT_STAT_READ(from, checkpoint_handle_duration_skip);
-    to->checkpoint_handle_applied += WT_STAT_READ(from, checkpoint_handle_applied);
-    to->checkpoint_handle_skipped += WT_STAT_READ(from, checkpoint_handle_skipped);
-    to->checkpoint_handle_walked += WT_STAT_READ(from, checkpoint_handle_walked);
-    to->checkpoint_time_recent += WT_STAT_READ(from, checkpoint_time_recent);
     to->checkpoint_prep_running += WT_STAT_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_READ(from, checkpoint_prep_max);
     to->checkpoint_prep_min += WT_STAT_READ(from, checkpoint_prep_min);
     to->checkpoint_prep_recent += WT_STAT_READ(from, checkpoint_prep_recent);
     to->checkpoint_prep_total += WT_STAT_READ(from, checkpoint_prep_total);
+    to->checkpoint_state += WT_STAT_READ(from, checkpoint_state);
     to->checkpoint_scrub_target += WT_STAT_READ(from, checkpoint_scrub_target);
     to->checkpoint_scrub_time += WT_STAT_READ(from, checkpoint_scrub_time);
     to->checkpoint_stop_stress_active += WT_STAT_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_time_total += WT_STAT_READ(from, checkpoint_time_total);
     to->checkpoint_obsolete_applied += WT_STAT_READ(from, checkpoint_obsolete_applied);
-    to->checkpoint_skipped += WT_STAT_READ(from, checkpoint_skipped);
-    to->checkpoint_fsync_post += WT_STAT_READ(from, checkpoint_fsync_post);
-    to->checkpoint_fsync_post_duration += WT_STAT_READ(from, checkpoint_fsync_post_duration);
     to->checkpoint_wait_reduce_dirty += WT_STAT_READ(from, checkpoint_wait_reduce_dirty);
     to->chunk_cache_spans_chunks_read += WT_STAT_READ(from, chunk_cache_spans_chunks_read);
     to->chunk_cache_spans_chunks_remove += WT_STAT_READ(from, chunk_cache_spans_chunks_remove);
