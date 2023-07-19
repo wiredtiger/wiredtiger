@@ -574,8 +574,9 @@ connection_runtime_config = [
         Config('hashsize', '1024', r'''
             number of buckets in the hashtable that keeps track of objects''',
             min='64', max='1048576'),
-        Config('type', '', r'''
-            cache location: DRAM or FILE (file system or block device)'''),
+        Config('type', 'FILE', r'''
+            cache location, defaults to the file system.''',
+            choices=['FILE', 'DRAM'], undoc=True),
         ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
@@ -777,12 +778,7 @@ connection_runtime_config = [
             type='boolean')
         ]),
     Config('operation_timeout_ms', '0', r'''
-        if non-zero, a requested limit on the number of elapsed real time milliseconds
-        application threads will take to complete database operations. This setting only applies
-        inside of a transaction. Time is measured from the start of each WiredTiger API call. There
-        is no guarantee any operation will not take longer than this amount of time. If WiredTiger
-        notices the limit has been exceeded, an operation may return a WT_ROLLBACK error. The
-        default of 0 is to have no limit.''',
+        this option is no longer supported, retained for backward compatibility.''',
         min=0),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See @ref operation_tracking for
@@ -1599,28 +1595,6 @@ methods = {
         type='boolean'),
 ]),
 
-'WT_SESSION.flush_tier' : Method([
-    Config('force', 'false', r'''
-        force sharing of all data''',
-        type='boolean'),
-    Config('lock_wait', 'true', r'''
-        wait for locks, if \c lock_wait=false, fail if any required locks are not available
-        immediately''',
-        type='boolean'),
-    Config('sync', 'on', r'''
-        wait for all objects to be flushed to the shared storage to the level specified. The \c
-        off setting does not wait for any objects to be written to the tiered storage system but
-        returns immediately after generating the objects and work units for an internal thread.
-        The \c on setting causes the caller to wait until all work queued for this call to be
-        completely processed before returning''',
-        choices=['off', 'on']),
-    Config('timeout', '0', r'''
-        maximum amount of time to allow for waiting for previous flushing of objects, in
-        seconds. The actual amount of time spent waiting may exceed the configured value. A
-        value of zero disables the timeout''',
-        type='int'),
-]),
-
 'WT_SESSION.strerror' : Method([]),
 
 'WT_SESSION.truncate' : Method([]),
@@ -1691,7 +1665,7 @@ methods = {
         API call. There is no guarantee any operation will not take longer than this amount of time.
         If WiredTiger notices the limit has been exceeded, an operation may return a WT_ROLLBACK
         error. Default is to have no limit''',
-        min=1),
+        min=0),
     Config('priority', 0, r'''
         priority of the transaction for resolving conflicts. Transactions with higher values
         are less likely to abort''',
@@ -1744,7 +1718,7 @@ methods = {
         API call. There is no guarantee any operation will not take longer than this amount of time.
         If WiredTiger notices the limit has been exceeded, an operation may return a WT_ROLLBACK
         error. Default is to have no limit''',
-        min=1),
+        min=0),
     Config('sync', '', r'''
         override whether to sync log records when the transaction commits. The default is inherited
         from ::wiredtiger_open \c transaction_sync. The \c off setting does not wait for records
@@ -1794,7 +1768,7 @@ methods = {
         API call. There is no guarantee any operation will not take longer than this amount of time.
         If WiredTiger notices the limit has been exceeded, an operation may return a WT_ROLLBACK
         error. Default is to have no limit''',
-        min=1),
+        min=0),
 ]),
 
 'WT_SESSION.checkpoint' : Method([
