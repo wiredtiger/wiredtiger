@@ -432,6 +432,18 @@ functions:
         cd cmake_build
         ${test_env_vars|} $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
 
+  "make check buckets":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        . test/evergreen/find_cmake.sh
+        cd cmake_build
+        ${test_env_vars|} $CTEST -L ${smp_command|} --output-on-failure ${check_args|} 2>&1
+
   "cppsuite test":
     - command: shell.exec
       params:
@@ -2617,6 +2629,126 @@ tasks:
               echo "Test count: $i"
               ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -v 4 test_prepare_hs03.py --hook timestamp
             done
+
+  - name: csuite-long-running
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: long_running
+
+  - name: csuite-test-bucket00
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket00
+
+  - name: csuite-test-bucket01
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket01
+
+  - name: csuite-test-bucket02
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket02
+
+  - name: csuite-test-bucket03
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket03
+
+  - name: csuite-test-bucket04
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket04
+
+  - name: csuite-test-bucket05
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket05
+
+  - name: csuite-test-bucket06
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket06
+
+  - name: csuite-test-bucket07
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket07
+
+  - name: csuite-test-bucket08
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket08
+
+  - name: csuite-test-bucket09
+    tags: [csuite-test-buckets]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check buckets"
+        vars:
+          smp_command: bucket09
 
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
@@ -5852,6 +5984,7 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
@@ -5865,7 +5998,7 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
     # We don't run C++ memory sanitized testing as it creates false positives.
-    check_args: -LE cppsuite
+    check_args: -LE cppsuite long_running
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -5875,6 +6008,7 @@ buildvariants:
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
     - name: make-check-test
+    - name: .csuite-test-buckets
 
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
@@ -5883,7 +6017,7 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
-    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O1
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
@@ -5896,6 +6030,7 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+    check_args: -LE long_running
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -5908,6 +6043,7 @@ buildvariants:
     - name: cppsuite-operations-test-default
     - name: cppsuite-hs-cleanup-default
     - name: cppsuite-burst-inserts-default
+    - name: .csuite-test-buckets
 
 - name: ubuntu2004-compilers
   display_name: "! Ubuntu 20.04 Compilers"

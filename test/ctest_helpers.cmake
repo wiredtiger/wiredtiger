@@ -241,7 +241,7 @@ function(define_c_test)
         0
         "C_TEST"
         ""
-        "TARGET;DIR_NAME;EXEC_SCRIPT"
+        "TARGET;DIR_NAME;EXEC_SCRIPT;LABEL"
         "SOURCES;FLAGS;ARGUMENTS;VARIANTS;DEPENDS;ADDITIONAL_FILES"
     )
     if (NOT "${C_TEST_UNPARSED_ARGUMENTS}" STREQUAL "")
@@ -308,13 +308,13 @@ function(define_c_test)
                 CMDS ${test_cmd}
                 DIR_NAME ${C_TEST_DIR_NAME}
                 LABELS "check;csuite"
-            )
+                )
         else()
             add_test(NAME ${C_TEST_TARGET}
                 COMMAND ${test_cmd} ${C_TEST_ARGUMENTS}
                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
             )
-            set_tests_properties(${C_TEST_TARGET} PROPERTIES LABELS "check;csuite")
+            set_tests_properties(${C_TEST_TARGET} PROPERTIES LABELS "check;csuite;${C_TEST_LABEL}")
         endif()
     endif()
 endfunction(define_c_test)
