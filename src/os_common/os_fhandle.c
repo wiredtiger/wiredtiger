@@ -97,7 +97,7 @@ __wt_remove_locked(WT_SESSION_IMPL *session, const char *name, bool *removed)
     }
 err:
     __wt_spin_unlock(session, &conn->fh_lock);
-    return (0);
+    return (ret);
 }
 
 /*
