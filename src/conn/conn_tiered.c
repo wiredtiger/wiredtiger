@@ -60,7 +60,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
          * If the handle is still open, it could still be in use for reading. In that case put the
          * work unit back on the work queue and keep trying.
          */
-        ret = __wt_remove_tiered_local(session, object, &removed);
+        ret = __wt_remove_locked(session, object, &removed);
         if (removed) {
             /*
              * We are responsible for freeing the work unit when we're done with it.
