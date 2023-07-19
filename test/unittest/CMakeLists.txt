@@ -13,6 +13,7 @@ else()
         tests/test_pow.cpp
         tests/test_reconciliation_tracking.cpp
         tests/test_tailq.cpp
+        tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
         tests/cursors/test_bulk_cursor.cpp
