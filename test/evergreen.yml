@@ -3412,6 +3412,7 @@ tasks:
         vars:
           stats_dir: ./wiredtiger/coverage_report
           test-name: code_coverage
+          collection: CodeCoverage
       - func: "code coverage publish report"
       - func: "code coverage publish summary"
 
@@ -4583,7 +4584,6 @@ tasks:
         vars:
           stats_dir: ./wiredtiger/code_statistics_report
           test-name: code_complexity
-          # Override the collection name to use the code complexity collection.
           collection: CodeComplexity
 
     #############################

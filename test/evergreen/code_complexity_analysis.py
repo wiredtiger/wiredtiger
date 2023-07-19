@@ -28,41 +28,39 @@ def get_atlas_compatible_code_statistics(summaryFile, dataFile, outfile='atlas_c
 def get_code_complexity(summaryFile, dataFile):
     ''' Generate a list of intended contents from the complexity analysis. '''
 
-    global dataFrame
-    global topNRegions
     dataFrame = pd.read_csv(dataFile)
-    topNRegions = 5
+    numberOfRegions = 5
     resultList = []
     complexityDict = {}
     complexityDict['Average'] = get_average(summaryFile)
-    complexityDict['Stats Ranges'] = get_complexity_ranges_list(dataFile)
-    complexityDict['Top ' + str(topNRegions) + ' Regions'] = get_region_list(dataFile)
+    complexityDict['Stats Ranges'] = get_complexity_ranges_list(dataFile, dataFrame)
+    complexityDict['Top ' + str(numberOfRegions) + ' Regions'] = get_region_list(dataFile, dataFrame, numberOfRegions)
     
     resultList.append(complexityDict)
     return (resultList)
 
-def get_region_list(dataFile):
-    ''' Retrieve topN Regions/functions with the highest cyclomatic complexity values. '''
+def get_region_list(dataFile, dataFrame, numberOfRegions):
+    ''' Retrieve numberOfRegions/functions with the highest cyclomatic complexity values. '''
 
-    top5 = dataFrame.nlargest(topNRegions, 'std.code.complexity:cyclomatic')
+    top5 = dataFrame.nlargest(numberOfRegions, 'std.code.complexity:cyclomatic')
     atlasFormat = {}
     for index, row in top5.iterrows():
         atlasFormat[row["region"]] = row["std.code.complexity:cyclomatic"]
 
     return (atlasFormat)
 
-def get_complexity_ranges_list(dataFile):
+def get_complexity_ranges_list(dataFile, dataFrame):
     ''' Retrieve 3 set of cyclomatic complexity ranges, above 20, above 50 and above 90. '''
 
     rangesList = [20, 50, 90]
     atlasFormat = {}
     for i in rangesList:
         aboveRangeString = 'Above ' + str(i)
-        atlasFormat[aboveRangeString] = get_complexity_max_limit(i)
+        atlasFormat[aboveRangeString] = get_complexity_max_limit(dataFrame, i)
 
     return (atlasFormat)
 
-def get_complexity_max_limit(max_limit: int):
+def get_complexity_max_limit(dataFrame, max_limit):
     ''' Retrieve the number of cyclomatic complexity values above the max_limit. '''
 
     columnName = 'std.code.complexity:cyclomatic'
@@ -77,8 +75,9 @@ def get_complexity_max_limit(max_limit: int):
     return (int(count))
 
 def get_average(complexity_summary_file):
-    ''' Retrieve the cyclomatic code complexity value '''
     """
+    Retrieve the cyclomatic code complexity value
+
     Below is the format of complexity_summary_file, we would extract the "avg" value of std.code.complexity.
     {
         "view": [
@@ -115,12 +114,12 @@ def get_average(complexity_summary_file):
         data = f.read()
 
     d = ast.literal_eval(data)
-    newDictionary = d["view"]
-
     try:
+        newDictionary = d["view"]
         average = newDictionary[0]['data']['aggregated-data']['std.code.complexity']['cyclomatic']['avg']
     except Exception as e:
-        sys.exit(f"The summary file '{complexity_summary_file}' does not have cyclomatic code complexity average value. {e.text}")
+        sys.exit(f"The summary file '{complexity_summary_file}' does not have view list or cyclomatic code complexity average value. "
+                 "Please make sure the summary file is properly formatted {e.text}")
 
     return (average)
 
