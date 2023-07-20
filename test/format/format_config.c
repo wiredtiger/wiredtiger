@@ -51,6 +51,7 @@ static void config_mirrors(void);
 static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
+static void config_run_length(void);
 static void config_statistics(void);
 static void config_tiered_storage(void);
 static void config_transaction(void);
@@ -418,6 +419,18 @@ config_table(TABLE *table, void *arg)
                   table->id);
             config_single(table, "ops.truncate=0", false);
         }
+
+        /*
+         * We don't support the hs_search stress point with pareto distribution in predictable
+         * replay as it prevents us stopping in time.
+         */
+        if (GV(STRESS_HS_SEARCH) && TV(OPS_PARETO)) {
+            if (config_explicit(NULL, "stress.hs_search"))
+                WARN("turning off stress.hs_search to work with predictable replay as table%" PRIu32
+                     " has pareto enabled",
+                  table->id);
+            config_single(NULL, "stress.hs_search=0", false);
+        }
     }
 
     /*
@@ -500,27 +513,8 @@ config_run(void)
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
 
-    /*
-     * Run-length is configured by a number of operations and a timer.
-     *
-     * If the operation count and the timer are both configured, do nothing. If only the timer is
-     * configured, clear the operations count. If only the operation count is configured, limit the
-     * run to 6 hours. If neither is configured, leave the operations count alone and limit the run
-     * to 30 minutes.
-     *
-     * In other words, if we rolled the dice on everything, do a short run. If we chose a number of
-     * operations but the rest of the configuration means operations take a long time to complete
-     * (for example, a small cache and many worker threads), don't let it run forever.
-     */
-    if (config_explicit(NULL, "runs.timer")) {
-        if (!config_explicit(NULL, "runs.ops"))
-            config_single(NULL, "runs.ops=0", false);
-    } else {
-        if (!config_explicit(NULL, "runs.ops"))
-            config_single(NULL, "runs.timer=30", false);
-        else
-            config_single(NULL, "runs.timer=360", false);
-    }
+    /* Adjust run length if needed. */
+    config_run_length();
 
     config_random_generators_before_run();
 }
@@ -1395,6 +1389,48 @@ config_pct(TABLE *table)
 }
 
 /*
+ * config_run_length --
+ *     Run length configuration.
+ */
+static void
+config_run_length(void)
+{
+    /*
+     * Run-length is configured by a number of operations and a timer.
+     *
+     * If the operation count and the timer are both configured, do nothing. If only the timer is
+     * configured, clear the operations count. If only the operation count is configured, limit the
+     * run to 6 hours. If neither is configured, leave the operations count alone and limit the run
+     * to 30 minutes.
+     *
+     * In other words, if we rolled the dice on everything, do a short run. If we chose a number of
+     * operations but the rest of the configuration means operations take a long time to complete
+     * (for example, a small cache and many worker threads), don't let it run forever.
+     */
+    if (config_explicit(NULL, "runs.timer")) {
+        if (!config_explicit(NULL, "runs.ops"))
+            config_single(NULL, "runs.ops=0", false);
+    } else {
+        if (!config_explicit(NULL, "runs.ops"))
+            config_single(NULL, "runs.timer=30", false);
+        else
+            config_single(NULL, "runs.timer=360", false);
+    }
+
+    /*
+     * There are combinations that can cause out of disk space issues and here we try to prevent
+     * those. CONFIG.stress causes runs.timer to be considered explicit which limits when we can
+     * override the run length to extreme cases.
+     */
+    if (GV(RUNS_TIMER) > 10 && GV(LOGGING) && !GV(LOGGING_REMOVE) && GV(BACKUP) &&
+      GV(OPS_SALVAGE)) {
+        WARN(
+          "limiting runs.timer=%d as logging=1, backup=1, ops.salvage=1, and logging.remove=0", 10);
+        config_single(NULL, "runs.timer=10", true);
+    }
+}
+
+/*
  * config_statistics --
  *     Statistics configuration.
  */
@@ -1537,6 +1573,11 @@ config_transaction(void)
     if (!GV(TRANSACTION_TIMESTAMPS))
         config_off(NULL, "ops.prepare");
 
+    /* Set a default transaction timeout limit if one is not specified. */
+    if (!config_explicit(NULL, "transaction.operation_timeout_ms"))
+        config_single(NULL, "transaction.operation_timeout_ms=2000", false);
+
+    g.operation_timeout_ms = GV(TRANSACTION_OPERATION_TIMEOUT_MS);
     g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
 }
 

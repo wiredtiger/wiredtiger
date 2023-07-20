@@ -295,7 +295,7 @@ CONFIG configuration_list[] = {
 
 {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0}
 
-{"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after reconciliation", C_BOOL, 30, 0, 0}
+{"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0}
 
 {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts", C_BOOL, 30, 0, 0}
 
@@ -330,6 +330,8 @@ CONFIG configuration_list[] = {
 {"tiered_storage.storage_source", "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
+
+{"transaction.operation_timeout_ms", "requested limit on the time taken to complete operations in this transaction", 0, 0, 0, UINT_MAX}
 
 {"transaction.timestamps", "all transactions (or none), have timestamps", C_BOOL, 80, 0, 0}
 

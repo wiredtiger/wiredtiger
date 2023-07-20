@@ -517,7 +517,7 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[], bool
     if (cfg == NULL)
         return (0);
 
-    /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
+    /* Retrieve the maximum operation time. */
     WT_RET(__wt_config_gets_def(session, cfg, "operation_timeout_ms", 0, &cval));
 
     /*
@@ -1677,7 +1677,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * the total mod_count.
                  */
                 if ((i * 36) % txn->mod_count == 0)
-                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1, NULL);
+                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1);
 
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;

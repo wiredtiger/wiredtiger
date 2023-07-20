@@ -508,7 +508,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1, NULL);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1);
 
     /*
      * Confirm the root page's index hasn't moved, then update it, which makes the split visible to
@@ -519,7 +519,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     alloc_index = NULL;
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2, NULL);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2);
 
     /*
      * Mark the root page with the split generation.
@@ -768,7 +768,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_NOT_READ(complete, WT_ERR_PANIC);
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3, NULL);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3);
 
     /*
      * Confirm the parent page's index hasn't moved then update it, which makes the split visible to
@@ -779,7 +779,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     alloc_index = NULL;
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4, NULL);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4);
 
     /*
      * Get a generation for this split, mark the page. This must be after the new index is swapped
@@ -1035,7 +1035,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5, NULL);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5);
 
     /* Split into the parent. */
     WT_ERR(__split_parent(
@@ -1049,7 +1049,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     WT_INTL_INDEX_SET(page, replace_index);
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6, NULL);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6);
 
     /*
      * Get a generation for this split, mark the parent page. This must be after the new index is
@@ -1190,7 +1190,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
         parent = ref->home;
 
         /* Encourage races. */
-        __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7, NULL);
+        __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7);
 
         /* Page locks live in the modify structure. */
         WT_RET(__wt_page_modify_init(session, parent));
@@ -1382,10 +1382,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_SAVE_UPD *supd;
     WT_UPDATE *prev_onpage, *upd, *tmp;
     uint64_t recno;
-    uint32_t dsk_alloc_size, i, slot;
+    uint32_t i, slot;
     bool prepare;
-
-    dsk_alloc_size = ((WT_PAGE_HEADER *)multi->disk_image)->mem_size;
 
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
@@ -1400,8 +1398,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
-    WT_RET(__wt_page_inmem(
-      session, ref, multi->disk_image, dsk_alloc_size, WT_PAGE_DISK_ALLOC, &page, &prepare));
+    WT_RET(__wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &prepare));
     multi->disk_image = NULL;
 
     /*
@@ -2162,6 +2159,10 @@ __split_multi_lock(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
     WT_DECL_RET;
     WT_PAGE *parent;
+
+    /* Fail 1% of the time to simulate we fail to split the page. */
+    if (!closing && __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT, 100))
+        return (EBUSY);
 
     /* Lock the parent page, then proceed with the split. */
     WT_RET(__split_internal_lock(session, ref, false, &parent));

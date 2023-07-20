@@ -317,9 +317,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_EVICT_REPOSITION},
 
-  {"stress.failpoint_eviction_fail_after_reconciliation",
-    "stress failpoint eviction fail after reconciliation", C_BOOL, 30, 0, 0,
-    V_GLOBAL_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
+  {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0,
+    V_GLOBAL_STRESS_FAILPOINT_EVICTION_SPLIT},
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},
@@ -363,6 +362,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,
     100, V_GLOBAL_TRANSACTION_IMPLICIT},
+
+  {"transaction.operation_timeout_ms",
+    "requested limit on the time taken to complete operations in this transaction", 0, 0, 0,
+    UINT_MAX, V_GLOBAL_TRANSACTION_OPERATION_TIMEOUT_MS},
 
   {"transaction.timestamps", "all transactions (or none), have timestamps", C_BOOL, 80, 0, 0,
     V_GLOBAL_TRANSACTION_TIMESTAMPS},
