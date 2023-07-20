@@ -472,6 +472,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     char **pinned_objects;
 
     chunkcache = &S2C(session)->chunkcache;
+    pinned_objects = NULL;
 
     if (chunkcache->type != WT_CHUNKCACHE_UNCONFIGURED && !reconfig)
         WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
