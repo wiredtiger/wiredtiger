@@ -201,8 +201,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
          * be in the wrong buffer and the buffer may be the wrong size. If needed, get the page into
          * the destination buffer.
          */
-        if (ip != buf)
-            WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
+        WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
     }
 
 verify:
