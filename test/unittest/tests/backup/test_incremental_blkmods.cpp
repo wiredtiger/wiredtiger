@@ -13,6 +13,7 @@
 #include "wiredtiger.h"
 #include "wt_internal.h"
 #include "../utils.h"
+#include "../helpers/vector_bool.h"
 #include "../wrappers/connection_wrapper.h"
 #include "../wrappers/item_wrapper.h"
 
@@ -109,7 +110,6 @@ insert_sample_values(WT_CURSOR *cursor1, WT_CURSOR *cursor2, int first_value, in
 static
 std::vector<bool> parse_blkmods(WT_SESSION *session, std::string const& uri)
 {
-   std::vector<bool> result;
    WT_CURSOR *metadata_cursor = nullptr;
    REQUIRE(session->open_cursor(session, "metadata:", nullptr, nullptr, &metadata_cursor) == 0);
 
@@ -122,9 +122,12 @@ std::vector<bool> parse_blkmods(WT_SESSION *session, std::string const& uri)
 
    std::cmatch match_results;
    REQUIRE(std::regex_search(file_config, match_results, std::regex(",blocks=(\\w+)")));
-   std::cout << "Found " << match_results[1] << std::endl;
+   std::string hex_blkmod = match_results[1];
+   std::cout << "Found " << hex_blkmod << std::endl;
 
    REQUIRE(metadata_cursor->close(metadata_cursor) == 0);
+
+   std::vector<bool> result(vector_bool_from_hex_string(hex_blkmod));
    return result;
 }
 
@@ -133,7 +136,6 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 {
     std::string create_config = "allocation_size=512,key_format=S,value_format=S";
     std::string backup_config = "incremental=(enabled,granularity=4k,this_id=\"ID1\")";
-
 
     std::string uri1 = "backup_test1";
     std::string uri2 = "backup_test2";
@@ -144,6 +146,11 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 
     const int num_few_keys = 100;
     const int num_more_keys = 5000;
+
+    std::vector<bool> orig_blkmod_table1;
+    std::vector<bool> orig_blkmod_table2;
+    std::vector<bool> new_blkmod_table1;
+    std::vector<bool> new_blkmod_table2;
 
     {
         // Setup
@@ -178,10 +185,8 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 
         REQUIRE(session->checkpoint(session, nullptr) == 0);
 
-        parse_blkmods(session, file1_uri);
-        parse_blkmods(session, file2_uri);
-
-//        REQUIRE(session->close(session, nullptr) == 0);
+        orig_blkmod_table1 = parse_blkmods(session, file1_uri);
+        orig_blkmod_table2 = parse_blkmods(session, file2_uri);
     }
 
     {
@@ -204,17 +209,31 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
         REQUIRE(insert_key_value(cursor1, "key5000", "value5000") == 0);
         REQUIRE(session->checkpoint(session, nullptr) == 0);
 
-        parse_blkmods(session, file1_uri);
+        new_blkmod_table1 = parse_blkmods(session, file1_uri);
 
         REQUIRE(insert_key_value(cursor2, "key5000", "value5000") == 0);
         REQUIRE(session->checkpoint(session, nullptr) == 0);
 
-        parse_blkmods(session, file2_uri);
+        new_blkmod_table2 = parse_blkmods(session, file2_uri);
 
         REQUIRE(cursor1->close(cursor1) == 0);
         REQUIRE(cursor2->close(cursor2) == 0);
-
-//        REQUIRE(session->close(session, nullptr) == 0);
     }
 
+    std::cout << "orig_blkmod_table1 " << vector_bool_to_hex_string(orig_blkmod_table1) << std::endl;
+    std::cout << "orig_blkmod_table2 " << vector_bool_to_hex_string(orig_blkmod_table2) << std::endl;
+    std::cout << "new_blkmod_table1 " << vector_bool_to_hex_string(new_blkmod_table1) << std::endl;
+    std::cout << "new_blkmod_table2 " << vector_bool_to_hex_string(new_blkmod_table2) << std::endl;
+
+    std::vector<bool> check_table1 = (orig_blkmod_table1 ^ new_blkmod_table1) & orig_blkmod_table1;
+    std::vector<bool> check_table2 = (orig_blkmod_table2 ^ new_blkmod_table2) & orig_blkmod_table2;
+
+    std::cout << "check_table1 " << vector_bool_to_hex_string(check_table1) << std::endl;
+    std::cout << "check_table2 " << vector_bool_to_hex_string(check_table2) << std::endl;
+
+    std::cout << "check_table1 true count = " << get_true_count(check_table1) << std::endl;
+    std::cout << "check_table2 true count = " << get_true_count(check_table2) << std::endl;
+
+    REQUIRE(get_true_count(check_table1) == 0);
+    REQUIRE(get_true_count(check_table2) == 0);
 }

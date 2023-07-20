@@ -19,6 +19,8 @@ else()
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
+        tests/helpers/test_vector_bool.cpp
+        tests/helpers/vector_bool.cpp
     )
 endif()
 
