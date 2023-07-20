@@ -2,3 +2,26 @@
 # https://reviews.llvm.org/D121652
 fun:stat
 fun:fstat
+fun:__posix_file_size
+fun:__posix_fs_size
+fun:compute_tiered_file_size
+fun:compute_wt_file_size
+fun:backup_read
+fun:main
+fun:dir_store_get_directory
+fun:dir_store_stat
+fun:dir_store_open
+fun:dir_store_remove_if_exists
+fun:fail_fs_size
+fun:backup_delete_old_backups
+fun:thread_backup_run
+fun:backup_verify
+fun:file_exists
+fun:run_test
+fun:process_directory_tree
+fun:testutil_copy_ext
+fun:lazyfs_init
+fun:lazyfs_unmount
+fun:testutil_deduce_build_dir
+fun:testutil_verify_src_backup
+fun:is_mounted
