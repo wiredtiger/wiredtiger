@@ -851,9 +851,9 @@ copy_cell_restart:
     /*
      * Unpack any fast-truncate information. Note that there is no way to write fast-truncate
      * information to disk in versions before 6.1, but this information may still exist in the
-     * database files if we are downgrading from newer versions. If the fast-truncate information
-     * is present, it needs to be unpacked but we will ignore these values. Ignoring these values
-     * is equivalent to writing out truncated content that is not associated with any visibility.
+     * database files if we are downgrading from newer versions. If the fast-truncate information is
+     * present, it needs to be unpacked but we will ignore these values. Ignoring these values is
+     * equivalent to writing out truncated content that is not associated with any visibility.
      */
     if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
         WT_RET(
