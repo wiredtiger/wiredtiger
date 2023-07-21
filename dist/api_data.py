@@ -577,7 +577,8 @@ connection_runtime_config = [
         Config('pinned', '', r'''
             List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
             tables exceeding capacity will not be fully retained. Table names can appear
-            in both this and preload list, but not in both this and exclude list.''',
+            in both this and the preload list, but not in both this and the exclude list.
+            Duplicate names are allowed.''',
             type='list'),
         Config('type', 'FILE', r'''
             cache location, defaults to the file system.''',
