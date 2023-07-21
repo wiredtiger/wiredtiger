@@ -529,6 +529,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
     if (cnt != 0) {
         WT_RET(__wt_calloc_def(session, cnt + 1, &pinned_objects));
+        chunkcache->pinned_objects = pinned_objects;
         __wt_config_subinit(session, &targetconf, &cval);
         for (cnt = 0; (ret = __wt_config_next(&targetconf, &k, &v)) == 0; ++cnt) {
             if (!WT_PREFIX_MATCH(k.str, "table:"))
@@ -544,7 +545,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         }
     }
     WT_RET_NOTFOUND_OK(ret);
-    chunkcache->pinned_objects = pinned_objects;
 
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
 
