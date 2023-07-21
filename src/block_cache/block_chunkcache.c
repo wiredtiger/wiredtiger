@@ -188,6 +188,17 @@ __chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, 
     intermediate.objectid = objectid;
     intermediate.offset = WT_CHUNK_OFFSET(chunkcache, offset);
 
+    /*
+     * The hashing situation is a little complex. We want to construct hashes as we iterate over the
+     * chunks we add/remove, and these hashes consist of an object name, object ID, and offset. But
+     * to hash these, the bytes need to be contiguous in memory. Having the object name as a
+     * fixed-size character array would work, but it would need to be large, and that would waste a
+     * lot of space most of the time.
+     *
+     * Instead, we hash the object name separately, then bundle that hash into a temporary (stack
+     * allocated) structure with the object ID and offset. Then, we hash that intermediate
+     * structure.
+     */
     WT_CLEAR(*hash_id);
     hash_id->objectid = objectid;
     hash_id->offset = WT_CHUNK_OFFSET(chunkcache, offset);

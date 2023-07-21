@@ -25,6 +25,7 @@ struct __wt_chunkcache_hashid {
     wt_off_t offset;
 };
 
+/* Hold the values used while hashing object ID, name, and offset tuples. */
 struct __wt_chunkcache_intermediate_hash {
     uint64_t name_hash;
     uint32_t objectid;
