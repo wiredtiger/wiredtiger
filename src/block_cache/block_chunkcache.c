@@ -193,7 +193,8 @@ __chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, 
      * chunks we add/remove, and these hashes consist of an object name, object ID, and offset. But
      * to hash these, the bytes need to be contiguous in memory. Having the object name as a
      * fixed-size character array would work, but it would need to be large, and that would waste a
-     * lot of space most of the time.
+     * lot of space most of the time. The alternative would be to allocate a new structure just for
+     * hashing purposes, but then we're allocating/freeing on the hot path.
      *
      * Instead, we hash the object name separately, then bundle that hash into a temporary (stack
      * allocated) structure with the object ID and offset. Then, we hash that intermediate
