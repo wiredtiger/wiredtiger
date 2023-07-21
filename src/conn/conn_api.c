@@ -2042,11 +2042,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
     } else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
-    /*
-     * We need to make sure all writes to other fields are visible before setting the count because
-     * the log removal thread may walk the array using this value.
-     */
-    WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
+    conn->debug_ckpt_cnt = (uint32_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)

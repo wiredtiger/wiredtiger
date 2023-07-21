@@ -383,7 +383,8 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
-    uint32_t dbg_val, min_lognum;
+    uint32_t dbg_ckpt_cnt, dbg_log_cnt, min_lognum;
+    bool dbg_ckpt_retain;
     u_int logcount;
     char **logfiles;
 
@@ -400,12 +401,22 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     min_lognum = backup_file == 0 ? WT_MIN(log->ckpt_lsn.l.file, log->sync_lsn.l.file) :
                                     WT_MIN(log->ckpt_lsn.l.file, backup_file);
 
+    /*
+     * Take a consistent view of the current configuration. 
+     * If another thread reconfigures the connection in parallel we'll handle that 
+     * change on the next call to this function.
+     */
+    __wt_spin_lock(session, &conn->reconfig_lock);
+    dbg_ckpt_cnt = conn->debug_ckpt_cnt;
+    dbg_ckpt_retain = FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
+    dbg_log_cnt = conn->debug_log_cnt;
+    __wt_spin_unlock(session, &conn->reconfig_lock);
+
     /* Adjust the number of log files to retain based on debugging options. */
-    WT_ORDERED_READ(dbg_val, conn->debug_ckpt_cnt);
-    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN) && dbg_val != 0)
-        min_lognum = WT_MIN(conn->debug_ckpt[dbg_val - 1].l.file, min_lognum);
-    WT_ORDERED_READ(dbg_val, conn->debug_log_cnt);
-    if (dbg_val != 0) {
+    if (dbg_ckpt_retain && dbg_ckpt_cnt != 0)
+        min_lognum = WT_MIN(conn->debug_ckpt[dbg_ckpt_cnt - 1].l.file, min_lognum);
+
+    if (dbg_log_cnt != 0) {
         /*
          * If we're performing checkpoints, apply the retain value as a minimum, increasing the
          * number the log files we keep. If not performing checkpoints, it's an absolute number of
@@ -415,12 +426,12 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
          *
          * Check for N+1, that is, we retain N full log files, and one partial.
          */
-        if ((dbg_val + 1) >= log->fileid)
+        if ((dbg_log_cnt + 1) >= log->fileid)
             return (0);
         if (WT_IS_INIT_LSN(&log->ckpt_lsn))
-            min_lognum = log->fileid - (dbg_val + 1);
+            min_lognum = log->fileid - (dbg_log_cnt + 1);
         else
-            min_lognum = WT_MIN(log->fileid - (dbg_val + 1), min_lognum);
+            min_lognum = WT_MIN(log->fileid - (dbg_log_cnt + 1), min_lognum);
     }
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove to log number %" PRIu32, min_lognum);
 
