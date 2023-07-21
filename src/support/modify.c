@@ -388,8 +388,11 @@ __wt_modify_apply_item(
      * Decrement the size to discard the trailing nul (done after growing the buffer to ensure it
      * can be restored without further checking).
      */
-    if (sformat)
+    if (sformat) {
+        /* string size must be larger than 0 with trailing nul. */
+        WT_ASSERT(session, value->size > 0);
         --value->size;
+    }
 
     __modify_fast_path(value, p, nentries, &napplied, &overlap, &datasz, &destsz);
 
