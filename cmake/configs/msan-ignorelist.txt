@@ -25,3 +25,7 @@ fun:lazyfs_unmount
 fun:testutil_deduce_build_dir
 fun:testutil_verify_src_backup
 fun:is_mounted
+fun:fail_file_size
+fun:copy_directory_int
+fun:corrupt_file
+fun:corrupt
