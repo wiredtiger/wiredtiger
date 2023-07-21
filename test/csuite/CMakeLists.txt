@@ -66,7 +66,6 @@ define_c_test(
     DEPENDS "WT_POSIX"
     ADDITIONAL_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/time_shift_test.sh
-    LABEL "bucket01"
 )
 
 define_c_test(
