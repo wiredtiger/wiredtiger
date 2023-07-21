@@ -430,7 +430,7 @@ functions:
         set -o verbose
         . test/evergreen/find_cmake.sh
         cd cmake_build
-        ${test_env_vars|} $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1       
+        ${test_env_vars|} $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
 
   "cppsuite test":
     - command: shell.exec
@@ -5910,7 +5910,6 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
-    check_args: -LE long_running
   tasks:
     - name: clang-analyzer
     - name: compile
