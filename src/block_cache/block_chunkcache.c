@@ -207,7 +207,7 @@ static inline bool
 __hash_id_eq(WT_CHUNKCACHE_HASHID *a, WT_CHUNKCACHE_HASHID *b)
 {
     return (a->objectid == b->objectid && a->offset == b->offset &&
-      strlen(a->objectname) == strlen(b->objectname) && strcmp(a->objectname, b->objectname) == 0);
+      strcmp(a->objectname, b->objectname) == 0);
 }
 
 /*
