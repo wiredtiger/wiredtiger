@@ -121,7 +121,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
   int *compact_pct_tenths_p)
 {
     WT_EXT *ext;
-    wt_off_t avail_eighty, avail_ninety, off, size, eighty, ninety;
+    wt_off_t avail_eighty, avail_ninety, free_space_target, off, size, eighty, ninety;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -129,6 +129,8 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     avail_eighty = avail_ninety = avail_bytes_before_start_offset;
     ninety = file_size - file_size / 10;
     eighty = file_size - ((file_size / 10) * 2);
+
+    free_space_target = (wt_off_t)session->compact->free_space_target;
 
     WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, start_offset)
     {
@@ -143,7 +145,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     }
 
     /*
-     * Skip files where we can't recover at least 1MB.
+     * Skip files where we can't recover the minimum amount configured.
      *
      * WiredTiger uses first-fit compaction: It finds space in the beginning of the file and moves
      * data from the end of the file into that space. If at least 20% of the total file is available
@@ -154,10 +156,10 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
      * We could push this further, but there's diminishing returns, a mostly empty file can be
      * processed quickly, so more aggressive compaction is less useful.
      */
-    if (avail_eighty > WT_MEGABYTE && avail_eighty >= ((file_size / 10) * 2)) {
+    if (avail_eighty > free_space_target && avail_eighty >= ((file_size / 10) * 2)) {
         *skipp = false;
         *compact_pct_tenths_p = 2;
-    } else if (avail_ninety > WT_MEGABYTE && avail_ninety >= file_size / 10) {
+    } else if (avail_ninety > free_space_target && avail_ninety >= file_size / 10) {
         *skipp = false;
         *compact_pct_tenths_p = 1;
     } else {
@@ -169,22 +171,42 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
         __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
           "%s: total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
           block->compact_pages_reviewed, block->compact_pages_rewritten);
+
     __wt_verbose_level(session, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
-      "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
+      "%s:%s %" PRIuMAX "MB (%" PRIuMAX "B) available space in the first 80%% of the file",
       block->name, estimate ? " estimating --" : "", (uintmax_t)avail_eighty / WT_MEGABYTE,
       (uintmax_t)avail_eighty);
     __wt_verbose_level(session, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
-      "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 90%% of the file",
+      "%s:%s %" PRIuMAX "MB (%" PRIuMAX "B) available space in the first 90%% of the file",
       block->name, estimate ? " estimating --" : "", (uintmax_t)avail_ninety / WT_MEGABYTE,
       (uintmax_t)avail_ninety);
+
+    if (free_space_target > avail_ninety)
+        __wt_verbose_level(session, WT_VERB_COMPACT,
+          (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
+          "%s:%s Minimum amount of space required to be recovered %" PRIuMAX
+          "B cannot be recovered",
+          block->name, estimate ? " estimating --" : "", (uintmax_t)free_space_target);
+    else {
+        __wt_verbose_level(session, WT_VERB_COMPACT,
+          (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
+          "%s:%s require 10%% or %" PRIuMAX "MB (%" PRIuMAX
+          ") in the first 90%% of the file to perform compaction, criteria %s. ",
+          block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
+          (uintmax_t)(file_size / 10), *compact_pct_tenths_p == 2 ? "met" : "unmet");
+        __wt_verbose_level(session, WT_VERB_COMPACT,
+          (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
+          "%s:%s require 20%% or %" PRIuMAX "MB (%" PRIuMAX
+          ") in the first 80%% of the file to perform compaction, criteria %s. ",
+          block->name, estimate ? " estimating --" : "",
+          (uintmax_t)((file_size / 10) * 2) / WT_MEGABYTE, (uintmax_t)((file_size / 10) * 2),
+          *compact_pct_tenths_p == 1 ? "met" : "unmet");
+    }
     __wt_verbose_level(session, WT_VERB_COMPACT,
-      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
-      "%s:%s require 10%% or %" PRIuMAX "MB (%" PRIuMAX
-      ") in the first 90%% of the file to perform compaction, compaction %s",
-      block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
-      (uintmax_t)(file_size / 10), *skipp ? "skipped" : "proceeding");
+      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1), "%s:%s compaction %s. ", block->name,
+      estimate ? " estimating --" : "", *skipp ? "skipped" : "proceeding");
 }
 
 /*
@@ -443,13 +465,13 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 
     /*
      * We do compaction by copying blocks from the end of the file to the beginning of the file, and
-     * we need some metrics to decide if it's worth doing. Ignore small files, and files where we
-     * are unlikely to recover 10% of the file.
+     * we need some metrics to decide if it's worth doing. Ignore files smaller than the configured
+     * threshold, and files where we are unlikely to recover 10% of the file.
      */
-    if (block->size <= WT_MEGABYTE) {
+    if (block->size <= (wt_off_t)session->compact->free_space_target) {
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
-          "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.",
-          block->name, (uintmax_t)block->size);
+          "%s: skipping because the file size (%" PRIu64 "B) must be greater than %" PRIuMAX "B.",
+          block->name, session->compact->free_space_target, (uintmax_t)block->size);
 
         return (0);
     }
