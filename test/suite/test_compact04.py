@@ -30,7 +30,7 @@
 #   Test the accuracy of compact work estimation.
 #
 
-import time, wiredtiger, wttest
+import wiredtiger, wttest
 from wiredtiger import stat
 
 # Test the accuracy of compact work estimation.
