@@ -45,8 +45,8 @@ class test_compact04(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(free_space_target)
 
-    # Keep debug messages on by default. This is useful for diagnosing spurious test failures.
-    conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:4)'
+    # Keep debug messages on by default, this is useful for diagnosing spurious test failures.
+    conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
     table_uri_prefix='table:test_compact04-'
