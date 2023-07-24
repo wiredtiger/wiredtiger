@@ -470,8 +470,9 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      */
     if (block->size <= (wt_off_t)session->compact->free_space_target) {
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
-          "%s: skipping because the file size (%" PRIu64 "B) must be greater than %" PRIuMAX "B.",
-          block->name, session->compact->free_space_target, (uintmax_t)block->size);
+          "%s: skipping because the file size (%" PRIu64
+          "B) must be greater than the minimum recoverable space (%" PRIu64 "B).",
+          block->name, (uintmax_t)block->size, session->compact->free_space_target);
 
         return (0);
     }
