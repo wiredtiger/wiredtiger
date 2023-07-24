@@ -319,7 +319,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_bug003.test_bug003",   # Triggers WT-9954
                 "test_bug024.test_bug024",
                 "test_bulk01.test_bulk_load",   # Triggers WT-9954
-                "test_bulk02.test_bulkload_checkpoint", # Triggers WT-9954
                 "test_durable_ts03.test_durable_ts03",
                 "test_rollback_to_stable20.test_rollback_to_stable",
                 "test_stat_log01_readonly.test_stat_log01_readonly",
