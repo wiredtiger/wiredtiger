@@ -195,11 +195,8 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
         skip_test('named checkpoints do not work in tiered storage')
     # We cannot call flush_tier on a readonly connection.
     if not testcase_is_readonly():
-        # FIXME-WT-11047 enable flush_tier on checkpoint.
-        # There is some fallout when this is enabled, several tests fail,
-        # and those must be resolved first.
-        if False:
-            config += ',flush_tier=(enabled,force=true)'
+        # Enable flush_tier on checkpoint.
+        config += ',flush_tier=(enabled,force=true)'
     return orig_session_checkpoint(session_self, config)
 
 # Called to replace Session.compact
@@ -322,6 +319,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_bug003.test_bug003",   # Triggers WT-9954
                 "test_bug024.test_bug024",
                 "test_bulk01.test_bulk_load",   # Triggers WT-9954
+                "test_bulk02.test_bulkload_checkpoint", # Triggers WT-9954
                 "test_durable_ts03.test_durable_ts03",
                 "test_rollback_to_stable20.test_rollback_to_stable",
                 "test_stat_log01_readonly.test_stat_log01_readonly",
