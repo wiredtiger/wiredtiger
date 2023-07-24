@@ -573,6 +573,7 @@ struct __wt_connection_impl {
     bool mmap_all; /* use mmap for all I/O on data files */
     int page_size; /* OS page size for mmap alignment */
 
+    /* Access to these fields is protected by the reconfig_lock. */
     WT_LSN *debug_ckpt;      /* Debug mode checkpoint LSNs. */
     size_t debug_ckpt_alloc; /* Checkpoint retention allocated. */
     uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
