@@ -103,7 +103,7 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         if self.utility == 1:
             self.session.checkpoint(None)
             self.close_conn()
-            self.runWt(["compact", uri, compact_cfg])
+            self.runWt(["compact", "-c", compact_cfg, uri])
         else:
             # Optionally reopen the connection so we do more on-disk tests.
             if self.reopen == 1:
