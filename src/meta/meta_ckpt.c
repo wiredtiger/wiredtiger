@@ -279,6 +279,8 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
     char *config, *newcfg;
     const char *cfg[3], *meta_base, *str;
 
+    printf("Starting __ckpt_set(): fname = '%s', v = '%s'\n", fname, v);
+
     /*
      * If the caller knows we're on a path like checkpoints where we have a valid checkpoint and
      * checkpoint LSN and should use the base, then use that faster path. Some paths don't have a
@@ -885,7 +887,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
              * Load any incremental information from the configuration string into the existing base
              * checkpoints.
              */
-            WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
+//            WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
             WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
         }
     }
@@ -1179,6 +1181,8 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     u_int i;
     bool skip_rename, valid;
 
+    printf("Starting __wt_ckpt_blkmod_to_meta()\n");
+
     WT_CLEAR(bitstring);
     skip_rename = valid = false;
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
@@ -1219,9 +1223,16 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
           (int)bitstring.size, (char *)bitstring.data));
         /* The hex string length should match the appropriate number of bits. */
         WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
+
+        printf(".   bitstring.data = '%s'\n", (char *)bitstring.data);
+
         __wt_buf_free(session, &bitstring);
     }
+
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
+
+    printf("Ending __wt_ckpt_blkmod_to_meta()\n");
+
     return (0);
 }
 
@@ -1263,6 +1274,102 @@ err:
     return (ret);
 }
 
+
+static int
+ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_item)
+{
+    WT_BLOCK_MODS *blk;
+    u_int i;
+    bool valid;
+
+    printf("Starting ckpt_blkmod_to_item()\n");
+
+    valid = false;
+
+    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
+        if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
+            valid = true;
+
+    /*
+     * If the existing block modifications are not valid, there is nothing to do.
+     */
+    if (!valid) {
+        return (0);
+    }
+
+    /*
+     * We have at least one valid modified block list.
+     */
+    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
+        if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
+            continue;
+
+        WT_RET(__wt_buf_set(session, output_item, blk->bitstring.data, blk->bitstring.size));
+    }
+
+    printf("Ending ckpt_blkmod_to_item()\n");
+
+    return (0);
+}
+
+
+static int
+get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM* output_item)
+{
+    WT_DECL_RET;
+    WT_CURSOR *metadata_cursor;
+    WT_CONFIG blkconf;
+    char *file_config;
+    WT_CONFIG_ITEM blocks, key, value;
+
+    printf("Starting get_blkmods() uri = %s\n", uri);
+
+    WT_CLEAR(blocks);
+    WT_CLEAR(key);
+    WT_CLEAR(value);
+
+    metadata_cursor = NULL;
+    file_config = NULL;
+
+    WT_RET(__wt_metadata_cursor_open(session, NULL, &metadata_cursor));
+
+    metadata_cursor->set_key(metadata_cursor, uri);
+    WT_RET(metadata_cursor->search(metadata_cursor));
+    WT_RET(metadata_cursor->get_value(metadata_cursor, &file_config));
+
+    printf(".   in get_blkmods(), metadata config for '%s' is %s\n", uri, file_config);
+
+    WT_RET(__wt_config_getones(session, file_config, "checkpoint_backup_info", &value));
+
+    if (value.len > 0) {
+        printf(".   get_blkmods(): value.type = %d\n", value.type);
+
+        if (value.type == WT_CONFIG_ITEM_STRUCT) {
+            printf(".   get_blkmods(): ret = %d, checkpoint_backup_info = %s\n", ret, value.str);
+
+            __wt_config_subinit(session, &blkconf, &value);
+            while ((ret = __wt_config_next(&blkconf, &key, &value)) == 0) {
+                if ((ret = __wt_config_subgets(session, &value, "blocks", &blocks)) == 0)  {
+                    printf(".   get_blkmods(): uri = %s, checkpoint_backup_info(), ret = %d, blocks = %.*s\n", uri, ret, (int)blocks.len, blocks.str);
+                    WT_RET(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
+                    printf(".   get_blkmods(): At A, ret = %d\n", ret);
+                }
+            }
+        }
+    }
+
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+
+    printf(".   get_blkmods(): At B, ret = %d\n", ret);
+
+    WT_RET(metadata_cursor->close(metadata_cursor));
+
+    printf("Ending get_blkmods, uri = %s, ret = %d\n", uri, ret);
+
+    return (ret);
+}
+
 /*
  * __wt_meta_ckptlist_set --
  *     Set a file's checkpoint value from the WT_CKPT list.
@@ -1276,14 +1383,32 @@ __wt_meta_ckptlist_set(
     WT_DECL_RET;
     const char *fname;
     bool has_lsn;
+    bool has_blkmods;
+    WT_ITEM blkmods_buffer, checkpoint_blkmods_buffer;
 
     fname = dhandle->name;
+    has_blkmods = false;
+    WT_CLEAR(blkmods_buffer);
+    WT_CLEAR(checkpoint_blkmods_buffer);
+
+    printf("Starting __wt_meta_ckptlist_set(): fname = %s, dhandle->name = %s\n", fname, dhandle->name);
+
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
+            WT_ERR(ckpt_blkmod_to_item(session, ckpt, &checkpoint_blkmods_buffer));
+            has_blkmods = true;
+        }
+
+    if (has_blkmods && !F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
+        ret = get_blkmods(session, fname, &blkmods_buffer);
+        if (blkmods_buffer.size > 0) {
+            printf(".  in __wt_meta_ckptlist_set() - at A, fname %s, ret = %d\n", fname, ret);
+        }
+    }
 
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
@@ -1295,7 +1420,11 @@ __wt_meta_ckptlist_set(
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
 err:
+    printf("Ending __wt_meta_ckptlist_set(): fname = %s, buf->mem = %s\n", fname, (char*)buf->mem);
+
     __wt_scr_free(session, &buf);
+    __wt_buf_free(session, &blkmods_buffer);
+
     return (ret);
 }
 
