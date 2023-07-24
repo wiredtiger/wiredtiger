@@ -347,7 +347,8 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
 
 /*
  * __wt_modify_apply_item --
- *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer.
+ *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer. This function assumes the size
+ *     of value is larger than or equal to 0 except for string format which must be larger than 0.
  */
 int
 __wt_modify_apply_item(
