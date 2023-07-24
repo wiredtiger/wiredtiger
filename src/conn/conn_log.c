@@ -405,11 +405,11 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
      * Take a consistent view of the current configuration. If another thread reconfigures the
      * connection in parallel we'll handle that change on the next call to this function.
      */
-    __wt_spin_lock(session, &conn->reconfig_lock);
+    __wt_readlock(session, &conn->reconfig_lock);
     dbg_ckpt_cnt = conn->debug_ckpt_cnt;
     dbg_ckpt_retain = FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
     dbg_log_cnt = conn->debug_log_cnt;
-    __wt_spin_unlock(session, &conn->reconfig_lock);
+    __wt_readunlock(session, &conn->reconfig_lock);
 
     /* Adjust the number of log files to retain based on debugging options. */
     if (dbg_ckpt_retain && dbg_ckpt_cnt != 0)
