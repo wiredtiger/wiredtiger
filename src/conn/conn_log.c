@@ -384,9 +384,9 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     WT_DECL_RET;
     WT_LOG *log;
     uint32_t dbg_ckpt_cnt, dbg_log_cnt, min_lognum;
-    bool dbg_ckpt_retain;
     u_int logcount;
     char **logfiles;
+    bool dbg_ckpt_retain;
 
     conn = S2C(session);
     log = conn->log;
@@ -402,9 +402,8 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
                                     WT_MIN(log->ckpt_lsn.l.file, backup_file);
 
     /*
-     * Take a consistent view of the current configuration. 
-     * If another thread reconfigures the connection in parallel we'll handle that 
-     * change on the next call to this function.
+     * Take a consistent view of the current configuration. If another thread reconfigures the
+     * connection in parallel we'll handle that change on the next call to this function.
      */
     __wt_spin_lock(session, &conn->reconfig_lock);
     dbg_ckpt_cnt = conn->debug_ckpt_cnt;
