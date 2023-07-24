@@ -5888,7 +5888,6 @@ buildvariants:
       distros: ubuntu2004-large
     - name: csuite-long-running
       distros: ubuntu2004-large
-      batchtime: 1440 # once a day
       exec_timeout_secs: 21600 # 6 hrs
 
 - name: ubuntu2004-ubsan
