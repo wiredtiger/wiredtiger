@@ -65,7 +65,6 @@ parse_blkmods(WT_SESSION *session, std::string const &file_uri)
     std::cmatch match_results;
     REQUIRE(std::regex_search(file_config, match_results, std::regex(",blocks=(\\w+)")));
     std::string hex_blkmod = match_results[1];
-    std::cout << "Found " << hex_blkmod << std::endl;
 
     REQUIRE(metadata_cursor->close(metadata_cursor) == 0);
 
@@ -166,25 +165,12 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
         REQUIRE(cursor2->close(cursor2) == 0);
     }
 
-    std::cout << "orig_blkmod_table1 " << vector_bool_to_hex_string(orig_blkmod_table1)
-              << std::endl;
-    std::cout << "orig_blkmod_table2 " << vector_bool_to_hex_string(orig_blkmod_table2)
-              << std::endl;
-    std::cout << "new_blkmod_table1 " << vector_bool_to_hex_string(new_blkmod_table1) << std::endl;
-    std::cout << "new_blkmod_table2 " << vector_bool_to_hex_string(new_blkmod_table2) << std::endl;
-
     /*
      * If any bits that were 0 in the original blkmod changed, we have an issue. Each of these two
      * check vectors should contain only false values. Any true values indicate a problem.
      */
     std::vector<bool> check_table1 = (orig_blkmod_table1 ^ new_blkmod_table1) & orig_blkmod_table1;
     std::vector<bool> check_table2 = (orig_blkmod_table2 ^ new_blkmod_table2) & orig_blkmod_table2;
-
-    std::cout << "check_table1 " << vector_bool_to_hex_string(check_table1) << std::endl;
-    std::cout << "check_table2 " << vector_bool_to_hex_string(check_table2) << std::endl;
-
-    std::cout << "check_table1 true count = " << get_true_count(check_table1) << std::endl;
-    std::cout << "check_table2 true count = " << get_true_count(check_table2) << std::endl;
 
     REQUIRE(get_true_count(check_table1) == 0);
     REQUIRE(get_true_count(check_table2) == 0);
