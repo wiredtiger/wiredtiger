@@ -84,9 +84,7 @@ class CompatibilityTestCase(unittest.TestCase):
         # support older branches, which use autoconf.
         if not os.path.exists(os.path.join(build_path, 'build.ninja')):
             os.mkdir(build_path)
-            # Disable WT_STANDALONE_BUILD, because it is not compatible with branches 6.0 and
-            # earlier.
-            cmake_args = '-DWT_STANDALONE_BUILD=0 -DENABLE_PYTHON=1'
+            cmake_args = '-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DENABLE_PYTHON=1'
             self.system(f'cd "{build_path}" && cmake {cmake_args} -G Ninja ../.')
 
         self.pr(f'Building {path}')
