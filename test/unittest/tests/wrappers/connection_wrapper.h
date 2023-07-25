@@ -37,7 +37,11 @@ public:
     WT_CONNECTION_IMPL *getWtConnectionImpl() const;
     WT_CONNECTION *getWtConnection() const;
 
-    void clearDoCleanup() { _do_cleanup = false; };
+    void
+    clearDoCleanup()
+    {
+        _do_cleanup = false;
+    };
 
 private:
     WT_CONNECTION_IMPL *_conn_impl;

@@ -1,10 +1,10 @@
 /*-
-* Copyright (c) 2014-present MongoDB, Inc.
-* Copyright (c) 2008-2014 WiredTiger, Inc.
-*	All rights reserved.
-*
-* See the file LICENSE for redistribution information.
-*/
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
 
 #include <catch2/catch.hpp>
 #include <iostream>
@@ -20,69 +20,68 @@
 static void
 init_wt_item(WT_ITEM &item)
 {
-   item.data = nullptr;
-   item.size = 0;
-   item.mem = nullptr;
-   item.memsize = 0;
-   item.flags = 0;
+    item.data = nullptr;
+    item.size = 0;
+    item.mem = nullptr;
+    item.memsize = 0;
+    item.flags = 0;
 }
 
 static int
 insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
 {
-   item_wrapper item_key(key);
-   item_wrapper item_value(value);
-   __wt_cursor_set_raw_key(cursor, item_key.get_item());
-   __wt_cursor_set_raw_value(cursor, item_value.get_item());
-   return cursor->insert(cursor);
+    item_wrapper item_key(key);
+    item_wrapper item_value(value);
+    __wt_cursor_set_raw_key(cursor, item_key.get_item());
+    __wt_cursor_set_raw_value(cursor, item_value.get_item());
+    return cursor->insert(cursor);
 }
 
 static void
-insert_key_value(WT_CURSOR *cursor1, WT_CURSOR *cursor2, std::string const &key, std::string const &value)
+insert_key_value(
+  WT_CURSOR *cursor1, WT_CURSOR *cursor2, std::string const &key, std::string const &value)
 {
-   insert_key_value(cursor1, key.c_str(), value.c_str());
-   insert_key_value(cursor2, key.c_str(), value.c_str());
+    insert_key_value(cursor1, key.c_str(), value.c_str());
+    insert_key_value(cursor2, key.c_str(), value.c_str());
 }
-
 
 static void
 insert_sample_values(WT_CURSOR *cursor1, WT_CURSOR *cursor2, int first_value, int num_values)
 {
-   for (int loop = 0; loop <= num_values; loop++) {
-       int i = first_value + loop;
-       std::stringstream key;
-       key << "key";
-       key << i;
-       std::stringstream value;
-       value << "value";
-       value << i;
-       insert_key_value(cursor1, cursor2, key.str(), value.str());
-   }
+    for (int loop = 0; loop <= num_values; loop++) {
+        int i = first_value + loop;
+        std::stringstream key;
+        key << "key";
+        key << i;
+        std::stringstream value;
+        value << "value";
+        value << i;
+        insert_key_value(cursor1, cursor2, key.str(), value.str());
+    }
 }
 
-static
-std::vector<bool> parse_blkmods(WT_SESSION *session, std::string const& file_uri)
+static std::vector<bool>
+parse_blkmods(WT_SESSION *session, std::string const &file_uri)
 {
-   WT_CURSOR *metadata_cursor = nullptr;
-   REQUIRE(session->open_cursor(session, "metadata:", nullptr, nullptr, &metadata_cursor) == 0);
+    WT_CURSOR *metadata_cursor = nullptr;
+    REQUIRE(session->open_cursor(session, "metadata:", nullptr, nullptr, &metadata_cursor) == 0);
 
-   metadata_cursor->set_key(metadata_cursor, file_uri.c_str());
-   REQUIRE(metadata_cursor->search(metadata_cursor) == 0);
+    metadata_cursor->set_key(metadata_cursor, file_uri.c_str());
+    REQUIRE(metadata_cursor->search(metadata_cursor) == 0);
 
-   char *file_config;
-   REQUIRE(metadata_cursor->get_value(metadata_cursor, &file_config) == 0);
+    char *file_config;
+    REQUIRE(metadata_cursor->get_value(metadata_cursor, &file_config) == 0);
 
-   std::cmatch match_results;
-   REQUIRE(std::regex_search(file_config, match_results, std::regex(",blocks=(\\w+)")));
-   std::string hex_blkmod = match_results[1];
-   std::cout << "Found " << hex_blkmod << std::endl;
+    std::cmatch match_results;
+    REQUIRE(std::regex_search(file_config, match_results, std::regex(",blocks=(\\w+)")));
+    std::string hex_blkmod = match_results[1];
+    std::cout << "Found " << hex_blkmod << std::endl;
 
-   REQUIRE(metadata_cursor->close(metadata_cursor) == 0);
+    REQUIRE(metadata_cursor->close(metadata_cursor) == 0);
 
-   std::vector<bool> result(vector_bool_from_hex_string(hex_blkmod));
-   return result;
+    std::vector<bool> result(vector_bool_from_hex_string(hex_blkmod));
+    return result;
 }
-
 
 TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 {
@@ -106,7 +105,9 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 
     {
         // Setup
-        std::string conn_config = "create,file_manager=(close_handle_minimum=0,close_idle_time=3,close_scan_interval=1),statistics=(fast)";
+        std::string conn_config =
+          "create,file_manager=(close_handle_minimum=0,close_idle_time=3,close_scan_interval=1),"
+          "statistics=(fast)";
         ConnectionWrapper conn(DB_HOME, conn_config.c_str());
         conn.clearDoCleanup();
         WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -126,7 +127,8 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
         REQUIRE(session->checkpoint(session, nullptr) == 0);
 
         WT_CURSOR *backup_cursor = nullptr;
-        REQUIRE(session->open_cursor(session, "backup:", nullptr, backup_config.c_str(), &backup_cursor) == 0);
+        REQUIRE(session->open_cursor(
+                  session, "backup:", nullptr, backup_config.c_str(), &backup_cursor) == 0);
         REQUIRE(backup_cursor->close(backup_cursor) == 0);
 
         insert_sample_values(cursor1, cursor2, num_few_keys, num_more_keys);
@@ -143,7 +145,9 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 
     {
         // Incremental backup and validate
-        std::string conn_config = "file_manager=(close_handle_minimum=0,close_idle_time=3,close_scan_interval=1),statistics=(fast)";
+        std::string conn_config =
+          "file_manager=(close_handle_minimum=0,close_idle_time=3,close_scan_interval=1),"
+          "statistics=(fast)";
         ConnectionWrapper conn(DB_HOME, conn_config.c_str());
         WT_SESSION_IMPL *session_impl = conn.createSession();
 
@@ -172,8 +176,10 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
         REQUIRE(cursor2->close(cursor2) == 0);
     }
 
-    std::cout << "orig_blkmod_table1 " << vector_bool_to_hex_string(orig_blkmod_table1) << std::endl;
-    std::cout << "orig_blkmod_table2 " << vector_bool_to_hex_string(orig_blkmod_table2) << std::endl;
+    std::cout << "orig_blkmod_table1 " << vector_bool_to_hex_string(orig_blkmod_table1)
+              << std::endl;
+    std::cout << "orig_blkmod_table2 " << vector_bool_to_hex_string(orig_blkmod_table2)
+              << std::endl;
     std::cout << "new_blkmod_table1 " << vector_bool_to_hex_string(new_blkmod_table1) << std::endl;
     std::cout << "new_blkmod_table2 " << vector_bool_to_hex_string(new_blkmod_table2) << std::endl;
 

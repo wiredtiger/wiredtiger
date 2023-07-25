@@ -1271,7 +1271,6 @@ err:
     return (ret);
 }
 
-
 static int
 ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_item)
 {
@@ -1306,15 +1305,14 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_ite
     return (0);
 }
 
-
 static int
-get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM* output_item)
+get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *output_item)
 {
-    WT_DECL_RET;
-    WT_CURSOR *metadata_cursor;
     WT_CONFIG blkconf;
-    char *file_config;
     WT_CONFIG_ITEM blocks, key, value;
+    WT_CURSOR *metadata_cursor;
+    WT_DECL_RET;
+    char *file_config;
 
     WT_CLEAR(blocks);
     WT_CLEAR(key);
@@ -1334,7 +1332,7 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM* output_item)
     if ((value.len > 0) && (value.type == WT_CONFIG_ITEM_STRUCT)) {
         __wt_config_subinit(session, &blkconf, &value);
         while ((ret = __wt_config_next(&blkconf, &key, &value)) == 0) {
-            if ((ret = __wt_config_subgets(session, &value, "blocks", &blocks)) == 0)  {
+            if ((ret = __wt_config_subgets(session, &value, "blocks", &blocks)) == 0) {
                 WT_RET(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
             }
         }
@@ -1347,7 +1345,6 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM* output_item)
 
     return (ret);
 }
-
 
 /*
 static void
@@ -1370,6 +1367,8 @@ print_item(WT_ITEM *item, const char *msg)
 /*
  * check_incorrect_modified_bits --
  *
+ *
+ *
  * This function takes as input two bitmaps (in WT_ITEMs), and original and a new.
  *
  * If
@@ -1388,10 +1387,9 @@ check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, boo
     *ok = true;
 
     /*
-     * printf("check_incorrect_modified_bits()\n");
-     * print_item(original_bitmap, "    original bitmap: ");
-     * print_item(new_bitmap, "    new bitmap:      ");
-    */
+     * printf("check_incorrect_modified_bits()\n"); print_item(original_bitmap, " original bitmap:
+     * "); print_item(new_bitmap, " new bitmap: ");
+     */
 
     if (original_bitmap == NULL || new_bitmap == NULL)
         WT_RET(EINVAL);
@@ -1417,11 +1415,8 @@ check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, boo
 
     /* printf("    bitmaps are ok? = %d\n", *ok); */
 
-    return(0);
+    return (0);
 }
-
-
-
 
 /*
  * __wt_meta_ckptlist_set --
@@ -1434,11 +1429,11 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    const char *fname;
-    bool has_lsn;
-    bool has_blkmods;
     WT_ITEM file_blkmods_buffer, checkpoint_blkmods_buffer;
+    const char *fname;
     bool blkmods_are_ok;
+    bool has_blkmods;
+    bool has_lsn;
 
     fname = dhandle->name;
     has_blkmods = false;
@@ -1446,7 +1441,8 @@ __wt_meta_ckptlist_set(
     WT_CLEAR(file_blkmods_buffer);
     WT_CLEAR(checkpoint_blkmods_buffer);
 
-    /* printf("Starting __wt_meta_ckptlist_set(): fname = %s, dhandle->name = %s\n", fname, dhandle->name); */
+    /* printf("Starting __wt_meta_ckptlist_set(): fname = %s, dhandle->name = %s\n", fname,
+     * dhandle->name); */
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
@@ -1462,13 +1458,13 @@ __wt_meta_ckptlist_set(
         ret = get_blkmods(session, fname, &file_blkmods_buffer);
         if (file_blkmods_buffer.size > 0) {
             /*
-             * printf(".  in __wt_meta_ckptlist_set() - at A, fname %s, ret = %d\n", fname, ret);
-             * print_item(&file_blkmods_buffer,       "    file_blkmods_buffer:       ");
-             * print_item(&checkpoint_blkmods_buffer, "    checkpoint_blkmods_buffer: ");
+             * printf(". in __wt_meta_ckptlist_set() - at A, fname %s, ret = %d\n", fname, ret);
+             * print_item(&file_blkmods_buffer, " file_blkmods_buffer: ");
+             * print_item(&checkpoint_blkmods_buffer, " checkpoint_blkmods_buffer: ");
              */
 
-            WT_RET(check_incorrect_modified_bits(&file_blkmods_buffer, &checkpoint_blkmods_buffer,
-              &blkmods_are_ok));
+            WT_RET(check_incorrect_modified_bits(
+              &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok));
 
             /* printf(".  __wt_meta_ckptlist_set: blkmods_are_ok = %d\n", blkmods_are_ok); */
 
@@ -1480,7 +1476,6 @@ __wt_meta_ckptlist_set(
         }
     }
 
-
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
@@ -1491,7 +1486,8 @@ __wt_meta_ckptlist_set(
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
 err:
-    /* printf("Ending __wt_meta_ckptlist_set(): fname = %s, buf->mem = %s\n", fname, (char*)buf->mem); */
+    /* printf("Ending __wt_meta_ckptlist_set(): fname = %s, buf->mem = %s\n", fname,
+     * (char*)buf->mem); */
 
     __wt_scr_free(session, &buf);
     __wt_buf_free(session, &file_blkmods_buffer);

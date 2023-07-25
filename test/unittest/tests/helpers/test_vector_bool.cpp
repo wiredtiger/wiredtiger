@@ -1,10 +1,10 @@
 /*-
-* Copyright (c) 2014-present MongoDB, Inc.
-* Copyright (c) 2008-2014 WiredTiger, Inc.
-*      All rights reserved.
-*
-* See the file LICENSE for redistribution information.
-*/
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *      All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
 
 #include <catch2/catch.hpp>
 #include <string>
@@ -34,8 +34,8 @@ TEST_CASE("Vector bool: test conversions", "[vector]")
     test_binary_conversion({false}, "0");
     test_binary_conversion({true}, "1");
     test_binary_conversion({false, true, false, true, true, false, true}, "1011010");
-    test_binary_conversion({false, true, false, true, true, false, true, false, false, true, false},
-      "01001011010");
+    test_binary_conversion(
+      {false, true, false, true, true, false, true, false, false, true, false}, "01001011010");
 
     test_hex_conversion({false, false, false, false}, "0");
     test_hex_conversion({true, false, false, false}, "1");
@@ -54,7 +54,6 @@ TEST_CASE("Vector bool: test conversions", "[vector]")
     REQUIRE_THROWS_AS(vector_bool_from_binary_string("qwerty"), std::invalid_argument);
     REQUIRE_THROWS_AS(vector_bool_from_hex_string("qwerty"), std::invalid_argument);
 }
-
 
 TEST_CASE("Vector bool: test operations", "[vector]")
 {

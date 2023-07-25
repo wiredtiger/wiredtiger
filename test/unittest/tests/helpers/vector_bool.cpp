@@ -1,9 +1,9 @@
 /*-
-* Copyright (c) 2014-present MongoDB, Inc.
-* Copyright (c) 2008-2014 WiredTiger, Inc.
-*      All rights reserved.
-*
-* See the file LICENSE for redistribution information.
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *      All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
  */
 
 #include "vector_bool.h"
@@ -12,7 +12,8 @@
 #include <iostream>
 #include <string>
 
-std::vector<bool> vector_bool_from_hex_string(std::string const& hex_str)
+std::vector<bool>
+vector_bool_from_hex_string(std::string const &hex_str)
 {
     std::vector<bool> result;
 
@@ -27,13 +28,13 @@ std::vector<bool> vector_bool_from_hex_string(std::string const& hex_str)
     return result;
 }
 
-
-std::string vector_bool_to_hex_string(std::vector<bool> const& vector_bool)
+std::string
+vector_bool_to_hex_string(std::vector<bool> const &vector_bool)
 {
     std::string result;
 
     auto iter = vector_bool.cbegin();
-    while(iter != vector_bool.cend()) {
+    while (iter != vector_bool.cend()) {
         int bit_count = 0;
         int hex_digit_value = 0;
         while ((bit_count < 4) && (iter != vector_bool.cend())) {
@@ -50,8 +51,8 @@ std::string vector_bool_to_hex_string(std::vector<bool> const& vector_bool)
     return result;
 }
 
-
-std::vector<bool> vector_bool_from_binary_string(std::string const& binary_str)
+std::vector<bool>
+vector_bool_from_binary_string(std::string const &binary_str)
 {
     std::vector<bool> result;
 
@@ -74,8 +75,8 @@ std::vector<bool> vector_bool_from_binary_string(std::string const& binary_str)
     return result;
 }
 
-
-std::string vector_bool_to_binary_string(std::vector<bool> const& vector_bool)
+std::string
+vector_bool_to_binary_string(std::vector<bool> const &vector_bool)
 {
     std::string result;
 
@@ -87,8 +88,8 @@ std::string vector_bool_to_binary_string(std::vector<bool> const& vector_bool)
     return result;
 }
 
-
-std::vector<bool> operator&(std::vector<bool> const &a, std::vector<bool> const &b)
+std::vector<bool>
+operator&(std::vector<bool> const &a, std::vector<bool> const &b)
 {
     const unsigned smaller = std::min(a.size(), b.size());
     const unsigned larger = std::max(a.size(), b.size());
@@ -104,8 +105,8 @@ std::vector<bool> operator&(std::vector<bool> const &a, std::vector<bool> const 
     return result;
 }
 
-
-std::vector<bool> operator^(std::vector<bool> const &a, std::vector<bool> const &b)
+std::vector<bool>
+operator^(std::vector<bool> const &a, std::vector<bool> const &b)
 {
     const unsigned smaller = std::min(a.size(), b.size());
     const unsigned larger = std::max(a.size(), b.size());
@@ -125,8 +126,8 @@ std::vector<bool> operator^(std::vector<bool> const &a, std::vector<bool> const 
     return result;
 }
 
-
-unsigned get_true_count(std::vector<bool> const& vector_bool)
+unsigned
+get_true_count(std::vector<bool> const &vector_bool)
 {
     unsigned count = 0;
 
