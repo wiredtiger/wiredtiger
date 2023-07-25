@@ -168,7 +168,7 @@ __posix_fs_exist(
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_SYSCALL(stat(name, &sb), ret);
+    WT_SYSCALL(__wt_stat(name, &sb), ret);
     if (ret == 0) {
         *existp = true;
         return (0);
@@ -506,7 +506,7 @@ __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    WT_SYSCALL(fstat(pfh->fd, &sb), ret);
+    WT_SYSCALL(__wt_fstat(pfh->fd, &sb), ret);
     if (ret == 0) {
         *sizep = sb.st_size;
         return (0);

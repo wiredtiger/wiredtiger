@@ -509,6 +509,12 @@ typedef uint64_t wt_timestamp_t;
 #include "str_inline.h"
 #include "time_inline.h"
 
+#if defined(__has_feature)
+#   if __has_feature(memory_sanitizer)
+#       include "msan.h"
+#   endif
+#endif
+
 #if defined(__cplusplus)
 }
 #endif
