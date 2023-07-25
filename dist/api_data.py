@@ -574,6 +574,12 @@ connection_runtime_config = [
         Config('hashsize', '1024', r'''
             number of buckets in the hashtable that keeps track of objects''',
             min='64', max='1048576'),
+        Config('pinned', '', r'''
+            List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
+            tables exceeding capacity will not be fully retained. Table names can appear
+            in both this and the preload list, but not in both this and the exclude list.
+            Duplicate names are allowed.''',
+            type='list'),
         Config('type', 'FILE', r'''
             cache location, defaults to the file system.''',
             choices=['FILE', 'DRAM'], undoc=True),
@@ -836,7 +842,7 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'compact_slow',
-        'evict_reposition', 'failpoint_eviction_fail_after_reconciliation',
+        'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prefix_compare',
         'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
