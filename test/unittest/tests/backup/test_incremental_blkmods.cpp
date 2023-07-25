@@ -183,9 +183,10 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
     std::cout << "new_blkmod_table1 " << vector_bool_to_hex_string(new_blkmod_table1) << std::endl;
     std::cout << "new_blkmod_table2 " << vector_bool_to_hex_string(new_blkmod_table2) << std::endl;
 
-    // If any bits that were 0 in the original blkmod changed, we have an issue.
-    // Each of these two check vectors should contain only false values.
-    // Any true values indicate a problem.
+    /*
+     * If any bits that were 0 in the original blkmod changed, we have an issue. Each of these two
+     * check vectors should contain only false values. Any true values indicate a problem.
+     */
     std::vector<bool> check_table1 = (orig_blkmod_table1 ^ new_blkmod_table1) & orig_blkmod_table1;
     std::vector<bool> check_table2 = (orig_blkmod_table2 ^ new_blkmod_table2) & orig_blkmod_table2;
 

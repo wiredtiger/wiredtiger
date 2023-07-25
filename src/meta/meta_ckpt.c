@@ -1271,6 +1271,10 @@ err:
     return (ret);
 }
 
+/*
+ * ckpt_blkmod_to_item --
+ *     Extracts the blkmod info in a checkpoint into a bitmap in a WT_ITEM.
+ */
 static int
 ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_item)
 {
@@ -1305,6 +1309,10 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_ite
     return (0);
 }
 
+/*
+ * get_blkmods --
+ *     Extracts the blkmod info from the metadata about a file into a bitmap in a WT_ITEM.
+ */
 static int
 get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *output_item)
 {
@@ -1347,31 +1355,32 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *output_item)
 }
 
 /*
-static void
-print_item(WT_ITEM *item, const char *msg)
-{
-    size_t index;
-    unsigned char *data_p;
-    printf("%s: item size = %zul, bytes: ", msg, item->size);
-
-    data_p = (unsigned char *)item->data;
-
-    for (index= 0; index < item->size; index++) {
-        printf("0x%02x ", *data_p++);
-    }
-
-    printf("\n");
-}
-*/
+ * print_item --
+ *     Prints the bytes in a WT_ITEM using printf. Used for debugging.
+ */
+/*
+ * static void
+ * print_item(WT_ITEM *item, const char *msg)
+ * {
+ *    size_t index;
+ *    unsigned char *data_p;
+ *    printf("%s: item size = %zul, bytes: ", msg, item->size);
+ *
+ *    data_p = (unsigned char *)item->data;
+ *
+ *    for (index= 0; index < item->size; index++) {
+ *        printf("0x%02x ", *data_p++);
+ *    }
+ *
+ *    printf("\n");
+ *}
+ */
 
 /*
  * check_incorrect_modified_bits --
- *
- *
- *
- * This function takes as input two bitmaps (in WT_ITEMs), and original and a new.
- *
- * If
+ *     This function takes as input two bitmaps (in WT_ITEMs), an original and a new. If any bits in
+ *     the original changed from 1 to 0, it's an errror, and the new bitmap is NOT ok. Otherwise the
+ *     new bitmap is ok.
  */
 static int
 check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
