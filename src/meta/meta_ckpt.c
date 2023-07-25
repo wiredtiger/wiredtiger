@@ -887,7 +887,8 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
              * Load any incremental information from the configuration string into the existing base
              * checkpoints.
              */
-//            WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
+            // Comment out the next line to create a bug
+            WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
             WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
         }
     }
@@ -1285,6 +1286,7 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_ite
     printf("Starting ckpt_blkmod_to_item()\n");
 
     valid = false;
+    WT_CLEAR(*output_item);
 
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
@@ -1370,6 +1372,77 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM* output_item)
     return (ret);
 }
 
+
+static void
+print_item(WT_ITEM *item, const char *msg)
+{
+    size_t index;
+    unsigned char *data_p;
+    printf("%s: item size = %zul, bytes: ", msg, item->size);
+
+    data_p = (unsigned char *)item->data;
+
+    for (index= 0; index < item->size; index++) {
+        printf("0x%02x ", *data_p++);
+    }
+
+    printf("\n");
+}
+
+/*
+ * check_incorrect_modified_bits --
+ *
+ * This function takes as input two bitmaps (in WT_ITEMs), and original and a new.
+ *
+ * If
+ */
+static int
+check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
+{
+    size_t index;
+    unsigned char partial_result;
+    unsigned char *original_ptr, *new_ptr;
+
+    index = 0;
+    partial_result = 0;
+    original_ptr = NULL;
+    new_ptr = NULL;
+    *ok = true;
+
+    printf("check_incorrect_modified_bits()\n");
+    print_item(original_bitmap, "    original bitmap: ");
+    print_item(new_bitmap, "    new bitmap:      ");
+
+    if (original_bitmap == NULL || new_bitmap == NULL)
+        WT_RET(EINVAL);
+
+    if (original_bitmap->size != new_bitmap->size)
+        WT_RET(EINVAL);
+
+    original_ptr = (unsigned char *)original_bitmap->data;
+    new_ptr = (unsigned char *)new_bitmap->data;
+
+    for (index = 0; index < original_bitmap->size && (*ok); index++) {
+        /* Detect bits that were (incorrectly) changed from 1 in the original to 0 in the new */
+        partial_result = (*original_ptr ^ *new_ptr) & *original_ptr;
+
+        if (partial_result != 0) {
+            printf("partial_result is %d\n", partial_result);
+            *ok = false;
+        }
+
+        original_ptr++;
+        new_ptr++;
+    }
+
+    printf("    bitmaps are ok? = %d\n", *ok);
+
+    return(0);
+}
+
+
+
+
 /*
  * __wt_meta_ckptlist_set --
  *     Set a file's checkpoint value from the WT_CKPT list.
@@ -1384,11 +1457,13 @@ __wt_meta_ckptlist_set(
     const char *fname;
     bool has_lsn;
     bool has_blkmods;
-    WT_ITEM blkmods_buffer, checkpoint_blkmods_buffer;
+    WT_ITEM file_blkmods_buffer, checkpoint_blkmods_buffer;
+    bool blkmods_are_ok;
 
     fname = dhandle->name;
     has_blkmods = false;
-    WT_CLEAR(blkmods_buffer);
+    blkmods_are_ok = true;
+    WT_CLEAR(file_blkmods_buffer);
     WT_CLEAR(checkpoint_blkmods_buffer);
 
     printf("Starting __wt_meta_ckptlist_set(): fname = %s, dhandle->name = %s\n", fname, dhandle->name);
@@ -1404,11 +1479,23 @@ __wt_meta_ckptlist_set(
         }
 
     if (has_blkmods && !F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
-        ret = get_blkmods(session, fname, &blkmods_buffer);
-        if (blkmods_buffer.size > 0) {
+        ret = get_blkmods(session, fname, &file_blkmods_buffer);
+        if (file_blkmods_buffer.size > 0) {
             printf(".  in __wt_meta_ckptlist_set() - at A, fname %s, ret = %d\n", fname, ret);
+
+            print_item(&checkpoint_blkmods_buffer, "    checkpoint_blkmods_buffer: ");
+            print_item(&file_blkmods_buffer,       "    file_blkmods_buffer:       ");
+
+            WT_RET(check_incorrect_modified_bits(&file_blkmods_buffer, &checkpoint_blkmods_buffer,
+              &blkmods_are_ok));
+
+            printf(".  __wt_meta_ckptlist_set: blkmods_are_ok = %d\n", blkmods_are_ok);
+
+            if (!blkmods_are_ok)
+                WT_ERR_MSG(session, EINVAL, "File blkmods are not compatible with those in the checkpoint");
         }
     }
+
 
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
@@ -1423,7 +1510,7 @@ err:
     printf("Ending __wt_meta_ckptlist_set(): fname = %s, buf->mem = %s\n", fname, (char*)buf->mem);
 
     __wt_scr_free(session, &buf);
-    __wt_buf_free(session, &blkmods_buffer);
+    __wt_buf_free(session, &file_blkmods_buffer);
 
     return (ret);
 }
