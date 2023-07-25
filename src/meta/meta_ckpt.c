@@ -1438,9 +1438,7 @@ __wt_meta_ckptlist_set(
     WT_DECL_RET;
     WT_ITEM file_blkmods_buffer, checkpoint_blkmods_buffer;
     const char *filename;
-    bool blkmods_are_ok;
-    bool has_blkmods;
-    bool has_lsn;
+    bool blkmods_are_ok, has_blkmods, has_lsn;
 
     filename = dhandle->name;
     has_blkmods = false;
@@ -1453,7 +1451,7 @@ __wt_meta_ckptlist_set(
      * dhandle->name);
      */
 
-    WT_RET(__wt_scr_alloc(session, 1024, &buf));
+    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
@@ -1472,7 +1470,7 @@ __wt_meta_ckptlist_set(
              * print_item(&checkpoint_blkmods_buffer, " checkpoint_blkmods_buffer: ");
              */
 
-            WT_RET(check_incorrect_modified_bits(
+            WT_ERR(check_incorrect_modified_bits(
               &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok));
 
             /* printf(".  __wt_meta_ckptlist_set: blkmods_are_ok = %d\n", blkmods_are_ok); */
@@ -1493,7 +1491,7 @@ __wt_meta_ckptlist_set(
 
     WT_ERR(__ckpt_set(session, filename, buf->mem, has_lsn));
 
- err:
+err:
     __wt_scr_free(session, &buf);
     __wt_buf_free(session, &file_blkmods_buffer);
 
