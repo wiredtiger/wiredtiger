@@ -1483,8 +1483,8 @@ __wt_meta_ckptlist_set(
         if (file_blkmods_buffer.size > 0) {
             printf(".  in __wt_meta_ckptlist_set() - at A, fname %s, ret = %d\n", fname, ret);
 
-            print_item(&checkpoint_blkmods_buffer, "    checkpoint_blkmods_buffer: ");
             print_item(&file_blkmods_buffer,       "    file_blkmods_buffer:       ");
+            print_item(&checkpoint_blkmods_buffer, "    checkpoint_blkmods_buffer: ");
 
             WT_RET(check_incorrect_modified_bits(&file_blkmods_buffer, &checkpoint_blkmods_buffer,
               &blkmods_are_ok));
