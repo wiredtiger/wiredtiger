@@ -44,53 +44,6 @@ insert_key_value(WT_CURSOR *cursor1, WT_CURSOR *cursor2, std::string const &key,
    insert_key_value(cursor2, key.c_str(), value.c_str());
 }
 
-//static bool
-//require_get_key_value(WT_CURSOR *cursor, const char *expected_key, const char *expected_value)
-//{
-//   const char *key = nullptr;
-//   const char *value = nullptr;
-//   REQUIRE(cursor->get_key(cursor, &key) == 0);
-//   REQUIRE(cursor->get_value(cursor, &value) == 0);
-//
-//   bool keys_match = strcmp(key, expected_key) == 0;
-//   bool values_match = strcmp(value, expected_value) == 0;
-//   REQUIRE(keys_match);
-//   REQUIRE(values_match);
-//
-//   return keys_match && values_match;
-//}
-
-//static bool
-//check_item(WT_ITEM *item, const char *expected)
-//{
-//   bool match = true;
-//   if (expected != nullptr) {
-//       const char *key = static_cast<const char *>(item->data);
-//       REQUIRE(key != nullptr);
-//       match = strcmp(key, expected) == 0;
-//   }
-//   REQUIRE(match);
-//   return match;
-//}
-
-//static bool
-//require_get_raw_key_value(WT_CURSOR *cursor, const char *expected_key, const char *expected_value)
-//{
-//   WT_ITEM item_key;
-//   init_wt_item(item_key);
-//   WT_ITEM item_value;
-//   init_wt_item(item_value);
-//
-//   WT_ITEM *p_item_key = (expected_key == nullptr) ? nullptr : &item_key;
-//   WT_ITEM *p_item_value = (expected_value == nullptr) ? nullptr : &item_value;
-//
-//   REQUIRE(cursor->get_raw_key_value(cursor, p_item_key, p_item_value) == 0);
-//
-//   bool keys_match = check_item(p_item_key, expected_key);
-//   bool values_match = check_item(p_item_value, expected_value);
-//
-//   return keys_match && values_match;
-//}
 
 static void
 insert_sample_values(WT_CURSOR *cursor1, WT_CURSOR *cursor2, int first_value, int num_values)
@@ -108,17 +61,16 @@ insert_sample_values(WT_CURSOR *cursor1, WT_CURSOR *cursor2, int first_value, in
 }
 
 static
-std::vector<bool> parse_blkmods(WT_SESSION *session, std::string const& uri)
+std::vector<bool> parse_blkmods(WT_SESSION *session, std::string const& file_uri)
 {
    WT_CURSOR *metadata_cursor = nullptr;
    REQUIRE(session->open_cursor(session, "metadata:", nullptr, nullptr, &metadata_cursor) == 0);
 
-   metadata_cursor->set_key(metadata_cursor, uri.c_str());
+   metadata_cursor->set_key(metadata_cursor, file_uri.c_str());
    REQUIRE(metadata_cursor->search(metadata_cursor) == 0);
 
    char *file_config;
    REQUIRE(metadata_cursor->get_value(metadata_cursor, &file_config) == 0);
-//   std::cout << "file_config for " << uri << " is " << file_config << std::endl;
 
    std::cmatch match_results;
    REQUIRE(std::regex_search(file_config, match_results, std::regex(",blocks=(\\w+)")));
@@ -225,6 +177,9 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
     std::cout << "new_blkmod_table1 " << vector_bool_to_hex_string(new_blkmod_table1) << std::endl;
     std::cout << "new_blkmod_table2 " << vector_bool_to_hex_string(new_blkmod_table2) << std::endl;
 
+    // If any bits that were 0 in the original blkmod changed, we have an issue.
+    // Each of these two check vectors should contain only false values.
+    // Any true values indicate a problem.
     std::vector<bool> check_table1 = (orig_blkmod_table1 ^ new_blkmod_table1) & orig_blkmod_table1;
     std::vector<bool> check_table2 = (orig_blkmod_table2 ^ new_blkmod_table2) & orig_blkmod_table2;
 
