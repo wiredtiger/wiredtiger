@@ -360,7 +360,8 @@ restart_read:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
+              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_obsolete_deleted_count;
             /*
              * If the selected tombstone is not first in the update list indicates that there are
@@ -464,7 +465,8 @@ restart_read:
         }
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
+                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_obsolete_deleted_count;
                 /*
                  * If the selected tombstone is not first in the update list indicates that there
@@ -676,7 +678,8 @@ restart_read_insert:
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
+                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_obsolete_deleted_count;
                 /*
                  * If the selected tombstone is not first in the update list indicates that there
@@ -750,7 +753,8 @@ restart_read_page:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
+              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_obsolete_deleted_count;
             /*
              * If the selected tombstone is not first in the update list indicates that there are
