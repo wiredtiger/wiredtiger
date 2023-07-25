@@ -279,8 +279,6 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
     char *config, *newcfg;
     const char *cfg[3], *meta_base, *str;
 
-    /* printf("Starting __ckpt_set(): fname = '%s', v = '%s'\n", fname, v); */
-
     /*
      * If the caller knows we're on a path like checkpoints where we have a valid checkpoint and
      * checkpoint LSN and should use the base, then use that faster path. Some paths don't have a
@@ -1364,7 +1362,7 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *output_item)
  * {
  *    size_t index;
  *    unsigned char *data_p;
- *    printf("%s: item size = %zul, bytes: ", msg, item->size);
+ *    printf("%s: item size = %" PRIu32 ", bytes: ", msg, item->size);
  *
  *    data_p = (unsigned char *)item->data;
  *
@@ -1439,19 +1437,19 @@ __wt_meta_ckptlist_set(
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM file_blkmods_buffer, checkpoint_blkmods_buffer;
-    const char *fname;
+    const char *filename;
     bool blkmods_are_ok;
     bool has_blkmods;
     bool has_lsn;
 
-    fname = dhandle->name;
+    filename = dhandle->name;
     has_blkmods = false;
     blkmods_are_ok = true;
     WT_CLEAR(file_blkmods_buffer);
     WT_CLEAR(checkpoint_blkmods_buffer);
 
     /*
-     * printf("Starting __wt_meta_ckptlist_set(): fname = %s, dhandle->name = %s\n", fname,
+     * printf("Starting __wt_meta_ckptlist_set(): filename = %s, dhandle->name = %s\n", filename,
      * dhandle->name);
      */
 
@@ -1466,11 +1464,11 @@ __wt_meta_ckptlist_set(
         }
 
     if (has_blkmods && !F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
-        ret = get_blkmods(session, fname, &file_blkmods_buffer);
+        ret = get_blkmods(session, filename, &file_blkmods_buffer);
         if (file_blkmods_buffer.size > 0) {
             /*
-             * printf(". in __wt_meta_ckptlist_set() - at A, fname %s, ret = %d\n", fname, ret);
-             * print_item(&file_blkmods_buffer, " file_blkmods_buffer: ");
+             * printf(". in __wt_meta_ckptlist_set() - at A, filename %s, ret = %d\n", filename,
+             * ret); print_item(&file_blkmods_buffer, " file_blkmods_buffer: ");
              * print_item(&checkpoint_blkmods_buffer, " checkpoint_blkmods_buffer: ");
              */
 
@@ -1493,7 +1491,7 @@ __wt_meta_ckptlist_set(
     if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 
-    WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
+    WT_ERR(__ckpt_set(session, filename, buf->mem, has_lsn));
 
     __wt_scr_free(session, &buf);
     __wt_buf_free(session, &file_blkmods_buffer);
