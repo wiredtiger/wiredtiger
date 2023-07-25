@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <charconv>
 #include <iostream>
-#include <string>
 
 std::vector<bool>
 vector_bool_from_hex_string(std::string const &hex_str)

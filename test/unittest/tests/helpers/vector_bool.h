@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 std::vector<bool> vector_bool_from_hex_string(std::string const &str);

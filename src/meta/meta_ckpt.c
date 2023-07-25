@@ -1493,10 +1493,7 @@ __wt_meta_ckptlist_set(
 
     WT_ERR(__ckpt_set(session, filename, buf->mem, has_lsn));
 
-    __wt_scr_free(session, &buf);
-    __wt_buf_free(session, &file_blkmods_buffer);
-
-    return (ret);
+ err:
     __wt_scr_free(session, &buf);
     __wt_buf_free(session, &file_blkmods_buffer);
 

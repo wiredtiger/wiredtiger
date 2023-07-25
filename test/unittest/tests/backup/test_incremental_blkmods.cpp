@@ -17,16 +17,6 @@
 #include "../wrappers/connection_wrapper.h"
 #include "../wrappers/item_wrapper.h"
 
-static void
-init_wt_item(WT_ITEM &item)
-{
-    item.data = nullptr;
-    item.size = 0;
-    item.mem = nullptr;
-    item.memsize = 0;
-    item.flags = 0;
-}
-
 static int
 insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
 {
