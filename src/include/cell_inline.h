@@ -861,6 +861,10 @@ copy_cell_restart:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del.timestamp));
         WT_RET(
           __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del.durable_timestamp));
+
+        printf("6.0 unpacked fast-truncate page_del.txnid %lu\n", page_del.txnid);
+        printf("6.0 unpacked fast-truncate page_del.timestamp %lu\n", page_del.timestamp);
+        printf("6.0 unpacked fast-truncate page_del.durable_timestamp %lu\n", page_del.durable_timestamp);
     }
 
     /*
