@@ -145,21 +145,17 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     }
 
     /*
-     * Skip files where we can't recover the minimum amount configured.
-     *
      * WiredTiger uses first-fit compaction: It finds space in the beginning of the file and moves
-     * data from the end of the file into that space. If at least 20% of the total file is available
-     * and in the first 80% of the file, we'll try compaction on the last 20% of the file; else, if
-     * at least 10% of the total file is available and in the first 90% of the file, we'll try
-     * compaction on the last 10% of the file.
+     * data from the end of the file into that space. If the configured target is available in the
+     * first 80%/90% of the file, we'll try compaction on the last 20%/10% of the file.
      *
      * We could push this further, but there's diminishing returns, a mostly empty file can be
      * processed quickly, so more aggressive compaction is less useful.
      */
-    if (avail_eighty > free_space_target && avail_eighty >= ((file_size / 10) * 2)) {
+    if (avail_eighty > free_space_target) {
         *skipp = false;
         *compact_pct_tenths_p = 2;
-    } else if (avail_ninety > free_space_target && avail_ninety >= file_size / 10) {
+    } else if (avail_ninety > free_space_target) {
         *skipp = false;
         *compact_pct_tenths_p = 1;
     } else {
