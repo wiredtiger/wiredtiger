@@ -7,9 +7,6 @@ trap 'rm -rf $t' 0 1 2 3 13 15
 
 download_clang_format() {
     version=$1
-    # FIXME-WT-10619
-    # The URLs for binaries below don't follow a common pattern (see the build/build prefixes, -1.gz suffixes)
-    # We should consider setting up a common URL format when we migrate to 12.0.1 so the script can be generalised.
     arch_and_os="$(uname -m)-$(uname)"
     archive=dist/clang-format.tar.gz
 
@@ -28,8 +25,8 @@ download_clang_format() {
         tar --strip=1 -C dist/ -xf $archive clang-format-llvm-"$version"-"$arch_and_os"/clang-format && rm $archive
         chmod +x ./dist/clang-format
 
-        if [[ "$arch_and_os" =~ ^("x86_64-Darwin"|"aarch64-Darwin")$ ]] ; then
-            # Needed to get around the macOS code signing issue
+        if [[ "$arch_and_os" =~ ^("x86_64-Darwin"|"arm64-Darwin")$ ]] ; then
+            # Needed to get around the macOS code signing issue.
             xattr -c ./dist/clang-format
         fi
     else
