@@ -3576,10 +3576,11 @@ tasks:
         vars:
           SPINLOCK_TYPE: -DSPINLOCK_TYPE=gcc
       - func: "make check all"
+      - func: "unit test"
       - func: "format test"
         vars:
           times: 3
-      - func: "unit test"
+          extra_args: runs.rows=1000000:2500000
 
   - name: spinlock-pthread-adaptive-test
     commands:
@@ -3588,10 +3589,11 @@ tasks:
         vars:
           SPINLOCK_TYPE: -DSPINLOCK_TYPE=pthread_adaptive
       - func: "make check all"
+      - func: "unit test"
       - func: "format test"
         vars:
           times: 3
-      - func: "unit test"
+          extra_args: runs.rows=1000000:2500000
 
   - name: wtperf-test
     depends_on:
@@ -3717,16 +3719,16 @@ tasks:
       # format test
       - func: "format test"
         vars:
-          extra_args: file_type=fix
+          extra_args: file_type=fix runs.rows=1000000:2500000
       - func: "format test"
         vars:
-          extra_args: file_type=row
+          extra_args: file_type=row runs.rows=1000000:2500000
 
       # format test for stressing compaction code path
       - func: "format test"
         vars:
           times: 3
-          extra_args: file_type=row compaction=1 verify=1 runs.timer=3 ops.pct.delete=30
+          extra_args: file_type=row compaction=1 verify=1 runs.rows=1000000:2500000 runs.timer=3 ops.pct.delete=30
 
   - name: time-shift-sensitivity-test
     depends_on:
@@ -5445,6 +5447,47 @@ tasks:
         vars:
           test-name: log.wtperf
 
+    #####################################
+    # Performance Tests for chunk cache #
+    #####################################
+
+  - name: perf-test-chunk-cache
+    tags: ["chunk-cache-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: chunk-cache-reads.wtperf
+          maxruns: 1
+          wtarg: -ops ['"read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: chunk-cache-reads.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: chunk-cache-reads.wtperf
+
+  - name: perf-test-chunk-cache-base
+    tags: ["chunk-cache-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: chunk-cache-reads-base.wtperf
+          maxruns: 1
+          wtarg: -ops ['"read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: chunk-cache-reads-base.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: chunk-cache-reads-base.wtperf
+
+
     ###########################################
     #        Performance Long Tests           #
     ###########################################
@@ -6203,6 +6246,7 @@ buildvariants:
 
 - name: rhel8-zseries
   display_name: "~ RHEL8 zSeries"
+  activate: false
   run_on:
   - rhel80-zseries-test
   batchtime: 120 # 2 hours
