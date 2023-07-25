@@ -405,7 +405,7 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
      * Take a consistent view of the current configuration. If another thread reconfigures the
      * connection in parallel we'll handle that change on the next call to this function.
      */
-    __wt_readlock(session, &conn->reconfig_lock);
+    __wt_readlock(session, &conn->debug_log_retention_lock);
 
     dbg_ckpt_cnt = conn->debug_ckpt_cnt;
     dbg_ckpt_retain = FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
@@ -433,7 +433,7 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
             min_lognum = WT_MIN(log->fileid - (dbg_log_cnt + 1), min_lognum);
     }
 
-    __wt_readunlock(session, &conn->reconfig_lock);
+    __wt_readunlock(session, &conn->debug_log_retention_lock);
 
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove to log number %" PRIu32, min_lognum);
 
