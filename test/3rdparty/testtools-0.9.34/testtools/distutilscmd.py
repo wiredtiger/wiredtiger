@@ -4,8 +4,8 @@
 
 import sys
 
-from setuptools import Command
-from setuptools.errors import OptionError
+from distutils.core import Command
+from distutils.errors import DistutilsOptionError
 
 from testtools.run import TestProgram, TestToolsTestRunner
 
@@ -19,14 +19,15 @@ class TestCommand(Command):
         ('catch', 'c', "Catch ctrl-C and display results so far"),
         ('buffer', 'b', "Buffer stdout and stderr during tests"),
         ('failfast', 'f', "Stop on first fail or error"),
-        ('test-module=', 'm', "Run 'test_suite' in specified module"),
-        ('test-suite=', 's',
+        ('test-module=','m', "Run 'test_suite' in specified module"),
+        ('test-suite=','s',
          "Test suite to run (e.g. 'some_module.test_suite')")
     ]
 
     def __init__(self, dist):
         Command.__init__(self, dist)
         self.runner = TestToolsTestRunner(sys.stdout)
+
 
     def initialize_options(self):
         self.test_suite = None
@@ -38,12 +39,12 @@ class TestCommand(Command):
     def finalize_options(self):
         if self.test_suite is None:
             if self.test_module is None:
-                raise OptionError(
+                raise DistutilsOptionError(
                     "You must specify a module or a suite to run tests from")
             else:
                 self.test_suite = self.test_module+".test_suite"
         elif self.test_module:
-            raise OptionError(
+            raise DistutilsOptionError(
                 "You may specify a module or a suite, but not both")
         self.test_args = [self.test_suite]
         if self.verbose:
