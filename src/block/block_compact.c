@@ -122,6 +122,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
 {
     WT_EXT *ext;
     wt_off_t avail_eighty, avail_ninety, free_space_target, off, size, eighty, ninety;
+    uintmax_t free_space_target_mb;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -131,6 +132,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     eighty = file_size - ((file_size / 10) * 2);
 
     free_space_target = (wt_off_t)session->compact->free_space_target;
+    free_space_target_mb = (uintmax_t)(free_space_target / WT_MEGABYTE);
 
     WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, start_offset)
     {
@@ -184,24 +186,22 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
           (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
           "%s:%s minimum target %" PRIuMAX "MB (%" PRIuMAX
           "B) not available in the first 90%% of the file",
-          block->name, estimate ? " estimating --" : "",
-          (uintmax_t)(free_space_target) / WT_MEGABYTE, (uintmax_t)(free_space_target));
-    else if (*compact_pct_tenths_p > 0) {
+          block->name, estimate ? " estimating --" : "", free_space_target_mb,
+          (uintmax_t)free_space_target);
+    else if (*compact_pct_tenths_p > 0)
         __wt_verbose_level(session, WT_VERB_COMPACT,
           (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
           "%s:%s target %" PRIuMAX "MB (%" PRIuMAX
           "B) available in the first %d%% of the file to perform compaction, criteria met.",
-          block->name, estimate ? " estimating --" : "",
-          (uintmax_t)(free_space_target) / WT_MEGABYTE, (uintmax_t)(free_space_target),
-          *compact_pct_tenths_p == 1 ? 90 : 80);
-    } else {
+          block->name, estimate ? " estimating --" : "", free_space_target_mb,
+          (uintmax_t)free_space_target, *compact_pct_tenths_p == 1 ? 90 : 80);
+    else
         __wt_verbose_level(session, WT_VERB_COMPACT,
           (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
           "%s:%s target %" PRIuMAX "MB (%" PRIuMAX
           ") not available in the first 80%% of the file to perform compaction.",
-          block->name, estimate ? " estimating --" : "",
-          (uintmax_t)(free_space_target) / WT_MEGABYTE, (uintmax_t)(free_space_target));
-    }
+          block->name, estimate ? " estimating --" : "", free_space_target_mb,
+          (uintmax_t)free_space_target);
     __wt_verbose_level(session, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1), "%s:%s compaction %s. ", block->name,
       estimate ? " estimating --" : "", *skipp ? "skipped" : "proceeding");
