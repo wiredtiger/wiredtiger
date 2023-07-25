@@ -40,7 +40,7 @@ class test_compact04(wttest.WiredTigerTestCase):
 
     free_space_target = [
         ('1MB', dict(compact_config='1MB', expected_stdout=None)),
-        ('100MB', dict(compact_config='100MB', expected_stdout='Minimum amount of space required to be recovered.*cannot be recovered')),
+        ('100MB', dict(compact_config='100MB', expected_stdout='minimum target 100MB.*not available')),
         ('200MB', dict(compact_config='200MB', expected_stdout='skipping because the file size.*must be greater than')),
     ]
     scenarios = make_scenarios(free_space_target)
