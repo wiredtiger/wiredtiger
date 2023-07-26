@@ -32,7 +32,7 @@ __bitmap_find_free(WT_SESSION_IMPL *session, uint8_t *bit_index)
     chunkcache = &S2C(session)->chunkcache;
     for (size_t i = 0; i < sizeof(chunkcache->bitmap); i++) {
         item = chunkcache->bitmap[i];
-        if (sizeof(item) < 255) {
+        if (item < 255) {
             for (size_t j = 0; j < 8; j++) {
                 if ((item & (0x01 << (j - 1))) == 0) {
                     *bit_index = ((i * 8) + j);
