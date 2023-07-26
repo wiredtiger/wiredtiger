@@ -63,7 +63,10 @@ class CompatibilityTestCase(unittest.TestCase):
         '''
         self.assertEqual(os.system(command), 0)
 
-    def prepare_wt_branch(self, branch):
+    # FIXME-WT11101 - This function was written with the intention that it would reuse the build
+    # directory between tests. This is not possible if different cmake arguments are required across
+    # different tests. This problem will be addressed in a future change.
+    def prepare_wt_branch(self, branch, cmake_args):
         '''
         Check out and build another WT branch.
         '''
@@ -84,7 +87,6 @@ class CompatibilityTestCase(unittest.TestCase):
         # support older branches, which use autoconf.
         if not os.path.exists(os.path.join(build_path, 'build.ninja')):
             os.mkdir(build_path)
-            cmake_args = '-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DENABLE_PYTHON=1'
             self.system(f'cd "{build_path}" && cmake {cmake_args} -G Ninja ../.')
 
         self.pr(f'Building {path}')

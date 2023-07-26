@@ -32,19 +32,20 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
     '''
     Test handling of fast-truncate information across database upgrade and downgrade.
     '''
-    uri = 'file:test_fast_truncate'
+    cmake_args = '-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DENABLE_PYTHON=1'
 
     # Use a small page size and lots of keys because we want to create lots
     # of individual pages in the file.
-    nentries = 10000
     config = 'allocation_size=512,leaf_page_max=512'
+    nentries = 10000
+    uri = 'file:test_fast_truncate'
 
     def timestamp_str(self, t):
         return '%x' % t
 
     def test_fast_truncate_data_format(self):
         '''
-        Test downgrading after perfoming a non globally-visible fast-truncate operation
+        Test downgrading after performing a non globally-visible fast-truncate operation
         on a major release newer than 6.1, which writes fast-truncate related information
         into the database file. The older version should still be able to parse through
         this fast-truncate information although it has no support to write it.
@@ -53,8 +54,8 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
         # Checkout the relevant branches.
         older_branch = 'mongodb-6.0'
         newer_branch = 'mongodb-7.0'
-        self.prepare_wt_branch(older_branch)
-        self.prepare_wt_branch(newer_branch)
+        self.prepare_wt_branch(older_branch, self.cmake_args)
+        self.prepare_wt_branch(newer_branch, self.cmake_args)
 
         # Run the first part of the test on the 6.0 branch. This generates database files
         # that do not contain fast-truncate information.
@@ -109,7 +110,7 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
         start = session.open_cursor(self.uri, None)
         start.set_key(10)
         end = session.open_cursor(self.uri, None)
-        end.set_key(self.nentries)
+        end.set_key(self.nentries - 10)
         session.truncate(None, start, end, None)
         start.close()
         end.close()
@@ -148,15 +149,18 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
 
         print(f'Running on {wiredtiger.wiredtiger_version()[0]}')
 
-        # Open a cursor and update a record to diry the tree.
+        # Open a cursor and update a record to dirty the tree.
         session = new_conn.open_session()
         c = session.open_cursor(self.uri)
         c.set_key(5)
         c.set_value("downgraded")
         c.update()
         c.reset()
-        for key,val in c:
-            continue
+
+        # Do a direct search for a key inside the truncated range - this key
+        # should not be visible.
+        c.set_key(1000)
+        assert(c.search() == wiredtiger.WT_NOTFOUND)
         c.close()
 
         # Do a checkpoint, which triggers the packing and unpacking logic.
