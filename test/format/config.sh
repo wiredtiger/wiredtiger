@@ -223,6 +223,8 @@ CONFIG configuration_list[] = {
 
 {"ops.compaction", "configure compaction", C_BOOL, 10, 0, 0}
 
+{"free_space_target", "configure free space target for compaction", 0x0, 1, 100, 100}
+
 {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0}
 
 {"ops.pareto", "configure crud operations to be pareto distributed", C_BOOL | C_TABLE, 20, 0, 0}

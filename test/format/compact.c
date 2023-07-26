@@ -41,6 +41,7 @@ compact(void *arg)
     WT_DECL_RET;
     WT_SESSION *session;
     u_int period;
+    uint32_t target;
 
     (void)(arg);
 
@@ -49,6 +50,8 @@ compact(void *arg)
     /* Open a session. */
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(conn, &sap, NULL, &session);
+
+    target = GV(FREE_SPACE_TARGET);
 
     /*
      * Perform compaction at somewhere under 15 seconds (so we get at least one done), and then at

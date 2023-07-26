@@ -223,6 +223,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"ops.compaction", "configure compaction", C_BOOL, 10, 0, 0, V_GLOBAL_OPS_COMPACTION},
 
+  {"free_space_target", "configure free space target for compaction", 0x0, 1, 100, 0,
+    V_GLOBAL_FREE_SPACE_TARGET},
   {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0,
     V_GLOBAL_OPS_HS_CURSOR},
 
