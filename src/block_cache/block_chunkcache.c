@@ -360,6 +360,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     bool chunk_cached, found;
 
     chunkcache = &S2C(session)->chunkcache;
+    chunk = NULL;
     already_read = 0;
     remains_to_read = size;
     retries = 0;
