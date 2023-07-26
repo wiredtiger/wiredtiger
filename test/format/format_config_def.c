@@ -175,7 +175,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, WT_THOUSAND,
     V_GLOBAL_FORMAT_MAJOR_TIMEOUT},
 
-  {"free_space_target", "configure free space target for compaction", 0x0, 1, 100, UINT_MAX,
+  {"free_space_target", "configure free space target (MB) for compaction", 0x0, 1, 100, UINT_MAX,
     V_GLOBAL_FREE_SPACE_TARGET},
 
   /*

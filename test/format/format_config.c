@@ -35,8 +35,8 @@ static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(TABLE *);
-static void config_compression(TABLE *, const char *);
 static void config_compact_free_space_target(void);
+static void config_compression(TABLE *, const char *);
 static void config_directio(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
@@ -2252,6 +2252,10 @@ config_file_type(u_int type)
     return ("error: unknown file type");
 }
 
+/*
+ * config_compact_free_space_target --
+ *     Free space target configuration for compaction.
+ */
 static void
 config_compact_free_space_target(void)
 {
