@@ -21,6 +21,30 @@
     (wt_off_t)(((size_t)offset / (chunkcache)->chunk_size) * (chunkcache)->chunk_size)
 
 /*
+ * __bitmap_find_free --
+ *     Iterate through the bitmap to find a free chunk in the cache.
+ */
+static size_t
+__bitmap_find_free(WT_SESSION_IMPL *session)
+{
+    WT_CHUNKCACHE *chunkcache;
+    chunkcache = &S2C(session)->chunkcache;
+    for (size_t i = 0; i < sizeof(chunkcache->bitmap); i++) {
+        char item = chunkcache->bitmap[i];
+        if (sizeof(item) < 255) {
+            for (size_t j = 0; j < 8; j++) {
+                if ((item & (0x01 << (j - 1))) == 0)
+                    return (i * 8) + j;
+            }
+        }
+    }
+    if ((chunkcache->bytes_used + chunkcache->chunk_size) < chunkcache->capacity)
+        __wt_err(session, ENOMEM, "Bitmap has no free chunks as cache is full.");
+    __wt_err(session, EINVAL, "Bitmap has no free chunks, but cache is not full.");
+    return (1);
+}
+
+/*
  * __chunkcache_alloc --
  *     Allocate memory for the chunk in the cache.
  */
