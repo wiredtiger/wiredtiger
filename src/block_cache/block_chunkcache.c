@@ -506,15 +506,31 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         chunkcache->type = WT_CHUNKCACHE_IN_VOLATILE_MEMORY;
     else if (WT_STRING_MATCH("file", cval.str, cval.len) ||
       WT_STRING_MATCH("FILE", cval.str, cval.len)) {
-#ifdef ENABLE_MEMKIND
+
         chunkcache->type = WT_CHUNKCACHE_FILE;
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.device_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->dev_path));
         if (!__wt_absolute_path(chunkcache->dev_path))
             WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
-#else
-        WT_RET_MSG(session, EINVAL, "chunk cache of type FILE requires libmemkind");
-#endif
+
+        fd = open(chunkcache->dev_path, O_RDWR | O_CREAT, S_IRWXO);
+        if (fd != 0)
+            printf("\n Error opening/creating file %s \n", strerror(errno));
+        fstat(fd, &statbuf);
+
+        /* Allocate memory for the chunk cache for type file system. */
+        /* TODO:  If statbuf.st_size  is 0  (file is blank) - we do want to set the size here */
+        chunkcache->memory =
+          mmap(NULL, (size_t)statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (chunkcache->memory == MAP_FAILED) {
+            printf("\n Error mmap failed\n");
+        }
+
+        /* Allocate the memory needed for the bitmap. */
+        if ((chunkcache->bitmap = malloc((chunkcache->capacity / chunkcache->chunk_size) / 8)) ==
+          NULL)
+            __wt_err(session, EINVAL, "Allocating memory for bitmap failed.");
+        return (0);
     }
 
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
