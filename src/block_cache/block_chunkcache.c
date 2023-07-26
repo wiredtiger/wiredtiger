@@ -360,7 +360,6 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     bool chunk_cached, found;
 
     chunkcache = &S2C(session)->chunkcache;
-    chunk = NULL;
     already_read = 0;
     remains_to_read = size;
     retries = 0;
@@ -450,6 +449,12 @@ retry:
                 return (ret);
             }
 
+            /* Mark chunk as pinned if the chunk belongs to the object in pinned object array. */
+            WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects,
+              chunkcache->pinned_entries, found);
+            if (found)
+                F_SET(chunk, WT_CHUNK_PINNED);
+
             /*
              * Mark chunk as valid. The only thread that could be executing this code is the thread
              * that won the race and inserted this (invalid) chunk into the hash table. This thread
@@ -465,12 +470,6 @@ retry:
             goto retry;
         }
     }
-
-    /* Mark chunk as pinned if the chunk belongs to the object in pinned object array. */
-    WT_BINARY_SEARCH_STRING(
-      chunk->hash_id.objectname, chunkcache->pinned_objects, chunkcache->pinned_entries, found);
-    if (found)
-        F_SET(chunk, WT_CHUNK_PINNED);
 
     *cache_hit = true;
     return (0);
