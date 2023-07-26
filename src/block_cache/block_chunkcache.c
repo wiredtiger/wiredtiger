@@ -506,9 +506,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     unsigned int cnt, i;
     wt_thread_t evict_thread_tid;
     char **pinned_objects;
-    WT_CONFIG_ITEM cval;
     int fd;
-    wt_thread_t evict_thread_tid;
     struct stat statbuf;
 
     chunkcache = &S2C(session)->chunkcache;
