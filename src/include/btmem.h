@@ -138,15 +138,6 @@ struct __wt_addr {
 #define WT_ADDR_LEAF 2    /* Leaf page */
 #define WT_ADDR_LEAF_NO 3 /* Leaf page, no overflow */
     uint8_t type;
-
-    /*
-     * If an address is both as an address for the previous and the current multi-block
-     * reconciliations, that is, a block we're writing matches the block written the last time, it
-     * will appear in both the current boundary points as well as the page modification's list of
-     * previous blocks. The reuse flag is how we know that's happening so the block is treated
-     * correctly (not free'd on error, for example).
-     */
-    uint8_t reuse;
 };
 
 /*
@@ -277,14 +268,7 @@ struct __wt_multi {
     uint32_t supd_entries;
     bool supd_restore; /* Whether to restore saved update chains to this page */
 
-    /*
-     * Disk image was written: address, size and checksum. On subsequent reconciliations of this
-     * page, we avoid writing the block if it's unchanged by comparing size and checksum; the reuse
-     * flag is set when the block is unchanged and we're reusing a previous address.
-     */
-    WT_ADDR addr;
-    uint32_t size;
-    uint32_t checksum;
+    WT_ADDR addr; /* Disk image written address */
 };
 
 /*
@@ -555,6 +539,21 @@ struct __wt_col_fix_tw {
 /* WT_COL_FIX_TW_CELL gets the cell pointer from a WT_COL_FIX_TW_ENTRY. */
 #define WT_COL_FIX_TW_CELL(page, entry) ((WT_CELL *)((uint8_t *)(page)->dsk + (entry)->cell_offset))
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * WT_SPLIT_HIST --
+ *	State information of a split at a single point in time.
+ */
+struct __wt_split_page_hist {
+    const char *name;
+    const char *func;
+    uint64_t split_gen;
+    uint32_t entries;
+    uint32_t time_sec;
+    uint16_t line;
+};
+#endif
+
 /*
  * WT_PAGE --
  *	The WT_PAGE structure describes the in-memory page information.
@@ -758,6 +757,25 @@ struct __wt_page {
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
+
+#ifdef HAVE_DIAGNOSTIC
+#define WT_SPLIT_SAVE_STATE_MAX 3
+    WT_SPLIT_PAGE_HIST split_hist[WT_SPLIT_SAVE_STATE_MAX];
+    uint64_t splitoff;
+
+#define WT_SPLIT_PAGE_SAVE_STATE(page, session, e, g)                                \
+    do {                                                                             \
+        (page)->split_hist[(page)->splitoff].name = (session)->name;                 \
+        __wt_seconds32((session), &(page)->split_hist[(page)->splitoff].time_sec);   \
+        (page)->split_hist[(page)->splitoff].func = __PRETTY_FUNCTION__;             \
+        (page)->split_hist[(page)->splitoff].line = (uint16_t)__LINE__;              \
+        (page)->split_hist[(page)->splitoff].split_gen = (uint32_t)(g);              \
+        (page)->split_hist[(page)->splitoff].entries = (uint32_t)(e);                \
+        (page)->splitoff = ((page)->splitoff + 1) % WT_ELEMENTS((page)->split_hist); \
+    } while (0)
+#else
+#define WT_SPLIT_PAGE_SAVE_STATE(page, session, e, g)
+#endif
 };
 
 /*
@@ -1291,7 +1309,7 @@ struct __wt_update {
 #define WT_UPDATE_RESERVE 2   /* reserved */
 #define WT_UPDATE_STANDARD 3  /* complete value */
 #define WT_UPDATE_TOMBSTONE 4 /* deleted */
-    uint8_t type;             /* type (one byte to conserve memory) */
+    const uint8_t type;       /* type (one byte to conserve memory) */
 
 /* If the update includes a complete value. */
 #define WT_UPDATE_DATA_VALUE(upd) \
@@ -1303,6 +1321,7 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
+/* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
 #define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
@@ -1314,6 +1333,30 @@ struct __wt_update {
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
+/* There are several cases we should select the update irrespective of visibility to write to the
+ * disk image:
+ *
+ * 1. A previous reconciliation selected this update as writing anything that is older
+ * undoes the previous work.
+ *
+ * 2. The update is restored from the disk image as writing anything that is older undoes
+ * the previous work.
+ *
+ * 3. An earlier reconciliation performed an update-restore eviction and this update was
+ * restored from disk.
+ *
+ * 4. We rolled back a prepared transaction and restored an update from the history store.
+ *
+ * 5. We rolled back a prepared transaction and aim to delete the following update from the
+ * history store.
+ *
+ * These scenarios can happen if the current reconciliation has a limited visibility of
+ * updates compared to one of the previous reconciliations. This is important as it is never
+ * ok to undo the work of the previous reconciliations.
+ */
+#define WT_UPDATE_SELECT_FOR_DS                                                      \
+    WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
+      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
@@ -1326,6 +1369,12 @@ struct __wt_update {
  * to ensure the compiler hasn't inserted padding.
  */
 #define WT_UPDATE_SIZE 47
+
+/*
+ * If there is no value, ensure that the memory allocation size matches that returned by sizeof().
+ * Otherwise bit-exact tools like MSan may infer the structure is not completely initialized.
+ */
+#define WT_UPDATE_SIZE_NOVALUE (sizeof(struct __wt_update))
 
 /*
  * The memory size of an update: include some padding because this is such a common case that

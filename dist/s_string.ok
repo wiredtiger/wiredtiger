@@ -33,7 +33,6 @@ BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
-BClmvxz
 BLKCACHE
 BLmRrSVv
 BOOL
@@ -73,6 +72,7 @@ CentOS
 Checkpointing
 Checksums
 CityHash
+ClmSvxz
 CloseHandle
 CmP
 Codec
@@ -230,11 +230,13 @@ MRXB
 MRXBOPC
 MSDN
 MSVC
+MSan
 MUTEX
 MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
+McIlroy
 Mellor
 Mewhort
 Mitzenmacher
@@ -322,6 +324,7 @@ RXB
 ReadFile
 Readonly
 Realloc
+Recurse
 RedHat
 Redistributions
 Rogerio
@@ -575,6 +578,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -1100,6 +1104,7 @@ qrrSS
 qsort
 quartile
 queueable
+quicksort
 quiesce
 qup
 rN

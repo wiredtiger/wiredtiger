@@ -88,8 +88,18 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
     SAP *sap;
     WT_DECL_RET;
     int nw;
+    bool printf_msg;
 
     (void)handler;
+
+    /*
+     * If Antithesis is enabled and the message starts with ANTITHESIS: then make sure it always
+     * goes to stdout and is flushed.
+     */
+    printf_msg = false;
+#ifdef ENABLE_ANTITHESIS
+    printf_msg = WT_PREFIX_MATCH(message, "ANTITHESIS:");
+#endif
 
     /*
      * Log to the trace database when tracing messages. In threaded paths there will be a per-thread
@@ -99,13 +109,14 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
      */
     if ((sap = session->app_private) != NULL && sap->trace != NULL) {
         testutil_check(sap->trace->log_printf(sap->trace, "%s", message));
-        return (0);
-    }
-    if (g.trace_session != NULL) {
+        if (!printf_msg)
+            return (0);
+    } else if (g.trace_session != NULL) {
         __wt_spin_lock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
         testutil_check(g.trace_session->log_printf(g.trace_session, "%s", message));
         __wt_spin_unlock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
-        return (0);
+        if (!printf_msg)
+            return (0);
     }
 
     /* Write and flush the message so we're up-to-date on error. */
@@ -168,8 +179,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
-    if (GV(STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION))
-        CONFIG_APPEND(*p, ",failpoint_eviction_fail_after_reconciliation");
+    if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
+        CONFIG_APPEND(*p, ",failpoint_eviction_split");
     if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
         CONFIG_APPEND(*p, ",failpoint_history_store_delete_key_from_ts");
     if (GV(STRESS_HS_CHECKPOINT_DELAY))
@@ -178,8 +189,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",history_store_search");
     if (GV(STRESS_HS_SWEEP))
         CONFIG_APPEND(*p, ",history_store_sweep_race");
-    if (GV(STRESS_PREPARE_RESOLUTION))
-        CONFIG_APPEND(*p, ",prepare_resolution");
+    if (GV(STRESS_PREPARE_RESOLUTION_1))
+        CONFIG_APPEND(*p, ",prepare_resolution_1");
     if (GV(STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE))
         CONFIG_APPEND(*p, ",sleep_before_read_overflow_onpage");
     if (GV(STRESS_SPLIT_1))
@@ -320,7 +331,6 @@ create_database(const char *home, WT_CONNECTION **connp)
       "MB"
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
-      ",operation_timeout_ms=2000"
       ",statistics=(%s)",
       GV(CACHE), progname, GVS(STATISTICS_MODE));
 

@@ -1559,7 +1559,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
          * page with rec_result == 0 we will free the addr being copied - possibly after the null
          * check above - and this function will attempt to copy from freed memory.
          */
-        WT_ASSERT(session, (volatile void *)ref->addr != NULL);
+        WT_ASSERT(session, *(void *volatile *)&ref->addr != NULL);
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
     }
@@ -2350,7 +2350,7 @@ __wt_btcur_skip_page(
          * point added to the page during the last reconciliation.
          */
         if (addr.ta.newest_stop_txn != WT_TXN_MAX && addr.ta.newest_stop_ts != WT_TS_MAX &&
-          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+          __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
             goto unlock;
