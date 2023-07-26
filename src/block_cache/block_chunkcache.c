@@ -553,7 +553,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
         fd = open(chunkcache->dev_path, O_RDWR | O_CREAT, S_IRWXO);
         if (fd != 0)
-            printf("\n Error opening/creating file %s \n", strerror(errno));
+            __wt_err(session, EINVAL, "\n Error opening/creating file %s \n", strerror(errno));
         fstat(fd, &statbuf);
 
         /* Allocate memory for the chunk cache for type file system. */
@@ -561,7 +561,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         chunkcache->memory =
           mmap(NULL, (size_t)statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         if (chunkcache->memory == MAP_FAILED) {
-            printf("\n Error mmap failed\n");
+            __wt_err(session, EINVAL, "\n Error mmap failed\n");
         }
 
         /* Allocate the memory needed for the bitmap. */
