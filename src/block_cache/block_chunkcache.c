@@ -177,7 +177,8 @@ static void
 __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
-
+    WT_DECL_RET;
+    uint8_t *bit;
     chunkcache = &S2C(session)->chunkcache;
 
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
@@ -187,12 +188,13 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         __wt_free(session, chunk->chunk_memory);
     else {
-#ifdef ENABLE_MEMKIND
-        memkind_free(chunkcache->memkind, chunk->chunk_memory);
-#else
-        __wt_err(session, EINVAL,
-          "Chunk cache requires libmemkind, unless it is configured to be in DRAM");
-#endif
+        /* Update the bitmap to show free chunk, then free the memory of the chunk */
+        size_t index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
+        bit = (uint8_t *)&chunkcache->bitmap[index / 8];
+        ret = __wt_atomic_cas8(bit, *bit, *bit & ~(0x01 << (index % 8)));
+        if (ret != 0)
+            __wt_err(session, EINVAL, "Unable to update bitmap and free chunk.");
+        __wt_free(session, chunk->chunk_memory);
     }
     __wt_free(session, chunk);
 }
@@ -500,7 +502,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     WT_CHUNKCACHE *chunkcache;
     WT_CONFIG_ITEM cval;
     unsigned int i;
+    int fd;
     wt_thread_t evict_thread_tid;
+    struct stat statbuf;
 
     chunkcache = &S2C(session)->chunkcache;
 
