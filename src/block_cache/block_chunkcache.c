@@ -53,20 +53,30 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
     WT_DECL_RET;
-
+    size_t index;
+    uint8_t *bit;
     chunkcache = &S2C(session)->chunkcache;
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         ret = __wt_malloc(session, chunk->chunk_size, &chunk->chunk_memory);
     else {
-#ifdef ENABLE_MEMKIND
-        chunk->chunk_memory = memkind_malloc(chunkcache->memkind, chunk->chunk_size);
+        /* Use the bitmap to find the free chunks in the cache. */
+        index = __bitmap_find_free(session);
+
+        /* Mark the free chunk in the bitmap to in use. */
+        bit = (uint8_t *)&chunkcache->bitmap[index / 8];
+        ret = __wt_atomic_cas8(bit, *bit, *bit | 0x01 << (index % 8));
+        if (ret != 0) {
+            __wt_err(session, EINVAL, "Failed to update bitmap - cas failed.");
+            return (ret);
+        }
+
+        /* Allocate the free memory in the chunk cache. */
+        chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * index;
         if (chunk->chunk_memory == NULL)
             ret = ENOMEM;
-#else
-        WT_RET_MSG(session, EINVAL,
-          "Chunk cache requires libmemkind, unless it is configured to be in DRAM");
-#endif
+        WT_RET_MSG(
+          session, EINVAL, "Chunk cache memory allocation failed: %s", chunk->chunk_memory);
     }
     if (ret == 0) {
         __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
