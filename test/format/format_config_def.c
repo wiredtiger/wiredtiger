@@ -175,6 +175,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, WT_THOUSAND,
     V_GLOBAL_FORMAT_MAJOR_TIMEOUT},
 
+  {"free_space_target", "configure free space target for compaction", 0x0, 1, 100, UINT_MAX,
+    V_GLOBAL_FREE_SPACE_TARGET},
+
   /*
    * 0%
    * FIXME-WT-7418: Temporarily disable import until WT_ROLLBACK error and wt_copy_and_sync error is
@@ -223,8 +226,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"ops.compaction", "configure compaction", C_BOOL, 10, 0, 0, V_GLOBAL_OPS_COMPACTION},
 
-  {"free_space_target", "configure free space target for compaction", 0x0, 1, 100, 0,
-    V_GLOBAL_FREE_SPACE_TARGET},
   {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0,
     V_GLOBAL_OPS_HS_CURSOR},
 

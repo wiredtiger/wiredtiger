@@ -41,7 +41,7 @@ compact(void *arg)
     WT_DECL_RET;
     WT_SESSION *session;
     u_int period;
-    uint32_t target;
+    char config_buf[128];
 
     (void)(arg);
 
@@ -50,8 +50,6 @@ compact(void *arg)
     /* Open a session. */
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(conn, &sap, NULL, &session);
-
-    target = GV(FREE_SPACE_TARGET);
 
     /*
      * Perform compaction at somewhere under 15 seconds (so we get at least one done), and then at
@@ -74,7 +72,9 @@ compact(void *arg)
          * don't configure a timeout and occasionally exceed the default of 1200 seconds.
          */
         table = table_select(NULL, false);
-        ret = session->compact(session, table->uri, NULL);
+        testutil_snprintf(
+          config_buf, sizeof(config_buf), "free_space_target=%" PRIu32 "MB", GV(FREE_SPACE_TARGET));
+        ret = session->compact(session, table->uri, config_buf);
         testutil_assertfmt(ret == 0 || ret == EBUSY || ret == ETIMEDOUT || ret == WT_CACHE_FULL ||
             ret == WT_ROLLBACK,
           "WT_SESSION.compact failed: %s: %d", table->uri, ret);

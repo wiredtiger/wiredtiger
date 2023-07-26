@@ -2252,10 +2252,11 @@ config_file_type(u_int type)
     return ("error: unknown file type");
 }
 
-static void config_compact_free_space_target(void){
+static void
+config_compact_free_space_target(void)
+{
     if (config_explicit(NULL, "free_space_target"))
         return;
 
     GV(FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
- 
 }

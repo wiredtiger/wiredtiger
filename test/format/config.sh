@@ -186,6 +186,8 @@ CONFIG configuration_list[] = {
 
 {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, WT_THOUSAND}
 
+{"free_space_target", "configure free space target for compaction", 0x0, 1, 100, UINT_MAX}
+
 /*
  * 0%
  * FIXME-WT-7418: Temporarily disable import until WT_ROLLBACK error and wt_copy_and_sync error is
@@ -222,8 +224,6 @@ CONFIG configuration_list[] = {
 {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0}
 
 {"ops.compaction", "configure compaction", C_BOOL, 10, 0, 0}
-
-{"free_space_target", "configure free space target for compaction", 0x0, 1, 100, 100}
 
 {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0}
 
