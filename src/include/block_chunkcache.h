@@ -68,5 +68,7 @@ struct __wt_chunkcache {
     char *dev_path;             /* the storage path if we are on a file system or a block device */
     unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
     unsigned int hashtable_size;
-    int type; /* location of the chunk cache (volatile memory or file) */
+    int type;     /* location of the chunk cache (volatile memory or file) */
+    char *memory; /* TODO: update this */
+    char *bitmap; /* Bitmap of free chunks in file*/
 };
