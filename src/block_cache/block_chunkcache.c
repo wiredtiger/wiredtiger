@@ -568,9 +568,12 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
         WT_RET(__wt_open(session, chunkcache->dev_path, WT_FS_OPEN_FILE_TYPE_REGULAR,
           O_RDWR | O_TRUNC | O_CREAT, &fh));
-        ret = truncate(chunkcache->dev_path, (wt_off_t)chunkcache->capacity);
-        if (ret != 0)
-            WT_RET_MSG(session, ret, "Error truncating file to size %lu \n", chunkcache->capacity);
+
+        WT_RET(
+          fh->handle->fh_truncate(fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
+        // ret = truncate(chunkcache->dev_path, );
+        // if (ret != 0)
+        // WT_RET_MSG(session, ret, "Error truncating file to size %lu \n", chunkcache->capacity);
 
         /* Allocate memory for the chunk cache for type file system. */
         WT_RET(fh->handle->fh_map(
