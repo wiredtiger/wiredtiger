@@ -514,10 +514,11 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     WT_CONFIG targetconf;
     WT_CONFIG_ITEM cval, k, v;
     WT_DECL_RET;
+    WT_FH *fh;
     unsigned int cnt, i;
     wt_thread_t evict_thread_tid;
     char **pinned_objects;
-    int fd;
+    size_t mapped_size;
 
     chunkcache = &S2C(session)->chunkcache;
     pinned_objects = NULL;
@@ -565,22 +566,25 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         if (!__wt_absolute_path(chunkcache->dev_path))
             WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
 
-        if ((fd = open(chunkcache->dev_path, O_RDWR | O_TRUNC | O_CREAT, S_IRWXO)) != 0)
-            WT_RET_MSG(session, errno, "\n Error creating or opening file");
-        WT_SYSCALL(ftruncate(fd, (off_t)chunkcache->capacity), ret);
+        WT_RET(__wt_open(session, chunkcache->dev_path, WT_FS_OPEN_FILE_TYPE_REGULAR,
+          O_RDWR | O_TRUNC | O_CREAT, &fh));
+        ret = truncate(chunkcache->dev_path, (wt_off_t)chunkcache->capacity);
         if (ret != 0)
             WT_RET_MSG(session, ret, "Error truncating file to size %lu \n", chunkcache->capacity);
 
         /* Allocate memory for the chunk cache for type file system. */
-        chunkcache->memory =
-          mmap(NULL, chunkcache->capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        if (chunkcache->memory == MAP_FAILED) {
-            WT_RET_MSG(session, EINVAL, "\n Error mmap failed\n");
-        }
+        WT_RET(fh->handle->fh_map(
+          fh->handle, &session->iface, (void **)&chunkcache->memory, &mapped_size, NULL));
+        // chunkcache->memory =
+        //   mmap(NULL, chunkcache->capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fh, 0);
+        // if (chunkcache->memory == MAP_FAILED) {
+        //     WT_RET_MSG(session, EINVAL, "\n Error mmap failed\n");
+        // }
 
         /* Allocate the memory needed for the bitmap. */
-        if ((chunkcache->bitmap = malloc((chunkcache->capacity / chunkcache->chunk_size) / 8)) ==
-          NULL)
+        ret = (__wt_malloc(
+          session, ((chunkcache->capacity / chunkcache->chunk_size) / 8), &chunkcache->bitmap));
+        if (ret != 0)
             WT_RET_MSG(session, EINVAL, "Allocating memory for bitmap failed.");
         return (0);
     }
