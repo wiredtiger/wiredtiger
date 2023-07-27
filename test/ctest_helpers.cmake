@@ -308,7 +308,7 @@ function(define_c_test)
                 CMDS ${test_cmd}
                 DIR_NAME ${C_TEST_DIR_NAME}
                 LABELS "check;csuite"
-                )
+            )
         else()
             add_test(NAME ${C_TEST_TARGET}
                 COMMAND ${test_cmd} ${C_TEST_ARGUMENTS}

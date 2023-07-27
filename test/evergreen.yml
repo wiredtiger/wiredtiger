@@ -5860,6 +5860,8 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
+    # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
+    # builds) as -O1, making test binaries more difficult to debug. 
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
@@ -5899,6 +5901,8 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
+    # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
+    # builds) as -O1, making test binaries more difficult to debug. 
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
