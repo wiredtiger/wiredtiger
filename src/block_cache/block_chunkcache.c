@@ -28,22 +28,30 @@ static int
 __bitmap_find_free(WT_SESSION_IMPL *session, uint8_t *bit_index)
 {
     WT_CHUNKCACHE *chunkcache;
-    char item;
+    uint8_t map_byte; 
+    size_t bitmap_size, bit_remainder;
+
     chunkcache = &S2C(session)->chunkcache;
-    for (size_t i = 0; i < sizeof(chunkcache->bitmap); i++) {
-        item = chunkcache->bitmap[i];
-        if (item < 255) {
+    bitmap_size = chunkcache->capacity / chunkcache->chunk_size;
+
+    for (size_t i = 0; i < bitmap_size; i++) {
+        map_byte = chunkcache->bitmap[i];
+        if (map_byte != 0xff) {
             for (size_t j = 0; j < 8; j++) {
-                if ((item & (0x01 << (j - 1))) == 0) {
+                if ((map_byte & (0x01 << (j - 1))) == 0) {
                     *bit_index = ((i * 8) + j);
                     return (0);
                 }
             }
         }
     }
-    if ((chunkcache->bytes_used + chunkcache->chunk_size) < chunkcache->capacity)
-        WT_RET_MSG(session, ENOMEM, "Bitmap has no free chunks as cache is full.");
-    WT_RET_MSG(session, EINVAL, "Bitmap has no free chunks, but cache is not full.");
+    bit_remainder = chunkcache->capacity % chunkcache->chunk_size;
+    for (size_t j = 0; j < bit_remainder; j++)
+        if ((chunkcache->bitmap[bitmap_size] & (0x01 << (j - 1))) == 0) {
+            *bit_index = ((bitmap_size * 8) + j);
+            return (0);
+        }
+    WT_RET_MSG(session, ENOMEM, "Bitmap has no free chunks as cache is full.");
 }
 
 /*
@@ -54,7 +62,6 @@ static int
 __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_DECL_RET;
     uint8_t *bit;
     uint8_t bit_index;
     chunkcache = &S2C(session)->chunkcache;
@@ -63,13 +70,14 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         WT_RET(__wt_malloc(session, chunk->chunk_size, &chunk->chunk_memory));
     else {
+retry:
         /* Use the bitmap to find the free chunks in the cache. */
         WT_RET(__bitmap_find_free(session, &bit_index));
 
         /* Mark the free chunk in the bitmap to in use. */
         bit = (uint8_t *)&chunkcache->bitmap[bit_index / 8];
         if (__wt_atomic_cas8(bit, *bit, *bit | 0x01 << (bit_index % 8)) == false)
-            WT_RET_MSG(session, EINVAL, "Failed to update bitmap - cas failed.");
+            goto retry;
 
         /* Allocate the free memory in the chunk cache. */
         chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
@@ -77,12 +85,11 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
             WT_RET_MSG(
               session, ENOMEM, "Chunk cache memory allocation failed: %s", chunk->chunk_memory);
     }
-    if (ret == 0) {
-        __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
-        WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
-        WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
-    }
-    return (ret);
+    __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
+    WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
+    WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+
+    return (0);
 }
 
 /*
@@ -176,8 +183,8 @@ static void
 __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_DECL_RET;
     uint8_t *bit;
+    WT_DECL_RET;
     chunkcache = &S2C(session)->chunkcache;
 
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
@@ -189,10 +196,10 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     else {
         /* Update the bitmap to show free chunk, then free the memory of the chunk */
         size_t index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
-        bit = (uint8_t *)&chunkcache->bitmap[index / 8];
-        ret = __wt_atomic_cas8(bit, *bit, *bit & ~(0x01 << (index % 8)));
-        if (ret != 0)
-            __wt_err(session, EINVAL, "Unable to update bitmap and free chunk.");
+        do {
+            bit = (uint8_t *)&chunkcache->bitmap[index / 8];
+            ret = __wt_atomic_cas8(bit, *bit, *bit & ~(0x01 << (index % 8)));
+        } while (ret !=0);
         __wt_free(session, chunk->chunk_memory);
     }
     __wt_free(session, chunk);
@@ -506,7 +513,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     wt_thread_t evict_thread_tid;
     char **pinned_objects;
     int fd;
-    struct stat statbuf;
 
     chunkcache = &S2C(session)->chunkcache;
     pinned_objects = NULL;
@@ -554,23 +560,22 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         if (!__wt_absolute_path(chunkcache->dev_path))
             WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
 
-        fd = open(chunkcache->dev_path, O_RDWR | O_CREAT, S_IRWXO);
+        fd = open(chunkcache->dev_path, O_RDWR | O_TRUNC | O_CREAT, S_IRWXO);
         if (fd != 0)
-            __wt_err(session, EINVAL, "\n Error opening/creating file %s \n", strerror(errno));
-        fstat(fd, &statbuf);
+            WT_RET_MSG(session, EINVAL, "\n Error opening/creating file %s \n", strerror(errno));
+        ret = ftruncate(fd, (off_t) chunkcache->capacity);
 
         /* Allocate memory for the chunk cache for type file system. */
-        /* TODO:  If statbuf.st_size  is 0  (file is blank) - we do want to set the size here */
         chunkcache->memory =
-          mmap(NULL, (size_t)statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+          mmap(NULL, chunkcache->capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         if (chunkcache->memory == MAP_FAILED) {
-            __wt_err(session, EINVAL, "\n Error mmap failed\n");
+            WT_RET_MSG(session, EINVAL, "\n Error mmap failed\n");
         }
 
         /* Allocate the memory needed for the bitmap. */
         if ((chunkcache->bitmap = malloc((chunkcache->capacity / chunkcache->chunk_size) / 8)) ==
           NULL)
-            __wt_err(session, EINVAL, "Allocating memory for bitmap failed.");
+            WT_RET_MSG(session, EINVAL, "Allocating memory for bitmap failed.");
         return (0);
     }
 
