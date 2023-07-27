@@ -468,7 +468,9 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
             }
         }
     }
+    session->compact->first_pass = false;
     session->compact->prev_file_size = (uintmax_t)block->size;
+
     /*
      * We do compaction by copying blocks from the end of the file to the beginning of the file, and
      * we need some metrics to decide if it's worth doing. Ignore files smaller then the configured
@@ -490,20 +492,15 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
         __block_dump_file_stat(session, block, true);
 
     /* Check if the number of available bytes matches the expected configured threshold. */
-    if (session->compact->first_pass) {
-        session->compact->first_pass = false;
-        if (block->live.avail.bytes < session->compact->free_space_target) {
-            __wt_verbose_debug1(session, WT_VERB_COMPACT,
-              "%s: skipping because the number of available bytes %" PRIu64
-              "B is less than the configured threshold %" PRIu64 "B.",
-              block->name, block->live.avail.bytes, session->compact->free_space_target);
-            __wt_spin_unlock(session, &block->live_lock);
-            return (0);
-        }
-    }
+    if (block->live.avail.bytes < session->compact->free_space_target)
+        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+          "%s: skipping because the number of available bytes %" PRIu64
+          "B is less than the configured threshold %" PRIu64 "B.",
+          block->name, block->live.avail.bytes, session->compact->free_space_target);
+    else
+        __block_compact_skip_internal(
+          session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
 
-    __block_compact_skip_internal(
-      session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
     __wt_spin_unlock(session, &block->live_lock);
 
     return (0);
