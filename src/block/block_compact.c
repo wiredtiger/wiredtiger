@@ -448,7 +448,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * we need some metrics to decide if it's worth doing. Ignore files smaller than the configured
      * threshold, and files where we are unlikely to recover 10% of the file.
      */
-    if (session->compact->first_pass &&
+    if (block->compact_pages_reviewed == 0 &&
       session->compact->free_space_target > (uintmax_t)block->size) {
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the file size %" PRIuMAX
@@ -468,7 +468,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * Check if the number of available bytes matches the expected configured threshold. Only
      * perform that check during the first iteration.
      */
-    if (session->compact->first_pass &&
+    if (block->compact_pages_reviewed == 0 &&
       block->live.avail.bytes < session->compact->free_space_target)
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the number of available bytes %" PRIu64
@@ -477,7 +477,6 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
     else
         __block_compact_skip_internal(
           session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
-    session->compact->first_pass = false;
 
     __wt_spin_unlock(session, &block->live_lock);
 
