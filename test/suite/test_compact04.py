@@ -97,8 +97,10 @@ class test_compact04(wttest.WiredTigerTestCase):
                 self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
                 self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
             else:
-                # Compaction should fail with a specific error.
-                with self.expectedStdoutPattern(self.expected_stdout):
+                # Compaction should fail with a specific error. Increase the number of characters
+                # parsed as compact:4 is quite verbose. If we don't, the output is truncated and the
+                # test fails at finding the expected pattern.
+                with self.expectedStdoutPattern(self.expected_stdout, maxchars=5000):
                     self.session.compact(table_uri, compact_config)
 
             # Verify the compact progress stats.
