@@ -1470,9 +1470,10 @@ err:
  *     Qsort comparison routine for transaction modify list.
  */
 static int WT_CDECL
-__txn_mod_compare(const void *a, const void *b)
+__txn_mod_compare(const void *a, const void *b, void *context)
 {
     WT_TXN_OP *aopt, *bopt;
+    int cmp;
 
     aopt = (WT_TXN_OP *)a;
     bopt = (WT_TXN_OP *)b;
@@ -1484,14 +1485,19 @@ __txn_mod_compare(const void *a, const void *b)
     /*
      * If the files are the same, order by the key. Sort none operations to the right as they don't
      * have a key. Row-store collators require WT_SESSION pointers, and we don't have one. Compare
-     * the keys if there's no collator, otherwise return equality. Column-store is always easy.
+     * the keys if there's no collator. Column-store is always easy.
      */
     if (aopt->type == WT_TXN_OP_NONE)
         return (1);
-    if (aopt->type == WT_TXN_OP_BASIC_ROW || aopt->type == WT_TXN_OP_INMEM_ROW)
-        return (aopt->btree->collator == NULL ?
-            __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
-            0);
+
+    if (aopt->type == WT_TXN_OP_BASIC_ROW || aopt->type == WT_TXN_OP_INMEM_ROW) {
+        WT_ASSERT_ALWAYS(context,
+          __wt_compare(
+            context, aopt->btree->collator, &aopt->u.op_row.key, &bopt->u.op_row.key, &cmp) == 0,
+          "Key comparison failed");
+        return (cmp);
+    }
+
     return (aopt->u.op_col.recno < bopt->u.op_col.recno);
 }
 
@@ -1582,7 +1588,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * page within each file are done at the same time.
      */
     if (prepare)
-        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
+        __wt_qsort_r(
+          txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare, (void *)session);
 
     /* If we are logging, write a commit log record. */
     if (txn->logrec != NULL) {
@@ -2018,7 +2025,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
      * page within each file are done at the same time.
      */
     if (prepare)
-        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
+        __wt_qsort_r(
+          txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare, (void *)session);
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
