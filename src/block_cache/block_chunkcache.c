@@ -28,8 +28,8 @@ static int
 __bitmap_find_free(WT_SESSION_IMPL *session, uint8_t *bit_index)
 {
     WT_CHUNKCACHE *chunkcache;
-    uint8_t map_byte; 
     size_t bitmap_size, bit_remainder;
+    uint8_t map_byte;
 
     chunkcache = &S2C(session)->chunkcache;
     bitmap_size = chunkcache->capacity / chunkcache->chunk_size;
@@ -38,7 +38,7 @@ __bitmap_find_free(WT_SESSION_IMPL *session, uint8_t *bit_index)
         map_byte = chunkcache->bitmap[i];
         if (map_byte != 0xff) {
             for (size_t j = 0; j < 8; j++) {
-                if ((map_byte & (0x01 << (j - 1))) == 0) {
+                if ((map_byte & (0x01 << j)) == 0) {
                     *bit_index = ((i * 8) + j);
                     return (0);
                 }
@@ -47,7 +47,7 @@ __bitmap_find_free(WT_SESSION_IMPL *session, uint8_t *bit_index)
     }
     bit_remainder = chunkcache->capacity % chunkcache->chunk_size;
     for (size_t j = 0; j < bit_remainder; j++)
-        if ((chunkcache->bitmap[bitmap_size] & (0x01 << (j - 1))) == 0) {
+        if ((chunkcache->bitmap[bitmap_size] & (0x01 << j)) == 0) {
             *bit_index = ((bitmap_size * 8) + j);
             return (0);
         }
@@ -183,8 +183,8 @@ static void
 __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
-    uint8_t *bit;
     WT_DECL_RET;
+    uint8_t *bit;
     chunkcache = &S2C(session)->chunkcache;
 
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
@@ -199,7 +199,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         do {
             bit = (uint8_t *)&chunkcache->bitmap[index / 8];
             ret = __wt_atomic_cas8(bit, *bit, *bit & ~(0x01 << (index % 8)));
-        } while (ret !=0);
+        } while (ret != 0);
         __wt_free(session, chunk->chunk_memory);
     }
     __wt_free(session, chunk);
@@ -563,7 +563,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         fd = open(chunkcache->dev_path, O_RDWR | O_TRUNC | O_CREAT, S_IRWXO);
         if (fd != 0)
             WT_RET_MSG(session, EINVAL, "\n Error opening/creating file %s \n", strerror(errno));
-        ret = ftruncate(fd, (off_t) chunkcache->capacity);
+        ret = ftruncate(fd, (off_t)chunkcache->capacity);
 
         /* Allocate memory for the chunk cache for type file system. */
         chunkcache->memory =

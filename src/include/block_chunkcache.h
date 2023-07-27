@@ -60,7 +60,7 @@ struct __wt_chunkcache {
 #ifdef ENABLE_MEMKIND
     struct memkind *memkind; /* Lets us use jemalloc over a file. */
 #endif
-    uint8_t *bitmap;        /* Bitmap of free chunks in file*/
+    uint8_t *bitmap;     /* Bitmap of free chunks in file*/
     uint64_t bytes_used; /* amount of data currently in cache */
     uint64_t capacity;   /* maximum allowed capacity */
     bool chunkcache_exiting;
