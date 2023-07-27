@@ -34,6 +34,7 @@ __bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
     chunkcache = &S2C(session)->chunkcache;
     bitmap_size = chunkcache->capacity / chunkcache->chunk_size;
 
+    /* Iterate through the bytes and bits of the bitmap to find free chunks */
     for (size_t i = 0; i < bitmap_size; i++) {
         map_byte = chunkcache->bitmap[i];
         if (map_byte != 0xff) {
@@ -45,6 +46,8 @@ __bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
             }
         }
     }
+
+    /* If the cache and bitmap size are not divisible by 8, iterate through remaining bits. */
     bit_remainder = chunkcache->capacity % chunkcache->chunk_size;
     for (size_t j = 0; j < bit_remainder; j++)
         if ((chunkcache->bitmap[bitmap_size] & (0x01 << j)) == 0) {
@@ -64,6 +67,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     WT_CHUNKCACHE *chunkcache;
     size_t bit_index;
     uint8_t *bit;
+
     chunkcache = &S2C(session)->chunkcache;
     bit_index = 0;
 
@@ -185,6 +189,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     WT_CHUNKCACHE *chunkcache;
     WT_DECL_RET;
     uint8_t *bit;
+
     chunkcache = &S2C(session)->chunkcache;
 
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
@@ -628,5 +633,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
       (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) ? "volatile memory" : "file system",
       chunkcache->capacity);
+
     return (0);
 }
