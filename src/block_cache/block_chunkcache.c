@@ -25,7 +25,7 @@
  *     Iterate through the bitmap to find a free chunk in the cache.
  */
 static int
-__bitmap_find_free(WT_SESSION_IMPL *session, uint8_t *bit_index)
+__bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
 {
     WT_CHUNKCACHE *chunkcache;
     size_t bitmap_size, bit_remainder;
@@ -62,8 +62,8 @@ static int
 __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
+    size_t bit_index;
     uint8_t *bit;
-    uint8_t bit_index;
     chunkcache = &S2C(session)->chunkcache;
     bit_index = 0;
 
@@ -76,7 +76,7 @@ retry:
 
         /* Mark the free chunk in the bitmap to in use. */
         bit = (uint8_t *)&chunkcache->bitmap[bit_index / 8];
-        if (__wt_atomic_cas8(bit, *bit, *bit | 0x01 << (bit_index % 8)) == false)
+        if (__wt_atomic_cas8(bit, *bit, *bit | (uint8_t)(0x01 << (bit_index % 8))) == false)
             goto retry;
 
         /* Allocate the free memory in the chunk cache. */
@@ -560,10 +560,11 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         if (!__wt_absolute_path(chunkcache->dev_path))
             WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
 
-        fd = open(chunkcache->dev_path, O_RDWR | O_TRUNC | O_CREAT, S_IRWXO);
-        if (fd != 0)
-            WT_RET_MSG(session, EINVAL, "\n Error opening/creating file %s \n", strerror(errno));
-        ret = ftruncate(fd, (off_t)chunkcache->capacity);
+        if ((fd = open(chunkcache->dev_path, O_RDWR | O_TRUNC | O_CREAT, S_IRWXO)) != 0)
+            WT_RET_MSG(session, errno, "\n Error creating or opening file");
+        WT_SYSCALL(ftruncate(fd, (off_t)chunkcache->capacity), ret);
+        if (ret != 0)
+            WT_RET_MSG(session, ret, "Error truncating file to size %lu \n", chunkcache->capacity);
 
         /* Allocate memory for the chunk cache for type file system. */
         chunkcache->memory =
