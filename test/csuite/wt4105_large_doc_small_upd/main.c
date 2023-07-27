@@ -148,10 +148,11 @@ main(int argc, char *argv[])
             modify_entry.data.size = strlen(modify_entry.data.data);
             modify_entry.offset = offset;
             modify_entry.size = modify_entry.data.size;
-            /* 
+            /*
              * FIXME-WT-6113: extend timeout to pass the test.
-             * Ignore this alarm for msan builds due to the typical slowdown introduced by msan.
-            */
+             *
+             * Ignore this alarm for MSan builds due to the typical slowdown introduced by MSan.
+             */
             if (!testutil_is_flag_set("TESTUTIL_MSAN"))
                 (void)alarm(15);
             testutil_check(c->modify(c, &modify_entry, 1));
