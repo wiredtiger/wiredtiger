@@ -441,42 +441,15 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *ms
 int
 __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 {
-    uint64_t size_compacted;
-
     *skipp = true; /* Return a default skip. */
-
-    /* Track the progress made by compaction on the file size to update the target accordingly. */
-    if (!session->compact->first_pass) {
-        /*
-         * Other concurrent operations may have increased the file size, in that case, don't update
-         * the target.
-         */
-        if (session->compact->prev_file_size > (uintmax_t)block->size) {
-            size_compacted = session->compact->prev_file_size - (uintmax_t)block->size;
-            __wt_verbose_debug2(session, WT_VERB_COMPACT, "%s: size compacted %" PRIu64 "MB.",
-              block->name, size_compacted / WT_MEGABYTE);
-            /* We may have compacted more than the configured target. */
-            if (session->compact->free_space_target > size_compacted) {
-                session->compact->free_space_target -= size_compacted;
-                __wt_verbose_debug2(session, WT_VERB_COMPACT,
-                  "%s: compaction target updated to %" PRIu64 "MB.", block->name,
-                  session->compact->free_space_target / WT_MEGABYTE);
-            } else {
-                session->compact->free_space_target = 0;
-                __wt_verbose_debug2(
-                  session, WT_VERB_COMPACT, "%s: compaction target reached.", block->name);
-            }
-        }
-    }
-    session->compact->first_pass = false;
-    session->compact->prev_file_size = (uintmax_t)block->size;
 
     /*
      * We do compaction by copying blocks from the end of the file to the beginning of the file, and
-     * we need some metrics to decide if it's worth doing. Ignore files smaller then the configured
+     * we need some metrics to decide if it's worth doing. Ignore files smaller than the configured
      * threshold, and files where we are unlikely to recover 10% of the file.
      */
-    if (session->compact->free_space_target > (uintmax_t)block->size) {
+    if (session->compact->first_pass &&
+      session->compact->free_space_target > (uintmax_t)block->size) {
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the file size %" PRIuMAX
           "B must be greater than the configured threshold %" PRIu64 "B.",
@@ -491,8 +464,12 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_2))
         __block_dump_file_stat(session, block, true);
 
-    /* Check if the number of available bytes matches the expected configured threshold. */
-    if (block->live.avail.bytes < session->compact->free_space_target)
+    /*
+     * Check if the number of available bytes matches the expected configured threshold. Only
+     * perform that check during the first iteration.
+     */
+    if (session->compact->first_pass &&
+      block->live.avail.bytes < session->compact->free_space_target)
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the number of available bytes %" PRIu64
           "B is less than the configured threshold %" PRIu64 "B.",
@@ -500,6 +477,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
     else
         __block_compact_skip_internal(
           session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+    session->compact->first_pass = false;
 
     __wt_spin_unlock(session, &block->live_lock);
 
