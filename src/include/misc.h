@@ -238,7 +238,7 @@
     } while (0)
 
 /*
- * Binary search for an string key.
+ * Binary search for a string key.
  */
 #define WT_BINARY_SEARCH_STRING(key, arrayp, n, found)                 \
     do {                                                               \
