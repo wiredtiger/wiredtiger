@@ -71,7 +71,7 @@ compact(void *arg)
          * don't configure a timeout and occasionally exceed the default of 1200 seconds.
          */
         table = table_select(NULL, false);
-        ret = session->compact(session, table->uri, NULL);
+        ret = session->compact(session, table->uri, "background=true");
         testutil_assertfmt(ret == 0 || ret == EBUSY || ret == ETIMEDOUT || ret == WT_CACHE_FULL ||
             ret == WT_ROLLBACK,
           "WT_SESSION.compact failed: %s: %d", table->uri, ret);
