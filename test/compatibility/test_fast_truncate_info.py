@@ -88,7 +88,7 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
         session.checkpoint()
 
         session.close()
-        conn.close
+        conn.close()
 
     def write_fast_truncate_info(self):
         import wiredtiger
@@ -120,7 +120,7 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
         # Ensure that fast-truncate happened.
         stat_cursor = session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        assert(fastdelete_pages > 0)
+        self.assertGreater(fastdelete_pages, 0)
 
         # Move the stable timestamp ahead of the fast-truncate timestamp so that
         # recovery will not remove this fast-truncate information.
@@ -160,7 +160,7 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
         # Do a direct search for a key inside the truncated range - this key
         # should not be visible.
         c.set_key(1000)
-        assert(c.search() == wiredtiger.WT_NOTFOUND)
+        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
         c.close()
 
         # Do a checkpoint, which triggers the packing and unpacking logic.
