@@ -445,15 +445,13 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 
     /*
      * We do compaction by copying blocks from the end of the file to the beginning of the file, and
-     * we need some metrics to decide if it's worth doing. Ignore files smaller than the configured
-     * threshold, and files where we are unlikely to recover 10% of the file.
+     * we need some metrics to decide if it's worth doing. Ignore small files, and files where we
+     * are unlikely to recover 10% of the file.
      */
-    if (block->compact_pages_reviewed == 0 &&
-      session->compact->free_space_target > (uintmax_t)block->size) {
+    if (block->size <= WT_MEGABYTE) {
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
-          "%s: skipping because the file size %" PRIuMAX
-          "B must be greater than the configured threshold %" PRIu64 "B.",
-          block->name, (uintmax_t)block->size, session->compact->free_space_target);
+          "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.",
+          block->name, (uintmax_t)block->size);
 
         return (0);
     }
