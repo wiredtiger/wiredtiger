@@ -288,8 +288,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_commit_transaction[] = {
   {"sync", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_compact[] = {
-  {"background", "boolean", NULL, NULL, NULL, 0},
-  {"timeout", "int", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"timeout", "int", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0},
+  {"background", "boolean", NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_encryption_subconfigs[] = {
   {"keyid", "string", NULL, NULL, NULL, 0}, {"name", "string", NULL, NULL, NULL, 0},

@@ -336,15 +336,20 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, compact, config, cfg);
 
-    WT_STAT_CONN_SET(session, session_table_compact_running, 1);
-
     /* Trigger the background server thread and toggle connection statistic. */
-    WT_ERR(__wt_config_gets(session, cfg, "background", &cval));
-    if (cval.val) {
-        background_compact = true;
-        WT_STAT_CONN_SET(session, session_background_compact_running, 1);
+    if ((ret = __wt_config_gets(session, cfg, "background", &cval) == 0)){
+        // __wt_cond_signal(session, S2C(wt_session)->background_compact.cond);
+        if (cval.val) {
+            background_compact = true;
+            WT_STAT_CONN_SET(session, session_background_compact_running, 1);
+        } else
+            background_compact = false;
+            WT_STAT_CONN_SET(session, session_background_compact_running, 0);
+        return (0);
     } else
-        WT_STAT_CONN_SET(session, session_background_compact_running, 0);
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+    WT_STAT_CONN_SET(session, session_table_compact_running, 1);
 
     __wt_verbose_debug1(session, WT_VERB_COMPACT, "Compacting %s", uri);
 
