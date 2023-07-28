@@ -40,9 +40,13 @@ class test_compact05(wttest.WiredTigerTestCase):
 
     free_space_target = [
         # The threshold is smaller than the number of available bytes, compaction should proceed.
-        ('1MB', dict(compact_config='1MB', expected_stdout=None)),
+        ('1MB', dict(compact_config='free_space_target=1MB',
+                     expected_compaction=True,
+                     expected_stdout=None)),
         # The threshold is greater than the number of available bytes, compaction should not proceed.
-        ('45MB', dict(compact_config='45MB', expected_stdout='number of available bytes.*is less than the configured threshold')),
+        ('45MB', dict(compact_config='free_space_target=45MB',
+                      expected_compaction=False,
+                      expected_stdout='number of available bytes.*is less than the configured threshold')),
     ]
     scenarios = make_scenarios(free_space_target)
 
@@ -77,16 +81,15 @@ class test_compact05(wttest.WiredTigerTestCase):
         c.close()
 
         # Compact!
-        compact_config = f"free_space_target={self.compact_config}"
-        if self.compact_config == '1MB':
+        if self.expected_compaction:
             # Compaction should succeed, ignore all the logs.
-            self.session.compact(self.table_uri, compact_config)
+            self.session.compact(self.table_uri, self.compact_config)
             self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
             self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
         else:
             # Compaction should fail with a specific error.
             with self.expectedStdoutPattern(self.expected_stdout):
-                self.session.compact(self.table_uri, compact_config)
+                self.session.compact(self.table_uri, self.compact_config)
 
         # Verify the compact progress stats.
         c_stat = self.session.open_cursor('statistics:' + self.table_uri, None, 'statistics=(all)')
@@ -94,13 +97,12 @@ class test_compact05(wttest.WiredTigerTestCase):
         pages_rewritten_expected = c_stat[stat.dsrc.btree_compact_pages_rewritten_expected][2]
         c_stat.close()
 
-        # Only one scenario leads to a successful compaction.
-        if self.compact_config != '1MB':
-            self.assertEqual(pages_rewritten, 0)
-            self.assertEqual(pages_rewritten_expected, 0)
-        else:
+        if self.expected_compaction:
             self.assertGreater(pages_rewritten, 0)
             self.assertGreater(pages_rewritten_expected, 0)
+        else:
+            self.assertEqual(pages_rewritten, 0)
+            self.assertEqual(pages_rewritten_expected, 0)
 
 if __name__ == '__main__':
     wttest.run()
