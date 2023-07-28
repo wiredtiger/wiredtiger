@@ -2014,8 +2014,8 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __debug_mode_log_retention_config --
- *     Set the log retention fields of the debugging configuration. These fields are protected by a
- *     lock.
+ *     Set the log retention fields of the debugging configuration. These fields are protected by
+ *     the debug log retention lock.
  */
 static int
 __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
