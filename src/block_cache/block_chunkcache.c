@@ -276,11 +276,11 @@ __chunkcache_arr_free(WT_SESSION_IMPL *session, char ***arr)
 }
 
 /*
- * __config_gets_pinned_objects --
+ * __config_get_sorted_pinned_objects --
  *     Get sorted array of pinned objects from the config.
  */
 static int
-__config_gets_pinned_objects(WT_SESSION_IMPL *session, const char *cfg[],
+__config_get_sorted_pinned_objects(WT_SESSION_IMPL *session, const char *cfg[],
   char ***pinned_objects_list, unsigned int *pinned_entries)
 {
     WT_CONFIG targetconf;
@@ -608,7 +608,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 #endif
     }
 
-    WT_RET(__config_gets_pinned_objects(session, cfg, &pinned_objects, &cnt));
+    WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
     chunkcache->pinned_objects = pinned_objects;
     chunkcache->pinned_entries = cnt;
 
