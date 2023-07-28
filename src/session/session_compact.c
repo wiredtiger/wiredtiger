@@ -328,13 +328,23 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     WT_SESSION_IMPL *session;
     u_int i;
     bool ignore_cache_size_set;
+    bool background_compact;
 
     ignore_cache_size_set = false;
+    background_compact = false;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, compact, config, cfg);
 
     WT_STAT_CONN_SET(session, session_table_compact_running, 1);
+
+    /* Trigger the background server thread and toggle connection statistic. */
+    WT_ERR(__wt_config_gets(session, cfg, "background", &cval));
+    if (cval.val) {
+        background_compact = true;
+        WT_STAT_CONN_SET(session, session_background_compact_running, 1);
+    } else
+        WT_STAT_CONN_SET(session, session_background_compact_running, 0);
 
     __wt_verbose_debug1(session, WT_VERB_COMPACT, "Compacting %s", uri);
 
