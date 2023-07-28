@@ -288,7 +288,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_commit_transaction[] = {
   {"sync", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_compact[] = {
-  {"free_space_target", "int", NULL, "min=0", NULL, 0}, {"timeout", "int", NULL, NULL, NULL, 0},
+  {"free_space_target", "int", NULL, "min=1MB", NULL, 0}, {"timeout", "int", NULL, NULL, NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_encryption_subconfigs[] = {
