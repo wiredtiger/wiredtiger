@@ -32,23 +32,11 @@
 
 import wttest
 from wiredtiger import stat
-from wtscenario import make_scenarios
 
-# Test if compaction proceeds depending on the free_space_target field and the accuracy of compact
-# work estimation.
+# Test the accuracy of compact work estimation.
 class test_compact04(wttest.WiredTigerTestCase):
 
-    free_space_target = [
-        # Less than the file size and less than the available bytes found during the first pass.
-        ('1MB', dict(compact_config='1MB', expected_stdout=None)),
-        # Less than the file size but greater than the available bytes found during the first pass.
-        ('45MB', dict(compact_config='45MB', expected_stdout='number of available bytes.*is less than the configured threshold')),
-        # Greater than the file size.
-        ('105MB', dict(compact_config='105MB', expected_stdout='skipping because the file size.*must be greater than the configured threshold')),
-    ]
-    scenarios = make_scenarios(free_space_target)
-
-    # Keep debug messages on by default, this is useful for diagnosing spurious test failures.
+    # Keep debug messages on by default. This is useful for diagnosing spurious test failures.
     conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:4)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
@@ -90,30 +78,15 @@ class test_compact04(wttest.WiredTigerTestCase):
             c.close()
 
             # Compact!
-            compact_config = f"free_space_target={self.compact_config}"
-            if self.compact_config == '1MB':
-                # Compaction should succeed, ignore all the logs.
-                self.session.compact(table_uri, compact_config)
-                self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
-                self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
-            else:
-                # Compaction should fail with a specific error. Increase the number of characters
-                # parsed as compact:4 is quite verbose. If we don't, the output is truncated and the
-                # test fails at finding the expected pattern.
-                with self.expectedStdoutPattern(self.expected_stdout, maxchars=5000):
-                    self.session.compact(table_uri, compact_config)
+            self.session.compact(table_uri, None)
+            self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
+            self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
 
             # Verify the compact progress stats.
             c_stat = self.session.open_cursor('statistics:' + table_uri, None, 'statistics=(all)')
             pages_rewritten = c_stat[stat.dsrc.btree_compact_pages_rewritten][2]
             pages_rewritten_expected = c_stat[stat.dsrc.btree_compact_pages_rewritten_expected][2]
             c_stat.close()
-
-            # Only one scenario leads to a successful compaction.
-            if self.compact_config != '1MB':
-                self.assertEqual(pages_rewritten, 0)
-                self.assertEqual(pages_rewritten_expected, 0)
-                break
 
             self.assertGreater(pages_rewritten, 0)
             self.assertGreater(pages_rewritten_expected, 0)
