@@ -39,9 +39,9 @@ from wtscenario import make_scenarios
 class test_compact05(wttest.WiredTigerTestCase):
 
     free_space_target = [
-        # Less than the file size and less than the available bytes found during the first pass, compaction should proceed.
+        # The threshold is smaller than the number of available bytes, compaction should proceed.
         ('1MB', dict(compact_config='1MB', expected_stdout=None)),
-        # Less than the file size but greater than the available bytes found during the first pass, compaction should not proceed.
+        # The threshold is greater than the number of available bytes, compaction should not proceed.
         ('45MB', dict(compact_config='45MB', expected_stdout='number of available bytes.*is less than the configured threshold')),
     ]
     scenarios = make_scenarios(free_space_target)
