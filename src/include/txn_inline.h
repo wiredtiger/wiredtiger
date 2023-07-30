@@ -963,7 +963,6 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
         upd->size = WT_STORE_SIZE(value->size);
         memcpy(upd->data, value->data, value->size);
     }
-
     upd->type = (uint8_t)modify_type;
 
     *updp = upd;
