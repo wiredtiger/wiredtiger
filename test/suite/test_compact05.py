@@ -62,6 +62,10 @@ class test_compact05(wttest.WiredTigerTestCase):
     # Create the table in a way that it creates a mostly empty file.
     def test_compact05(self):
 
+        # FIXME-WT-11399
+        if self.runningHook('tiered'):
+            self.skipTest("this test does not yet work with tiered storage")
+
         # Create the table and populate it with a lot of data.
         self.session.create(self.table_uri, self.create_params)
         c = self.session.open_cursor(self.table_uri, None)
