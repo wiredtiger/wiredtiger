@@ -312,11 +312,16 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      * Assign the thread's resource generation and publish it, ensuring threads waiting on a
      * resource to drain see the new value. Check we haven't raced with a generation update after
      * publishing, we rely on the published value not being missed when scanning for the oldest
-     * generation.
+     * generation and for draining.
+     *
+     * This requires a full barrier as the second read of the connection generation needs to be
+     * ordered after the write of our session's generation. If it is reordered it could be read, for
+     * example before we do the first read. This would make re-checking redundant and in this case
+     * can result in the generation drain and generation oldest code not working correctly.
      */
     do {
         session->generations[which] = __wt_gen(session, which);
-        WT_WRITE_BARRIER();
+        WT_FULL_BARRIER();
     } while (session->generations[which] != __wt_gen(session, which));
 }
 
