@@ -57,17 +57,16 @@ struct __wt_chunkcache_bucket {
  */
 struct __wt_chunkcache {
     WT_CHUNKCACHE_BUCKET *hashtable;
-#ifdef ENABLE_MEMKIND
-    struct memkind *memkind; /* Lets us use jemalloc over a file. */
-#endif
+
     uint8_t *bitmap;     /* Bitmap of free chunks in file*/
     uint64_t bytes_used; /* amount of data currently in cache */
     uint64_t capacity;   /* maximum allowed capacity */
     bool chunkcache_exiting;
-    bool configured;
     size_t chunk_size;
+    bool configured;
     char *dev_path;             /* the storage path if we are on a file system or a block device */
     unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
+    WT_FH *fh;                  /* this file handle is only used for type file*/
     unsigned int hashtable_size;
     char *memory;          /* memory location for the assigned chunk space */
     char **pinned_objects; /* list of objects we wish to pin in chunk cache */

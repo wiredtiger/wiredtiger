@@ -35,7 +35,7 @@ __bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
     bitmap_size = (chunkcache->capacity / chunkcache->chunk_size) / 8;
 
     /* Iterate through the bytes and bits of the bitmap to find free chunks */
-    for (size_t i = 0; i < (bitmap_size); i++) {
+    for (size_t i = 0; i < bitmap_size; i++) {
         map_byte = chunkcache->bitmap[i];
         if (map_byte != 0xff) {
             for (size_t j = 0; j < 8; j++) {
@@ -79,15 +79,12 @@ retry:
         WT_RET(__bitmap_find_free(session, &bit_index));
 
         /* Mark the free chunk in the bitmap to in use. */
-        map_byte = (uint8_t *)&chunkcache->bitmap[bit_index / 8];
+        map_byte = &chunkcache->bitmap[bit_index / 8];
         if (!__wt_atomic_cas8(map_byte, *map_byte, *map_byte | (uint8_t)(0x01 << (bit_index % 8))))
             goto retry;
 
         /* Allocate the free memory in the chunk cache. */
         chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
-        if (chunk->chunk_memory == NULL)
-            WT_RET_MSG(
-              session, ENOMEM, "Chunk cache memory allocation failed: %s", chunk->chunk_memory);
     }
     __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
@@ -514,7 +511,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     WT_CONFIG targetconf;
     WT_CONFIG_ITEM cval, k, v;
     WT_DECL_RET;
-    WT_FH *fh;
     unsigned int cnt, i;
     wt_thread_t evict_thread_tid;
     char **pinned_objects;
@@ -567,22 +563,20 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
             WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
 
         WT_RET(__wt_open(session, chunkcache->dev_path, WT_FS_OPEN_FILE_TYPE_REGULAR,
-          O_RDWR | O_TRUNC | O_CREAT, &fh));
+          WT_FS_OPEN_CREATE, &chunkcache->fh));
 
-        WT_RET(
-          fh->handle->fh_truncate(fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
+        WT_RET(chunkcache->fh->handle->fh_truncate(
+          chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
 
         /* Allocate memory for the chunk cache for type file system. */
-        WT_RET(fh->handle->fh_map(
-          fh->handle, &session->iface, (void **)&chunkcache->memory, &mapped_size, NULL));
-        WT_RET(mapped_size == chunkcache->capacity);
+        WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
+          (void **)&chunkcache->memory, &mapped_size, NULL));
+        WT_ASSERT_ALWAYS(session, mapped_size == chunkcache->capacity,
+          "Mapped size does not equal capacity of chunkcache");
 
         /* Allocate the memory needed for the bitmap. */
-        ret = (__wt_malloc(
-          session, ((chunkcache->capacity / chunkcache->chunk_size) / 8), &chunkcache->bitmap));
-        if (ret != 0)
-            WT_RET_MSG(session, EINVAL, "Allocating memory for bitmap failed.");
-        return (0);
+        WT_RET(__wt_calloc(
+          session, 1, ((chunkcache->capacity / chunkcache->chunk_size) / 8), &chunkcache->bitmap));
     }
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.pinned", &cval));
@@ -618,14 +612,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
           session, &chunkcache->hashtable[i].bucket_lock, "chunk cache bucket lock"));
     }
 
-    if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
-#ifdef ENABLE_MEMKIND
-        WT_RET(memkind_create_pmem(chunkcache->dev_path, 0, &chunkcache->memkind));
-#else
-        WT_RET_MSG(session, EINVAL, "Chunk cache that is not in DRAM requires libmemkind");
-#endif
-    }
-
     WT_RET(__wt_thread_create(
       session, &evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
 
@@ -633,6 +619,24 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
       (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) ? "volatile memory" : "file system",
       chunkcache->capacity);
+
+    return (0);
+}
+
+/*
+ * __wt_chunkcache_teardown --
+ *     Tear down the chunk cache.
+ */
+int
+__wt_chunkcache_teardown(WT_SESSION_IMPL *session)
+{
+    WT_CHUNKCACHE *chunkcache;
+
+    chunkcache = &S2C(session)->chunkcache;
+    if (!chunkcache->configured || chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
+        return (0);
+
+    WT_RET(__wt_close(session, &chunkcache->fh));
 
     return (0);
 }
