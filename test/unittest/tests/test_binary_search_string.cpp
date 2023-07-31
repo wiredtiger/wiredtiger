@@ -46,8 +46,8 @@ TEST_CASE("Binary Search String: WT_BINARY_SEARCH_STRING", "[search]")
 
     SECTION("Empty array")
     {
-        const char *array[] = {};
-        const uint32_t n = sizeof(array) / sizeof(array[0]);
+        const char *array[] = {NULL};
+        const uint32_t n = 0;
 
         WT_BINARY_SEARCH_STRING("apple", array, n, found);
         REQUIRE(found == false);
