@@ -121,8 +121,7 @@ __compact_server(void *arg)
         /*
          * Compact may return:
          * - EBUSY for various reasons.
-         * - ETIMEDOUT if the timer has been configured and compaction took too long. TODO: Can the
-         * background compaction be configured with a timeout?
+         * - ETIMEDOUT if the timer has been configured and compaction took too long.
          * - WT_NOTFOUND if the underlying file has been deleted.
          */
         if (ret == EBUSY || ret == WT_NOTFOUND || ret == ETIMEDOUT)
