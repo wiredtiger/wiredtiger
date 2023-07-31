@@ -1391,6 +1391,8 @@ struct __wt_session {
      * @param name the URI of the object to compact, such as
      * \c "table:stock"
      * @configstart{WT_SESSION.compact, see dist/api_data.py}
+     * @config{free_space_target, minimum amount of space recoverable for compaction to proceed., an
+     * integer greater than or equal to \c 1MB; default \c 20MB.}
      * @config{timeout, maximum amount of time to allow for compact in seconds.  The actual amount
      * of time spent in compact may exceed the configured value.  A value of zero disables the
      * timeout., an integer; default \c 1200.}
@@ -2199,8 +2201,11 @@ struct __wt_connection {
      * \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, number of buckets in the hashtable that
      * keeps track of objects., an integer between \c 64 and \c 1048576; default \c 1024.}
-     * @config{
-     * ),,}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;pinned, List of "table:" URIs exempt from cache eviction.
+     * Capacity config overrides this\, tables exceeding capacity will not be fully retained.  Table
+     * names can appear in both this and the preload list\, but not in both this and the exclude
+     * list.  Duplicate names are allowed., a list of strings; default empty.}
+     * @config{ ),,}
      * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
      * version requires that there are no active operations for the duration of the call., a set of
      * related configuration options defined as follows.}
@@ -2952,6 +2957,10 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * hashsize, number of buckets in the hashtable that keeps track of objects., an integer between \c
  * 64 and \c 1048576; default \c 1024.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;pinned, List of "table:"
+ * URIs exempt from cache eviction.  Capacity config overrides this\, tables exceeding capacity will
+ * not be fully retained.  Table names can appear in both this and the preload list\, but not in
+ * both this and the exclude list.  Duplicate names are allowed., a list of strings; default empty.}
  * @config{ ),,}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of
