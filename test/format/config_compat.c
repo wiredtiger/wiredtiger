@@ -69,7 +69,6 @@ static const char *list[] = {
   "lsm.chunk_size",
   "compaction=",
   "ops.compaction",
-  "free_space_target=",
   "compression=",
   "btree.compression",
   "data_extend=",

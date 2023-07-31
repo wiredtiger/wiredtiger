@@ -35,7 +35,7 @@ static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(TABLE *);
-static void config_compact_free_space_target(void);
+static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_directio(void);
 static void config_encryption(void);
@@ -510,7 +510,7 @@ config_run(void)
     config_backward_compatible();                    /* Reset backward compatibility as needed */
     config_mirrors();                                /* Mirrors */
     config_statistics();                             /* Statistics */
-    config_compact_free_space_target();              /* Compaction */
+    config_compact();                                /* Compaction */
 
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
@@ -2253,14 +2253,14 @@ config_file_type(u_int type)
 }
 
 /*
- * config_compact_free_space_target --
+ * config_compact --
  *     Free space target configuration for compaction.
  */
 static void
-config_compact_free_space_target(void)
+config_compact(void)
 {
-    if (config_explicit(NULL, "free_space_target"))
+    if (config_explicit(NULL, "compact.free_space_target"))
         return;
 
-    GV(FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
+    GV(COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
 }
