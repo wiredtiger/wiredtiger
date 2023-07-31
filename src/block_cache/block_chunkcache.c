@@ -185,6 +185,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
     WT_DECL_RET;
+    size_t index;
     uint8_t *map_byte;
 
     chunkcache = &S2C(session)->chunkcache;
@@ -197,7 +198,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         __wt_free(session, chunk->chunk_memory);
     else {
         /* Update the bitmap to show free chunk, then free the memory of the chunk */
-        size_t index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
+        index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
         do {
             map_byte = (uint8_t *)&chunkcache->bitmap[index / 8];
             ret = __wt_atomic_cas8(map_byte, *map_byte, *map_byte & ~(0x01 << (index % 8)));
