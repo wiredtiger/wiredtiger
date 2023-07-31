@@ -2254,7 +2254,7 @@ config_file_type(u_int type)
 
 /*
  * config_compact --
- *     Free space target configuration for compaction.
+ *     Generate compaction related configurations.
  */
 static void
 config_compact(void)
