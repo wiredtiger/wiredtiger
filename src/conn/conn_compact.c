@@ -31,13 +31,14 @@ __compact_server(void *arg)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     int exact;
-    const char *key;
+    const char *config, *key;
     bool full_iteration;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
     cursor = NULL;
+    config = NULL;
     key = NULL;
     exact = 0;
     full_iteration = false;
@@ -110,9 +111,12 @@ __compact_server(void *arg)
         /* Always close the metadata cursor. */
         WT_ERR(__wt_metadata_cursor_release(session, &cursor));
 
-        /* Compact the file. */
-        /* TODO: Make sure we are not reading a cached configuration. */
-        ret = wt_session->compact(wt_session, key, conn->background_compact.cfg);
+        /* Compact the file with the latest configuration. */
+        __wt_spin_lock(session, &conn->background_compact.cfg_lock);
+        WT_ERR(__wt_strndup(
+          session, conn->background_compact.cfg, strlen(conn->background_compact.cfg), &config));
+        __wt_spin_unlock(session, &conn->background_compact.cfg_lock);
+        ret = wt_session->compact(wt_session, key, config);
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
          * Compact may return:
@@ -127,6 +131,9 @@ __compact_server(void *arg)
     }
 
     WT_ERR(__wt_metadata_cursor_close(session));
+    __wt_free(session, config);
+    __wt_free(session, key);
+
     if (0) {
 err:
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
