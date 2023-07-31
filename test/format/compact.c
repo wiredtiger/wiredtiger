@@ -72,8 +72,8 @@ compact(void *arg)
          * don't configure a timeout and occasionally exceed the default of 1200 seconds.
          */
         table = table_select(NULL, false);
-        testutil_snprintf(
-          config_buf, sizeof(config_buf), "free_space_target=%" PRIu32 "MB", GV(COMPACT_FREE_SPACE_TARGET));
+        testutil_snprintf(config_buf, sizeof(config_buf), "free_space_target=%" PRIu32 "MB",
+          GV(COMPACT_FREE_SPACE_TARGET));
         ret = session->compact(session, table->uri, config_buf);
         testutil_assertfmt(ret == 0 || ret == EBUSY || ret == ETIMEDOUT || ret == WT_CACHE_FULL ||
             ret == WT_ROLLBACK,
