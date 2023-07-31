@@ -309,6 +309,7 @@ int
 __wt_compact(WT_SESSION_IMPL *session)
 {
     WT_BM *bm;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_REF *ref;
     u_int i, msg_count;
@@ -320,6 +321,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     uint64_t stats_pages_skipped;            /* Pages skipped */
 
     bm = S2BT(session)->bm;
+    conn = S2C(session);
     msg_count = 0;
     ref = NULL;
 
@@ -367,10 +369,21 @@ __wt_compact(WT_SESSION_IMPL *session)
         if (first || ++i > 100) {
             if (!first)
                 bm->compact_progress(bm, session, &msg_count);
+            /*
+             * TODO: Here is a right time to check if the background compaction thread is still
+             * supposed to run. Add a stat to indicate compaction has been interrupted. Need to set
+             * a specific error code.
+             */
+            /*
+            if (F_ISSET(session, WT_SESSION_INTERNAL) && !conn->background_compact.running) {
+                goto err;
+            }
+            */
+
             WT_ERR(__wt_session_compact_check_timeout(session));
             if (session->event_handler->handle_general != NULL) {
-                ret = session->event_handler->handle_general(session->event_handler,
-                  &(S2C(session))->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
+                ret = session->event_handler->handle_general(session->event_handler, &conn->iface,
+                  &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
                 /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
                 if (ret != 0)
                     WT_ERR_MSG(session, WT_ERROR, "compact interrupted by application");
