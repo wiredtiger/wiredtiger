@@ -1342,7 +1342,7 @@ methods = {
 'WT_SESSION.close' : Method([]),
 
 'WT_SESSION.compact' : Method([
-    Config('background', 'false', r'''
+    Config('background', '', r'''
         enable/disabled the background compaction server.''',
         type='boolean'),
     Config('timeout', '1200', r'''

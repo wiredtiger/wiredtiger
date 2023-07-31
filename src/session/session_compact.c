@@ -328,22 +328,18 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     WT_SESSION_IMPL *session;
     u_int i;
     bool ignore_cache_size_set;
-    bool background_compact;
 
     ignore_cache_size_set = false;
-    background_compact = false;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, compact, config, cfg);
 
     /* Trigger the background server thread and toggle connection statistic. */
-    if ((ret = __wt_config_gets(session, cfg, "background", &cval) == 0)){
-        // __wt_cond_signal(session, S2C(wt_session)->background_compact.cond);
+    if ((ret = __wt_config_gets(session, &cfg[1], "background", &cval) == 0)) {
+        // TODO: Check background compaction server running status and trigger the mutex.
         if (cval.val) {
-            background_compact = true;
             WT_STAT_CONN_SET(session, session_background_compact_running, 1);
         } else
-            background_compact = false;
             WT_STAT_CONN_SET(session, session_background_compact_running, 0);
         return (0);
     } else
