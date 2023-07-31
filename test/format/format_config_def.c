@@ -102,8 +102,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
 
-  {"compact.free_space_target", "configure free space target (MB) for compaction", 0x0, 1, 100,
-    UINT_MAX, V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
+  {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
+    V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
 
   {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024,
     V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
