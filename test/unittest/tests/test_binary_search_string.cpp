@@ -98,4 +98,60 @@ TEST_CASE("Binary Search String: WT_BINARY_SEARCH_STRING", "[search]")
         WT_BINARY_SEARCH_STRING("elderberry", array, n, found);
         REQUIRE(found == true);
     }
+
+    SECTION("Prefixes in array and search for full string")
+    {
+        const char *array[] = {"apple", "banana", "cherry", "date", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
+        WT_BINARY_SEARCH_STRING("apples", array, n, found);
+        REQUIRE(found == false);
+    }
+
+    SECTION("Full strings in array and search for prefix")
+    {
+        const char *array[] = {"apples", "bananas", "cherries", "dates", "elderberries"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
+        WT_BINARY_SEARCH_STRING("apple", array, n, found);
+        REQUIRE(found == false);
+    }
+
+    SECTION("Empty string")
+    {
+        const char *array[] = {"apple", "banana", "cherry", "date", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
+        WT_BINARY_SEARCH_STRING("", array, n, found);
+        REQUIRE(found == false);
+    }
+
+    SECTION("Empty string in array with empty string")
+    {
+        /* Empty strings will be considered lexically smaller than any non-empty string. */
+        const char *array[] = {"", "apple", "banana", "cherry", "date", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
+        WT_BINARY_SEARCH_STRING("", array, n, found);
+        REQUIRE(found == true);
+    }
+
+    SECTION("Empty string in array")
+    {
+        /* Empty strings will be considered lexically smaller than any non-empty string. */
+        const char *array[] = {"", "apple", "banana", "cherry", "date", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
+        WT_BINARY_SEARCH_STRING("apples", array, n, found);
+        REQUIRE(found == false);
+    }
+
+    SECTION("Empty string in array with only empty strings")
+    {
+        const char *array[] = {"", "", "", "", ""};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
+        WT_BINARY_SEARCH_STRING("", array, n, found);
+        REQUIRE(found == true);
+    }
 }
