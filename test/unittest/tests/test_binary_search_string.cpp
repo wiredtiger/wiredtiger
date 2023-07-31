@@ -16,23 +16,23 @@ TEST_CASE("Binary Search String: WT_BINARY_SEARCH_STRING", "[search]")
 
     SECTION("Key exists in the array")
     {
-        const char* array[] = {"apple", "banana", "cherry", "date", "elderberry"};
-        const uint32_t n = sizeof(array)/sizeof(array[0]);
-        
+        const char *array[] = {"apple", "banana", "cherry", "date", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
         WT_BINARY_SEARCH_STRING("banana", array, n, found);
         REQUIRE(found == true);
-        
+
         WT_BINARY_SEARCH_STRING("elderberry", array, n, found);
         REQUIRE(found == true);
-        
+
         WT_BINARY_SEARCH_STRING("apple", array, n, found);
         REQUIRE(found == true);
     }
 
     SECTION("Key does not exist in the array")
     {
-        const char* array[] = {"apple", "banana", "cherry", "date", "elderberry"};
-        const uint32_t n = sizeof(array)/sizeof(array[0]);
+        const char *array[] = {"apple", "banana", "cherry", "date", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
 
         WT_BINARY_SEARCH_STRING("grape", array, n, found);
         REQUIRE(found == false);
@@ -46,8 +46,8 @@ TEST_CASE("Binary Search String: WT_BINARY_SEARCH_STRING", "[search]")
 
     SECTION("Empty array")
     {
-        const char* array[] = {};
-        const uint32_t n = sizeof(array)/sizeof(array[0]);
+        const char *array[] = {};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
 
         WT_BINARY_SEARCH_STRING("apple", array, n, found);
         REQUIRE(found == false);
@@ -61,8 +61,8 @@ TEST_CASE("Binary Search String: WT_BINARY_SEARCH_STRING", "[search]")
 
     SECTION("Single element array")
     {
-        const char* array[] = {"apple"};
-        const uint32_t n = sizeof(array)/sizeof(array[0]);
+        const char *array[] = {"apple"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
 
         WT_BINARY_SEARCH_STRING("apple", array, n, found);
         REQUIRE(found == true);
@@ -73,24 +73,25 @@ TEST_CASE("Binary Search String: WT_BINARY_SEARCH_STRING", "[search]")
 
     SECTION("Array with duplicate elements")
     {
-        const char* array[] = {"apple", "banana", "banana", "cherry", "date", "elderberry", "elderberry"};
-        const uint32_t n = sizeof(array)/sizeof(array[0]);
+        const char *array[] = {
+          "apple", "banana", "banana", "cherry", "date", "elderberry", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
 
         WT_BINARY_SEARCH_STRING("banana", array, n, found);
         REQUIRE(found == true);
 
         WT_BINARY_SEARCH_STRING("elderberry", array, n, found);
         REQUIRE(found == true);
-        
+
         WT_BINARY_SEARCH_STRING("fig", array, n, found);
         REQUIRE(found == false);
     }
 
     SECTION("Key exists in the array and is the first or last element")
     {
-        const char* array[] = {"apple", "banana", "cherry", "date", "elderberry"};
-        const uint32_t n = sizeof(array)/sizeof(array[0]);
-        
+        const char *array[] = {"apple", "banana", "cherry", "date", "elderberry"};
+        const uint32_t n = sizeof(array) / sizeof(array[0]);
+
         WT_BINARY_SEARCH_STRING("apple", array, n, found);
         REQUIRE(found == true);
 
