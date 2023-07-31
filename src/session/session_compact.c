@@ -336,11 +336,24 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
     /* Trigger the background server thread and toggle connection statistic. */
     if ((ret = __wt_config_gets(session, &cfg[1], "background", &cval) == 0)) {
-        /* TODO: Check background compaction server running status and trigger the mutex. */
+        if (uri != NULL) {
+            __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
+              "Background compaction does not work on specific URIs.");
+            goto err;
+        }
+
         if (cval.val) {
-            WT_STAT_CONN_SET(session, session_background_compact_running, 1);
-        } else
-            WT_STAT_CONN_SET(session, session_background_compact_running, 0);
+            /* TODO: Check background compaction server running status and trigger the mutex. */
+        } else {
+            if (__wt_config_gets(session, &cfg[1], "timeout", &cval) == 0 ||
+              __wt_config_gets(session, &cfg[1], "free_space_target", &cval) == 0) {
+                __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
+                  "Other compaction configurations cannot be set when disabling the background "
+                  "compaction server.");
+                goto err;
+            }
+            /* TODO: Check background compaction server running status and turn it off. */
+        }
         return (0);
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
