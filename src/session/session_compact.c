@@ -336,7 +336,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
     /* Trigger the background server thread and toggle connection statistic. */
     if ((ret = __wt_config_gets(session, &cfg[1], "background", &cval) == 0)) {
-        // TODO: Check background compaction server running status and trigger the mutex.
+        /* TODO: Check background compaction server running status and trigger the mutex. */
         if (cval.val) {
             WT_STAT_CONN_SET(session, session_background_compact_running, 1);
         } else
@@ -390,6 +390,10 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     /* Setup the session handle's compaction state structure. */
     memset(&compact, 0, sizeof(WT_COMPACT_STATE));
     session->compact = &compact;
+
+    /* Configure the minimum amount of space recoverable. */
+    WT_ERR(__wt_config_gets(session, cfg, "free_space_target", &cval));
+    session->compact->free_space_target = (uint64_t)cval.val;
 
     /* Compaction can be time-limited. */
     WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
