@@ -561,13 +561,13 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     pinned_objects = NULL;
     cnt = 0;
 
-    if (chunkcache->type == WT_CHUNKCACHE_UNCONFIGURED)
-        WT_RET_MSG(
-          session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
-
     /* When reconfiguring, check if there are any modifications that we care about. */
     if ((ret = __wt_config_gets(session, cfg + 1, "chunk_cache", &cval)) == WT_NOTFOUND)
         return (0);
+
+    if (chunkcache->type == WT_CHUNKCACHE_UNCONFIGURED)
+        WT_RET_MSG(
+          session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
 
     WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
 
