@@ -363,10 +363,12 @@ __config_get_sorted_pinned_objects(WT_SESSION_IMPL *session, const char *cfg[],
 
 err:
     __wt_scr_free(session, &tmp);
-    if (ret != 0)
+    if (ret != 0 && ret != WT_NOTFOUND) {
         __chunkcache_arr_free(session, &pinned_objects);
+        return (ret);
+    }
 
-    return (ret);
+    return (0);
 }
 
 /*
