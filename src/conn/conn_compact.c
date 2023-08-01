@@ -46,31 +46,28 @@ __compact_server(void *arg)
     for (;;) {
 
         /* When the entire metadata file has been parsed, take a break. */
-        if (full_iteration) {
+        if (full_iteration || !conn->background_compact.running) {
             full_iteration = false;
-            /*
-             * TODO: We may have processed just a few files, might as well sleep to give the system
-             * a break.
-             */
-            __wt_sleep(10, 0);
-        }
-
-        /* Only an explicit call to the compact API should signal the thread to wake up. */
-        if (!conn->background_compact.running) {
             /*
              * TODO: Depending on the previous state, we may not want to clear out the last key
              * used. This could be useful if the server was paused to be resumed later.
              */
             key = NULL;
-            __wt_cond_wait(session, conn->background_compact.cond, 0, NULL);
+            /* Wait until signalled but check every 10 seconds in case the signal was missed. */
+            __wt_cond_wait(
+              session, conn->background_compact.cond, 10 * WT_MILLION, __compact_server_run_chk);
         }
 
-        /*
-         * Now the server has been requested to run, check if it is supposed to, we could be
-         * quitting or reconfiguring the connection too.
-         */
+        /* Check if we're quitting or being reconfigured. */
         if (!__compact_server_run_chk(session))
             break;
+
+        /*
+         * This check is necessary as we may have timed out while waiting on the mutex to be
+         * signalled.
+         */
+        if (!conn->background_compact.running)
+            continue;
 
         /* Open a metadata cursor. */
         WT_ERR(__wt_metadata_cursor(session, &cursor));
