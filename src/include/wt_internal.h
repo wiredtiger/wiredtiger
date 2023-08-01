@@ -307,6 +307,8 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
+struct __wt_pinned_list;
+typedef struct __wt_pinned_list WT_PINNED_LIST;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
 struct __wt_rec_chunk;
