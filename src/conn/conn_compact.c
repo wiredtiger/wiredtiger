@@ -48,10 +48,6 @@ __compact_server(void *arg)
 
     for (;;) {
 
-        __wt_spin_lock(session, &conn->background_compact.lock);
-        running = conn->background_compact.running;
-        __wt_spin_unlock(session, &conn->background_compact.lock);
-
         /* When the entire metadata file has been parsed, take a break or wait until signalled. */
         if (full_iteration || !running) {
 
