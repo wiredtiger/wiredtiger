@@ -127,8 +127,8 @@ __compact_server(void *arg)
         /* Compact the file with the latest configuration. */
         __wt_free(session, config);
         __wt_spin_lock(session, &conn->background_compact.lock);
-        WT_ERR(__wt_strndup(session, conn->background_compact.cfg,
-          conn->background_compact.cfg == NULL ? 0 : strlen(conn->background_compact.cfg),
+        WT_ERR(__wt_strndup(session, conn->background_compact.config,
+          conn->background_compact.config == NULL ? 0 : strlen(conn->background_compact.config),
           &config));
         __wt_spin_unlock(session, &conn->background_compact.lock);
 
@@ -150,6 +150,7 @@ __compact_server(void *arg)
 
     WT_ERR(__wt_metadata_cursor_close(session));
     __wt_free(session, config);
+    __wt_free(session, conn->background_compact.config);
 
     if (0) {
 err:
@@ -226,7 +227,7 @@ __wt_compact_server_destroy(WT_SESSION_IMPL *session)
  *     a previous signal yet.
  */
 int
-__wt_compact_signal(WT_SESSION_IMPL *session)
+__wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
     bool running;
@@ -240,6 +241,9 @@ __wt_compact_signal(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &conn->background_compact.lock);
     running = conn->background_compact.running;
     conn->background_compact.running = !running;
+    __wt_free(session, conn->background_compact.config);
+    WT_RET(__wt_strndup(
+      session, config, config == NULL ? 0 : strlen(config), &conn->background_compact.config));
     conn->background_compact.signalled = true;
     __wt_spin_unlock(session, &conn->background_compact.lock);
 
