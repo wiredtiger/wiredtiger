@@ -563,8 +563,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         if (!__wt_absolute_path(chunkcache->dev_path))
             WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
 
-        WT_RET(__wt_open(session, chunkcache->dev_path, WT_FS_OPEN_FILE_TYPE_REGULAR,
-          WT_FS_OPEN_CREATE, &chunkcache->fh));
+        WT_RET(__wt_open(session, chunkcache->dev_path, WT_FS_OPEN_FILE_TYPE_DATA,
+          WT_FS_OPEN_CREATE | WT_FS_OPEN_FORCE_MMAP, &chunkcache->fh));
 
         WT_RET(chunkcache->fh->handle->fh_truncate(
           chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));

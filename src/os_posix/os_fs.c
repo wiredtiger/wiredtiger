@@ -857,7 +857,7 @@ directory_open:
     file_handle = (WT_FILE_HANDLE *)pfh;
     WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
-    if (conn->mmap_all) {
+    if (conn->mmap_all || LF_ISSET(WT_FS_OPEN_FORCE_MMAP)) {
         /*
          * We are going to use mmap for I/O. So let's mmap the file on opening. If mmap fails, we
          * will just mark the file as not mappable (inside the mapping function) and will use system

@@ -4624,14 +4624,15 @@ typedef enum {
 #define WT_FS_DURABLE       0x0
 #else
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_FS_OPEN_ACCESS_RAND  0x01u
-#define WT_FS_OPEN_ACCESS_SEQ   0x02u
-#define WT_FS_OPEN_CREATE   0x04u
-#define WT_FS_OPEN_DIRECTIO 0x08u
-#define WT_FS_OPEN_DURABLE  0x10u
-#define WT_FS_OPEN_EXCLUSIVE    0x20u
-#define WT_FS_OPEN_FIXED    0x40u   /* Path not home relative (internal) */
-#define WT_FS_OPEN_READONLY 0x80u
+#define WT_FS_OPEN_ACCESS_RAND  0x001u
+#define WT_FS_OPEN_ACCESS_SEQ   0x002u
+#define WT_FS_OPEN_CREATE   0x004u
+#define WT_FS_OPEN_DIRECTIO 0x008u
+#define WT_FS_OPEN_DURABLE  0x010u
+#define WT_FS_OPEN_EXCLUSIVE    0x020u
+#define WT_FS_OPEN_FIXED    0x040u   /* Path not home relative (internal) */
+#define WT_FS_OPEN_FORCE_MMAP 0x080u
+#define WT_FS_OPEN_READONLY 0x100u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
