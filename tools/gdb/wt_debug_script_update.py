@@ -158,7 +158,6 @@ def dump_int_page(int_page):
     pindex = int_page['u']['intl']['__index'].dereference()
     dbg('pindex', pindex)
     num_entries = int(pindex['entries'])
-    #dbg('rp-pre-index', rpindex['index'].dereference().dereference())
     for i in range(0, num_entries):
         if not pindex['index'][i].dereference()['page']:
             continue
@@ -166,6 +165,8 @@ def dump_int_page(int_page):
         dbg('page', page)
         page_type = page['type']
         dbg('page type', page_type)
+        # The page types WT_PAGE_COL_INT and WT_PAGE_ROW_INT are set for
+        # internal pages of the tree. These values are defined in btmem.h
         if page_type == 3 or page_type == 6:
             dump_int_page(page)
         else:
