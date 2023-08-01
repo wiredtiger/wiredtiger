@@ -122,11 +122,14 @@ __compact_server(void *arg)
         WT_ERR(__wt_metadata_cursor_release(session, &cursor));
 
         /* Compact the file with the latest configuration. */
+        __wt_free(session, config);
         __wt_spin_lock(session, &conn->background_compact.cfg_lock);
-        WT_ERR(__wt_strndup(
-          session, conn->background_compact.cfg, strlen(conn->background_compact.cfg), &config));
+        WT_ERR(__wt_strndup(session, conn->background_compact.cfg,
+          conn->background_compact.cfg == NULL ? 0 : strlen(conn->background_compact.cfg),
+          &config));
         __wt_spin_unlock(session, &conn->background_compact.cfg_lock);
         ret = wt_session->compact(wt_session, key, config);
+
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
          * Compact may return:
