@@ -31,7 +31,7 @@ __compact_server(void *arg)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     int exact;
-    const char *config, *key;
+    const char *config, *key, *prefix;
     bool full_iteration;
 
     session = arg;
@@ -39,7 +39,8 @@ __compact_server(void *arg)
     wt_session = (WT_SESSION *)session;
     cursor = NULL;
     config = NULL;
-    key = NULL;
+    prefix = "file:";
+    key = prefix;
     exact = 0;
     full_iteration = false;
 
@@ -52,7 +53,7 @@ __compact_server(void *arg)
              * TODO: Depending on the previous state, we may not want to clear out the last key
              * used. This could be useful if the server was paused to be resumed later.
              */
-            key = NULL;
+            key = prefix;
             /* Wait until signalled but check every 10 seconds in case the signal was missed. */
             __wt_cond_wait(
               session, conn->background_compact.cond, 10 * WT_MILLION, __compact_server_run_chk);
@@ -72,36 +73,36 @@ __compact_server(void *arg)
         /* Open a metadata cursor. */
         WT_ERR(__wt_metadata_cursor(session, &cursor));
 
-        /*
-         * If we are in the middle of an iteration, position the cursor on the previously selected
-         * key.
-         */
-        if (key != NULL) {
-            cursor->set_key(cursor, key);
-            WT_ERR(cursor->search_near(cursor, &exact));
-        }
+        cursor->set_key(cursor, key);
+        WT_ERR(cursor->search_near(cursor, &exact));
 
-        /*
-         * If no key has been set yet, move to the first record. If the previously used key could
-         * not be found, make sure not to go backwards.
-         */
-        if (key == NULL || exact <= 0)
+        /* Make sure not to go backwards. */
+        if (exact <= 0)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
 
         /* Find a table to compact. */
         while (ret == 0) {
             WT_ERR(cursor->get_key(cursor, &key));
-            if (WT_PREFIX_MATCH(key, "file:") && !WT_STREQ(key, WT_HS_URI))
-                /* FIXME-WT-11343: check if the table is supposed to be compacted. */
+            /* Check we are still dealing with keys which have the right prefix. */
+            if (WT_PREFIX_MATCH(key, prefix)) {
+                /* There are files that should not be compacted. */
+                if (!WT_STREQ(key, WT_HS_URI))
+                    /* FIXME-WT-11343: check if the table is supposed to be compacted. */
+                    break;
+            } else {
+                ret = WT_NOTFOUND;
                 break;
+            }
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         }
 
-        /* We may have reached the end of the file. */
+        /*
+         * All the keys with the specified prefix have been parsed or this could be the end of the
+         * file.
+         */
         if (ret == WT_NOTFOUND) {
             WT_ERR(__wt_metadata_cursor_release(session, &cursor));
             full_iteration = true;
-            key = NULL;
             continue;
         }
 
@@ -128,7 +129,6 @@ __compact_server(void *arg)
 
     WT_ERR(__wt_metadata_cursor_close(session));
     __wt_free(session, config);
-    __wt_free(session, key);
 
     if (0) {
 err:
