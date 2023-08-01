@@ -250,6 +250,27 @@ __chunkcache_eviction_thread(void *arg)
 }
 
 /*
+ * __chunkcache_content_mgmt_thread --
+ *     The purpose of this thread is to handle updates to the lists of pinned tables. When a change
+ *     to these lists occurs, the content management thread is notified and performs the necessary
+ *     tasks.
+ */
+static WT_THREAD_RET
+__chunkcache_content_mgmt_thread(void *arg)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)arg;
+    chunkcache = &S2C(session)->chunkcache;
+
+    WT_UNUSED(session);
+    WT_UNUSED(chunkcache);
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
  * __chunkcache_str_cmp --
  *     Qsort function: sort string array.
  */
@@ -593,7 +614,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     unsigned int cnt, i;
-    wt_thread_t evict_thread_tid;
+    wt_thread_t content_mgmt_thread_tid, evict_thread_tid;
     char **pinned_objects;
 
     chunkcache = &S2C(session)->chunkcache;
@@ -670,6 +691,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_thread_create(
       session, &evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
+    WT_ERR(__wt_thread_create(
+      session, &content_mgmt_thread_tid, __chunkcache_content_mgmt_thread, (void *)session));
 
     chunkcache->configured = true;
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
