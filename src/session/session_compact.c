@@ -220,10 +220,10 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
       WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL};
 
     /* TODO: Should we check here as well if the background compaction thread is supposed to run? */
-    /*
+#if 0
     if (F_ISSET(session, WT_SESSION_INTERNAL) && !S2C(session)->background_compact.running) {
     }
-    */
+#endif
 
     /* Checkpoints take a lot of time, check if we've run out. */
     WT_RET(__wt_session_compact_check_timeout(session));

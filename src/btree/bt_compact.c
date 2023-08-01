@@ -369,16 +369,16 @@ __wt_compact(WT_SESSION_IMPL *session)
         if (first || ++i > 100) {
             if (!first)
                 bm->compact_progress(bm, session, &msg_count);
-            /*
-             * TODO: Here is a right time to check if the background compaction thread is still
-             * supposed to run. Add a stat to indicate compaction has been interrupted. Need to set
-             * a specific error code.
-             */
-            /*
+                /*
+                 * TODO: Here is a right time to check if the background compaction thread is still
+                 * supposed to run. Add a stat to indicate compaction has been interrupted. Need to
+                 * set a specific error code.
+                 */
+#if 0
             if (F_ISSET(session, WT_SESSION_INTERNAL) && !conn->background_compact.running) {
                 goto err;
             }
-            */
+#endif
 
             WT_ERR(__wt_session_compact_check_timeout(session));
             if (session->event_handler->handle_general != NULL) {
