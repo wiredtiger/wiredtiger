@@ -241,6 +241,11 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (conn->background_compact.signalled)
         return (EBUSY);
 
+    /*
+     * FIXME-WT-11334: Using the config argument, check whether the background compaction server is
+     * already enabled/disabled and update the parameters accordingly.
+     */
+
     __wt_spin_lock(session, &conn->background_compact.lock);
     running = conn->background_compact.running;
     conn->background_compact.running = !running;
