@@ -57,8 +57,8 @@ __compact_server(void *arg)
 
             full_iteration = false;
             /*
-             * TODO: Depending on the previous state, we may not want to clear out the last key
-             * used. This could be useful if the server was paused to be resumed later.
+             * FIXME-WT-11409: Depending on the previous state, we may not want to clear out the
+             * last key used. This could be useful if the server was paused to be resumed later.
              */
             key = prefix;
             /* Check every 10 seconds in case the signal was missed. */
