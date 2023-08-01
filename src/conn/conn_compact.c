@@ -32,7 +32,7 @@ __compact_server(void *arg)
     WT_SESSION_IMPL *session;
     int exact;
     const char *config, *key, *prefix;
-    bool compact_running, full_iteration;
+    bool full_iteration;
 
     session = arg;
     conn = S2C(session);
@@ -42,19 +42,14 @@ __compact_server(void *arg)
     prefix = "file:";
     key = prefix;
     exact = 0;
-    compact_running = full_iteration = false;
+    full_iteration = false;
 
     WT_STAT_CONN_SET(session, session_background_compact_running, 0);
 
     for (;;) {
 
-        if (compact_running != conn->background_compact.running) {
-            compact_running = !compact_running;
-            WT_STAT_CONN_SET(session, session_background_compact_running, compact_running);
-        }
-
         /* When the entire metadata file has been parsed, take a break or wait until signalled. */
-        if (full_iteration || !compact_running) {
+        if (full_iteration || !conn->background_compact.running) {
 
             full_iteration = false;
             /*
@@ -71,16 +66,18 @@ __compact_server(void *arg)
         if (!__compact_server_run_chk(session))
             break;
 
+        if (conn->background_compact.signalled) {
+            conn->background_compact.signalled = false;
+            WT_STAT_CONN_SET(
+              session, session_background_compact_running, conn->background_compact.running);
+        }
+
         /*
          * This check is necessary as we may have timed out while waiting on the mutex to be
-         * signalled.
+         * signalled and compaction is not supposed to be executed.
          */
         if (!conn->background_compact.running)
             continue;
-        else if (!compact_running) {
-            compact_running = true;
-            WT_STAT_CONN_SET(session, session_background_compact_running, 1);
-        }
 
         /* Open a metadata cursor. */
         WT_ERR(__wt_metadata_cursor(session, &cursor));
@@ -200,6 +197,7 @@ __wt_compact_server_destroy(WT_SESSION_IMPL *session)
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_COMPACT);
     if (conn->background_compact.tid_set) {
+        conn->background_compact.running = false;
         __wt_cond_signal(session, conn->background_compact.cond);
         WT_TRET(__wt_thread_join(session, &conn->background_compact.tid));
         conn->background_compact.tid_set = false;
@@ -213,4 +211,30 @@ __wt_compact_server_destroy(WT_SESSION_IMPL *session)
     }
 
     return (ret);
+}
+
+/*
+ * __wt_compact_signal --
+ *     Signal the compact thread. Return EBUSY if the background compaction server has not processed
+ *     a previous signal yet.
+ */
+int
+__wt_compact_signal(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    bool running;
+
+    conn = S2C(session);
+
+    /* Wait for any previous signal to be processed first. */
+    if (conn->background_compact.signalled)
+        return (EBUSY);
+
+    running = conn->background_compact.running;
+    conn->background_compact.running = !running;
+    conn->background_compact.signalled = true;
+
+    __wt_cond_signal(session, conn->background_compact.cond);
+
+    return (0);
 }

@@ -52,6 +52,7 @@ struct __wt_background_compact {
     WT_CONDVAR *cond;         /* Wait mutex */
     wt_thread_t tid;          /* Thread */
     volatile bool running;    /* Compaction supposed to run */
+    bool signalled;           /* Compact signalled */
     bool tid_set;             /* Thread set */
     const char *cfg;          /* Configuration */
 };
