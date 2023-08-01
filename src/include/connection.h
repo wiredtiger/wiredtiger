@@ -47,11 +47,11 @@ extern WT_PROCESS __wt_process;
  *	Structure dedicated to the background compaction server
  */
 struct __wt_background_compact {
-    WT_SPINLOCK cfg_lock;     /* Configuration lock */
+    WT_SPINLOCK lock;         /* Compact lock */
     WT_SESSION_IMPL *session; /* Thread session */
     WT_CONDVAR *cond;         /* Wait mutex */
     wt_thread_t tid;          /* Thread */
-    volatile bool running;    /* Compaction supposed to run */
+    bool running;             /* Compaction supposed to run */
     bool signalled;           /* Compact signalled */
     bool tid_set;             /* Thread set */
     const char *cfg;          /* Configuration */

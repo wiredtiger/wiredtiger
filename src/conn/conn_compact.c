@@ -32,7 +32,7 @@ __compact_server(void *arg)
     WT_SESSION_IMPL *session;
     int exact;
     const char *config, *key, *prefix;
-    bool full_iteration;
+    bool full_iteration, running, signalled;
 
     session = arg;
     conn = S2C(session);
@@ -42,14 +42,18 @@ __compact_server(void *arg)
     prefix = "file:";
     key = prefix;
     exact = 0;
-    full_iteration = false;
+    full_iteration = running = signalled = false;
 
     WT_STAT_CONN_SET(session, session_background_compact_running, 0);
 
     for (;;) {
 
+        __wt_spin_lock(session, &conn->background_compact.lock);
+        running = conn->background_compact.running;
+        __wt_spin_unlock(session, &conn->background_compact.lock);
+
         /* When the entire metadata file has been parsed, take a break or wait until signalled. */
-        if (full_iteration || !conn->background_compact.running) {
+        if (full_iteration || !running) {
 
             full_iteration = false;
             /*
@@ -66,17 +70,19 @@ __compact_server(void *arg)
         if (!__compact_server_run_chk(session))
             break;
 
+        __wt_spin_lock(session, &conn->background_compact.lock);
+        running = conn->background_compact.running;
         if (conn->background_compact.signalled) {
             conn->background_compact.signalled = false;
-            WT_STAT_CONN_SET(
-              session, session_background_compact_running, conn->background_compact.running);
+            WT_STAT_CONN_SET(session, session_background_compact_running, running);
         }
+        __wt_spin_unlock(session, &conn->background_compact.lock);
 
         /*
          * This check is necessary as we may have timed out while waiting on the mutex to be
          * signalled and compaction is not supposed to be executed.
          */
-        if (!conn->background_compact.running)
+        if (!running)
             continue;
 
         /* Open a metadata cursor. */
@@ -120,11 +126,12 @@ __compact_server(void *arg)
 
         /* Compact the file with the latest configuration. */
         __wt_free(session, config);
-        __wt_spin_lock(session, &conn->background_compact.cfg_lock);
+        __wt_spin_lock(session, &conn->background_compact.lock);
         WT_ERR(__wt_strndup(session, conn->background_compact.cfg,
           conn->background_compact.cfg == NULL ? 0 : strlen(conn->background_compact.cfg),
           &config));
-        __wt_spin_unlock(session, &conn->background_compact.cfg_lock);
+        __wt_spin_unlock(session, &conn->background_compact.lock);
+
         ret = wt_session->compact(wt_session, key, config);
 
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
@@ -230,9 +237,11 @@ __wt_compact_signal(WT_SESSION_IMPL *session)
     if (conn->background_compact.signalled)
         return (EBUSY);
 
+    __wt_spin_lock(session, &conn->background_compact.lock);
     running = conn->background_compact.running;
     conn->background_compact.running = !running;
     conn->background_compact.signalled = true;
+    __wt_spin_unlock(session, &conn->background_compact.lock);
 
     __wt_cond_signal(session, conn->background_compact.cond);
 
