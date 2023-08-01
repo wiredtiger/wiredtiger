@@ -545,11 +545,41 @@ __wt_chunkcache_remove(
 }
 
 /*
+ * __wt_chunkcache_reconfig --
+ *     Re-configure the chunk cache.
+ */
+int
+__wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    char **pinned_objects;
+    unsigned int cnt;
+
+    chunkcache = &S2C(session)->chunkcache;
+    pinned_objects = NULL;
+    cnt = 0;
+
+    if (chunkcache->type == WT_CHUNKCACHE_UNCONFIGURED)
+        WT_RET_MSG(
+          session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
+
+    /* When reconfiguring, check if there are any modifications that we care about. */
+    if ((ret = __wt_config_gets(session, cfg + 1, "chunk_cache", &cval)) == WT_NOTFOUND)
+        return (0);
+
+    WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
+
+    return (0);
+}
+
+/*
  * __wt_chunkcache_setup --
  *     Set up the chunk cache.
  */
 int
-__wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CHUNKCACHE *chunkcache;
     WT_CONFIG_ITEM cval;
@@ -561,10 +591,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     pinned_objects = NULL;
     cnt = 0;
 
-    if (chunkcache->type != WT_CHUNKCACHE_UNCONFIGURED && !reconfig)
+    if (chunkcache->type != WT_CHUNKCACHE_UNCONFIGURED)
         WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
-    if (reconfig)
-        WT_RET_MSG(session, EINVAL, "reconfiguration of chunk cache not supported");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.enabled", &cval));
     if (cval.val == 0)
