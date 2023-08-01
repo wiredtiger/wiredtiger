@@ -32,7 +32,7 @@ __compact_server(void *arg)
     WT_SESSION_IMPL *session;
     int exact;
     const char *config, *key, *prefix;
-    bool full_iteration;
+    bool compact_running, full_iteration;
 
     session = arg;
     conn = S2C(session);
@@ -42,19 +42,27 @@ __compact_server(void *arg)
     prefix = "file:";
     key = prefix;
     exact = 0;
-    full_iteration = false;
+    compact_running = full_iteration = false;
+
+    WT_STAT_CONN_SET(session, session_background_compact_running, 0);
 
     for (;;) {
 
-        /* When the entire metadata file has been parsed, take a break. */
-        if (full_iteration || !conn->background_compact.running) {
+        if (compact_running != conn->background_compact.running) {
+            compact_running = !compact_running;
+            WT_STAT_CONN_SET(session, session_background_compact_running, compact_running);
+        }
+
+        /* When the entire metadata file has been parsed, take a break or wait until signalled. */
+        if (full_iteration || !compact_running) {
+
             full_iteration = false;
             /*
              * TODO: Depending on the previous state, we may not want to clear out the last key
              * used. This could be useful if the server was paused to be resumed later.
              */
             key = prefix;
-            /* Wait until signalled but check every 10 seconds in case the signal was missed. */
+            /* Check every 10 seconds in case the signal was missed. */
             __wt_cond_wait(
               session, conn->background_compact.cond, 10 * WT_MILLION, __compact_server_run_chk);
         }
@@ -69,6 +77,10 @@ __compact_server(void *arg)
          */
         if (!conn->background_compact.running)
             continue;
+        else if (!compact_running) {
+            compact_running = true;
+            WT_STAT_CONN_SET(session, session_background_compact_running, 1);
+        }
 
         /* Open a metadata cursor. */
         WT_ERR(__wt_metadata_cursor(session, &cursor));
@@ -126,6 +138,8 @@ __compact_server(void *arg)
             ret = 0;
         WT_ERR(ret);
     }
+
+    WT_STAT_CONN_SET(session, session_background_compact_running, 0);
 
     WT_ERR(__wt_metadata_cursor_close(session));
     __wt_free(session, config);
