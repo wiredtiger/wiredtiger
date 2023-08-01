@@ -233,11 +233,11 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     /*
-     * On ARM64 we need to order the read of the connection generation before the read of the
-     * session generation. If the session generation read is ordered before the connection
-     * generation read it could read an earlier session generation value. This would then violate
-     * the acquisition semantics and could result in us reading 0 for the session generation when it
-     * is non-zero.
+     * On platforms with weaker memory models we need to order the read of the connection generation
+     * before the read of the session generation. If the session generation read is ordered before
+     * the connection generation read it could read an earlier session generation value. This would
+     * then violate the acquisition semantics and could result in us reading 0 for the session
+     * generation when it is non-zero.
      */
     WT_ORDERED_READ(oldest, conn->generations[which]);
     for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
