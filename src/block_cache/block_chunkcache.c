@@ -516,6 +516,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     wt_thread_t evict_thread_tid;
     char **pinned_objects;
     size_t mapped_size;
+    WT_FILE_HANDLE_POSIX *handle;
 
     chunkcache = &S2C(session)->chunkcache;
     pinned_objects = NULL;
@@ -570,8 +571,13 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
           chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
 
         /* Allocate memory for the chunk cache for type file system. */
-        WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
-          (void **)&chunkcache->memory, &mapped_size, NULL));
+        /* WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface, */
+        /*   (void **)&chunkcache->memory, &mapped_size, NULL)); */
+        handle = (WT_FILE_HANDLE_POSIX *)chunkcache->fh->handle;
+        mapped_size = chunkcache->capacity;
+        chunkcache->memory = mmap(NULL, chunkcache->capacity, PROT_READ | PROT_WRITE, MAP_SHARED, handle->fd, 0);
+        if (chunkcache->memory == MAP_FAILED)
+            WT_RET(-420);
         WT_ASSERT_ALWAYS(session, mapped_size == chunkcache->capacity,
           "Mapped size does not equal capacity of chunkcache");
 
