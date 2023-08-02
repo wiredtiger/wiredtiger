@@ -324,12 +324,12 @@ restart_read:
          * and the cell is cacheable (it might not be if it's not globally visible), reuse the
          * previous return data to avoid repeatedly decoding items.
          */
-        cbt->valid_data = true;
         if (cbt->cip_saved == cip && F_ISSET(cbt, WT_CBT_CACHEABLE_RLE_CELL)) {
             F_CLR(&cbt->iface, WT_CURSTD_VALUE_EXT);
             F_SET(&cbt->iface, WT_CURSTD_VALUE_INT);
             cbt->iface.value.data = cbt->tmp->data;
             cbt->iface.value.size = cbt->tmp->size;
+            cbt->valid_data = true;
             return (0);
         }
 
@@ -381,9 +381,26 @@ restart_read:
         }
 
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    ++cbt->page_obsolete_deleted_count;
+                /*
+                 * If the selected tombstone is not first in the update list indicates that there
+                 * are newer updates in the list that is either not committed or not visible.
+                 */
+                else if (!cbt->valid_data && cbt->ins && cbt->ins->upd &&
+                  (cbt->upd_value->type != cbt->ins->upd->type ||
+                    cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
+                    cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
+                    cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid))
+                    cbt->valid_data = true;
+            } else
+                cbt->valid_data = true;
             ++*skippedp;
             continue;
         }
+
+        cbt->valid_data = true;
         __wt_value_return(cbt, cbt->upd_value);
 
         /*
