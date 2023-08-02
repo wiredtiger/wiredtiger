@@ -221,12 +221,13 @@ __wt_compact_server_destroy(WT_SESSION_IMPL *session)
 
 /*
  * __wt_compact_signal --
- *     Signal the compact thread. Return EBUSY if the background compaction server has not processed
- *     a previous signal yet.
+ *     Signal the compact thread. Return an error if the background compaction server has not
+ * processed a previous signal yet or because of an invalid configuration.
  */
 int
 __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     bool running;
@@ -237,17 +238,26 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (conn->background_compact.signalled)
         return (EBUSY);
 
-    /*
-     * FIXME-WT-11334: Using the config argument, check whether the background compaction server is
-     * already enabled/disabled and update the parameters accordingly.
-     */
-
     __wt_spin_lock(session, &conn->background_compact.lock);
     running = conn->background_compact.running;
+
+    WT_ERR(__wt_config_getones(session, config, "background", &cval));
+    if ((bool)cval.val == running) {
+        /*
+         * This is an error as we are already in the same state and reconfiguration is not allowed.
+         */
+        __wt_verbose_warning(session, WT_VERB_COMPACT, "Background compaction is already %s.",
+          running ? "enabled" : "disabled");
+        ret = EINVAL;
+        goto err;
+    }
     conn->background_compact.running = !running;
+
     __wt_free(session, conn->background_compact.config);
-    WT_ERR(__wt_strndup(
-      session, config, config == NULL ? 0 : strlen(config), &conn->background_compact.config));
+
+    /* Strip the background field from the configuration now it has been parsed. */
+    WT_ERR(__wt_config_merge(session, &config, "background=", &conn->background_compact.config));
+
     conn->background_compact.signalled = true;
     __wt_spin_unlock(session, &conn->background_compact.lock);
 
