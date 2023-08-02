@@ -240,10 +240,12 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     stripped_config = NULL;
 
     /* Wait for any previous signal to be processed first. */
-    if (conn->background_compact.signalled)
-        return (EBUSY);
-
     __wt_spin_lock(session, &conn->background_compact.lock);
+    if (conn->background_compact.signalled) {
+        ret = EBUSY;
+        goto err;
+    }
+
     running = conn->background_compact.running;
 
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
