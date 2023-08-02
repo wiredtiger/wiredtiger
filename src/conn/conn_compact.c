@@ -266,12 +266,10 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     conn->background_compact.config = stripped_config;
 
     conn->background_compact.signalled = true;
-    __wt_spin_unlock(session, &conn->background_compact.lock);
-
-    __wt_cond_signal(session, conn->background_compact.cond);
 
 err:
-    if (ret != 0)
-        __wt_spin_unlock(session, &conn->background_compact.lock);
+    __wt_spin_unlock(session, &conn->background_compact.lock);
+    if (ret == 0)
+        __wt_cond_signal(session, conn->background_compact.cond);
     return (ret);
 }
