@@ -45,7 +45,7 @@ alias g++='${TOOLCHAIN_ROOT}/bin/g++'
 alias gcc='${TOOLCHAIN_ROOT}/bin/gcc'
 alias python3='${TOOLCHAIN_ROOT}/bin/python3'
 alias cmake=${CMAKE}
-export LD_LIBRARY_PATH="${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/LIB:\$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib:\$LD_LIBRARY_PATH"
 EOF
 
     echo 'if [ -f ~/.profile ]; then
