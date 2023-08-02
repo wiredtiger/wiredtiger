@@ -1483,9 +1483,8 @@ __txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
     case (WT_TXN_OP_INMEM_COL):
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
-    default:
-        WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered.");
     }
+    WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered.");
 }
 
 /*
