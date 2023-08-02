@@ -20,7 +20,6 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp
     WT_SESSION_IMPL *session;
     wt_off_t file_size;
     size_t len;
-    int mmap_flags;
     void *map;
 
     WT_UNUSED(mapped_cookiep);
@@ -42,18 +41,11 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp
     WT_RET(fh->fh_size(fh, wt_session, &file_size));
     len = (size_t)file_size;
 
-    /*
-     * TODO some more words
-     */
-    mmap_flags = PROT_READ;
-    if (!session)
-        mmap_flags |= PROT_WRITE;
-
     __wt_verbose(session, WT_VERB_HANDLEOPS,
       "%s: memory-map: %" WT_SIZET_FMT " bytes, read=%s, write=%s", fh->name, len,
-      mmap_flags & PROT_READ ? "true" : "false", mmap_flags & PROT_WRITE ? "true" : "false");
+      pfh->mmap_prot & PROT_READ ? "true" : "false", pfh->mmap_prot & PROT_WRITE ? "true" : "false");
 
-    if ((map = mmap(NULL, len, mmap_flags,
+    if ((map = mmap(NULL, len, pfh->mmap_prot,
 #ifdef MAP_NOCORE
            MAP_NOCORE |
 #endif
