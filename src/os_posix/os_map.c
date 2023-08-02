@@ -43,7 +43,8 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp
 
     __wt_verbose(session, WT_VERB_HANDLEOPS,
       "%s: memory-map: %" WT_SIZET_FMT " bytes, read=%s, write=%s", fh->name, len,
-      pfh->mmap_prot & PROT_READ ? "true" : "false", pfh->mmap_prot & PROT_WRITE ? "true" : "false");
+      pfh->mmap_prot & PROT_READ ? "true" : "false",
+      pfh->mmap_prot & PROT_WRITE ? "true" : "false");
 
     if ((map = mmap(NULL, len, pfh->mmap_prot,
 #ifdef MAP_NOCORE
