@@ -80,7 +80,7 @@ retry:
 
         /* Mark the free chunk in the bitmap to in use. */
         map_byte = &chunkcache->bitmap[bit_index / 8];
-        if (!__wt_atomic_cas8(map_byte, *map_byte, *map_byte | 0x01 << (bit_index % 8)))
+        if (!__wt_atomic_cas8(map_byte, *map_byte, *map_byte | (uint8_t)(0x01 << (bit_index % 8))))
             goto retry;
 
         /* Allocate the free memory in the chunk cache. */
