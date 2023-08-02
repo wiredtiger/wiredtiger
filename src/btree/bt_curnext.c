@@ -192,18 +192,20 @@ restart_read:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                ++cbt->page_obsolete_deleted_count;
-            /*
-             * If the selected tombstone is not first in the update list indicates that there are
-             * newer updates in the list that is either not committed or not visible.
-             */
-            else if (!cbt->valid_data &&
-              (cbt->upd_value->type != cbt->ins->upd->type ||
-                cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
-                cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
-                cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid))
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    ++cbt->page_obsolete_deleted_count;
+                /*
+                 * If the selected tombstone is not first in the update list indicates that there
+                 * are newer updates in the list that is either not committed or not visible.
+                 */
+                else if (!cbt->valid_data &&
+                  (cbt->upd_value->type != cbt->ins->upd->type ||
+                    cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
+                    cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
+                    cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid))
+                    cbt->valid_data = true;
+            } else
                 cbt->valid_data = true;
             ++*skippedp;
             continue;
@@ -292,18 +294,21 @@ restart_read:
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                    ++cbt->page_obsolete_deleted_count;
-                /*
-                 * If the selected tombstone is not first in the update list indicates that there
-                 * are newer updates in the list that is either not committed or not visible.
-                 */
-                else if (!cbt->valid_data &&
-                  (cbt->upd_value->type != cbt->ins->upd->type ||
-                    cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
-                    cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
-                    cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid))
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                    if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                        ++cbt->page_obsolete_deleted_count;
+                    /*
+                     * If the selected tombstone is not first in the update list indicates that
+                     * there are newer updates in the list that is either not committed or not
+                     * visible.
+                     */
+                    else if (!cbt->valid_data &&
+                      (cbt->upd_value->type != cbt->ins->upd->type ||
+                        cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
+                        cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
+                        cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid))
+                        cbt->valid_data = true;
+                } else
                     cbt->valid_data = true;
                 ++*skippedp;
                 continue;
@@ -369,11 +374,14 @@ restart_read:
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
-        if (cbt->upd_value->type == WT_UPDATE_INVALID ||
-          cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+        if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
-            if (cbt->upd_value->type == WT_UPDATE_INVALID)
-                cbt->valid_data = true;
+            cbt->valid_data = true;
+            continue;
+        }
+
+        if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+            ++*skippedp;
             continue;
         }
         __wt_value_return(cbt, cbt->upd_value);
@@ -494,18 +502,21 @@ restart_read_insert:
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                    ++cbt->page_obsolete_deleted_count;
-                /*
-                 * If the selected tombstone is not first in the update list indicates that there
-                 * are newer updates in the list that is either not committed or not visible.
-                 */
-                else if (!cbt->valid_data &&
-                  (cbt->upd_value->type != cbt->ins->upd->type ||
-                    cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
-                    cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
-                    cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid))
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                    if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                        ++cbt->page_obsolete_deleted_count;
+                    /*
+                     * If the selected tombstone is not first in the update list indicates that
+                     * there are newer updates in the list that is either not committed or not
+                     * visible.
+                     */
+                    else if (!cbt->valid_data &&
+                      (cbt->upd_value->type != cbt->ins->upd->type ||
+                        cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
+                        cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
+                        cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid))
+                        cbt->valid_data = true;
+                } else
                     cbt->valid_data = true;
                 ++*skippedp;
                 continue;
@@ -564,18 +575,20 @@ restart_read_page:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                ++cbt->page_obsolete_deleted_count;
-            /*
-             * If the selected tombstone is not first in the update list indicates that there are
-             * newer updates in the list that is either not committed or not visible.
-             */
-            else if (!cbt->valid_data && first_upd != NULL &&
-              (cbt->upd_value->type != first_upd->type ||
-                cbt->upd_value->tw.durable_stop_ts != first_upd->durable_ts ||
-                cbt->upd_value->tw.stop_ts != first_upd->start_ts ||
-                cbt->upd_value->tw.stop_txn != first_upd->txnid))
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    ++cbt->page_obsolete_deleted_count;
+                /*
+                 * If the selected tombstone is not first in the update list indicates that there
+                 * are newer updates in the list that is either not committed or not visible.
+                 */
+                else if (!cbt->valid_data && first_upd != NULL &&
+                  (cbt->upd_value->type != first_upd->type ||
+                    cbt->upd_value->tw.durable_stop_ts != first_upd->durable_ts ||
+                    cbt->upd_value->tw.stop_ts != first_upd->start_ts ||
+                    cbt->upd_value->tw.stop_txn != first_upd->txnid))
+                    cbt->valid_data = true;
+            } else
                 cbt->valid_data = true;
             ++*skippedp;
             continue;
