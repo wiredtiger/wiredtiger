@@ -21,11 +21,11 @@
     (wt_off_t)(((size_t)offset / (chunkcache)->chunk_size) * (chunkcache)->chunk_size)
 
 /*
- * __bitmap_find_free --
+ * __chunkcache_bitmap_find_free --
  *     Iterate through the bitmap to find a free chunk in the cache.
  */
 static int
-__bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
+__chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
 {
     WT_CHUNKCACHE *chunkcache;
     size_t bitmap_size, bits_remainder, i, j;
@@ -34,9 +34,9 @@ __bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
     chunkcache = &S2C(session)->chunkcache;
     bitmap_size = (chunkcache->capacity / chunkcache->chunk_size) / 8;
 
-    /* Iterate through the bytes and bits of the bitmap to find free chunks */
+    /* Iterate through the bytes and bits of the bitmap to find free chunks. */
     for (i = 0; i < bitmap_size; i++) {
-        map_byte = chunkcache->bitmap[i];
+        map_byte = chunkcache->free_bitmap[i];
         if (map_byte != 0xff) {
             j = 0;
             while ((map_byte & 1) != 0) {
@@ -48,10 +48,10 @@ __bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
         }
     }
 
-    /* If the cache and bitmap size are not divisible by 8, iterate through remaining bits. */
+    /* If the number of chunks isn't divisible by 8, iterate through the remaining bits. */
     bits_remainder = (chunkcache->capacity / chunkcache->chunk_size) % 8;
     for (j = 0; j < bits_remainder; j++)
-        if ((chunkcache->bitmap[bitmap_size] & (0x01 << j)) == 0) {
+        if ((chunkcache->free_bitmap[bitmap_size] & (0x01 << j)) == 0) {
             *bit_index = ((bitmap_size * 8) + j);
             return (0);
         }
@@ -76,11 +76,11 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         WT_RET(__wt_malloc(session, chunk->chunk_size, &chunk->chunk_memory));
     else {
 retry:
-        /* Use the bitmap to find the free chunks in the cache. */
-        WT_RET(__bitmap_find_free(session, &bit_index));
+        /* Use the bitmap to find a free slot for a chunk in the cache. */
+        WT_RET(__chunkcache_bitmap_find_free(session, &bit_index));
 
-        /* Mark the free chunk in the bitmap to in use. */
-        map_byte = &chunkcache->bitmap[bit_index / 8];
+        /* Mark the free chunk in the bitmap as in use. */
+        map_byte = &chunkcache->free_bitmap[bit_index / 8];
         if (!__wt_atomic_cas8(map_byte, *map_byte, *map_byte | (uint8_t)(0x01 << (bit_index % 8))))
             goto retry;
 
@@ -197,10 +197,10 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         __wt_free(session, chunk->chunk_memory);
     else {
-        /* Update the bitmap to show free chunk, then free the memory of the chunk */
+        /* Update the bitmap, then free the chunk memory. */
         index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
         do {
-            map_byte = &chunkcache->bitmap[index / 8];
+            map_byte = &chunkcache->free_bitmap[index / 8];
         } while (!__wt_atomic_cas8(map_byte, *map_byte, *map_byte & ~(0x01 << (index % 8))));
     }
     __wt_free(session, chunk);
@@ -556,26 +556,24 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
       WT_STRING_MATCH("FILE", cval.str, cval.len)) {
 
         chunkcache->type = WT_CHUNKCACHE_FILE;
-        WT_RET(__wt_config_gets(session, cfg, "chunk_cache.device_path", &cval));
-        WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->dev_path));
-        if (!__wt_absolute_path(chunkcache->dev_path))
-            WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
+        WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
+        if (!__wt_absolute_path(chunkcache->storage_path))
+            WT_RET_MSG(session, EINVAL, "Storage location must be an absolute path");
 
-        WT_RET(__wt_open(session, chunkcache->dev_path, WT_FS_OPEN_FILE_TYPE_DATA,
+        WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,
           WT_FS_OPEN_CREATE | WT_FS_OPEN_FORCE_MMAP, &chunkcache->fh));
 
         WT_RET(chunkcache->fh->handle->fh_truncate(
           chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
 
-        /* Allocate memory for the chunk cache for type file system. */
         WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
           (void **)&chunkcache->memory, &mapped_size, NULL));
         WT_ASSERT_ALWAYS(session, mapped_size == chunkcache->capacity,
-          "Mapped size does not equal capacity of chunkcache");
+          "Storage size mapping not equal to capacity of chunk cache");
 
-        /* Allocate the memory needed for the bitmap. */
-        WT_RET(__wt_calloc(
-          session, 1, ((chunkcache->capacity / chunkcache->chunk_size) / 8), &chunkcache->bitmap));
+        WT_RET(__wt_calloc(session, 1, ((chunkcache->capacity / chunkcache->chunk_size) / 8),
+          &chunkcache->free_bitmap));
     }
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.pinned", &cval));
