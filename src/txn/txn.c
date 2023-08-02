@@ -1466,39 +1466,98 @@ err:
 }
 
 /*
+ * __txn_mod_sortable_key --
+ *     Given an operation return a boolean indicating if it has a sortable key.
+ */
+static inline bool
+__txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
+{
+    switch (opt->type) {
+    case (WT_TXN_OP_NONE):
+    case (WT_TXN_OP_REF_DELETE):
+    case (WT_TXN_OP_TRUNCATE_COL):
+    case (WT_TXN_OP_TRUNCATE_ROW):
+        return (false);
+    case (WT_TXN_OP_BASIC_COL):
+    case (WT_TXN_OP_BASIC_ROW):
+    case (WT_TXN_OP_INMEM_COL):
+    case (WT_TXN_OP_INMEM_ROW):
+        return (true);
+    default:
+        WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered.");
+    }
+}
+
+/*
  * __txn_mod_compare --
- *     Qsort comparison routine for transaction modify list.
+ *     Qsort comparison routine for transaction modify list. Takes a session as a context argument.
+ *     This allows for the use of comparators.
  */
 static int WT_CDECL
 __txn_mod_compare(const void *a, const void *b, void *context)
 {
+    WT_SESSION_IMPL *session;
     WT_TXN_OP *aopt, *bopt;
     int cmp;
+    bool a_has_sortable_key;
+    bool b_has_sortable_key;
 
     aopt = (WT_TXN_OP *)a;
     bopt = (WT_TXN_OP *)b;
-
-    /* If the files are different, order by ID. */
-    if (aopt->btree->id != bopt->btree->id)
-        return (aopt->btree->id < bopt->btree->id);
+    session = (WT_SESSION_IMPL *)context;
 
     /*
-     * If the files are the same, order by the key. Sort none operations to the right as they don't
-     * have a key. Row-store collators require WT_SESSION pointers, and we don't have one. Compare
-     * the keys if there's no collator. Column-store is always easy.
+     * We want to sort on 2 things:
+     *  - b-tree ID
+     *  - key
+     * However a number of modification types don't have a key that can be sorted on. This requires
+     * us to add an intermediate stage, so between the btree ID sort and the key sort we sort on
+     * whether the modifications have a key.
+     *
+     * We need to uphold the contract that all modifications on the same key are contiguous in the
+     * final modification array. Technically they could be separated by non key modifications
+     * but for simplicity's sake we sort them apart.
+     *
+     * Qsort comparators are expected to return -1 if the first argument is less than the second,
+     * 1 if it the second argument is less than the first and 0 if they are equal.
      */
-    if (aopt->type == WT_TXN_OP_NONE)
+
+    /* Order by b-tree ID. */
+    if (aopt->btree->id < bopt->btree->id)
+        return (-1);
+    if (bopt->btree->id < aopt->btree->id)
         return (1);
 
-    if (aopt->type == WT_TXN_OP_BASIC_ROW || aopt->type == WT_TXN_OP_INMEM_ROW) {
-        WT_ASSERT_ALWAYS(context,
+    /*
+     * Order by whether an operation has a key, we don't want to call key compare incorrectly.
+     * Especially given that u is a union and that would create undefined behavior.
+     */
+    a_has_sortable_key = __txn_mod_sortable_key(session, aopt);
+    b_has_sortable_key = __txn_mod_sortable_key(session, bopt);
+    if (a_has_sortable_key && !b_has_sortable_key)
+        return (-1);
+    if (b_has_sortable_key && !a_has_sortable_key)
+        return (1);
+    /*
+     * In the case where both arguments don't have a key they are considered to be equal, we don't
+     * care exactly how they get sorted.
+     */
+    if (!a_has_sortable_key && !b_has_sortable_key)
+        return (0);
+
+    /* Finally order by key, row store requires a call to __wt_compare. */
+    if (aopt->btree->type == BTREE_ROW) {
+        WT_ASSERT_ALWAYS(session,
           __wt_compare(
-            context, aopt->btree->collator, &aopt->u.op_row.key, &bopt->u.op_row.key, &cmp) == 0,
-          "Key comparison failed");
+            session, aopt->btree->collator, &aopt->u.op_row.key, &bopt->u.op_row.key, &cmp) == 0,
+          "Failed to sort transaction modifications during commit/rollback.");
         return (cmp);
     }
-
-    return (aopt->u.op_col.recno < bopt->u.op_col.recno);
+    if (aopt->u.op_col.recno < bopt->u.op_col.recno)
+        return (-1);
+    if (bopt->u.op_col.recno < aopt->u.op_col.recno)
+        return (1);
+    return (0);
 }
 
 /*
