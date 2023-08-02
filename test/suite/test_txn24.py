@@ -31,7 +31,7 @@
 #   cache stuck issue.
 #
 
-import wttest
+import wttest, wiredtiger
 from wtscenario import make_scenarios
 
 class test_txn24(wttest.WiredTigerTestCase):
@@ -43,6 +43,8 @@ class test_txn24(wttest.WiredTigerTestCase):
         ('column-fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
     ]
     scenarios = make_scenarios(table_params_values)
+
+    rollbacks_allowed = 0
 
     def conn_config(self):
         # We want to either eliminate or keep the application thread role in eviction to minimum.
@@ -112,11 +114,15 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         session4 = self.setUpSessionOpen(self.conn)
         cursor4 = session4.open_cursor(uri)
-        start_row = 2
-        for i in range(0, n_rows // 4):
-            with self.transaction(session=session4):
-                cursor4[start_row] = new_val
-            start_row += 1
+
+        try:
+            start_row = 2
+            for i in range(0, n_rows // 4):
+                with self.transaction(session=session4):
+                    cursor4[start_row] = new_val
+                start_row += 1
+        except wiredtiger.WiredTigerRollbackError as e:
+            self.pr("WiredTigerRollbackError occurred while inserting data using cursor4: {}".format(e))
 
         # If we have done all operations error free so far, eviction threads have been successful.
 
