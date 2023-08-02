@@ -38,12 +38,13 @@ __bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
     for (i = 0; i < bitmap_size; i++) {
         map_byte = chunkcache->bitmap[i];
         if (map_byte != 0xff) {
-            for (j = 0; j < 8; j++) {
-                if ((map_byte & (0x01 << j)) == 0) {
-                    *bit_index = ((i * 8) + j);
-                    return (0);
-                }
+            j = 0;
+            while ((map_byte & 1) != 0) {
+                j++;
+                map_byte >>= 1;
             }
+            *bit_index = ((i * 8) + j);
+            return (0);
         }
     }
 
