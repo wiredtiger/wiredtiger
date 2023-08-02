@@ -1470,7 +1470,7 @@ err:
  *     Given an operation return a boolean indicating if it has a sortable key.
  */
 static inline bool
-__txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
+__txn_mod_sortable_key(WT_TXN_OP *opt)
 {
     switch (opt->type) {
     case (WT_TXN_OP_NONE):
@@ -1484,7 +1484,7 @@ __txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
     }
-    WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered.");
+    return (-1);
 }
 
 /*
@@ -1530,8 +1530,13 @@ __txn_mod_compare(const void *a, const void *b, void *context)
      * Order by whether the given operation has a key. We don't want to call key compare incorrectly
      * especially given that u is a union which would create undefined behavior.
      */
-    a_has_sortable_key = __txn_mod_sortable_key(session, aopt);
-    b_has_sortable_key = __txn_mod_sortable_key(session, bopt);
+    a_has_sortable_key = __txn_mod_sortable_key(aopt);
+    b_has_sortable_key = __txn_mod_sortable_key(bopt);
+
+    /* Ensure that our sortable key function has returned a valid value. */
+    WT_ASSERT_ALWAYS(
+      session, (a_has_sortable_key * b_has_sortable_key) >= 0, "Unhandled op type encountered.");
+
     if (a_has_sortable_key && !b_has_sortable_key)
         return (-1);
     if (b_has_sortable_key && !a_has_sortable_key)
