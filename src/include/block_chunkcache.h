@@ -81,4 +81,9 @@ struct __wt_chunkcache {
     unsigned int hashtable_size;
     int type; /* location of the chunk cache (volatile memory or file) */
     WT_PINNED_LIST pinned_objects;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CHUNK_CACHE_CONTENT_THREAD_WORK 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };

@@ -204,6 +204,27 @@ __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 }
 
 /*
+ * __chunkcache_should_pin_chunk --
+ *     Return true if the chunk belongs to the object in pinned object array.
+ */
+static inline bool
+__chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    WT_CHUNKCACHE *chunkcache;
+    bool found;
+
+    chunkcache = &S2C(session)->chunkcache;
+    found = false;
+
+    __wt_readlock(session, &chunkcache->pinned_objects.array_lock);
+    WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects.array,
+      chunkcache->pinned_objects.entries, found);
+    __wt_readunlock(session, &chunkcache->pinned_objects.array_lock);
+
+    return (found);
+}
+
+/*
  * __chunkcache_eviction_thread --
  *     Periodically sweep the cache and evict chunks with a zero access count.
  *
@@ -259,13 +280,26 @@ static WT_THREAD_RET
 __chunkcache_content_mgmt_thread(void *arg)
 {
     WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
     WT_SESSION_IMPL *session;
+    int i;
 
     session = (WT_SESSION_IMPL *)arg;
     chunkcache = &S2C(session)->chunkcache;
 
-    WT_UNUSED(session);
-    WT_UNUSED(chunkcache);
+    F_SET(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK);
+    for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
+        __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
+        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+        {
+            if (__chunkcache_should_pin_chunk(session, chunk))
+                F_SET(chunk, WT_CHUNK_PINNED);
+            else
+                F_CLR(chunk, WT_CHUNK_PINNED);
+        }
+        __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
+    }
+    F_CLR(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK);
 
     return (WT_THREAD_RET_VALUE);
 }
@@ -378,7 +412,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
-    bool chunk_cached, found;
+    bool chunk_cached;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
@@ -470,13 +504,7 @@ retry:
                 return (ret);
             }
 
-            /* Mark chunk as pinned if the chunk belongs to the object in pinned object array. */
-            __wt_readlock(session, &chunkcache->pinned_objects.array_lock);
-            WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects.array,
-              chunkcache->pinned_objects.entries, found);
-            __wt_readunlock(session, &chunkcache->pinned_objects.array_lock);
-
-            if (found)
+            if (__chunkcache_should_pin_chunk(session, chunk))
                 F_SET(chunk, WT_CHUNK_PINNED);
 
             /*
@@ -578,6 +606,7 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_CHUNKCACHE *chunkcache;
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
+    wt_thread_t content_mgmt_thread_tid;
     char **pinned_objects;
     unsigned int cnt;
 
@@ -593,12 +622,30 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
         WT_RET_MSG(
           session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
 
+    /* !! Simple approach for now, probably cond_wait would be better here. !!*/
+    while (F_ISSET(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK))
+        __wt_yield();
+
     WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
 
     __wt_writelock(session, &chunkcache->pinned_objects.array_lock);
     chunkcache->pinned_objects.array = pinned_objects;
     chunkcache->pinned_objects.entries = cnt;
     __wt_writeunlock(session, &chunkcache->pinned_objects.array_lock);
+
+    WT_RET(__wt_thread_create(
+      session, &content_mgmt_thread_tid, __chunkcache_content_mgmt_thread, (void *)session));
+
+    /* !! Simple approach for now, probably cond_wait would be better here. !!*/
+    while (!F_ISSET(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK))
+        __wt_yield();
+
+    WT_RET(__wt_thread_detach(session, &content_mgmt_thread_tid));
+
+    /*
+     * !! At the moment we do not have a close chunkcache function, once we have that we would
+     * ideally want to join the running thread before closing. !!
+     */
 
     return (0);
 }
@@ -614,7 +661,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     unsigned int cnt, i;
-    wt_thread_t content_mgmt_thread_tid, evict_thread_tid;
+    wt_thread_t evict_thread_tid;
     char **pinned_objects;
 
     chunkcache = &S2C(session)->chunkcache;
@@ -691,8 +738,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_thread_create(
       session, &evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
-    WT_ERR(__wt_thread_create(
-      session, &content_mgmt_thread_tid, __chunkcache_content_mgmt_thread, (void *)session));
 
     chunkcache->configured = true;
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
