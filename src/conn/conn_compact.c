@@ -222,7 +222,7 @@ __wt_compact_server_destroy(WT_SESSION_IMPL *session)
 /*
  * __wt_compact_signal --
  *     Signal the compact thread. Return an error if the background compaction server has not
- * processed a previous signal yet or because of an invalid configuration.
+ *     processed a previous signal yet or because of an invalid configuration.
  */
 int
 __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
@@ -230,9 +230,14 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    const char *cfg[3] = {NULL, NULL, NULL}, *stripped_config;
     bool running;
 
     conn = S2C(session);
+    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_compact);
+    cfg[1] = config;
+    cfg[2] = NULL;
+    stripped_config = NULL;
 
     /* Wait for any previous signal to be processed first. */
     if (conn->background_compact.signalled)
@@ -253,10 +258,10 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     }
     conn->background_compact.running = !running;
 
-    __wt_free(session, conn->background_compact.config);
-
     /* Strip the background field from the configuration now it has been parsed. */
-    WT_ERR(__wt_config_merge(session, &config, "background=", &conn->background_compact.config));
+    WT_ERR(__wt_config_merge(session, cfg, "background=", &stripped_config));
+    __wt_free(session, conn->background_compact.config);
+    conn->background_compact.config = stripped_config;
 
     conn->background_compact.signalled = true;
     __wt_spin_unlock(session, &conn->background_compact.lock);
