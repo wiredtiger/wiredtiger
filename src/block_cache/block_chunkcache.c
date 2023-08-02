@@ -569,8 +569,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         /* Allocate memory for the chunk cache for type file system. */
         WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
           (void **)&chunkcache->memory, &mapped_size, NULL));
-        if (chunkcache->memory == MAP_FAILED)
-            WT_RET(-420);
         WT_ASSERT_ALWAYS(session, mapped_size == chunkcache->capacity,
           "Mapped size does not equal capacity of chunkcache");
 
