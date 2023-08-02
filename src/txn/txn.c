@@ -1506,19 +1506,19 @@ __txn_mod_compare(const void *a, const void *b, void *context)
     session = (WT_SESSION_IMPL *)context;
 
     /*
-     * We want to sort on 2 things:
-     *  - b-tree ID
-     *  - key
-     * However a number of modification types don't have a key that can be sorted on. This requires
-     * us to add an intermediate stage, so between the btree ID sort and the key sort we sort on
-     * whether the modifications have a key.
+     * We want to sort on two things:
+     *  - B-tree ID
+     *  - Key
+     * However, there are a number of modification types that don't have a key to be sorted on. This
+     * requires us to add a stage between sorting on B-tree ID and key. At this intermediate stage,
+     * we sort on whether the modifications have a key.
      *
      * We need to uphold the contract that all modifications on the same key are contiguous in the
-     * final modification array. Technically they could be separated by non key modifications
+     * final modification array. Technically they could be separated by non key modifications,
      * but for simplicity's sake we sort them apart.
      *
-     * Qsort comparators are expected to return -1 if the first argument is less than the second,
-     * 1 if it the second argument is less than the first and 0 if they are equal.
+     * Qsort comparators are expected to return -1 if the first argument is smaller than the second,
+     * 1 if the second argument is smaller than the first, and 0 if both arguments are equal.
      */
 
     /* Order by b-tree ID. */
@@ -1526,10 +1526,9 @@ __txn_mod_compare(const void *a, const void *b, void *context)
         return (-1);
     if (bopt->btree->id < aopt->btree->id)
         return (1);
-
     /*
-     * Order by whether an operation has a key, we don't want to call key compare incorrectly.
-     * Especially given that u is a union and that would create undefined behavior.
+     * Order by whether the given operation has a key. We don't want to call key compare incorrectly
+     * especially given that u is a union which would create undefined behavior.
      */
     a_has_sortable_key = __txn_mod_sortable_key(session, aopt);
     b_has_sortable_key = __txn_mod_sortable_key(session, bopt);
@@ -1538,13 +1537,13 @@ __txn_mod_compare(const void *a, const void *b, void *context)
     if (b_has_sortable_key && !a_has_sortable_key)
         return (1);
     /*
-     * In the case where both arguments don't have a key they are considered to be equal, we don't
-     * care exactly how they get sorted.
+     * In the case where both arguments don't have a key, they are considered to be equal. We don't
+     * specifically care how they get sorted.
      */
     if (!a_has_sortable_key && !b_has_sortable_key)
         return (0);
 
-    /* Finally order by key, row store requires a call to __wt_compare. */
+    /* Finally, order by key. Row-store requires a call to __wt_compare. */
     if (aopt->btree->type == BTREE_ROW) {
         WT_ASSERT_ALWAYS(session,
           __wt_compare(
