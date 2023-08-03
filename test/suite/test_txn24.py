@@ -59,6 +59,7 @@ class test_txn24(wttest.WiredTigerTestCase):
 
     def test_snapshot_isolation_and_eviction(self):
         if sys.platform.startswith('darwin'):
+            # FIXME-WT-9575
             # Skip this test on MacOS/Darwin as it causes WT_ROLLBACKs to occur frequently, and they generate errors.
             self.skipTest('Skipping test of snapshot isolation and eviction on Darwin (MacOS)')
 
