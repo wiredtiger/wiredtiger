@@ -121,7 +121,6 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         session4 = self.setUpSessionOpen(self.conn)
         cursor4 = session4.open_cursor(uri)
-
         start_row = 2
         for i in range(0, n_rows // 4):
             with self.transaction(session=session4):
