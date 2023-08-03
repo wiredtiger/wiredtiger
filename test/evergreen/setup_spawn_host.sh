@@ -1,12 +1,12 @@
 #!/bin/bash
 #
 # The script is used to setup the environment for a spawn host. Currently the script 
-# unzips the test artefacts, prepend the toolchain path to the PATH environmen and exports the
+# unzips the test artifacts, prepend the toolchain path to the PATH environment and exports the
 # LD_LIBRARY_PATH.
 # 
 # Once setup, the script will notify the user who spawned the host that it is finished.
 #
-cd $HOME
+cd $HOME || exit 1
 TOOLCHAIN_ROOT=/opt/mongodbtoolchain/v4
 
 # Communicate to users that logged in before the script started that nothing is ready.
@@ -15,18 +15,12 @@ wall "The setup_spawn_host script has just started setting up the debugging envi
 # Make a directory on the larger volume. Soft-link it under the home directory.
 mkdir -p /data/wiredtiger
 ln -s /data/wiredtiger .
-cd wiredtiger
+cd wiredtiger || exit 1
 
-WT_ARCHIVE=$(ls /data/mci/artifacts-*/*test*.tgz 2>/dev/null)
+# Find the test artifacts.
+WT_ARCHIVE=$(ls /data/mci/artifacts-*/*.tgz | grep -v "compile" 2>/dev/null)
 if [[ -n $WT_ARCHIVE ]]; then
     tar --wildcards -xzf $WT_ARCHIVE
-fi
-
-COMPILE_ARCHIVE=$(ls /data/mci/artifacts-*/*compile*.tgz 2>/dev/null)
-if [[ -z $WT_ARCHIVE && -n $COMPILE_ARCHIVE ]]; then
-    tar --wildcards -xzf $COMPILE_ARCHIVE
-else 
-    echo "Error: archive test and compile not found." >&2
 fi
 
 echo "Waiting for background processes to complete."
