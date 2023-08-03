@@ -126,7 +126,7 @@ struct __wt_file_handle_win {
     HANDLE filehandle_secondary; /* Windows file handle
                                     for file size changes */
     bool direct_io;              /* O_DIRECT configured */
-    int desired_access;          /* Read-only or read/write */
+    DWORD desired_access;        /* Read-only or read/write */
 };
 
 #else
