@@ -35,32 +35,12 @@ from wtdataset import SimpleDataSet
 class test_compact06(wttest.WiredTigerTestCase):
     uri = 'file:test_compact06'
     conn_config = 'cache_size=2MB,statistics=(all)'
-    key_format='i'
-    value_format='S'
     
-    delete_range_len = 10 * 1000
-    delete_ranges_count = 4
-    table_numkv = 100 * 1000
-
     def test_background_compact_api(self):
         # Create a table.
-        ds = SimpleDataSet(self, self.uri, self.table_numkv, 
-                           key_format=self.key_format, 
-                           value_format=self.value_format)
-        ds.populate()
-        
-        # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
-        # than one iteration.
-        c = self.session.open_cursor(self.uri, None)
-        for r in range(self.delete_ranges_count):
-            start = r * self.table_numkv // self.delete_ranges_count
-            for i in range(self.delete_range_len):
-                c.set_key(start + i)
-                c.remove()
-        c.close()
+        self.session.create(self.uri, 'key_format=i,value_format=S')
         
         # Test for invalid uses of the compact API:
-        
         #   1. We cannot trigger the background compaction on a specific API.
         with self.expectedStderrPattern(
             'Background compaction does not work on specific URIs.'):
