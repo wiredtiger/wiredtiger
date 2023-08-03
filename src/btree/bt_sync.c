@@ -155,8 +155,10 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * versions 6.0 and prior, and so the fast-delete operation on these pages is considered
      * globally visible. Therefore, clean up these pages.
      */
-    if (ref->state == WT_REF_DELETED)
+    if (ref->state == WT_REF_DELETED) {
+        WT_STAT_CONN_DATA_INCR(session, cc_pages_removed);
         WT_RET(__wt_page_parent_modify_set(session, ref, true));
+    }
 
     /* Lock the WT_REF. */
     WT_REF_LOCK(session, ref, &previous_state);
