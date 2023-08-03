@@ -1484,7 +1484,7 @@ __txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
     }
-    WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered.");
+    WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered");
     return (false);
 }
 
@@ -1550,7 +1550,7 @@ __txn_mod_compare(const void *a, const void *b, void *context)
         WT_ASSERT_ALWAYS(session,
           __wt_compare(
             session, aopt->btree->collator, &aopt->u.op_row.key, &bopt->u.op_row.key, &cmp) == 0,
-          "Failed to sort transaction modifications during commit/rollback.");
+          "Failed to sort transaction modifications during prepare commit/rollback");
         return (cmp);
     }
     if (aopt->u.op_col.recno < bopt->u.op_col.recno)
