@@ -335,24 +335,23 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     SESSION_API_CALL(session, compact, config, cfg);
 
     /* Trigger the background server thread and toggle connection statistic. */
-    if ((ret = __wt_config_gets(session, &cfg[1], "background", &cval) == 0)) {
-        if (uri != NULL) {
-            __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
-              "Background compaction does not work on specific URIs.");
-            goto err;
-        }
+    if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
+        if (uri != NULL)
+            WT_ERR_MSG(
+              session, EINVAL, "Background compaction does not work on specific URIs.");
 
-        if (cval.val) {
-            /* TODO: Check background compaction server running status and trigger the mutex. */
-        } else {
-            if (__wt_config_gets(session, &cfg[1], "timeout", &cval) == 0 ||
-              __wt_config_gets(session, &cfg[1], "free_space_target", &cval) == 0) {
-                __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
-                  "Other compaction configurations cannot be set when disabling the background "
+        if (!cval.val) {
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(
+                session, EINVAL, "timeout configuration cannot be set when disabling the background "
                   "compaction server.");
-                goto err;
-            }
-            /* TODO: Check background compaction server running status and turn it off. */
+
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "free_space_target", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(
+                session, EINVAL, "free_space_target cannot be set when disabling the background "
+                  "compaction server.");
         }
         return (0);
     } else
