@@ -26,11 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
+import time, random
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
+from suite_random import suite_random
 
 megabyte = 1024 * 1024
 
@@ -52,7 +53,7 @@ class test_compact07(wttest.WiredTigerTestCase):
     n_tables = 5
     
     # Return the size of the file
-    def getSize(self, uri):
+    def get_size(self, uri):
         # To allow this to work on systems without ftruncate,
         # get the portion of the file allocated, via 'statistics=(all)',
         # not the physical file size, via 'statistics=(size)'.
@@ -61,6 +62,23 @@ class test_compact07(wttest.WiredTigerTestCase):
         size = stat_cursor[stat.dsrc.block_size][2]
         stat_cursor.close()
         return size
+    
+    def get_free_space(self, uri):
+        stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
+        bytes = stat_cursor[stat.drsc.block_reuse_bytes][2]
+        stat_cursor.close()
+        return bytes
+        
+    def delete_range(self, uri):
+        # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
+        # than one iteration.
+        c = self.session.open_cursor(uri, None)
+        for r in range(self.delete_ranges_count):
+            start = r * self.table_numkv // self.delete_ranges_count
+            for i in range(self.delete_range_len):
+                c.set_key(start + i)
+                c.remove()
+        c.close()
     
     # Test the basic functionality of the background compaction server. 
     def test_background_compact_usage(self):        
@@ -76,13 +94,7 @@ class test_compact07(wttest.WiredTigerTestCase):
     
             # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
             # than one iteration.
-            c = self.session.open_cursor(uri, None)
-            for r in range(self.delete_ranges_count):
-                start = r * self.table_numkv // self.delete_ranges_count
-                for i in range(self.delete_range_len):
-                    c.set_key(start + i)
-                    c.remove()
-            c.close()
+            self.delete_range(uri)
     
         # Create a small table that compact should skip over.
         uri = self.uri_prefix + '_small'
@@ -157,20 +169,12 @@ class test_compact07(wttest.WiredTigerTestCase):
                             key_format=self.key_format, 
                             value_format=self.value_format)
             ds.populate()
-            self.session.create(uri, 
-                                f'key_format={self.key_format},value_format={self.value_format}')
     
             # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
             # than one iteration.
-            c = self.session.open_cursor(uri, None)
-            for r in range(self.delete_ranges_count):
-                start = r * self.table_numkv // self.delete_ranges_count
-                for i in range(self.delete_range_len):
-                    c.set_key(start + i)
-                    c.remove()
-            c.close()
+            self.delete_range(uri)
             
-            size = self.getSize(uri)
+            size = self.get_size(uri)
             self.pr(f"{uri} file size = {size // megabyte}MB")
             
         self.session.close()
@@ -183,17 +187,15 @@ class test_compact07(wttest.WiredTigerTestCase):
         uri_small = self.uri_prefix + '_small'
         ds = SimpleDataSet(self, uri_small, 100 * 1000, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
-        self.session.create(uri_small, f'key_format={self.key_format},value_format={self.value_format}')
+        self.delete_range(uri)
         
-        small_file_size = self.getSize(uri_small)
-        
-        self.pr(f"small file size = {size // megabyte}MB")
-        
+        small_file_free_space = self.get_free_space(uri_small)
+                
         # assert that the small file is smaller than the other 10 files.
         
         # Start background compaction with a free_space_target larger than the size of the small file
-        # but smaller than the size of the other ten files.
-        compact_cfg = f'background=true,free_space_target={small_file_size + 1}MB'
+        # but smaller than the size of the other files.
+        compact_cfg = f'background=true,free_space_target={small_file_free_space + 1}MB'
         self.session.compact(None,compact_cfg)
         
         # Give some time for background compaction to do some work.
@@ -210,7 +212,7 @@ class test_compact07(wttest.WiredTigerTestCase):
         # compaction server running.
         session2 = self.conn.open_session()
         # Use a free_space_target that is guaranteed to run on the small file.
-        compact_cfg = f'free_space_target={small_file_size - 1}MB'
+        compact_cfg = f'free_space_target={small_file_free_space - 1}MB'
         session2.compact(uri_small,compact_cfg)
         
         # Check that foreground compaction has done some work.
@@ -246,6 +248,7 @@ class test_compact07(wttest.WiredTigerTestCase):
                     key_format=self.key_format,
                     value_format=self.value_format)
         ds.populate(create=False)
+        self.delete_range(uris[0])
                 
         # Periodically check that background compaction has done some work on the first table.
         # stat_cursor = self.session.open_cursor('statistics:' + uris[0], None, None)
