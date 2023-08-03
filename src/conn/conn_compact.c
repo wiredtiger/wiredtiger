@@ -249,15 +249,12 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     running = conn->background_compact.running;
 
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
-    if ((bool)cval.val == running) {
+    if (cval.val == running)
         /*
          * This is an error as we are already in the same state and reconfiguration is not allowed.
          */
-        __wt_verbose_warning(session, WT_VERB_COMPACT, "Background compaction is already %s.",
-          running ? "enabled" : "disabled");
-        ret = EINVAL;
-        goto err;
-    }
+        WT_ERR_MSG(
+          session, EINVAL, "Background compaction is already %s", running ? "enabled" : "disabled");
     conn->background_compact.running = !running;
 
     /* Strip the background field from the configuration now it has been parsed. */
