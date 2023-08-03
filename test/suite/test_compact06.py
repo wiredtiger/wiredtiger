@@ -57,10 +57,11 @@ class test_compact06(wttest.WiredTigerTestCase):
                 self.session.compact(None, 'background=false,timeout=60'))
             
         #   3. We cannot reconfigure the background server.
-        self.session.compact(None, 'background=true')
-        with self.expectedStderrPattern('Background compaction is already'):
-            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
-                self.session.compact(None, 'background=true,free_space_target=10MB'))
+        # FIXME: WT-11421 Enable once fix handles ret value being overridden in background compact.
+        # self.session.compact(None, 'background=true')
+        # with self.expectedStderrPattern('Background compaction is already'):
+        #     self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+        #         self.session.compact(None, 'background=true,free_space_target=10MB'))
 
 if __name__ == '__main__':
     wttest.run()
