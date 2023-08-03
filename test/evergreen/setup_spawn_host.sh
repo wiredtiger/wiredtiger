@@ -38,7 +38,7 @@ wait
 cat >> ~/.profile << EOF
 # Prepend the toolchain to the PATH environment and export the TCMALLOC and WT library into the 
 # library path.
-PATH="${TOOLCHAIN_ROOT}:\$PATH"
+export PATH="${TOOLCHAIN_ROOT}/bin:\$PATH"
 export LD_LIBRARY_PATH="${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib:\$LD_LIBRARY_PATH"
 EOF
 
