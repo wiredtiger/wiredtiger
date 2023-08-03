@@ -17,11 +17,17 @@
 #define WT_CHUNKCACHE_MINHASHSIZE 64
 #define WT_CHUNKCACHE_MAXHASHSIZE 1024 * 1024
 #define WT_CHUNKCACHE_MAX_RETRIES 32 * 1024
-#define WT_CHUNKCACHE_NAMEMAX 50
 #define WT_CHUNKCACHE_UNCONFIGURED 0
 
 struct __wt_chunkcache_hashid {
-    char objectname[WT_CHUNKCACHE_NAMEMAX];
+    const char *objectname;
+    uint32_t objectid;
+    wt_off_t offset;
+};
+
+/* Hold the values used while hashing object ID, name, and offset tuples. */
+struct __wt_chunkcache_intermediate_hash {
+    uint64_t name_hash;
     uint32_t objectid;
     wt_off_t offset;
 };
@@ -40,6 +46,11 @@ struct __wt_chunkcache_chunk {
     wt_off_t chunk_offset;
     size_t chunk_size;
     volatile uint32_t valid;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CHUNK_PINNED 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 struct __wt_chunkcache_bucket {
@@ -75,5 +86,8 @@ struct __wt_chunkcache {
 
     /* Content management. */
     unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
-    char **pinned_objects;      /* List of objects we wish to pin in chunk cache */
+    unsigned int hashtable_size;
+    int type;                /* location of the chunk cache (volatile memory or file) */
+    char **pinned_objects;   /* list of objects we wish to pin in chunk cache */
+    uint32_t pinned_entries; /* count of pinned objects */
 };

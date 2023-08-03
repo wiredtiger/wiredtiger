@@ -1180,11 +1180,12 @@ err:
     WT_TRET(__wt_sweep_destroy(session));
 
     /*
-     * Shut down the checkpoint and capacity server threads: we don't want to throttle writes and
-     * we're about to do a final checkpoint separately from the checkpoint server.
+     * Shut down the checkpoint, compact and capacity server threads: we don't want to throttle
+     * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
     WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
+    WT_TRET(__wt_compact_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
@@ -2014,6 +2015,47 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __debug_mode_log_retention_config --
+ *     Set the log retention fields of the debugging configuration. These fields are protected by
+ *     the debug log retention lock.
+ */
+static int
+__debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    __wt_writelock(session, &conn->debug_log_retention_lock);
+
+    WT_ERR(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
+
+    /*
+     * Checkpoint retention has some rules to simplify usage. You can turn it on to some value. You
+     * can turn it off. You can reconfigure to the same value again. You cannot change the non-zero
+     * value. Once it was on in the past and then turned off, you cannot turn it back on again.
+     */
+    if (cval.val != 0) {
+        if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
+            WT_ERR_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
+        WT_ERR(
+          __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
+    } else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
+    conn->debug_ckpt_cnt = (uint32_t)cval.val;
+
+    WT_ERR(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
+    conn->debug_log_cnt = (uint32_t)cval.val;
+
+err:
+    __wt_writeunlock(session, &conn->debug_log_retention_lock);
+    return (ret);
+}
+
+/*
  * __wt_debug_mode_config --
  *     Set debugging configuration.
  */
@@ -2027,27 +2069,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
-
-    /*
-     * Checkpoint retention has some rules to avoid needing a lock to coordinate with the log
-     * removal thread and avoid memory issues. You can turn it on to some value. You can turn it
-     * off. You can reconfigure to the same value again. You cannot change the non-zero value. Once
-     * it was on in the past and then turned off, you cannot turn it back on again.
-     */
-    if (cval.val != 0) {
-        if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
-            WT_RET_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
-        WT_RET(
-          __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
-    } else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
-    /*
-     * We need to make sure all writes to other fields are visible before setting the count because
-     * the log removal thread may walk the array using this value.
-     */
-    WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
+    WT_RET(__debug_mode_log_retention_config(session, cfg));
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)
@@ -2072,9 +2094,6 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
-
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
-    conn->debug_log_cnt = (uint32_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_exact", &cval));
     if (cval.val)
