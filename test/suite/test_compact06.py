@@ -34,7 +34,6 @@ from wtdataset import SimpleDataSet
 # Test background compaction API usage.
 class test_compact06(wttest.WiredTigerTestCase):
     uri = 'file:test_compact06'
-    conn_config = 'cache_size=2MB,statistics=(all)'
     
     def test_background_compact_api(self):
         # Create a table.
