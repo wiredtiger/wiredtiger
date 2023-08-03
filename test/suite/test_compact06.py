@@ -34,11 +34,7 @@ from wtdataset import SimpleDataSet
 # Test background compaction API usage.
 class test_compact06(wttest.WiredTigerTestCase):
     uri = 'file:test_compact06'
-    conn_config = 'cache_size=2MB,statistics=(all),verbose=(compact:2)'
-    # key_format_values = (
-    #     ('integer-row', dict(key_format='i', value_format='S'))
-    # )
-    # scenarios = make_scenarios(key_format_values)
+    conn_config = 'cache_size=2MB,statistics=(all)'
     key_format='i'
     value_format='S'
     
@@ -52,8 +48,6 @@ class test_compact06(wttest.WiredTigerTestCase):
                            key_format=self.key_format, 
                            value_format=self.value_format)
         ds.populate()
-        self.session.create(self.uri, 
-                            f'key_format={self.key_format},value_format={self.value_format}')
         
         # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
         # than one iteration.
@@ -66,16 +60,27 @@ class test_compact06(wttest.WiredTigerTestCase):
         c.close()
         
         # Test for invalid uses of the compact API:
+        
         #   1. We cannot trigger the background compaction on a specific API.
-        with self.expectedStdoutPattern('Background compaction does not work on specific URIs.'):
+        with self.expectedStderrPattern('Background compaction does not work on specific URIs.'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.compact(self.uri, 'background=true'))        
+            
         #   2. We cannot set other configurations while turning off the background server.
-        with self.expectedStdoutPattern('Other compaction configurations cannot be set'):
+        with self.expectedStderrPattern('free_space_target configuration cannot be set when \
+            disabling the background compaction server.'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.compact(None, 'background=false,free_space_target=10MB'))
+        with self.expectedStderrPattern('timeout configuration cannot be set when disabling \
+            the background compaction server.'):
+            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, 'background=false,timeout=60'))
+            
         #   3. We cannot reconfigure the background server.
-        # TODO: Once WT-11342 is complete.
+        self.session.compact(None, 'background=true')
+        with self.expectedStderrPattern('Background compaction is already'):
+            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, 'background=true,free_space_target=10MB'))
 
 if __name__ == '__main__':
     wttest.run()

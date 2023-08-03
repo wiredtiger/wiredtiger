@@ -337,22 +337,25 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     /* Trigger the background server thread and toggle connection statistic. */
     if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
         if (uri != NULL)
-            WT_ERR_MSG(
-              session, EINVAL, "Background compaction does not work on specific URIs.");
+            WT_ERR_MSG(session, EINVAL, "Background compaction does not work on specific URIs.");
 
         if (!cval.val) {
             WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
             if (ret == 0)
-                WT_ERR_MSG(
-                session, EINVAL, "timeout configuration cannot be set when disabling the background "
-                  "compaction server.");
+                WT_ERR_MSG(session, EINVAL,
+                  "timeout configuration cannot be set when disabling the background compaction "
+                  "server.");
 
-            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "free_space_target", &cval), true);
+            WT_ERR_NOTFOUND_OK(
+              __wt_config_getones(session, config, "free_space_target", &cval), true);
             if (ret == 0)
-                WT_ERR_MSG(
-                session, EINVAL, "free_space_target cannot be set when disabling the background "
+                WT_ERR_MSG(session, EINVAL,
+                  "free_space_target configuration cannot be set when disabling the background "
                   "compaction server.");
         }
+
+        WT_ERR(__wt_compact_signal(session, config));
+
         return (0);
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
