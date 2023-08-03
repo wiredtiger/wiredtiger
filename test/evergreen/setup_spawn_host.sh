@@ -18,13 +18,10 @@ ln -s /data/wiredtiger .
 cd wiredtiger || exit 1
 
 # Find the test artifacts.
-WT_ARCHIVE=$(ls /data/mci/artifacts-*/*.tgz | grep -v "compile" 2>/dev/null)
+WT_ARCHIVE=$(ls /data/mci/artifacts-*/*.tgz | grep -v "compile" | head -n 1 2>/dev/null)
 if [[ -n $WT_ARCHIVE ]]; then
     tar --wildcards -xzf $WT_ARCHIVE
 fi
-
-echo "Waiting for background processes to complete."
-wait
 
 # Install CMake into the machine.
 . test/evergreen/find_cmake.sh
@@ -36,8 +33,8 @@ export PATH="${TOOLCHAIN_ROOT}/bin:\$PATH"
 export LD_LIBRARY_PATH="${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib:\$LD_LIBRARY_PATH"
 EOF
 
-    echo 'if [ -f ~/.profile ]; then
-    . ~/.profile
+echo 'if [ -f ~/.profile ]; then
+. ~/.profile
 fi' >> ~/.bash_profile
 
 # Send a Slack notification as the very last thing the setup_spawn_host script does.
