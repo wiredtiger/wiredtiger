@@ -697,9 +697,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
         WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
           (void **)&chunkcache->memory, &mapped_size, NULL));
-        if (mapped_size == chunkcache->capacity)
+        if (mapped_size != chunkcache->capacity)
             WT_RET_MSG(session, EINVAL,
-              "Storage size %lu does not equal capacity of chunk cache %lu", mapped_size,
+              "Storage size mapping %lu does not equal capacity of chunk cache %lu", mapped_size,
               chunkcache->capacity);
 
         WT_RET(__wt_calloc(session, 1, ((chunkcache->capacity / chunkcache->chunk_size) / 8),
