@@ -1467,10 +1467,10 @@ err:
 
 /*
  * __txn_mod_sortable_key --
- *     Given an operation return a boolean indicating if it has a sortable key.
+ *     Given an operation return an integer indicating if it has a sortable key.
  */
 static inline bool
-__txn_mod_sortable_key(WT_TXN_OP *opt)
+__txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
 {
     switch (opt->type) {
     case (WT_TXN_OP_NONE):
@@ -1483,8 +1483,10 @@ __txn_mod_sortable_key(WT_TXN_OP *opt)
     case (WT_TXN_OP_INMEM_COL):
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
+    default:
+        WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered.");
     }
-    return (-1);
+    return (false);
 }
 
 /*
@@ -1526,24 +1528,20 @@ __txn_mod_compare(const void *a, const void *b, void *context)
         return (-1);
     if (bopt->btree->id < aopt->btree->id)
         return (1);
+
     /*
      * Order by whether the given operation has a key. We don't want to call key compare incorrectly
      * especially given that u is a union which would create undefined behavior.
      */
-    a_has_sortable_key = __txn_mod_sortable_key(aopt);
-    b_has_sortable_key = __txn_mod_sortable_key(bopt);
-
-    /* Ensure that our sortable key function has returned a valid value. */
-    WT_ASSERT_ALWAYS(
-      session, (a_has_sortable_key * b_has_sortable_key) >= 0, "Unhandled op type encountered.");
-
+    a_has_sortable_key = __txn_mod_sortable_key(session, aopt);
+    b_has_sortable_key = __txn_mod_sortable_key(session, bopt);
     if (a_has_sortable_key && !b_has_sortable_key)
         return (-1);
     if (b_has_sortable_key && !a_has_sortable_key)
         return (1);
     /*
-     * In the case where both arguments don't have a key, they are considered to be equal. We don't
-     * specifically care how they get sorted.
+     * In the case where both arguments don't have a key they are considered to be equal, we don't
+     * care exactly how they get sorted.
      */
     if (!a_has_sortable_key && !b_has_sortable_key)
         return (0);
