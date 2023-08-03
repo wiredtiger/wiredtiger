@@ -86,8 +86,6 @@ struct __wt_chunkcache {
 
     /* Content management. */
     unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
-    unsigned int hashtable_size;
-    int type;                /* location of the chunk cache (volatile memory or file) */
-    char **pinned_objects;   /* list of objects we wish to pin in chunk cache */
-    uint32_t pinned_entries; /* count of pinned objects */
+    char **pinned_objects;      /* list of objects we wish to pin in chunk cache */
+    uint32_t pinned_entries;    /* count of pinned objects */
 };
