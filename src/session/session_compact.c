@@ -334,11 +334,15 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, compact, config, cfg);
 
-    /* Trigger the background server thread and toggle connection statistic. */
+    /* Trigger the background server. */
     if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
         if (uri != NULL)
             WT_ERR_MSG(session, EINVAL, "Background compaction does not work on specific URIs.");
 
+        /*
+         * We shouldn't provide any other configurations when explicitly disabling the background
+         * compaction server.
+         */
         if (!cval.val) {
             WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
             if (ret == 0)
@@ -356,7 +360,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
         WT_ERR(__wt_compact_signal(session, config));
 
-        return (0);
+        goto done;
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -461,6 +465,7 @@ err:
     if (ret == WT_PREPARE_CONFLICT)
         ret = WT_ROLLBACK;
 
+done:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 

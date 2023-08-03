@@ -62,17 +62,18 @@ class test_compact06(wttest.WiredTigerTestCase):
         # Test for invalid uses of the compact API:
         
         #   1. We cannot trigger the background compaction on a specific API.
-        with self.expectedStderrPattern('Background compaction does not work on specific URIs.'):
+        with self.expectedStderrPattern(
+            'Background compaction does not work on specific URIs.'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.compact(self.uri, 'background=true'))        
             
         #   2. We cannot set other configurations while turning off the background server.
-        with self.expectedStderrPattern('free_space_target configuration cannot be set when \
-            disabling the background compaction server.'):
+        with self.expectedStderrPattern(
+            'free_space_target configuration cannot be set when disabling the background compaction server.'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.compact(None, 'background=false,free_space_target=10MB'))
-        with self.expectedStderrPattern('timeout configuration cannot be set when disabling \
-            the background compaction server.'):
+        with self.expectedStderrPattern(
+            'timeout configuration cannot be set when disabling the background compaction server.'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.compact(None, 'background=false,timeout=60'))
             
