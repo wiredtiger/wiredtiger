@@ -1536,7 +1536,7 @@ __txn_mod_compare(const void *a, const void *b, void *context)
     b_has_sortable_key = __txn_mod_sortable_key(session, bopt);
     if (a_has_sortable_key && !b_has_sortable_key)
         return (-1);
-    if (b_has_sortable_key && !a_has_sortable_key)
+    if (!a_has_sortable_key && b_has_sortable_key)
         return (1);
     /*
      * In the case where both arguments don't have a key they are considered to be equal, we don't
