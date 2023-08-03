@@ -1525,7 +1525,7 @@ __txn_mod_compare(const void *a, const void *b, void *context)
     /* Order by b-tree ID. */
     if (aopt->btree->id < bopt->btree->id)
         return (-1);
-    if (bopt->btree->id < aopt->btree->id)
+    if (aopt->btree->id > bopt->btree->id)
         return (1);
 
     /*
@@ -1555,7 +1555,7 @@ __txn_mod_compare(const void *a, const void *b, void *context)
     }
     if (aopt->u.op_col.recno < bopt->u.op_col.recno)
         return (-1);
-    if (bopt->u.op_col.recno < aopt->u.op_col.recno)
+    if (aopt->u.op_col.recno > bopt->u.op_col.recno)
         return (1);
     return (0);
 }
