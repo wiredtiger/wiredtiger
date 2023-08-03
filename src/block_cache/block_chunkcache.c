@@ -84,12 +84,14 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, WT_BLOCK *bl
   WT_CHUNKCACHE_HASHID *hash_id, WT_CHUNKCACHE_CHUNK **newchunk)
 {
     WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_INTERMEDIATE_HASH intermediate;
     WT_DECL_RET;
     size_t chunk_size;
     uint64_t hash;
 
     *newchunk = NULL;
     chunkcache = &S2C(session)->chunkcache;
+    WT_CLEAR(intermediate);
 
     WT_ASSERT(session, offset > 0);
 
@@ -114,9 +116,14 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, WT_BLOCK *bl
     (*newchunk)->chunk_size = WT_MIN(chunk_size, (size_t)(block->size - (*newchunk)->chunk_offset));
 
     /* Part of the hash ID was populated by the caller, but we must set the offset. */
-    (*newchunk)->hash_id = *hash_id;
+    intermediate.name_hash = __wt_hash_city64(hash_id->objectname, strlen(hash_id->objectname));
+    intermediate.objectid = hash_id->objectid;
+    intermediate.offset = (*newchunk)->chunk_offset;
+
+    (*newchunk)->hash_id.objectid = hash_id->objectid;
     (*newchunk)->hash_id.offset = (*newchunk)->chunk_offset;
-    hash = __wt_hash_city64((void *)hash_id, sizeof(WT_CHUNKCACHE_HASHID));
+    WT_RET(__wt_strdup(session, hash_id->objectname, &(*newchunk)->hash_id.objectname));
+    hash = __wt_hash_city64(&intermediate, sizeof(WT_CHUNKCACHE_INTERMEDIATE_HASH));
     (*newchunk)->bucket_id = hash % chunkcache->hashtable_size;
 
     /* Initialize the access count, so the upper layer code doesn't need to remember to do that. */
@@ -164,23 +171,55 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 }
 
 /*
- * __chunkcache_make_hash --
- *     Populate the hash data structure, which uniquely identifies the chunk.
+ * __chunkcache_tmp_hash --
+ *     Populate the hash data structure, which uniquely identifies the chunk. The hash ID we
+ *     populate will contain a pointer to the block name, thus the block name must outlive the hash
+ *     ID.
  */
 static inline uint64_t
-__chunkcache_make_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, WT_BLOCK *block,
+__chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, WT_BLOCK *block,
   uint32_t objectid, wt_off_t offset)
 {
-    uint64_t hash;
+    WT_CHUNKCACHE_INTERMEDIATE_HASH intermediate;
+    uint64_t hash_final;
 
+    WT_CLEAR(intermediate);
+    intermediate.name_hash = __wt_hash_city64(block->name, strlen(block->name));
+    intermediate.objectid = objectid;
+    intermediate.offset = WT_CHUNK_OFFSET(chunkcache, offset);
+
+    /*
+     * The hashing situation is a little complex. We want to construct hashes as we iterate over the
+     * chunks we add/remove, and these hashes consist of an object name, object ID, and offset. But
+     * to hash these, the bytes need to be contiguous in memory. Having the object name as a
+     * fixed-size character array would work, but it would need to be large, and that would waste a
+     * lot of space most of the time. The alternative would be to allocate a new structure just for
+     * hashing purposes, but then we're allocating/freeing on the hot path.
+     *
+     * Instead, we hash the object name separately, then bundle that hash into a temporary (stack
+     * allocated) structure with the object ID and offset. Then, we hash that intermediate
+     * structure.
+     */
     WT_CLEAR(*hash_id);
     hash_id->objectid = objectid;
-    memcpy(&hash_id->objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
     hash_id->offset = WT_CHUNK_OFFSET(chunkcache, offset);
-    hash = __wt_hash_city64((void *)hash_id, sizeof(WT_CHUNKCACHE_HASHID));
+    hash_id->objectname = block->name;
+
+    hash_final = __wt_hash_city64(&intermediate, sizeof(intermediate));
 
     /* Return the bucket ID. */
-    return (hash % chunkcache->hashtable_size);
+    return (hash_final % chunkcache->hashtable_size);
+}
+
+/*
+ * __hash_id_eq --
+ *     Compare two hash IDs and return whether they're equal.
+ */
+static inline bool
+__hash_id_eq(WT_CHUNKCACHE_HASHID *a, WT_CHUNKCACHE_HASHID *b)
+{
+    return (a->objectid == b->objectid && a->offset == b->offset &&
+      strcmp(a->objectname, b->objectname) == 0);
 }
 
 /*
@@ -250,6 +289,89 @@ __chunkcache_eviction_thread(void *arg)
 }
 
 /*
+ * __chunkcache_str_cmp --
+ *     Qsort function: sort string array.
+ */
+static int WT_CDECL
+__chunkcache_str_cmp(const void *a, const void *b)
+{
+    return (strcmp(*(const char **)a, *(const char **)b));
+}
+
+/*
+ * __chunkcache_arr_free --
+ *     Free the array of strings.
+ */
+static void
+__chunkcache_arr_free(WT_SESSION_IMPL *session, char ***arr)
+{
+    char **p;
+
+    if ((p = (*arr)) != NULL) {
+        for (; *p != NULL; ++p)
+            __wt_free(session, *p);
+        __wt_free(session, *arr);
+    }
+}
+
+/*
+ * __config_get_sorted_pinned_objects --
+ *     Get sorted array of pinned objects from the config.
+ */
+static int
+__config_get_sorted_pinned_objects(WT_SESSION_IMPL *session, const char *cfg[],
+  char ***pinned_objects_list, unsigned int *pinned_entries)
+{
+    WT_CONFIG targetconf;
+    WT_CONFIG_ITEM cval, k, v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    char **pinned_objects;
+    unsigned int cnt;
+
+    pinned_objects = NULL;
+
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.pinned", &cval));
+    __wt_config_subinit(session, &targetconf, &cval);
+    for (cnt = 0; (ret = __wt_config_next(&targetconf, &k, &v)) == 0; ++cnt)
+        ;
+    *pinned_entries = cnt;
+    WT_RET_NOTFOUND_OK(ret);
+
+    if (cnt != 0) {
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ERR(__wt_calloc_def(session, cnt + 1, &pinned_objects));
+        __wt_config_subinit(session, &targetconf, &cval);
+        for (cnt = 0; (ret = __wt_config_next(&targetconf, &k, &v)) == 0; ++cnt) {
+            if (!WT_PREFIX_MATCH(k.str, "table:"))
+                WT_ERR_MSG(session, EINVAL,
+                  "chunk cache pinned configuration only supports objects of type \"table\"");
+
+            if (v.len != 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "invalid chunk cache pinned config %.*s: URIs may require quoting", (int)cval.len,
+                  (char *)cval.str);
+
+            WT_PREFIX_SKIP_REQUIRED(session, k.str, "table:");
+            WT_ERR(__wt_buf_fmt(session, tmp, "%.*s.wt", (int)(k.len - strlen("table:")), k.str));
+            WT_ERR(__wt_strndup(session, tmp->data, tmp->size, &pinned_objects[cnt]));
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+        __wt_qsort(pinned_objects, cnt, sizeof(char *), __chunkcache_str_cmp);
+        *pinned_objects_list = pinned_objects;
+    }
+
+err:
+    __wt_scr_free(session, &tmp);
+    if (ret != 0 && ret != WT_NOTFOUND) {
+        __chunkcache_arr_free(session, &pinned_objects);
+        return (ret);
+    }
+
+    return (0);
+}
+
+/*
  * __wt_chunkcache_get --
  *     Return the data to the caller if we have it. Otherwise read it from storage and cache it.
  *
@@ -276,7 +398,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
-    bool chunk_cached;
+    bool chunk_cached, found;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
@@ -294,13 +416,13 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     /* A block may span two (or more) chunks. Loop until we have read all the data. */
     while (remains_to_read > 0) {
         /* Find the bucket for the chunk containing this offset. */
-        bucket_id = __chunkcache_make_hash(
+        bucket_id = __chunkcache_tmp_hash(
           chunkcache, &hash_id, block, objectid, offset + (wt_off_t)already_read);
 retry:
         chunk_cached = false;
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
         TAILQ_FOREACH (chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk) {
-            if (memcmp(&chunk->hash_id, &hash_id, sizeof(hash_id)) == 0) {
+            if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
                 /* If the chunk is there, but invalid, there is I/O in progress. Retry. */
                 if (!chunk->valid) {
                     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
@@ -368,6 +490,12 @@ retry:
                 return (ret);
             }
 
+            /* Mark chunk as pinned if the chunk belongs to the object in pinned object array. */
+            WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects,
+              chunkcache->pinned_entries, found);
+            if (found)
+                F_SET(chunk, WT_CHUNK_PINNED);
+
             /*
              * Mark chunk as valid. The only thread that could be executing this code is the thread
              * that won the race and inserted this (invalid) chunk into the hash table. This thread
@@ -383,6 +511,7 @@ retry:
             goto retry;
         }
     }
+
     *cache_hit = true;
     return (0);
 }
@@ -416,14 +545,14 @@ __wt_chunkcache_remove(
     /* A block may span many chunks. Loop until we have removed all the chunks. */
     while (remains_to_remove > 0) {
         /* Find the bucket for the containing chunk. */
-        bucket_id = __chunkcache_make_hash(
+        bucket_id = __chunkcache_tmp_hash(
           chunkcache, &hash_id, block, objectid, offset + (wt_off_t)already_removed);
         removable_in_chunk = (size_t)WT_CHUNK_OFFSET(chunkcache, (size_t)offset + already_removed) +
           chunkcache->chunk_size - ((size_t)offset + already_removed);
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk, chunk_tmp)
         {
-            if (memcmp(&chunk->hash_id, &hash_id, sizeof(hash_id)) == 0) {
+            if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
                 if (chunk->valid) {
                     WT_ASSERT(session,
                       WT_BLOCK_OVERLAPS_CHUNK(chunk->chunk_offset,
@@ -464,15 +593,14 @@ int
 __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CONFIG targetconf;
-    WT_CONFIG_ITEM cval, k, v;
-    WT_DECL_RET;
+    WT_CONFIG_ITEM cval;
     unsigned int cnt, i;
     wt_thread_t evict_thread_tid;
     char **pinned_objects;
 
     chunkcache = &S2C(session)->chunkcache;
     pinned_objects = NULL;
+    cnt = 0;
 
     if (chunkcache->type != WT_CHUNKCACHE_UNCONFIGURED && !reconfig)
         WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
@@ -521,30 +649,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 #endif
     }
 
-    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.pinned", &cval));
-    __wt_config_subinit(session, &targetconf, &cval);
-    for (cnt = 0; (ret = __wt_config_next(&targetconf, &k, &v)) == 0; ++cnt)
-        ;
-    WT_RET_NOTFOUND_OK(ret);
-
-    if (cnt != 0) {
-        WT_RET(__wt_calloc_def(session, cnt + 1, &pinned_objects));
-        chunkcache->pinned_objects = pinned_objects;
-        __wt_config_subinit(session, &targetconf, &cval);
-        for (cnt = 0; (ret = __wt_config_next(&targetconf, &k, &v)) == 0; ++cnt) {
-            if (!WT_PREFIX_MATCH(k.str, "table:"))
-                WT_RET_MSG(session, EINVAL,
-                  "chunk cache pinned configuration only supports objects of type \"table\"");
-
-            if (v.len != 0)
-                WT_RET_MSG(session, EINVAL,
-                  "invalid chunk cache pinned config %.*s: URIs may require quoting", (int)cval.len,
-                  (char *)cval.str);
-
-            WT_RET(__wt_strndup(session, k.str, k.len, &pinned_objects[cnt]));
-        }
-    }
-    WT_RET_NOTFOUND_OK(ret);
+    WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
+    chunkcache->pinned_objects = pinned_objects;
+    chunkcache->pinned_entries = cnt;
 
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
 

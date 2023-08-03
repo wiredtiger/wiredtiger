@@ -579,7 +579,6 @@ config
 configs
 conn
 connectionp
-const
 constantp
 consts
 cookiep
@@ -894,6 +893,7 @@ len
 lengthp
 lenp
 lex
+lexically
 lexicographically
 lf
 lfence
