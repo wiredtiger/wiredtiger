@@ -2618,6 +2618,14 @@ tasks:
               ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -v 4 test_prepare_hs03.py --hook timestamp
             done
 
+  - name: csuite-long-running
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          smp_command: -L long_running
+
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
 
@@ -3576,10 +3584,11 @@ tasks:
         vars:
           SPINLOCK_TYPE: -DSPINLOCK_TYPE=gcc
       - func: "make check all"
+      - func: "unit test"
       - func: "format test"
         vars:
           times: 3
-      - func: "unit test"
+          extra_args: runs.rows=1000000:2500000
 
   - name: spinlock-pthread-adaptive-test
     commands:
@@ -3588,10 +3597,11 @@ tasks:
         vars:
           SPINLOCK_TYPE: -DSPINLOCK_TYPE=pthread_adaptive
       - func: "make check all"
+      - func: "unit test"
       - func: "format test"
         vars:
           times: 3
-      - func: "unit test"
+          extra_args: runs.rows=1000000:2500000
 
   - name: wtperf-test
     depends_on:
@@ -3717,16 +3727,16 @@ tasks:
       # format test
       - func: "format test"
         vars:
-          extra_args: file_type=fix
+          extra_args: file_type=fix runs.rows=1000000:2500000
       - func: "format test"
         vars:
-          extra_args: file_type=row
+          extra_args: file_type=row runs.rows=1000000:2500000
 
       # format test for stressing compaction code path
       - func: "format test"
         vars:
           times: 3
-          extra_args: file_type=row compaction=1 verify=1 runs.timer=3 ops.pct.delete=30
+          extra_args: file_type=row compaction=1 verify=1 runs.rows=1000000:2500000 runs.timer=3 ops.pct.delete=30
 
   - name: time-shift-sensitivity-test
     depends_on:
@@ -5445,6 +5455,47 @@ tasks:
         vars:
           test-name: log.wtperf
 
+    #####################################
+    # Performance Tests for chunk cache #
+    #####################################
+
+  - name: perf-test-chunk-cache
+    tags: ["chunk-cache-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: chunk-cache-reads.wtperf
+          maxruns: 1
+          wtarg: -ops ['"read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: chunk-cache-reads.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: chunk-cache-reads.wtperf
+
+  - name: perf-test-chunk-cache-base
+    tags: ["chunk-cache-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: chunk-cache-reads-base.wtperf
+          maxruns: 1
+          wtarg: -ops ['"read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: chunk-cache-reads-base.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: chunk-cache-reads-base.wtperf
+
+
     ###########################################
     #        Performance Long Tests           #
     ###########################################
@@ -5811,6 +5862,9 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
+    # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
+    # builds) as -O1, making test binaries more difficult to debug. 
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
@@ -5823,8 +5877,11 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
-    # We don't run C++ memory sanitized testing as it creates false positives.
-    check_args: -LE cppsuite
+      TESTUTIL_MSAN=1
+    # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
+    # some csuite tests to take an extended amount of time. These are excluded from the 
+    # make-check-test task and are covered by the csuite-long-running task.
+    check_args: -LE "cppsuite|long_running"
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -5834,6 +5891,10 @@ buildvariants:
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
     - name: make-check-test
+      distros: ubuntu2004-large
+    - name: csuite-long-running
+      distros: ubuntu2004-large
+      batchtime: 1440 # once a day
 
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
@@ -5842,7 +5903,9 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
-    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O1
+    # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
+    # builds) as -O1, making test binaries more difficult to debug. 
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
@@ -5864,6 +5927,7 @@ buildvariants:
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
     - name: make-check-test
+      distros: ubuntu2004-large
     - name: cppsuite-operations-test-default
     - name: cppsuite-hs-cleanup-default
     - name: cppsuite-burst-inserts-default
@@ -6203,6 +6267,7 @@ buildvariants:
 
 - name: rhel8-zseries
   display_name: "~ RHEL8 zSeries"
+  activate: false
   run_on:
   - rhel80-zseries-test
   batchtime: 120 # 2 hours
