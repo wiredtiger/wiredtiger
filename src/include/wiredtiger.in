@@ -2949,8 +2949,6 @@ struct __wt_connection {
  * URIs exempt from cache eviction.  Capacity config overrides this\, tables exceeding capacity will
  * not be fully retained.  Table names can appear in both this and the preload list\, but not in
  * both this and the exclude list.  Duplicate names are allowed., a list of strings; default empty.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location\, defaults to the file system., a string\,
- * chosen from the following options: \c "FILE"\, \c "DRAM"; default \c FILE.}
  * @config{ ),,}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of

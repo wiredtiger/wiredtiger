@@ -1077,7 +1077,7 @@ wiredtiger_open_chunk_cache_configuration = [
             min='64', max='1048576'),
         Config('type', 'FILE', r'''
             cache location, defaults to the file system.''',
-            choices=['FILE', 'DRAM']),
+            choices=['FILE', 'DRAM'], undoc=True),
     ]),
 ]
 
