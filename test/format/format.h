@@ -245,6 +245,8 @@ typedef struct {
     TABLE *base_mirror;  /* First mirrored table */
     bool mirror_fix_var; /* Special case if mirroring both FIX and VAR tables */
 
+    bool background_compaction_running; /* Background compaction running */
+
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
 #define INCREMENTAL_BLOCK 1

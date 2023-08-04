@@ -37,15 +37,14 @@ background_compact(void *arg)
 {
     SAP sap;
     WT_CONNECTION *conn;
+    WT_DECL_RET;
     WT_SESSION *session;
     u_int period;
     char config_buf[128];
-    bool enabled;
 
     (void)(arg);
 
     conn = g.wts_conn;
-    enabled = false;
 
     /* Open a session. */
     memset(&sap, 0, sizeof(sap));
@@ -64,20 +63,27 @@ background_compact(void *arg)
         if (g.workers_finished)
             break;
 
-        if (enabled)
+        if (g.background_compaction_running)
             testutil_snprintf(config_buf, sizeof(config_buf), "%s", "background=false");
         else
             testutil_snprintf(config_buf, sizeof(config_buf),
               "background=true,free_space_target=%" PRIu32 "MB",
               GV(BACKGROUND_COMPACT_FREE_SPACE_TARGET));
 
-        testutil_check(session->compact(session, NULL, config_buf));
-        enabled = !enabled;
+        ret = session->compact(session, NULL, config_buf);
+        if (ret == 0)
+            g.background_compaction_running = !g.background_compaction_running;
+        else
+            testutil_assertfmt(ret == EBUSY, "WT_SESSION.compact failed: %d", ret);
     }
 
     /* Always disable the background compaction server. */
-    if (enabled)
-        testutil_check(session->compact(session, NULL, "background=false"));
+    if (g.background_compaction_running)
+        ret = session->compact(session, NULL, "background=false");
+    if (ret == 0)
+        g.background_compaction_running = false;
+    else
+        testutil_assertfmt(ret == EBUSY, "WT_SESSION.compact failed: %d", ret);
 
     wt_wrap_close_session(session);
 
