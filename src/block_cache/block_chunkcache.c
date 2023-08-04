@@ -323,7 +323,7 @@ __chunkcache_eviction_thread(void *arg)
     session = (WT_SESSION_IMPL *)arg;
     chunkcache = &S2C(session)->chunkcache;
 
-    while (!chunkcache->chunkcache_exiting) {
+    while (!F_ISSET(chunkcache, WT_CHUNK_CACHE_EXITING)) {
         /* Do not evict if we are not close to exceeding capacity. */
         if ((chunkcache->bytes_used + chunkcache->chunk_size) <
           chunkcache->evict_trigger * chunkcache->capacity / 100) {
@@ -345,7 +345,7 @@ __chunkcache_eviction_thread(void *arg)
                 }
             }
             __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
-            if (chunkcache->chunkcache_exiting)
+            if (F_ISSET(chunkcache, WT_CHUNK_CACHE_EXITING))
                 return (WT_THREAD_RET_VALUE);
         }
     }
