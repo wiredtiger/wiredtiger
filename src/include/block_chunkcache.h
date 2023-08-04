@@ -85,6 +85,7 @@ struct __wt_chunkcache {
     uint8_t *memory;      /* Memory location for the assigned chunk space */
 
     /* Content management. */
+    wt_thread_t evict_thread_tid;
     unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
     WT_CHUNKCACHE_PINNED_LIST pinned_objects;
 
