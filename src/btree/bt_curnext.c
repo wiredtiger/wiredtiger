@@ -201,7 +201,7 @@ restart_read:
                   (cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid ||
                     cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts))
                     cbt->valid_data = true;
-                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                else if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_obsolete_deleted_count;
             } else
                 cbt->valid_data = true;
@@ -302,7 +302,7 @@ restart_read:
                       (cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid ||
                         cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts))
                         cbt->valid_data = true;
-                    if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    else if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                         ++cbt->page_obsolete_deleted_count;
                 } else
                     cbt->valid_data = true;
@@ -386,7 +386,7 @@ restart_read:
                   (cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid ||
                     cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts))
                     cbt->valid_data = true;
-                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                else if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_obsolete_deleted_count;
             } else
                 cbt->valid_data = true;
@@ -523,7 +523,7 @@ restart_read_insert:
                       (cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid ||
                         cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts))
                         cbt->valid_data = true;
-                    if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    else if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                         ++cbt->page_obsolete_deleted_count;
                 } else
                     cbt->valid_data = true;
@@ -593,7 +593,7 @@ restart_read_page:
                   (cbt->upd_value->tw.stop_txn != first_upd->txnid ||
                     cbt->upd_value->tw.stop_ts != first_upd->start_ts))
                     cbt->valid_data = true;
-                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                else if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_obsolete_deleted_count;
             } else
                 cbt->valid_data = true;
