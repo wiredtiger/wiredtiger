@@ -423,6 +423,7 @@ typedef struct {
 extern TINFO **tinfo_list;
 
 WT_THREAD_RET alter(void *);
+WT_THREAD_RET background_compact(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);

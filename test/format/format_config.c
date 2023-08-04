@@ -2259,8 +2259,8 @@ config_file_type(u_int type)
 static void
 config_compact(void)
 {
-    if (config_explicit(NULL, "compact.free_space_target"))
-        return;
-
-    GV(COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
+    if (!config_explicit(NULL, "compact.free_space_target"))
+        GV(COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
+    if (!config_explicit(NULL, "background_compact.free_space_target"))
+        GV(BACKGROUND_COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
 }
