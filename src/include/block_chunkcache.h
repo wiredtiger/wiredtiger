@@ -62,12 +62,9 @@ struct __wt_chunkcache_pinned_list {
 #define WT_CHUNKCACHE_MAX_RETRIES 32 * 1024
 struct __wt_chunkcache {
     /* Cache-wide. */
-    bool configured; /* Whether the chunk cache should be used */
-
-#define WT_CHUNKCACHE_FILE 2
-#define WT_CHUNKCACHE_IN_VOLATILE_MEMORY 1
-#define WT_CHUNKCACHE_UNCONFIGURED 0
-    int type;            /* Location of the chunk cache (volatile memory or file) */
+#define WT_CHUNKCACHE_FILE 1
+#define WT_CHUNKCACHE_IN_VOLATILE_MEMORY 2
+    uint8_t type;        /* Location of the chunk cache (volatile memory or file) */
     uint64_t bytes_used; /* Amount of data currently in cache */
     uint64_t capacity;   /* Maximum allowed capacity */
 
@@ -92,7 +89,8 @@ struct __wt_chunkcache {
     WT_CHUNKCACHE_PINNED_LIST pinned_objects;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CHUNK_CACHE_EXITING 0x1u
+#define WT_CHUNKCACHE_CONFIGURED 0x1u
+#define WT_CHUNK_CACHE_EXITING 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };

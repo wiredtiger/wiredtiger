@@ -470,7 +470,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     retries = 0;
     sleep_usec = WT_THOUSAND;
 
-    if (!chunkcache->configured)
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         return (ENOTSUP);
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
@@ -597,7 +597,7 @@ __wt_chunkcache_remove(
     already_removed = 0;
     remains_to_remove = size;
 
-    if (!chunkcache->configured)
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         return;
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "remove block: %s(%u), offset=%" PRId64 ", size=%u",
@@ -669,7 +669,7 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     if ((ret = __wt_config_gets(session, cfg + 1, "chunk_cache", &cval)) == WT_NOTFOUND)
         return (0);
 
-    if (chunkcache->type == WT_CHUNKCACHE_UNCONFIGURED)
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         WT_RET_MSG(
           session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
 
@@ -722,7 +722,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     pinned_objects = NULL;
     cnt = 0;
 
-    if (chunkcache->type != WT_CHUNKCACHE_UNCONFIGURED)
+    if (F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.enabled", &cval));
@@ -756,7 +756,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         chunkcache->type = WT_CHUNKCACHE_IN_VOLATILE_MEMORY;
     else if (WT_STRING_MATCH("file", cval.str, cval.len) ||
       WT_STRING_MATCH("FILE", cval.str, cval.len)) {
-
         chunkcache->type = WT_CHUNKCACHE_FILE;
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
@@ -798,7 +797,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_thread_create(
       session, &evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
 
-    chunkcache->configured = true;
+    F_SET(chunkcache, WT_CHUNKCACHE_CONFIGURED);
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
       (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) ? "volatile memory" : "file system",
       chunkcache->capacity);
@@ -819,7 +818,13 @@ __wt_chunkcache_teardown(WT_SESSION_IMPL *session)
     WT_CHUNKCACHE *chunkcache;
 
     chunkcache = &S2C(session)->chunkcache;
-    if (!chunkcache->configured || chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
+
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
+        return (0);
+
+    F_SET(chunkcache, WT_CHUNK_CACHE_EXITING);
+
+    if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         return (0);
 
     WT_RET(__wt_close(session, &chunkcache->fh));
