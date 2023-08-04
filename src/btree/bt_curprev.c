@@ -361,6 +361,14 @@ restart_read:
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                /*
+                 * If the selected tombstone is not first in the update list indicates that there
+                 * are newer updates in the list that is either not committed or not visible.
+                 */
+                if (!cbt->valid_data &&
+                  (cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid ||
+                    cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts))
+                    cbt->valid_data = true;
                 if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_obsolete_deleted_count;
             } else
@@ -458,6 +466,15 @@ restart_read:
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
                 if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                    /*
+                     * If the selected tombstone is not first in the update list indicates that
+                     * there are newer updates in the list that is either not committed or not
+                     * visible.
+                     */
+                    if (!cbt->valid_data &&
+                      (cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid ||
+                        cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts))
+                        cbt->valid_data = true;
                     if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                         ++cbt->page_obsolete_deleted_count;
                 } else
@@ -663,6 +680,15 @@ restart_read_insert:
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
                 if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                    /*
+                     * If the selected tombstone is not first in the update list indicates that
+                     * there are newer updates in the list that is either not committed or not
+                     * visible.
+                     */
+                    if (!cbt->valid_data &&
+                      (cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid ||
+                        cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts))
+                        cbt->valid_data = true;
                     if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                         ++cbt->page_obsolete_deleted_count;
                 } else
@@ -730,6 +756,14 @@ restart_read_page:
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+                /*
+                 * If the selected tombstone is not first in the update list indicates that there
+                 * are newer updates in the list that is either not committed or not visible.
+                 */
+                if (!cbt->valid_data && first_upd != NULL &&
+                  (cbt->upd_value->tw.stop_txn != first_upd->txnid ||
+                    cbt->upd_value->tw.stop_ts != first_upd->start_ts))
+                    cbt->valid_data = true;
                 if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_obsolete_deleted_count;
             } else
