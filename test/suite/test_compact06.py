@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
 import wiredtiger, wttest
 
 # test_compact06.py
@@ -53,6 +54,10 @@ class test_compact06(wttest.WiredTigerTestCase):
 
         #   4. Enable the background compaction server.
         self.session.compact(None, 'background=true')
+
+        # Need to pause to make sure the signal sent to the background compaction server has been
+        # processed.
+        time.sleep(2)
 
         #   5. We cannot reconfigure the background server.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
