@@ -2303,8 +2303,11 @@ __wt_btcur_skip_inmem_reconcile_page(WT_SESSION_IMPL *session, WT_REF *ref, bool
         *skipp = true;
     else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         /* Calculate the max stop time point by traversing all multi addresses. */
-        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &multi->addr.ta);
+            if (!WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
+                goto unlock;
+        }
     } else if (mod->rec_result == WT_PM_REC_REPLACE)
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &mod->mod_replace.ta);
 
@@ -2317,6 +2320,10 @@ __wt_btcur_skip_inmem_reconcile_page(WT_SESSION_IMPL *session, WT_REF *ref, bool
     if (*skipp)
         WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_inmem_del_page_skip);
 
+    return;
+
+unlock:
+    WT_PAGE_UNLOCK(session, ref->page);
     return;
 }
 
@@ -2384,30 +2391,30 @@ __wt_btcur_skip_page(
     }
 
     /* Look at the disk address, if it exists. */
-    if ((previous_state == WT_REF_DISK ||
-          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
-      __wt_ref_addr_copy(session, ref, &addr)) {
-        /* If there's delete information in the disk address, we can use it. */
-        if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
-            *skipp = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
-            goto unlock;
-        }
+    if (previous_state == WT_REF_DISK ||
+      (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) {
+        if (__wt_ref_addr_copy(session, ref, &addr)) {
+            /* If there's delete information in the disk address, we can use it. */
+            if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
+                *skipp = true;
+                WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
+                goto unlock;
+            }
 
-        /*
-         * Otherwise, check the timestamp information. We base this decision on the aggregate stop
-         * point added to the page during the last reconciliation.
-         */
-        if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
-          __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
-            addr.ta.newest_stop_durable_ts)) {
-            *skipp = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
-            goto unlock;
-        }
-    } else if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page) &&
-      ref->page->modify != NULL)
-        __wt_btcur_skip_inmem_reconcile_page(session, ref, skipp);
+            /*
+             * Otherwise, check the timestamp information. We base this decision on the aggregate
+             * stop point added to the page during the last reconciliation.
+             */
+            if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
+              __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+                addr.ta.newest_stop_durable_ts)) {
+                *skipp = true;
+                WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
+                goto unlock;
+            }
+        } else if (previous_state == WT_REF_MEM && ref->page->modify != NULL)
+            __wt_btcur_skip_inmem_reconcile_page(session, ref, skipp);
+    }
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);
