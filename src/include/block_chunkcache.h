@@ -59,7 +59,7 @@ struct __wt_chunkcache_bucket {
     WT_SPINLOCK bucket_lock;
 };
 
-struct __wt_pinned_list {
+struct __wt_chunkcache_pinned_list {
     char **array;         /* list of objects we wish to pin in chunk cache */
     uint32_t entries;     /* count of pinned objects */
     WT_RWLOCK array_lock; /* Lock for pinned object array */
@@ -92,5 +92,5 @@ struct __wt_chunkcache {
 
     /* Content management. */
     unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
-    WT_PINNED_LIST pinned_objects;
+    WT_CHUNKCACHE_PINNED_LIST pinned_objects;
 };
