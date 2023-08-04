@@ -74,38 +74,6 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t *tid)
 }
 
 /*
- * __wt_thread_detach --
- *     Mark a specific thread as detached. Once a thread is detached, its resources are
- *     automatically released by the system when the thread terminates.
- */
-int
-__wt_thread_detach(WT_SESSION_IMPL *session, wt_thread_t *tid)
-{
-    WT_DECL_RET;
-    DWORD windows_error;
-
-    /* Only attempt to join if thread was created successfully */
-    if (!tid->created)
-        return (0);
-    tid->created = false;
-
-    /*
-     * Should we use a full barrier here?
-     */
-    WT_FULL_BARRIER();
-
-    if (CloseHandle(tid->id) == 0) {
-        windows_error = __wt_getlasterror();
-        ret = __wt_map_windows_error(windows_error);
-        __wt_err(
-          session, ret, "thread join: CloseHandle: %s", __wt_formatmessage(session, windows_error));
-        return (ret);
-    }
-
-    return (0);
-}
-
-/*
  * __wt_thread_id --
  *     Return an arithmetic representation of a thread ID on POSIX.
  */

@@ -271,40 +271,6 @@ __chunkcache_eviction_thread(void *arg)
 }
 
 /*
- * __chunkcache_content_mgmt_thread --
- *     The purpose of this thread is to handle updates to the lists of pinned tables. When a change
- *     to these lists occurs, the content management thread is notified and performs the necessary
- *     tasks.
- */
-static WT_THREAD_RET
-__chunkcache_content_mgmt_thread(void *arg)
-{
-    WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
-    WT_SESSION_IMPL *session;
-    int i;
-
-    session = (WT_SESSION_IMPL *)arg;
-    chunkcache = &S2C(session)->chunkcache;
-
-    F_SET(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK);
-    for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
-        __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
-        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
-        {
-            if (__chunkcache_should_pin_chunk(session, chunk))
-                F_SET(chunk, WT_CHUNK_PINNED);
-            else
-                F_CLR(chunk, WT_CHUNK_PINNED);
-        }
-        __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
-    }
-    F_CLR(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK);
-
-    return (WT_THREAD_RET_VALUE);
-}
-
-/*
  * __chunkcache_str_cmp --
  *     Qsort function: sort string array.
  */
@@ -604,13 +570,14 @@ int
 __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    wt_thread_t content_mgmt_thread_tid;
-    char **pinned_objects;
-    unsigned int cnt;
+    char **old_pinned_list, **pinned_objects;
+    unsigned int cnt, i;
 
     chunkcache = &S2C(session)->chunkcache;
+    old_pinned_list = chunkcache->pinned_objects.array;
     pinned_objects = NULL;
     cnt = 0;
 
@@ -622,30 +589,32 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
         WT_RET_MSG(
           session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
 
-    /* !! Simple approach for now, probably cond_wait would be better here. !!*/
-    while (F_ISSET(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK))
-        __wt_yield();
-
     WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
 
+    /*
+     * Acquire the pinned array lock to avoid racing with threads reading the pinned array, and then
+     * update the array.
+     */
     __wt_writelock(session, &chunkcache->pinned_objects.array_lock);
     chunkcache->pinned_objects.array = pinned_objects;
     chunkcache->pinned_objects.entries = cnt;
     __wt_writeunlock(session, &chunkcache->pinned_objects.array_lock);
 
-    WT_RET(__wt_thread_create(
-      session, &content_mgmt_thread_tid, __chunkcache_content_mgmt_thread, (void *)session));
+    /* Release the memory allocated to the old array. */
+    __chunkcache_arr_free(session, &old_pinned_list);
 
-    /* !! Simple approach for now, probably cond_wait would be better here. !!*/
-    while (!F_ISSET(chunkcache, WT_CHUNK_CACHE_CONTENT_THREAD_WORK))
-        __wt_yield();
-
-    WT_RET(__wt_thread_detach(session, &content_mgmt_thread_tid));
-
-    /*
-     * !! At the moment we do not have a close chunkcache function, once we have that we would
-     * ideally want to join the running thread before closing. !!
-     */
+    /* Iterate through all the chunks and mark them as pinned if necessary. */
+    for (i = 0; i < chunkcache->hashtable_size; i++) {
+        __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
+        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+        {
+            if (__chunkcache_should_pin_chunk(session, chunk))
+                F_SET(chunk, WT_CHUNK_PINNED);
+            else
+                F_CLR(chunk, WT_CHUNK_PINNED);
+        }
+        __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
+    }
 
     return (0);
 }
