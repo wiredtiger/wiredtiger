@@ -17,11 +17,17 @@
 #define WT_CHUNKCACHE_MINHASHSIZE 64
 #define WT_CHUNKCACHE_MAXHASHSIZE 1024 * 1024
 #define WT_CHUNKCACHE_MAX_RETRIES 32 * 1024
-#define WT_CHUNKCACHE_NAMEMAX 50
 #define WT_CHUNKCACHE_UNCONFIGURED 0
 
 struct __wt_chunkcache_hashid {
-    char objectname[WT_CHUNKCACHE_NAMEMAX];
+    const char *objectname;
+    uint32_t objectid;
+    wt_off_t offset;
+};
+
+/* Hold the values used while hashing object ID, name, and offset tuples. */
+struct __wt_chunkcache_intermediate_hash {
+    uint64_t name_hash;
     uint32_t objectid;
     wt_off_t offset;
 };
@@ -36,7 +42,7 @@ struct __wt_chunkcache_chunk {
     WT_CHUNKCACHE_HASHID hash_id;
     uint64_t access_count;
     uint64_t bucket_id; /* save hash bucket ID for quick removal */
-    char *chunk_memory;
+    uint8_t *chunk_memory;
     wt_off_t chunk_offset;
     size_t chunk_size;
     volatile uint32_t valid;
@@ -67,18 +73,24 @@ struct __wt_pinned_list {
  *     chunks are placed into a linked list. There is a per-bucket spinlock.
  */
 struct __wt_chunkcache {
-    WT_CHUNKCACHE_BUCKET *hashtable;
-#ifdef ENABLE_MEMKIND
-    struct memkind *memkind; /* Lets us use jemalloc over a file. */
-#endif
-    uint64_t bytes_used; /* amount of data currently in cache */
-    uint64_t capacity;   /* maximum allowed capacity */
-    bool chunkcache_exiting;
-    bool configured;
+    /* Cache-wide. */
+    bool configured;     /* Whether the chunk cache should be used */
+    int type;            /* Location of the chunk cache (volatile memory or file) */
+    uint64_t bytes_used; /* Amount of data currently in cache */
+    uint64_t capacity;   /* Maximum allowed capacity */
     size_t chunk_size;
-    char *dev_path;             /* the storage path if we are on a file system or a block device */
+    bool chunkcache_exiting;
+
+    WT_CHUNKCACHE_BUCKET *hashtable;
+    unsigned int hashtable_size; /* The number of buckets */
+
+    /* Backing storage (or memory). */
+    char *storage_path;   /* The storage path if we are on a file system or a block device */
+    WT_FH *fh;            /* Only used when backed by a file */
+    uint8_t *free_bitmap; /* Bitmap of free chunks in file */
+    uint8_t *memory;      /* Memory location for the assigned chunk space */
+
+    /* Content management. */
     unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
-    unsigned int hashtable_size;
-    int type; /* location of the chunk cache (volatile memory or file) */
     WT_PINNED_LIST pinned_objects;
 };

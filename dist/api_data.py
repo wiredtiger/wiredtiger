@@ -1067,8 +1067,8 @@ wiredtiger_open_chunk_cache_configuration = [
         Config('chunk_size', '1MB', r'''
             size of cached chunks''',
             min='512KB', max='100GB'),
-        Config('device_path', '', r'''
-            the absolute path to the file system or a block device used as cache location'''),
+        Config('storage_path', '', r'''
+            the absolute path to the file used as cache location'''),
         Config('enabled', 'false', r'''
             enable chunk cache''',
             type='boolean'),
@@ -1353,6 +1353,9 @@ methods = {
 'WT_SESSION.close' : Method([]),
 
 'WT_SESSION.compact' : Method([
+    Config('background', '', r'''
+        enable/disabled the background compaction server.''',
+        type='boolean'),
     Config('free_space_target', '20MB', r'''
         minimum amount of space recoverable for compaction to proceed''',
         min='1MB'),
