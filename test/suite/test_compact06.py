@@ -51,16 +51,18 @@ class test_compact06(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.compact(None, 'background=false'), '/Background compaction is already disabled/')
 
-        #   4. We cannot reconfigure the background server.
+        #   4. Enable the background compaction server.
         self.session.compact(None, 'background=true')
+
+        #   5. We cannot reconfigure the background server.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.compact(None, 'background=true,free_space_target=10MB'), '/Background compaction is already enabled/')
 
-        #   5. We cannot enable the background server when it is already enabled.
+        #   6. We cannot enable the background server when it is already enabled.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.compact(None, 'background=true'), '/Background compaction is already enabled/')
 
-        #   6. Disable the background compaction server.
+        #   7. Disable the background compaction server.
         self.session.compact(None, 'background=false')
 
 if __name__ == '__main__':
