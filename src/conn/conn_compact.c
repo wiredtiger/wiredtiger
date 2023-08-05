@@ -141,11 +141,12 @@ __compact_server(void *arg)
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
          * Compact may return:
-         * - EBUSY and WT_ROLLBACK for various reasons.
+         * - EBUSY or WT_ROLLBACK for various reasons.
          * - ETIMEDOUT if the timer has been configured and compaction took too long.
-         * - WT_NOTFOUND if the underlying file has been deleted.
+         * - ENOENT or WT_NOTFOUND if the underlying file does not exist.
          */
-        if (ret == EBUSY || ret == ETIMEDOUT || ret == WT_NOTFOUND || ret == WT_ROLLBACK)
+        if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_NOTFOUND ||
+          ret == WT_ROLLBACK)
             ret = 0;
         WT_ERR(ret);
     }
