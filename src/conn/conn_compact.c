@@ -129,8 +129,7 @@ __compact_server(void *arg)
         if (config == NULL || !WT_STREQ(config, conn->background_compact.config)) {
             __wt_free(session, config);
             ret = __wt_strndup(session, conn->background_compact.config,
-              conn->background_compact.config == NULL ? 0 : strlen(conn->background_compact.config),
-              &config);
+              strlen(conn->background_compact.config), &config);
         }
         __wt_spin_unlock(session, &conn->background_compact.lock);
 
