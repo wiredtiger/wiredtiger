@@ -780,10 +780,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_rwlock_init(session, &chunkcache->pinned_objects.array_lock));
     WT_ERR(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
-    __wt_writelock(session, &chunkcache->pinned_objects.array_lock);
     chunkcache->pinned_objects.array = pinned_objects;
     chunkcache->pinned_objects.entries = cnt;
-    __wt_writeunlock(session, &chunkcache->pinned_objects.array_lock);
 
     WT_ERR(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
 
@@ -825,16 +823,11 @@ __wt_chunkcache_teardown(WT_SESSION_IMPL *session)
     F_SET(chunkcache, WT_CHUNK_CACHE_EXITING);
     WT_TRET(__wt_thread_join(session, &chunkcache->evict_thread_tid));
 
-    __wt_writelock(session, &chunkcache->pinned_objects.array_lock);
     __chunkcache_arr_free(session, &chunkcache->pinned_objects.array);
-    __wt_writeunlock(session, &chunkcache->pinned_objects.array_lock);
-
     __wt_rwlock_destroy(session, &chunkcache->pinned_objects.array_lock);
 
-    if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
-        return (0);
-
-    WT_TRET(__wt_close(session, &chunkcache->fh));
+    if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
+        WT_TRET(__wt_close(session, &chunkcache->fh));
 
     return (ret);
 }
