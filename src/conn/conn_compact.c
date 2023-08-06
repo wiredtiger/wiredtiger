@@ -141,11 +141,10 @@ __compact_server(void *arg)
         /*
          * Compact may return:
          * - EBUSY or WT_ROLLBACK for various reasons.
-         * - ETIMEDOUT if the timer has been configured and compaction took too long.
-         * - ENOENT or WT_NOTFOUND if the underlying file does not exist.
+         * - ETIMEDOUT if the configured timer has elapsed.
+         * - ENOENT if the underlying file does not exist.
          */
-        if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_NOTFOUND ||
-          ret == WT_ROLLBACK)
+        if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK)
             ret = 0;
         WT_ERR(ret);
     }
