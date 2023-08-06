@@ -41,7 +41,7 @@ __compact_server(void *arg)
     config = NULL;
     key = NULL;
     uri = NULL;
-    /* The compact operation is only applied URIs with a specific prefix. */
+    /* The compact operation is only applied on URIs with a specific prefix. */
     prefix = "file:";
     exact = 0;
     full_iteration = running = signalled = false;
@@ -117,7 +117,7 @@ __compact_server(void *arg)
             continue;
         }
 
-        /* Make a copy of the key has it can be freed once the cursor is released. */
+        /* Make a copy of the key as it can be freed once the cursor is released. */
         __wt_free(session, uri);
         WT_ERR(__wt_strndup(session, key, strlen(key), &uri));
 
