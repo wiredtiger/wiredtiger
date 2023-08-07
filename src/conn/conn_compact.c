@@ -44,7 +44,7 @@ __compact_server(void *arg)
     exact = 0;
     full_iteration = running = signalled = false;
 
-    WT_STAT_CONN_SET(session, session_background_compact_running, 0);
+    WT_STAT_CONN_SET(session, background_compact_running, 0);
 
     for (;;) {
 
@@ -70,7 +70,7 @@ __compact_server(void *arg)
         running = conn->background_compact.running;
         if (conn->background_compact.signalled) {
             conn->background_compact.signalled = false;
-            WT_STAT_CONN_SET(session, session_background_compact_running, running);
+            WT_STAT_CONN_SET(session, background_compact_running, running);
         }
         __wt_spin_unlock(session, &conn->background_compact.lock);
 
@@ -135,12 +135,21 @@ __compact_server(void *arg)
          * - ETIMEDOUT if the timer has been configured and compaction took too long.
          * - WT_NOTFOUND if the underlying file has been deleted.
          */
-        if (ret == EBUSY || ret == ETIMEDOUT || ret == WT_NOTFOUND || ret == WT_ROLLBACK)
+        if (ret == EBUSY || ret == ETIMEDOUT || ret == WT_NOTFOUND || ret == WT_ROLLBACK) {
+            if (ret == EBUSY && __wt_cache_stuck(session))
+                WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
+
+            if (ret == ETIMEDOUT)
+                WT_STAT_CONN_INCR(session, background_compact_timeout);
+
+            WT_STAT_CONN_INCR(session, background_compact_fail);
             ret = 0;
+        }
+
         WT_ERR(ret);
     }
 
-    WT_STAT_CONN_SET(session, session_background_compact_running, 0);
+    WT_STAT_CONN_SET(session, background_compact_running, 0);
 
     WT_ERR(__wt_metadata_cursor_close(session));
     __wt_free(session, config);
