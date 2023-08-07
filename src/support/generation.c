@@ -133,20 +133,8 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
             continue;
 
         for (;;) {
-            /*
-             * Ensure we only read the value once.
-             *
-             * The requirement is that we should see all the sessions that enter the generation
-             * before the global generation we read. This is already guranteed when we read the
-             * global generation using sequential consistency. However, we may still be reordered
-             * before the load of the global generation if we use a relaxed read. Therefore, an
-             * acquire read here is required.
-             *
-             * Instead of passing the generation, we can refactor to pass in a pointer to the
-             * generation and do a sequential consistency read inside this function to make this
-             * relationship clearer.
-             */
-            WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_ACQUIRE);
+            /* Ensure we only read the value once. */
+            WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_SEQ_CST);
 
             /*
              * The generation argument is newer than the limit. Wait for threads in generations
@@ -250,16 +238,8 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
         if (!s->active)
             continue;
 
-        /*
-         * Ensure we only read the value once.
-         *
-         * The requirement is that we should see all the sessions that enter the generation before
-         * the global generation we read. This is already guranteed when we read the global
-         * generation using sequential consistency. However, we may still be reordered before the
-         * load of the global generation if we use a relaxed read. Therefore, an acquire read here
-         * is required.
-         */
-        WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_RELAXED);
+        /* Ensure we only read the value once. */
+        WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_SEQ_CST);
 
         if (v != 0 && v < oldest)
             oldest = v;
@@ -293,17 +273,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
         if (!s->active)
             continue;
 
-        /*
-         * Ensure we only read the value once.
-         *
-         * The requirement is that we should see all the sessions that enter the generation before
-         * the generation that is passed in. Since we haven't read the generation with sequential
-         * consistency, we should at least read the first session's generation using sequential
-         * consistency. There should be a better implementation here, we can pass in a pointer to
-         * the generation instead of the generation value and do a sequential consistency read on
-         * that to ensure that the requirement is met. After that, we can get away using relaxed
-         * read on the session generations.
-         */
+        /* Ensure we only read the value once. */
         WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_SEQ_CST);
 
         if (v != 0 && generation >= v)
