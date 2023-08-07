@@ -169,7 +169,7 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -242,7 +242,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -344,7 +344,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);

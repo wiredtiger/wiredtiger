@@ -113,7 +113,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         tmp_ts = txn_global->checkpoint_timestamp;
 
     /* Walk the array of concurrent transactions. */
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
@@ -176,7 +176,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         ts = txn_global->durable_timestamp;
 
         /* Walk the array of concurrent transactions. */
-        WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+        WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
         for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
             __txn_get_durable_timestamp(s, &tmpts);
             if (tmpts != 0 && (ts == 0 || --tmpts < ts))
