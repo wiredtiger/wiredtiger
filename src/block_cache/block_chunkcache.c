@@ -595,12 +595,12 @@ void
 __wt_chunkcache_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, uint32_t size)
 {
-    bool valid;
-    size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
-    uint64_t bucket_id;
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
     WT_CHUNKCACHE_HASHID hash_id;
+    bool valid;
+    size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
+    uint64_t bucket_id;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
