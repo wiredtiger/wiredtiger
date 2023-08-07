@@ -138,10 +138,15 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
              *
              * The requirement is that we should see all the sessions that enter the generation
              * before the global generation we read. This is already guranteed when we read the
-             * global generation using sequential consistency. Therefore, here we can get away using
-             * a relaxed read.
+             * global generation using sequential consistency. However, we may still be reordered
+             * before the load of the global generation if we use a relaxed read. Therefore, an
+             * acquire read here is required.
+             *
+             * Instead of passing the generation, we can refactor to pass in a pointer to the
+             * generation and do a sequential consistency read inside this function to make this
+             * relationship clearer.
              */
-            WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_RELAXED);
+            WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_ACQUIRE);
 
             /*
              * The generation argument is newer than the limit. Wait for threads in generations
@@ -250,8 +255,9 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
          *
          * The requirement is that we should see all the sessions that enter the generation before
          * the global generation we read. This is already guranteed when we read the global
-         * generation using sequential consistency. Therefore, here we can get away using a relaxed
-         * read.
+         * generation using sequential consistency. However, we may still be reordered before the
+         * load of the global generation if we use a relaxed read. Therefore, an acquire read here
+         * is required.
          */
         WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_RELAXED);
 
