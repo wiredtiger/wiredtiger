@@ -277,11 +277,17 @@ __hash_id_eq(WT_CHUNKCACHE_HASHID *a, WT_CHUNKCACHE_HASHID *b)
 static inline bool
 __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 {
+    bool valid;
+
     /* Do not evict chunks that are in the process of being added to the cache. */
-    if (!chunk->valid)
+    WT_ORDERED_READ(valid, chunk->valid);
+    if (!valid)
         return (false);
-    if (--(chunk->access_count) == 0)
+
+    if (chunk->access_count == 0)
         return (true);
+    --chunk->access_count;
+
     return (false);
 }
 
@@ -441,7 +447,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
-    bool chunk_cached, found;
+    bool chunk_cached, found, valid;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
@@ -467,7 +473,8 @@ retry:
         TAILQ_FOREACH (chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk) {
             if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
                 /* If the chunk is there, but invalid, there is I/O in progress. Retry. */
-                if (!chunk->valid) {
+                WT_ORDERED_READ(valid, chunk->valid);
+                if (!valid) {
                     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
                     __wt_spin_backoff(&retries, &sleep_usec);
                     WT_STAT_CONN_INCR(session, chunk_cache_retries);
@@ -546,7 +553,7 @@ retry:
              * would be spin-waiting for this chunk to become valid. The current thread will mark
              * the chunk as valid, and any waiters will unblock and proceed reading it.
              */
-            (void)__wt_atomic_addv32(&chunk->valid, 1);
+            WT_PUBLISH(chunk->valid, true);
 
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
               "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
@@ -567,11 +574,12 @@ void
 __wt_chunkcache_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, uint32_t size)
 {
+    bool valid;
+    size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
+    uint64_t bucket_id;
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
     WT_CHUNKCACHE_HASHID hash_id;
-    size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
-    uint64_t bucket_id;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -596,7 +604,8 @@ __wt_chunkcache_remove(
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk, chunk_tmp)
         {
             if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
-                if (chunk->valid) {
+                WT_ORDERED_READ(valid, chunk->valid);
+                if (valid) {
                     WT_ASSERT(session,
                       WT_BLOCK_OVERLAPS_CHUNK(chunk->chunk_offset,
                         offset + (wt_off_t)already_removed, chunk->chunk_size, size));
