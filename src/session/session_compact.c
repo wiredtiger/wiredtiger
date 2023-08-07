@@ -239,8 +239,12 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
     const char *checkpoint_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL};
 
-    /* Checkpoints take a lot of time, check if we've run out. */
+    /*
+     * Checkpoints take a lot of time, check if we've run out of time or if compaction has been
+     * interrupted.
+     */
     WT_RET(__wt_session_compact_check_timeout(session));
+    WT_RET(__wt_session_compact_check_interrupted(session));
     return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
 }
 
