@@ -64,9 +64,10 @@ struct __wt_chunkcache {
     /* Cache-wide. */
 #define WT_CHUNKCACHE_FILE 1
 #define WT_CHUNKCACHE_IN_VOLATILE_MEMORY 2
-    uint8_t type;        /* Location of the chunk cache (volatile memory or file) */
-    uint64_t bytes_used; /* Amount of data currently in cache */
-    uint64_t capacity;   /* Maximum allowed capacity */
+    uint8_t type;               /* Location of the chunk cache (volatile memory or file) */
+    uint64_t bytes_used;        /* Amount of data currently in cache */
+    uint64_t pinned_bytes_used; /* Amount of pinned data currently in cache */
+    uint64_t capacity;          /* Maximum allowed capacity */
 
 #define WT_CHUNKCACHE_DEFAULT_CHUNKSIZE 1024 * 1024
     size_t chunk_size;
