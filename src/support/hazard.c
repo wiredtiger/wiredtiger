@@ -350,13 +350,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
 
         for (j = 0; j < hazard_inuse; ++hp, ++j) {
             ++walk_cnt;
-            /*
-             * The algorithm requires that all the writes to the hazard pointer array that is before
-             * the locking of the ref is visible to the eviction thread. Since we have locked the
-             * ref with sequential consistency before calling this function, the requirement has
-             * already been satisfied and we can get away by reading with relaxed ordering here.
-             */
-            WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_RELAXED);
+            WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &hp->ref, WT_ATOMIC_SEQ_CST);
             if (tmp == ref) {
                 WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
                 if (sessionp != NULL)
