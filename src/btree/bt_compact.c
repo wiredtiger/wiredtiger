@@ -361,16 +361,12 @@ __wt_compact(WT_SESSION_IMPL *session)
           session, btree_compact_pages_rewritten_expected, stats_pages_rewritten_expected);
 
         /*
-         * Periodically check if:
-         * - compaction has timed out,
-         * - eviction is stuck or,
-         * - compaction has been interrupted.
-         * Quit if any of the above is true.
+         * Periodically check if compaction has been interrupted or if eviction is stuck, quit if
+         * this is the case.
          */
         if (first || ++i > 100) {
             if (!first)
                 bm->compact_progress(bm, session, &msg_count);
-            WT_ERR(__wt_session_compact_check_timeout(session));
             WT_ERR(__wt_session_compact_check_interrupted(session));
 
             if (__wt_cache_stuck(session))
