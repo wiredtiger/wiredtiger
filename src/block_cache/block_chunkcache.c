@@ -598,9 +598,9 @@ __wt_chunkcache_remove(
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
     WT_CHUNKCACHE_HASHID hash_id;
-    bool valid;
     size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
     uint64_t bucket_id;
+    bool valid;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
