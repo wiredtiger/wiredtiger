@@ -281,7 +281,7 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
     uint32_t i, session_cnt;
 
     conn = S2C(session);
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_RELAXED);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
 
     for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         /*

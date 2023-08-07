@@ -413,10 +413,10 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * not be at the end of the array, step toward the beginning of the array until we reach an
      * active session.
      */
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
     while (conn->sessions[session_cnt - 1].active == 0) {
         session_cnt -= 1;
-        WT_C_MEMMODEL_ATOMIC_STORE(&conn->session_cnt, session_cnt, WT_ATOMIC_SEQ_CST);
+        WT_C_MEMMODEL_ATOMIC_STORE(&conn->session_cnt, session_cnt, WT_ATOMIC_RELEASE);
         if (session_cnt == 0)
             break;
     }
@@ -2501,9 +2501,9 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * session count on error, as long as we don't mark this session as active, we'll clean it up on
      * close.
      */
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
     if (i >= session_cnt) /* Defend against off-by-one errors. */
-        WT_C_MEMMODEL_ATOMIC_STORE(&conn->session_cnt, i + 1, WT_ATOMIC_SEQ_CST);
+        WT_C_MEMMODEL_ATOMIC_STORE(&conn->session_cnt, i + 1, WT_ATOMIC_RELEASE);
 
     /* Find the set of methods appropriate to this session. */
     if (F_ISSET(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))

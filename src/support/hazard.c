@@ -336,7 +336,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * or go, we'll check the slots for all of the sessions that could have been active when we
      * started our check.
      */
-    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_ACQUIRE);
     for (s = conn->sessions, i = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
