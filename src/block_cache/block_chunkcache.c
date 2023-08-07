@@ -699,18 +699,12 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
         {
             if (__chunkcache_should_pin_chunk(session, chunk)) {
-                /*
-                 * Increment the stat only when a chunk, which was initially unpinned, becomes
-                 * pinned.
-                 */
+                /* Increment the stat when a chunk that was initially unpinned becomes pinned. */
                 if (!F_ISSET(chunk, WT_CHUNK_PINNED))
                     WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
                 F_SET(chunk, WT_CHUNK_PINNED);
             } else {
-                /*
-                 * Decrement the stat only when a chunk, which was initially pinned, becomes
-                 * unpinned.
-                 */
+                /* Decrement the stat when a chunk that was initially pinned becomes unpinned. */
                 if (F_ISSET(chunk, WT_CHUNK_PINNED))
                     WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
                 F_CLR(chunk, WT_CHUNK_PINNED);
