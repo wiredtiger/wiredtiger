@@ -200,6 +200,8 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
     WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
+    if (F_ISSET(chunk, WT_CHUNK_PINNED))
+        WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         __wt_free(session, chunk->chunk_memory);
@@ -556,8 +558,10 @@ retry:
                 return (ret);
             }
 
-            if (__chunkcache_should_pin_chunk(session, chunk))
+            if (__chunkcache_should_pin_chunk(session, chunk)) {
                 F_SET(chunk, WT_CHUNK_PINNED);
+                WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
+            }
 
             /*
              * Mark chunk as valid. The only thread that could be executing this code is the thread
@@ -694,10 +698,23 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
         __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
         {
-            if (__chunkcache_should_pin_chunk(session, chunk))
+            if (__chunkcache_should_pin_chunk(session, chunk)) {
+                /*
+                 * Increment the stat only when a chunk, which was initially unpinned, becomes
+                 * pinned.
+                 */
+                if (!F_ISSET(chunk, WT_CHUNK_PINNED))
+                    WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
                 F_SET(chunk, WT_CHUNK_PINNED);
-            else
+            } else {
+                /*
+                 * Decrement the stat only when a chunk, which was initially pinned, becomes
+                 * unpinned.
+                 */
+                if (F_ISSET(chunk, WT_CHUNK_PINNED))
+                    WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
                 F_CLR(chunk, WT_CHUNK_PINNED);
+            }
         }
         __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
     }
