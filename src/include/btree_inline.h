@@ -2270,6 +2270,28 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
+ * __wt_cbt_set_valid_data_flag --
+ *     Sets the page valid data flag if it has any data other than deleted.
+ */
+static inline void
+__wt_cbt_set_valid_data_flag(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *first_upd)
+{
+    if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
+        if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+            ++cbt->page_obsolete_deleted_count;
+        /*
+         * If the selected tombstone is not first in the update list indicates that there are newer
+         * updates in the list that is either not committed or not visible.
+         */
+        else if (!cbt->valid_data && first_upd &&
+          (cbt->upd_value->tw.stop_txn != first_upd->txnid ||
+            cbt->upd_value->tw.stop_ts != first_upd->start_ts))
+            cbt->valid_data = true;
+    } else
+        cbt->valid_data = true;
+}
+
+/*
  * __wt_btcur_skip_page --
  *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
  *     traversal.

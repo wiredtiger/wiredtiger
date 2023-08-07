@@ -2460,6 +2460,8 @@ static inline void __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE 
 static inline void __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_read_gen_incr(WT_SESSION_IMPL *session);
 static inline void __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
+static inline void __wt_cbt_set_valid_data_flag(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *first_upd);
 static inline void __wt_cell_type_reset(
   WT_SESSION_IMPL *session, WT_CELL *cell, u_int old_type, u_int new_type);
 static inline void __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
