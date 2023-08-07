@@ -178,6 +178,26 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wt_session_compact_check_interrupted --
+ *     Check if compaction has been interrupted.
+ */
+int
+__wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    if (session->event_handler->handle_general != NULL) {
+        ret = session->event_handler->handle_general(session->event_handler, &(S2C(session))->iface,
+          &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
+        /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
+        if (ret != 0)
+            WT_RET_MSG(session, WT_ERROR, "compact interrupted by application");
+    }
+
+    return (0);
+}
+
+/*
  * __wt_session_compact_check_timeout --
  *     Check if the timeout has been exceeded.
  */
