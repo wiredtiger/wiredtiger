@@ -2259,8 +2259,27 @@ config_file_type(u_int type)
 static void
 config_compact(void)
 {
-    if (!config_explicit(NULL, "compact.free_space_target"))
-        GV(COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
+    /* FIXME-WT-11432: Background and foreground compaction should not be executed in parallel. */
+    if (config_explicit(NULL, "background_compact") && config_explicit(NULL, "ops.compaction"))
+        testutil_die(EINVAL,
+          "%s: Background and foreground compaction cannot be enabled at the same time", progname);
+
+    /* FIXME-WT-11432:: If both are enabled, disable one. */
+    if (GV(BACKGROUND_COMPACT) && GV(OPS_COMPACTION)) {
+        if (mmrand(&g.data_rnd, 1, 2) == 1) {
+            config_single(NULL, "background_compact=0", false);
+            WARN("%s",
+              "turning off background compaction as foreground compaction is already enabled");
+        } else {
+            config_single(NULL, "ops.compaction=0", false);
+            WARN("%s",
+              "turning off foreground compaction as background compaction is already enabled");
+        }
+    }
+
+    /* Generate values if not explicit set. */
     if (!config_explicit(NULL, "background_compact.free_space_target"))
         GV(BACKGROUND_COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
+    if (!config_explicit(NULL, "compact.free_space_target"))
+        GV(COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
 }
