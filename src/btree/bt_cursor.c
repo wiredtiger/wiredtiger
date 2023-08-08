@@ -164,9 +164,8 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
      * whether we correctly resolved the transaction becomes hard. It is easier to skip this check
      * in that instance.
      */
-    if (cbt->ref->page->read_gen == WT_READGEN_OLDEST && !F_ISSET(session->txn, WT_TXN_PREPARE)) {
+    if (cbt->ref->page->read_gen == WT_READGEN_OLDEST && !F_ISSET(session->txn, WT_TXN_PREPARE))
         return (false);
-    }
 
     return (true);
 }
