@@ -47,10 +47,10 @@ class test_compact07(wttest.WiredTigerTestCase):
     key_format='i'
     value_format='S'
     
-    delete_range_len = 20 * 1000
+    delete_range_len = 100 * 1000
     delete_ranges_count = 4
-    table_numkv = 200 * 1000
-    n_tables = 5
+    table_numkv = 500 * 1000
+    n_tables = 3
     
     # Return the size of the file
     def get_size(self, uri):
@@ -65,12 +65,12 @@ class test_compact07(wttest.WiredTigerTestCase):
     
     def get_free_space(self, uri):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
-        bytes = stat_cursor[stat.drsc.block_reuse_bytes][2]
+        bytes = stat_cursor[stat.dsrc.block_reuse_bytes][2]
         stat_cursor.close()
-        return bytes
+        return bytes // megabyte
     
     def get_pages_rewritten(self, uri):
-        stat_cursor = self.session.open_cursor('statistics:' + uri_small, None, None)
+        stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
         pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
         stat_cursor.close()
         return pages_rewritten
@@ -153,6 +153,8 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Check that we made no progress on the small file.
         self.assertEqual(self.get_pages_rewritten(self.uri_prefix + '_small'), 0)
         
+        self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
+
     # Test that the background compaction server can run concurrently with another session running
     # foreground compaction.
     def test_background_compact_concurrency(self):
@@ -170,20 +172,20 @@ class test_compact07(wttest.WiredTigerTestCase):
             
             size = self.get_size(uri)
             self.pr(f"{uri} file size = {size // megabyte}MB")
-            
-        self.session.close()
-            
-        # Reopen the connection to force the object to disk.
-        self.reopen_conn()
-            
+                        
         # Create another file of a smaller size (about half) that the background compaction should 
         # skip over when set with a sufficiently high free_space_target.
         uri_small = self.uri_prefix + '_small'
-        ds = SimpleDataSet(self, uri_small, 100 * 1000, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri_small, self.table_numkv // 2, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
-        self.delete_range(uri)
+        self.delete_range(uri_small)
+        
+        self.session.close()
+        # Reopen the connection to force the object to disk.
+        self.reopen_conn()
         
         small_file_free_space = self.get_free_space(uri_small)
+        self.pr(f'small file free space = {small_file_free_space}')
                 
         # assert that the small file is smaller than the other 10 files.
         
@@ -205,15 +207,15 @@ class test_compact07(wttest.WiredTigerTestCase):
         compact_cfg = f'free_space_target={small_file_free_space - 1}MB'
         session2.compact(uri_small,compact_cfg)
         
+        # Give some time for background compaction to do some work.
+        time.sleep(10)
+
         # Check that foreground compaction has done some work.
-        stat_cursor = self.session.open_cursor('statistics:' + uri_small, None, None)
-        pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
-        stat_cursor.close()
-        
-        self.assertGreater(pages_rewritten, 0)
+        self.assertGreater(self.get_pages_rewritten(uri_small), 0)
         
         # Reset background compaction
         self.session.compact(None, 'background=false')
+        time.sleep(1)
         self.session.compact(None, 'background=true,free_space_target=1MB')
         
         # Repopulate the tables for background compact to do work again.
@@ -228,18 +230,20 @@ class test_compact07(wttest.WiredTigerTestCase):
         
         # Call foreground compaction on the same set of tables background compaction would work on.
         session2 = self.conn.open_session()
-        session2.compact(f'{self.uri_prefix}_2','free_space_target=1MB')
+        session2.compact(f'{self.uri_prefix}_0','free_space_target=1MB')
         session3 = self.conn.open_session()
-        session3.compact(f'{self.uri_prefix}_3','free_space_target=1MB')
+        session3.compact(f'{self.uri_prefix}_1','free_space_target=1MB')
         
         # Give time for the compaction threads to do some work. There shouldn't be any problems.
         time.sleep(10)
+        
+        self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
     
-    # Test the background server 
+    # # Test the background server 
     def test_background_compact_dynamic(self):
         uris = []
         # Trigger the background compaction server first, before creating tables.
-        self.session.compact(None,'background=true,free_space_target=10MB')
+        self.session.compact(None,'background=true,free_space_target=5MB')
         
         # Create a new table
         uris.append(self.uri_prefix + '_0')
@@ -267,13 +271,15 @@ class test_compact07(wttest.WiredTigerTestCase):
         stat_cursor = self.session.open_cursor('statistics:' + uris[0], None, None)
         pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
         while (pages_rewritten == 0):
-            time.sleep(10)
+            time.sleep(1)
             pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
             
         stat_cursor.close()
         
         self.dropUntilSuccess(self.session, uris[0])
         self.dropUntilSuccess(self.session, uris[1])
+        
+        time.sleep(5)
         
     def test_stress(self):
         # Create n tables for background compaction to loop through.
