@@ -41,4 +41,14 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
 
     def test_chunkcache(self):
-        pass
+        ds = SimpleDataSet(self, self.uri, 10, config='key_format=S')
+        ds.populate()
+        ds.check()
+        self.session.checkpoint()
+        self.session.checkpoint('flush_tier=(enabled)')
+        ds.check()
+
+        self.close_conn()
+        self.reopen_conn()
+        ds = SimpleDataSet(self, self.uri, 10, config='key_format=S')
+        ds.check()
