@@ -35,7 +35,7 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
     def conn_config(self):
         if not os.path.exists('bucket1'):
             os.mkdir('bucket1')
-        return 'tiered_storage=(auth_token=Secret,bucket=bucket1,bucket_prefix=pfx_,name=dir_store),chunk_cache=[enabled=true,chunk_size=100MB,capacity=25GB,type=DRAM],'
+        return 'tiered_storage=(auth_token=Secret,bucket=bucket1,bucket_prefix=pfx_,name=dir_store),chunk_cache=[enabled=true,chunk_size=100MB,capacity=2GB,type=FILE,storage_path=/home/ubuntu/chunk-cache-tmp],'
 
     def conn_extensions(self, extlist):
         extlist.extension('storage_sources', 'dir_store')
