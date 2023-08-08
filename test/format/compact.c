@@ -51,7 +51,7 @@ background_compact(void *arg)
     wt_wrap_open_session(conn, &sap, NULL, &session);
 
     /*
-     * Start the background compaction server at somewhere under 15 seconds, and then enable/disable
+     * Start the background compaction server at somewhere under 5 seconds, and then enable/disable
      * it every 10 minutes.
      */
     for (period = mmrand(&g.extra_rnd, 1, 5);; period = 600) {
