@@ -141,11 +141,21 @@ __compact_server(void *arg)
         /*
          * Compact may return:
          * - EBUSY or WT_ROLLBACK for various reasons.
-         * - ETIMEDOUT if the configured timer has elapsed.
          * - ENOENT if the underlying file does not exist.
+         * - ETIMEDOUT if the configured timer has elapsed.
+         * - WT_ERROR if the background compaction has been interrupted.
          */
         if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK)
             ret = 0;
+        /* In the case of WT_ERROR, make sure the server is not supposed to be running. */
+        if (ret == WT_ERROR) {
+            __wt_spin_lock(session, &conn->background_compact.lock);
+            running = conn->background_compact.running;
+            __wt_spin_unlock(session, &conn->background_compact.lock);
+            if (!running)
+                ret = 0;
+        }
+
         WT_ERR(ret);
     }
 
