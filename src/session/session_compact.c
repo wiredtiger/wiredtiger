@@ -272,7 +272,7 @@ __compact_worker(WT_SESSION_IMPL *session)
              */
             if (ret == 0) {
                 if (session->compact_state == WT_COMPACT_SUCCESS) {
-                    if (F_ISSET(session, WT_SESSION_INTERNAL))
+                    if (session == S2C(session)->background_compact.session)
                         WT_STAT_CONN_INCR(session, background_compact_success);
                     another_pass = true;
                 } else
