@@ -178,11 +178,11 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_session_compact_check_timeout --
+ * __session_compact_check_timeout --
  *     Check if the timeout has been exceeded.
  */
 static int
-__wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
+__session_compact_check_timeout(WT_SESSION_IMPL *session)
 {
     struct timespec end;
     WT_DECL_RET;
@@ -224,7 +224,7 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     }
 
     /* Compaction can be interrupted if the timeout has exceeded. */
-    WT_RET(__wt_session_compact_check_timeout(session));
+    WT_RET(__session_compact_check_timeout(session));
 
     return (0);
 }
