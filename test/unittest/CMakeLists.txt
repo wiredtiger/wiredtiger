@@ -7,6 +7,7 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         tests/test_binary_search_string.cpp
+        tests/test_bitmap.cpp
         tests/test_bounds_restore.cpp
         tests/test_crc32.cpp
         tests/test_extent_list.cpp
@@ -27,6 +28,7 @@ set(unittest_sources
     tests/main.cpp
     tests/utils.cpp
     tests/wrappers/block_mods.cpp
+    tests/wrappers/chunkcache_wrapper.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp
