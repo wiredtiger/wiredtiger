@@ -152,7 +152,7 @@ static struct impl {
 
 /*
  * do_config_run --
- *     Run the test with or without configuration compilation.
+ *     Run the test for the given variant.
  */
 static void
 do_config_run(TEST_OPTS *opts, u_int variant, bool check, uint64_t *nsec)
@@ -215,7 +215,7 @@ do_config_run(TEST_OPTS *opts, u_int variant, bool check, uint64_t *nsec)
 
 /*
  * main --
- *     The main entry point for a simple test/benchmark for compiling configuration strings.
+ *     The main entry point for a simple test/benchmark for the use of configuration strings.
  */
 int
 main(int argc, char *argv[])
@@ -247,7 +247,7 @@ main(int argc, char *argv[])
     base_ns = ns = nsecs[0] / (N_CALLS * N_RUNS);
     for (variant = 0; variant < N_VARIANTS; ++variant) {
         ns = nsecs[variant] / (N_CALLS * N_RUNS);
-        printf("variant = %d, total = %" PRIu64
+        printf("variant = %u, total = %" PRIu64
                ", nanoseconds per pair of begin/rollback calls = %" PRIu64
                ", speed vs baseline = %f\n",
           variant, nsecs[variant], ns, ((double)base_ns) / ns);

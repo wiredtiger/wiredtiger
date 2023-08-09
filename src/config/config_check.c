@@ -112,6 +112,7 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
     const WT_CONFIG_CHECK *check;
     WT_CONFIG_ITEM k, v, dummy;
     WT_DECL_RET;
+    const char **choices;
     bool badtype, found;
 
     /*
@@ -172,7 +173,7 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
             WT_RET_MSG(session, EINVAL, "Value too large for key '%.*s' the maximum is %" PRIi64,
               (int)k.len, k.str, check->max_value);
 
-        if (check->choices != NULL) {
+        if ((choices = check->choices) != NULL) {
             if (v.len == 0)
                 WT_RET_MSG(session, EINVAL, "Key '%.*s' requires a value", (int)k.len, k.str);
             if (v.type == WT_CONFIG_ITEM_STRUCT) {
@@ -182,9 +183,9 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
                 __wt_config_subinit(session, &sparser, &v);
                 found = true;
                 while (found && (ret = __wt_config_next(&sparser, &v, &dummy)) == 0)
-                    found = __config_get_choice(check->choices, &v);
+                    found = __config_get_choice(choices, &v);
             } else
-                found = __config_get_choice(check->choices, &v);
+                found = __config_get_choice(choices, &v);
 
             if (!found)
                 WT_RET_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
