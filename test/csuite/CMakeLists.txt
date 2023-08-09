@@ -398,3 +398,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt11440_config_check
+    SOURCES wt11440_config_check/main.c
+    DIR_NAME wt11440_config_check
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)

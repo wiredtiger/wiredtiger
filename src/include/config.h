@@ -23,6 +23,10 @@ struct __wt_config_check {
     const char *checks;
     const WT_CONFIG_CHECK *subconfigs;
     u_int subconfigs_entries;
+    const uint8_t *subconfigs_jump;
+    int64_t min_value;
+    int64_t max_value;
+    const char **choices;
 };
 
 #define WT_CONFIG_REF(session, n) (S2C(session)->config_entries[WT_CONFIG_ENTRY_##n])
@@ -34,6 +38,7 @@ struct __wt_config_entry {
 
     const WT_CONFIG_CHECK *checks; /* check array */
     u_int checks_entries;
+    const uint8_t *checks_jump;
 };
 
 struct __wt_config_parser_impl {
