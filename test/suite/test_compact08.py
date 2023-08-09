@@ -29,24 +29,24 @@
 import time
 import wiredtiger, wttest
 
-# test_compact07.py
+# test_compact08.py
 # Test background compaction interruption.
-class test_compact07(wttest.WiredTigerTestCase):
-    uri = 'file:test_compact07'
+class test_compact08(wttest.WiredTigerTestCase):
+    uri = 'file:test_compact08'
     # Make compact slow to increase the chances of interruption. 
     conn_config = 'timing_stress_for_test=[compact_slow]'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     # Have enough tables to give the server something to work on.
     num_tables = 5
     table_numkv = 100 * 1000
-    table_uri='table:test_compact07'
+    table_uri='table:test_compact08'
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     # Create the table in a way that it creates a mostly empty file.
-    def test_compact07(self):
+    def test_compact08(self):
 
         # FIXME-WT-11399
         if self.runningHook('tiered'):
