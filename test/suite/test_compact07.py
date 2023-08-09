@@ -26,39 +26,29 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, random
+import time
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
-from suite_random import suite_random
 
 megabyte = 1024 * 1024
 
 # test_compact07.py
 # Test background compaction server.
 class test_compact07(wttest.WiredTigerTestCase):
-    uri_prefix = 'file:test_compact06'
-    conn_config = 'cache_size=100MB,statistics=(all),verbose=(compact:2)'
-    # key_format_values = (
-    #     ('integer-row', dict(key_format='i', value_format='S'))
-    # )
-    # scenarios = make_scenarios(key_format_values)
+    uri_prefix = 'table:test_compact07'
+    conn_config = 'cache_size=100MB,statistics=(all)'
     key_format='i'
     value_format='S'
     
     delete_range_len = 100 * 1000
     delete_ranges_count = 4
     table_numkv = 500 * 1000
-    n_tables = 3
+    n_tables = 5
     
-    # Return the size of the file
     def get_size(self, uri):
-        # To allow this to work on systems without ftruncate,
-        # get the portion of the file allocated, via 'statistics=(all)',
-        # not the physical file size, via 'statistics=(size)'.
-        stat_cursor = self.session.open_cursor(
-            'statistics:' + uri, None, 'statistics=(all)')
+        stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
         size = stat_cursor[stat.dsrc.block_size][2]
         stat_cursor.close()
         return size
@@ -85,79 +75,13 @@ class test_compact07(wttest.WiredTigerTestCase):
         c.close()
     
     # Test the basic functionality of the background compaction server. 
-    def test_background_compact_usage(self):        
-        # Create ten tables for background compaction to loop through.
-        for i in range(self.n_tables):
-            uri = self.uri_prefix + f'_{i}'
-            ds = SimpleDataSet(self, uri, self.table_numkv, 
-                            key_format=self.key_format, 
-                            value_format=self.value_format)
-            ds.populate()
-    
-            # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
-            # than one iteration.
-            self.delete_range(uri)
-    
+    def test_background_compact_usage(self):
         # Create a small table that compact should skip over.
-        uri = self.uri_prefix + '_small'
-        ds = SimpleDataSet(self, uri, 10, key_format=self.key_format, value_format=self.value_format)
+        uri_small = self.uri_prefix + '_small'
+        ds = SimpleDataSet(self, uri_small, self.table_numkv // 2, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
-        
-        self.session.close()
-        
-        # Reopen the connection to force the object to disk.
-        self.reopen_conn()
-        
-        # Allow background compaction to run for some time. Set a low free_space_target to avoid
-        # having to run compaction on large files which can take a long time.
-        self.session.compact(None,'background=true,free_space_target=1MB')
-        
-        # Check that the background server is running
-        # TODO: Enable once stat is added.
-        # stat_cursor = self.session.open_cursor('statistics:', None, None)
-        # compact_running = stat_cursor[stat.conn.session_background_compact_running[2]]
-        # files_compacted = stat_cursor[stat.conn.background_compact_files_compacted][2]
-        # self.assertEqual(compact_running, 1)
-        # stat_cursor.close()
-        
-        # Background compaction should run through every file as listed in the metadata file.
-        # Periodically check how many files we've compacted until we compact all ten.
-        # TODO: Add statistic to count how many files the background server has compacted.
-        # FIXME: Use this statistic to check the progression of the test, instead of using an
-        # arbitrary time.
-        # while (files_compacted < self.n_files):
-        #     time.sleep(10)
-            
-        #     # Check how many files we've compacted
-        #     stat_cursor = self.session.open_cursor('statistics:', None, None)
-        #     files_compacted = stat_cursor[stat.conn.background_compact_files_compacted][2]
-        #     stat_cursor.close()
-        
-        time.sleep(60)
-        
-        # Disable the background compaction server. It should be interruptable.
-        self.session.compact(None,'background=false')
-        
-        # Check that the background server is no longer running.
-        # TODO: Enable once stat is added.
-        # stat_cursor = self.session.open_cursor('statistics:', None, None)
-        # compact_running = stat_cursor[stat.conn.session_background_compact_running[2]]
-        # self.assertEqual(compact_running, 0)
-        # stat_cursor.close()
-        
-        # Check that we've made some progress on all the files.
-        for i in range(self.n_tables):
-            uri = self.uri_prefix + f'_{i}'
-            self.assertGreater(self.get_pages_rewritten(uri), 0)
-            
-        # Check that we made no progress on the small file.
-        self.assertEqual(self.get_pages_rewritten(self.uri_prefix + '_small'), 0)
-        
-        self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
-
-    # Test that the background compaction server can run concurrently with another session running
-    # foreground compaction.
-    def test_background_compact_concurrency(self):
+        self.delete_range(uri_small)
+              
         # Create n tables for background compaction to loop through.
         for i in range(self.n_tables):
             uri = self.uri_prefix + f'_{i}'
@@ -169,119 +93,74 @@ class test_compact07(wttest.WiredTigerTestCase):
             # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
             # than one iteration.
             self.delete_range(uri)
-            
-            size = self.get_size(uri)
-            self.pr(f"{uri} file size = {size // megabyte}MB")
-                        
-        # Create another file of a smaller size (about half) that the background compaction should 
-        # skip over when set with a sufficiently high free_space_target.
-        uri_small = self.uri_prefix + '_small'
-        ds = SimpleDataSet(self, uri_small, self.table_numkv // 2, key_format=self.key_format, value_format=self.value_format)
-        ds.populate()
-        self.delete_range(uri_small)
-        
-        self.session.close()
+
         # Reopen the connection to force the object to disk.
         self.reopen_conn()
         
         small_file_free_space = self.get_free_space(uri_small)
-        self.pr(f'small file free space = {small_file_free_space}')
-                
-        # assert that the small file is smaller than the other 10 files.
         
-        # Start background compaction with a free_space_target larger than the size of the small file
-        # but smaller than the size of the other files.
-        compact_cfg = f'background=true,free_space_target={small_file_free_space + 1}MB'
-        self.session.compact(None,compact_cfg)
+        # Allow background compaction to run for some time. Set a low free_space_target larger
+        # than the smaller file.
+        self.session.compact(None,f'background=true,free_space_target={small_file_free_space + 1}MB')
         
-        # Give some time for background compaction to do some work.
-        time.sleep(10)
+        # Check that the background server is running
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        compact_running = stat_cursor[stat.conn.background_compact_running][2]
+        self.assertEqual(compact_running, 1)
+        stat_cursor.close()
         
-        # Check we've made no progress on the small file.
-        self.assertEqual(self.get_pages_rewritten(uri_small), 0)
+        # Background compaction should run through every file as listed in the metadata file.
+        # Periodically check how many files we've compacted until we compact all of them.
+        files_compacted = 0
+        while (files_compacted < self.n_tables):
+            files_compacted = 0
+            for i in range(self.n_tables):
+                uri = self.uri_prefix + f'_{i}'
+                if (self.get_pages_rewritten(uri) > 0):
+                    files_compacted += 1
+                    
+            time.sleep(5)
+            
+        # Check that we made no progress on the small file.
+        self.assertEqual(self.get_pages_rewritten(self.uri_prefix + '_small'), 0)
+        
+        # Check the background compaction server stats. We should have skipped at least once and 
+        # been successful at least once.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        skipped = stat_cursor[stat.conn.background_compact_skipped][2]
+        success = stat_cursor[stat.conn.background_compact_success][2]
+        self.assertGreater(skipped, 0)
+        self.assertGreater(success, 0)
+        stat_cursor.close()
         
         # Open a new session for foreground compaction, while leaving the background
         # compaction server running.
         session2 = self.conn.open_session()
         # Use a free_space_target that is guaranteed to run on the small file.
-        compact_cfg = f'free_space_target={small_file_free_space - 1}MB'
-        session2.compact(uri_small,compact_cfg)
-        
-        # Give some time for background compaction to do some work.
-        time.sleep(10)
+        session2.compact(uri_small,f'free_space_target={small_file_free_space - 1}MB')
 
-        # Check that foreground compaction has done some work.
-        self.assertGreater(self.get_pages_rewritten(uri_small), 0)
-        
-        # Reset background compaction
-        self.session.compact(None, 'background=false')
         time.sleep(1)
-        self.session.compact(None, 'background=true,free_space_target=1MB')
         
-        # Repopulate the tables for background compact to do work again.
-        for i in range(self.n_tables):
-            uri = self.uri_prefix + f'_{i}'
-            ds = SimpleDataSet(self, uri, self.table_numkv, 
-                            key_format=self.key_format, 
-                            value_format=self.value_format)
-            ds.populate()
-    
-            self.delete_range(uri)
-        
-        # Call foreground compaction on the same set of tables background compaction would work on.
-        session2 = self.conn.open_session()
-        session2.compact(f'{self.uri_prefix}_0','free_space_target=1MB')
-        session3 = self.conn.open_session()
-        session3.compact(f'{self.uri_prefix}_1','free_space_target=1MB')
-        
-        # Give time for the compaction threads to do some work. There shouldn't be any problems.
-        time.sleep(10)
-        
-        self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
-    
-    # # Test the background server 
-    def test_background_compact_dynamic(self):
-        uris = []
-        # Trigger the background compaction server first, before creating tables.
-        self.session.compact(None,'background=true,free_space_target=5MB')
-        
-        # Create a new table
-        uris.append(self.uri_prefix + '_0')
-        ds = SimpleDataSet(self, uris[0], self.table_numkv,
-                           key_format=self.key_format,
-                           value_format=self.value_format)
-        ds.populate()
-        
-        # Create another table
-        uris.append(self.uri_prefix + '_1')
-        ds = SimpleDataSet(self, uris[1], self.table_numkv,
-                           key_format=self.key_format,
-                           value_format=self.value_format)
-        ds.populate()
-                
-        # Double the size of the first table so that it should now be larger than the 
-        # free_space_target.
-        ds = SimpleDataSet(self, uris[0], self.table_numkv * 2,
-                    key_format=self.key_format,
-                    value_format=self.value_format)
-        ds.populate(create=False)
-        self.delete_range(uris[0])
-                
-        # Periodically check that background compaction has done some work on the first table.
-        stat_cursor = self.session.open_cursor('statistics:' + uris[0], None, None)
-        pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
+        # Periodically check that foreground compaction has done some work on the small table.
+        pages_rewritten = self.get_pages_rewritten(uri_small)
         while (pages_rewritten == 0):
             time.sleep(1)
-            pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
-            
+            pages_rewritten = self.get_pages_rewritten(uri_small)
+                    
+        # Disable the background compaction server.
+        self.session.compact(None,'background=false')
+        
+        # Check that the background server is no longer running.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        compact_running = stat_cursor[stat.conn.background_compact_running][2]
+        self.assertEqual(compact_running, 0)
         stat_cursor.close()
-        
-        self.dropUntilSuccess(self.session, uris[0])
-        self.dropUntilSuccess(self.session, uris[1])
-        
-        time.sleep(5)
-        
-    def test_stress(self):
+    
+    # Test the background server while creating and dropping tables.
+    def test_background_compact_table_ops(self):
+        # Trigger the background compaction server first, before creating tables.
+        self.session.compact(None,'background=true,free_space_target=1MB')
+
         # Create n tables for background compaction to loop through.
         for i in range(self.n_tables):
             uri = self.uri_prefix + f'_{i}'
@@ -289,29 +168,45 @@ class test_compact07(wttest.WiredTigerTestCase):
                             key_format=self.key_format, 
                             value_format=self.value_format)
             ds.populate()
-    
-            # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
-            # than one iteration.
+                
+        # Delete some data from the half the tables.
+        for i in range(self.n_tables):
+            if (i % 2 == 0):
+                self.delete_range(f'{self.uri_prefix}_{i}')
+                
+        # Periodically check that background compaction has done some work on the first table.
+        pages_rewritten = self.get_pages_rewritten(f'{self.uri_prefix}_0')
+        while (pages_rewritten == 0):
+            time.sleep(1)
+            pages_rewritten = self.get_pages_rewritten(f'{self.uri_prefix}_0')
+            
+        # Now drop all the tables.
+        for i in range(self.n_tables):
+            self.dropUntilSuccess(self.session, f'{self.uri_prefix}_{i}')
+        
+        time.sleep(2)        
+        
+    # Run background compaction alongside many checkpoints.
+    def test_background_compact_chkpt_stress(self):
+        # Create n tables for background compaction to loop through.
+        for i in range(self.n_tables):
+            uri = self.uri_prefix + f'_{i}'
+            ds = SimpleDataSet(self, uri, self.table_numkv, 
+                            key_format=self.key_format, 
+                            value_format=self.value_format)
+            ds.populate()
             self.delete_range(uri)
             
-            size = self.get_size(uri)
-            self.pr(f"{uri} file size = {size // megabyte}MB")
-            
-        self.session.close()
-            
-        # Reopen the connection to force the object to disk.
         self.reopen_conn()
-        
-        self.session.compact(self.uri_prefix + '_0','free_space_target=1MB')
-        
-        self.session.compact(None, 'background=true,free_space_target=1MB')
-        
-        self.session.compact(self.uri_prefix + '_2','free_space_target=1MB')
-        
-        time.sleep(30)
-        
-        self.conn.close()
-        
+
+        self.session.compact(None, 'background=true,free_space_target=1MB')    
+        for i in range(1000):
+            self.session.begin_transaction()
+            cur = self.session.open_cursor(self.uri_prefix + '_0')
+            for i in range(100):
+                cur[i] = "aaaa"
+            self.session.commit_transaction()
+            self.session.checkpoint()
         
 if __name__ == '__main__':
     wttest.run()
