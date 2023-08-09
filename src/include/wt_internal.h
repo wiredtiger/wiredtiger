@@ -46,6 +46,9 @@ extern "C" {
 #else
 #include <pthread.h>
 #endif
+#ifndef _WIN32
+#include <stdatomic.h>
+#endif
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>

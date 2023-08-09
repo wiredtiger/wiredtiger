@@ -375,6 +375,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    uint32_t page_dirty_first = WT_PAGE_DIRTY_FIRST; /* Constant for atomic API. */
 
     btree = S2BT(session);
     page = r->page;
@@ -433,7 +434,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * If the page state changed, the page has been written since reconciliation started and
          * remains dirty (that can't happen when evicting, the page is exclusively locked).
          */
-        if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
+        if (atomic_compare_exchange_strong_explicit(&mod->page_state, &page_dirty_first,
+              WT_PAGE_CLEAN, memory_order_acq_rel, memory_order_acquire))
             __wt_cache_dirty_decr(session, page);
         else
             WT_ASSERT_ALWAYS(
@@ -598,8 +600,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * Add a write barrier to make it more likely that a thread adding an update will see this state
      * change.
      */
-    page->modify->page_state = WT_PAGE_DIRTY_FIRST;
-    WT_FULL_BARRIER();
+    atomic_store_explicit(&page->modify->page_state, WT_PAGE_DIRTY_FIRST, memory_order_release);
 
     /*
      * Cache the oldest running transaction ID. This is used to check whether updates seen by

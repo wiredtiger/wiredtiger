@@ -134,7 +134,7 @@ __wt_page_evict_clean(WT_PAGE *page)
      * free these structures).
      */
     return (page->modify == NULL ||
-      (page->modify->page_state == WT_PAGE_CLEAN && page->modify->rec_result == 0));
+      (atomic_load_explicit(&page->modify->page_state, memory_order_acquire) == WT_PAGE_CLEAN && page->modify->rec_result == 0));
 }
 
 /*
@@ -149,7 +149,7 @@ __wt_page_is_modified(WT_PAGE *page)
      * and we're not blocking checkpoints (although we must block eviction as it might clear and
      * free these structures).
      */
-    return (page->modify != NULL && page->modify->page_state != WT_PAGE_CLEAN);
+    return (page->modify != NULL && atomic_load_explicit(&page->modify->page_state, memory_order_acquire) != WT_PAGE_CLEAN);
 }
 
 /*
@@ -705,7 +705,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
     last_running = 0;
-    if (page->modify->page_state == WT_PAGE_CLEAN)
+    if (atomic_load_explicit(&page->modify->page_state, memory_order_acquire) == WT_PAGE_CLEAN)
         last_running = S2C(session)->txn_global.last_running;
 
     /*
@@ -719,8 +719,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * The page state can only ever be incremented above dirty by the number of concurrently running
      * threads, so the counter will never approach the point where it would wrap.
      */
-    if (page->modify->page_state < WT_PAGE_DIRTY &&
-      __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
+    if (atomic_fetch_add_explicit(&page->modify->page_state, 1, memory_order_acq_rel) == WT_PAGE_CLEAN) {
         __wt_cache_dirty_incr(session, page);
         /*
          * In the event we dirty a page which is flagged for eviction soon, we update its read
@@ -813,7 +812,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
          * Since clearing of the page state is not going to be happening during reconciliation on a
          * separate thread, there's no write barrier needed here.
          */
-        page->modify->page_state = WT_PAGE_CLEAN;
+        atomic_store_explicit(&page->modify->page_state, WT_PAGE_CLEAN, memory_order_relaxed);
         page->modify->flags = 0;
         __wt_cache_dirty_decr(session, page);
     }
