@@ -19,6 +19,10 @@ public:
     {
         return &_item;
     };
+    const void * get_data()
+    {
+        return &_item.data;
+    };
 
 private:
     WT_ITEM _item;

@@ -12,6 +12,7 @@ else()
         tests/test_fnv.cpp
         tests/test_pow.cpp
         tests/test_qsort.cpp
+        tests/test_mod_sort.cpp
         tests/test_reconciliation_tracking.cpp
         tests/test_tailq.cpp
         tests/block/test_bitstring.cpp
@@ -30,6 +31,7 @@ set(unittest_sources
     tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
+    tests/wrappers/mock_txn_op.cpp
     ${unittests}
 )
 
