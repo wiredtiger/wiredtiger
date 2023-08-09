@@ -27,8 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
-import wiredtiger, wttest
-from wtscenario import make_scenarios
+import wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 
@@ -119,7 +118,7 @@ class test_compact07(wttest.WiredTigerTestCase):
                 if (self.get_pages_rewritten(uri) > 0):
                     files_compacted += 1
                     
-            time.sleep(5)
+            time.sleep(2)
             
         # Check that we made no progress on the small file.
         self.assertEqual(self.get_pages_rewritten(self.uri_prefix + '_small'), 0)
@@ -141,11 +140,8 @@ class test_compact07(wttest.WiredTigerTestCase):
 
         time.sleep(1)
         
-        # Periodically check that foreground compaction has done some work on the small table.
-        pages_rewritten = self.get_pages_rewritten(uri_small)
-        while (pages_rewritten == 0):
-            time.sleep(1)
-            pages_rewritten = self.get_pages_rewritten(uri_small)
+        # Check that foreground compaction has done some work on the small table.
+        self.assertGreater(self.get_pages_rewritten(uri_small), 0)
                     
         # Disable the background compaction server.
         self.session.compact(None,'background=false')
@@ -153,9 +149,11 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Check that the background server is no longer running.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
+        while (compact_running):
+            compact_running = stat_cursor[stat.conn.background_compact_running][2]
+    
         self.assertEqual(compact_running, 0)
         stat_cursor.close()
-    
     # Test the background server while creating and dropping tables.
     def test_background_compact_table_ops(self):
         # Trigger the background compaction server first, before creating tables.
@@ -169,7 +167,7 @@ class test_compact07(wttest.WiredTigerTestCase):
                             value_format=self.value_format)
             ds.populate()
                 
-        # Delete some data from the half the tables.
+        # Delete some data from half of the tables.
         for i in range(self.n_tables):
             if (i % 2 == 0):
                 self.delete_range(f'{self.uri_prefix}_{i}')
@@ -183,8 +181,6 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Now drop all the tables.
         for i in range(self.n_tables):
             self.dropUntilSuccess(self.session, f'{self.uri_prefix}_{i}')
-        
-        time.sleep(2)        
         
     # Run background compaction alongside many checkpoints.
     def test_background_compact_chkpt_stress(self):
