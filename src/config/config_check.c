@@ -100,7 +100,7 @@ __config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
 }
 
 /*
- * config_check --
+ * __config_check --
  *     Check the keys in an application-supplied config string match what is specified in an array
  *     of check strings.
  */

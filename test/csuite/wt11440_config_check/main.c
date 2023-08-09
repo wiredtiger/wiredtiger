@@ -56,7 +56,7 @@ static const char *boolean_value[2] = {"false", "true"};
 #define BEGIN_TRANSACTION_CONFIG_SPRINTF_FORMAT \
     "ignore_prepare=%s,roundup_timestamps=(prepared=%s,read=%s),no_timestamp=%s"
 
-/**** VARIANT 0 - base ****/
+/* ================ VARIANT 0 - base ================ */
 
 /*
  * begin_transaction_base_init --
@@ -87,24 +87,24 @@ begin_transaction_base(WT_SESSION *session, void *data, u_int ignore_prepare, bo
     testutil_check(session->begin_transaction(session, config));
 }
 
-/**** VARIANT 1 - no sprintf ****/
+/* ================ VARIANT 1 - advance format ================ */
 
 /*
  * A faster implementation will take advantage of the finite number of configurations possible, and
- * we can do all sprintf calls in advance.
+ * we can do all formatting calls in advance.
  */
 #define SPRINTF_ENTRY(ignore_prepare, roundup_prepared, roundup_read, no_ts) \
     (((((ignore_prepare * 2) + roundup_prepared) * 2) + roundup_read) * 2 + no_ts)
 
 /*
- * begin_transaction_no_sprintf_init --
+ * begin_transaction_advance_format_init --
  *     Set up the static structures needed for this implementation.
  */
 static void
-begin_transaction_no_sprintf_init(WT_SESSION *session, void **datap)
+begin_transaction_advance_format_init(WT_SESSION *session, void **datap)
 {
-    static char *sprintf_config_array[3 * 2 * 2 * 2];
     static char sprintf_config[3 * 2 * 2 * 2][256];
+    static char *sprintf_config_array[3 * 2 * 2 * 2];
 
     (void)session;
     for (u_int ignore_prepare = 0; ignore_prepare < IGNORE_PREPARE_VALUE_SIZE; ++ignore_prepare)
@@ -123,11 +123,11 @@ begin_transaction_no_sprintf_init(WT_SESSION *session, void **datap)
 }
 
 /*
- * begin_transaction_no_sprintf --
+ * begin_transaction_advance_format --
  *     An implementation of a begin_transaction caller, with a set of fixed config strings.
  */
 static void
-begin_transaction_no_sprintf(WT_SESSION *session, void *data, u_int ignore_prepare,
+begin_transaction_advance_format(WT_SESSION *session, void *data, u_int ignore_prepare,
   bool roundup_prepared, bool roundup_read, bool no_timestamp)
 {
     static char **sprintf_config;
@@ -138,7 +138,7 @@ begin_transaction_no_sprintf(WT_SESSION *session, void *data, u_int ignore_prepa
     testutil_check(session->begin_transaction(session, sprintf_config[entry]));
 }
 
-/**** Table of variants. ****/
+/* ================ Table of variants ================ */
 
 static struct impl {
     void (*begin_transaction_init_fcn)(WT_SESSION *, void **);
@@ -146,7 +146,7 @@ static struct impl {
     void *init_data;
 } impls[] = {
   {begin_transaction_base_init, begin_transaction_base, NULL},
-  {begin_transaction_no_sprintf_init, begin_transaction_no_sprintf, NULL},
+  {begin_transaction_advance_format_init, begin_transaction_advance_format, NULL},
 };
 #define N_VARIANTS WT_ELEMENTS(impls)
 
@@ -164,8 +164,8 @@ do_config_run(TEST_OPTS *opts, u_int variant, bool check, uint64_t *nsec)
     uint32_t r;
     u_int i, ignore_prepare;
     bool roundup_prepared, roundup_read, no_timestamp;
-    void *init_data;
     void (*begin_transaction_fcn)(WT_SESSION *, void *, u_int, bool, bool, bool);
+    void *init_data;
 
     session = opts->session;
     begin_transaction_fcn = impls[variant].begin_transaction_fcn;
