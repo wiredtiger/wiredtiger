@@ -778,12 +778,14 @@ err:
 int
 __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec cur_time, org_timer_start, timer_start;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
     wt_off_t hs_size;
+    uint64_t time_diff;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
@@ -799,6 +801,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     rts_executed = false;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
+
+    /* Initialize the tracking timer */
+    __wt_epoch(session, &timer_start);
+    org_timer_start = timer_start;
 
     /* We need a real session for recovery. */
     WT_RET(__wt_open_internal_session(conn, "txn-recover", false, 0, 0, &session));
@@ -986,6 +992,12 @@ done:
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
+    /* Time since the Log replay has started. */
+    __wt_epoch(session, &cur_time);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, timer_start);
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "recovery log replay has successfully finished and ran for %" PRIu64 " seconds", time_diff);
+
     WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
     /*
@@ -1003,6 +1015,7 @@ done:
      * 2. The history store file was found in the metadata.
      */
     if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
+        timer_start = cur_time;
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
             WT_ERR(__wt_evict_create(session));
@@ -1017,6 +1030,13 @@ done:
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
         rts_executed = true;
         WT_ERR(conn->rts->rollback_to_stable(session, NULL, true));
+
+        /* Time since the rollback to stable has started. */
+        __wt_epoch(session, &cur_time);
+        time_diff = WT_TIMEDIFF_SEC(cur_time, timer_start);
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+          "recovery rollback to stable has successfully finished and ran for %" PRIu64 " seconds",
+          time_diff);
     }
 
     /*
@@ -1027,12 +1047,21 @@ done:
     if (eviction_started)
         WT_TRET(__wt_evict_destroy(session));
 
-    if (do_checkpoint || rts_executed)
+    if (do_checkpoint || rts_executed) {
+        timer_start = cur_time;
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
          * the checkpoint LSN and removal.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+
+        /* Time since the Log replay has started. */
+        __wt_epoch(session, &cur_time);
+        time_diff = WT_TIMEDIFF_SEC(cur_time, timer_start);
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+          "recovery checkpoint has successfully finished and ran for %" PRIu64 " seconds",
+          time_diff);
+    }
 
     /* Remove any backup file now that metadata has been synced. */
     WT_ERR(__wt_backup_file_remove(session));
@@ -1053,6 +1082,12 @@ done:
     if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
         WT_ERR(__wt_log_truncate_files(session, NULL, true));
     FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
+
+    /* Time since the recovery has started. */
+    __wt_epoch(session, &cur_time);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, org_timer_start);
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "recovery has successfully finished and ran for %" PRIu64 " seconds", time_diff);
 
 err:
     WT_TRET(__recovery_close_cursors(&r));

@@ -118,9 +118,11 @@ err:
 static int
 __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 {
+    struct timespec cur_time, timer_start;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     wt_timestamp_t pinned_timestamp, rollback_timestamp;
+    uint64_t time_diff;
     char *config;
 
     conn = S2C(session);
@@ -138,6 +140,11 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 
     WT_RET(__wt_metadata_search(session, uri, &config));
 
+    /* Initialize the tracking timer. */
+    __wt_epoch(session, &timer_start);
+    __wt_verbose_multi(
+      session, WT_VERB_RECOVERY_RTS(session), "starting rollback to stable on uri %s", uri);
+
     /* Read the stable timestamp once, when we first start up. */
     WT_ORDERED_READ(rollback_timestamp, conn->txn_global.stable_timestamp);
     WT_ORDERED_READ(pinned_timestamp, conn->txn_global.pinned_timestamp);
@@ -147,9 +154,12 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, rollback_timestamp);
+    __wt_epoch(session, &cur_time);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, timer_start);
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+      "finished rollback to stable on uri %s and has ran for %" PRIu64 " seconds", uri, time_diff);
 
     __wt_free(session, config);
-
     return (ret);
 }
 
@@ -170,8 +180,10 @@ __rollback_to_stable_finalize(WT_ROLLBACK_TO_STABLE *rts)
 static int
 __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 {
+    struct timespec cur_time, timer_start;
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
+    uint64_t time_diff;
     bool dryrun;
 
     /*
@@ -197,12 +209,19 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     S2C(session)->rts->dryrun = dryrun;
 
+    /* Initialize the tracking timer */
+    __wt_epoch(session, &timer_start);
+
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
 
+    /* Time since the RTS started. */
+    __wt_epoch(session, &cur_time);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, timer_start);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      WT_RTS_VERB_TAG_END "finished rollback to stable%s", dryrun ? " dryrun" : "");
+      WT_RTS_VERB_TAG_END "finished rollback to stable%s and has ran for %" PRIu64 " seconds",
+      dryrun ? " dryrun" : "", time_diff);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     __rollback_to_stable_finalize(S2C(session)->rts);
