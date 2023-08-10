@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
-import wiredtiger, wttest
+import wttest
 
 # test_compact08.py
 # Test background compaction interruption.
