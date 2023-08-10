@@ -15,6 +15,7 @@ MockConnection::MockConnection(WT_CONNECTION_IMPL *connectionImpl) : _connection
 
 MockConnection::~MockConnection()
 {
+    __wt_free(nullptr, _connectionImpl->chunkcache.free_bitmap);
     __wt_free(nullptr, _connectionImpl);
 }
 
@@ -25,4 +26,18 @@ MockConnection::buildTestMockConnection()
     utils::throwIfNonZero(__wt_calloc(nullptr, 1, sizeof(WT_CONNECTION_IMPL), &connectionImpl));
     // Construct a Session object that will now own session.
     return std::shared_ptr<MockConnection>(new MockConnection(connectionImpl));
+}
+
+int
+MockConnection::setupChunkCache(WT_SESSION_IMPL *session, uint64_t capacity, size_t chunk_size)
+{
+    WT_CHUNKCACHE *chunkcache = &_connectionImpl->chunkcache;
+    memset(chunkcache, 0, sizeof(WT_CHUNKCACHE));
+    chunkcache->capacity = capacity;
+    chunkcache->chunk_size = chunk_size;
+
+    WT_RET(__wt_calloc(
+      session, 1, ((chunkcache->capacity / chunkcache->chunk_size) / 8), &chunkcache->free_bitmap));
+
+    return 0;
 }

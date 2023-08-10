@@ -55,7 +55,7 @@ __chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
             *bit_index = ((bitmap_size * 8) + j);
             return (0);
         }
-    WT_RET_MSG(session, ENOMEM, "Bitmap has no free chunks as cache is full.");
+    return (ENOSPC);
 }
 
 /*
@@ -833,3 +833,13 @@ __wt_chunkcache_teardown(WT_SESSION_IMPL *session)
 
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+
+int
+__ut_chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
+{
+    return (__chunkcache_bitmap_find_free(session, bit_index));
+}
+
+#endif

@@ -10,26 +10,24 @@
 #include "wt_internal.h"
 #include "wiredtiger.h"
 #include "wrappers/mock_session.h"
-#include "wrappers/chunkcache_wrapper.h"
 
 TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
 {
-    chunkcache_wrapper chunkcache(1000, 5); // Wrapper name 
-    size_t bit_index;
-    
-    // Use mock session / connection - create a chunkcache object through a wrapper here and set it up and connect 
-    // it to the mock session and pass that in
+    // Build Mock session, this will automatically create a mock connection.
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
-    S2C(session->getWtSessionImpl())->chunkcache = *chunkcache.chunkcache_get();
-    bit_index = 0;
 
-    // Do I need to calloc the space for bitmap? I can perhaps then hardcode the chunkcache->capcity etc..
-    // __wt_calloc(session, 1, ((chunkcache->capacity / chunkcache->chunk_size) / 8),
-    //       &chunkcache->free_bitmap);
-    
+    WT_SESSION_IMPL *session_impl = session->getWtSessionImpl();
+    uint64_t capacity = 1000;
+    size_t chunk_size = 10;
+
+    // Setup chunk cache.
+    REQUIRE(
+      (session->getMockConnection()->setupChunkCache(session_impl, capacity, chunk_size)) == 0);
+
     SECTION("Free index found in bitmap")
     {
-        // __chunkcache_bitmap_find_free(session, &bit_index);
+        size_t bit_index;
+        REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == 0);
         // REQUIRE(bit_index == 0);
 
         // __chunkcache_bitmap_find_free(session, &bit_index);
@@ -43,9 +41,8 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
     }
 
     // Edge case of full bitmap - getting correct error
-    // Test remainder bitmap is working 
+    // Test remainder bitmap is working
     // Test removing / freeing of the bitmap is working
-    // Test removing then finding is finding the one I just free'd 
-    // Random generator for free, then add them back to the bitmap 
-
+    // Test removing then finding is finding the one I just free'd
+    // Random generator for free, then add them back to the bitmap
 }
