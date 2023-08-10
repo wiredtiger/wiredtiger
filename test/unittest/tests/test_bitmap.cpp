@@ -7,9 +7,11 @@
  */
 
 #include <catch2/catch.hpp>
+#include <cstdlib>
 #include "wt_internal.h"
 #include "wiredtiger.h"
 #include "wrappers/mock_session.h"
+#include <time.h>
 
 // Mark the free chunk in the bitmap as in use.
 void
@@ -41,24 +43,52 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
     REQUIRE(
       (session->getMockConnection()->setupChunkCache(session_impl, capacity, chunk_size, chunkcache)) == 0);
 
-    SECTION("Free index found in bitmap")
+    SECTION("Sequential allocation and free")
     {
         size_t bit_index;
 
         // We have 10 chunks so there are 10 bits.
-        for (int i = 0; i < 10; i++)
-            alloc_bitmap(chunkcache, i);
+        for (int i = 0; i < 10; i++) {
+            REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == 0);
+            alloc_bitmap(chunkcache, bit_index);
+            REQUIRE(i == bit_index);
+        }
+
         REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == ENOSPC);
 
-        free_bitmap(chunkcache, 3);
-        REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == 0);
-        REQUIRE(bit_index == 3);
+        for (int i = 0; i < 10; i++) {
+            free_bitmap(chunkcache, i);
+        }
 
+        for (int i = 0; i < 10; i++) {
+            REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == 0);
+            alloc_bitmap(chunkcache, bit_index);
+            REQUIRE(i == bit_index);
+        }
     }
 
-    // Edge case of full bitmap - getting correct error
-    // Test remainder bitmap is working
-    // Test removing / freeing of the bitmap is working
-    // Test removing then finding is finding the one I just free'd
-    // Random generator for free, then add them back to the bitmap
+    SECTION("Random allocation and free")
+    {
+        size_t bit_index;
+
+        /* initialize random seed: */
+        srand (time(NULL));
+
+        // We have 10 chunks so there are 10 bits.
+        for (int i = 0; i < 10; i++) {
+            REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == 0);
+            REQUIRE(i == bit_index);
+            alloc_bitmap(chunkcache, bit_index);
+        }
+
+        REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == ENOSPC);
+
+        for (int i = 0; i < 5; i++) {
+            int random_number = rand() % 10;
+            free_bitmap(chunkcache, random_number);
+            REQUIRE(__ut_chunkcache_bitmap_find_free(session_impl, &bit_index) == 0);
+            REQUIRE(random_number == bit_index);
+            alloc_bitmap(chunkcache, bit_index);
+        }
+    }
 }
