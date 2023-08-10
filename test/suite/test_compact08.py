@@ -28,6 +28,7 @@
 
 import time
 import wttest
+from wiredtiger import stat
 
 # test_compact08.py
 # Test background compaction interruption.
@@ -77,13 +78,18 @@ class test_compact08(wttest.WiredTigerTestCase):
         compact_cfg_on = 'background=true,free_space_target=1MB'
         compact_cfg_off = 'background=false'
         # TODO - Check against stat instead of verbose
-        # with self.expectedStderrPattern('background compact interrupted by application'):
-        self.session.compact(None, compact_cfg_on)
-        # Give the background compaction server some time to wake up.
-        time.sleep(1)
-        # Interrupt it.
-        self.session.compact(None, compact_cfg_off)
+        with self.expectedStderrPattern(''):
+            self.session.compact(None, compact_cfg_on)
+            # Give the background compaction server some time to wake up.
+            time.sleep(1)
+            # Interrupt it.
+            self.session.compact(None, compact_cfg_off)
 
+        # Check that the background server is not running.
+        c = self.session.open_cursor('statistics:', None, None)
+        compact_running = c[stat.conn.background_compact_running][2]
+        self.assertEqual(compact_running, 0)
+        c.close()
 
 if __name__ == '__main__':
     wttest.run()
