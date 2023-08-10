@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 static int __config_check(
-  WT_SESSION_IMPL *, const WT_CONFIG_CHECK *, u_int, const u_int8_t *, const char *, size_t);
+  WT_SESSION_IMPL *, const WT_CONFIG_CHECK *, u_int, const uint8_t *, const char *, size_t);
 
 /*
  * __wt_config_check --
@@ -48,7 +48,7 @@ __config_check_compare(const void *keyvoid, const void *check)
  */
 static inline int
 __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int entries,
-  const WT_CONFIG_ITEM *item, const u_int8_t *check_jump, const WT_CONFIG_CHECK **resultp)
+  const WT_CONFIG_ITEM *item, const uint8_t *check_jump, const WT_CONFIG_CHECK **resultp)
 {
     u_int check_count, indx;
     int ch;
@@ -106,7 +106,7 @@ __config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
  */
 static int
 __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int checks_entries,
-  const u_int8_t *check_jump, const char *config, size_t config_len)
+  const uint8_t *check_jump, const char *config, size_t config_len)
 {
     WT_CONFIG parser, sparser;
     const WT_CONFIG_CHECK *check;
