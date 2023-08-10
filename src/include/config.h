@@ -16,6 +16,13 @@ struct __wt_config {
     const int8_t *go;
 };
 
+#define WT_CONFIG_COMPILED_TYPE_INT 0
+#define WT_CONFIG_COMPILED_TYPE_BOOLEAN 1
+#define WT_CONFIG_COMPILED_TYPE_FORMAT 2
+#define WT_CONFIG_COMPILED_TYPE_STRING 3
+#define WT_CONFIG_COMPILED_TYPE_CATEGORY 4
+#define WT_CONFIG_COMPILED_TYPE_LIST 5
+
 struct __wt_config_check {
     const char *name;
     const char *type;
@@ -24,6 +31,7 @@ struct __wt_config_check {
     const WT_CONFIG_CHECK *subconfigs;
     u_int subconfigs_entries;
     const uint8_t *subconfigs_jump;
+    u_int compiled_type;
     int64_t min_value;
     int64_t max_value;
     const char **choices;

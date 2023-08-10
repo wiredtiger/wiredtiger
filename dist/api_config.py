@@ -132,6 +132,7 @@ def getcompstr(c):
     comptype = -1
     ty = gettype(c)
     # E.g. "WT_CONFIG_COMPILED_TYPE_INT"
+    comptype = 'WT_CONFIG_COMPILED_TYPE_' + ty.upper()
     checks = c.flags
     minval = 'INT64_MIN'
     maxval = 'INT64_MAX'
@@ -160,7 +161,7 @@ def getcompstr(c):
             'values' : '\n\t'.join('"' + choice + '",' for choice in choices),
         })
 
-    return ', {}, {}, {}'.format(minval, maxval, choices_ref)
+    return ', {}, {}, {}, {}'.format(comptype, minval, maxval, choices_ref)
 
 def getconfcheck(c):
     check = '{ "' + c.name + '", "' + gettype(c) + '",'
@@ -332,7 +333,7 @@ def add_subconfig(c, cname):
     tfile.write('''
 static const WT_CONFIG_CHECK %(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, NULL }
+\t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, NULL }
 };
 
 static const uint8_t %(name)s_jump[128] = {
@@ -370,7 +371,7 @@ for name in sorted(api_data_def.methods.keys()):
         tfile.write('''
 static const WT_CONFIG_CHECK confchk_%(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, NULL }
+\t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, NULL }
 };
 
 static const uint8_t confchk_%(name)s_jump[128] = {

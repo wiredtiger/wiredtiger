@@ -292,6 +292,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t cnt, len;
+    u_int compiled_type;
     char *newcheck_name, *p;
 
     /*
@@ -320,6 +321,20 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         WT_RET_MSG(session, EINVAL, "no configuration type specified");
     if (strcmp(type, "boolean") != 0 && strcmp(type, "int") != 0 && strcmp(type, "list") != 0 &&
       strcmp(type, "string") != 0)
+        WT_RET_MSG(
+          session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
+
+    /* Determine the compiled type. */
+    compiled_type = 0;
+    if (strcmp(type, "boolean") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_BOOLEAN;
+    else if (strcmp(type, "int") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_INT;
+    else if (strcmp(type, "list") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_LIST;
+    else if (strcmp(type, "string") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_STRING;
+    else
         WT_RET_MSG(
           session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
 
@@ -373,8 +388,10 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         for (cp = (*epp)->checks; cp->name != NULL; ++cp)
             if (strcmp(newcheck_name, cp->name) != 0)
                 checks[cnt++] = *cp;
+
     newcheck = &checks[cnt];
     newcheck->name = newcheck_name;
+    newcheck->compiled_type = compiled_type;
     newcheck->checks = check;
     __config_add_checks(session, entry, newcheck);
     WT_ERR(__wt_strdup(session, type, &newcheck->type));

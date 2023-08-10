@@ -141,28 +141,31 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
         /* Search for a matching entry. */
         WT_RET(__config_check_search(session, checks, checks_entries, &k, check_jump, &check));
 
-        if (strcmp(check->type, "boolean") == 0) {
+        badtype = false;
+        switch (check->compiled_type) {
+        case WT_CONFIG_COMPILED_TYPE_BOOLEAN:
             badtype = v.type != WT_CONFIG_ITEM_BOOL &&
               (v.type != WT_CONFIG_ITEM_NUM || (v.val != 0 && v.val != 1));
-        } else if (strcmp(check->type, "category") == 0) {
+            break;
+        case WT_CONFIG_COMPILED_TYPE_CATEGORY:
             /* Deal with categories of the form: XXX=(XXX=blah). */
             ret = __config_check(session, check->subconfigs, check->subconfigs_entries,
               check->subconfigs_jump, k.str + strlen(check->name) + 1, v.len);
-            if (ret != EINVAL)
-                badtype = false;
-            else
-                badtype = true;
-        } else if (strcmp(check->type, "format") == 0) {
-            badtype = false;
-        } else if (strcmp(check->type, "int") == 0) {
+            badtype = ret == EINVAL;
+            break;
+        case WT_CONFIG_COMPILED_TYPE_FORMAT:
+            break;
+        case WT_CONFIG_COMPILED_TYPE_INT:
             badtype = v.type != WT_CONFIG_ITEM_NUM;
-        } else if (strcmp(check->type, "list") == 0) {
+            break;
+        case WT_CONFIG_COMPILED_TYPE_LIST:
             badtype = v.len > 0 && v.type != WT_CONFIG_ITEM_STRUCT;
-        } else if (strcmp(check->type, "string") == 0) {
-            badtype = false;
-        } else
+            break;
+        case WT_CONFIG_COMPILED_TYPE_STRING:
+            break;
+        default:
             WT_RET_MSG(session, EINVAL, "unknown configuration type: '%s'", check->type);
-
+        }
         if (badtype)
             WT_RET_MSG(session, EINVAL, "Invalid value for key '%.*s': expected a %s", (int)k.len,
               k.str, check->type);
