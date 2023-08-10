@@ -79,7 +79,7 @@ class test_compact07(wttest.WiredTigerTestCase):
             if (self.get_pages_rewritten(f'{self.uri_prefix}_{i}') > 0):
                 files_compacted += 1
                 
-        return (files_compacted)
+        return files_compacted
     
     # Test the basic functionality of the background compaction server. 
     def test_background_compact_usage(self):
@@ -122,8 +122,7 @@ class test_compact07(wttest.WiredTigerTestCase):
         
         # Background compaction should run through every file as listed in the metadata file.
         # Periodically check how many files we've compacted until we compact all of them.
-        files_compacted = 0
-        while (self.get_files_compacted() < self.n_tables):
+        while self.get_files_compacted() < self.n_tables:
             time.sleep(2)
             
         # Check that we made no progress on the small file.
@@ -156,7 +155,7 @@ class test_compact07(wttest.WiredTigerTestCase):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
         stat_cursor.close()
-        while (compact_running):
+        while compact_running:
             stat_cursor = self.session.open_cursor('statistics:', None, None)
             compact_running = stat_cursor[stat.conn.background_compact_running][2]
             stat_cursor.close()
