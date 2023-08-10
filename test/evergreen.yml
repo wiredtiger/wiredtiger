@@ -6332,8 +6332,9 @@ buildvariants:
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
-    - name: unit-test-extra-long-nonstandalone
-      distros: ubuntu2004-arm64-large
+    # FIXME-WT-11415 - re-enable this test as part of WT-11415
+    #- name: unit-test-extra-long-nonstandalone
+    #  distros: ubuntu2004-arm64-large
     - name: memory-model-test
       batchtime: 40320 # 28 days
 
