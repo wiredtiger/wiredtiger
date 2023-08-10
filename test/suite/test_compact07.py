@@ -45,7 +45,13 @@ class test_compact07(wttest.WiredTigerTestCase):
     delete_ranges_count = 4
     table_numkv = 500 * 1000
     n_tables = 5
-    
+
+    def get_bg_compaction_running(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        compact_running = stat_cursor[stat.conn.background_compact_running][2]
+        stat_cursor.close()
+        return compact_running
+
     def get_size(self, uri):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
         size = stat_cursor[stat.dsrc.block_size][2]
@@ -114,16 +120,17 @@ class test_compact07(wttest.WiredTigerTestCase):
         # than the smaller file.
         self.session.compact(None,f'background=true,free_space_target={small_file_free_space + 1}MB')
         
-        # Check that the background server is running
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        compact_running = stat_cursor[stat.conn.background_compact_running][2]
+        # Wait for the background server to wake up.
+        compact_running = self.get_bg_compaction_running()
+        while not compact_running:
+            time.sleep(1)
+            compact_running = self.get_bg_compaction_running()
         self.assertEqual(compact_running, 1)
-        stat_cursor.close()
         
         # Background compaction should run through every file as listed in the metadata file.
         # Periodically check how many files we've compacted until we compact all of them.
         while self.get_files_compacted() < self.n_tables:
-            time.sleep(2)
+            time.sleep(1)
             
         # Check that we made no progress on the small file.
         self.assertEqual(self.get_pages_rewritten(self.uri_prefix + '_small'), 0)
@@ -149,15 +156,11 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Disable the background compaction server.
         self.session.compact(None,'background=false')
         
-        # Check that the background server is no longer running.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        compact_running = stat_cursor[stat.conn.background_compact_running][2]
-        stat_cursor.close()
+        # Wait for the background server to stop running.
+        compact_running = self.get_bg_compaction_running()
         while compact_running:
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            compact_running = stat_cursor[stat.conn.background_compact_running][2]
-            stat_cursor.close()
-    
+            time.sleep(1)
+            compact_running = self.get_bg_compaction_running()
         self.assertEqual(compact_running, 0)
         
     # FIXME-WT-11450: It's possible for compaction to block the drop table call indefinitely.
