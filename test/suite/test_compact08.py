@@ -59,6 +59,12 @@ class test_compact08(wttest.WiredTigerTestCase):
         c.close()
         return running
 
+    def get_pages_rewritten(self, uri):
+        c = self.session.open_cursor('statistics:' + uri, None, None)
+        pages_rewritten = c[stat.dsrc.btree_compact_pages_rewritten][2]
+        c.close()
+        return pages_rewritten
+
     # Create the table in a way that it creates a mostly empty file.
     def test_compact08(self):
 
@@ -108,6 +114,17 @@ class test_compact08(wttest.WiredTigerTestCase):
                     sleep(1)
                     running = self.get_bg_compaction_running()
                 self.assertEqual(running, 1)
+
+                # Wait for the server to start compacting.
+                num_pages_rewritten = 0
+                while num_pages_rewritten == 0:
+                    for j in range(self.num_tables):
+                        uri = f'{self.table_uri}_{j}'
+                        num_pages_rewritten = self.get_pages_rewritten(uri)
+                        self.prout(num_pages_rewritten)
+                        if num_pages_rewritten > 0:
+                            break
+                    sleep(1)
 
                 # Disable the server which may interrupt compaction.
                 self.session.compact(None, 'background=false')
