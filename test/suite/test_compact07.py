@@ -194,7 +194,8 @@ class test_compact07(wttest.WiredTigerTestCase):
     #         self.dropUntilSuccess(self.session, f'{self.uri_prefix}_{i}')
         
     # Run background compaction alongside many checkpoints.
-    def test_background_compact_chkpt_stress(self):
+    # FIXME-WT-11346: Revisit this test, it might be better to move it to the cppsuite.
+    def test_background_compact_ckpt_stress(self):
         # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
