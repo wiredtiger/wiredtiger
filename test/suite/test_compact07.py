@@ -133,7 +133,7 @@ class test_compact07(wttest.WiredTigerTestCase):
             time.sleep(1)
             
         # Check that we made no progress on the small file.
-        self.assertEqual(self.get_pages_rewritten(self.uri_prefix + '_small'), 0)
+        self.assertEqual(self.get_pages_rewritten(uri_small), 0)
         
         # Check the background compaction server stats. We should have skipped at least once and 
         # been successful at least once.
