@@ -34,12 +34,21 @@ __wt_config_check(
  *     Compare function used for binary search.
  */
 static int
-__config_check_compare(const void *keyvoid, const void *check)
+__config_check_compare(const void *keyvoid, const void *checkvoid)
 {
     const WT_CONFIG_ITEM *key;
+    const WT_CONFIG_CHECK *check;
+    int cmp;
 
     key = keyvoid;
-    return (strncmp(key->str, ((WT_CONFIG_CHECK *)check)->name, key->len));
+    check = checkvoid;
+    cmp = strncmp(key->str, check->name, key->len);
+    if (cmp == 0) {
+        if (check->name[key->len] == '\0')
+            return (0);
+        cmp = -1;
+    }
+    return (cmp);
 }
 
 /*
