@@ -212,8 +212,8 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session)
 int
 __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 {
-    WT_DECL_RET;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     conn = S2C(session);
 
     /* Compaction can be interrupted through the event handler. */
