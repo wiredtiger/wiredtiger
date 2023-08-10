@@ -36,8 +36,8 @@ __wt_config_check(
 static int
 __config_check_compare(const void *keyvoid, const void *checkvoid)
 {
-    const WT_CONFIG_ITEM *key;
     const WT_CONFIG_CHECK *check;
+    const WT_CONFIG_ITEM *key;
     int cmp;
 
     key = keyvoid;
