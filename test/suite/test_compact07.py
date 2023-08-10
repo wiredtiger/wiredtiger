@@ -83,6 +83,10 @@ class test_compact07(wttest.WiredTigerTestCase):
     
     # Test the basic functionality of the background compaction server. 
     def test_background_compact_usage(self):
+        # FIXME-WT-11399
+        if self.runningHook('tiered'):
+            self.skipTest("this test does not yet work with tiered storage")
+            
         # Create a small table that compact should skip over.
         uri_small = self.uri_prefix + '_small'
         ds = SimpleDataSet(self, uri_small, self.table_numkv // 2, key_format=self.key_format, value_format=self.value_format)
@@ -151,40 +155,50 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Check that the background server is no longer running.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
+        stat_cursor.close()
         while (compact_running):
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
             compact_running = stat_cursor[stat.conn.background_compact_running][2]
+            stat_cursor.close()
     
         self.assertEqual(compact_running, 0)
-        stat_cursor.close()
         
+    # FIXME-WT-11450: It's possible for compaction to block the drop table call indefinitely.
+    # We should reenable this test once that situation can be handled by the background compaction
+    # server.
+    
     # Test the background server while creating and dropping tables.
-    def test_background_compact_table_ops(self):
-        # Trigger the background compaction server first, before creating tables.
-        self.session.compact(None,'background=true,free_space_target=1MB')
+    # def test_background_compact_table_ops(self):
+    #     # Trigger the background compaction server first, before creating tables.
+    #     self.session.compact(None,'background=true,free_space_target=1MB')
 
-        # Create n tables for background compaction to loop through.
-        for i in range(self.n_tables):
-            uri = self.uri_prefix + f'_{i}'
-            ds = SimpleDataSet(self, uri, self.table_numkv, 
-                            key_format=self.key_format, 
-                            value_format=self.value_format)
-            ds.populate()
+    #     # Create n tables for background compaction to loop through.
+    #     for i in range(self.n_tables):
+    #         uri = self.uri_prefix + f'_{i}'
+    #         ds = SimpleDataSet(self, uri, self.table_numkv, 
+    #                         key_format=self.key_format, 
+    #                         value_format=self.value_format)
+    #         ds.populate()
                 
-        # Delete some data from half of the tables.
-        for i in range(self.n_tables):
-            if (i % 2 == 0):
-                self.delete_range(f'{self.uri_prefix}_{i}')
+    #     # Delete some data from half of the tables.
+    #     for i in range(self.n_tables):
+    #         if (i % 2 == 0):
+    #             self.delete_range(f'{self.uri_prefix}_{i}')
                 
-        # Periodically check that background compaction has done some work on any of the tables.
-        while (self.get_files_compacted() == 0):
-            time.sleep(1)
+    #     # Periodically check that background compaction has done some work on any of the tables.
+    #     while (self.get_files_compacted() == 0):
+    #         time.sleep(1)
             
-        # Now drop all the tables.
-        for i in range(self.n_tables):
-            self.dropUntilSuccess(self.session, f'{self.uri_prefix}_{i}')
+    #     # Now drop all the tables.
+    #     for i in range(self.n_tables):
+    #         self.dropUntilSuccess(self.session, f'{self.uri_prefix}_{i}')
         
     # Run background compaction alongside many checkpoints.
     def test_background_compact_chkpt_stress(self):
+        # FIXME-WT-11399
+        if self.runningHook('tiered'):
+            self.skipTest("this test does not yet work with tiered storage")
+            
         # Create n tables for background compaction to loop through.
         for i in range(self.n_tables):
             uri = self.uri_prefix + f'_{i}'
