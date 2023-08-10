@@ -72,6 +72,7 @@ __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u
                 *resultp = &checks[indx];
                 return (0);
             }
+        *resultp = NULL;
     } else {
         check_count = entries;
         if (item->len == 0 || ((ch = item->str[0]) + 1 >= 0x80))
