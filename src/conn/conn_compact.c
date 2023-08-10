@@ -162,8 +162,10 @@ __compact_server(void *arg)
             __wt_spin_lock(session, &conn->background_compact.lock);
             running = conn->background_compact.running;
             __wt_spin_unlock(session, &conn->background_compact.lock);
-            if (!running)
+            if (!running) {
+                WT_STAT_CONN_INCR(session, background_compact_interrupted);
                 ret = 0;
+            }
         }
 
         WT_ERR(ret);
