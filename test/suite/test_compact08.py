@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from time import sleep
 import wttest
 from wiredtiger import stat
 
@@ -104,6 +105,7 @@ class test_compact08(wttest.WiredTigerTestCase):
                 # Wait for the server to wake up.
                 running = self.get_bg_compaction_running()
                 while not running:
+                    sleep(1)
                     running = self.get_bg_compaction_running()
                 self.assertEqual(running, 1)
 
@@ -112,6 +114,7 @@ class test_compact08(wttest.WiredTigerTestCase):
 
                 # Wait for the server to stop.
                 while running:
+                    sleep(1)
                     running = self.get_bg_compaction_running()
                 self.assertEqual(running, 0)
 
