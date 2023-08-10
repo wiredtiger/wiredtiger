@@ -143,8 +143,6 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Use a free_space_target that is guaranteed to run on the small file.
         session2.compact(uri_small,f'free_space_target={small_file_free_space - 1}MB')
 
-        time.sleep(1)
-        
         # Check that foreground compaction has done some work on the small table.
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
                     
