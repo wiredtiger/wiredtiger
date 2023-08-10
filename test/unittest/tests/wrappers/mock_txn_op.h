@@ -47,7 +47,7 @@ public:
 
     struct {
         int id;
-        WT_BTREE_TYPE type;
+        WT_BTREE_TYPE type = BTREE_ROW;
         WT_COLLATOR *collator = NULL;
     } btree;
 
@@ -56,14 +56,17 @@ public:
         item_wrapper *item_key;
     } op_row;
 
-    struct {
-        int key;
-    } op_row;
+    // struct {
+    //     int key;
+    // } op_row;
 
     /* WT_TXN_OP_BASIC_COL, WT_TXN_OP_INMEM_COL */
     struct {
         uint64_t recno = 0;
     } op_col;
+    // struct {
+    //     item_wrapper *item_recno;
+    // } op_col;
 
     /* WT_TXN_OP_REF_DELETE */
 

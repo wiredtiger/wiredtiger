@@ -24,6 +24,9 @@ public:
         return &_item.data;
     };
 
+    u_int8_t recno;
+
+
 private:
     WT_ITEM _item;
     std::string _string;
