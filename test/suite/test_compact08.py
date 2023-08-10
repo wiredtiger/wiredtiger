@@ -91,7 +91,7 @@ class test_compact08(wttest.WiredTigerTestCase):
         # Expect a message indication the interruption.
         with self.expectedStderrPattern('background compact interrupted by application'):
             # It is possible that the server was disabled between two tables which is not considered
-            # as an interruption, retry a few times times if needed.
+            # as an interruption, retry a few times if needed.
             for i in range(0, 10):
 
                 # Background compaction should not be running yet.
