@@ -45,6 +45,12 @@ class test_compact08(wttest.WiredTigerTestCase):
     delete_ranges_count = 4
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
+    def get_bg_compaction_running(self):
+        c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
+        running = c[stat.conn.background_compact_running][2]
+        c.close()
+        return running
+
     # Create the table in a way that it creates a mostly empty file.
     def test_compact08(self):
 
@@ -77,19 +83,27 @@ class test_compact08(wttest.WiredTigerTestCase):
         # Make sure compaction will start working by setting a low threshold.
         compact_cfg_on = 'background=true,free_space_target=1MB'
         compact_cfg_off = 'background=false'
-        # TODO - Check against stat instead of verbose
-        with self.expectedStderrPattern(''):
-            self.session.compact(None, compact_cfg_on)
-            # Give the background compaction server some time to wake up.
-            time.sleep(1)
-            # Interrupt it.
-            self.session.compact(None, compact_cfg_off)
+
+        # Background compaction should not be running yet.
+        self.assertEqual(self.get_bg_compaction_running(), 0)
+
+        # Start the background compaction server and give it some time to wake up.
+        self.session.compact(None, compact_cfg_on)
+        time.sleep(2)
+
+        # Verify it is running.
+        self.assertEqual(self.get_bg_compaction_running(), 1)
+
+        # Interrupt it.
+        # TODO - Check stat that compaction has been interrupted.
+        self.session.compact(None, compact_cfg_off)
 
         # Check that the background server is not running.
-        c = self.session.open_cursor('statistics:', None, None)
-        compact_running = c[stat.conn.background_compact_running][2]
-        self.assertEqual(compact_running, 0)
-        c.close()
+        running = self.get_bg_compaction_running()
+        while running == 1:
+            running = self.get_bg_compaction_running()
+
+        self.assertEqual(running, 0)
 
 if __name__ == '__main__':
     wttest.run()
