@@ -26,12 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
 import wttest
 from wiredtiger import stat
 
 # test_compact08.py
-# Test background compaction interruption.
+# Test background compaction interruption. The background compaction server is considered as
+# interrupted if is it disabled while it is compacting a table. If it is disable between two tables,
+# it is not considered as an interruption.
 class test_compact08(wttest.WiredTigerTestCase):
     # Make compact slow to increase the chances of interruption. 
     conn_config = 'timing_stress_for_test=[compact_slow]'
@@ -48,6 +49,12 @@ class test_compact08(wttest.WiredTigerTestCase):
     def get_bg_compaction_running(self):
         c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
         running = c[stat.conn.background_compact_running][2]
+        c.close()
+        return running
+
+    def get_bg_compaction_interrupted(self):
+        c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
+        running = c[stat.conn.background_compact_interrupted][2]
         c.close()
         return running
 
@@ -80,30 +87,40 @@ class test_compact08(wttest.WiredTigerTestCase):
                     c.remove()
             c.close()
 
-        # Make sure compaction will start working by setting a low threshold.
-        compact_cfg_on = 'background=true,free_space_target=1MB'
-        compact_cfg_off = 'background=false'
+        num_interruption = 0
+        # Expect a message indication the interruption.
+        with self.expectedStderrPattern('background compact interrupted by application'):
+            # It is possible that the server was disabled between two tables which is not considered
+            # as an interruption, retry a few times times if needed.
+            for i in range(0, 10):
 
-        # Background compaction should not be running yet.
-        self.assertEqual(self.get_bg_compaction_running(), 0)
+                # Background compaction should not be running yet.
+                self.assertEqual(self.get_bg_compaction_running(), 0)
 
-        # Start the background compaction server and give it some time to wake up.
-        self.session.compact(None, compact_cfg_on)
-        time.sleep(2)
+                # Start the background compaction server with a low threshold to make sure it starts
+                # working.
+                self.session.compact(None, 'background=true,free_space_target=1MB')
 
-        # Verify it is running.
-        self.assertEqual(self.get_bg_compaction_running(), 1)
+                # Wait for the server to wake up.
+                running = self.get_bg_compaction_running()
+                while not running:
+                    running = self.get_bg_compaction_running()
+                self.assertEqual(running, 1)
 
-        # Interrupt it.
-        # TODO - Check stat that compaction has been interrupted.
-        self.session.compact(None, compact_cfg_off)
+                # Disable the server which may interrupt compaction.
+                self.session.compact(None, 'background=false')
 
-        # Check that the background server is not running.
-        running = self.get_bg_compaction_running()
-        while running == 1:
-            running = self.get_bg_compaction_running()
+                # Wait for the server to stop.
+                while running:
+                    running = self.get_bg_compaction_running()
+                self.assertEqual(running, 0)
 
-        self.assertEqual(running, 0)
+                # Check the server has been interrupted.
+                num_interruption = self.get_bg_compaction_interrupted()
+                if num_interruption > 0:
+                    break
+
+        self.assertEqual(num_interruption, 1)
 
 if __name__ == '__main__':
     wttest.run()
