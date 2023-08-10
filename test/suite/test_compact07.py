@@ -217,6 +217,7 @@ class test_compact07(wttest.WiredTigerTestCase):
             cur = self.session.open_cursor(self.uri_prefix + '_0')
             for i in range(100):
                 cur[i] = "aaaa"
+            cur.close()
             self.session.commit_transaction()
             self.session.checkpoint()
         
