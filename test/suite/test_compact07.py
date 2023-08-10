@@ -72,6 +72,14 @@ class test_compact07(wttest.WiredTigerTestCase):
                 c.set_key(start + i)
                 c.remove()
         c.close()
+
+    def get_files_compacted(self):
+        files_compacted = 0
+        for i in range(self.n_tables):
+            if (self.get_pages_rewritten(f'{self.uri_prefix}_{i}') > 0):
+                files_compacted += 1
+                
+        return (files_compacted)
     
     # Test the basic functionality of the background compaction server. 
     def test_background_compact_usage(self):
@@ -111,13 +119,7 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Background compaction should run through every file as listed in the metadata file.
         # Periodically check how many files we've compacted until we compact all of them.
         files_compacted = 0
-        while (files_compacted < self.n_tables):
-            files_compacted = 0
-            for i in range(self.n_tables):
-                uri = self.uri_prefix + f'_{i}'
-                if (self.get_pages_rewritten(uri) > 0):
-                    files_compacted += 1
-                    
+        while (self.get_files_compacted() < self.n_tables):
             time.sleep(2)
             
         # Check that we made no progress on the small file.
@@ -154,6 +156,7 @@ class test_compact07(wttest.WiredTigerTestCase):
     
         self.assertEqual(compact_running, 0)
         stat_cursor.close()
+        
     # Test the background server while creating and dropping tables.
     def test_background_compact_table_ops(self):
         # Trigger the background compaction server first, before creating tables.
@@ -172,11 +175,9 @@ class test_compact07(wttest.WiredTigerTestCase):
             if (i % 2 == 0):
                 self.delete_range(f'{self.uri_prefix}_{i}')
                 
-        # Periodically check that background compaction has done some work on the first table.
-        pages_rewritten = self.get_pages_rewritten(f'{self.uri_prefix}_0')
-        while (pages_rewritten == 0):
+        # Periodically check that background compaction has done some work on any of the tables.
+        while (self.get_files_compacted() == 0):
             time.sleep(1)
-            pages_rewritten = self.get_pages_rewritten(f'{self.uri_prefix}_0')
             
         # Now drop all the tables.
         for i in range(self.n_tables):
