@@ -47,15 +47,15 @@ class test_compact08(wttest.WiredTigerTestCase):
     delete_ranges_count = 4
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
-    def get_bg_compaction_running(self):
-        c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
-        running = c[stat.conn.background_compact_running][2]
-        c.close()
-        return running
-
     def get_bg_compaction_interrupted(self):
         c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
         running = c[stat.conn.background_compact_interrupted][2]
+        c.close()
+        return running
+
+    def get_bg_compaction_running(self):
+        c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
+        running = c[stat.conn.background_compact_running][2]
         c.close()
         return running
 
