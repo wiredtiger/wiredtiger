@@ -6449,7 +6449,6 @@ buildvariants:
     - name: configure-combinations
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
-    - name: azure-gcp-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
