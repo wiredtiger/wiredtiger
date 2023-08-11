@@ -218,7 +218,7 @@ class test_compact07(wttest.WiredTigerTestCase):
             for i in range(100):
                 cur[i] = "aaaa"
             cur.close()
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i))
             self.session.checkpoint()
         
 if __name__ == '__main__':
