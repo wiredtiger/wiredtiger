@@ -2270,25 +2270,28 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
- * __wt_cbt_set_valid_data_flag --
+ * __wt_cbt_set_non_deleted_updates_flag --
  *     Sets the page valid data flag if it has any data other than deleted.
  */
 static inline void
-__wt_cbt_set_valid_data_flag(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *first_upd)
+__wt_cbt_set_non_deleted_updates_flag(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *first_upd)
 {
     if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
         if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
             ++cbt->page_obsolete_deleted_count;
         /*
-         * If the selected tombstone is not first in the update list indicates that there are newer
-         * updates in the list that is either not committed or not visible.
+         * If the selected tombstone is not same as the most recent update in the update list
+         * indicates that there are newer updates in the update list that are either not committed
+         * or not visible to the current transaction. In this scenario, consider the page is having
+         * non deleted updates.
          */
-        else if (!cbt->valid_data && first_upd &&
+        else if (!cbt->non_deleted_updates && first_upd &&
           (cbt->upd_value->tw.stop_txn != first_upd->txnid ||
             cbt->upd_value->tw.stop_ts != first_upd->start_ts))
-            cbt->valid_data = true;
+            cbt->non_deleted_updates = true;
     } else
-        cbt->valid_data = true;
+        cbt->non_deleted_updates = true;
 }
 
 /*

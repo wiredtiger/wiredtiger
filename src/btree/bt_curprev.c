@@ -356,16 +356,16 @@ restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
-            cbt->valid_data = true;
+            cbt->non_deleted_updates = true;
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            __wt_cbt_set_valid_data_flag(session, cbt, cbt->ins->upd);
+            __wt_cbt_set_non_deleted_updates_flag(session, cbt, cbt->ins->upd);
             ++*skippedp;
             continue;
         }
 
-        cbt->valid_data = true;
+        cbt->non_deleted_updates = true;
         __wt_value_return(cbt, cbt->upd_value);
         return (0);
     }
@@ -453,12 +453,12 @@ restart_read:
         }
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                __wt_cbt_set_valid_data_flag(session, cbt, cbt->ins->upd);
+                __wt_cbt_set_non_deleted_updates_flag(session, cbt, cbt->ins->upd);
                 ++*skippedp;
                 continue;
             }
 
-            cbt->valid_data = true;
+            cbt->non_deleted_updates = true;
             __wt_value_return(cbt, cbt->upd_value);
             return (0);
         }
@@ -468,7 +468,7 @@ restart_read:
          * and the cell is cacheable (it might not be if it's not globally visible), reuse the
          * previous return data to avoid repeatedly decoding items.
          */
-        cbt->valid_data = true;
+        cbt->non_deleted_updates = true;
         if (cbt->cip_saved == cip && F_ISSET(cbt, WT_CBT_CACHEABLE_RLE_CELL)) {
             F_CLR(&cbt->iface, WT_CURSTD_VALUE_EXT);
             F_SET(&cbt->iface, WT_CURSTD_VALUE_INT);
@@ -525,7 +525,7 @@ restart_read:
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             ++*skippedp;
             if (cbt->upd_value->type == WT_UPDATE_INVALID)
-                cbt->valid_data = true;
+                cbt->non_deleted_updates = true;
             continue;
         }
         __wt_value_return(cbt, cbt->upd_value);
@@ -650,16 +650,16 @@ restart_read_insert:
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
-                cbt->valid_data = true;
+                cbt->non_deleted_updates = true;
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                __wt_cbt_set_valid_data_flag(session, cbt, cbt->ins->upd);
+                __wt_cbt_set_non_deleted_updates_flag(session, cbt, cbt->ins->upd);
                 ++*skippedp;
                 continue;
             }
 
-            cbt->valid_data = true;
+            cbt->non_deleted_updates = true;
             __wt_value_return(cbt, cbt->upd_value);
             return (0);
         }
@@ -713,16 +713,16 @@ restart_read_page:
         WT_RET(__wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, first_upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
-            cbt->valid_data = true;
+            cbt->non_deleted_updates = true;
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            __wt_cbt_set_valid_data_flag(session, cbt, first_upd);
+            __wt_cbt_set_non_deleted_updates_flag(session, cbt, first_upd);
             ++*skippedp;
             continue;
         }
 
-        cbt->valid_data = true;
+        cbt->non_deleted_updates = true;
         __wt_value_return(cbt, cbt->upd_value);
         return (0);
     }
@@ -859,26 +859,33 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
          * and only saw deleted records, try to evict the page when we release it. Otherwise
-         * repeatedly deleting from the beginning of a tree can have quadratic performance. Take
-         * care not to force eviction of pages that are genuinely empty, in new trees.
-         *
-         * A visible stop timestamp could have been treated as a tombstone and accounted in the
-         * deleted count. Such a page might not have any new updates and be clean, but could benefit
-         * from reconciliation getting rid of the obsolete content. Hence mark the page dirty to
-         * force it through reconciliation.
+         * repeatedly searching from the beginning of a tree can have quadratic performance. Take
+         * care not to force eviction of genuinely empty pages, in new trees.
          */
         if (page != NULL) {
+            /*
+             * An obsolete visible stop timestamp could have been treated as a tombstone and
+             * accounted for in the deleted count. Such a page might not have any new updates and be
+             * clean, but could benefit from reconciliation getting rid of the obsolete content.
+             * Hence mark the page dirty to force it through reconciliation.
+             */
             if (cbt->page_obsolete_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
               (newpage && cbt->page_obsolete_deleted_count > 0)) {
                 WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
                 WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
-            } else if (page->type != WT_PAGE_COL_FIX && total_skipped != 0 && !cbt->valid_data) {
+            } else if (page->type != WT_PAGE_COL_FIX && total_skipped != 0 &&
+              !cbt->non_deleted_updates) {
+                /*
+                 * A visible stop timestamp could have been treated as a tombstone and accounted for
+                 * page with no non-deleted updates. Evicting these pages could benefit search
+                 * performance.
+                 */
                 __wt_page_evict_soon(session, cbt->ref);
                 WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
             }
         }
         cbt->page_obsolete_deleted_count = 0;
-        cbt->valid_data = false;
+        cbt->non_deleted_updates = false;
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);

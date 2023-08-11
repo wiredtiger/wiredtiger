@@ -281,7 +281,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     }
 
     cbt->page_obsolete_deleted_count = 0;
-    cbt->valid_data = false;
+    cbt->non_deleted_updates = false;
 
     /*
      * Release any page references we're holding. This can trigger eviction (for example, forced
