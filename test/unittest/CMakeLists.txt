@@ -12,6 +12,7 @@ else()
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
         tests/test_pow.cpp
+        tests/test_prepare_mod_sort.cpp
         tests/test_qsort.cpp
         tests/test_reconciliation_tracking.cpp
         tests/test_tailq.cpp
