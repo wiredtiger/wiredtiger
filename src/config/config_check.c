@@ -94,7 +94,7 @@ __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u
          *
          * To set the bounds of a binary search of the table, we'll get the offset of the
          * first character in the string, and then the offset of its successor.
-         * If the first character is one less than size of the jump table, e.g. 0xFF,
+         * If the first character is one less than size of the jump table, e.g. 0x7F,
          * then we'll go past the end of the table. That character is ASCII delete,
          * which we know can't match anything in our configuration tables.
          */
