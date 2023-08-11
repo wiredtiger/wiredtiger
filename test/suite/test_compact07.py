@@ -92,7 +92,9 @@ class test_compact07(wttest.WiredTigerTestCase):
         # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
-            
+        if self.runningHook('timestamp'):
+            self.skipTest("timestamps are not relevant in this test")
+
         # Create a small table that compact should skip over.
         uri_small = self.uri_prefix + '_small'
         ds = SimpleDataSet(self, uri_small, self.table_numkv // 2, key_format=self.key_format, value_format=self.value_format)
@@ -199,7 +201,9 @@ class test_compact07(wttest.WiredTigerTestCase):
         # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
-            
+        if self.runningHook('timestamp'):
+            self.skipTest("timestamps are not relevant in this test")
+
         # Create n tables for background compaction to loop through.
         for i in range(self.n_tables):
             uri = self.uri_prefix + f'_{i}'
