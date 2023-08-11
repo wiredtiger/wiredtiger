@@ -33,7 +33,7 @@ __wt_config_check(
  * __config_check_compare --
  *     Compare function used for binary search.
  */
-static int
+static int WT_CDECL
 __config_check_compare(const void *keyvoid, const void *checkvoid)
 {
     const WT_CONFIG_CHECK *check;
