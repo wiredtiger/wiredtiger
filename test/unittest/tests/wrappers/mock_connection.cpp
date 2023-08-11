@@ -29,14 +29,16 @@ MockConnection::buildTestMockConnection()
 }
 
 int
-MockConnection::setupChunkCache(WT_SESSION_IMPL *session, uint64_t capacity, size_t chunk_size, WT_CHUNKCACHE *&chunkcache)
+MockConnection::setupChunkCache(
+  WT_SESSION_IMPL *session, uint64_t capacity, size_t chunk_size, WT_CHUNKCACHE *&chunkcache)
 {
     chunkcache = &_connectionImpl->chunkcache;
     memset(chunkcache, 0, sizeof(WT_CHUNKCACHE));
     chunkcache->capacity = capacity;
     chunkcache->chunk_size = chunk_size;
-    WT_RET(__wt_calloc(
-      session, 1, (chunkcache->capacity / chunkcache->chunk_size) / 8, &chunkcache->free_bitmap));
+    WT_RET(
+      __wt_calloc(session, WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size),
+        sizeof(uint8_t), &chunkcache->free_bitmap));
 
     return 0;
 }

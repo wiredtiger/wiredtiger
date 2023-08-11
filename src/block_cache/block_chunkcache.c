@@ -208,7 +208,8 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
         do {
             map_byte = &chunkcache->free_bitmap[index / 8];
-        } while (!__wt_atomic_cas8(map_byte, *map_byte, *map_byte & ~(0x01 << (index % 8))));
+        } while (
+          !__wt_atomic_cas8(map_byte, *map_byte, *map_byte & (uint8_t) ~(0x01 << (index % 8))));
     }
     __wt_free(session, chunk);
 }
@@ -776,7 +777,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
               "Storage size mapping %lu does not equal capacity of chunk cache %" PRIu64,
               mapped_size, chunkcache->capacity);
 
-        WT_RET(__wt_calloc(session, 1, ((chunkcache->capacity / chunkcache->chunk_size) / 8),
+        WT_RET(__wt_calloc(session,
+          WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
           &chunkcache->free_bitmap));
     }
 
