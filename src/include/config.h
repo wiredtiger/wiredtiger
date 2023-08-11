@@ -16,6 +16,16 @@ struct __wt_config {
     const int8_t *go;
 };
 
+/*
+ * We have jump tables that for each ASCII character, show
+ * the offset in a lookup table that that keys starting with
+ * that character start at. All keys are 7 bit ASCII.
+ */
+#define WT_CONFIG_JUMP_TABLE_SIZE 128
+
+/*
+ * The expected types of a configuration value.
+ */
 #define WT_CONFIG_COMPILED_TYPE_INT 0
 #define WT_CONFIG_COMPILED_TYPE_BOOLEAN 1
 #define WT_CONFIG_COMPILED_TYPE_FORMAT 2

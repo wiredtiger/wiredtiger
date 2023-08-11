@@ -75,7 +75,30 @@ __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u
         *resultp = NULL;
     } else {
         check_count = entries;
-        if (item->len == 0 || ((ch = item->str[0]) + 1 >= 0x80))
+        /*
+         * The jump table generated at build time has an entry for each ASCII character,
+         * showing the offset in a sorted list where that character first appears as the
+         * first letter. If it doesn't appear it will be the next sorted entry.
+         *
+         * For example, given [ "ant", "cat", "deer", "dog", "giraffe" ], the jump table
+         * for the ASCII set looks like:
+         *   [ 0, 0, 0, ...., 0, 1, 1, 2, 4, 4, 4, 5, 5, 5, ....]
+         *
+         *   For position 'a', we have 0 (offset of "ant"),
+         *   position 'b' is 1 (offset of "cat"),
+         *   position 'c' is 1 (offset of "cat"),
+         *   position 'd' is 2 (offset of "deer"),
+         *   'e' and 'f' are 4 (offset of "giraffe"),
+         *   'g' is 4 (offset of "giraffe"),
+         *   'h' and beyond is 5 (not found).
+         *
+         * To set the bounds of a binary search of the table, we'll get the offset of the
+         * first character in the string, and then the offset of its successor.
+         * If the first character is one less than size of the jump table, e.g. 0xFF,
+         * then we'll go past the end of the table. That character is ASCII delete,
+         * which we know can't match anything in our configuration tables.
+         */
+        if (item->len == 0 || ((ch = item->str[0]) + 1 >= WT_CONFIG_JUMP_TABLE_SIZE))
             indx = check_count;
         else {
             indx = check_jump[ch];
@@ -151,15 +174,15 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
             /* Deal with categories of the form: XXX=(XXX=blah). */
             ret = __config_check(session, check->subconfigs, check->subconfigs_entries,
               check->subconfigs_jump, k.str + strlen(check->name) + 1, v.len);
-            badtype = ret == EINVAL;
+            badtype = (ret == EINVAL);
             break;
         case WT_CONFIG_COMPILED_TYPE_FORMAT:
             break;
         case WT_CONFIG_COMPILED_TYPE_INT:
-            badtype = v.type != WT_CONFIG_ITEM_NUM;
+            badtype = (v.type != WT_CONFIG_ITEM_NUM);
             break;
         case WT_CONFIG_COMPILED_TYPE_LIST:
-            badtype = v.len > 0 && v.type != WT_CONFIG_ITEM_STRUCT;
+            badtype = (v.len > 0 && v.type != WT_CONFIG_ITEM_STRUCT);
             break;
         case WT_CONFIG_COMPILED_TYPE_STRING:
             break;

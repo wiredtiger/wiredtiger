@@ -299,7 +299,7 @@ def get_default(c):
 # position 'b' is 1 (offset of "cat"),
 # position 'c' is 1 (offset of "cat"),
 # position 'd' is 2 (offset of "deer"),
-# 'e' and 'f' are 4 (offset of "giraffe")
+# 'e' and 'f' are 4 (offset of "giraffe"),
 # 'g' is 4 (offset of "giraffe"),
 # 'h' and beyond is 5 (not found).
 def build_jump(arr):
@@ -336,7 +336,7 @@ static const WT_CONFIG_CHECK %(name)s[] = {
 \t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, NULL }
 };
 
-static const uint8_t %(name)s_jump[128] = {
+static const uint8_t %(name)s_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
 \t%(jump_contents)s
 };
 ''' % {
@@ -374,7 +374,7 @@ static const WT_CONFIG_CHECK confchk_%(name)s[] = {
 \t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, NULL }
 };
 
-static const uint8_t confchk_%(name)s_jump[128] = {
+static const uint8_t confchk_%(name)s_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
 \t%(jump_contents)s
 };
 ''' % {
