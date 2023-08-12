@@ -125,6 +125,20 @@ database_operation::populate(
 }
 
 void
+database_operation::background_compact_operation(thread_worker *tc)
+{
+    logger::log_msg(
+      LOG_ERROR, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
+    /* This needs to be executed only once in the workload. */
+    if (tc->running()) {
+        const std::string compact_cfg(
+          "background=true,free_space_target=" + std::to_string(tc->free_space_target_mb) + "MB");
+        testutil_check(tc->session->compact(tc->session.get(), nullptr, compact_cfg.c_str()));
+    }
+}
+
+void
 database_operation::checkpoint_operation(thread_worker *tc)
 {
     logger::log_msg(
