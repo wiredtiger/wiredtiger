@@ -131,11 +131,9 @@ database_operation::background_compact_operation(thread_worker *tc)
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /* This needs to be executed only once in the workload. */
-    if (tc->running()) {
-        const std::string compact_cfg(
-          "background=true,free_space_target=" + std::to_string(tc->free_space_target_mb) + "MB");
-        testutil_check(tc->session->compact(tc->session.get(), nullptr, compact_cfg.c_str()));
-    }
+    const std::string compact_cfg(
+      "background=true,free_space_target=" + std::to_string(tc->free_space_target_mb) + "MB");
+    testutil_check(tc->session->compact(tc->session.get(), nullptr, compact_cfg.c_str()));
 }
 
 void
