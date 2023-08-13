@@ -128,7 +128,7 @@ void
 database_operation::background_compact_operation(thread_worker *tc)
 {
     logger::log_msg(
-      LOG_ERROR, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /* This needs to be executed only once in the workload. */
     if (tc->running()) {
