@@ -86,6 +86,9 @@
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
 
+/* Ceil for unsigned integers. */
+#define WT_CEIL(a) ((a) - (uintmax_t)(a) > 0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
+
 /* Elements in an array. */
 #define WT_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
 
