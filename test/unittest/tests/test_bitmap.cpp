@@ -92,23 +92,25 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
         /* Initialize random seed: */
         srand(time(NULL));
 
-        /* Generate random number of chunks within range. */
-        random_num_chunks = rand() % num_chunks;
-
         /* Allocate bits to the bitmap */
-        for (int i = 0; i < random_num_chunks; i++) {
+        for (int i = 0; i < num_chunks; i++) {
             REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
             REQUIRE(i == bit_index);
         }
 
         REQUIRE(alloc_bitmap(session_impl, bit_index) == ENOSPC);
 
+        /* Generate random number of chunks within range. */
+        random_num_chunks = rand() % num_chunks;
+
         /* Free the bits in the bitmap randomly within range of allocated bits. */
-        for (int i = 0; i < random_num_chunks; i++) {
-            int random_number = rand() % random_num_chunks;
-            free_bitmap(chunkcache, random_number);
-            REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
-            REQUIRE(random_number == bit_index);
+        for (int cycle = 0; cycle < 20; cycle++) {
+            for (int i = 0; i < random_num_chunks; i++) {
+                int random_number = rand() % random_num_chunks;
+                free_bitmap(chunkcache, random_number);
+                REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
+                REQUIRE(random_number == bit_index);
+            }
         }
     }
 
