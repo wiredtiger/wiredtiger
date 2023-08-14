@@ -104,14 +104,18 @@ class test_compact07(wttest.WiredTigerTestCase):
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
-        # Create a table and delete the first 20% keys.
+        # Create and populate a table.
         uri_small = self.uri_prefix + '_small'
         self.session.create(uri_small, self.create_params)
         self.populate(uri_small, self.table_numkv, self.value_size)
+
+        # Write to disk.
         self.session.checkpoint()
 
-        free_space_20 = self.get_free_space(uri_small)
+        # Delete the first 20% keys.
         self.delete_range(uri_small, 20 * self.table_numkv // 100)
+
+        # Write to disk and retrieve the free space.
         self.session.checkpoint()
         free_space_20 = self.get_free_space(uri_small)
 
@@ -129,6 +133,7 @@ class test_compact07(wttest.WiredTigerTestCase):
         for i in range(self.n_tables):
             uri = self.uri_prefix + f'_{i}'
             self.delete_range(uri, delete_range)
+
         # Write to disk.
         self.session.checkpoint()
 
