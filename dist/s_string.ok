@@ -228,6 +228,7 @@ MONGODB
 MOVEFILE
 MRXB
 MRXBOPC
+MSAN
 MSDN
 MSVC
 MSan
@@ -568,6 +569,7 @@ colgroup
 colgroups
 collatorp
 comparator
+comparators
 comparep
 compat
 cond
@@ -578,7 +580,6 @@ config
 configs
 conn
 connectionp
-const
 constantp
 consts
 cookiep
@@ -867,7 +868,6 @@ isprint
 isrc
 isspace
 iter
-jemalloc
 jjj
 js
 json
@@ -893,6 +893,7 @@ len
 lengthp
 lenp
 lex
+lexically
 lexicographically
 lf
 lfence
@@ -1188,6 +1189,7 @@ sn
 snaplen
 snapsort
 snprintf
+sortable
 sp
 sparc
 spinlock
