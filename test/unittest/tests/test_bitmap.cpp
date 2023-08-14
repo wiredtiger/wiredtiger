@@ -16,7 +16,7 @@
 #include "wrappers/mock_session.h"
 #include "wt_internal.h"
 
-// Mark the free chunk in the bitmap as in use.
+/* Mark the free chunk in the bitmap as in use. */
 int
 alloc_bitmap(WT_SESSION_IMPL *session, size_t &bit_index)
 {
@@ -35,7 +35,7 @@ retry:
     return 0;
 }
 
-// Mark the used chunk in the bitmap as free.
+/* Mark the used chunk in the bitmap as free.  */
 void
 free_bitmap(WT_CHUNKCACHE *chunkcache, size_t bit_index)
 {
@@ -48,16 +48,16 @@ free_bitmap(WT_CHUNKCACHE *chunkcache, size_t bit_index)
 
 TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
 {
-    // Build Mock session, this will automatically create a mock connection.
+    /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
 
     WT_SESSION_IMPL *session_impl = session->getWtSessionImpl();
     WT_CHUNKCACHE *chunkcache;
-    uint64_t capacity = 100;
-    size_t chunk_size = 10;
-    // size_t max_num_chunks = capacity/chunk_size;
+    uint64_t capacity = 101 + rand() % 10000;
+    size_t chunk_size = 1 + rand() % 100;
+    size_t num_chunks = capacity / chunk_size;
 
-    // Setup chunk cache.
+    /* Setup chunk cache. */
     REQUIRE((session->getMockConnection()->setupChunkCache(
               session_impl, capacity, chunk_size, chunkcache)) == 0);
 
@@ -65,19 +65,21 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
     {
         size_t bit_index;
 
-        // We have 10 chunks so there are 10 bits.
-        for (int i = 0; i < 10; i++) {
+        /* Allocate all the bits in the bitmap sequentially. */
+        for (int i = 0; i < num_chunks; i++) {
             REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
             REQUIRE(i == bit_index);
         }
 
         REQUIRE(alloc_bitmap(session_impl, bit_index) == ENOSPC);
 
-        for (int i = 0; i < 10; i++) {
+        /* Free all the bits in the bitmap sequentially. */
+        for (int i = 0; i < num_chunks; i++) {
             free_bitmap(chunkcache, i);
         }
 
-        for (int i = 0; i < 10; i++) {
+        /* Reallocate all the bits to ensure all the frees were successful. */
+        for (int i = 0; i < num_chunks; i++) {
             REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
             REQUIRE(i == bit_index);
         }
@@ -85,21 +87,25 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
 
     SECTION("Random allocation and free")
     {
-        size_t bit_index;
+        size_t bit_index, random_num_chunks;
 
-        /* initialize random seed: */
+        /* Initialize random seed: */
         srand(time(NULL));
 
-        // We have 10 chunks so there are 10 bits.
-        for (int i = 0; i < 10; i++) {
+        /* Generate random number of chunks within range. */
+        random_num_chunks = rand() % num_chunks;
+
+        /* Allocate bits to the bitmap */
+        for (int i = 0; i < random_num_chunks; i++) {
             REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
             REQUIRE(i == bit_index);
         }
 
         REQUIRE(alloc_bitmap(session_impl, bit_index) == ENOSPC);
 
-        for (int i = 0; i < 5; i++) {
-            int random_number = rand() % 10;
+        /* Free the bits in the bitmap randomly within range of allocated bits. */
+        for (int i = 0; i < random_num_chunks; i++) {
+            int random_number = rand() % random_num_chunks;
             free_bitmap(chunkcache, random_number);
             REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
             REQUIRE(random_number == bit_index);
@@ -114,14 +120,14 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
         size_t bit_index;
 
         for (int i = 0; i < 50; i++) {
-            // Concurrent allocation
+            /* Concurrent allocation */
             threads.emplace_back([session_impl, iterations]() {
                 size_t bit_index;
                 for (int j = 0; j < iterations; j++) {
                     alloc_bitmap(session_impl, bit_index);
                 }
             });
-            // Concurrent freeing
+            /* Concurrent freeing */
             threads.emplace_back([chunkcache, iterations]() {
                 for (int j = 0; j < iterations; j++) {
                     int random_number = rand() % 10;
@@ -130,12 +136,12 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
             });
         }
 
-        // Wait for all threads to finish
+        /* Wait for all threads to finish */
         for (auto &thread : threads) {
             thread.join();
         }
 
-        // Verify that the cache is still consistent
+        /* Verify that the cache is still consistent */
         for (int i = 0; i < 10; i++) {
             REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
         }

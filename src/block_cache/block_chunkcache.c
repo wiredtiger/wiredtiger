@@ -32,6 +32,8 @@ __chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
     uint8_t map_byte;
 
     chunkcache = &S2C(session)->chunkcache;
+
+    /* The bitmap size accounts for full bytes only, remainder bits are iterated separately. */
     bitmap_size = (chunkcache->capacity / chunkcache->chunk_size) / 8;
 
     /* Iterate through the bytes and bits of the bitmap to find free chunks. */
