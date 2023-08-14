@@ -829,7 +829,7 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_chunk_cache_subconfigs[] = {
-  {"capacity", "int", NULL, "min=0,max=100TB", NULL, 0},
+  {"capacity", "int", NULL, "min=512KB,max=100TB", NULL, 0},
   {"chunk_cache_evict_trigger", "int", NULL, "min=0,max=100", NULL, 0},
   {"chunk_size", "int", NULL, "min=512KB,max=100GB", NULL, 0},
   {"enabled", "boolean", NULL, NULL, NULL, 0},
