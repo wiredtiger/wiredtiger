@@ -874,7 +874,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
                 WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
             } else if (page->type != WT_PAGE_COL_FIX && total_skipped != 0 &&
-              !cbt->non_deleted_updates) {
+              !cbt->non_deleted_updates && session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
                 /*
                  * A visible stop timestamp could have been treated as a tombstone and accounted for
                  * page with no non-deleted updates. Evicting these pages could benefit search
