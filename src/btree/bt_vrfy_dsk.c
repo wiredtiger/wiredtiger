@@ -410,7 +410,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
         ++cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(vi->session, vi->dsk, cell, unpack, NULL, end);
+        ret = __wt_cell_unpack_safe_addr(vi->session, vi->dsk, cell, unpack, end);
         if (ret != 0) {
             (void)__err_cell_corrupt(ret, vi);
             goto err;
@@ -594,7 +594,7 @@ __verify_dsk_row_leaf(WT_VERIFY_INFO *vi)
         ++cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(vi->session, vi->dsk, cell, NULL, unpack, end);
+        ret = __wt_cell_unpack_safe_kv(vi->session, vi->dsk, cell, unpack, end);
         if (ret != 0) {
             (void)__err_cell_corrupt(ret, vi);
             goto err;
@@ -780,7 +780,7 @@ __verify_dsk_col_int(WT_VERIFY_INFO *vi)
 
     WT_CELL_FOREACH_VRFY (vi->session, vi->dsk, cell, unpack, i) {
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(vi->session, vi->dsk, cell, unpack, NULL, end);
+        ret = __wt_cell_unpack_safe_addr(vi->session, vi->dsk, cell, unpack, end);
         if (ret != 0)
             return (__err_cell_corrupt(ret, vi));
 
@@ -887,7 +887,7 @@ __verify_dsk_col_fix(WT_VERIFY_INFO *vi)
         ++cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(vi->session, vi->dsk, cell, NULL, unpack, end);
+        ret = __wt_cell_unpack_safe_kv(vi->session, vi->dsk, cell, unpack, end);
         if (ret != 0)
             return (__err_cell_corrupt(ret, vi));
 
@@ -987,7 +987,7 @@ __verify_dsk_col_var(WT_VERIFY_INFO *vi)
         vi->cell_num = cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(vi->session, vi->dsk, cell, NULL, unpack, end);
+        ret = __wt_cell_unpack_safe_kv(vi->session, vi->dsk, cell, unpack, end);
         if (ret != 0)
             return (__err_cell_corrupt(ret, vi));
 

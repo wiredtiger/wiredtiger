@@ -681,7 +681,7 @@ Akin to \c __cell_kv_window_cleanup except for \c WT_PAGE_DELETED.}
 @row{cell_inline.h, Function, \c __cell_redo_page_del_cleanup,
 Function that redoes the timestamp cleanup for a \c WT_PAGE_DELETED structure; used
 after we bump write generations at the end recovery.}
-@row{cell_inline.h, Hook, in \c __wt_cell_unpack_safe,
+@row{cell_inline.h, Hook, in \c __wt_cell_unpack_safe_addr,
 Unpack the page deletion information from deleted-address cells.}
 @row{cell_inline.h, Hook, in \c __wt_cell_pack_addr,
 Pack the page deletion information into deleted-address cells.}

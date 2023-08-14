@@ -686,21 +686,188 @@ __wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
     } while (0)
 
 /*
- * __wt_cell_unpack_safe --
- *     Unpack a WT_CELL into a structure, with optional boundary checks.
+ * __wt_cell_unpack_safe_addr --
+ *     Unpack an address cell, with optional boundary checks.
  */
 static inline int
-__wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
-  WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_KV *unpack_value, const void *end)
+__wt_cell_unpack_safe_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
+  WT_CELL_UNPACK_ADDR *unpack, const void *end)
+{
+    WT_PAGE_DELETED *page_del;
+    WT_TIME_AGGREGATE *ta;
+    uint64_t v;
+    uint8_t flags;
+    const uint8_t *p;
+
+    ta = &unpack->ta;
+    WT_TIME_AGGREGATE_INIT(ta);
+
+    /*
+     * NB: when unpacking a WT_CELL_VALUE_COPY cell, unpack.cell is returned as the original cell,
+     * not the copied cell (in other words, data from the copied cell must be available from unpack
+     * after we return, as our caller has no way to find the copied cell).
+     */
+    unpack->cell = cell;
+
+    WT_CELL_LEN_CHK(cell, 0, dsk, end);
+
+    /*
+     * This path is performance critical for read-only trees, we're parsing on-page structures. For
+     * that reason we don't clear the unpacked cell structure (although that would be simpler),
+     * instead we make sure we initialize all structure elements either here or in the immediately
+     * following switch. All validity windows default to durability.
+     */
+    unpack->v = 0;
+    unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
+    unpack->type = (uint8_t)__wt_cell_type(cell);
+    unpack->flags = 0;
+
+    /*
+     * Handle cells with none of RLE counts, validity window or data length: WT_CELL_KEY_SHORT_PFX,
+     * WT_CELL_KEY_SHORT and WT_CELL_VALUE_SHORT. Short key/data cells have 6 bits of data length in
+     * the descriptor byte and nothing else
+     */
+    if (unpack->raw == WT_CELL_KEY_SHORT) {
+        unpack->prefix = 0;
+        unpack->data = cell->__chunk + 1;
+        unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
+        unpack->__len = 1 + unpack->size;
+        goto done; /* Handle copy cells. */
+    }
+
+    unpack->prefix = 0;
+    unpack->data = NULL;
+    unpack->size = 0;
+    unpack->__len = 0;
+
+    p = (uint8_t *)cell + 1; /* skip cell */
+
+    /* Check for a time aggregate. */
+    switch (unpack->raw) {
+    case WT_CELL_ADDR_DEL:
+    case WT_CELL_ADDR_INT:
+    case WT_CELL_ADDR_LEAF:
+    case WT_CELL_ADDR_LEAF_NO:
+        if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
+            break;
+        flags = *p++; /* skip second descriptor byte */
+        WT_CELL_LEN_CHK(p, 0, dsk, end);
+
+        if (LF_ISSET(WT_CELL_PREPARE))
+            ta->prepare = 1;
+        if (LF_ISSET(WT_CELL_TS_START))
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_ts));
+        if (LF_ISSET(WT_CELL_TXN_START))
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_txn));
+        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
+            WT_RET(__wt_vunpack_uint(
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_start_durable_ts));
+            ta->newest_start_durable_ts += ta->oldest_start_ts;
+        }
+
+        if (LF_ISSET(WT_CELL_TS_STOP)) {
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_ts));
+            ta->newest_stop_ts += ta->oldest_start_ts;
+        }
+        if (LF_ISSET(WT_CELL_TXN_STOP)) {
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_txn));
+            ta->newest_stop_txn += ta->newest_txn;
+        }
+        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
+            WT_RET(__wt_vunpack_uint(
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_durable_ts));
+            ta->newest_stop_durable_ts += ta->newest_stop_ts;
+        }
+        WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
+        break;
+    }
+
+    /* Unpack any fast-truncate information. */
+    if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
+        page_del = &unpack->page_del;
+        WT_RET(__wt_vunpack_uint(
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
+        WT_RET(__wt_vunpack_uint(
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
+        page_del->prepare_state = 0;                /* No prepare can have been in progress. */
+        page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
+        page_del->committed = true;                 /* There is no running transaction. */
+        page_del->selected_for_write = true;
+    }
+
+    /*
+     * Check for an RLE count or record number that optionally follows the cell descriptor byte on
+     * column-store variable-length pages.
+     */
+    if (cell->__chunk[0] & WT_CELL_64V) /* skip value */
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->v));
+
+    /*
+     * Handle special actions for a few different cell types and set the data length (deleted cells
+     * are fixed-size without length bytes, almost everything else has data length bytes).
+     */
+    switch (unpack->raw) {
+    case WT_CELL_KEY_OVFL:
+        /*
+         * Set overflow flag.
+         */
+        F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
+        /* FALLTHROUGH */
+
+    case WT_CELL_ADDR_DEL:
+    case WT_CELL_ADDR_INT:
+    case WT_CELL_ADDR_LEAF:
+    case WT_CELL_ADDR_LEAF_NO:
+    case WT_CELL_KEY:
+        /*
+         * The cell is followed by a 4B data length and a chunk of data.
+         */
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
+
+        /*
+         * If the size was what prevented us from using a short cell, it's larger than the
+         * adjustment size. Decrement/increment it when packing/unpacking so it takes up less room.
+         */
+        if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
+          (unpack->raw == WT_CELL_VALUE && unpack->v == 0 &&
+            (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
+            v += WT_CELL_SIZE_ADJUST;
+
+        unpack->data = p;
+        unpack->size = (uint32_t)v;
+        unpack->__len = WT_PTRDIFF32(p, cell) + unpack->size;
+        break;
+
+    default:
+        return (WT_ERROR); /* Unknown cell type. */
+    }
+
+done:
+    /*
+     * Check the original cell against the full cell length (this is a diagnostic as well, we may be
+     * copying the cell from the page and we need the right length).
+     */
+    WT_CELL_LEN_CHK(cell, unpack->__len, dsk, end);
+    return (0);
+}
+
+/*
+ * __wt_cell_unpack_safe_kv --
+ *     Unpack a key/value cell into a structure, with optional boundary checks.
+ */
+static inline int
+__wt_cell_unpack_safe_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
+  WT_CELL_UNPACK_KV *unpack, const void *end)
 {
     struct {
         uint64_t v;
         uint32_t len;
         WT_TIME_WINDOW tw;
     } copy;
-    WT_CELL_UNPACK_COMMON *unpack;
-    WT_PAGE_DELETED *page_del;
-    WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
     uint64_t v;
     const uint8_t *p;
@@ -711,19 +878,8 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
-    if (unpack_addr == NULL) {
-        unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
-        tw = &unpack_value->tw;
-        WT_TIME_WINDOW_INIT(tw);
-        ta = NULL;
-    } else {
-        WT_ASSERT(session, unpack_value == NULL);
-
-        unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
-        ta = &unpack_addr->ta;
-        WT_TIME_AGGREGATE_INIT(ta);
-        tw = NULL;
-    }
+    tw = &unpack->tw;
+    WT_TIME_WINDOW_INIT(tw);
 
     /*
      * NB: when unpacking a WT_CELL_VALUE_COPY cell, unpack.cell is returned as the original cell,
@@ -784,60 +940,13 @@ copy_cell_restart:
         WT_CELL_LEN_CHK(p, 0, dsk, end);
     }
 
-    /* Check for a validity window. */
+    /* Check for a time window. */
     switch (unpack->raw) {
-    case WT_CELL_ADDR_DEL:
-    case WT_CELL_ADDR_INT:
-    case WT_CELL_ADDR_LEAF:
-    case WT_CELL_ADDR_LEAF_NO:
-        /* Return an error if we're not unpacking a cell of this type. */
-        if (unpack_addr == NULL)
-            return (WT_ERROR);
-
-        if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
-            break;
-        flags = *p++; /* skip second descriptor byte */
-        WT_CELL_LEN_CHK(p, 0, dsk, end);
-
-        if (LF_ISSET(WT_CELL_PREPARE))
-            ta->prepare = 1;
-        if (LF_ISSET(WT_CELL_TS_START))
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_ts));
-        if (LF_ISSET(WT_CELL_TXN_START))
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_txn));
-        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_start_durable_ts));
-            ta->newest_start_durable_ts += ta->oldest_start_ts;
-        }
-
-        if (LF_ISSET(WT_CELL_TS_STOP)) {
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_ts));
-            ta->newest_stop_ts += ta->oldest_start_ts;
-        }
-        if (LF_ISSET(WT_CELL_TXN_STOP)) {
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_txn));
-            ta->newest_stop_txn += ta->newest_txn;
-        }
-        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_durable_ts));
-            ta->newest_stop_durable_ts += ta->newest_stop_ts;
-        }
-        WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
-        break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
     case WT_CELL_VALUE_COPY:
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        /* Return an error if we're not unpacking a cell of this type. */
-        if (unpack_value == NULL)
-            return (WT_ERROR);
-
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
@@ -877,20 +986,6 @@ copy_cell_restart:
         break;
     }
 
-    /* Unpack any fast-truncate information. */
-    if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
-        page_del = &unpack_addr->page_del;
-        WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
-        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
-        WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
-        page_del->prepare_state = 0;                /* No prepare can have been in progress. */
-        page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
-        page_del->committed = true;                 /* There is no running transaction. */
-        page_del->selected_for_write = true;
-    }
-
     /*
      * Check for an RLE count or record number that optionally follows the cell descriptor byte on
      * column-store variable-length pages.
@@ -904,10 +999,6 @@ copy_cell_restart:
      */
     switch (unpack->raw) {
     case WT_CELL_VALUE_COPY:
-        /* Return an error if we're not unpacking a cell of this type. */
-        if (unpack_value == NULL)
-            return (WT_ERROR);
-
         copy_cell = true;
 
         /*
@@ -933,10 +1024,6 @@ copy_cell_restart:
         F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
         /* FALLTHROUGH */
 
-    case WT_CELL_ADDR_DEL:
-    case WT_CELL_ADDR_INT:
-    case WT_CELL_ADDR_LEAF:
-    case WT_CELL_ADDR_LEAF_NO:
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
@@ -971,7 +1058,7 @@ done:
      * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
      * ideally checking allows the compiler to discard big chunks of it.
      */
-    if (unpack_addr == NULL && copy_cell) {
+    if (copy_cell) {
         unpack->v = copy.v;
         unpack->__len = copy.len;
         unpack->raw = WT_CELL_VALUE_COPY;
@@ -1180,7 +1267,7 @@ __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
 {
     WT_DECL_RET;
 
-    ret = __wt_cell_unpack_safe(session, dsk, cell, unpack_addr, NULL, NULL);
+    ret = __wt_cell_unpack_safe_addr(session, dsk, cell, unpack_addr, NULL);
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
@@ -1219,7 +1306,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
         return;
     }
 
-    ret = __wt_cell_unpack_safe(session, dsk, cell, NULL, unpack_value, NULL);
+    ret = __wt_cell_unpack_safe_kv(session, dsk, cell, unpack_value, NULL);
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
