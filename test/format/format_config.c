@@ -35,6 +35,7 @@ static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(TABLE *);
+static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_directio(void);
 static void config_encryption(void);
@@ -419,6 +420,18 @@ config_table(TABLE *table, void *arg)
                   table->id);
             config_single(table, "ops.truncate=0", false);
         }
+
+        /*
+         * We don't support the hs_search stress point with pareto distribution in predictable
+         * replay as it prevents us stopping in time.
+         */
+        if (GV(STRESS_HS_SEARCH) && TV(OPS_PARETO)) {
+            if (config_explicit(NULL, "stress.hs_search"))
+                WARN("turning off stress.hs_search to work with predictable replay as table%" PRIu32
+                     " has pareto enabled",
+                  table->id);
+            config_single(NULL, "stress.hs_search=0", false);
+        }
     }
 
     /*
@@ -497,6 +510,7 @@ config_run(void)
     config_backward_compatible();                    /* Reset backward compatibility as needed */
     config_mirrors();                                /* Mirrors */
     config_statistics();                             /* Statistics */
+    config_compact();                                /* Compaction */
 
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
@@ -2236,4 +2250,41 @@ config_file_type(u_int type)
         break;
     }
     return ("error: unknown file type");
+}
+
+/*
+ * config_compact --
+ *     Generate compaction related configurations.
+ */
+static void
+config_compact(void)
+{
+    /* FIXME-WT-11432: Background and foreground compaction should not be executed in parallel. */
+    if (config_explicit(NULL, "background_compact") && GV(BACKGROUND_COMPACT) &&
+      config_explicit(NULL, "ops.compaction") && GV(OPS_COMPACTION))
+        testutil_die(EINVAL,
+          "%s: Background and foreground compaction cannot be enabled at the same time", progname);
+
+    /*
+     * FIXME-WT-11432: If both are enabled, disable the one that is not explicitly set or choose one
+     * randomly.
+     */
+    if (GV(BACKGROUND_COMPACT) && GV(OPS_COMPACTION)) {
+        if (config_explicit(NULL, "background_compact"))
+            config_single(NULL, "ops.compaction=0", false);
+        else if (config_explicit(NULL, "ops.compaction"))
+            config_single(NULL, "background_compact=0", false);
+        else {
+            if (mmrand(&g.data_rnd, 1, 2) == 1)
+                config_single(NULL, "background_compact=0", false);
+            else
+                config_single(NULL, "ops.compaction=0", false);
+        }
+    }
+
+    /* Generate values if not explicit set. */
+    if (!config_explicit(NULL, "background_compact.free_space_target"))
+        GV(BACKGROUND_COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
+    if (!config_explicit(NULL, "compact.free_space_target"))
+        GV(COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
 }

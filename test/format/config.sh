@@ -73,6 +73,10 @@ done<<END_OF_INPUT>$fc
 CONFIG configuration_list[] = {
 {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0}
 
+{"background_compact", "configure background compaction", C_BOOL, 10, 0, 0}
+
+{"background_compact.free_space_target", "free space target for background compaction (MB)", 0x0, 1, 100, UINT_MAX}
+
 {"backup", "configure backups", C_BOOL, 20, 0, 0}
 
 {"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0}
@@ -140,6 +144,8 @@ CONFIG configuration_list[] = {
 {"checkpoint.log_size", "MB of log to wait if wiredtiger checkpoints configured", 0x0, 20, 200, 1024}
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
+
+{"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
@@ -293,9 +299,11 @@ CONFIG configuration_list[] = {
 
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
 
+{"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0}
+
 {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0}
 
-{"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after reconciliation", C_BOOL, 30, 0, 0}
+{"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0}
 
 {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts", C_BOOL, 30, 0, 0}
 

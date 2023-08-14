@@ -5,6 +5,12 @@
 CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0,
                                  V_GLOBAL_ASSERT_READ_TIMESTAMP},
 
+  {"background_compact", "configure background compaction", C_BOOL, 10, 0, 0,
+    V_GLOBAL_BACKGROUND_COMPACT},
+
+  {"background_compact.free_space_target", "free space target for background compaction (MB)", 0x0,
+    1, 100, UINT_MAX, V_GLOBAL_BACKGROUND_COMPACT_FREE_SPACE_TARGET},
+
   {"backup", "configure backups", C_BOOL, 20, 0, 0, V_GLOBAL_BACKUP},
 
   {"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0,
@@ -101,6 +107,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
+
+  {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
+    V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
 
   {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024,
     V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
@@ -314,12 +323,13 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_CHECKPOINT_PREPARE},
 
+  {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_COMPACT_SLOW},
+
   {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_EVICT_REPOSITION},
 
-  {"stress.failpoint_eviction_fail_after_reconciliation",
-    "stress failpoint eviction fail after reconciliation", C_BOOL, 30, 0, 0,
-    V_GLOBAL_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
+  {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0,
+    V_GLOBAL_STRESS_FAILPOINT_EVICTION_SPLIT},
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},

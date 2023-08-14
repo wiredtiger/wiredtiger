@@ -41,7 +41,15 @@ wait_for_process()
 			ps $process > /dev/null; ps_exit_status=$?
 			if [ ${ps_exit_status} -eq "1" ] ; then
 				# The process is completed so remove the process id from the list of processes.
-				PID_LIST=(${PID_LIST[@]/$process})
+				# Need to use a loop to prevent partial regex matches.
+				unset NEW_PID_LIST
+				declare -a NEW_PID_LIST
+				for target in ${PID_LIST[@]};do
+					if [ $target -ne $process ]; then
+						NEW_PID_LIST+=("$target")
+					fi
+				done
+				PID_LIST=("${NEW_PID_LIST[@]}")
 
 				# Wait for the process to get the exit status.
 				wait $process
@@ -49,7 +57,8 @@ wait_for_process()
 
 				let "running--"
 
-				config_name=`egrep $process $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
+				# Grep for the exact process id in the temp file.
+				config_name=`egrep -w "${process}" $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
 				if [ $exit_status -ne "0" ]; then
 					let "failure++"
 					[ -f WT_TEST_${config_name}/CONFIG ] && cat WT_TEST_${config_name}/CONFIG
@@ -59,7 +68,7 @@ wait_for_process()
 					[ -d WT_TEST_${config_name} ] && rm -rf WT_TEST_${config_name}
 				fi
 
-				echo "Exit status of config ${config_name} is ${exit_status}"
+				echo "Exit status of pid ${process} and config ${config_name} is ${exit_status}"
 				# Continue checking other runnung process status before exiting the for loop.
 				continue
 			fi
@@ -105,7 +114,7 @@ do
 	PID="$!"
 	PID_LIST+=("$PID")
 
-	echo "$PID:$config" >> $tmp_file
+	echo "${PID}:$config" >> $tmp_file
 
 	if [ ${running} -ge ${parallel_jobs} ]; then
 		wait_for_process
