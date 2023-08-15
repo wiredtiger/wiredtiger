@@ -362,6 +362,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
+    uint8_t prepare_state;
 
     /*
      * There is no selected update to go to disk as such we don't need to check the updates
@@ -422,7 +423,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
             continue;
 
         WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+          atomic_load_explicit(&prev_upd->prepare_state, memory_order_relaxed) ==
+              WT_PREPARE_INPROGRESS ||
             prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts,
           "Durable timestamps cannot be out of order for prepared updates");
 
@@ -461,14 +463,14 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * reconciliations ondisk value that we will be comparing against.
      */
     if (vpack != NULL && !vpack->tw.prepare) {
+        prepare_state = atomic_load_explicit(&prev_upd->prepare_state, memory_order_relaxed);
         WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts ||
+          prepare_state == WT_PREPARE_INPROGRESS || prev_upd->start_ts == prev_upd->durable_ts ||
             prev_upd->durable_ts >= vpack->tw.durable_start_ts,
           "Durable timestamps cannot be out of order for prepared updates");
         WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
+          prepare_state == WT_PREPARE_INPROGRESS || prev_upd->start_ts == prev_upd->durable_ts ||
+            !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
             prev_upd->durable_ts >= vpack->tw.durable_stop_ts,
           "Durable timestamps cannot be out of order for prepared updates");
         if (prev_upd->start_ts < vpack->tw.start_ts ||
@@ -518,6 +520,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid, txnid;
+    uint8_t prepare_state;
     bool is_hs_page;
     bool seen_prepare;
 
@@ -578,9 +581,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             continue;
         }
 
+        prepare_state = atomic_load_explicit(&upd->prepare_state, memory_order_relaxed);
         /* Ignore prepared updates if it is checkpoint. */
-        if (upd->prepare_state == WT_PREPARE_LOCKED ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        if (prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
@@ -601,7 +604,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                       F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
                   "rec_upd_select found an in-progress prepared update");
-                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+                WT_ASSERT_ALWAYS(session, prepare_state == WT_PREPARE_INPROGRESS,
                   "rec_upd_select found an in-progress prepared update");
             }
         }
@@ -677,7 +680,7 @@ __rec_fill_tw_from_upd_select(
      * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone updates
      * are never returned to write, set this flag before we move into the previous update to write.
      */
-    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+    if (atomic_load_explicit(&upd->prepare_state, memory_order_relaxed) == WT_PREPARE_INPROGRESS)
         select_tw->prepare = 1;
 
     /*

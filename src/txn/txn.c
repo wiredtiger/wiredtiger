@@ -794,7 +794,9 @@ __txn_prepare_rollback_restore_hs_update(
     /* Walk to the end of the chain and we can only have prepared updates on the update chain. */
     for (;; upd_chain = upd_chain->next) {
         WT_ASSERT(session,
-          upd_chain->txnid != WT_TXN_ABORTED && upd_chain->prepare_state == WT_PREPARE_INPROGRESS);
+          upd_chain->txnid != WT_TXN_ABORTED &&
+            atomic_load_explicit(&upd_chain->prepare_state, memory_order_relaxed) ==
+              WT_PREPARE_INPROGRESS);
 
         if (upd_chain->next == NULL)
             break;
@@ -1122,7 +1124,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
      * Performing an update on the same key where the truncate operation is performed can lead to
      * updates that are already resolved in the updated list. Ignore the already resolved updates.
      */
-    if (upd->prepare_state == WT_PREPARE_RESOLVED) {
+    if (atomic_load_explicit(&upd->prepare_state, memory_order_relaxed) == WT_PREPARE_RESOLVED) {
         WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE);
         return;
     }
@@ -1194,7 +1196,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * of the key are resolved. The head of the update chain can also be null in the scenario that
      * we rolled back all associated updates in the previous iteration of this function.
      */
-    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
+    if (upd == NULL ||
+      atomic_load_explicit(&upd->prepare_state, memory_order_relaxed) != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
@@ -1203,7 +1206,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
-           first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
+           atomic_load_explicit(&first_committed_upd->prepare_state, memory_order_relaxed) ==
+             WT_PREPARE_INPROGRESS);
          first_committed_upd = first_committed_upd->next)
         ;
 
@@ -1454,7 +1458,9 @@ prepare_verify:
             if (head_upd->txnid != txn->id)
                 break;
             /* Any update we find should be resolved. */
-            WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
+            WT_ASSERT_ALWAYS(session,
+              atomic_load_explicit(&head_upd->prepare_state, memory_order_relaxed) ==
+                WT_PREPARE_RESOLVED,
               "A prepared update wasn't resolved when it should be");
         }
     }
@@ -1930,7 +1936,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              */
             upd->durable_ts = WT_TS_NONE;
 
-            WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+            WT_C_MM_PUBLISH(&upd->prepare_state, WT_PREPARE_INPROGRESS);
             op->u.op_upd = NULL;
 
             /*

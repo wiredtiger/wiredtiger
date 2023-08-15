@@ -1619,7 +1619,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
               ds->f(ds, ", durable_ts %s", __wt_timestamp_to_string(upd->durable_ts, ts_string)));
 
         prepare_state = NULL;
-        switch (upd->prepare_state) {
+        switch (atomic_load_explicit(&upd->prepare_state, memory_order_relaxed)) {
         case WT_PREPARE_INIT:
             break;
         case WT_PREPARE_INPROGRESS:

@@ -1590,8 +1590,7 @@ __wt_txn_modify_block(
              * The durable timestamp must be greater than or equal to the commit timestamp unless it
              * is an in-progress prepared update.
              */
-            WT_ASSERT(session,
-              upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
+            WT_ASSERT(session, upd->durable_ts >= upd->start_ts);
             *prev_tsp = upd->durable_ts;
         } else if (tw_found)
             *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;

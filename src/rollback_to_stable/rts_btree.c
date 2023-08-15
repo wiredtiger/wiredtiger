@@ -46,7 +46,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          */
         txn_id_visible = __wt_rts_visibility_txn_visible_id(session, upd->txnid);
         if (!txn_id_visible || rollback_timestamp < upd->durable_ts ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+          atomic_load_explicit(&upd->prepare_state, memory_order_relaxed) ==
+            WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_UPDATE_ABORT
               "rollback to stable aborting update with txnid=%" PRIu64
@@ -56,7 +57,9 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
               rollback_timestamp < upd->durable_ts ? "true" : "false",
-              __wt_prepare_state_str(upd->prepare_state), upd->flags);
+              __wt_prepare_state_str(
+                atomic_load_explicit(&upd->prepare_state, memory_order_relaxed)),
+              upd->flags);
 
             if (!dryrun)
                 upd->txnid = WT_TXN_ABORTED;
