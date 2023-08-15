@@ -2292,12 +2292,10 @@ config_compact(void)
             config_off(NULL, "ops.compaction");
         else if (config_explicit(NULL, "ops.compaction"))
             config_off(NULL, "background_compact");
-        else {
-            if (mmrand(&g.data_rnd, 1, 2) == 1)
-                config_off(NULL, "background_compact");
-            else
-                config_off(NULL, "ops.compaction");
-        }
+        else if (mmrand(&g.data_rnd, 1, 2) == 1)
+            config_off(NULL, "background_compact");
+        else
+            config_off(NULL, "ops.compaction");
     }
 
     /* Generate values if not explicit set. */
