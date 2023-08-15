@@ -168,20 +168,12 @@ class test_compact07(wttest.WiredTigerTestCase):
         self.assertGreater(skipped, 0)
         self.assertGreater(success, 0)
         stat_cursor.close()
-        
-        # Open a new session for foreground compaction, while leaving the background
-        # compaction server running.
-        session2 = self.conn.open_session()
-        # Use a free_space_target that is guaranteed to run on the small file.
-        session2.compact(uri_small, f'free_space_target=1MB')
 
-        # Check that foreground compaction has done some work on the small table.
-        self.assertGreater(self.get_pages_rewritten(uri_small), 0)
-                    
-        # Disable the background compaction server.
+        # FIXME-WT-11432: Background and foreground compaction should not run in parallel, stop the
+        # background compaction server before proceeding.
         self.session.compact(None, 'background=false')
-        
-        # Wait for the background server to stop running.
+
+        # Wait for the background compaction server to stop running.
         compact_running = self.get_bg_compaction_running()
         while compact_running:
             time.sleep(1)
@@ -191,6 +183,13 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Background compaction may be have been inspecting a table when disabled which is
         # considered as an interruption, ignore that message.
         self.ignoreStderrPatternIfExists('background compact interrupted by application')
+
+        # Perform foreground compaction on the remaining file by setting a free_space_target value
+        # that is guaranteed to run on it.
+        self.session.compact(uri_small, f'free_space_target=1MB')
+
+        # Check that foreground compaction has done some work on the small table.
+        self.assertGreater(self.get_pages_rewritten(uri_small), 0)
 
 if __name__ == '__main__':
     wttest.run()
