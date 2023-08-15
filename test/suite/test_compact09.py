@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 
 # test_compact09.py
-# Test compaction for in-memory and readonly databases.
+# Verify compaction for in-memory and readonly databases is not allowed.
 class test_compact09(wttest.WiredTigerTestCase):
     uri = 'file:test_compact09'
 
