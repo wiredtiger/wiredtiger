@@ -143,7 +143,7 @@ class test_compact07(wttest.WiredTigerTestCase):
 
         # Enable background compaction with a threshold big enough so it does not process the first
         # table created but only the others with more empty space.
-        self.session.compact(None,f'background=true,free_space_target={free_space_20 + 1}MB')
+        self.session.compact(None, f'background=true,free_space_target={free_space_20 + 1}MB')
         
         # Wait for the background server to wake up.
         compact_running = self.get_bg_compaction_running()
@@ -173,13 +173,13 @@ class test_compact07(wttest.WiredTigerTestCase):
         # compaction server running.
         session2 = self.conn.open_session()
         # Use a free_space_target that is guaranteed to run on the small file.
-        session2.compact(uri_small,f'free_space_target=1MB')
+        session2.compact(uri_small, f'free_space_target=1MB')
 
         # Check that foreground compaction has done some work on the small table.
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
                     
         # Disable the background compaction server.
-        self.session.compact(None,'background=false')
+        self.session.compact(None, 'background=false')
         
         # Wait for the background server to stop running.
         compact_running = self.get_bg_compaction_running()
@@ -187,6 +187,10 @@ class test_compact07(wttest.WiredTigerTestCase):
             time.sleep(1)
             compact_running = self.get_bg_compaction_running()
         self.assertEqual(compact_running, 0)
-        
+
+        # Background compaction may be have been inspecting a table when disabled which is
+        # considered as an interruption, ignore that message.
+        self.ignoreStderrPatternIfExists('background compact interrupted by application')
+
 if __name__ == '__main__':
     wttest.run()
