@@ -878,13 +878,12 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 /*
                  * A visible stop timestamp could have been treated as a tombstone and accounted for
                  * page with no non-deleted updates. Evicting these pages could benefit search
-                 * performance. Tombstones are ignored while searching the history store, so we
-                 * should never see any history store pages in this flow. Ignore the pages from
+                 * performance. Generally, tombstones are ignored while searching the history store,
+                 * so we should not see any history store pages in this flow. Ignore the pages from
                  * Fixed length column store tables as they don't get any search performance benefit
                  * and also sessions with READ UNCOMMITTED isolation as their search can able to see
-                 * results of an uncommitted transaction.
+                 * the results of an uncommitted transaction.
                  */
-                WT_ASSERT(session, !WT_IS_HS(session->dhandle));
                 __wt_page_evict_soon(session, cbt->ref);
                 WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
             }
