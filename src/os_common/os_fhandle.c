@@ -92,7 +92,7 @@ __wt_remove_locked(WT_SESSION_IMPL *session, const char *name, bool *removed)
         return (0);
     } else {
         __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCKED: actually remove %s", name);
-        WT_ERR(__wt_fs_remove(session, name, false));
+        WT_ERR(__wt_fs_remove(session, name, false, true));
         WT_STAT_CONN_INCR(session, local_objects_removed);
         *removed = true;
     }

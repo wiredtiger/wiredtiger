@@ -2223,8 +2223,8 @@ static inline int __wt_fs_directory_list_single(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_fs_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable,
+  bool locked) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to,
   bool durable) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
