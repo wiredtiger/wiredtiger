@@ -8,6 +8,7 @@
 
 #include <catch2/catch.hpp>
 #include <cstdlib>
+#include <mutex>
 #include <thread>
 #include <time.h>
 #include <vector>
@@ -21,15 +22,18 @@ int
 alloc_bitmap(WT_SESSION_IMPL *session, size_t &bit_index)
 {
     WT_CHUNKCACHE *chunkcache = &S2C(session)->chunkcache;
-    uint8_t *map_byte;
+    uint8_t *map_byte_p, map_byte_expected, map_byte_mask;
 
 retry:
     /* Use the bitmap to find a free slot for a chunk in the cache. */
     WT_RET(__ut_chunkcache_bitmap_find_free(session, &bit_index));
 
     /* Mark the free chunk in the bitmap as in use. */
-    map_byte = &chunkcache->free_bitmap[bit_index / 8];
-    if (!__wt_atomic_cas8(map_byte, *map_byte, *map_byte | (uint8_t)(0x01 << (bit_index % 8))))
+    map_byte_p = &chunkcache->free_bitmap[bit_index / 8];
+    map_byte_expected = *map_byte_p;
+    map_byte_mask = (uint8_t)(0x01 << (bit_index % 8));
+    if (((*map_byte_p & map_byte_mask) == 0) &&
+      !__wt_atomic_cas8(map_byte_p, map_byte_expected, map_byte_expected | map_byte_mask))
         goto retry;
 
     return 0;
@@ -39,11 +43,12 @@ retry:
 void
 free_bitmap(WT_CHUNKCACHE *chunkcache, size_t bit_index)
 {
-    uint8_t *map_byte;
+    uint8_t *map_byte_p, map_byte_expected;
     do {
-        map_byte = &chunkcache->free_bitmap[bit_index / 8];
-    } while (
-      !__wt_atomic_cas8(map_byte, *map_byte, *map_byte & (uint8_t) ~(0x01 << (bit_index % 8))));
+        map_byte_p = &chunkcache->free_bitmap[bit_index / 8];
+        map_byte_expected = *map_byte_p;
+    } while (!__wt_atomic_cas8(
+      map_byte_p, map_byte_expected, map_byte_expected & (uint8_t) ~(0x01 << (bit_index % 8))));
 }
 
 TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
@@ -114,26 +119,21 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
         }
     }
 
-    SECTION("Concurrent allocation and free")
+    SECTION("Concurrent allocations")
     {
-        const int iterations = 10000;
+        const int iterations = num_chunks;
+        const int threads_num = 5;
 
         std::vector<std::thread> threads;
-        size_t bit_index;
+        uint64_t allocations_made = 0;
 
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < threads_num; i++) {
             /* Concurrent allocation */
-            threads.emplace_back([session_impl, iterations]() {
+            threads.emplace_back([session_impl, iterations, &allocations_made]() {
                 size_t bit_index;
                 for (int j = 0; j < iterations; j++) {
-                    alloc_bitmap(session_impl, bit_index);
-                }
-            });
-            /* Concurrent freeing */
-            threads.emplace_back([chunkcache, iterations]() {
-                for (int j = 0; j < iterations; j++) {
-                    int random_number = rand() % 10;
-                    free_bitmap(chunkcache, random_number);
+                    if (alloc_bitmap(session_impl, bit_index) == 0)
+                        __wt_atomic_add64(&allocations_made, 1);
                 }
             });
         }
@@ -143,8 +143,56 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
             thread.join();
         }
 
-        /* Verify that the cache is still consistent */
-        for (int i = 0; i < 10; i++) {
+        size_t bit_index;
+        REQUIRE(allocations_made == num_chunks);
+        REQUIRE(alloc_bitmap(session_impl, bit_index) == ENOSPC);
+    }
+
+    SECTION("Concurrent allocations and free")
+    {
+        const int iterations = num_chunks;
+        const int threads_num = 500;
+
+        std::vector<std::thread> threads;
+        uint64_t allocations_made = 0;
+        std::mutex mtx;
+
+        for (int i = 0; i < threads_num; i++) {
+            /* Concurrent allocation */
+            threads.emplace_back([session_impl, iterations, &allocations_made]() {
+                size_t bit_index;
+                for (int j = 0; j < iterations; j++) {
+                    if (alloc_bitmap(session_impl, bit_index) == 0)
+                        __wt_atomic_add64(&allocations_made, 1);
+                }
+            });
+
+            /* Concurrent free */
+            threads.emplace_back([chunkcache, iterations, &allocations_made, &mtx]() {
+                for (int j = 0; j < iterations; j++) {
+                    int k = rand() %
+                      (WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size) - 1);
+                    int l = rand() % 8;
+                    if (!mtx.try_lock())
+                        continue;
+                    {
+                        std::lock_guard<std::mutex> lock(mtx, std::adopt_lock);
+                        if (((uint8_t)chunkcache->free_bitmap[k] & (uint8_t)(0x01 << l)) != 0) {
+                            free_bitmap(chunkcache, (k * 8) + l);
+                            __wt_atomic_sub64(&allocations_made, 1);
+                        }
+                    }
+                }
+            });
+        }
+
+        /* Wait for all threads to finish */
+        for (auto &thread : threads) {
+            thread.join();
+        }
+
+        size_t bit_index;
+        for (int i = 0; i < num_chunks - allocations_made; i++) {
             REQUIRE(alloc_bitmap(session_impl, bit_index) == 0);
         }
 
