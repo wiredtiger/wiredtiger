@@ -1009,6 +1009,8 @@ config_in_memory(void)
      */
     if (ntables > 10)
         return;
+    if (config_explicit(NULL, "background_compact"))
+        return;
     if (config_explicit(NULL, "backup"))
         return;
     if (config_explicit(NULL, "block_cache"))
@@ -1061,6 +1063,8 @@ config_in_memory_reset(void)
         return;
 
     /* Turn off a lot of stuff. */
+    if (!config_explicit(NULL, "background_compact"))
+        config_off(NULL, "background_compact");
     if (!config_explicit(NULL, "backup"))
         config_off(NULL, "backup");
     if (!config_explicit(NULL, "block_cache"))
@@ -2266,6 +2270,18 @@ config_compact(void)
       config_explicit(NULL, "ops.compaction") && GV(OPS_COMPACTION))
         testutil_die(EINVAL,
           "%s: Background and foreground compaction cannot be enabled at the same time", progname);
+
+    /* Compaction does not work on in-memory databases, disable it. */
+    if (GV(RUNS_IN_MEMORY)) {
+        if (config_explicit(NULL, "background_compact") && GV(BACKGROUND_COMPACT))
+            testutil_die(
+              EINVAL, "%s: Background compaction cannot be enabled for in-memory runs", progname);
+        if (config_explicit(NULL, "ops.compaction") && GV(OPS_COMPACTION))
+            testutil_die(
+              EINVAL, "%s: Foreground compaction cannot be enabled for in-memory runs", progname);
+        config_off(NULL, "background_compact");
+        config_off(NULL, "ops.compaction");
+    }
 
     /*
      * FIXME-WT-11432: If both are enabled, disable the one that is not explicitly set or choose one
