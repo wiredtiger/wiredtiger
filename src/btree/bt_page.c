@@ -156,7 +156,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->durable_ts = WT_TS_NONE;
         tombstone->start_ts = unpack->tw.stop_ts;
         tombstone->txnid = unpack->tw.stop_txn;
-        tombstone->prepare_state = WT_PREPARE_INPROGRESS;
+        atomic_store_explicit(
+          &tombstone->prepare_state, WT_PREPARE_INPROGRESS, memory_order_relaxed);
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
 
         /*
@@ -168,14 +169,14 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
           unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
           unpack->tw.start_txn == unpack->tw.stop_txn) {
             upd->durable_ts = WT_TS_NONE;
-            upd->prepare_state = WT_PREPARE_INPROGRESS;
+            atomic_store_explicit(&upd->prepare_state, WT_PREPARE_INPROGRESS, memory_order_relaxed);
         }
 
         tombstone->next = upd;
         *updp = tombstone;
     } else {
         upd->durable_ts = WT_TS_NONE;
-        upd->prepare_state = WT_PREPARE_INPROGRESS;
+        atomic_store_explicit(&upd->prepare_state, WT_PREPARE_INPROGRESS, memory_order_relaxed);
         *updp = upd;
     }
 

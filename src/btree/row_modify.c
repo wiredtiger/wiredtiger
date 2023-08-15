@@ -378,7 +378,9 @@ __wt_update_obsolete_check(
          */
         if (upd->txnid == WT_TXN_NONE && upd->start_ts == WT_TS_NONE &&
           upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
-          upd->next->txnid == WT_TXN_ABORTED && upd->next->prepare_state == WT_PREPARE_INPROGRESS)
+          upd->next->txnid == WT_TXN_ABORTED &&
+          atomic_load_explicit(&upd->next->prepare_state, memory_order_relaxed) ==
+            WT_PREPARE_INPROGRESS)
             continue;
 
         if (__wt_txn_upd_visible_all(session, upd)) {

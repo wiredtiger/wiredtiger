@@ -479,7 +479,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * Always insert full update to the history store if we write a prepared update to the
              * data store.
              */
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+            if (atomic_load_explicit(&upd->prepare_state, memory_order_relaxed) ==
+              WT_PREPARE_INPROGRESS)
                 enable_reverse_modify = false;
 
             /* Always insert full update to the history store if we need to squash the updates. */
@@ -578,7 +579,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
             /* We should never insert prepared updates to the history store. */
-            WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
+            WT_ASSERT(session,
+              atomic_load_explicit(&upd->prepare_state, memory_order_relaxed) !=
+                WT_PREPARE_INPROGRESS);
 
             tombstone = NULL;
             __wt_update_vector_peek(&updates, &prev_upd);
@@ -604,7 +607,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * update moved into the history store should be with max visibility to protect its
              * removal by checkpoint garbage collection until the data store update is committed.
              */
-            if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            if (atomic_load_explicit(&prev_upd->prepare_state, memory_order_relaxed) ==
+              WT_PREPARE_INPROGRESS) {
                 WT_ASSERT(session,
                   list->onpage_upd->txnid == prev_upd->txnid &&
                     list->onpage_upd->start_ts == prev_upd->start_ts);

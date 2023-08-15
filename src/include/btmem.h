@@ -1325,7 +1325,7 @@ struct __wt_update {
      * The update state is used for transaction prepare to manage visibility and transitioning
      * update structure state safely.
      */
-    volatile uint8_t prepare_state; /* prepare state */
+    _Atomic(uint8_t) prepare_state; /* prepare state */
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

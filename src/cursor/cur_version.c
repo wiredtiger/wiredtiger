@@ -163,7 +163,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_UPDATE *first, *next_upd, *upd, *tombstone;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
     uint64_t stop_txn, hs_upd_type, raw;
-    uint8_t *p, version_prepare_state;
+    uint8_t *p, prepare_state, version_prepare_state;
     bool upd_found;
 
     session = CUR2S(cursor);
@@ -219,8 +219,8 @@ __curversion_next_int(WT_CURSOR *cursor)
                 version_cursor->next_upd = NULL;
                 F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
             } else {
-                if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
-                  upd->prepare_state == WT_PREPARE_LOCKED)
+                prepare_state = atomic_load_explicit(&upd->prepare_state, memory_order_relaxed);
+                if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
                     version_prepare_state = 1;
                 else
                     version_prepare_state = 0;
@@ -332,11 +332,14 @@ __curversion_next_int(WT_CURSOR *cursor)
                 stop_txn = cbt->upd_value->tw.stop_txn;
             }
 
-            if (tombstone != NULL &&
-              (tombstone->prepare_state == WT_PREPARE_INPROGRESS ||
-                tombstone->prepare_state == WT_PREPARE_LOCKED))
-                version_prepare_state = 1;
-            else
+            if (tombstone != NULL) {
+                prepare_state =
+                  atomic_load_explicit(&tombstone->prepare_state, memory_order_relaxed);
+                if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+                    version_prepare_state = 1;
+                else
+                    version_prepare_state = cbt->upd_value->tw.prepare;
+            } else
                 version_prepare_state = cbt->upd_value->tw.prepare;
 
             WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,

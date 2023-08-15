@@ -5,6 +5,7 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include <stdatomic.h>
 
 /*
  * Publish a value to a shared location. All previous stores must complete before the value is made
@@ -17,12 +18,31 @@
     } while (0)
 
 /*
+ * Publish a value to a shared location. All previous stores must complete before the value is made
+ * public.
+ */
+#define WT_C_MM_PUBLISH(ptr, val)                              \
+    do {                                                       \
+        WT_C_MM_WRITE_BARRIER();                               \
+        atomic_store_explicit(ptr, val, memory_order_relaxed); \
+    } while (0)
+
+/*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
  */
 #define WT_ORDERED_READ(v, val) \
     do {                        \
         (v) = (val);            \
         WT_READ_BARRIER();      \
+    } while (0)
+
+/*
+ * Read a shared location and guarantee that subsequent reads do not see any earlier state.
+ */
+#define WT_C_MM_ORDERED_READ(v, ptr)                           \
+    do {                                                       \
+        (v) = atomic_load_explicit(ptr, memory_order_relaxed); \
+        WT_C_MM_READ_BARRIER();                                \
     } while (0)
 
 /*

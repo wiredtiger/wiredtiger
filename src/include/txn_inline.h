@@ -145,11 +145,11 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
      *
      * As updating timestamp might not be an atomic operation, we will manage using state.
      */
-    upd->prepare_state = WT_PREPARE_LOCKED;
-    WT_WRITE_BARRIER();
+    atomic_store_explicit(&upd->prepare_state, WT_PREPARE_LOCKED, memory_order_relaxed);
+    WT_C_MM_WRITE_BARRIER();
     upd->start_ts = txn->commit_timestamp;
     upd->durable_ts = txn->durable_timestamp;
-    WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+    WT_C_MM_PUBLISH(&upd->prepare_state, WT_PREPARE_RESOLVED);
 }
 
 /*
@@ -256,7 +256,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
                  * Holding the ref locked means we have exclusive access, so if we are committing we
                  * don't need to use the prepare locked transition state.
                  */
-                (*updp)->prepare_state = prepare_state;
+                atomic_store_explicit(&(*updp)->prepare_state, prepare_state, memory_order_relaxed);
                 if (commit)
                     (*updp)->durable_ts = txn->durable_timestamp;
             }
@@ -646,7 +646,10 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
+    uint8_t prepare_state;
+
+    prepare_state = atomic_load_explicit(&upd->prepare_state, memory_order_relaxed);
+    if (prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
 
     /*
@@ -878,7 +881,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
     for (;; __wt_yield()) {
         /* Prepare state change is in progress, yield and try again. */
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
+        WT_C_MM_ORDERED_READ(prepare_state, &upd->prepare_state);
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
@@ -894,7 +897,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
          * change, recheck visibility.
          */
         previous_state = prepare_state;
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
+        WT_C_MM_ORDERED_READ(prepare_state, &upd->prepare_state);
         if (previous_state == prepare_state)
             break;
 
@@ -1011,7 +1014,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         if (upd->type == WT_UPDATE_RESERVE)
             continue;
 
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
+        WT_C_MM_ORDERED_READ(prepare_state, &upd->prepare_state);
 
         /*
          * We previously found a prepared update, check if the update has the same transaction id,
@@ -1241,7 +1244,8 @@ retry:
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
         if (prepare_retry &&
           (prepare_upd->txnid == WT_TXN_ABORTED ||
-            prepare_upd->prepare_state == WT_PREPARE_RESOLVED)) {
+            atomic_load_explicit(&prepare_upd->prepare_state, memory_order_relaxed) ==
+              WT_PREPARE_RESOLVED)) {
             prepare_retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
@@ -1744,6 +1748,8 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
+    uint8_t prepare_state;
+
     if (!upd_value->skip_buf) {
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
@@ -1752,14 +1758,16 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->tw.durable_stop_ts = upd->durable_ts;
         upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
+        prepare_state = atomic_load_explicit(&upd->prepare_state, memory_order_relaxed);
         upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
     } else {
         upd_value->tw.durable_start_ts = upd->durable_ts;
         upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
+        prepare_state = atomic_load_explicit(&upd->prepare_state, memory_order_relaxed);
         upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
     }
     upd_value->type = upd->type;
 }

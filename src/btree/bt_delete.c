@@ -436,7 +436,7 @@ __tombstone_update_alloc(
         upd->txnid = page_del->txnid;
         upd->durable_ts = page_del->durable_timestamp;
         upd->start_ts = page_del->timestamp;
-        upd->prepare_state = page_del->prepare_state;
+        atomic_store_explicit(&upd->prepare_state, page_del->prepare_state, memory_order_relaxed);
     }
     *updp = upd;
     return (0);

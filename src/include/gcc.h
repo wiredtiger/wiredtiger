@@ -5,6 +5,7 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include <stdatomic.h>
 
 #define WT_PTRDIFFT_FMT "td" /* ptrdiff_t format string */
 #define WT_SIZET_FMT "zu"    /* size_t format string */
@@ -156,6 +157,12 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 
 /* Compile read-write barrier */
 #define WT_BARRIER() __asm__ volatile("" ::: "memory")
+
+#define WT_C_MM_FULL_BARRIER() atomic_thread_fence(memory_order_seq_cst)
+
+#define WT_C_MM_READ_BARRIER() atomic_thread_fence(memory_order_acquire)
+
+#define WT_C_MM_WRITE_BARRIER() atomic_thread_fence(memory_order_release)
 
 #if defined(x86_64) || defined(__x86_64__)
 /* Pause instruction to prevent excess processor bus usage */
