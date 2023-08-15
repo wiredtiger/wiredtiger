@@ -3422,13 +3422,36 @@ tasks:
             # Perform the tests to get code coverage metrics for
             ${test_env_vars|} test/unittest/unittests
             ############################# Luke P #############################
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_rollback_to_stable03 -j 4
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 lsm
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 test_prepare01
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -p test_prepare02
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 test_prepare03
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 test_prepare04
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 test_truncate02
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 test_tiered04
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 test_sweep01
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 2 test_import01
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 flcs
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -j 4 test_backup13
+            /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_backup24
+            test/cppsuite/run -t bounded_cursor_stress -f test/cppsuite/configs/bounded_cursor_stress_default.txt
+            test/cppsuite/run -t cache_resize -f test/cppsuite/configs/cache_resize_default.txt
+            test/cppsuite/run -t hs_cleanup -f test/cppsuite/configs/hs_cleanup_default.txt
+            ./test/csuite/wt1965_col_efficiency/test_wt1965_col_efficiency
+            ./test/csuite/wt2999_join_extractor/test_wt2999_join_extractor
+            ./test/csuite/wt3135_search_near_collator/test_wt3135_search_near_collator
+            ./test/csuite/wt3184_dup_index_collator/test_wt3184_dup_index_collator
+            ./test/csuite/wt4156_metadata_salvage/test_wt4156_metadata_salvage
+            ./test/csuite/wt2403_lsm_workload/test_wt2403_lsm_workload
             ############################# Luke C #############################
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} -j 8 -c ../test/suite/configfile.cc 2>&1
+            ${test_env_vars|} ctest -R "ex|lsm|directio|filesys|checksum|json|test_bloom|metadata|search_near|parse" -j 16 2>&1
             ############################# Will #############################
             ${test_env_vars|} WIREDTIGER_HOME=ex1 examples/c/ex_all/ex_all & ${test_env_vars|} WIREDTIGER_HOME=ex2 examples/c/ex_schema/ex_schema
             ############################# Andrew 1 #############################
             ./examples/c/ex_encrypt/ex_encrypt
             ############################# Andrew 2 #############################
-  
             # Rest of the examples
             . ../test/evergreen/find_cmake.sh
             cd examples/c/
@@ -3500,7 +3523,8 @@ tasks:
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py  test_rollback_to_stable34.py -s 1 2>&1 || echo "ignore"
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py  test_rollback_to_stable36.py -s 1 2>&1 || echo "ignore"
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py  test_rollback_to_stable40.py -s 1 2>&1 || echo "ignore"
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py  test_rollback_to_stable41.py -s 1 2>&1 || echo "ignore"+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py  test_rollback_to_stable42.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py  test_rollback_to_stable41.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py  test_rollback_to_stable42.py -s 1 2>&1 || echo "ignore"
             ############################# Don 1 #############################
             # runfor nsec command
             # Run a command for a specified number of seconds (only), killing it as needed.
