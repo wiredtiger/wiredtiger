@@ -146,7 +146,6 @@ __txn_prepare_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
      * WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a problem.
      */
     upd->durable_ts = WT_TS_NONE;
-
     WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 }
 
@@ -160,7 +159,6 @@ __txn_prepare_page_deleted(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del)
     WT_TXN *txn;
 
     txn = session->txn;
-
     /* Set prepare timestamp. */
     page_del->timestamp = txn->prepare_timestamp;
 
