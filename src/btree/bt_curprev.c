@@ -880,9 +880,9 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                  * page with no non-deleted updates. Evicting these pages could benefit search
                  * performance. Generally, tombstones are ignored while searching the history store,
                  * so we should not see any history store pages in this flow. Ignore the pages from
-                 * Fixed length column store tables as they don't get any search performance benefit
-                 * and also sessions with READ UNCOMMITTED isolation as their search can able to see
-                 * the results of an uncommitted transaction.
+                 * fixed length column store tables as they don't get any search performance benefit
+                 * and also sessions with READ UNCOMMITTED isolation, as their search can see the
+                 * results of an uncommitted transaction.
                  */
                 __wt_page_evict_soon(session, cbt->ref);
                 WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
