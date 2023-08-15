@@ -180,9 +180,9 @@ __compact_server(void *arg)
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
-    WT_ERR(__wt_metadata_cursor_release(session, &cursor));
-
 err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
     __wt_free(session, uri);
