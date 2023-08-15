@@ -129,6 +129,50 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 }
 
 /*
+ * __txn_prepare_update --
+ *     Prepare an update.
+ */
+static inline void
+__txn_prepare_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+    /* Set prepare timestamp. */
+    upd->start_ts = txn->prepare_timestamp;
+
+    /*
+     * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it with
+     * WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a problem.
+     */
+    upd->durable_ts = WT_TS_NONE;
+
+    WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+}
+
+/*
+ * __txn_prepare_page_deleted --
+ *     Prepare a page deleted structure.
+ */
+static inline void
+__txn_prepare_page_deleted(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* Set prepare timestamp. */
+    page_del->timestamp = txn->prepare_timestamp;
+
+    /*
+     * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it with
+     * WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a problem.
+     */
+    page_del->durable_timestamp = WT_TS_NONE;
+    WT_PUBLISH(page_del->prepare_state, WT_PREPARE_INPROGRESS);
+}
+
+/*
  * __txn_resolve_prepared_update --
  *     Resolve a prepared update as committed update.
  */
@@ -150,6 +194,27 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     upd->start_ts = txn->commit_timestamp;
     upd->durable_ts = txn->durable_timestamp;
     WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+}
+
+/*
+ * __txn_resolve_prepared_page_deleted --
+ *     Resolve a prepared page deleted structure.
+ */
+static inline void
+__txn_resolve_prepared_page_deleted(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /*
+     * The page deleted structure is only checked in tree walk. If it is prepared, we will
+     * instantiate the leaf page and check the keys on it. Therefore, we don't need to worry about
+     * reading the partial state and thus no need to lock the state.
+     */
+    page_del->timestamp = txn->commit_timestamp;
+    page_del->durable_timestamp = txn->durable_timestamp;
+    WT_PUBLISH(page_del->prepare_state, WT_PREPARE_RESOLVED);
 }
 
 /*
@@ -213,21 +278,12 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
     WT_UPDATE **updp;
-    wt_timestamp_t ts;
-    uint8_t prepare_state, previous_state;
+    uint8_t previous_state;
 
     txn = session->txn;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
-
-    if (commit) {
-        ts = txn->commit_timestamp;
-        prepare_state = WT_PREPARE_RESOLVED;
-    } else {
-        ts = txn->prepare_timestamp;
-        prepare_state = WT_PREPARE_INPROGRESS;
-    }
 
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
@@ -251,22 +307,18 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
-                (*updp)->start_ts = ts;
-                /*
-                 * Holding the ref locked means we have exclusive access, so if we are committing we
-                 * don't need to use the prepare locked transition state.
-                 */
-                (*updp)->prepare_state = prepare_state;
                 if (commit)
-                    (*updp)->durable_ts = txn->durable_timestamp;
+                    __txn_resolve_prepared_update(session, *updp);
+                else
+                    __txn_prepare_update(session, *updp);
             }
     }
     page_del = ref->page_del;
     if (page_del != NULL) {
-        page_del->timestamp = ts;
         if (commit)
-            page_del->durable_timestamp = txn->durable_timestamp;
-        WT_PUBLISH(page_del->prepare_state, prepare_state);
+            __txn_resolve_prepared_page_deleted(session, page_del);
+        else
+            __txn_prepare_page_deleted(session, page_del);
     }
 
     WT_REF_UNLOCK(ref, previous_state);
