@@ -179,14 +179,14 @@ __compact_server(void *arg)
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
     WT_ERR(__wt_metadata_cursor_close(session));
+
+err:
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
     __wt_free(session, uri);
 
-    if (0) {
-err:
+    if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
-    }
     return (WT_THREAD_RET_VALUE);
 }
 
