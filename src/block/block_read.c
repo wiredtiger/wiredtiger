@@ -248,7 +248,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 
     /* Panic if a checksum fails during an ordinary read. */
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-    if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+    if (F_ISSET(block, WT_BLOCK_VERIFY) || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         return (WT_ERROR);
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
 }
