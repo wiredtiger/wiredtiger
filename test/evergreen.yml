@@ -121,8 +121,6 @@ functions:
           ${HAVE_UNITTEST} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
-          ${CLANG_C_VERSION|} \
-          ${CLANG_CXX_VERSION|} \
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
           ${ENABLE_AZURE|} \
