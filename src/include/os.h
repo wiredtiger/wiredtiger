@@ -71,12 +71,12 @@
 #define WT_CLOCKDIFF_MS(end, begin) (WT_CLOCKDIFF_NS(end, begin) / WT_MILLION)
 #define WT_CLOCKDIFF_SEC(end, begin) (WT_CLOCKDIFF_NS(end, begin) / WT_BILLION)
 
-#define WT_TIMECMP(t1, t2)                                                        \
-    ((t1).tv_sec < (t2).tv_sec ?                                                  \
-        -1 :                                                                      \
-        (t1).tv_sec == (t2).tv_sec ?                                              \
-        (t1).tv_nsec < (t2).tv_nsec ? -1 : (t1).tv_nsec == (t2).tv_nsec ? 0 : 1 : \
-        1)
+#define WT_TIMECMP(t1, t2)                                              \
+    ((t1).tv_sec < (t2).tv_sec     ? -1 :                               \
+        (t1).tv_sec == (t2).tv_sec ? (t1).tv_nsec < (t2).tv_nsec ? -1 : \
+          (t1).tv_nsec == (t2).tv_nsec                           ? 0 :  \
+                                                                   1 :                            \
+                                     1)
 
 /*
  * Macros to ensure a file handle is inserted or removed from both the main and the hashed queue,
@@ -126,6 +126,7 @@ struct __wt_file_handle_win {
     HANDLE filehandle_secondary; /* Windows file handle
                                     for file size changes */
     bool direct_io;              /* O_DIRECT configured */
+    DWORD desired_access;        /* Read-only or read/write */
 };
 
 #else

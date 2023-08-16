@@ -715,22 +715,16 @@ struct __wt_page {
 
     size_t memory_footprint; /* Memory attached to the page */
 
-    /* If/when the page is modified, we need lots more information. */
-    WT_PAGE_MODIFY *modify;
-
     /* Page's on-disk representation: NULL for pages created in memory. */
     const WT_PAGE_HEADER *dsk;
+
+    /* If/when the page is modified, we need lots more information. */
+    WT_PAGE_MODIFY *modify;
 
     /*
      * !!!
      * This is the 64 byte boundary, try to keep hot fields above here.
      */
-
-    /*
-     * The allocated memory for the page's disk image, solely used for cache tracking purposes. The
-     * 'dsk' variable above contains the actual size of the page contained in the disk image.
-     */
-    size_t dsk_alloc_size;
 
 /*
  * The page's read generation acts as an LRU value for each page in the
@@ -1315,7 +1309,7 @@ struct __wt_update {
 #define WT_UPDATE_RESERVE 2   /* reserved */
 #define WT_UPDATE_STANDARD 3  /* complete value */
 #define WT_UPDATE_TOMBSTONE 4 /* deleted */
-    const uint8_t type;       /* type (one byte to conserve memory) */
+    uint8_t type; /* type (one byte to conserve memory); also read-only after initialization */
 
 /* If the update includes a complete value. */
 #define WT_UPDATE_DATA_VALUE(upd) \

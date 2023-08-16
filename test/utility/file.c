@@ -251,9 +251,11 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
 #else
     struct utimbuf t;
 #endif
+    WT_DECL_RET;
     ssize_t n;
     int rfd, wfd;
     char *buf;
+    wt_off_t offset;
 #endif
     char dest_path[PATH_MAX];
 
@@ -294,13 +296,15 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
       (wfd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, info->stat.st_mode)) > 0);
 
     buf = dmalloc(COPY_BUF_SIZE);
-    for (;;) {
-        testutil_assert_errno((n = read(rfd, buf, COPY_BUF_SIZE)) >= 0);
-        if (n == 0)
+    for (offset = 0, n = 0;; offset += n) {
+        WT_SYSCALL_RETRY((n = pread(rfd, buf, COPY_BUF_SIZE, offset)) < 0 ? -1 : 0, ret);
+        testutil_check(ret);
+        if (n == 0) {
+            testutil_assert(offset >= info->stat.st_size);
             break;
+        }
         testutil_assert_errno(write(wfd, buf, (size_t)n) == n);
     }
-
     testutil_assert_errno(close(rfd) == 0);
     testutil_assert_errno(close(wfd) == 0);
     free(buf);
