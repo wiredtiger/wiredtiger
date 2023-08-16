@@ -12,8 +12,11 @@
 
 #include <catch2/catch.hpp>
 
+#include "utils.h"
 #include "wt_internal.h"
 #include "wrappers/item_wrapper.h"
+#include "wrappers/connection_wrapper.h"
+#include "wiredtiger.h"
 
 #include <iostream>
 
@@ -41,13 +44,15 @@ __mod_ops_sorted(WT_TXN_OP *ops, int op_count)
     WT_TXN_OP *aopt, *bopt;
     int i;
 
+    std::cout << "Started comparing" << std::endl;
+
     for(i=0; i < op_count - 1; i++){
         aopt = &ops[i];
         bopt = &ops[i+1];
 
-        /* A non-key'd operation cannot come before a key'd operation. */
-        if(has_key(bopt->type) && !has_key(aopt->type))
-            return(false);
+        // /* A non-key'd operation cannot come before a key'd operation. */
+        // if(has_key(bopt->type) && !has_key(aopt->type))
+        //     return(false);
 
         // Non key'd operations can separate any modifications with keys.
         if((aopt->btree->id == bopt->btree->id) && (!has_key(bopt->type) || !has_key(aopt->type)))
@@ -56,31 +61,36 @@ __mod_ops_sorted(WT_TXN_OP *ops, int op_count)
         /* B-tree ids must be in ascending order.*/
         if((aopt->btree->id > bopt->btree->id) && has_key(bopt->type))
             return (false);
-
+    
         /* Check the key/recno if btree ids are the same. */
         if(aopt->btree->id == bopt->btree->id){
-            // if (aopt->btree.type == BTREE_ROW) {
-            //     WT_ITEM a_key = *aopt.op_row.item_key->get_item();
-            //     auto a_data = a_key.data;
+            if(aopt->btree->type == BTREE_ROW && bopt->btree->type == BTREE_ROW) {
+                auto a_key = aopt->u.op_row.key.data;
+                auto b_key = bopt->u.op_row.key.data;
+                if ( *((char*)a_key) > *((char*)b_key))
+                    return (false);           
+            }
 
-            //     WT_ITEM b_key = *aopt.op_row.item_key->get_item();
-            //     auto b_data = b_key.data;
-
-            //     if(a_data > b_data)
-            //         return (false);
-            // }
-
-            if (aopt->u.op_col.recno > bopt->u.op_col.recno)
-                return (false);
+            if(aopt->btree->type == BTREE_COL_VAR && bopt->btree->type == BTREE_COL_VAR) {
+                if ( aopt->u.op_col.recno > bopt->u.op_col.recno)
+                    return (false);
+            }
         }
     }
     return (true);
 }
 
+// Randomly return a non-key'd optype.
+WT_TXN_TYPE
+rand_non_keyd_type() {
+    WT_TXN_TYPE types[4] = { WT_TXN_OP_NONE, WT_TXN_OP_REF_DELETE, WT_TXN_OP_TRUNCATE_COL, WT_TXN_OP_TRUNCATE_ROW };
+    return (types[rand()%4]);
+}
 void
 init_btree(WT_BTREE *btree, WT_BTREE_TYPE type, uint32_t id) {
     btree->type = type;
     btree->id = id;
+    btree->collator = NULL;
 }
 
 void
@@ -94,8 +104,30 @@ init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITE
         REQUIRE(key != NULL);
         op->u.op_row.key = *key;
     } else {
-        REQUIRE(op->type == WT_TXN_OP_NONE);
+        REQUIRE(!(has_key(op->type)));
     }
+}
+
+void
+init_key(WT_ITEM *key, const char* key_data) {
+    key->data = key_data;
+    key->size = sizeof(key_data);
+}
+
+// Randomly generate alphanumeric keys
+const char* random_string( size_t length )
+{
+    auto randchar = []() -> char
+    {
+        const char charset[] =
+        "0123456789"
+        "abcdefghijklmnopqrstuvwxyz";
+        const size_t max_index = (sizeof(charset) - 1);
+        return charset[ rand() % max_index ];
+    };
+    std::string str(length,0);
+    std::generate_n( str.begin(), length, randchar );
+    return str.c_str();
 }
 
 TEST_CASE("Basic cols and op_none", "[mod_compare]")
@@ -108,192 +140,289 @@ TEST_CASE("Basic cols and op_none", "[mod_compare]")
     init_op(&ops[1], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
     init_op(&ops[0], &btrees[1], WT_TXN_OP_BASIC_COL, 54, NULL);
 
-    __wt_qsort_r(ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
-    __mod_ops_sorted(ops, 2);
-    // item_wrapper op1_key("1");
-    // std::vector<MockTxnOp> input{};
-
-    // // &op1->op_type = WT_TXN_OP_NONE;
-    // op1.set_optype(WT_TXN_OP_NONE);
-    // op1.set_btreeid(2);
-    // op1.set_opid(1);
-
-    // op1.op_row.item_key = &op1_key;
-
-    // /* WT_TXN_OP_REF_DELETE */
-    // op2.btree.type = BTREE_COL_VAR;
-    // op2.op_col.recno = 54;
-    // op2.set_btreeid(1);
-    // op2.set_optype(WT_TXN_OP_BASIC_COL);
-    // op2.set_opid(2);
-
-    // op3.set_btreeid(1);
-    // op3.btree.type = BTREE_COL_VAR;
-    // op3.op_col.recno = 60;
-    // op3.set_optype(WT_TXN_OP_BASIC_COL);
-    // op3.set_opid(3);
-
-    // input.push_back(op1);
-    // input.push_back(op2);
-    // input.push_back(op3);
-
-    // // Should be sorted 2->3->1
-    // int count = 0;
-    // __wt_qsort_r(&input[0], input.size(), sizeof(input[0]), __ut_txn_mod_compare, &count);
-    // std::cout << "First element" << input[0].op_identifer;
-    // std::cout << "Second element" << input[1].op_identifer;
-    // std::cout << "Third element" << input[2].op_identifer;
-    // std::cout << std::endl;
-    // CHECK(__mod_ops_sorted(input));
+    __wt_qsort_r(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
+    REQUIRE(__mod_ops_sorted(ops, 2) == true);
 }
 
-// TEST_CASE("Basic rows and op_none", "[mod_compare]")
-// {
-//     MockTxnOp op1, op2, op3, op4 = MockTxnOp();
-//     std::vector<MockTxnOp> input{};
+TEST_CASE("Basic rows and op_nones", "[mod_compare]")
+{
+    ConnectionWrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session = conn.createSession();
 
-//     // &op1->op_type = WT_TXN_OP_NONE;
-//     op1.set_optype(WT_TXN_OP_NONE);
-//     // op1.btree->type = BTREE_
-//     op1.set_btreeid(1);
-//     op1.set_opid(1);
+    WT_BTREE btrees[2];
+    WT_TXN_OP ops[4];
+    WT_ITEM *keys[3];
+    int ret;
+    // WT_DECL_ITEM(key);
 
-//     /* WT_TXN_OP_REF_DELETE */
-//     op2.set_btreeid(1);
-//     op2.set_optype(WT_TXN_OP_BASIC_ROW);
-//     item_wrapper op2_key("5");
-//     op2.op_row.item_key = &op2_key;
-//     op2.set_opid(2);
+    for (int i=0; i <= 2; i++){
+        WT_DECL_ITEM(key);
+        REQUIRE(__wt_scr_alloc(session, 0, &key) == 0);
+        keys[i] = key;
+    }
 
-//     op3.set_btreeid(2);
-//     op3.set_optype(WT_TXN_OP_BASIC_ROW);
-//     item_wrapper op3_key("5");
-//     op3.op_row.item_key = &op3_key;
-//     op3.set_opid(3);
+    init_key(keys[0], "51");
+    init_key(keys[1], "4");
+    init_key(keys[2], "54");
 
-//     op4.set_btreeid(2);
-//     op4.set_optype(WT_TXN_OP_BASIC_ROW);
-//     item_wrapper op4_key("1");
-//     op4.op_row.item_key = &op4_key;
-//     op4.set_opid(4);
+    init_btree(&btrees[0], BTREE_COL_VAR, 1);
+    init_btree(&btrees[1], BTREE_ROW, 2);
 
-//     input.push_back(op1);
-//     input.push_back(op2);
-//     input.push_back(op3);
-//     input.push_back(op4);
+    init_op(&ops[0], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
+    init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+    init_op(&ops[2], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[1]);
+    init_op(&ops[3], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[2]);
 
-//     // expected output
-//     // op2, op4, op3, op1
-//     int count = 0;
-//     __wt_qsort_r(&input[0], input.size(), sizeof(input[0]), __ut_txn_mod_compare, &count);
+    __wt_qsort_r(&ops, 4, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
+    ret = __mod_ops_sorted(ops, 4);
 
-//     std::cout << "First element" << input[0].op_identifer;
-//     std::cout << "Second element" << input[1].op_identifer;
-//     std::cout << "Third element" << input[2].op_identifer;
-//     std::cout << "Fourth element" << input[3].op_identifer;
-//     std::cout << std::endl;
-//     CHECK(__mod_ops_sorted(input));
-// }
+    // Free the allocated scratch buffers first.
+    for (int i=0; i <= 2; i++)
+        __wt_scr_free(session, &keys[i]);
 
-// TEST_CASE("Basic rows and op truncate col", "[mod_compare]")
-// {
-//     MockTxnOp op1, op2, op3, op4, op5 = MockTxnOp();
-//     std::vector<MockTxnOp> input{};
+    // If not sorted correctly, barf.
+    REQUIRE(ret == true);
+    
+    std::cout << "First element" << ops[0].type << std::endl;
+    std::cout << "Second element" << (char*) ops[1].u.op_row.key.data << std::endl;
+    std::cout << "Third element" <<  (char*) ops[2].u.op_row.key.data << std::endl;
+    std::cout << "Fourth element" << (char*) ops[3].u.op_row.key.data << std::endl;
 
-//     // &op1->op_type = WT_TXN_OP_NONE;
-//     op1.set_optype(WT_TXN_OP_NONE);
-//     // op1.btree->type = BTREE_
-//     op1.set_btreeid(1);
-//     op1.set_opid(1);
+}
 
-//     /* WT_TXN_OP_REF_DELETE */
-//     op2.set_btreeid(5);
-//     op2.set_optype(WT_TXN_OP_BASIC_ROW);
-//     item_wrapper op2_key("10");
-//     op2.op_row.item_key = &op2_key;
-//     op2.set_opid(2);
+TEST_CASE("Rows, cols, no ops", "[mod_compare]")
+{
+    ConnectionWrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session = conn.createSession();
 
-//     op3.set_btreeid(5);
-//     op3.set_optype(WT_TXN_OP_BASIC_ROW);
-//     item_wrapper op3_key("8");
-//     op3.op_row.item_key = &op3_key;
-//     op3.set_opid(3);
+    WT_BTREE btrees[2];
+    WT_TXN_OP ops[4];
+    int ret = 0;
+    int key_sz = 1;
+    WT_ITEM *keys[key_sz];
 
-//     op4.set_btreeid(1);
-//     op4.set_optype(WT_TXN_OP_BASIC_ROW);
-//     item_wrapper op4_key("1");
-//     op4.op_row.item_key = &op4_key;
-//     op4.set_opid(4);
+    // WT_DECL_ITEM(key);
 
-//     op5.set_optype(WT_TXN_OP_TRUNCATE_COL);
-//     // op1.btree->type = BTREE_
-//     op5.set_btreeid(4);
-//     op5.set_opid(5);
+    for (int i=0; i <= key_sz; i++){
+        WT_DECL_ITEM(key);
+        REQUIRE(__wt_scr_alloc(session, 0, &key) == 0);
+        keys[i] = key;
+    }
 
-//     input.push_back(op1);
-//     input.push_back(op2);
-//     input.push_back(op3);
-//     input.push_back(op4);
-//     input.push_back(op5);
+    init_key(keys[0], "51");
 
-//     // expected output
-//     // 4-> 1-> 2-> 3
-//     int count = 0;
-//     __wt_qsort_r(&input[0], input.size(), sizeof(input[0]), __ut_txn_mod_compare, &count);
+    init_btree(&btrees[0], BTREE_COL_VAR, 1);
+    init_btree(&btrees[1], BTREE_ROW, 2);
 
-//     std::cout << "First element" << input[0].op_identifer;
-//     std::cout << "Second element" << input[1].op_identifer;
-//     std::cout << "Third element" << input[2].op_identifer;
-//     std::cout << "Fourth element" << input[3].op_identifer;
-//     std::cout << "Fifth element" << input[4].op_identifer;
-//     std::cout << std::endl;
-//     CHECK(__mod_ops_sorted(input));
-// }
+    init_op(&ops[0], &btrees[0], WT_TXN_OP_BASIC_COL, 12, NULL); 
+    init_op(&ops[1], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, NULL);
+    init_op(&ops[2], &btrees[0], WT_TXN_OP_BASIC_COL, 45, NULL); 
+    init_op(&ops[3], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
 
-// TEST_CASE("Basic cols and other non key'd ops", "[mod_compare]")
-// {
-//     MockTxnOp op1, op2, op3, op4 = MockTxnOp();
-//     std::vector<MockTxnOp> input{};
+    __wt_qsort_r(&ops, 4, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
+    ret = __mod_ops_sorted(ops, 4);
 
-//     // &op1->op_type = WT_TXN_OP_NONE;
-//     op1.set_optype(WT_TXN_OP_REF_DELETE);
-//     op1.set_btreeid(1);
-//     op1.set_opid(1);
+    // Free the allocated scratch buffers first.
+    for (int i=0; i <= key_sz; i++)
+        __wt_scr_free(session, &keys[i]);
 
-//     op2.set_optype(WT_TXN_OP_NONE);
-//     op2.set_btreeid(2);
-//     op2.set_opid(2);
+    // If not sorted correctly, barf.
+    REQUIRE(ret == true);
 
-//     op3.set_btreeid(1);
-//     op3.set_optype(WT_TXN_OP_INMEM_COL);
-//     op3.btree.type = BTREE_COL_VAR;
-//     op3.op_col.recno = 10;
-//     op3.set_opid(3);
+}
 
-//     op4.set_btreeid(1);
-//     // op4.btree.type = BTREE_COL;
-//     op4.set_optype(WT_TXN_OP_INMEM_COL);
-//     op4.btree.type = BTREE_COL_VAR;
-//     // op4.op_col.recno = 6;
-//     op4.op_col.recno = 6;
-//     op4.set_opid(4);
+TEST_CASE("Rows, cols, more no ops", "[mod_compare]")
+{
+    ConnectionWrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session = conn.createSession();
 
-//     input.push_back(op1);
-//     input.push_back(op2);
-//     input.push_back(op3);
-//     input.push_back(op4);
+    WT_BTREE btrees[2];
+    WT_TXN_OP ops[10];
+    int ret = 0;
+    int key_sz = 6;
+    WT_ITEM *keys[key_sz];
 
-//     // expected output
-//     // 4->3->1->2
-//     // 4 -> 3
-//     int count = 0;
-//     __wt_qsort_r(&input[0], input.size(), sizeof(input[0]), __ut_txn_mod_compare, &count);
+    // WT_DECL_ITEM(key);
 
-//     std::cout << std::endl;
-//     std::cout << "First element" << input[0].op_identifer << std::endl;
-//     std::cout << "Second element" << input[1].op_identifer << std::endl;
-//     std::cout << "Third element" << input[2].op_identifer << std::endl;
-//     std::cout << "Fourth element" << input[3].op_identifer << std::endl;
-//     CHECK(__mod_ops_sorted(input));
-// }
+    for (int i=0; i <= key_sz; i++){
+        WT_DECL_ITEM(key);
+        REQUIRE(__wt_scr_alloc(session, 0, &key) == 0);
+        keys[i] = key;
+    }
+
+    init_key(keys[0], "1");
+    init_key(keys[1], "11");
+    init_key(keys[2], "511");
+    init_key(keys[3], "994");
+    init_key(keys[4], "78");
+    init_key(keys[5], "9");
+
+    init_btree(&btrees[0], BTREE_COL_VAR, 1);
+    init_btree(&btrees[1], BTREE_ROW, 2);
+
+    // 2cols
+    init_op(&ops[0], &btrees[0], WT_TXN_OP_BASIC_COL, 12, NULL); 
+    init_op(&ops[1], &btrees[0], WT_TXN_OP_BASIC_COL, 45, NULL); 
+
+    // 6 rows
+    init_op(&ops[2], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, keys[0]);
+    init_op(&ops[3], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[1]);
+    init_op(&ops[4], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[2]);
+    init_op(&ops[5], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[3]);
+    init_op(&ops[6], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[4]);
+    init_op(&ops[7], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[5]);
+
+    // 2 non keyd ops
+    init_op(&ops[8], &btrees[0], WT_TXN_OP_TRUNCATE_COL, WT_RECNO_OOB, NULL);
+    init_op(&ops[9], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, NULL);
+
+    __wt_qsort_r(&ops, 10, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
+    ret = __mod_ops_sorted(ops, 10);
+
+    // Free the allocated scratch buffers first.
+    for (int i=0; i <= key_sz; i++)
+        __wt_scr_free(session, &keys[i]);
+
+    // If not sorted correctly, barf.
+    REQUIRE(ret == true);
+}
+
+
+// Btree ID sort test, give it six randomly sorted mods with each different btree ids and everything else the same
+// Column store key sort test
+
+TEST_CASE("Btree ID", "[mod_compare]")
+{
+    ConnectionWrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session = conn.createSession();
+
+    WT_BTREE btrees[6];
+    WT_TXN_OP ops[6];
+    int ret = 0;
+    int key_sz = 1;
+    WT_ITEM *keys[key_sz];
+
+    for (int i=0; i <= key_sz; i++){
+        WT_DECL_ITEM(key);
+        REQUIRE(__wt_scr_alloc(session, 0, &key) == 0);
+        keys[i] = key;
+    }
+
+    init_key(keys[0], "1");
+
+    for (int i=0; i<6; i++)
+        init_btree(&btrees[i], BTREE_ROW, rand() % 400);
+
+    for (int i=0; i < 6; i++)
+        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+
+    __wt_qsort_r(&ops, 6, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
+    ret = __mod_ops_sorted(ops, 6);
+
+    // Free the allocated scratch buffers first.
+    for (int i=0; i <= key_sz; i++)
+        __wt_scr_free(session, &keys[i]);
+
+    // If not sorted correctly, barf.
+    REQUIRE(ret == true);
+
+    std::cout << "First element" << ops[1].btree->id  << std::endl;
+    std::cout << "Second element" <<  ops[1].btree->id << std::endl;
+    std::cout << "Third element" <<  ops[2].btree->id << std::endl;
+    std::cout << "Fourth element" << ops[3].btree->id << std::endl;
+    std::cout << "Fifth element" <<  ops[4].btree->id << std::endl;
+    std::cout << "Sixth element" << ops[5].btree->id << std::endl;
+    // std::cout << "Fourth element" << (char*) ops[3].btree->id << std::endl;
+}
+
+// Keyedness sort test, give it a bunch of mods that have the same keys and mods that don't have keys. Randomly distributed like with #1
+TEST_CASE("Keyedness sort test", "[mod_compare]")
+{
+    ConnectionWrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session = conn.createSession();
+
+    WT_BTREE btrees[12];
+    WT_TXN_OP ops[12];
+    int ret = 0;
+    int key_sz = 1;
+    WT_ITEM *keys[key_sz];
+
+    for (int i=0; i <= key_sz; i++){
+        WT_DECL_ITEM(key);
+        REQUIRE(__wt_scr_alloc(session, 0, &key) == 0);
+        keys[i] = key;
+    }
+
+    init_key(keys[0], "1");
+
+    // randomly generated mods 
+    for (int i=0; i<6; i++)
+        init_btree(&btrees[i], BTREE_ROW, rand() % 100);
+    for (int i=6; i<12; i++)
+        init_btree(&btrees[i], BTREE_COL_VAR, rand() % 100);
+
+    for (int i=6; i < 12; i++)
+        init_op(&ops[i], &btrees[rand()%6], rand_non_keyd_type(), WT_RECNO_OOB, NULL);
+
+    init_op(&ops[0], &btrees[rand()%6], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+    init_op(&ops[1], &btrees[rand()%6], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+    init_op(&ops[2], &btrees[rand()%6], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+    init_op(&ops[3], &btrees[rand()%6 + 6], WT_TXN_OP_BASIC_COL, 54, NULL);
+    init_op(&ops[4], &btrees[rand()%6 + 6], WT_TXN_OP_BASIC_COL, 54, NULL);
+    init_op(&ops[5], &btrees[rand()%6 + 6], WT_TXN_OP_BASIC_COL, 54, NULL);
+
+    __wt_qsort_r(&ops, 12, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
+    ret = __mod_ops_sorted(ops, 12);
+
+    // Free the allocated scratch buffers first.
+    for (int i=0; i <= key_sz; i++)
+        __wt_scr_free(session, &keys[i]);
+
+    // If not sorted correctly, barf.
+    REQUIRE(ret == true);
+
+}
+
+// Row store key sort test, all same mods but different row store keys
+TEST_CASE("Different row store keys test", "[mod_compare]")
+{
+    ConnectionWrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session = conn.createSession();
+
+    WT_BTREE btrees[12];
+    WT_TXN_OP ops[12];
+    int ret = 0;
+    int key_sz = 12;
+    WT_ITEM *keys[key_sz];
+
+    for (int i=0; i <= key_sz; i++){
+        WT_DECL_ITEM(key);
+        REQUIRE(__wt_scr_alloc(session, 0, &key) == 0);
+        keys[i] = key;
+    }
+
+    //randomly generated alphanumeric keys
+    for (int i=0; i<12; i++)
+        init_key(keys[i], random_string(5));
+
+    // randomly generated mods 
+    for (int i=0; i<6; i++)
+        init_btree(&btrees[i], BTREE_ROW, 1);
+    for (int i=6; i<12; i++)
+        init_btree(&btrees[i], BTREE_ROW, 2);
+
+    for (int i=0; i<12; i++)
+        init_op(&ops[i], &btrees[rand()%1 + 1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[rand()%12]);
+
+    __wt_qsort_r(&ops, 12, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
+    ret = __mod_ops_sorted(ops, 12);
+
+    // Free the allocated scratch buffers first.
+    for (int i=0; i <= key_sz; i++)
+        __wt_scr_free(session, &keys[i]);
+
+    // If not sorted correctly, barf.
+    REQUIRE(ret == true);
+
+}
 }
