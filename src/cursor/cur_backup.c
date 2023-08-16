@@ -207,7 +207,7 @@ err:
         __wt_backup_destroy(session);
     }
 
-    if (F_ISSET(cb, WT_CURBACKUP_INCR)) {
+    if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP | WT_CURBACKUP_INCR)) {
         /*
          * We need to force a checkpoint to the metadata to make any incremental information
          * durable. Otherwise old backup information could reappear if we crash and restart.
