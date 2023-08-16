@@ -208,7 +208,7 @@ __txn_resolve_prepared_page_deleted(WT_SESSION_IMPL *session, WT_PAGE_DELETED *p
     /*
      * The page deleted structure is only checked in tree walk. If it is prepared, we will
      * instantiate the leaf page and check the keys on it. Therefore, we don't need to worry about
-     * reading the partial state and thus no need to lock the state.
+     * reading the partial state and don't need to lock the state.
      */
     page_del->timestamp = txn->commit_timestamp;
     page_del->durable_timestamp = txn->durable_timestamp;
