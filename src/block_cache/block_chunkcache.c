@@ -68,11 +68,15 @@ static int
 __chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
 {
     WT_CHUNKCACHE *chunkcache;
+#ifdef HAVE_DIAGNOSTIC
     size_t num_chunks;
+#endif
     uint8_t *map_byte_p, map_byte_expected, map_byte_mask;
 
     chunkcache = &S2C(session)->chunkcache;
+#ifdef HAVE_DIAGNOSTIC
     num_chunks = chunkcache->capacity / chunkcache->chunk_size;
+#endif
 
 retry:
     /* Use the bitmap to find a free slot for a chunk in the cache. */
