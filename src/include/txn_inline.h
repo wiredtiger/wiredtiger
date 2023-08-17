@@ -129,48 +129,41 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 }
 
 /*
- * __txn_prepare_update --
- *     Prepare an update.
+ * __txn_apply_prepared_state_update --
+ *     Change the prepared state of an update.
  */
 static inline void
-__txn_prepare_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__txn_apply_prepared_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
     WT_TXN *txn;
 
     txn = session->txn;
-    /* Set prepare timestamp. */
-    upd->start_ts = txn->prepare_timestamp;
 
-    /*
-     * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it with
-     * WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a problem.
-     */
-    upd->durable_ts = WT_TS_NONE;
-    WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
-}
+    if (commit) {
+        /*
+         * In case of a prepared transaction, the order of modification of the prepare timestamp to
+         * commit timestamp in the update chain will not affect the data visibility, a reader will
+         * encounter a prepared update resulting in prepare conflict.
+         *
+         * As updating timestamp might not be an atomic operation, we will manage using state.
+         */
+        upd->prepare_state = WT_PREPARE_LOCKED;
+        WT_WRITE_BARRIER();
+        upd->start_ts = txn->commit_timestamp;
+        upd->durable_ts = txn->durable_timestamp;
+        WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+    } else {
+        /* Set prepare timestamp. */
+        upd->start_ts = txn->prepare_timestamp;
 
-/*
- * __txn_resolve_prepared_update --
- *     Resolve a prepared update as committed update.
- */
-static inline void
-__txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-{
-    WT_TXN *txn;
-
-    txn = session->txn;
-    /*
-     * In case of a prepared transaction, the order of modification of the prepare timestamp to
-     * commit timestamp in the update chain will not affect the data visibility, a reader will
-     * encounter a prepared update resulting in prepare conflict.
-     *
-     * As updating timestamp might not be an atomic operation, we will manage using state.
-     */
-    upd->prepare_state = WT_PREPARE_LOCKED;
-    WT_WRITE_BARRIER();
-    upd->start_ts = txn->commit_timestamp;
-    upd->durable_ts = txn->durable_timestamp;
-    WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+        /*
+         * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
+         * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
+         * problem.
+         */
+        upd->durable_ts = WT_TS_NONE;
+        WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+    }
 }
 
 /*
@@ -291,12 +284,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
         WT_ASSERT(session, previous_state == WT_REF_MEM);
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
-            for (; *updp != NULL; ++updp) {
-                if (commit)
-                    __txn_resolve_prepared_update(session, *updp);
-                else
-                    __txn_prepare_update(session, *updp);
-            }
+            for (; *updp != NULL; ++updp)
+                __txn_apply_prepared_state_update(session, *updp, commit);
     }
 
     if (ref->page_del != NULL)
@@ -393,7 +382,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
             upd = op->u.op_upd;
 
             /* Resolve prepared update to be committed update. */
-            __txn_resolve_prepared_update(session, upd);
+            __txn_apply_prepared_state_update(session, upd, true);
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)

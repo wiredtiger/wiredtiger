@@ -1127,7 +1127,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
     }
 
     /* Resolve the prepared update to be a committed update. */
-    __txn_resolve_prepared_update(session, upd);
+    __txn_apply_prepared_state_update(session, upd, true);
 
     /* Sleep for 100ms in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
@@ -1987,7 +1987,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
             ++prepared_updates;
 
-            __txn_prepare_update(session, upd);
+            __txn_apply_prepare_state_update(session, upd, false);
             op->u.op_upd = NULL;
 
             /*
