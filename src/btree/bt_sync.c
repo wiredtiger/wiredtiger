@@ -365,9 +365,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             else
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
 
-            if (page->read_gen == WT_READGEN_WONT_NEED)
-                WT_STAT_CONN_INCR(session, checkpoint_pages_read_to_cache);
-
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
              * any page modify structure. (It needs to be ordered else a page could be dirtied after

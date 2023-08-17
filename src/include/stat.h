@@ -580,7 +580,6 @@ struct __wt_connection_stats {
     int64_t checkpoint_update_postprocess;
     int64_t checkpoint_update_prev_named;
     int64_t checkpoint_pages_reconciled;
-    int64_t checkpoint_pages_read_to_cache;
     int64_t checkpoint_cleanup_pages_evict;
     int64_t checkpoint_cleanup_pages_removed;
     int64_t checkpoint_cleanup_pages_walk_skipped;

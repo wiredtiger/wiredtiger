@@ -1536,7 +1536,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: number of older named checkpoints altered to include new checkpoint",
   "checkpoint: number of older named checkpoints updated during reconciliation",
   "checkpoint: number of pages caused to be reconciled",
-  "checkpoint: number of pages read into the cache",
   "checkpoint: pages added for eviction during checkpoint cleanup",
   "checkpoint: pages removed during checkpoint cleanup",
   "checkpoint: pages skipped during checkpoint cleanup tree walk",
@@ -2199,7 +2198,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_update_postprocess = 0;
     stats->checkpoint_update_prev_named = 0;
     stats->checkpoint_pages_reconciled = 0;
-    stats->checkpoint_pages_read_to_cache = 0;
     stats->checkpoint_cleanup_pages_evict = 0;
     stats->checkpoint_cleanup_pages_removed = 0;
     stats->checkpoint_cleanup_pages_walk_skipped = 0;
@@ -2868,7 +2866,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_update_postprocess += WT_STAT_READ(from, checkpoint_update_postprocess);
     to->checkpoint_update_prev_named += WT_STAT_READ(from, checkpoint_update_prev_named);
     to->checkpoint_pages_reconciled += WT_STAT_READ(from, checkpoint_pages_reconciled);
-    to->checkpoint_pages_read_to_cache += WT_STAT_READ(from, checkpoint_pages_read_to_cache);
     to->checkpoint_cleanup_pages_evict += WT_STAT_READ(from, checkpoint_cleanup_pages_evict);
     to->checkpoint_cleanup_pages_removed += WT_STAT_READ(from, checkpoint_cleanup_pages_removed);
     to->checkpoint_cleanup_pages_walk_skipped +=

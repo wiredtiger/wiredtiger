@@ -366,7 +366,6 @@ conn_stats = [
     CheckpointStat('checkpoint_handle_skipped', 'most recent handles skipped'),
     CheckpointStat('checkpoint_handle_walked', 'most recent handles walked'),
     CheckpointStat('checkpoint_hs_pages_reconciled', 'number of history store pages caused to be reconciled'),
-    CheckpointStat('checkpoint_pages_read_to_cache', 'number of pages read into the cache'),
     CheckpointStat('checkpoint_pages_reconciled', 'number of pages caused to be reconciled'),
     CheckpointStat('checkpoint_pages_visited_internal', 'number of internal pages visited'),
     CheckpointStat('checkpoint_pages_visited_leaf', 'number of leaf pages visited'),
