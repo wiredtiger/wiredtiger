@@ -257,6 +257,7 @@ struct __wt_block {
 
     bool created_during_backup; /* Created during incremental backup */
     bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
+    bool readonly;              /* Underlying file was opened only for reading */
 
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
@@ -308,11 +309,6 @@ struct __wt_block {
 
     /* Multi-file support */
     uint32_t read_count; /* Count of active read requests using this block handle */
-
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_BLOCK_TIERED_OBJECT_BACKING 0x1u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
-    uint8_t flags;
 };
 
 /*
