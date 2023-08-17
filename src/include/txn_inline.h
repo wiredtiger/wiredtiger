@@ -150,27 +150,6 @@ __txn_prepare_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
- * __txn_prepare_page_deleted --
- *     Prepare a page deleted structure.
- */
-static inline void
-__txn_prepare_page_deleted(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del)
-{
-    WT_TXN *txn;
-
-    txn = session->txn;
-    /* Set prepare timestamp. */
-    page_del->timestamp = txn->prepare_timestamp;
-
-    /*
-     * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it with
-     * WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a problem.
-     */
-    page_del->durable_timestamp = WT_TS_NONE;
-    WT_PUBLISH(page_del->prepare_state, WT_PREPARE_INPROGRESS);
-}
-
-/*
  * __txn_resolve_prepared_update --
  *     Resolve a prepared update as committed update.
  */
@@ -195,24 +174,36 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
- * __txn_resolve_prepared_page_deleted --
- *     Resolve a prepared page deleted structure.
+ * __txn_apply_prepare_state_page_del --
+ *     Change a prepared page deleted structure's prepared state.
  */
 static inline void
-__txn_resolve_prepared_page_deleted(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del)
+__txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool commit)
 {
     WT_TXN *txn;
 
     txn = session->txn;
+    if (commit) {
+        /*
+         * The page deleted structure is only checked in tree walk. If it is prepared, we will
+         * instantiate the leaf page and check the keys on it. Therefore, we don't need to worry
+         * about reading the partial state and don't need to lock the state.
+         */
+        page_del->timestamp = txn->commit_timestamp;
+        page_del->durable_timestamp = txn->durable_timestamp;
+        WT_PUBLISH(page_del->prepare_state, WT_PREPARE_RESOLVED);
+    } else {
+        /* Set prepare timestamp. */
+        page_del->timestamp = txn->prepare_timestamp;
 
-    /*
-     * The page deleted structure is only checked in tree walk. If it is prepared, we will
-     * instantiate the leaf page and check the keys on it. Therefore, we don't need to worry about
-     * reading the partial state and don't need to lock the state.
-     */
-    page_del->timestamp = txn->commit_timestamp;
-    page_del->durable_timestamp = txn->durable_timestamp;
-    WT_PUBLISH(page_del->prepare_state, WT_PREPARE_RESOLVED);
+        /*
+         * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
+         * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
+         * problem.
+         */
+        page_del->durable_timestamp = WT_TS_NONE;
+        WT_PUBLISH(page_del->prepare_state, WT_PREPARE_INPROGRESS);
+    }
 }
 
 /*
@@ -273,7 +264,6 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 static inline void
 __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
-    WT_PAGE_DELETED *page_del;
     WT_UPDATE **updp;
     uint8_t previous_state;
 
@@ -308,13 +298,9 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
                     __txn_prepare_update(session, *updp);
             }
     }
-    page_del = ref->page_del;
-    if (page_del != NULL) {
-        if (commit)
-            __txn_resolve_prepared_page_deleted(session, page_del);
-        else
-            __txn_prepare_page_deleted(session, page_del);
-    }
+
+    if (ref->page_del != NULL)
+        __txn_apply_prepare_state_page_del(session, ref->page_del, commit);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
