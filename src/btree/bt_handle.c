@@ -952,7 +952,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      */
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
     btree->maxmempage = (uint64_t)cval.val;
-//at least 10 pages can fit into the cache when it reaches the eviction_dirty_trigger level.
+//make sure that at least 10 pages can fit into the cache when it reaches the eviction_dirty_trigger level.
 #define WT_MIN_PAGES  10
     min_pages_num = WT_MIN_PAGES;
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
