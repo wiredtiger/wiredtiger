@@ -244,8 +244,10 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * Tiered storage sets file permissions to readonly, but nobody else does. This flag means the
      * underlying file is read-only, and NOT that the handle access pattern is read-only.
      */
-    if (readonly)
+    if (readonly) {
         LF_SET(WT_FS_OPEN_READONLY);
+        F_SET(block, WT_BLOCK_READONLY);
+    }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
     /* Set the file's size. */
@@ -256,7 +258,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * header so that the header gets copied.
      */
     if (block->size == allocsize && F_ISSET(conn, WT_CONN_INCR_BACKUP))
-        block->created_during_backup = true;
+        F_SET(block, WT_BLOCK_CREATED_DURING_BACKUP);
 
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));

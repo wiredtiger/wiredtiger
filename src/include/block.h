@@ -255,9 +255,6 @@ struct __wt_block {
     wt_off_t extend_size; /* File extended size */
     wt_off_t extend_len;  /* File extend chunk size */
 
-    bool created_during_backup; /* Created during incremental backup */
-    bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
-
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;  /* Allocation size */
@@ -273,7 +270,6 @@ struct __wt_block {
      */
     WT_SPINLOCK live_lock; /* Live checkpoint lock */
     WT_BLOCK_CKPT live;    /* Live checkpoint */
-    bool live_open;        /* Live system is open */
     enum {                 /* Live checkpoint status */
         WT_CKPT_NONE = 0,
         WT_CKPT_INPROGRESS,
@@ -297,9 +293,6 @@ struct __wt_block {
     wt_off_t slvg_off; /* Salvage file offset */
 
     /* Verification support */
-    bool verify;             /* If performing verification */
-    bool verify_layout;      /* Print out file layout information */
-    bool verify_strict;      /* Fail hard on any error */
     wt_off_t verify_size;    /* Checkpoint's file size */
     WT_EXTLIST verify_alloc; /* Verification allocation list */
     uint64_t frags;          /* Maximum frags in the file */
@@ -308,6 +301,17 @@ struct __wt_block {
 
     /* Multi-file support */
     uint32_t read_count; /* Count of active read requests using this block handle */
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_BLOCK_CKPT_LIVE_OPEN 0x01u        /* Live system is open */
+#define WT_BLOCK_CREATED_DURING_BACKUP 0x02u /* Created during incremental backup */
+#define WT_BLOCK_READONLY 0x04u              /* Underlying file was opened only for reading */
+#define WT_BLOCK_SYNC_ON_CHECKPOINT 0x08u    /* fsync the handle after the next checkpoint */
+#define WT_BLOCK_VERIFY 0x10u                /* If performing verification */
+#define WT_BLOCK_VERIFY_LAYOUT 0x20u         /* Print out file layout information */
+#define WT_BLOCK_VERIFY_STRICT 0x40u         /* Fail hard on any error */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /*
