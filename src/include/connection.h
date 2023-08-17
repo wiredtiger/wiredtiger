@@ -42,6 +42,27 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
+/* WT_BACKGROUND_COMPACT_STAT --
+ *  List of tracking information for each file compact has worked on.
+ */
+struct __wt_background_compact_stat {
+    char *uri;
+    uint64_t start_time;
+    uint64_t time_taken;
+    uint64_t last_unsuccessful_compact;
+
+    uint64_t skip_count;
+
+    wt_off_t start_size;
+    wt_off_t end_size;
+    wt_off_t bytes_recovered;
+    uint64_t bytes_rewritten;
+
+    // struct timespec start_time;
+
+    TAILQ_ENTRY(__wt_background_compact_stat) q;
+};
+
 /*
  * WT_BACKGROUND_COMPACT --
  *	Structure dedicated to the background compaction server
@@ -55,6 +76,14 @@ struct __wt_background_compact {
     WT_CONDVAR *cond;         /* Wait mutex */
     WT_SPINLOCK lock;         /* Compact lock */
     WT_SESSION_IMPL *session; /* Thread session */
+
+    uint64_t total_bytes_recovered;
+    uint64_t files_skipped;
+    uint64_t files_compacted;
+    uint64_t files_checked;
+
+    struct timespec compact_timer_start;
+    TAILQ_HEAD(__wt_bg_compact_tables_qh, __wt_background_compact_stat) tables;
 };
 
 /*

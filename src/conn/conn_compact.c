@@ -18,6 +18,98 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_COMPACT));
 }
 
+static WT_BACKGROUND_COMPACT_STAT *
+__get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
+    WT_CONNECTION_IMPL *conn;
+    conn = S2C(session);
+
+    TAILQ_FOREACH (dsrc_stat, &conn->background_compact.tables, q) {
+        if (!strcmp(uri, dsrc_stat->uri)) {
+            return (dsrc_stat);
+        }
+    }
+
+    return (NULL);
+}
+
+static bool
+__should_compact(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
+    uint64_t cur_time;
+    uint64_t time_since_last_compact;
+
+    dsrc_stat = __get_compact_stat(session, uri);
+    /* If we haven't seen this file before we should try and compact it. */
+    if (dsrc_stat == NULL)
+        return (true);
+
+    cur_time = __wt_clock(session);
+
+    /* 
+     * Don't compact if we've seen this table recently or if we've had recent unsuccessful attempts. 
+     */
+    time_since_last_compact = WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time);
+    if (WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) < 5 ||
+      WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->last_unsuccessful_compact) < 10)
+        return (false);
+
+    return (true);
+}
+
+static int
+__compact_background_start(
+  WT_SESSION_IMPL *session, const char *uri, WT_BACKGROUND_COMPACT_STAT **dsrc_stat)
+{
+    WT_BACKGROUND_COMPACT_STAT *temp_dsrc_stat;
+    WT_BM *bm;
+    WT_CONNECTION_IMPL *conn;
+    bool found;
+
+    conn = S2C(session);
+    bm = S2BT(session)->bm;
+    found = false;
+
+    temp_dsrc_stat = __get_compact_stat(session, uri);
+
+    /* If the table is not in the list, allocate a new entry and insert it. */
+    if (temp_dsrc_stat == NULL) {
+        WT_RET(__wt_calloc_one(session, &temp_dsrc_stat));
+        WT_RET(__wt_strdup(session, uri, &temp_dsrc_stat->uri));
+        TAILQ_INSERT_HEAD(&conn->background_compact.tables, temp_dsrc_stat, q);
+    }
+
+    /* Fill starting information prior to running compaction. */
+    WT_RET(bm->size(bm, session, &temp_dsrc_stat->start_size));
+    temp_dsrc_stat->start_time = __wt_clock(session);
+
+    *dsrc_stat = temp_dsrc_stat;
+
+    return (0);
+}
+
+static int
+__compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *dsrc_stat)
+{
+    WT_BM *bm;
+    uint64_t cur_time;
+
+    bm = S2BT(session)->bm;
+
+    cur_time = __wt_clock(session);
+    dsrc_stat->time_taken = WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time);
+
+    WT_RET(bm->size(bm, session, &dsrc_stat->end_size));
+    dsrc_stat->bytes_recovered = dsrc_stat->end_size - dsrc_stat->start_size;
+
+    if (dsrc_stat->bytes_recovered <= 0)
+        dsrc_stat->last_unsuccessful_compact = __wt_clock(session);
+
+    return (0);
+}
+
 /*
  * __compact_server --
  *     The compact server thread.
@@ -25,6 +117,7 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
 static WT_THREAD_RET
 __compact_server(void *arg)
 {
+    WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -33,6 +126,8 @@ __compact_server(void *arg)
     int exact;
     const char *config, *key, *prefix, *uri;
     bool full_iteration, running, signalled;
+
+    dsrc_stat = NULL;
 
     session = arg;
     conn = S2C(session);
@@ -105,7 +200,7 @@ __compact_server(void *arg)
             /* Check we are still dealing with keys which have the right prefix. */
             if (WT_PREFIX_MATCH(key, prefix)) {
                 /* There are files that should not be compacted. */
-                if (!WT_STREQ(key, WT_HS_URI))
+                if (!WT_STREQ(key, WT_HS_URI) && __should_compact(session, key))
                     /* FIXME-WT-11343: check if the table is supposed to be compacted. */
                     break;
             } else {
@@ -121,7 +216,6 @@ __compact_server(void *arg)
             full_iteration = true;
             continue;
         }
-
         /* Make a copy of the key as it can be freed once the cursor is released. */
         __wt_free(session, uri);
         WT_ERR(__wt_strndup(session, key, strlen(key), &uri));
@@ -140,7 +234,12 @@ __compact_server(void *arg)
 
         WT_ERR(ret);
 
+        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+        WT_ERR(__compact_background_start(session, uri, &dsrc_stat));
+
         ret = wt_session->compact(wt_session, uri, config);
+
+        WT_ERR(__compact_background_end(session, dsrc_stat));
 
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
@@ -204,6 +303,8 @@ __wt_compact_server_create(WT_SESSION_IMPL *session)
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_COMPACT);
+
+    TAILQ_INIT(&conn->background_compact.tables);
 
     /*
      * Compaction does enough I/O it may be called upon to perform slow operations for the block
