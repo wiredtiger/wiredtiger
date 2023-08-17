@@ -1974,9 +1974,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     static const WT_NAME_FLAG extra_diagnostics_types[] = {{"all", WT_DIAGNOSTIC_ALL},
       {"checkpoint_validate", WT_DIAGNOSTIC_CHECKPOINT_VALIDATE},
       {"cursor_check", WT_DIAGNOSTIC_CURSOR_CHECK}, {"disk_validate", WT_DIAGNOSTIC_DISK_VALIDATE},
-      {"eviction_check", WT_DIAGNOSTIC_EVICTION_CHECK},
-      {"generation_check", WT_DIAGNOSTIC_GENERATION_CHECK},
-      {"hs_validate", WT_DIAGNOSTIC_HS_VALIDATE},
+      {"eviction_check", WT_DIAGNOSTIC_EVICTION_CHECK}, {"hs_validate", WT_DIAGNOSTIC_HS_VALIDATE},
       {"key_out_of_order", WT_DIAGNOSTIC_KEY_OUT_OF_ORDER},
       {"log_validate", WT_DIAGNOSTIC_LOG_VALIDATE}, {"prepared", WT_DIAGNOSTIC_PREPARED},
       {"slow_operation", WT_DIAGNOSTIC_SLOW_OPERATION},
@@ -2903,7 +2901,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
-    WT_ERR(__wt_chunkcache_setup(session, cfg, false));
+    WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));

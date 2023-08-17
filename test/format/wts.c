@@ -107,7 +107,7 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
      * can be generated in the library when we don't have a session. There's a global session we can
      * use, but that requires locking.
      */
-    if ((sap = session->app_private) != NULL && sap->trace != NULL) {
+    if (g.trace_conn != NULL && (sap = session->app_private) != NULL && sap->trace != NULL) {
         testutil_check(sap->trace->log_printf(sap->trace, "%s", message));
         if (!printf_msg)
             return (0);
@@ -177,6 +177,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_evict_page");
     if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
+    if (GV(STRESS_COMPACT_SLOW))
+        CONFIG_APPEND(*p, ",compact_slow");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
     if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
