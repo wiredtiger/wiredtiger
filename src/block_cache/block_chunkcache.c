@@ -916,8 +916,11 @@ __wt_chunkcache_teardown(WT_SESSION_IMPL *session)
     __chunkcache_arr_free(session, &chunkcache->pinned_objects.array);
     __wt_rwlock_destroy(session, &chunkcache->pinned_objects.array_lock);
 
-    if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
+    if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
         WT_TRET(__wt_close(session, &chunkcache->fh));
+        __wt_free(session, chunkcache->storage_path);
+        __wt_free(session, chunkcache->free_bitmap);
+    }
 
     return (ret);
 }
