@@ -257,6 +257,7 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 static inline void
 __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
+    WT_PAGE_DELETED *page_del;
     WT_UPDATE **updp;
     uint8_t previous_state;
 
@@ -288,8 +289,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
                 __txn_apply_prepare_state_update(session, *updp, commit);
     }
 
-    if (ref->page_del != NULL)
-        __txn_apply_prepare_state_page_del(session, ref->page_del, commit);
+    if ((page_del = ref->page_del) != NULL)
+        __txn_apply_prepare_state_page_del(session, page_del, commit);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
