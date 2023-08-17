@@ -243,7 +243,7 @@ typedef struct {
     char *config_open; /* Command-line configuration */
 
     TABLE *base_mirror;    /* First mirrored table */
-    bool mirror_col_store; /* Special case if mirroring column store tables */
+    bool mirror_col_store; /* Special case if mirroring column store table */
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
