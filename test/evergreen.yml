@@ -10,6 +10,7 @@
 stepback: true
 pre:
   - func: "cleanup"
+  - func: "setup environment"
 post:
   - func: "dump stacktraces"
   - func: "upload stacktraces"
@@ -28,6 +29,23 @@ exec_timeout_secs: 21600 # 6 hrs
 #######################################
 
 functions:
+  "setup environment":
+    - command: shell.exec
+      params:
+        shell: bash
+        script: |
+          # Create expansions from values computed above.
+          cat <<EOT > $PROJECT_DIR/expansions.yaml
+          PREPARE_SHELL: |
+            export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+            export WT_TOPDIR=$(pwd)/wiredtiger
+            export WT_BUILDDIR=$WT_TOPDIR/cmake_build
+            export LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+            export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+          EOT
+    - command: expansions.update
+      params:
+        file: test/evergreen/expansions.yaml
 
   "get project":
     command: git.get_project
@@ -536,12 +554,13 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        ${PREPARE_SHELL}
         cd cmake_build
         echo "Using smp_command '${smp_command}' for 'unit test'"
         if [ ${check_coverage|false} = true ]; then
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
         fi
 
   "code coverage analysis":
