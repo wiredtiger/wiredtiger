@@ -71,7 +71,7 @@ __chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
 #ifdef HAVE_DIAGNOSTIC
     size_t num_chunks;
 #endif
-    uint8_t *map_byte_p, map_byte_expected, map_byte_mask;
+    uint8_t map_byte_expected, map_byte_mask;
 
     chunkcache = &S2C(session)->chunkcache;
 #ifdef HAVE_DIAGNOSTIC
@@ -85,17 +85,15 @@ retry:
     /* Bit index should be less than the maximum number of chunks that can be allocated. */
     WT_ASSERT(session, *bit_index < num_chunks);
 
-    /* Mark the free chunk in the bitmap as in use. */
-    map_byte_p = &chunkcache->free_bitmap[*bit_index / 8];
-
     /*
      * Ensure to prevent multiple reads by typecasting to volatile. FIXME WT-11285 Use the
      * WT_READ_ONCE macro instead.
      */
-    map_byte_expected = (*(volatile uint8_t *)map_byte_p);
+    map_byte_expected = *(volatile uint8_t *)&chunkcache->free_bitmap[*bit_index / 8];
     map_byte_mask = (uint8_t)(0x01 << (*bit_index % 8));
     if (((map_byte_expected & map_byte_mask) != 0) ||
-      !__wt_atomic_cas8(map_byte_p, map_byte_expected, map_byte_expected | map_byte_mask))
+      !__wt_atomic_cas8(&chunkcache->free_bitmap[*bit_index / 8], map_byte_expected,
+        map_byte_expected | map_byte_mask))
         goto retry;
 
     return (0);
