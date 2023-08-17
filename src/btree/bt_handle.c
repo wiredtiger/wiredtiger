@@ -887,7 +887,6 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     uint64_t cache_size;
     uint32_t leaf_split_size, max;
     const char **cfg;
-    int min_pages_num;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -940,24 +939,22 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
           "B < %" PRIu32 "B)",
           btree->maxmempage_image, max);
 
-    /*
-     * Don't let pages grow large compared to the cache size or we can end
-     * up in a situation where nothing can be evicted.  Make sure at least
-     * 10 pages fit in cache when it is at the dirty trigger where threads
-     * stall.
-     *
-     * Take care getting the cache size: with a shared cache, it may not
-     * have been set.  Don't forget to update the API documentation if you
-     * alter the bounds for any of the parameters here.
-     */
+/*
+ * Don't let pages grow large compared to the cache size or we can end
+ * up in a situation where nothing can be evicted.  Make sure at least
+ * 10 pages fit in cache when it is at the dirty trigger where threads
+ * stall.
+ *
+ * Take care getting the cache size: with a shared cache, it may not
+ * have been set.  Don't forget to update the API documentation if you
+ * alter the bounds for any of the parameters here.
+ */
+#define WT_MIN_PAGES  10
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
     btree->maxmempage = (uint64_t)cval.val;
-//make sure that at least 10 pages can fit into the cache when it reaches the eviction_dirty_trigger level.
-#define WT_MIN_PAGES  10
-    min_pages_num = WT_MIN_PAGES;
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
         btree->maxmempage = (uint64_t)WT_MIN(
-          btree->maxmempage, ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / min_pages_num);
+          btree->maxmempage, ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
 
     /* Enforce a lower bound of a single disk leaf page */
     btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
