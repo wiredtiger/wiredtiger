@@ -129,11 +129,11 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 }
 
 /*
- * __txn_apply_prepared_state_update --
+ * __txn_apply_prepare_state_update --
  *     Change the prepared state of an update.
  */
 static inline void
-__txn_apply_prepared_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
+__txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
     WT_TXN *txn;
 
@@ -285,7 +285,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp)
-                __txn_apply_prepared_state_update(session, *updp, commit);
+                __txn_apply_prepare_state_update(session, *updp, commit);
     }
 
     if (ref->page_del != NULL)
@@ -382,7 +382,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
             upd = op->u.op_upd;
 
             /* Resolve prepared update to be committed update. */
-            __txn_apply_prepared_state_update(session, upd, true);
+            __txn_apply_prepare_state_update(session, upd, true);
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
