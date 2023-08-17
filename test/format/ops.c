@@ -1176,7 +1176,7 @@ rollback_retry:
                      *
                      * We want to test truncate at the end of the range as much as possible, so
                      * adjust the end range to max_rows - 1 only in the case where we are mirroring
-                     * and have both a VLCS and FLCS table.
+                     * and have a column store table.
                      */
                     if (g.base_mirror != NULL && g.mirror_col_store &&
                       (tinfo->last == 0 || tinfo->last == max_rows)) {
