@@ -17,7 +17,7 @@
     do {                                                                            \
         int __ret = (v);                                                            \
         __wt_err(session, __ret, __VA_ARGS__);                                      \
-        return (F_ISSET((block), WT_BLOCK_VERIFY) ?                                 \
+        return ((block)->verify ?                                                   \
             __ret :                                                                 \
             __wt_panic(session, WT_PANIC, "block manager extension list failure")); \
     } while (0)
@@ -1381,12 +1381,12 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
     u_int i;
     const char *sep;
 
-    if (!F_ISSET(block, WT_BLOCK_VERIFY_LAYOUT) &&
+    if (!block->verify_layout &&
       !WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_2))
         return (0);
 
     WT_ERR(__wt_scr_alloc(session, 0, &t1));
-    if (F_ISSET(block, WT_BLOCK_VERIFY_LAYOUT))
+    if (block->verify_layout)
         level = WT_VERBOSE_NOTICE;
     else
         level = WT_VERBOSE_DEBUG_2;
