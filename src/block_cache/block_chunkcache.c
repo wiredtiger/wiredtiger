@@ -111,7 +111,7 @@ __chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
 
     do {
         map_byte_expected = chunkcache->free_bitmap[index / 8];
-        map_byte_mask = 0x01 << (index % 8);
+        map_byte_mask =  (uint8_t) (0x01 << (index % 8));
 
         /* Assert to verify that the bit is allocated. */
         WT_ASSERT(session, (map_byte_expected & map_byte_mask) != 0);
