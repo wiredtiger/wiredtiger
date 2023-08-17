@@ -132,7 +132,7 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
                 }
             });
 
-            /* Sequential free */
+            /* Sequential release, yet interspersed with allocation threads. */
             threads.emplace_back(
               [session_impl, chunkcache, iterations, num_chunks, &allocations_made, &mtx]() {
                   for (uint32_t j = 0; j < iterations; j++) {
@@ -157,14 +157,6 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
         }
 
         size_t bit_index;
-        printf("threads %u\n", threads_num);
-        printf("num chunks: %lu\n", num_chunks);
-        printf("allocations_made: %lu\n", allocations_made);
-        for (int i = 0; i < WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size);
-             i++) {
-            printf("%lu ", chunkcache->free_bitmap[i]);
-        }
-        printf("\n");
         for (uint32_t i = 0; i < num_chunks - allocations_made; i++) {
             REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == 0);
         }
