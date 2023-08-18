@@ -28,20 +28,35 @@
 
 import os, wttest
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 class test_chunkcache01(wttest.WiredTigerTestCase):
     uri = 'table:test_chunkcache01'
 
+    format_values = [
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('column', dict(key_format='r', value_format='u')),
+        ('row_string', dict(key_format='S', value_format='u')),
+    ]
+
+    cache_types = [
+        ('in-memory', dict(chunk_cache_extra_config='type=DRAM')),
+        ('on-disk', dict(chunk_cache_extra_config='type=FILE,storage_path=/home/ubuntu/chunk-cache-tmp')),
+    ]
+
+    scenarios = make_scenarios(format_values, cache_types)
+
     def conn_config(self):
         if not os.path.exists('bucket1'):
             os.mkdir('bucket1')
-        return 'tiered_storage=(auth_token=Secret,bucket=bucket1,bucket_prefix=pfx_,name=dir_store),chunk_cache=[enabled=true,chunk_size=100MB,capacity=2GB,type=FILE,storage_path=/home/ubuntu/chunk-cache-tmp],'
+        return 'tiered_storage=(auth_token=Secret,bucket=bucket1,bucket_prefix=pfx_,name=dir_store),' \
+            'chunk_cache=[enabled=true,chunk_size=100MB,capacity=2GB,{}],'.format(self.chunk_cache_extra_config)
 
     def conn_extensions(self, extlist):
         extlist.extension('storage_sources', 'dir_store')
 
     def test_chunkcache(self):
-        ds = SimpleDataSet(self, self.uri, 10, config='key_format=S')
+        ds = SimpleDataSet(self, self.uri, 10, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
         ds.check()
         self.session.checkpoint()
@@ -50,5 +65,4 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
 
         self.close_conn()
         self.reopen_conn()
-        ds = SimpleDataSet(self, self.uri, 10, config='key_format=S')
         ds.check()

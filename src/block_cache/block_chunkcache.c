@@ -488,7 +488,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
-    bool chunk_cached, store, valid;
+    bool chunk_cached, valid;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
@@ -498,8 +498,9 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         return (ENOTSUP);
-    store = F_ISSET(block, WT_BLOCK_READONLY);
-    if (!store)
+
+    /* Only cache read-only tiered objects. */
+    if (!F_ISSET(block, WT_BLOCK_READONLY))
         return (__wt_read(session, block->fh, offset, size, dst));
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
