@@ -246,11 +246,10 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 
         /* Append or insert the WT_INSERT structure. */
         if (append)
-            WT_ERR(__wt_col_append_serial(session, page, cbt->ins_head, cbt->ins_stack, &ins,
-              ins_size, &cbt->recno, skipdepth, exclusive));
+            WT_ERR(__wt_col_append_serial(
+              session, page, cbt, &ins, ins_size, &cbt->recno, skipdepth, exclusive));
         else
-            WT_ERR(__wt_insert_serial(
-              session, page, cbt->ins_head, cbt->ins_stack, &ins, ins_size, skipdepth, exclusive));
+            WT_ERR(__wt_insert_serial(session, page, cbt, &ins, ins_size, skipdepth, exclusive));
     }
 
     inserted_to_update_chain = true;

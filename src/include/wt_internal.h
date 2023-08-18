@@ -499,6 +499,8 @@ typedef uint64_t wt_timestamp_t;
 #include "mutex_inline.h"     /* required by btree_inline.h */
 #include "txn_inline.h"       /* required by btree_inline.h */
 
+#include "skiplist_template.h" /* XXX */
+
 #include "bitstring_inline.h"
 #include "block_inline.h"
 #include "btree_inline.h" /* required by cursor_inline.h */

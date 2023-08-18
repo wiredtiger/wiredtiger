@@ -97,8 +97,8 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
  *     skiplist.
  */
 static inline int
-__col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
-  WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
+__col_append_serial_func(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT *new_ins,
+  uint64_t *recnop, u_int skipdepth)
 {
     WT_BTREE *btree;
     uint64_t recno;
@@ -113,14 +113,16 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
     if ((recno = WT_INSERT_RECNO(new_ins)) == WT_RECNO_OOB) {
         recno = WT_INSERT_RECNO(new_ins) = btree->last_recno + 1;
         WT_ASSERT(session,
-          WT_SKIP_LAST(ins_head) == NULL || recno > WT_INSERT_RECNO(WT_SKIP_LAST(ins_head)));
+          WT_SKIP_LAST(cbt->ins_head) == NULL ||
+            recno > WT_INSERT_RECNO(WT_SKIP_LAST(cbt->ins_head)));
         for (i = 0; i < skipdepth; i++)
-            ins_stack[i] =
-              ins_head->tail[i] == NULL ? &ins_head->head[i] : &ins_head->tail[i]->next[i];
+            cbt->ins_stack[i] = cbt->ins_head->tail[i] == NULL ? &cbt->ins_head->head[i] :
+                                                                 &cbt->ins_head->tail[i]->next[i];
     }
 
     /* Confirm position and insert the new WT_INSERT item. */
-    WT_RET(__insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth));
+    // WT_RET(__insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth));
+    WT_RET(__wt_skip_insert__insert(session, NULL, cbt, new_ins, skipdepth, true));
 
     /*
      * Set the calling cursor's record number. If we extended the file, update the last record
@@ -138,9 +140,8 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
  *     Append a new column-store entry.
  */
 static inline int
-__wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
-  WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size, uint64_t *recnop,
-  u_int skipdepth, bool exclusive)
+__wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CURSOR_BTREE *cbt,
+  WT_INSERT **new_insp, size_t new_ins_size, uint64_t *recnop, u_int skipdepth, bool exclusive)
 {
     WT_DECL_RET;
     WT_INSERT *new_ins;
@@ -155,7 +156,7 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
      */
     if (!exclusive)
         WT_PAGE_LOCK(session, page);
-    ret = __col_append_serial_func(session, ins_head, ins_stack, new_ins, recnop, skipdepth);
+    ret = __col_append_serial_func(session, cbt, new_ins, recnop, skipdepth);
     if (!exclusive)
         WT_PAGE_UNLOCK(session, page);
 
@@ -183,33 +184,18 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
  *     Insert a row or column-store entry.
  */
 static inline int
-__wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
-  WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size, u_int skipdepth,
-  bool exclusive)
+__wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CURSOR_BTREE *cbt,
+  WT_INSERT **new_insp, size_t new_ins_size, u_int skipdepth, bool exclusive)
 {
     WT_DECL_RET;
     WT_INSERT *new_ins;
-    u_int i;
-    bool simple;
 
     /* Clear references to memory we now own and must free on error. */
     new_ins = *new_insp;
     *new_insp = NULL;
 
-    simple = true;
-    for (i = 0; i < skipdepth; i++)
-        if (new_ins->next[i] == NULL)
-            simple = false;
-
-    if (simple)
-        ret = __insert_simple_func(session, ins_stack, new_ins, skipdepth);
-    else {
-        if (!exclusive)
-            WT_PAGE_LOCK(session, page);
-        ret = __insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth);
-        if (!exclusive)
-            WT_PAGE_UNLOCK(session, page);
-    }
+    ret = __wt_skip_insert__insert(
+      session, &page->modify->page_lock, cbt, new_ins, skipdepth, exclusive);
 
     if (ret != 0) {
         /* Free unused memory on error. */

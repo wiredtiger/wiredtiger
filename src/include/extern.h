@@ -2170,9 +2170,8 @@ static inline int __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_
 static inline int __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta,
   bool expected_error) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-  WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
-  uint64_t *recnop, u_int skipdepth, bool exclusive)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_CURSOR_BTREE *cbt, WT_INSERT **new_insp, size_t new_ins_size, uint64_t *recnop,
+  u_int skipdepth, bool exclusive) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
   const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2233,9 +2232,9 @@ static inline int __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t o
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-  WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
-  u_int skipdepth, bool exclusive) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CURSOR_BTREE *cbt,
+  WT_INSERT **new_insp, size_t new_ins_size, u_int skipdepth, bool exclusive)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
