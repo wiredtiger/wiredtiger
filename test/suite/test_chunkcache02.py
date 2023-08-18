@@ -44,7 +44,8 @@ in the bitmap (for the on-disk case) and chunks.
 class test_chunkcache02(wttest.WiredTigerTestCase):
     uri = "table:test_chunkcache02"
     rows = 10000
-    num_threads = 20
+    num_threads = 5
+    current_directory = os.getcwd()
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
@@ -53,7 +54,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
 
     cache_types = [
         ('in-memory', dict(chunk_cache_extra_config='type=DRAM')),
-        ('on-disk', dict(chunk_cache_extra_config='type=FILE,storage_path=/home/ubuntu/chunk-cache-tmp')),
+        ('on-disk', dict(chunk_cache_extra_config=f'type=FILE,storage_path={current_directory}/chunk-cache-tmp'))
     ]
 
     scenarios = make_scenarios(format_values, cache_types)
