@@ -6188,7 +6188,7 @@ buildvariants:
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
-      export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: ".stress-test-1"
@@ -6222,7 +6222,7 @@ buildvariants:
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
-      export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so
+      export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: ".stress-test-1"
@@ -6282,7 +6282,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
   tasks:
@@ -6297,7 +6297,7 @@ buildvariants:
   - rhel80-test
   expansions:
     test_env_vars:
-      export LD_PRELOAD=/usr/local/lib/libeatmydata.so
+      export LD_PRELOAD="/usr/local/lib/libeatmydata.so:$LD_PRELOAD"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: "Unix Makefiles"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
