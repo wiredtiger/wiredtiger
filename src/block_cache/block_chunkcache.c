@@ -68,22 +68,16 @@ static int
 __chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
 {
     WT_CHUNKCACHE *chunkcache;
-#ifdef HAVE_DIAGNOSTIC
-    size_t num_chunks;
-#endif
     uint8_t map_byte_expected, map_byte_mask;
 
     chunkcache = &S2C(session)->chunkcache;
-#ifdef HAVE_DIAGNOSTIC
-    num_chunks = chunkcache->capacity / chunkcache->chunk_size;
-#endif
 
 retry:
     /* Use the bitmap to find a free slot for a chunk in the cache. */
     WT_RET(__chunkcache_bitmap_find_free(session, bit_index));
 
     /* Bit index should be less than the maximum number of chunks that can be allocated. */
-    WT_ASSERT(session, *bit_index < num_chunks);
+    WT_ASSERT(session, *bit_index < (chunkcache->capacity / chunkcache->chunk_size));
 
     /*
      * Cast to volatile to prevent multiple reads. FIXME WT-11285 Use the WT_READ_ONCE macro
