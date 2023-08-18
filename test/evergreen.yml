@@ -3429,7 +3429,11 @@ tasks:
             # Record the start time, in seconds
             date +%s > ../time.txt
             # Perform the tests to get code coverage metrics for
+            . ../test/evergreen/find_cmake.sh
+            
             ${test_env_vars|} test/unittest/unittests
+
+            ${test_env_vars|} $CTEST -R '(ex_|lsm_workload|filesys|metadata_salvage|col_efficiency|dup_index_collator|compact_quick|test_checkpoint_4_mixed_timestamps|test_checkpoint_6_row_named_prepare|random_directio|scope|join_main_table_row|pad_byte_collator|meta_ckptlist_get_alloc)'
 
             ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_rollback_to_stable03
             ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py lsm
@@ -3456,7 +3460,6 @@ tasks:
 
             ${test_env_vars|} WIREDTIGER_HOME=ex1 examples/c/ex_all/ex_all & ${test_env_vars|} WIREDTIGER_HOME=ex2 examples/c/ex_schema/ex_schema
             # Rest of the examples
-            . ../test/evergreen/find_cmake.sh
             cd examples/c/
             ${test_env_vars|} $CTEST --output-on-failure 2>&1
             cd ../../
