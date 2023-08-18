@@ -1080,8 +1080,7 @@ done:
     FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
     /* Time since the recovery has started. */
-    __wt_epoch(session, &cur_time);
-    time_diff = WT_TIMEDIFF_SEC(cur_time, org_timer_start);
+    __wt_timer_evaluate(session, &timer, &time_diff);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
       "recovery has successfully finished and ran for %" PRIu64 " seconds", time_diff);
 

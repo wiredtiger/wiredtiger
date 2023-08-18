@@ -76,13 +76,13 @@ __wt_rts_check(WT_SESSION_IMPL *session)
  *     Log a verbose message about the progress of the current rollback to stable.
  */
 void
-__wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start,
-  uint64_t rollback_count, uint64_t *rollback_msg_count, bool walk)
+__wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t rollback_count,
+  uint64_t *rollback_msg_count, bool walk)
 {
     uint64_t time_diff;
 
     /* Time since the rollback started. */
-    __wt_timer_evaluate(session, &rollback_start, &time_diff);
+    __wt_timer_evaluate(session, rollback_start, &time_diff);
 
     if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
         if (walk)
@@ -108,15 +108,15 @@ __wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start,
 int
 __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
-    WT_TIMER timer;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_TIMER timer;
     uint64_t rollback_count, rollback_msg_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
 
     /* Initialize the verbose tracking timer. */
-    __wt_timer_start(session, &timer)
+    __wt_timer_start(session, &timer);
     rollback_count = 0;
     rollback_msg_count = 0;
 

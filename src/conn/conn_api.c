@@ -1117,7 +1117,7 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 err:
 
     /* Initialize the tracking timer */
-    __wt_timer_start(&timer);
+    __wt_timer_start(session, &timer);
 
     /*
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
@@ -1225,8 +1225,7 @@ err:
         F_SET(conn, WT_CONN_LEAK_MEMORY);
 
     /* Time since the shutdown has started. */
-    __wt_epoch(session, &cur_time);
-    time_diff = WT_TIMEDIFF_SEC(cur_time, timer_start);
+    __wt_timer_evaluate(session, &timer, &time_diff);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
       "shutdown has successfully finished and ran for %" PRIu64 " seconds", time_diff);
 

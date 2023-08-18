@@ -211,18 +211,18 @@ __wt_op_timer_fired(WT_SESSION_IMPL *session)
 static inline void
 __wt_timer_start(WT_SESSION_IMPL *session, WT_TIMER *start_time)
 {
-    __wt_epoch(session, &start_time);
+    __wt_epoch(session, start_time);
 }
 
 /*
  * __wt_timer_evaluate --
- *     Evaluate difference between the current time and start time
- *     and output the difference in seconds.
+ *     Evaluate difference between the current time and start time and output the difference in
+ *     seconds.
  */
 static inline void
 __wt_timer_evaluate(WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff)
 {
-    WT_TIMER cur_time;
+    struct timespec cur_time;
     __wt_epoch(session, &cur_time);
     *time_diff = WT_TIMEDIFF_SEC(cur_time, *start_time);
 }
