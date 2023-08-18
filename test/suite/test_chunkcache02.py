@@ -35,8 +35,16 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-class test_chunkcache(wttest.WiredTigerTestCase):
+'''
+Testing chunkcache in-memory and on-disk.
+
+Create a multithreaded environment to allow for the allocation and deallocation of bits
+in the bitmap (for the on-disk case) and chunks.
+'''
+class test_chunkcache02(wttest.WiredTigerTestCase):
     uri = "table:test_chunkcache02"
+    rows = 10000
+    num_threads = 20
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
@@ -59,9 +67,6 @@ class test_chunkcache(wttest.WiredTigerTestCase):
     def conn_extensions(self, extlist):
         extlist.extension('storage_sources', 'dir_store')
 
-    rows = 10000
-    num_threads = 20
-
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
@@ -77,7 +82,7 @@ class test_chunkcache(wttest.WiredTigerTestCase):
             cursor.search()
             self.assertEqual(cursor.get_value(), str(key) * self.rows)
 
-    def test_practice(self):
+    def test_chunkcache02(self):
         ds = SimpleDataSet(
             self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
@@ -111,5 +116,5 @@ class test_chunkcache(wttest.WiredTigerTestCase):
             thread.join()
 
         # Check relevant chunkcache stats.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_bytes_inuse), 0)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse), 0)
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_evicted), 0)
