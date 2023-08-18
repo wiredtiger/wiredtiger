@@ -121,13 +121,13 @@ __rts_btree_walk_page_skip(
 static int
 __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
-    struct timespec rollback_timer;
+    WT_TIMER timer;
     WT_DECL_RET;
     WT_REF *ref;
     uint64_t rollback_msg_count;
 
     /* Initialize the verbose tracking timer. */
-    __wt_epoch(session, &rollback_timer);
+    __wt_timer_start(session, &timer);
     rollback_msg_count = 0;
 
     /* Walk the tree, marking commits aborted where appropriate. */

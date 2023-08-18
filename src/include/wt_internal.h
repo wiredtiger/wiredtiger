@@ -404,6 +404,7 @@ typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
 typedef union __wt_rand_state WT_RAND_STATE;
 
+typedef struct timespec WT_TIMER;
 typedef uint64_t wt_timestamp_t;
 
 /*

@@ -1102,12 +1102,12 @@ __conn_is_new(WT_CONNECTION *wt_conn)
 static int
 __conn_close(WT_CONNECTION *wt_conn, const char *config)
 {
-    struct timespec cur_time, timer_start;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *s, *session;
+    WT_TIMER timer;
     uint64_t time_diff;
     uint32_t i;
 
@@ -1117,7 +1117,7 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 err:
 
     /* Initialize the tracking timer */
-    __wt_epoch(session, &timer_start);
+    __wt_timer_start(&timer);
 
     /*
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
