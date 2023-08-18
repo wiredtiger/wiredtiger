@@ -2277,6 +2277,7 @@ start_run(WTPERF *wtperf)
     if ((ret = setup_log_file(wtperf)) != 0)
         goto err;
 
+    testutil_check(mkdir("WT_TEST_0_0/bucket1", 0775));
     if ((ret = wiredtiger_open(/* Open the real connection. */
            wtperf->home, NULL, opts->conn_config, &wtperf->conn)) != 0) {
         lprintf(wtperf, ret, 0, "Error connecting to %s", wtperf->home);
