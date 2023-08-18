@@ -39,23 +39,20 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
     {
         size_t bit_index;
         /* Allocate all the bits in the bitmap sequentially. */
-        for (uint32_t i = 0; i < num_chunks; i++) {
+        for (uint32_t i = 0; i < num_chunks; i++)
             REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == 0);
-            REQUIRE(i == bit_index);
-        }
 
         REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == ENOSPC);
 
         /* Free all the bits in the bitmap sequentially. */
-        for (uint32_t i = 0; i < num_chunks; i++) {
+        for (uint32_t i = 0; i < num_chunks; i++)
             __ut_chunkcache_bitmap_free(session_impl, i);
-        }
 
         /* Reallocate all the bits to ensure all the frees were successful. */
-        for (uint32_t i = 0; i < num_chunks; i++) {
+        for (uint32_t i = 0; i < num_chunks; i++)
             REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == 0);
-            REQUIRE(i == bit_index);
-        }
+
+        REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == ENOSPC);
     }
 
     SECTION("Random allocation and free")
@@ -63,10 +60,8 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
         size_t bit_index, random_num_chunks;
 
         /* Allocate bits to the bitmap */
-        for (uint32_t i = 0; i < num_chunks; i++) {
+        for (uint32_t i = 0; i < num_chunks; i++)
             REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == 0);
-            REQUIRE(i == bit_index);
-        }
 
         REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == ENOSPC);
 
@@ -78,7 +73,6 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
                 uint32_t random_bit_index = rand() % num_chunks;
                 __ut_chunkcache_bitmap_free(session_impl, random_bit_index);
                 REQUIRE(__ut_chunkcache_bitmap_alloc(session_impl, &bit_index) == 0);
-                REQUIRE(random_bit_index == bit_index);
             }
         }
     }

@@ -86,8 +86,8 @@ retry:
     WT_ASSERT(session, *bit_index < num_chunks);
 
     /*
-     * Cast to volatile to prevent multiple reads. FIXME WT-11285 Use the
-     * WT_READ_ONCE macro instead.
+     * Cast to volatile to prevent multiple reads. FIXME WT-11285 Use the WT_READ_ONCE macro
+     * instead.
      */
     map_byte_expected = *(volatile uint8_t *)&chunkcache->free_bitmap[*bit_index / 8];
     map_byte_mask = (uint8_t)(0x01 << (*bit_index % 8));
