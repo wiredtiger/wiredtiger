@@ -246,7 +246,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      */
     if (readonly) {
         LF_SET(WT_FS_OPEN_READONLY);
-        F_SET(block, WT_BLOCK_READONLY);
+        block->readonly = true;
     }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
