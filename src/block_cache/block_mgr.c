@@ -121,7 +121,7 @@ __bm_checkpoint(
         __wt_readlock(session, &bm->handle_array_lock);
         for (i = 0; i < bm->handle_array_next; ++i) {
             block = bm->handle_array[i];
-            if (F_ISSET(block, WT_BLOCK_SYNC_ON_CHECKPOINT)) {
+            if (block->sync_on_checkpoint) {
                 found = true;
                 break;
             }
@@ -130,7 +130,7 @@ __bm_checkpoint(
 
         if (found) {
             WT_RET(__wt_fsync(session, block->fh, true));
-            F_CLR(block, WT_BLOCK_SYNC_ON_CHECKPOINT);
+            block->sync_on_checkpoint = false;
         }
     } while (found);
 
@@ -611,7 +611,7 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
     WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));
 
     /* The previous object must by synced to disk as part of the next checkpoint. */
-    F_SET(current, WT_BLOCK_SYNC_ON_CHECKPOINT);
+    current->sync_on_checkpoint = true;
 
     /*
      * Switch the active handle. We take the handle table lock to coordinate with a reader who is

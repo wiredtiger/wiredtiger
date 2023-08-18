@@ -258,7 +258,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * header so that the header gets copied.
      */
     if (block->size == allocsize && F_ISSET(conn, WT_CONN_INCR_BACKUP))
-        F_SET(block, WT_BLOCK_CREATED_DURING_BACKUP);
+        block->created_during_backup = true;
 
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));

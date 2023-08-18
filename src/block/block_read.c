@@ -205,7 +205,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
      * out of space We do not propagate this error up to our caller; we read the needed data
      * ourselves instead.
      */
-    if (session->dhandle->type == WT_DHANDLE_TYPE_TIERED && F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED))
+    if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED))
         WT_RET_ERROR_OK(
           __wt_chunkcache_get(session, block, objectid, offset, size, buf->mem, &chunkcache_hit),
           ENOSPC);
@@ -248,7 +248,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 
     /* Panic if a checksum fails during an ordinary read. */
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-    if (F_ISSET(block, WT_BLOCK_VERIFY) || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+    if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         return (WT_ERROR);
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
 }
