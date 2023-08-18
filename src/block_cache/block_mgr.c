@@ -39,7 +39,7 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_ASSERT(
       session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
 
-    if (F_ISSET(block, WT_BLOCK_SYNC_ON_CHECKPOINT))
+    if (block->sync_on_checkpoint)
         WT_RET(__wt_fsync(session, block->fh, true));
 
     /* If fsync fails WT panics so failure to reach __wt_block_close() is irrelevant. */

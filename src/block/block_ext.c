@@ -1381,7 +1381,7 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
     u_int i;
     const char *sep;
 
-    if (block->verify_layout) &&
+    if (!block->verify_layout &&
       !WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_2))
         return (0);
 

@@ -34,7 +34,7 @@ __wt_block_verify_start(
 
     /* Configuration: strict behavior on any error. */
     WT_RET(__wt_config_gets(session, cfg, "strict", &cval));
-    block->verify_struct = cval.val != 0;
+    block->verify_strict = cval.val != 0;
 
     /* Configuration: dump the file's layout. */
     WT_RET(__wt_config_gets(session, cfg, "dump_layout", &cval));

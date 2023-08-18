@@ -500,7 +500,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
         return (ENOTSUP);
 
     /* Only cache read-only tiered objects. */
-    if (!F_ISSET(block, WT_BLOCK_READONLY))
+    if (!block->readonly)
         return (__wt_read(session, block->fh, offset, size, dst));
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
