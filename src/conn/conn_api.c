@@ -1116,7 +1116,6 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
 
-    /* Initialize the tracking timer */
     __wt_timer_start(session, &timer);
 
     /*

@@ -115,7 +115,6 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
 
-    /* Initialize the verbose tracking timer. */
     __wt_timer_start(session, &timer);
     rollback_count = 0;
     rollback_msg_count = 0;

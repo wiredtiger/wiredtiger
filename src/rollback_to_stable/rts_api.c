@@ -138,7 +138,6 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     if (!*skipp)
         return (0);
 
-    /* Initialize the tracking timer. */
     __wt_timer_start(session, &timer);
     WT_RET(__wt_metadata_search(session, uri, &config));
 
@@ -208,7 +207,6 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     S2C(session)->rts->dryrun = dryrun;
 
-    /* Initialize the tracking timer */
     __wt_timer_start(session, &timer);
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);

@@ -32,7 +32,7 @@ build() {
         echo "    typedef $t $n $upper;"
     done
 
-    # Following fixed types we use.
+    # Fixed types we use.
     echo
     echo 'typedef struct timespec WT_TIMER;'
     echo 'typedef uint64_t wt_timestamp_t;'

@@ -2498,7 +2498,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * clean shutdown.
          */
         if (use_timestamp) {
-            /* Initialize the tracking timer */
             __wt_timer_start(session, &timer);
             __wt_verbose(session, WT_VERB_RTS,
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
@@ -2525,7 +2524,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             const char *checkpoint_cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
 
-            /* Initialize the tracking timer */
             __wt_timer_start(session, &timer);
 
             WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));

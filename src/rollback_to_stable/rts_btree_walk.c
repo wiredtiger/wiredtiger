@@ -126,7 +126,6 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_TIMER timer;
     uint64_t msg_count;
 
-    /* Initialize the verbose tracking timer. */
     __wt_timer_start(session, &timer);
     msg_count = 0;
 

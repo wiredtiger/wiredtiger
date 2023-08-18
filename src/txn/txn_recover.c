@@ -802,7 +802,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
-    /* Initialize the tracking timer */
     __wt_timer_start(session, &timer);
 
     /* We need a real session for recovery. */
@@ -1052,7 +1051,7 @@ done:
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
-        /* Time since the Log replay has started. */
+        /* Time since the recovery checkpoint has started. */
         __wt_timer_evaluate(session, &checkpoint_timer, &time_diff);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "recovery checkpoint has successfully finished and ran for %" PRIu64 " seconds",
