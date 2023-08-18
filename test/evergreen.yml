@@ -1051,9 +1051,9 @@ functions:
           if [ ${no_create|false} = false ]; then
             rm -rf WT_TEST*
           fi
-          ${virtualenv_binary} -p ${python_binary} venv
+          virtualenv -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install psutil==5.9.4
+          pip3 install psutil==5.9.4
           ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
           ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
 
@@ -1089,7 +1089,7 @@ functions:
         silent: true
         script: |
           set -o errexit
-          ${virtualenv_binary} -p ${python_binary} venv
+          virtualenv -p ${python_binary} venv
           source venv/bin/activate
           ${pip3_binary} install pymongo[srv]==3.12.2 pygit2==1.10.1
           if [[ ! -d "automation-scripts" ]]; then
@@ -1122,7 +1122,7 @@ functions:
         shell: bash
         script: |
           set -o errexit
-          ${virtualenv_binary} -p ${python_binary} venv
+          virtualenv -p ${python_binary} venv
           source venv/bin/activate
           ${python_binary} ../../../bench/perf_run_py/validate_expected_stats.py '${stat_file}' ${comparison_op} '${expected-stats}'
 
