@@ -19,7 +19,7 @@ static void __hazard_dump(WT_SESSION_IMPL *);
 static int
 hazard_grow(WT_SESSION_IMPL *session)
 {
-    WT_HAZARD *nhazard;
+    WT_HAZARD *new_hazard;
     size_t size;
     uint64_t hazard_gen;
     void *ohazard;
@@ -28,8 +28,8 @@ hazard_grow(WT_SESSION_IMPL *session)
      * Allocate a new, larger hazard pointer array and copy the contents of the original into place.
      */
     size = session->hazard_size;
-    WT_RET(__wt_calloc_def(session, size * 2, &nhazard));
-    memcpy(nhazard, session->hazard, size * sizeof(WT_HAZARD));
+    WT_RET(__wt_calloc_def(session, size * 2, &new_hazard));
+    memcpy(new_hazard, session->hazard, size * sizeof(WT_HAZARD));
 
     /*
      * Swap the new hazard pointer array into place after initialization is complete (initialization
@@ -37,13 +37,9 @@ hazard_grow(WT_SESSION_IMPL *session)
      * original to be freed.
      */
     ohazard = session->hazard;
-    WT_PUBLISH(session->hazard, nhazard);
+    WT_PUBLISH(session->hazard, new_hazard);
 
-    /*
-     * Increase the size of the session's pointer array after swapping it into place (the session's
-     * reference must be updated before eviction can see the new size).
-     */
-    WT_PUBLISH(session->hazard_size, (uint32_t)(size * 2));
+    session->hazard_size = (uint32_t)(size * 2);
 
     /*
      * Threads using the hazard pointer array from now on will use the new one. Increment the hazard
@@ -102,6 +98,13 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
         WT_ASSERT(session,
           session->nhazard == session->hazard_inuse &&
             session->hazard_inuse < session->hazard_size);
+        /*
+         * Our session->hazard pointer may have been updated by hazard_grow. If this is the case we
+         * need to ensure the updated pointer is visible to other threads before the increment of
+         * hazard_inuse as we use this value to walk the hazard array, and using the new
+         * hazard_inuse on the old hazard array can lead to reading past the end of the array.
+         */
+        WT_WRITE_BARRIER();
         hp = &session->hazard[session->hazard_inuse++];
     } else {
         WT_ASSERT(session,
@@ -243,6 +246,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_DIAGNOSTIC
     __hazard_dump(session);
+    __wt_abort(session);
 #endif
 
     /*
