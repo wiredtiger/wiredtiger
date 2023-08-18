@@ -26,10 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wttest
+import os, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
+# Basic functional chunk cache test - put some data in, make sure it
+# comes back out unscathed.
 class test_chunkcache01(wttest.WiredTigerTestCase):
     uri = 'table:test_chunkcache01'
 
@@ -45,6 +47,12 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(format_values, cache_types)
+
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
     def conn_config(self):
         if not os.path.exists('bucket1'):
@@ -66,3 +74,4 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         self.close_conn()
         self.reopen_conn()
         ds.check()
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_bytes_inuse), 0)
