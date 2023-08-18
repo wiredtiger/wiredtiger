@@ -25,16 +25,20 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# Run a simple workload on the chunkcache using insert and read. First insert data onto the table,
+# reopen the connection and configure the chunkcache. Perform reads to update the chunkcache.
 
 from runner import *
 from wiredtiger import *
 from workgen import *
-
+import os
 
 # Set up the WiredTiger connection.
 context = Context()
-conn_config = "create,cache_size=70MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)"
-restart_config = "create,cache_size=70MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),chunk_cache=[enabled=true,chunk_size=10MB,capacity=1GB,type=FILE,storage_path=/home/ubuntu/wiredtiger/w/chunk_file]"
+dir = os.getcwd()
+conn_config = 'create,cache_size=70MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
+restart_config = conn_config + f',chunk_cache=[enabled=true,chunk_size=10MB,capacity=1GB,type=FILE,storage_path={dir}/chunkcache_tmp]'
 conn = context.wiredtiger_open(conn_config)
 s = conn.open_session()
 tname = 'table:chunkcache'
@@ -45,7 +49,7 @@ table.options.value_size = 100
 
 # Populate phase
 insert_ops = Operation(Operation.OP_INSERT, table)
-insert_thread = Thread(insert_ops * 20000)
+insert_thread = Thread(insert_ops * 100000)
 populate_workload = Workload(context, insert_thread * 40)
 ret = populate_workload.run(conn)
 assert ret == 0, ret
@@ -57,11 +61,10 @@ s = conn.open_session("")
 
 # Read into the chunkcache 
 read_op = Operation(Operation.OP_SEARCH, table)
-read_op._config = 'reopen'
-read_thread = Thread(read_op * 20000)
+read_thread = Thread(read_op * 100000)
 read_workload = Workload(context, read_thread * 40)
-read_workload.options.run_time = 30
-read_workload.options.report_interval = 5
+read_workload.options.run_time = 20
+read_workload.options.report_interval = 1
 ret = read_workload.run(conn)
 assert ret == 0, ret
 
