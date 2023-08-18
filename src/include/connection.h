@@ -50,6 +50,7 @@ struct __wt_background_compact_stat {
     uint64_t start_time;
     uint64_t time_taken;
     uint64_t last_unsuccessful_compact;
+    uint64_t last_successful_compact;
 
     uint64_t skip_count;
 
@@ -57,6 +58,17 @@ struct __wt_background_compact_stat {
     wt_off_t end_size;
     wt_off_t bytes_recovered;
     uint64_t bytes_rewritten;
+
+    uint64_t bytes_avail_moving_avg;
+
+    uint64_t compact_attempts;
+    uint64_t unsuccessful_compact_attempts;
+    uint64_t unsuccessful_attempts_since_last_successful_compact;
+
+    /* Compact bytes rewritten per second for the last compact. */
+    uint64_t bytes_rewritten_rate;
+    /* Exponential moving average for the bytes rewritten rate. */
+    double bytes_rewritten_rate_ema;
 
     // struct timespec start_time;
 

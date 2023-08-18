@@ -25,8 +25,9 @@ __get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session);
 
+    /* Find the uri in the files compacted list. */
     TAILQ_FOREACH (dsrc_stat, &conn->background_compact.tables, q) {
-        if (!strcmp(uri, dsrc_stat->uri)) {
+        if (strcmp(uri, dsrc_stat->uri) == 0) {
             return (dsrc_stat);
         }
     }
@@ -48,13 +49,13 @@ __should_compact(WT_SESSION_IMPL *session, const char *uri)
 
     cur_time = __wt_clock(session);
 
-    /* 
-     * Don't compact if we've seen this table recently or if we've had recent unsuccessful attempts. 
+    /*
+     * Don't compact if we've seen this table recently or if we've had recent unsuccessful attempts.
      */
     time_since_last_compact = WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time);
-    if (WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) < 5 ||
-      WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->last_unsuccessful_compact) < 10)
-        return (false);
+    // if (WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) < 5 ||
+    //   WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->last_unsuccessful_compact) < 10)
+    //     return (false);
 
     return (true);
 }
@@ -85,6 +86,13 @@ __compact_background_start(
     WT_RET(bm->size(bm, session, &temp_dsrc_stat->start_size));
     temp_dsrc_stat->start_time = __wt_clock(session);
 
+    /* Calculate the moving average of bytes available in this file. */
+    temp_dsrc_stat->bytes_avail_moving_avg =
+      (bm->block->live.avail.bytes +
+        temp_dsrc_stat->compact_attempts * temp_dsrc_stat->bytes_avail_moving_avg) /
+      (temp_dsrc_stat->compact_attempts + 1);
+    temp_dsrc_stat->compact_attempts++;
+
     *dsrc_stat = temp_dsrc_stat;
 
     return (0);
@@ -95,6 +103,7 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *d
 {
     WT_BM *bm;
     uint64_t cur_time;
+    uint64_t bytes_rewritten_rate;
 
     bm = S2BT(session)->bm;
 
@@ -102,10 +111,25 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *d
     dsrc_stat->time_taken = WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time);
 
     WT_RET(bm->size(bm, session, &dsrc_stat->end_size));
-    dsrc_stat->bytes_recovered = dsrc_stat->end_size - dsrc_stat->start_size;
+    dsrc_stat->bytes_recovered = dsrc_stat->start_size - dsrc_stat->end_size;
 
-    if (dsrc_stat->bytes_recovered <= 0)
+    if (dsrc_stat->bytes_recovered <= 0){
         dsrc_stat->last_unsuccessful_compact = __wt_clock(session);
+        dsrc_stat->unsuccessful_compact_attempts++;
+        dsrc_stat->unsuccessful_attempts_since_last_successful_compact++;
+    } else {
+        dsrc_stat->last_successful_compact = __wt_clock(session);
+        dsrc_stat->unsuccessful_attempts_since_last_successful_compact = 0;
+        dsrc_stat->bytes_rewritten = bm->block->compact_bytes_rewritten;
+        if (dsrc_stat->time_taken > 0){
+            bytes_rewritten_rate = dsrc_stat->bytes_rewritten / dsrc_stat->time_taken;
+            dsrc_stat->bytes_rewritten_rate_ema = 0.1 * bytes_rewritten_rate + 0.9 * dsrc_stat->bytes_rewritten_rate_ema;
+            /* Update the lates bytes rewritten rate. */
+            dsrc_stat->bytes_rewritten_rate = bytes_rewritten_rate;
+        }
+    }
+
+
 
     return (0);
 }
