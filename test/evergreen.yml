@@ -55,7 +55,7 @@ functions:
           value: |
             if [ "$OS" = "Windows_NT" ]; then
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
-            else 
+            else
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
             fi
 
