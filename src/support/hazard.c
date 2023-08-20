@@ -22,7 +22,7 @@ hazard_grow(WT_SESSION_IMPL *session)
     WT_HAZARD *new_hazard;
     size_t size;
     uint64_t hazard_gen;
-    void *ohazard;
+    void *old_hazard;
 
     /*
      * Allocate a new, larger hazard pointer array and copy the contents of the original into place.
@@ -36,7 +36,7 @@ hazard_grow(WT_SESSION_IMPL *session)
      * must complete before eviction can see the new hazard pointer array), then schedule the
      * original to be freed.
      */
-    ohazard = session->hazard;
+    old_hazard = session->hazard;
     WT_PUBLISH(session->hazard, new_hazard);
 
     session->hazard_size = (uint32_t)(size * 2);
@@ -47,7 +47,7 @@ hazard_grow(WT_SESSION_IMPL *session)
      * leak the memory.
      */
     __wt_gen_next(session, WT_GEN_HAZARD, &hazard_gen);
-    WT_IGNORE_RET(__wt_stash_add(session, WT_GEN_HAZARD, hazard_gen, ohazard, 0));
+    WT_IGNORE_RET(__wt_stash_add(session, WT_GEN_HAZARD, hazard_gen, old_hazard, 0));
 
     return (0);
 }
