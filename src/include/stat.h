@@ -310,23 +310,24 @@ __wt_stats_clear(void *stats_arg, int slot)
             WT_STAT_CONN_INCR(session, stat##_gt10000);                                           \
     }
 
-#define WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(ratio)                                                \
-    static inline void __wt_stat_compr_ratio_hist_incr(WT_SESSION_IMPL *session, uint64_t ratio) \
-    {                                                                                            \
-        if (ratio < 2)                                                                           \
-            WT_STAT_DATA_INCR(session, compress_hist_ratio_2);                                   \
-        else if (ratio < 4)                                                                      \
-            WT_STAT_DATA_INCR(session, compress_hist_ratio_4);                                   \
-        else if (ratio < 8)                                                                      \
-            WT_STAT_DATA_INCR(session, compress_hist_ratio_8);                                   \
-        else if (ratio < 16)                                                                     \
-            WT_STAT_DATA_INCR(session, compress_hist_ratio_16);                                  \
-        else if (ratio < 32)                                                                     \
-            WT_STAT_DATA_INCR(session, compress_hist_ratio_32);                                  \
-        else if (ratio < 64)                                                                     \
-            WT_STAT_DATA_INCR(session, compress_hist_ratio_64);                                  \
-        else                                                                                     \
-            WT_STAT_DATA_INCR(session, compress_hist_ratio_max);                                 \
+#define WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(name, stat)         \
+    static inline void __wt_stat_compr_ratio_hist_incr_##name( \
+      WT_SESSION_IMPL *session, uint64_t ratio)                \
+    {                                                          \
+        if (ratio < 2)                                         \
+            WT_STAT_DATA_INCR(session, stat##_2);              \
+        else if (ratio < 4)                                    \
+            WT_STAT_DATA_INCR(session, stat##_4);              \
+        else if (ratio < 8)                                    \
+            WT_STAT_DATA_INCR(session, stat##_8);              \
+        else if (ratio < 16)                                   \
+            WT_STAT_DATA_INCR(session, stat##_16);             \
+        else if (ratio < 32)                                   \
+            WT_STAT_DATA_INCR(session, stat##_32);             \
+        else if (ratio < 64)                                   \
+            WT_STAT_DATA_INCR(session, stat##_64);             \
+        else                                                   \
+            WT_STAT_DATA_INCR(session, stat##_max);            \
     }
 
 /*

@@ -9,9 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * Define a function that increments histogram statistics compression ratios.
+ * Define functions that increment histogram statistics compression ratios for read and write
+ * operations.
  */
-WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(ratio)
+WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(read, compress_read_hist_ratio)
+WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(write, compress_write_hist_ratio)
 
 /*
  * __blkcache_read_corrupt --
@@ -193,7 +195,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
               __blkcache_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
 
         compression_ratio = result_len / (tmp->size - WT_BLOCK_COMPRESS_SKIP);
-        __wt_stat_compr_ratio_hist_incr(session, compression_ratio);
+        __wt_stat_compr_ratio_hist_incr_read(session, compression_ratio);
 
     } else {
         /*
