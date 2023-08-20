@@ -33,11 +33,11 @@ functions:
     - command: expansions.update
       params:
         updates:
-        - key: PREPARE_SHELL
+        - key: PREPARE_TEST_ENV
           value: |
             export WT_TOPDIR=$(git rev-parse --show-toplevel)
             export WT_BUILDDIR=$WT_TOPDIR/cmake_build
-            
+
             if [ "$OS" = "Windows_NT" ]; then
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
               export PYTHONPATH="($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)"
@@ -51,7 +51,7 @@ functions:
               export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
             fi
             ${additional_env_vars}
-        - key: PREPARE_COMPILE
+        - key: PREPARE_PATH
           value: |
             if [ "$OS" = "Windows_NT" ]; then
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
@@ -118,7 +118,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_COMPILE}
+        ${PREPARE_PATH}
         virtualenv -p python3 venv
         source venv/bin/activate
         pip3 install requirements_parser
@@ -132,7 +132,7 @@ functions:
       shell: bash
       script: |
         set -o errexit
-        ${PREPARE_COMPILE}
+        ${PREPARE_PATH}
         # Not setting verbose mode as we have sensitive keys that could be logged.
 
         # Define common config flags for the tasks to make it cleaner when configuring the tasks.
@@ -245,7 +245,7 @@ functions:
         set -o errexit
         set -o verbose
         echo "Starting 'make wiredtiger' step"
-        ${PREPARE_COMPILE}
+        ${PREPARE_PATH}
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
           powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
@@ -302,7 +302,7 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          ${PREPARE_SHELL}
+          ${PREPARE_TEST_ENV}
           ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' 120
   "run tiered storage test":
     - command: shell.exec
@@ -314,7 +314,7 @@ functions:
           - aws_sdk_s3_ext_secret_key
         script: |
           set -o errexit
-          ${PREPARE_SHELL}
+          ${PREPARE_TEST_ENV}
 
           # Set the Azure credentials using config variable.
           export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
@@ -462,7 +462,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build/${directory}
         $CTEST ${smp_command|} --output-on-failure 2>&1
@@ -474,7 +474,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using smp_command '${smp_command}' for 'make check all'"
@@ -494,7 +494,7 @@ functions:
         shell: bash
         script: |
           set -o verbose
-          ${PREPARE_SHELL}
+          ${PREPARE_TEST_ENV}
           ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
           exit_code=$?
           echo "$exit_code" > cppsuite_exit_code
@@ -557,7 +557,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         ./test_wt2853_perf ${wt2853_perf_args}
 
   "csuite test":
@@ -568,7 +568,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         $(pwd)/test/csuite/${test_name}/test_${test_name} ${test_args|} 2>&1
 
   "unit test":
@@ -579,7 +579,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         cd cmake_build
         echo "Using smp_command '${smp_command}' for 'unit test'"
         if [ ${check_coverage|false} = true ]; then
@@ -596,7 +596,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_COMPILE}
+        ${PREPARE_PATH}
         virtualenv -p python3 venv
         source venv/bin/activate
         pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
@@ -643,7 +643,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         # Fail, show the configuration file.
         fail() {
           echo "======= FAILURE =========="
@@ -667,7 +667,7 @@ functions:
         # replay using the same data seed, should guarantee we have equivalent data created.
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         # Get a random value with leading zeroes removed, /bin/sh version.
         rando() {
           tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
@@ -716,7 +716,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         ${format_test_setting|}
         for i in $(seq ${times|1}); do
           ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
@@ -732,7 +732,7 @@ functions:
         # only kind of URI that participates in tiered storage.
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         format_args="tiered_storage.storage_source=dir_store tiered_storage.flush_frequency=60 checkpoint.wait=15 runs.source=table runs.timer=10"
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
@@ -747,7 +747,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         ./test_manydbs ${many_db_args|} 2>&1
   "thread test":
     command: shell.exec
@@ -757,7 +757,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         ./t ${thread_test_args|} 2>&1
   "recovery stress test script":
     command: shell.exec
@@ -767,7 +767,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
 
         for i in $(seq ${times|1}); do
           # Run the various combinations of args. Let time and threads be random. Add a
@@ -813,7 +813,7 @@ functions:
         # Run schema_abort in a way that can test predictable replay.
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         runtime=20  # seconds
         nthreads=5
 
@@ -899,7 +899,7 @@ functions:
       shell: bash
       script: |
         set -o verbose
-        ${PREPARE_COMPILE}
+        ${PREPARE_PATH}
 
         # Dump core (-c) and debugger outputs (-o)
         wt_hang_analyzer_option="-c -o file -o stdout"
@@ -949,7 +949,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         ./test_checkpoint ${checkpoint_args} 2>&1
 
   "checkpoint test predictable":
@@ -966,7 +966,7 @@ functions:
         # Run test/checkpoint in a way that can test predictable replay.
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
 
         toolsdir=../../../tools
         wtutil=../../wt
@@ -1010,7 +1010,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
         CMD='./test_checkpoint -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
 
@@ -1050,7 +1050,7 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          ${PREPARE_SHELL}
+          ${PREPARE_TEST_ENV}
 
           if [ ${no_create|false} = false ]; then
             rm -rf WT_TEST*
@@ -1069,7 +1069,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
   "upload test stats":
@@ -1093,7 +1093,7 @@ functions:
         silent: true
         script: |
           set -o errexit
-          ${PREPARE_COMPILE}
+          ${PREPARE_PATH}
           virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
           pip3 install pymongo[srv]==3.12.2 pygit2==1.10.1
@@ -1127,7 +1127,7 @@ functions:
         shell: bash
         script: |
           set -o errexit
-          ${PREPARE_COMPILE}
+          ${PREPARE_PATH}
           virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
           ${python_binary|python3} ../../../bench/perf_run_py/validate_expected_stats.py '${stat_file}' ${comparison_op} '${expected-stats}'
@@ -1160,7 +1160,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${PREPARE_SHELL}
+        ${PREPARE_TEST_ENV}
         for i in $(seq ${times|15}); do
             ${python_binary|python3} split_stress.py
         done
@@ -1644,7 +1644,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             test/unittest/unittests
 
   - name: unittest-assertions
@@ -1660,7 +1660,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             test/unittest/unittests
 
   # End of normal make check test tasks
@@ -2648,7 +2648,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' ${smp_command|} 2>&1
 
   - name: unit-test-hook-tiered-timestamp
@@ -2698,7 +2698,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             cd cmake_build
             i=0
             limit=100
@@ -3169,7 +3169,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             ${python_binary|python3} ../../../test/wtperf/test_conf_dump.py -d $(pwd) 2>&1
 
   - name: fops
@@ -3185,7 +3185,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             if [ "Windows_NT" = "$OS" ]; then
               cmd.exe /c test_fops.exe
             else
@@ -3208,7 +3208,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             ./test_push_pull -PT -Po s3_store
 
   - name: bench-tiered-push-pull
@@ -3223,7 +3223,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             # By default the test_push_pull uses dir_store as a storage source.
             ./test_push_pull -PT
 
@@ -3515,7 +3515,7 @@ tasks:
             
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             # Record the start time, in seconds
             date +%s > ../time.txt
             # Perform the tests to get code coverage metrics for
@@ -3720,7 +3720,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             # Record the start time, in seconds
             date +%s > ../time.txt
             # Perform the tests to get code coverage metrics for
@@ -3780,7 +3780,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-gcp-tiered-storage-extensions-test
@@ -3830,7 +3830,7 @@ tasks:
                 -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
 
             # Run Azure extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
@@ -3889,7 +3889,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             # The test will generate WT_TEST directory automatically
             dir=../bench/wtperf/stress
             for file in `ls $dir`
@@ -4361,7 +4361,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             ./run_format_configs.sh ${smp_command|}
 
   - name: static-wt-build-test
@@ -4458,7 +4458,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             for i in $(seq 5); do
                 ${python_binary|python3} skiplist_stress.py
             done
@@ -4496,7 +4496,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             for i in $(seq 5); do
                 ${python_binary|python3} skiplist_stress.py
             done
