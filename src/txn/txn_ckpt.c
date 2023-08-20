@@ -379,10 +379,8 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
      */
     TAILQ_FOREACH (ndsrc, &S2C(session)->dsrcqh, q) {
         dsrc = ndsrc->dsrc;
-        if (dsrc->checkpoint != NULL) {
-            WT_STAT_CONN_INCR(session, checkpoint_custom_dsrc);
+        if (dsrc->checkpoint != NULL)
             WT_RET(dsrc->checkpoint(dsrc, (WT_SESSION *)session, (WT_CONFIG_ARG *)cfg));
-        }
     }
     return (0);
 }

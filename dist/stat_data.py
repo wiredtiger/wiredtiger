@@ -355,7 +355,6 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoint_custom_dsrc', 'number of custom data sources checkpointed'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_generation', 'generation', 'no_clear,no_scale'),

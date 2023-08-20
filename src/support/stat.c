@@ -1527,7 +1527,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
   "checkpoint: number of checkpoints started",
-  "checkpoint: number of custom data sources checkpointed",
   "checkpoint: number of files synced",
   "checkpoint: number of handles visited after writes complete",
   "checkpoint: number of history store pages caused to be reconciled",
@@ -2189,7 +2188,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_handle_walked = 0;
     /* not clearing checkpoint_time_recent */
     stats->checkpoints = 0;
-    stats->checkpoint_custom_dsrc = 0;
     stats->checkpoint_sync = 0;
     stats->checkpoint_presync = 0;
     stats->checkpoint_hs_pages_reconciled = 0;
@@ -2857,7 +2855,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_walked += WT_STAT_READ(from, checkpoint_handle_walked);
     to->checkpoint_time_recent += WT_STAT_READ(from, checkpoint_time_recent);
     to->checkpoints += WT_STAT_READ(from, checkpoints);
-    to->checkpoint_custom_dsrc += WT_STAT_READ(from, checkpoint_custom_dsrc);
     to->checkpoint_sync += WT_STAT_READ(from, checkpoint_sync);
     to->checkpoint_presync += WT_STAT_READ(from, checkpoint_presync);
     to->checkpoint_hs_pages_reconciled += WT_STAT_READ(from, checkpoint_hs_pages_reconciled);

@@ -571,7 +571,6 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
     int64_t checkpoints;
-    int64_t checkpoint_custom_dsrc;
     int64_t checkpoint_sync;
     int64_t checkpoint_presync;
     int64_t checkpoint_hs_pages_reconciled;
