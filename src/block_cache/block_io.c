@@ -243,7 +243,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     WT_ITEM *ip;
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
-    size_t dst_len, len, result_len, size, src_len;
+    size_t compression_ratio, dst_len, len, result_len, size, src_len;
     uint64_t time_diff, time_start, time_stop;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
@@ -295,7 +295,11 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
         compression_failed = 0;
         WT_ERR(btree->compressor->compress(btree->compressor, &session->iface, src, src_len, dst,
           dst_len, &result_len, &compression_failed));
+
+        compression_ratio = result_len / (src_len - WT_BLOCK_COMPRESS_SKIP);
         result_len += WT_BLOCK_COMPRESS_SKIP;
+
+        __wt_stat_compr_ratio_hist_incr_write(session, compression_ratio);
 
         /*
          * If compression fails, or doesn't gain us at least one unit of allocation, fallback to the
