@@ -1209,19 +1209,6 @@ class WiredTigerTestCase(unittest.TestCase):
     def className(self):
         return self.__class__.__name__
 
-def zstdtest(description):
-    """
-    Used as a function decorator, for example, @wttest.zstdtest("description").
-    The decorator indicates that this test function should only be included
-    when running the test suite with the --zstd option.
-    """
-    def runit_decorator(func):
-        return func
-    if not WiredTigerTestCase._zstdtest:
-        return unittest.skip(description + ' (enable with --zstd)')
-    else:
-        return runit_decorator
-
 def longtest(description):
     """
     Used as a function decorator, for example, @wttest.longtest("description").

@@ -41,8 +41,7 @@ class test_compress02(wttest.WiredTigerTestCase):
     nrows = 1000
 
     def conn_config(self):
-        config = 'builtin_extension_config={zstd={compression_level=6}},cache_size=10MB'
-        return config
+        return 'builtin_extension_config={zstd={compression_level=6}}'
 
     def large_updates(self, uri, value, ds, nrows):
         # Update a large number of records.
@@ -59,41 +58,40 @@ class test_compress02(wttest.WiredTigerTestCase):
         session.begin_transaction()
         cursor = session.open_cursor(uri)
         count = 0
-        for k, v in cursor:
+        for _, v in cursor:
             self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
         self.assertEqual(count, nrows)
 
-    # Load the compression extension, skip the test if missing
+    # Load the compression extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         extlist.extension('compressors', 'zstd')
 
-    @wttest.zstdtest('Skip zstd on pcc and zseries machines')
     def test_compress02(self):
-        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='block_compressor=zstd')
+        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",
+                           config='block_compressor=zstd')
         ds.populate()
         valuea = "aaaaa" * 100
 
-        cursor = self.session.open_cursor(self.uri)
         self.large_updates(self.uri, valuea, ds, self.nrows)
 
         self.check(valuea, self.uri, self.nrows)
         self.session.checkpoint()
 
-        #Simulate a crash by copying to a new directory(RESTART).
+        # Simulate a crash by copying to a new directory.
         copy_wiredtiger_home(self, ".", "RESTART")
 
         # Close the connection and reopen it with a different zstd compression level configuration.
-        restart_config = 'builtin_extension_config={zstd={compression_level=9}},cache_size=10MB'
+        restart_config = 'builtin_extension_config={zstd={compression_level=9}}'
         self.close_conn()
         self.reopen_conn("RESTART", restart_config)
 
         # Open the new directory.
         self.session = self.setUpSessionOpen(self.conn)
 
-        # Check the table contains the last checkpointed value.
+        # Check the table contains the last checkpointed values.
         self.check(valuea, self.uri, self.nrows)
 
 if __name__ == '__main__':
