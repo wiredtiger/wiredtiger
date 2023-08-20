@@ -46,7 +46,7 @@ functions:
               export LD_LIBRARY_PATH=$WT_BUILDDIR
             fi
 
-            if [[ "${CMAKE_PREFIX_PATH|}" =~ (tcmalloc|TCMALLOC) ]]; then
+            if [[ "${CMAKE_PREFIX_PATH|}" =~ TCMALLOC_LIB ]]; then
               export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_TOPDIR/TCMALLOC_LIB/lib"
               export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
             fi
@@ -118,7 +118,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
+        ${PREPARE_COMPILE}
         virtualenv -p python3 venv
         source venv/bin/activate
         pip3 install requirements_parser
@@ -235,7 +235,7 @@ functions:
       script: |
         set -o errexit
         # Confirm that the Python binary matches the version of that configured by CMake.
-        ${python_binary} ../test/evergreen/python_version_check.py -v -c ./CMakeCache.txt -s ${python_config_search_string}
+        ${python_binary|python3} ../test/evergreen/python_version_check.py -v -c ./CMakeCache.txt -s ${python_config_search_string}
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
     params:
@@ -302,6 +302,7 @@ functions:
         script: |
           set -o errexit
           set -o verbose
+          ${PREPARE_SHELL}
           ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' 120
   "run tiered storage test":
     - command: shell.exec
@@ -595,6 +596,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        ${PREPARE_COMPILE}
         virtualenv -p python3 venv
         source venv/bin/activate
         pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
@@ -641,6 +643,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        ${PREPARE_SHELL}
         # Fail, show the configuration file.
         fail() {
           echo "======= FAILURE =========="
@@ -729,6 +732,7 @@ functions:
         # only kind of URI that participates in tiered storage.
         set -o errexit
         set -o verbose
+        ${PREPARE_SHELL}
         format_args="tiered_storage.storage_source=dir_store tiered_storage.flush_frequency=60 checkpoint.wait=15 runs.source=table runs.timer=10"
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
@@ -1006,7 +1010,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-
+        ${PREPARE_SHELL}
         export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
         CMD='./test_checkpoint -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
 
@@ -1051,11 +1055,11 @@ functions:
           if [ ${no_create|false} = false ]; then
             rm -rf WT_TEST*
           fi
-          virtualenv -p ${python_binary} venv
+          virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
           pip3 install psutil==5.9.4
-          ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
-          ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
+          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
+          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
 
   "csuite smoke test":
     command: shell.exec
@@ -1080,7 +1084,7 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          ${python_binary} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
+          ${python_binary|python3} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
 
   "upload stats to atlas":
     - command: shell.exec
@@ -1089,15 +1093,16 @@ functions:
         silent: true
         script: |
           set -o errexit
-          virtualenv -p ${python_binary} venv
+          ${PREPARE_COMPILE}
+          virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
-          ${pip3_binary} install pymongo[srv]==3.12.2 pygit2==1.10.1
+          pip3 install pymongo[srv]==3.12.2 pygit2==1.10.1
           if [[ ! -d "automation-scripts" ]]; then
             git clone git@github.com:wiredtiger/automation-scripts.git
           fi
           EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
-          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -d ${database|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
+          ${python_binary|python3} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -d ${database|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
 
   "upload stats to evergreen":
     - command: perf.send
@@ -1122,9 +1127,10 @@ functions:
         shell: bash
         script: |
           set -o errexit
-          virtualenv -p ${python_binary} venv
+          ${PREPARE_COMPILE}
+          virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
-          ${python_binary} ../../../bench/perf_run_py/validate_expected_stats.py '${stat_file}' ${comparison_op} '${expected-stats}'
+          ${python_binary|python3} ../../../bench/perf_run_py/validate_expected_stats.py '${stat_file}' ${comparison_op} '${expected-stats}'
 
   "verify wt datafiles":
     - command: shell.exec
@@ -3774,7 +3780,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-
+            ${PREPARE_SHELL}
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-gcp-tiered-storage-extensions-test
@@ -3824,6 +3830,7 @@ tasks:
                 -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
+            ${PREPARE_SHELL}
 
             # Run Azure extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
@@ -5960,7 +5967,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           test_type: workgen
-          exec_path: ${python_binary}
+          exec_path: ${python_binary|python3}
           perf-test-path: ../../../bench/workgen/runner
           perf-test-name: many-dhandle-stress.py
           maxruns: 1
