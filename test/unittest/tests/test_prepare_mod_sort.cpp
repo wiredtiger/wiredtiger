@@ -169,7 +169,8 @@ TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
     WT_BTREE btrees[2];
     WT_TXN_OP ops[4];
     WT_ITEM *keys[3];
-    int ret = 0, key_sz = 3;
+    int key_sz = 3;
+    bool ret;
 
     allocate_key_space(session, key_sz, keys);
 
@@ -204,7 +205,8 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
 
     WT_BTREE btrees[2];
     WT_TXN_OP ops[10];
-    int ret = 0, key_sz = 6;
+    int key_sz = 6;
+    bool ret;
     WT_ITEM *keys[key_sz];
 
     allocate_key_space(session, key_sz, keys);
@@ -249,7 +251,8 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
 
     WT_BTREE btrees[6];
     WT_TXN_OP ops[6];
-    int ret = 0, key_sz = 1;
+    int key_sz = 1;
+    bool ret;
     WT_ITEM *keys[key_sz];
 
     allocate_key_space(session, key_sz, keys);
@@ -280,7 +283,8 @@ TEST_CASE("Keyedness sort test", "[mod_compare]")
 
     WT_BTREE btrees[12];
     WT_TXN_OP ops[12];
-    int ret = 0, key_sz = 1;
+    int key_sz = 1;
+    bool ret;
     WT_ITEM *keys[key_sz];
 
     allocate_key_space(session, key_sz, keys);
@@ -318,7 +322,8 @@ TEST_CASE("Many different row-store keys", "[mod_compare]")
 
     WT_BTREE btrees[12];
     WT_TXN_OP ops[12];
-    int ret = 0, key_sz = 12;
+    int key_sz = 12;
+    bool ret;
     WT_ITEM *keys[key_sz];
 
     allocate_key_space(session, key_sz, keys);
@@ -350,7 +355,7 @@ TEST_CASE("Different column store keys test", "[mod_compare]")
 {
     WT_BTREE btrees[12];
     WT_TXN_OP ops[8];
-    int ret = 0;
+    bool ret;
 
     for (int i = 0; i < 6; i++)
         init_btree(&btrees[i], BTREE_COL_VAR, i);
