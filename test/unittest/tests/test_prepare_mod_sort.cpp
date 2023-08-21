@@ -36,6 +36,7 @@ has_key(WT_TXN_TYPE type)
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
     }
+
     return (false);
 }
 
@@ -62,7 +63,8 @@ __mod_ops_sorted(WT_TXN_OP *ops, int op_count)
             if (aopt->btree->type == BTREE_ROW && bopt->btree->type == BTREE_ROW) {
                 auto a_key = aopt->u.op_row.key.data;
                 auto b_key = bopt->u.op_row.key.data;
-                if (*((char *)a_key) > *((char *)b_key))
+
+                if (strcmp((char *)a_key, (char *)b_key) > 0)
                     return (false);
             }
 
@@ -137,7 +139,7 @@ random_keys(size_t length)
 void
 allocate_key_space(WT_SESSION_IMPL *session, int key_sz, WT_ITEM *keys[])
 {
-    for (int i = 0; i <= key_sz; i++) {
+    for (int i = 0; i < key_sz; i++) {
         WT_DECL_ITEM(key);
         REQUIRE(__wt_scr_alloc(session, 0, &key) == 0);
         keys[i] = key;
@@ -153,8 +155,8 @@ TEST_CASE("Basic cols and non key'd op", "[mod_compare]")
     init_btree(&btrees[0], BTREE_ROW, 1);
     init_btree(&btrees[1], BTREE_COL_VAR, 2);
 
-    init_op(&ops[1], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
-    init_op(&ops[0], &btrees[1], WT_TXN_OP_BASIC_COL, 54, NULL);
+    init_op(&ops[0], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
+    init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_COL, 54, NULL);
 
     __wt_qsort_r(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
     REQUIRE(__mod_ops_sorted(ops, 2) == true);
@@ -168,9 +170,9 @@ TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
 
     WT_BTREE btrees[2];
     WT_TXN_OP ops[4];
-    WT_ITEM *keys[3];
-    int key_sz = 3;
+    const int key_sz = 3;
     bool ret;
+    WT_ITEM *keys[key_sz];
 
     allocate_key_space(session, key_sz, keys);
 
@@ -182,7 +184,7 @@ TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
     init_btree(&btrees[1], BTREE_ROW, 2);
 
     // Initialize row ops with different keys.
-    for (int i = 0; i <= 3; i++)
+    for (int i = 0; i < key_sz; i++)
         init_op(&ops[i], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[i]);
 
     init_op(&ops[3], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
@@ -191,7 +193,7 @@ TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
     ret = __mod_ops_sorted(ops, 4);
 
     // Free the allocated scratch buffers.
-    for (int i = 0; i <= key_sz; i++)
+    for (int i = 0; i < key_sz; i++)
         __wt_scr_free(session, &keys[i]);
 
     REQUIRE(ret == true);
@@ -205,7 +207,7 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
 
     WT_BTREE btrees[2];
     WT_TXN_OP ops[10];
-    int key_sz = 6;
+    const int key_sz = 6;
     bool ret;
     WT_ITEM *keys[key_sz];
 
@@ -237,7 +239,7 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
     ret = __mod_ops_sorted(ops, 10);
 
     // Free the allocated scratch buffers.
-    for (int i = 0; i <= key_sz; i++)
+    for (int i = 0; i < key_sz; i++)
         __wt_scr_free(session, &keys[i]);
 
     REQUIRE(ret == true);
@@ -251,7 +253,7 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
 
     WT_BTREE btrees[6];
     WT_TXN_OP ops[6];
-    int key_sz = 1;
+    const int key_sz = 1;
     bool ret;
     WT_ITEM *keys[key_sz];
 
@@ -269,7 +271,7 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
     ret = __mod_ops_sorted(ops, 6);
 
     // Free the allocated scratch buffers first.
-    for (int i = 0; i <= key_sz; i++)
+    for (int i = 0; i < key_sz; i++)
         __wt_scr_free(session, &keys[i]);
 
     REQUIRE(ret == true);
@@ -283,7 +285,7 @@ TEST_CASE("Keyedness sort test", "[mod_compare]")
 
     WT_BTREE btrees[12];
     WT_TXN_OP ops[12];
-    int key_sz = 1;
+    const int key_sz = 1;
     bool ret;
     WT_ITEM *keys[key_sz];
 
@@ -308,7 +310,7 @@ TEST_CASE("Keyedness sort test", "[mod_compare]")
     __wt_qsort_r(&ops, 12, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
     ret = __mod_ops_sorted(ops, 12);
 
-    for (int i = 0; i <= key_sz; i++)
+    for (int i = 0; i < key_sz; i++)
         __wt_scr_free(session, &keys[i]);
 
     REQUIRE(ret == true);
@@ -322,7 +324,7 @@ TEST_CASE("Many different row-store keys", "[mod_compare]")
 
     WT_BTREE btrees[12];
     WT_TXN_OP ops[12];
-    int key_sz = 12;
+    const int key_sz = 12;
     bool ret;
     WT_ITEM *keys[key_sz];
 
@@ -339,12 +341,12 @@ TEST_CASE("Many different row-store keys", "[mod_compare]")
     // Operations will have randomly chosen btrees and randomly generated keys.
     for (int i = 0; i < 12; i++)
         init_op(
-          &ops[i], &btrees[rand() % 1 + 1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[rand() % 12]);
+          &ops[i], &btrees[rand() % 12], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[rand() % 12]);
 
     __wt_qsort_r(&ops, 12, sizeof(WT_TXN_OP), __ut_txn_mod_compare, NULL);
     ret = __mod_ops_sorted(ops, 12);
 
-    for (int i = 0; i <= key_sz; i++)
+    for (int i = 0; i < key_sz; i++)
         __wt_scr_free(session, &keys[i]);
 
     REQUIRE(ret == true);
@@ -353,7 +355,7 @@ TEST_CASE("Many different row-store keys", "[mod_compare]")
 // Test sorting on column store keys.
 TEST_CASE("Different column store keys test", "[mod_compare]")
 {
-    WT_BTREE btrees[12];
+    WT_BTREE btrees[6];
     WT_TXN_OP ops[8];
     bool ret;
 
