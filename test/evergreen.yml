@@ -33,6 +33,9 @@ functions:
     - command: expansions.update
       params:
         updates:
+        # The expansion is used for each task that runs a WiredTiger test. All of these variables
+        # are common among the build variants, if there are any specific variables that needs to be
+        # set, users can add onto the additional_env_vars in the variant
         - key: PREPARE_TEST_ENV
           value: |
             export WT_TOPDIR=$(git rev-parse --show-toplevel)
@@ -51,6 +54,7 @@ functions:
               export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
             fi
             ${additional_env_vars}
+        # The expansion is used for any task that requires the mongodbtoolchain binaries.
         - key: PREPARE_PATH
           value: |
             if [ "$OS" = "Windows_NT" ]; then
