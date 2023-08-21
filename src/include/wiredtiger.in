@@ -5620,8 +5620,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_LONG_UPDATE_LIST	1121
 /*!
- * cache: forced eviction - pages selected because of too many deleted
- * items count
+ * cache: forced eviction - pages selected because of all deleted items
+ * found
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DELETE	1122
 /*!

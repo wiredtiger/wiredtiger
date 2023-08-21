@@ -188,16 +188,16 @@ restart_read:
 
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
-            cbt->non_deleted_updates = true;
+            cbt->all_deleted_items = false;
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            __wt_cbt_set_non_deleted_updates_flag(session, cbt, cbt->ins->upd);
+            __wt_cbt_reset_all_deleted_items_flag(session, cbt, cbt->ins->upd);
             ++*skippedp;
             continue;
         }
 
-        cbt->non_deleted_updates = true;
+        cbt->all_deleted_items = false;
         __wt_value_return(cbt, cbt->upd_value);
         return (0);
     }
@@ -280,12 +280,12 @@ restart_read:
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                __wt_cbt_set_non_deleted_updates_flag(session, cbt, cbt->ins->upd);
+                __wt_cbt_reset_all_deleted_items_flag(session, cbt, cbt->ins->upd);
                 ++*skippedp;
                 continue;
             }
 
-            cbt->non_deleted_updates = true;
+            cbt->all_deleted_items = false;
             __wt_value_return(cbt, cbt->upd_value);
             return (0);
         }
@@ -300,7 +300,7 @@ restart_read:
             F_SET(&cbt->iface, WT_CURSTD_VALUE_INT);
             cbt->iface.value.data = cbt->tmp->data;
             cbt->iface.value.size = cbt->tmp->size;
-            cbt->non_deleted_updates = true;
+            cbt->all_deleted_items = false;
             return (0);
         }
 
@@ -347,17 +347,17 @@ restart_read:
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
-            cbt->non_deleted_updates = true;
+            cbt->all_deleted_items = false;
             continue;
         }
 
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            __wt_cbt_set_non_deleted_updates_flag(session, cbt, cbt->ins ? cbt->ins->upd : NULL);
+            __wt_cbt_reset_all_deleted_items_flag(session, cbt, cbt->ins ? cbt->ins->upd : NULL);
             ++*skippedp;
             continue;
         }
 
-        cbt->non_deleted_updates = true;
+        cbt->all_deleted_items = false;
         __wt_value_return(cbt, cbt->upd_value);
 
         /*
@@ -472,16 +472,16 @@ restart_read_insert:
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
-                cbt->non_deleted_updates = true;
+                cbt->all_deleted_items = false;
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                __wt_cbt_set_non_deleted_updates_flag(session, cbt, cbt->ins->upd);
+                __wt_cbt_reset_all_deleted_items_flag(session, cbt, cbt->ins->upd);
                 ++*skippedp;
                 continue;
             }
 
-            cbt->non_deleted_updates = true;
+            cbt->all_deleted_items = false;
             __wt_value_return(cbt, cbt->upd_value);
             return (0);
         }
@@ -530,16 +530,16 @@ restart_read_page:
         WT_RET(__wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, first_upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
-            cbt->non_deleted_updates = true;
+            cbt->all_deleted_items = false;
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            __wt_cbt_set_non_deleted_updates_flag(session, cbt, first_upd);
+            __wt_cbt_reset_all_deleted_items_flag(session, cbt, first_upd);
             ++*skippedp;
             continue;
         }
 
-        cbt->non_deleted_updates = true;
+        cbt->all_deleted_items = false;
         __wt_value_return(cbt, cbt->upd_value);
         return (0);
     }
@@ -724,7 +724,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 
     /* Clear the count of deleted items and non-visible valid items on the page. */
     cbt->page_obsolete_deleted_count = 0;
-    cbt->non_deleted_updates = false;
+    cbt->all_deleted_items = true;
 
     /* Clear saved iteration cursor position information. */
     cbt->cip_saved = NULL;
@@ -921,7 +921,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
                 WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
                 WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
             } else if (page->type != WT_PAGE_COL_FIX && total_skipped != 0 &&
-              !cbt->non_deleted_updates && session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
+              cbt->all_deleted_items && session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
                 /*
                  * A visible stop timestamp could have been treated as a tombstone and accounted for
                  * page with no non-deleted updates. Evicting these pages could benefit search
@@ -936,7 +936,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
             }
         }
         cbt->page_obsolete_deleted_count = 0;
-        cbt->non_deleted_updates = false;
+        cbt->all_deleted_items = true;
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);

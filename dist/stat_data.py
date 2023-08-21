@@ -274,7 +274,7 @@ conn_stats = [
     CacheStat('cache_eviction_force', 'forced eviction - pages selected count'),
     CacheStat('cache_eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
     CacheStat('cache_eviction_force_clean_time', 'forced eviction - pages evicted that were clean time (usecs)'),
-    CacheStat('cache_eviction_force_delete', 'forced eviction - pages selected because of too many deleted items count'),
+    CacheStat('cache_eviction_force_delete', 'forced eviction - pages selected because of all deleted items found'),
     CacheStat('cache_eviction_force_obsolete_delete', 'forced eviction - pages selected because of too many obsolete deleted items count'),
     CacheStat('cache_eviction_force_dirty', 'forced eviction - pages evicted that were dirty count'),
     CacheStat('cache_eviction_force_dirty_time', 'forced eviction - pages evicted that were dirty time (usecs)'),

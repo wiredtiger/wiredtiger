@@ -2270,11 +2270,11 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
- * __wt_cbt_set_non_deleted_updates_flag --
- *     Sets the page valid data flag if it has any data other than deleted.
+ * __wt_cbt_reset_all_deleted_items_flag --
+ *     Reset the page all deleted items flag if it has any data other than deleted.
  */
 static inline void
-__wt_cbt_set_non_deleted_updates_flag(
+__wt_cbt_reset_all_deleted_items_flag(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *first_upd)
 {
     if (cbt->upd_value->tw.stop_txn != WT_TXN_MAX) {
@@ -2286,12 +2286,12 @@ __wt_cbt_set_non_deleted_updates_flag(
          * or not visible to the current transaction. In this scenario, consider the page is having
          * non deleted updates.
          */
-        else if (!cbt->non_deleted_updates && first_upd &&
+        else if (cbt->all_deleted_items && first_upd &&
           (cbt->upd_value->tw.stop_txn != first_upd->txnid ||
             cbt->upd_value->tw.stop_ts != first_upd->start_ts))
-            cbt->non_deleted_updates = true;
+            cbt->all_deleted_items = false;
     } else
-        cbt->non_deleted_updates = true;
+        cbt->all_deleted_items = false;
 }
 
 /*

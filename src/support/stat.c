@@ -1409,7 +1409,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages evicted that were dirty count",
   "cache: forced eviction - pages evicted that were dirty time (usecs)",
   "cache: forced eviction - pages selected because of a large number of updates to a single item",
-  "cache: forced eviction - pages selected because of too many deleted items count",
+  "cache: forced eviction - pages selected because of all deleted items found",
   "cache: forced eviction - pages selected because of too many obsolete deleted items count",
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
