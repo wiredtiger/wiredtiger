@@ -135,6 +135,13 @@ class test_evict01(wttest.WiredTigerTestCase):
         # Scan the table again, this time the deleted pages must be skipped at page level.
         self.check(ds, 99, value_a)
 
+        # Get the tree walk delete page skip statistic value.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        cursor_tree_walk_del_page_skip = stat_cursor[stat.conn.cursor_tree_walk_del_page_skip][2]
+        stat_cursor.close()
+
+        self.assertGreater(cursor_tree_walk_del_page_skip, 0)
+
         cursor.close()
 
 if __name__ == '__main__':
