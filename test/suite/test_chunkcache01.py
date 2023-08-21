@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 # comes back out unscathed.
 class test_chunkcache01(wttest.WiredTigerTestCase):
     uri = 'table:test_chunkcache01'
+    current_directory = os.getcwd()
 
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),
@@ -43,7 +44,7 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
 
     cache_types = [
         ('in-memory', dict(chunk_cache_extra_config='type=DRAM')),
-        ('on-disk', dict(chunk_cache_extra_config='type=FILE,storage_path=/home/ubuntu/chunk-cache-tmp')),
+        ('on-disk', dict(chunk_cache_extra_config=f'type=FILE,storage_path={current_directory}/chunk-cache-tmp')),
     ]
 
     scenarios = make_scenarios(format_values, cache_types)
