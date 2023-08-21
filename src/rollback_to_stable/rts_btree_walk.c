@@ -268,11 +268,11 @@ __wt_rts_btree_walk_btree_apply(
         dhandle_allocated = true;
 
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          WT_RTS_VERB_TAG_TREE
-          "rolling back tree. modified=%s, durable_timestamp=%s > stable_timestamp=%s: %s, "
-          "has_prepared_updates=%s, txnid=%" PRIu64 " > recovery_checkpoint_snap_min=%" PRIu64
-          ": %s",
-          S2BT(session)->modified ? "true" : "false",
+          WT_RTS_VERB_TAG_TREE "rolling back tree. uri=%s, btree_id=%" PRIu32
+                               ", modified=%s, durable_timestamp=%s > stable_timestamp=%s: %s, "
+                               "has_prepared_updates=%s, txnid=%" PRIu64
+                               " > recovery_checkpoint_snap_min=%" PRIu64 ": %s",
+          uri, S2BT(session)->id, S2BT(session)->modified ? "true" : "false",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
           max_durable_ts > rollback_timestamp ? "true" : "false",
