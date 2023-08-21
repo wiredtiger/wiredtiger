@@ -48,11 +48,13 @@ def tiered_config(home):
 
 # Set up the WiredTiger connection
 context = Context()
-dir = os.getcwd()   
-conn_config = 'create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),\
+wt_builddir = os.getenv('WT_BUILDDIR')
+if not wt_builddir:
+    wt_builddir = os.getcwd()
+conn_config = f'create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),\
     tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),\
-        extensions=(./ext/storage_sources/dir_store/libwiredtiger_dir_store.so=(early_load=true))'
-chunkcache_config =  conn_config + f',chunk_cache=[enabled=true,chunk_size=10MB,capacity=1GB,type=FILE,storage_path={dir}/chunkcache_tmp]'
+        extensions=({wt_builddir}/ext/storage_sources/dir_store/libwiredtiger_dir_store.so=(early_load=true))'
+chunkcache_config =  conn_config + f',chunk_cache=[enabled=true,chunk_size=10MB,capacity=1GB,type=FILE,storage_path={wt_builddir}/chunkcache_tmp]'
 conn = context.wiredtiger_open(conn_config, tiered_config)
 s = conn.open_session()
 tname = 'table:chunkcache'
