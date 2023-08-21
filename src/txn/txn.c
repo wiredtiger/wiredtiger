@@ -1127,7 +1127,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
     }
 
     /* Resolve the prepared update to be a committed update. */
-    __txn_resolve_prepared_update(session, upd);
+    __txn_apply_prepare_state_update(session, upd, true);
 
     /* Sleep for 100ms in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
@@ -1987,17 +1987,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
             ++prepared_updates;
 
-            /* Set prepare timestamp. */
-            upd->start_ts = txn->prepare_timestamp;
-
-            /*
-             * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign
-             * it with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be
-             * a problem.
-             */
-            upd->durable_ts = WT_TS_NONE;
-
-            WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+            __txn_apply_prepare_state_update(session, upd, false);
             op->u.op_upd = NULL;
 
             /*
@@ -2350,16 +2340,16 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ? 0 : txn_global->current - checkpoint_pinned);
 
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_max, conn->ckpt_prep_max);
+    WT_STAT_SET(session, stats, checkpoint_prep_max, conn->ckpt_prep_max);
     if (conn->ckpt_prep_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, txn_checkpoint_prep_min, conn->ckpt_prep_min);
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_recent, conn->ckpt_prep_recent);
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_total, conn->ckpt_prep_total);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_max, conn->ckpt_time_max);
+        WT_STAT_SET(session, stats, checkpoint_prep_min, conn->ckpt_prep_min);
+    WT_STAT_SET(session, stats, checkpoint_prep_recent, conn->ckpt_prep_recent);
+    WT_STAT_SET(session, stats, checkpoint_prep_total, conn->ckpt_prep_total);
+    WT_STAT_SET(session, stats, checkpoint_time_max, conn->ckpt_time_max);
     if (conn->ckpt_time_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, txn_checkpoint_time_min, conn->ckpt_time_min);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
+        WT_STAT_SET(session, stats, checkpoint_time_min, conn->ckpt_time_min);
+    WT_STAT_SET(session, stats, checkpoint_time_recent, conn->ckpt_time_recent);
+    WT_STAT_SET(session, stats, checkpoint_time_total, conn->ckpt_time_total);
 }
 
 /*
