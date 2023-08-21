@@ -3424,6 +3424,11 @@ tasks:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
           script: |
+            # The set of tests below were selected from entries to the Aug 2023 WiredTiger Code Coverage Competition.
+            # The tests were selected to achieve just over 50% branch coverage and do so in about 30 minutes.
+            # While 50% coverage is not sufficient, this selection of tests forms a useful basis for future 
+            # improvements to code coverage. 
+            
             set -o errexit
             set -o verbose
             # Record the start time, in seconds
@@ -3435,28 +3440,28 @@ tasks:
 
             ${test_env_vars|} $CTEST -R '(ex_|lsm_workload|filesys|metadata_salvage|col_efficiency|dup_index_collator|compact_quick|test_checkpoint_4_mixed_timestamps|test_checkpoint_6_row_named_prepare|random_directio|scope|join_main_table_row|pad_byte_collator|meta_ckptlist_get_alloc)'
 
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_rollback_to_stable03
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py lsm
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_prepare01
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py -p test_prepare02
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_prepare03
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_prepare04
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_truncate02
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_tiered04
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_sweep01
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_import01
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py flcs
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_backup13
-            ${test_env_vars|} /opt/mongodbtoolchain/v4/bin/python3 ../test/suite/run.py test_backup24
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable03
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py lsm
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare01
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -p test_prepare02
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare03
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare04
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_truncate02
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_tiered04
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_sweep01
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_import01
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py flcs
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_backup13
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_backup24
             ${test_env_vars|} test/cppsuite/run -t bounded_cursor_stress -f test/cppsuite/configs/bounded_cursor_stress_default.txt
             ${test_env_vars|} test/cppsuite/run -t cache_resize -f test/cppsuite/configs/cache_resize_default.txt
             ${test_env_vars|} test/cppsuite/run -t hs_cleanup -f test/cppsuite/configs/hs_cleanup_default.txt
-            ${test_env_vars|} ./test/csuite/wt1965_col_efficiency/test_wt1965_col_efficiency
-            ${test_env_vars|} ./test/csuite/wt2999_join_extractor/test_wt2999_join_extractor
-            ${test_env_vars|} ./test/csuite/wt3135_search_near_collator/test_wt3135_search_near_collator
-            ${test_env_vars|} ./test/csuite/wt3184_dup_index_collator/test_wt3184_dup_index_collator
-            ${test_env_vars|} ./test/csuite/wt4156_metadata_salvage/test_wt4156_metadata_salvage
-            ${test_env_vars|} ./test/csuite/wt2403_lsm_workload/test_wt2403_lsm_workload
+            ${test_env_vars|} $(pwd)/test/csuite/wt1965_col_efficiency/test_wt1965_col_efficiency
+            ${test_env_vars|} $(pwd)/test/csuite/wt2999_join_extractor/test_wt2999_join_extractor
+            ${test_env_vars|} $(pwd)/test/csuite/wt3135_search_near_collator/test_wt3135_search_near_collator
+            ${test_env_vars|} $(pwd)/test/csuite/wt3184_dup_index_collator/test_wt3184_dup_index_collator
+            ${test_env_vars|} $(pwd)/test/csuite/wt4156_metadata_salvage/test_wt4156_metadata_salvage
+            ${test_env_vars|} $(pwd)/test/csuite/wt2403_lsm_workload/test_wt2403_lsm_workload
 
             ${test_env_vars|} WIREDTIGER_HOME=ex1 examples/c/ex_all/ex_all & ${test_env_vars|} WIREDTIGER_HOME=ex2 examples/c/ex_schema/ex_schema
             # Rest of the examples
@@ -3464,7 +3469,6 @@ tasks:
             ${test_env_vars|} $CTEST --output-on-failure 2>&1
             cd ../../
 
-            # Faster csuite tests. 30% in ~1 minute
             ${test_env_vars|} $(pwd)/test/csuite/wt2403_lsm_workload/test_wt2403_lsm_workload 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/wt6185_modify_ts/test_wt6185_modify_ts 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/wt3874_pad_byte_collator/test_wt3874_pad_byte_collator 2>&1
@@ -3481,10 +3485,6 @@ tasks:
             ${test_env_vars|} $(pwd)/test/csuite/wt3363_checkpoint_op_races/test_wt3363_checkpoint_op_races 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/wt3120_filesys/test_wt3120_filesys -b $(pwd) 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/wt8659_reconstruct_database_from_logs/test_wt8659_reconstruct_database_from_logs 2>&1
-
-            # A subset of python tests that cover areas not touched by csuite
-            # In some cases use -s 1 to only run the first scenario for each test
-            # (To check. Some of these can probably be removed)
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor 2>&1 || echo "ignore"
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor_bound -s 1 2>&1 || echo "ignore"
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor_bound_fuzz 2>&1 || echo "ignore"
