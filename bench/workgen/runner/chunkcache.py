@@ -31,14 +31,21 @@
 
 from runner import *
 from wiredtiger import *
+from wiredtiger import stat
 from workgen import *
 import os
+
+def get_stat(session, stat):
+    stat_cursor = session.open_cursor('statistics:')
+    val = stat_cursor[stat][2]
+    stat_cursor.close()
+    return val
 
 # Set up the WiredTiger connection.
 context = Context()
 dir = os.getcwd()
-conn_config = 'create,cache_size=70MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
-restart_config = conn_config + f',chunk_cache=[enabled=true,chunk_size=10MB,capacity=1GB,type=FILE,storage_path={dir}/chunkcache_tmp]'
+conn_config = 'create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
+chunkcache_config = conn_config + f',chunk_cache=[enabled=true,chunk_size=10MB,capacity=1GB,type=FILE,storage_path={dir}/chunkcache_tmp]'
 conn = context.wiredtiger_open(conn_config)
 s = conn.open_session()
 tname = 'table:chunkcache'
@@ -56,8 +63,8 @@ assert ret == 0, ret
 
 # Reopen the connection and reconfigure
 conn.close()
-conn = context.wiredtiger_open(restart_config)
-s = conn.open_session("")
+conn = context.wiredtiger_open(chunkcache_config)
+s = conn.open_session()
 
 # Read into the chunkcache 
 read_op = Operation(Operation.OP_SEARCH, table)
@@ -67,6 +74,9 @@ read_workload.options.run_time = 20
 read_workload.options.report_interval = 1
 ret = read_workload.run(conn)
 assert ret == 0, ret
+
+# Check relevant stats
+assert get_stat(s, wiredtiger.stat.conn.chunk_cache_chunks_inuse) > 0
 
 # Close the connection.
 conn.close()
