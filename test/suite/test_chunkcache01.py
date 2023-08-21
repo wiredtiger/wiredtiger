@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
+from random import randrange
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -34,7 +35,7 @@ from wtscenario import make_scenarios
 # comes back out unscathed.
 class test_chunkcache01(wttest.WiredTigerTestCase):
     uri = 'table:test_chunkcache01'
-    current_directory = os.getcwd()
+    chunk_cache_path = '{}/chunk_cache_tmp_{}'.format(os.getcwd(), randrange(0, 1000000))
 
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),
@@ -44,7 +45,7 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
 
     cache_types = [
         ('in-memory', dict(chunk_cache_extra_config='type=DRAM')),
-        ('on-disk', dict(chunk_cache_extra_config=f'type=FILE,storage_path={current_directory}/chunk-cache-tmp')),
+        ('on-disk', dict(chunk_cache_extra_config=f'type=FILE,storage_path={chunk_cache_path}')),
     ]
 
     scenarios = make_scenarios(format_values, cache_types)
