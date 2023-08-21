@@ -26,18 +26,17 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading, time
 import wttest
 import wiredtiger
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_checkpoint31.py
+# test_evict01.py
 #
-# Test that skipping in-memory reconciled deleted pages as part of the tree walk.
+# Test that deleted pages are added to eviction as part of the tree walk.
 
-class test_checkpoint(wttest.WiredTigerTestCase):
+class test_evict01(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=500MB,statistics=(all)'
 
     format_values = [
@@ -49,8 +48,13 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('string_row', dict(key_format='S', value_format='S',
              extraconfig=',allocation_size=512,leaf_page_max=512')),
     ]
-    
-    scenarios = make_scenarios(format_values)
+
+    timestamp_values = [
+        ('no_timestamp', dict(timestamp=False)),
+        ('timestamp', dict(timestamp=True)),
+    ]
+
+    scenarios = make_scenarios(format_values, timestamp_values)
 
     def check(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
@@ -61,8 +65,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
         cursor.close()
 
-    def test_checkpoint(self):
-        uri = 'table:checkpoint31'
+    def test_evict(self):
+        uri = 'table:evict01'
         nrows = 10000
 
         # Create a table.
@@ -73,35 +77,47 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         value_a = "aaaaa" * 100
 
+        # Pin oldest and stable to timestamp 1.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+
         # Write some initial data.
         cursor = self.session.open_cursor(ds.uri, None, None)
         for i in range(1, nrows + 1):
             self.session.begin_transaction()
             cursor[ds.key(i)] = value_a
-            self.session.commit_transaction()
+            if self.timestamp:
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+            else:
+                self.session.commit_transaction()
 
-        # Create a reader transaction that will not be able to see what happens next.
-        # We don't need to do anything with this; it just needs to exist.
-        session2 = self.conn.open_session()
-        session2.begin_transaction()
+        if not self.timestamp:
+            # Create a reader transaction that will not be able to see what happens next.
+            # We don't need to do anything with this; it just needs to exist.
+            session2 = self.conn.open_session()
+            session2.begin_transaction()
 
         # Now remove all data.
         for i in range(100, nrows + 1):
             self.session.begin_transaction()
             cursor.set_key(ds.key(i))
             self.assertEqual(cursor.remove(), 0)
-            self.session.commit_transaction()
+            if self.timestamp:
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+            else:
+                self.session.commit_transaction()
 
         # Checkpoint.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.session.checkpoint()
 
         # Get the existing cache eviction force delete statistic value.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         prev_cache_eviction_force_delete = stat_cursor[stat.conn.cache_eviction_force_delete][2]
         stat_cursor.close()
+        self.assertEqual(prev_cache_eviction_force_delete, 0)
 
         # Now read the removed data.
-        self.session.breakpoint()
         self.check(ds, 99, value_a)
 
         # Get the new cache eviction force delete statistic value.
@@ -111,9 +127,14 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         self.assertGreater(cache_eviction_force_delete, prev_cache_eviction_force_delete)
 
-        # Tidy up.
-        session2.rollback_transaction()
-        session2.close()
+        # Close the long running transaction.
+        if not self.timestamp:
+            session2.rollback_transaction()
+            session2.close()
+
+        # Scan the table again, this time the deleted pages must be skipped at page level.
+        self.check(ds, 99, value_a)
+
         cursor.close()
 
 if __name__ == '__main__':
