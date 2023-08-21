@@ -23,6 +23,21 @@ if [[ -n $WT_ARCHIVE ]]; then
     tar --wildcards -xzf $WT_ARCHIVE
 fi
 
+# Find any avaliable core dumps in build directory.
+GDB_CORE_DUMP=$(ls ${HOME}/wiredtiger/cmake_build/*.core | head -n 1 2>/dev/null)
+if [[ -n $GDB_CORE_DUMP ]]; then
+    # Grab the source directory that the test was run in, and fix up the expected path to the
+    # correct path on the new machine.
+    OLD_WT_PATH=readelf -n GDB_CORE_DUMP | grep "wiredtiger" | head -n 1 | sed -e 's/wiredtiger.*/wiredtiger/' -e 's/^[ \t]*//'
+    cat >> ~/.gdbinit <<EOF
+    set solib-search-path ${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib
+    set substitution-path ${OLD_WT_PATH} ${HOME}/wiredtiger
+    set pagination off
+    set print pretty on
+
+    EOF
+fi
+
 # Install CMake into the machine.
 . test/evergreen/find_cmake.sh
 
