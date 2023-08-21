@@ -2116,7 +2116,6 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
     ckptbase = btree->ckpt;
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
-            WT_STAT_CONN_INCR(session, checkpoint_update_prev_named);
             ckpt->write_gen = btree->write_gen;
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
@@ -2137,8 +2136,6 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
     ckpt_itr = ckptbase;
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        WT_STAT_CONN_INCR(session, checkpoint_update_postprocess);
-
         /* Remove any deleted checkpoints, by shifting the array. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE)) {
             __wt_meta_checkpoint_free(session, ckpt);

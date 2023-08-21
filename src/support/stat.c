@@ -1532,8 +1532,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: number of history store pages caused to be reconciled",
   "checkpoint: number of internal pages visited",
   "checkpoint: number of leaf pages visited",
-  "checkpoint: number of older named checkpoints altered to include new checkpoint",
-  "checkpoint: number of older named checkpoints updated during reconciliation",
   "checkpoint: number of pages caused to be reconciled",
   "checkpoint: pages added for eviction during checkpoint cleanup",
   "checkpoint: pages removed during checkpoint cleanup",
@@ -2193,8 +2191,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_hs_pages_reconciled = 0;
     stats->checkpoint_pages_visited_internal = 0;
     stats->checkpoint_pages_visited_leaf = 0;
-    stats->checkpoint_update_postprocess = 0;
-    stats->checkpoint_update_prev_named = 0;
     stats->checkpoint_pages_reconciled = 0;
     stats->checkpoint_cleanup_pages_evict = 0;
     stats->checkpoint_cleanup_pages_removed = 0;
@@ -2860,8 +2856,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_hs_pages_reconciled += WT_STAT_READ(from, checkpoint_hs_pages_reconciled);
     to->checkpoint_pages_visited_internal += WT_STAT_READ(from, checkpoint_pages_visited_internal);
     to->checkpoint_pages_visited_leaf += WT_STAT_READ(from, checkpoint_pages_visited_leaf);
-    to->checkpoint_update_postprocess += WT_STAT_READ(from, checkpoint_update_postprocess);
-    to->checkpoint_update_prev_named += WT_STAT_READ(from, checkpoint_update_prev_named);
     to->checkpoint_pages_reconciled += WT_STAT_READ(from, checkpoint_pages_reconciled);
     to->checkpoint_cleanup_pages_evict += WT_STAT_READ(from, checkpoint_cleanup_pages_evict);
     to->checkpoint_cleanup_pages_removed += WT_STAT_READ(from, checkpoint_cleanup_pages_removed);

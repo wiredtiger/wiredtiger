@@ -384,8 +384,6 @@ conn_stats = [
     CheckpointStat('checkpoint_time_min', 'min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_total', 'total time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_update_postprocess', 'number of older named checkpoints altered to include new checkpoint'),
-    CheckpointStat('checkpoint_update_prev_named', 'number of older named checkpoints updated during reconciliation'),
     CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
     CheckpointStat('checkpoints', 'number of checkpoints started'),
 
