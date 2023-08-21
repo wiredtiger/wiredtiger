@@ -430,6 +430,7 @@ functions:
         set -o verbose
         . test/evergreen/find_cmake.sh
         cd cmake_build
+        echo "Using smp_command '${smp_command}' for 'make check all'"
         ${test_env_vars|} $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
 
   "cppsuite test":
@@ -529,6 +530,7 @@ functions:
         set -o errexit
         set -o verbose
         cd cmake_build
+        echo "Using smp_command '${smp_command}' for 'unit test'"
         if [ ${check_coverage|false} = true ]; then
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
@@ -1157,7 +1159,7 @@ variables:
       # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
       CMAKE_TOOLCHAIN_FILE:
       CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-      smp_command: -j $(sysctl -n hw.logicalcpu)
+      smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
       cmake_generator: "Unix Makefiles"
       make_command: make
       test_env_vars:
@@ -1327,7 +1329,12 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
@@ -1350,7 +1357,12 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
@@ -2473,8 +2485,6 @@ tasks:
       - func: "fetch artifacts"
       - func: "python config check"
       - func: "unit test"
-        vars:
-           smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
 
   - name: unit-test-nonstandalone
     tags: ["python"]
@@ -3414,7 +3424,6 @@ tasks:
   - name: coverage-report
     # This task will measure code coverage across a range of tests, including, but not limited to,
     # the Catch2-based unit tests.
-    # Currently, it only contains Catch2-based unit tests but that will change soon.
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3427,12 +3436,188 @@ tasks:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
           script: |
+            # The set of tests below were selected from entries to the Aug 2023 WiredTiger Code Coverage Competition.
+            # The tests were selected to achieve just over 50% branch coverage and do so in about 30 minutes.
+            # While 50% coverage is not sufficient, this selection of tests forms a useful basis for future 
+            # improvements to code coverage. 
+            
             set -o errexit
             set -o verbose
             # Record the start time, in seconds
             date +%s > ../time.txt
             # Perform the tests to get code coverage metrics for
+            . ../test/evergreen/find_cmake.sh
+            
             ${test_env_vars|} test/unittest/unittests
+
+            ${test_env_vars|} $CTEST -R '(ex_|lsm_workload|filesys|metadata_salvage|col_efficiency|dup_index_collator|compact_quick|test_checkpoint_4_mixed_timestamps|test_checkpoint_6_row_named_prepare|random_directio|scope|join_main_table_row|pad_byte_collator|meta_ckptlist_get_alloc)'
+
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable03
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py lsm
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare01
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -p test_prepare02
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare03
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare04
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_truncate02
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_tiered04
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_sweep01
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_import01
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py flcs
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_backup13
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_backup24
+            ${test_env_vars|} test/cppsuite/run -t bounded_cursor_stress -f test/cppsuite/configs/bounded_cursor_stress_default.txt
+            ${test_env_vars|} test/cppsuite/run -t cache_resize -f test/cppsuite/configs/cache_resize_default.txt
+            ${test_env_vars|} test/cppsuite/run -t hs_cleanup -f test/cppsuite/configs/hs_cleanup_default.txt
+            ${test_env_vars|} $(pwd)/test/csuite/wt1965_col_efficiency/test_wt1965_col_efficiency
+            ${test_env_vars|} $(pwd)/test/csuite/wt2999_join_extractor/test_wt2999_join_extractor
+            ${test_env_vars|} $(pwd)/test/csuite/wt3135_search_near_collator/test_wt3135_search_near_collator
+            ${test_env_vars|} $(pwd)/test/csuite/wt3184_dup_index_collator/test_wt3184_dup_index_collator
+            ${test_env_vars|} $(pwd)/test/csuite/wt4156_metadata_salvage/test_wt4156_metadata_salvage
+            ${test_env_vars|} $(pwd)/test/csuite/wt2403_lsm_workload/test_wt2403_lsm_workload
+
+            ${test_env_vars|} WIREDTIGER_HOME=ex1 examples/c/ex_all/ex_all & ${test_env_vars|} WIREDTIGER_HOME=ex2 examples/c/ex_schema/ex_schema
+            # Rest of the examples
+            cd examples/c/
+            ${test_env_vars|} $CTEST --output-on-failure 2>&1
+            cd ../../
+
+            ${test_env_vars|} $(pwd)/test/csuite/wt2403_lsm_workload/test_wt2403_lsm_workload 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt6185_modify_ts/test_wt6185_modify_ts 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt3874_pad_byte_collator/test_wt3874_pad_byte_collator 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt4105_large_doc_small_upd/test_wt4105_large_doc_small_upd 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt10897_compact_quick_interrupt/test_wt10897_compact_quick_interrupt 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt2695_checksum/test_wt2695_checksum 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt4156_metadata_salvage/test_wt4156_metadata_salvage 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt2447_join_main_table/test_wt2447_join_main_table 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt2592_join_schema/test_wt2592_join_schema 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt4117_checksum/test_wt4117_checksum 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt4699_json/test_wt4699_json 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt4891_meta_ckptlist_get_alloc/test_wt4891_meta_ckptlist_get_alloc 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt9937_parse_opts/test_wt9937_parse_opts 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt3363_checkpoint_op_races/test_wt3363_checkpoint_op_races 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt3120_filesys/test_wt3120_filesys -b $(pwd) 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/wt8659_reconstruct_database_from_logs/test_wt8659_reconstruct_database_from_logs 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor_bound -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor_bound_fuzz 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor_compare 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor_pin 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py cursor_random 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py log 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py util 2>&1
+
+            # RTS testing is slow. Skip RTS tests 10,12,14,20,26,35,37,38,39
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable01.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable02.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable03.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable04.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable05.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable06.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable07.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable08.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable09.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable11.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable13.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable15.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable16.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable17.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable18.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable19.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable22.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable23.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable24.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable25.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable27.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable28.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable29.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable30.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable31.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable32.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable33.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable34.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable36.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable40.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable41.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rollback_to_stable42.py -s 1 2>&1 || echo "ignore"
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_alter02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_assert06 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_autoclose 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_backup06 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_base04 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_baseconfig 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_bug005 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_bulk01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_calc_modify 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_checkpoint_snapshot03 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_checkpoint05 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_colgap 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_collator 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_compact04 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_compress02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_config06 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_cursor_bound10 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_cursor_compare 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_cursor_tracker 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_cursor08 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_debug_mode03 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_dictionary 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_drop_create 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_drop 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_dump 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_dupc 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_durability01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_durable_rollback_to_stable 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_durable_ts02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_empty_value 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_empty 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_encrypt04 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_env01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_excl 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_export01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_flcs01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_gc04 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_hazard 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_home 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_hs06 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_huffman01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_import08 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_index02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_inmem02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_intpack 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_isolation01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_join08 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_jsondump01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_log03 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_lsm04 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_metadata_cursor02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_overwrite 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_pack 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare_cursor01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare_hs03 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_prepare15 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_readonly03 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_reconfig03 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_rename 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_reserve 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_salvage01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_schema07 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_search_near02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_shared_cache01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_split 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_stat_log01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_stat06 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_sweep04 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_tiered08 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_timestamp10 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_truncate15 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_turtle01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_txn15 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_unicode01 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_upgrade 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_util15 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_verbose02 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_verify2 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py test_version 2>&1
             # Record the end time, in seconds
             date +%s >> ../time.txt
       - func: "code coverage analysis"
@@ -4199,6 +4384,22 @@ tasks:
             for i in $(seq 5); do
                 ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
+  
+  - name: chunkcache-test
+    exec_timeout_secs: 1200 # 20 minutes
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ${python_binary|python3} chunkcache.py
 
   - name: skiplist-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
@@ -5818,6 +6019,7 @@ buildvariants:
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
     - name: unit-test-hook-tiered-s3
+    - name: chunkcache-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -6340,6 +6542,7 @@ buildvariants:
     - name: configure-combinations
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
+    - name: chunkcache-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -6404,3 +6607,137 @@ buildvariants:
     - name: ".antithesis"
       cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
       patchable: false
+
+- name: ubuntu2004-release
+  display_name: "~ Ubuntu 20.04 (Release Build)"
+  run_on:
+  - ubuntu2004-small
+  batchtime: 720 # 12 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: format-smoke-test
+    - name: fops
+    - name: linux-directio
+    - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+    - name: ftruncate-test
+    - name: long-test
+    - name: configure-combinations
+    - name: format-smoke-test
+    - name: s3-tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+
+- name: ubuntu2004-release-arm64
+  display_name: "~ Ubuntu 20.04 (ARM64, Release Build)"
+  run_on:
+  - ubuntu2004-arm64-small
+  batchtime: 720 # 12 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: format-smoke-test
+    - name: fops
+    - name: linux-directio
+    - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+    - name: ftruncate-test
+    - name: long-test
+    - name: configure-combinations
+    - name: format-smoke-test
+    - name: s3-tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+
+- name: ubuntu2004-release-stress-tests
+  display_name: Ubuntu 20.04 Stress tests (Release Build)
+  run_on:
+  - ubuntu2004-test
+  batchtime: 1440 # 24 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-sanitizer"
+    - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: format-predictable-test
+
+# When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
+# fails to load and resolve its dependency.
+- name: ubuntu2004-release-stress-tests-arm64
+  display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build)
+  run_on:
+  - ubuntu2004-arm64-large
+  batchtime: 1440 # 24 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
