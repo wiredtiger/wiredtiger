@@ -42,18 +42,18 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
-#define WT_BKG_COMPACT_INSERT(conn, dsrc_stat, bucket)                                            \
-    do {                                                                                         \
-        TAILQ_INSERT_HEAD(&(conn)->background_compact.compactqh, dsrc_stat, q);                                            \
-        TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq);                              \
-        ++(conn)->background_compact.compact_count;                                                                 \
+#define WT_BKG_COMPACT_INSERT(conn, dsrc_stat, bucket)                                        \
+    do {                                                                                      \
+        TAILQ_INSERT_HEAD(&(conn)->background_compact.compactqh, dsrc_stat, q);               \
+        TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq); \
+        ++(conn)->background_compact.file_count;                                           \
     } while (0)
 
-#define WT_BKG_COMPACT_REMOVE(conn, dsrc_stat, bucket)                                            \
-    do {                                                                                         \
-        TAILQ_REMOVE(&(conn)->background_compact.compactqh, dsrc_stat, q);                                                 \
-        TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq);                                   \
-        --(conn)->background_compact.compact_count;                                                                 \
+#define WT_BKG_COMPACT_REMOVE(conn, dsrc_stat, bucket)                                   \
+    do {                                                                                 \
+        TAILQ_REMOVE(&(conn)->background_compact.compactqh, dsrc_stat, q);               \
+        TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq); \
+        --(conn)->background_compact.file_count;                                      \
     } while (0)
 
 /* WT_BACKGROUND_COMPACT_STAT --
@@ -66,27 +66,18 @@ struct __wt_background_compact_stat {
     uint64_t last_unsuccessful_compact;
     uint64_t last_successful_compact;
 
-    uint64_t skip_count;
-
     wt_off_t start_size;
     wt_off_t end_size;
     wt_off_t bytes_recovered;
+
     uint64_t bytes_rewritten;
 
-    uint64_t bytes_avail_moving_avg;
-
-    uint64_t compact_attempts;
+    uint64_t skip_count;
     uint64_t unsuccessful_compact_attempts;
     uint64_t unsuccessful_attempts_since_last_successful_compact;
 
-    /* Compact bytes rewritten per second for the last compact. */
-    uint64_t bytes_rewritten_rate;
-    /* Exponential moving average for the bytes rewritten rate. */
-    double bytes_rewritten_rate_ema;
-
-    // struct timespec start_time;
-
     TAILQ_ENTRY(__wt_background_compact_stat) q;
+    TAILQ_ENTRY(__wt_background_compact_stat) hashq;
 };
 
 /*
@@ -103,17 +94,14 @@ struct __wt_background_compact {
     WT_SPINLOCK lock;         /* Compact lock */
     WT_SESSION_IMPL *session; /* Thread session */
 
-    uint64_t total_bytes_recovered;
     uint64_t files_skipped;
     uint64_t files_compacted;
-    uint64_t files_checked;
 
-    struct timespec compact_timer_start;
+    uint64_t file_count;
 
-    uint64_t compact_count;
-    /* Exponential moving average for the bytes rewritten rate. */
-    double bytes_rewritten_rate_ema;
-    
+    /* Exponential moving average for the bytes rewritten. */
+    uint64_t bytes_rewritten_ema;
+
     TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
     TAILQ_HEAD(__wt_bg_compact_qh, __wt_background_compact_stat) compactqh;
 };

@@ -24,9 +24,13 @@ __get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
     WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session);
+    uint64_t bucket, hash;
+
+    hash = __wt_hash_city64(uri, strlen(uri));
+    bucket = hash & (conn->hash_size - 1);
 
     /* Find the uri in the files compacted list. */
-    TAILQ_FOREACH (dsrc_stat, &conn->background_compact.compactqh, q) {
+    TAILQ_FOREACH (dsrc_stat, &conn->background_compact.compacthash[bucket], hashq) {
         if (strcmp(uri, dsrc_stat->uri) == 0) {
             return (dsrc_stat);
         }
@@ -39,34 +43,31 @@ static bool
 __should_compact(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
-    uint64_t cur_time;
-    uint64_t time_since_last_compact;
     WT_CONNECTION_IMPL *conn;
+    uint64_t cur_time;
 
     conn = S2C(session);
 
     dsrc_stat = __get_compact_stat(session, uri);
+
     /* If we haven't seen this file before we should try and compact it. */
     if (dsrc_stat == NULL)
         return (true);
 
     cur_time = __wt_clock(session);
 
-    /*
-     * Don't compact if we've seen this table recently or if we've had recent unsuccessful attempts.
-     */
-    time_since_last_compact = WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time);
-    // if (WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) < 5 ||
-    //   WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->last_unsuccessful_compact) < 10)
-    //     return (false);
-
-    /* 
-     * If the last compact attempt had a bytes recovered rate of less than the average, we should
-     * skip this file for a while.
-     */
-    if (dsrc_stat->bytes_rewritten_rate < conn->background_compact.bytes_rewritten_rate_ema &&
-        time_since_last_compact < 60){
+    /* If we have been unsuccessful recently skip this file for some time. */
+    if (WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->last_unsuccessful_compact) < 60) {
         dsrc_stat->skip_count++;
+        conn->background_compact.files_skipped++;
+        return (false);
+    }
+
+    /* If the last compaction pass was less successful than the average. Skip it for some time. */
+    if (dsrc_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
+      WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) < 60) {
+        dsrc_stat->skip_count++;
+        conn->background_compact.files_skipped++;
         return (false);
     }
 
@@ -80,11 +81,10 @@ __compact_background_start(
     WT_BACKGROUND_COMPACT_STAT *temp_dsrc_stat;
     WT_BM *bm;
     WT_CONNECTION_IMPL *conn;
-    bool found;
+    uint64_t bucket, hash;
 
-    conn = S2C(session);
     bm = S2BT(session)->bm;
-    found = false;
+    conn = S2C(session);
 
     temp_dsrc_stat = __get_compact_stat(session, uri);
 
@@ -92,19 +92,14 @@ __compact_background_start(
     if (temp_dsrc_stat == NULL) {
         WT_RET(__wt_calloc_one(session, &temp_dsrc_stat));
         WT_RET(__wt_strdup(session, uri, &temp_dsrc_stat->uri));
-        TAILQ_INSERT_HEAD(&conn->background_compact.compactqh, temp_dsrc_stat, q);
+        hash = __wt_hash_city64(uri, strlen(uri));
+        bucket = hash & (conn->hash_size - 1);
+        WT_BKG_COMPACT_INSERT(conn, temp_dsrc_stat, bucket);
     }
 
     /* Fill starting information prior to running compaction. */
     WT_RET(bm->size(bm, session, &temp_dsrc_stat->start_size));
     temp_dsrc_stat->start_time = __wt_clock(session);
-
-    /* Calculate the moving average of bytes available in this file. */
-    temp_dsrc_stat->bytes_avail_moving_avg =
-      (bm->block->live.avail.bytes +
-        temp_dsrc_stat->compact_attempts * temp_dsrc_stat->bytes_avail_moving_avg) /
-      (temp_dsrc_stat->compact_attempts + 1);
-    temp_dsrc_stat->compact_attempts++;
 
     *dsrc_stat = temp_dsrc_stat;
 
@@ -115,13 +110,11 @@ static int
 __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *dsrc_stat)
 {
     WT_BM *bm;
-    uint64_t cur_time;
-    uint64_t bytes_rewritten_rate;
     WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
+    uint64_t cur_time;
 
     bm = S2BT(session)->bm;
+    conn = S2C(session);
 
     cur_time = __wt_clock(session);
     dsrc_stat->time_taken = WT_CLOCKDIFF_US(cur_time, dsrc_stat->start_time);
@@ -129,7 +122,12 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *d
     WT_RET(bm->size(bm, session, &dsrc_stat->end_size));
     dsrc_stat->bytes_recovered = dsrc_stat->start_size - dsrc_stat->end_size;
 
-    if (dsrc_stat->bytes_recovered <= 0){
+    /*
+     * If the file failed to decrease in size, mark as an unsuccessful attempt. We do this check
+     * first, because it's possible for compaction to do work rewriting bytes while other operations
+     * cause the file to increase in size.
+     */
+    if (dsrc_stat->bytes_recovered <= 0) {
         dsrc_stat->last_unsuccessful_compact = __wt_clock(session);
         dsrc_stat->unsuccessful_compact_attempts++;
         dsrc_stat->unsuccessful_attempts_since_last_successful_compact++;
@@ -137,18 +135,16 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *d
         dsrc_stat->last_successful_compact = __wt_clock(session);
         dsrc_stat->unsuccessful_attempts_since_last_successful_compact = 0;
         dsrc_stat->bytes_rewritten = bm->block->compact_bytes_rewritten;
-        if (dsrc_stat->time_taken > 0){
-            bytes_rewritten_rate = dsrc_stat->bytes_rewritten / dsrc_stat->time_taken;
-            dsrc_stat->bytes_rewritten_rate_ema = 0.1 * bytes_rewritten_rate + 0.9 * dsrc_stat->bytes_rewritten_rate_ema;
-            /* Update the lates bytes rewritten rate. */
-            dsrc_stat->bytes_rewritten_rate = bytes_rewritten_rate;
+        conn->background_compact.files_compacted++;
 
-            /* 
-             * Bytes rewritten rate ema across all files. We use a 10% weighting of the new rate
-             * to roughly calculate the average of the past 10 successful compaction attempts.
-             */
-            conn->background_compact.bytes_rewritten_rate_ema = 0.1 * bytes_rewritten_rate + 0.9 * conn->background_compact.bytes_rewritten_rate_ema;
-        }
+        /*
+         * Update the moving average of bytes rewritten across each file compact attempt. A
+         * weighting of 10% means that we are effectively considering the last 10 attempts in the
+         * average.
+         */
+        conn->background_compact.bytes_rewritten_ema =
+          (uint64_t)(0.1 * bm->block->compact_bytes_rewritten +
+            0.9 * conn->background_compact.bytes_rewritten_ema);
     }
 
     return (0);
@@ -341,10 +337,10 @@ err:
  */
 int
 __wt_compact_server_create(WT_SESSION_IMPL *session)
-{ 
+{
     WT_CONNECTION_IMPL *conn;
-    uint32_t session_flags;
     uint64_t i;
+    uint32_t session_flags;
 
     conn = S2C(session);
 
