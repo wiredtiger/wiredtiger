@@ -281,7 +281,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     }
 
     cbt->page_obsolete_deleted_count = 0;
-    cbt->all_deleted_items = true;
+    F_SET(cbt, WT_CBT_ALL_DELETED_ITEMS);
 
     /*
      * Release any page references we're holding. This can trigger eviction (for example, forced
