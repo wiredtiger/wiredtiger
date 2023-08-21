@@ -42,6 +42,20 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
+#define WT_BKG_COMPACT_INSERT(conn, dsrc_stat, bucket)                                            \
+    do {                                                                                         \
+        TAILQ_INSERT_HEAD(&(conn)->background_compact.compactqh, dsrc_stat, q);                                            \
+        TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq);                              \
+        ++(conn)->background_compact.compact_count;                                                                 \
+    } while (0)
+
+#define WT_BKG_COMPACT_REMOVE(conn, dsrc_stat, bucket)                                            \
+    do {                                                                                         \
+        TAILQ_REMOVE(&(conn)->background_compact.compactqh, dsrc_stat, q);                                                 \
+        TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq);                                   \
+        --(conn)->background_compact.compact_count;                                                                 \
+    } while (0)
+
 /* WT_BACKGROUND_COMPACT_STAT --
  *  List of tracking information for each file compact has worked on.
  */
@@ -95,7 +109,13 @@ struct __wt_background_compact {
     uint64_t files_checked;
 
     struct timespec compact_timer_start;
-    TAILQ_HEAD(__wt_bg_compact_tables_qh, __wt_background_compact_stat) tables;
+
+    uint64_t compact_count;
+    /* Exponential moving average for the bytes rewritten rate. */
+    double bytes_rewritten_rate_ema;
+    
+    TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
+    TAILQ_HEAD(__wt_bg_compact_qh, __wt_background_compact_stat) compactqh;
 };
 
 /*

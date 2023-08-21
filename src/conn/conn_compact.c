@@ -26,7 +26,7 @@ __get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
     conn = S2C(session);
 
     /* Find the uri in the files compacted list. */
-    TAILQ_FOREACH (dsrc_stat, &conn->background_compact.tables, q) {
+    TAILQ_FOREACH (dsrc_stat, &conn->background_compact.compactqh, q) {
         if (strcmp(uri, dsrc_stat->uri) == 0) {
             return (dsrc_stat);
         }
@@ -41,6 +41,9 @@ __should_compact(WT_SESSION_IMPL *session, const char *uri)
     WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
     uint64_t cur_time;
     uint64_t time_since_last_compact;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
 
     dsrc_stat = __get_compact_stat(session, uri);
     /* If we haven't seen this file before we should try and compact it. */
@@ -56,6 +59,16 @@ __should_compact(WT_SESSION_IMPL *session, const char *uri)
     // if (WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) < 5 ||
     //   WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->last_unsuccessful_compact) < 10)
     //     return (false);
+
+    /* 
+     * If the last compact attempt had a bytes recovered rate of less than the average, we should
+     * skip this file for a while.
+     */
+    if (dsrc_stat->bytes_rewritten_rate < conn->background_compact.bytes_rewritten_rate_ema &&
+        time_since_last_compact < 60){
+        dsrc_stat->skip_count++;
+        return (false);
+    }
 
     return (true);
 }
@@ -79,7 +92,7 @@ __compact_background_start(
     if (temp_dsrc_stat == NULL) {
         WT_RET(__wt_calloc_one(session, &temp_dsrc_stat));
         WT_RET(__wt_strdup(session, uri, &temp_dsrc_stat->uri));
-        TAILQ_INSERT_HEAD(&conn->background_compact.tables, temp_dsrc_stat, q);
+        TAILQ_INSERT_HEAD(&conn->background_compact.compactqh, temp_dsrc_stat, q);
     }
 
     /* Fill starting information prior to running compaction. */
@@ -104,11 +117,14 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *d
     WT_BM *bm;
     uint64_t cur_time;
     uint64_t bytes_rewritten_rate;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
 
     bm = S2BT(session)->bm;
 
     cur_time = __wt_clock(session);
-    dsrc_stat->time_taken = WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time);
+    dsrc_stat->time_taken = WT_CLOCKDIFF_US(cur_time, dsrc_stat->start_time);
 
     WT_RET(bm->size(bm, session, &dsrc_stat->end_size));
     dsrc_stat->bytes_recovered = dsrc_stat->start_size - dsrc_stat->end_size;
@@ -126,10 +142,14 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *d
             dsrc_stat->bytes_rewritten_rate_ema = 0.1 * bytes_rewritten_rate + 0.9 * dsrc_stat->bytes_rewritten_rate_ema;
             /* Update the lates bytes rewritten rate. */
             dsrc_stat->bytes_rewritten_rate = bytes_rewritten_rate;
+
+            /* 
+             * Bytes rewritten rate ema across all files. We use a 10% weighting of the new rate
+             * to roughly calculate the average of the past 10 successful compaction attempts.
+             */
+            conn->background_compact.bytes_rewritten_rate_ema = 0.1 * bytes_rewritten_rate + 0.9 * conn->background_compact.bytes_rewritten_rate_ema;
         }
     }
-
-
 
     return (0);
 }
@@ -321,9 +341,10 @@ err:
  */
 int
 __wt_compact_server_create(WT_SESSION_IMPL *session)
-{
+{ 
     WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
+    uint64_t i;
 
     conn = S2C(session);
 
@@ -333,7 +354,11 @@ __wt_compact_server_create(WT_SESSION_IMPL *session)
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_COMPACT);
 
-    TAILQ_INIT(&conn->background_compact.tables);
+    TAILQ_INIT(&conn->background_compact.compactqh);
+
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->background_compact.compacthash));
+    for (i = 0; i < conn->hash_size; i++)
+        TAILQ_INIT(&conn->background_compact.compacthash[i]);
 
     /*
      * Compaction does enough I/O it may be called upon to perform slow operations for the block
