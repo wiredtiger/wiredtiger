@@ -29,7 +29,7 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
     size_t num_chunks = capacity / chunk_size;
 
     /* Initialize random seed: */
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
 
     /* Setup chunk cache. This sets up the bitmap internally. */
     REQUIRE((session->getMockConnection()->setupChunkCache(
@@ -79,7 +79,7 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
 
     SECTION("Concurrent allocations")
     {
-        const uint32_t iterations = num_chunks;
+        const size_t iterations = num_chunks;
         const uint32_t threads_num = (rand() % 100) + 1;
 
         std::vector<std::thread> threads;
@@ -108,7 +108,7 @@ TEST_CASE("Chunkcache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")
 
     SECTION("Concurrent allocations and free")
     {
-        const uint32_t iterations = num_chunks;
+        const size_t iterations = num_chunks;
         const uint32_t threads_num = (rand() % 100) + 1;
 
         std::vector<std::thread> threads;
