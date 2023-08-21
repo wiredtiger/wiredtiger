@@ -61,6 +61,8 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
             'chunk_cache=[enabled=true,chunk_size=100MB,capacity=2GB,{}],'.format(self.chunk_cache_extra_config)
 
     def conn_extensions(self, extlist):
+        if os.name == 'nt':
+            extlist.skip_if_missing = True
         extlist.extension('storage_sources', 'dir_store')
 
     def test_chunkcache(self):
