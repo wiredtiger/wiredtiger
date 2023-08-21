@@ -84,7 +84,7 @@ rand_non_keyd_type()
     return (types[rand() % 4]);
 }
 
-/* Initialise a b-tree with a given type and ID. */
+/* Initialize a b-tree with a given type and ID. */
 void
 init_btree(WT_BTREE *btree, WT_BTREE_TYPE type, uint32_t id)
 {
@@ -93,7 +93,7 @@ init_btree(WT_BTREE *btree, WT_BTREE_TYPE type, uint32_t id)
     btree->collator = NULL;
 }
 
-/* Initialise a mod operation. */
+/* Initialize a mod operation. */
 void
 init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITEM *key)
 {
@@ -110,7 +110,7 @@ init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITE
     }
 }
 
-/* Initialise a row-store key. */
+/* Initialize a row-store key. */
 void
 init_key(WT_ITEM *key, const char *key_data)
 {
@@ -129,7 +129,7 @@ random_keys(size_t length)
         const size_t max_index = (sizeof(charset) - 1);
         return charset[rand() % max_index];
     };
-    std::string str(length, 0);
+    static std::string str(length, 0);
     std::generate_n(str.begin(), length, randchar);
     return str.c_str();
 }
@@ -181,7 +181,7 @@ TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
     init_btree(&btrees[0], BTREE_COL_VAR, 1);
     init_btree(&btrees[1], BTREE_ROW, 2);
 
-    // Initialise row ops with different keys.
+    // Initialize row ops with different keys.
     for (int i = 0; i <= 3; i++)
         init_op(&ops[i], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[i]);
 
@@ -274,7 +274,7 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
     REQUIRE(ret == true);
 }
 
-// Test sorting by "keyed-ness". Key'd operations all have the same key and recno.
+// Test sorting by keyedness, key'd operations all have the same key and recno.
 TEST_CASE("Keyedness sort test", "[mod_compare]")
 {
     ConnectionWrapper conn(DB_HOME);
