@@ -105,9 +105,8 @@ init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITE
     } else if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) {
         REQUIRE(key != NULL);
         op->u.op_row.key = *key;
-    } else {
+    } else
         REQUIRE(!(has_key(op->type)));
-    }
 }
 
 /* Initialize a row-store key. */
@@ -216,11 +215,11 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
     init_btree(&btrees[0], BTREE_COL_VAR, 1);
     init_btree(&btrees[1], BTREE_ROW, 2);
 
-    // Column operations
+    // Column operations.
     init_op(&ops[0], &btrees[0], WT_TXN_OP_BASIC_COL, 12, NULL);
     init_op(&ops[1], &btrees[0], WT_TXN_OP_BASIC_COL, 45, NULL);
 
-    // Row operations
+    // Row operations.
     init_op(&ops[2], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, keys[0]);
     init_op(&ops[3], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[1]);
     init_op(&ops[4], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[2]);
@@ -228,7 +227,7 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
     init_op(&ops[6], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[4]);
     init_op(&ops[7], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[5]);
 
-    // Non key'd operations
+    // Non key'd operations.
     init_op(&ops[8], &btrees[0], WT_TXN_OP_TRUNCATE_COL, WT_RECNO_OOB, NULL);
     init_op(&ops[9], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, NULL);
 
@@ -270,7 +269,6 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
     for (int i = 0; i <= key_sz; i++)
         __wt_scr_free(session, &keys[i]);
 
-    // If not sorted correctly, barf.
     REQUIRE(ret == true);
 }
 
@@ -357,7 +355,7 @@ TEST_CASE("Different column store keys test", "[mod_compare]")
     for (int i = 0; i < 6; i++)
         init_btree(&btrees[i], BTREE_COL_VAR, i);
 
-    // Randomly pick btrees and assign random recnos to the ops.
+    // Randomly choose btrees and assign random recnos to the ops.
     for (int i = 0; i < 8; i++)
         init_op(&ops[i], &btrees[rand() % 6], WT_TXN_OP_BASIC_COL, rand() % 200, NULL);
 
