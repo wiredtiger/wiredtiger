@@ -8,6 +8,9 @@
 
 #include "wt_internal.h"
 
+/* Prefix of files the background compaction server deals with. */
+#define WT_BG_COMPACT_URI_PREFIX "file:"
+
 /*
  * __compact_server_run_chk --
  *     Check to decide if the compact server should continue running.
@@ -19,6 +22,64 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __find_next_uri --
+ *     Given a URI, find the next one in the metadata file that is eligible for compaction.
+ */
+static int
+__find_next_uri(WT_SESSION_IMPL *session, const char *uri, const char **next_uri)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    int exact;
+    const char *key;
+
+    cursor = NULL;
+    key = NULL;
+    exact = 0;
+
+    /* Use a metadata cursor to have access to the existing URIs. */
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
+
+    /* Position the cursor on the given URI. */
+    cursor->set_key(cursor, uri);
+    WT_ERR(cursor->search_near(cursor, &exact));
+
+    /*
+     * The given URI may not exist in the metadata file. Since we always want to return a URI that
+     * is lexicographically larger the given one, make sure not to go backwards.
+     */
+    if (exact <= 0)
+        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+
+    /* Loop through the eligible files. */
+    while (ret == 0) {
+        WT_ERR(cursor->get_key(cursor, &key));
+        /* Check we are still dealing with keys which have the right prefix. */
+        if (WT_PREFIX_MATCH(key, WT_BG_COMPACT_URI_PREFIX)) {
+            /* There are files that should not be compacted. */
+            if (!WT_STREQ(key, WT_HS_URI))
+                /* FIXME-WT-11343: check if the table is supposed to be compacted. */
+                break;
+        } else {
+            ret = WT_NOTFOUND;
+            break;
+        }
+        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+    }
+
+    /* Save the selected uri. */
+    if (ret == 0) {
+        __wt_free(session, *next_uri);
+        WT_ERR(__wt_strndup(session, key, strlen(key), next_uri));
+    }
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+
+    return (ret);
+}
+
+/*
  * __compact_server --
  *     The compact server thread.
  */
@@ -26,24 +87,18 @@ static WT_THREAD_RET
 __compact_server(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    int exact;
-    const char *config, *key, *prefix, *uri;
+    const char *config, *uri, *next_uri;
     bool full_iteration, running, signalled;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    cursor = NULL;
     config = NULL;
-    key = NULL;
+    next_uri = NULL;
     uri = NULL;
-    /* The compact operation is only applied on URIs with a specific prefix. */
-    prefix = "file:";
-    exact = 0;
     full_iteration = running = signalled = false;
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
@@ -62,7 +117,8 @@ __compact_server(void *arg)
             if (uri == NULL || full_iteration) {
                 full_iteration = false;
                 __wt_free(session, uri);
-                WT_ERR(__wt_strndup(session, prefix, strlen(prefix), &uri));
+                WT_ERR(__wt_strndup(
+                  session, WT_BG_COMPACT_URI_PREFIX, strlen(WT_BG_COMPACT_URI_PREFIX), &uri));
             }
 
             /* Check every 10 seconds in case the signal was missed. */
@@ -89,45 +145,19 @@ __compact_server(void *arg)
         if (!running)
             continue;
 
-        /* Open a metadata cursor. */
-        WT_ERR(__wt_metadata_cursor(session, &cursor));
-
-        cursor->set_key(cursor, uri);
-        WT_ERR(cursor->search_near(cursor, &exact));
-
-        /* Make sure not to go backwards. */
-        if (exact <= 0)
-            WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
-
-        /* Find a table to compact. */
-        while (ret == 0) {
-            WT_ERR(cursor->get_key(cursor, &key));
-            /* Check we are still dealing with keys which have the right prefix. */
-            if (WT_PREFIX_MATCH(key, prefix)) {
-                /* There are files that should not be compacted. */
-                if (!WT_STREQ(key, WT_HS_URI))
-                    /* FIXME-WT-11343: check if the table is supposed to be compacted. */
-                    break;
-            } else {
-                ret = WT_NOTFOUND;
-                break;
-            }
-            WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
-        }
+        /* Find the next URI to compact. */
+        __wt_free(session, next_uri);
+        WT_ERR_NOTFOUND_OK(__find_next_uri(session, uri, &next_uri), true);
 
         /* All the keys with the specified prefix have been parsed. */
         if (ret == WT_NOTFOUND) {
-            WT_ERR(__wt_metadata_cursor_release(session, &cursor));
             full_iteration = true;
             continue;
         }
 
-        /* Make a copy of the key as it can be freed once the cursor is released. */
+        /* Use the retrieved URI. */
         __wt_free(session, uri);
-        WT_ERR(__wt_strndup(session, key, strlen(key), &uri));
-
-        /* Always close the metadata cursor. */
-        WT_ERR(__wt_metadata_cursor_release(session, &cursor));
+        WT_ERR(__wt_strndup(session, next_uri, strlen(next_uri), &uri));
 
         /* Compact the file with the latest configuration. */
         __wt_spin_lock(session, &conn->background_compact.lock);
@@ -181,10 +211,9 @@ __compact_server(void *arg)
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
 err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
+    __wt_free(session, next_uri);
     __wt_free(session, uri);
 
     if (ret != 0)
