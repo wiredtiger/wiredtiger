@@ -136,9 +136,9 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *c
     compact_stat->bytes_rewritten = bm->block->compact_bytes_rewritten;
 
     /*
-     * If the file failed to decrease in size, mark as an unsuccessful attempt. We do this check
-     * first, because it's possible for compaction to do work (rewriting bytes) while other
-     * operations cause the file to increase in size.
+     * If the file failed to decrease in size, mark as an unsuccessful attempt. It's possible for 
+     * compaction to do work (rewriting bytes) while other operations cause the file to increase in 
+     * size.
      */
     if (compact_stat->bytes_recovered <= 0) {
         compact_stat->last_unsuccessful_compact = __wt_clock(session);
