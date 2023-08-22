@@ -213,6 +213,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        echo "Starting 'make wiredtiger' step"
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
           powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
@@ -221,6 +222,7 @@ functions:
           cd cmake_build
           ${compile_env_vars|} ${make_command|ninja} ${smp_command|} 2>&1
         fi
+        echo "Ending 'make wiredtiger' step"
   "compile wiredtiger":
     - *configure_wiredtiger
     - *make_wiredtiger
