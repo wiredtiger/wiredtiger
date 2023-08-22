@@ -56,11 +56,10 @@ class test_evict01(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values, timestamp_values)
 
-    def check(self, ds, nrows, value):
-        cursor = self.session.open_cursor(ds.uri)
+    def check(self, session, ds, nrows):
+        cursor = session.open_cursor(ds.uri)
         count = 0
         for k, v in cursor:
-            self.assertEqual(v, value)
             count += 1
         self.assertEqual(count, nrows)
         cursor.close()
@@ -85,20 +84,27 @@ class test_evict01(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(ds.uri, None, None)
         for i in range(1, nrows + 1):
             self.session.begin_transaction()
-            cursor[ds.key(i)] = value_a
+            cursor[ds.key(i)] = value_a + str(i)
             if self.timestamp:
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
             else:
                 self.session.commit_transaction()
+        cursor.close()
 
-        if not self.timestamp:
-            # Create a reader transaction that will not be able to see what happens next.
-            # We don't need to do anything with this; it just needs to exist.
-            session2 = self.conn.open_session()
-            session2.begin_transaction()
+        # Mark it stable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
-        # Now remove all data.
-        for i in range(100, nrows + 1):
+        # Reopen the connection (which checkpoints it) so it's all on disk and not in memory.
+        self.reopen_conn()
+
+        # Create a reader transaction that will not be able to see what happens next.
+        # We don't need to do anything with this; it just needs to exist.
+        session2 = self.conn.open_session()
+        session2.begin_transaction()
+
+        # Now remove most of data leaving the first and last range of keys.
+        cursor = self.session.open_cursor(ds.uri, None, None)
+        for i in range(101, nrows - 99):
             self.session.begin_transaction()
             cursor.set_key(ds.key(i))
             self.assertEqual(cursor.remove(), 0)
@@ -117,8 +123,8 @@ class test_evict01(wttest.WiredTigerTestCase):
         stat_cursor.close()
         self.assertEqual(prev_cache_eviction_force_delete, 0)
 
-        # Now read the removed data.
-        self.check(ds, 99, value_a)
+        # Now read the data.
+        self.check(self.session, ds, 200)
 
         # Get the new cache eviction force delete statistic value.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -127,13 +133,8 @@ class test_evict01(wttest.WiredTigerTestCase):
 
         self.assertGreater(cache_eviction_force_delete, prev_cache_eviction_force_delete)
 
-        # Close the long running transaction.
-        if not self.timestamp:
-            session2.rollback_transaction()
-            session2.close()
-
         # Scan the table again, this time the deleted pages must be skipped at page level.
-        self.check(ds, 99, value_a)
+        self.check(self.session, ds, 200)
 
         # Get the tree walk delete page skip statistic value.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -141,8 +142,14 @@ class test_evict01(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         self.assertGreater(cursor_tree_walk_del_page_skip, 0)
-
         cursor.close()
+
+        # All data are visible to the long-running transaction.
+        self.check(session2, ds, nrows)
+
+        # Close the long running transaction.
+        session2.rollback_transaction()
+        session2.close()
 
 if __name__ == '__main__':
     wttest.run()
