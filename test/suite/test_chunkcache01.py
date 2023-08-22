@@ -26,12 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-<<<<<<< HEAD
 import os, sys, wiredtiger, wttest
 from random import randrange
-=======
-import os, wiredtiger, wttest
->>>>>>> origin/develop
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
