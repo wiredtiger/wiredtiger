@@ -79,7 +79,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
     def read_and_verify(self, rows, ds):
         session = self.conn.open_session()
         cursor = session.open_cursor(self.uri)
-        for i in range(1, rows):
+        for i in range(1, rows * 10):
             key = random.randint(1, rows - 1)
             cursor.set_key(ds.key(key))
             cursor.search()
