@@ -51,19 +51,18 @@ __find_next_uri(WT_SESSION_IMPL *session, const char *uri, const char **next_uri
     if (exact <= 0)
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
 
-    /* Loop through the eligible files. */
+    /* Loop through the eligible candidates. */
     while (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
         /* Check we are still dealing with keys which have the right prefix. */
-        if (WT_PREFIX_MATCH(key, WT_BG_COMPACT_URI_PREFIX)) {
-            /* There are files that should not be compacted. */
-            if (!WT_STREQ(key, WT_HS_URI))
-                /* FIXME-WT-11343: check if the table is supposed to be compacted. */
-                break;
-        } else {
+        if (!WT_PREFIX_MATCH(key, WT_BG_COMPACT_URI_PREFIX)) {
             ret = WT_NOTFOUND;
             break;
         }
+        /* There are files that should not be compacted. */
+        if (!WT_STREQ(key, WT_HS_URI))
+            /* FIXME-WT-11343: check if the table is supposed to be compacted. */
+            break;
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
     }
 
