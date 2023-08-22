@@ -68,9 +68,11 @@ CURSTD
 CallsCustDate
 Castagnoli
 Cclmpv
+Ceil
 CentOS
 Checkpointing
 Checksums
+Chunkcache
 CityHash
 ClmSvxz
 CloseHandle
@@ -806,7 +808,6 @@ hashval
 havesize
 hdr
 hhh
-highjack
 hpp
 hs
 html
@@ -868,7 +869,6 @@ isprint
 isrc
 isspace
 iter
-jemalloc
 jjj
 js
 json

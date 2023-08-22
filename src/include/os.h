@@ -126,6 +126,7 @@ struct __wt_file_handle_win {
     HANDLE filehandle_secondary; /* Windows file handle
                                     for file size changes */
     bool direct_io;              /* O_DIRECT configured */
+    DWORD desired_access;        /* Read-only or read/write */
 };
 
 #else
@@ -144,6 +145,7 @@ struct __wt_file_handle_posix {
     uint8_t *mmap_buf;
     bool mmap_file_mappable;
     int mmap_prot;
+    int mmap_flags;
     volatile uint32_t mmap_resizing;
     wt_off_t mmap_size;
     volatile uint32_t mmap_usecount;

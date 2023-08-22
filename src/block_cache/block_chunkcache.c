@@ -21,6 +21,122 @@
     (wt_off_t)(((size_t)offset / (chunkcache)->chunk_size) * (chunkcache)->chunk_size)
 
 /*
+ * __chunkcache_bitmap_find_free --
+ *     Iterate through the bitmap to find a free chunk in the cache.
+ */
+static int
+__chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
+{
+    WT_CHUNKCACHE *chunkcache;
+    size_t bitmap_size, bits_remainder, i, j;
+    uint8_t map_byte;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    /* The bitmap size accounts for full bytes only, remainder bits are iterated separately. */
+    bitmap_size = (chunkcache->capacity / chunkcache->chunk_size) / 8;
+
+    /* Iterate through the bytes and bits of the bitmap to find free chunks. */
+    for (i = 0; i < bitmap_size; i++) {
+        map_byte = chunkcache->free_bitmap[i];
+        if (map_byte != 0xff) {
+            j = 0;
+            while ((map_byte & 1) != 0) {
+                j++;
+                map_byte >>= 1;
+            }
+            *bit_index = ((i * 8) + j);
+            return (0);
+        }
+    }
+
+    /* If the number of chunks isn't divisible by 8, iterate through the remaining bits. */
+    bits_remainder = (chunkcache->capacity / chunkcache->chunk_size) % 8;
+    for (j = 0; j < bits_remainder; j++)
+        if ((chunkcache->free_bitmap[bitmap_size] & (0x01 << j)) == 0) {
+            *bit_index = ((bitmap_size * 8) + j);
+            return (0);
+        }
+    return (ENOSPC);
+}
+
+/*
+ * __chunkcache_bitmap_alloc --
+ *     Find the bit index to allocate.
+ */
+static int
+__chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
+{
+    WT_CHUNKCACHE *chunkcache;
+    uint8_t map_byte_expected, map_byte_mask;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+retry:
+    /* Use the bitmap to find a free slot for a chunk in the cache. */
+    WT_RET(__chunkcache_bitmap_find_free(session, bit_index));
+
+    /* Bit index should be less than the maximum number of chunks that can be allocated. */
+    WT_ASSERT(session, *bit_index < (chunkcache->capacity / chunkcache->chunk_size));
+
+    /*
+     * Cast to volatile to prevent multiple reads. FIXME WT-11285 Use the WT_READ_ONCE macro
+     * instead.
+     */
+    map_byte_expected = *(volatile uint8_t *)&chunkcache->free_bitmap[*bit_index / 8];
+    map_byte_mask = (uint8_t)(0x01 << (*bit_index % 8));
+    if (((map_byte_expected & map_byte_mask) != 0) ||
+      !__wt_atomic_cas8(&chunkcache->free_bitmap[*bit_index / 8], map_byte_expected,
+        map_byte_expected | map_byte_mask))
+        goto retry;
+
+    return (0);
+}
+
+/*
+ * __chunkcache_bitmap_free --
+ *     Free the bit index.
+ */
+static void
+__chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
+{
+    WT_CHUNKCACHE *chunkcache;
+    uint8_t map_byte_expected, map_byte_mask;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    do {
+        map_byte_expected = chunkcache->free_bitmap[index / 8];
+        map_byte_mask = (uint8_t)(0x01 << (index % 8));
+
+        /* Assert to verify that the bit is allocated. */
+        WT_ASSERT(session, (map_byte_expected & map_byte_mask) != 0);
+    } while (!__wt_atomic_cas8(&chunkcache->free_bitmap[index / 8], map_byte_expected,
+      map_byte_expected & (uint8_t) ~(map_byte_mask)));
+}
+
+/*
+ * __chunkcache_should_pin_chunk --
+ *     Return true if the chunk belongs to the object in pinned object array.
+ */
+static inline bool
+__chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    WT_CHUNKCACHE *chunkcache;
+    bool found;
+
+    chunkcache = &S2C(session)->chunkcache;
+    found = false;
+
+    __wt_readlock(session, &chunkcache->pinned_objects.array_lock);
+    WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects.array,
+      chunkcache->pinned_objects.entries, found);
+    __wt_readunlock(session, &chunkcache->pinned_objects.array_lock);
+
+    return (found);
+}
+
+/*
  * __chunkcache_alloc --
  *     Allocate memory for the chunk in the cache.
  */
@@ -28,28 +144,31 @@ static int
 __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_DECL_RET;
+    size_t bit_index;
 
     chunkcache = &S2C(session)->chunkcache;
+    bit_index = 0;
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
-        ret = __wt_malloc(session, chunk->chunk_size, &chunk->chunk_memory);
+        WT_RET(__wt_malloc(session, chunk->chunk_size, &chunk->chunk_memory));
     else {
-#ifdef ENABLE_MEMKIND
-        chunk->chunk_memory = memkind_malloc(chunkcache->memkind, chunk->chunk_size);
-        if (chunk->chunk_memory == NULL)
-            ret = ENOMEM;
-#else
-        WT_RET_MSG(session, EINVAL,
-          "Chunk cache requires libmemkind, unless it is configured to be in DRAM");
-#endif
+        WT_RET(__chunkcache_bitmap_alloc(session, &bit_index));
+
+        /* Allocate the free memory in the chunk cache. */
+        chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
     }
-    if (ret == 0) {
-        __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
-        WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
-        WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+
+    /* Increment chunk's disk usage and update statistics. */
+    __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
+    WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
+    WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+    if (__chunkcache_should_pin_chunk(session, chunk)) {
+        F_SET(chunk, WT_CHUNK_PINNED);
+        WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
+        WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
     }
-    return (ret);
+
+    return (0);
 }
 
 /*
@@ -150,22 +269,25 @@ static void
 __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
+    size_t index;
 
     chunkcache = &S2C(session)->chunkcache;
 
+    /* Decrement chunk's disk usage and update statistics. */
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
-    WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
     WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
+    WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+    if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
+        WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
+        WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+    }
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         __wt_free(session, chunk->chunk_memory);
     else {
-#ifdef ENABLE_MEMKIND
-        memkind_free(chunkcache->memkind, chunk->chunk_memory);
-#else
-        __wt_err(session, EINVAL,
-          "Chunk cache requires libmemkind, unless it is configured to be in DRAM");
-#endif
+        /* Update the bitmap, then free the chunk memory. */
+        index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
+        __chunkcache_bitmap_free(session, index);
     }
     __wt_free(session, chunk);
 }
@@ -234,11 +356,25 @@ __hash_id_eq(WT_CHUNKCACHE_HASHID *a, WT_CHUNKCACHE_HASHID *b)
 static inline bool
 __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 {
-    /* Do not evict chunks that are in the process of being added to the cache. */
-    if (!chunk->valid)
+    bool valid;
+
+    /*
+     * Do not evict chunks that are in the process of being added to the cache. The ordered read,
+     * and matching publish, are required since populating the chunk itself isn't protected by the
+     * bucket lock. Ergo, we need to make sure that reads or writes to the valid field are not
+     * reordered relative to reads or writes of other fields.
+     */
+    WT_ORDERED_READ(valid, chunk->valid);
+    if (!valid)
         return (false);
-    if (--(chunk->access_count) == 0)
+
+    if (F_ISSET(chunk, WT_CHUNK_PINNED))
+        return (false);
+
+    if (chunk->access_count == 0)
         return (true);
+    --chunk->access_count;
+
     return (false);
 }
 
@@ -259,7 +395,7 @@ __chunkcache_eviction_thread(void *arg)
     session = (WT_SESSION_IMPL *)arg;
     chunkcache = &S2C(session)->chunkcache;
 
-    while (!chunkcache->chunkcache_exiting) {
+    while (!F_ISSET(chunkcache, WT_CHUNK_CACHE_EXITING)) {
         /* Do not evict if we are not close to exceeding capacity. */
         if ((chunkcache->bytes_used + chunkcache->chunk_size) <
           chunkcache->evict_trigger * chunkcache->capacity / 100) {
@@ -281,7 +417,7 @@ __chunkcache_eviction_thread(void *arg)
                 }
             }
             __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
-            if (chunkcache->chunkcache_exiting)
+            if (F_ISSET(chunkcache, WT_CHUNK_CACHE_EXITING))
                 return (WT_THREAD_RET_VALUE);
         }
     }
@@ -398,7 +534,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
-    bool chunk_cached, found;
+    bool chunk_cached, valid;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
@@ -406,8 +542,12 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     retries = 0;
     sleep_usec = WT_THOUSAND;
 
-    if (!chunkcache->configured)
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         return (ENOTSUP);
+
+    /* Only cache read-only tiered objects. */
+    if (!block->readonly)
+        return (0);
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
@@ -424,7 +564,8 @@ retry:
         TAILQ_FOREACH (chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk) {
             if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
                 /* If the chunk is there, but invalid, there is I/O in progress. Retry. */
-                if (!chunk->valid) {
+                WT_ORDERED_READ(valid, chunk->valid);
+                if (!valid) {
                     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
                     __wt_spin_backoff(&retries, &sleep_usec);
                     WT_STAT_CONN_INCR(session, chunk_cache_retries);
@@ -490,12 +631,6 @@ retry:
                 return (ret);
             }
 
-            /* Mark chunk as pinned if the chunk belongs to the object in pinned object array. */
-            WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects,
-              chunkcache->pinned_entries, found);
-            if (found)
-                F_SET(chunk, WT_CHUNK_PINNED);
-
             /*
              * Mark chunk as valid. The only thread that could be executing this code is the thread
              * that won the race and inserted this (invalid) chunk into the hash table. This thread
@@ -503,7 +638,7 @@ retry:
              * would be spin-waiting for this chunk to become valid. The current thread will mark
              * the chunk as valid, and any waiters will unblock and proceed reading it.
              */
-            (void)__wt_atomic_addv32(&chunk->valid, 1);
+            WT_PUBLISH(chunk->valid, true);
 
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
               "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
@@ -529,6 +664,7 @@ __wt_chunkcache_remove(
     WT_CHUNKCACHE_HASHID hash_id;
     size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
     uint64_t bucket_id;
+    bool valid;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -536,7 +672,7 @@ __wt_chunkcache_remove(
     already_removed = 0;
     remains_to_remove = size;
 
-    if (!chunkcache->configured)
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         return;
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "remove block: %s(%u), offset=%" PRId64 ", size=%u",
@@ -553,7 +689,8 @@ __wt_chunkcache_remove(
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk, chunk_tmp)
         {
             if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
-                if (chunk->valid) {
+                WT_ORDERED_READ(valid, chunk->valid);
+                if (valid) {
                     WT_ASSERT(session,
                       WT_BLOCK_OVERLAPS_CHUNK(chunk->chunk_offset,
                         offset + (wt_off_t)already_removed, chunk->chunk_size, size));
@@ -586,26 +723,93 @@ __wt_chunkcache_remove(
 }
 
 /*
+ * __wt_chunkcache_reconfig --
+ *     Re-configure the chunk cache.
+ */
+int
+__wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    char **old_pinned_list, **pinned_objects;
+    unsigned int cnt, i;
+
+    chunkcache = &S2C(session)->chunkcache;
+    old_pinned_list = chunkcache->pinned_objects.array;
+    pinned_objects = NULL;
+    cnt = 0;
+
+    /* When reconfiguring, check if there are any modifications that we care about. */
+    if ((ret = __wt_config_gets(session, cfg + 1, "chunk_cache", &cval)) == WT_NOTFOUND)
+        return (0);
+
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
+        WT_RET_MSG(
+          session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
+
+    WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
+
+    /*
+     * Acquire the pinned array lock to avoid racing with threads reading the pinned array, and then
+     * update the array.
+     */
+    __wt_writelock(session, &chunkcache->pinned_objects.array_lock);
+    chunkcache->pinned_objects.array = pinned_objects;
+    chunkcache->pinned_objects.entries = cnt;
+    __wt_writeunlock(session, &chunkcache->pinned_objects.array_lock);
+
+    /* Release the memory allocated to the old array. */
+    __chunkcache_arr_free(session, &old_pinned_list);
+
+    /* Iterate through all the chunks and mark them as pinned if necessary. */
+    for (i = 0; i < chunkcache->hashtable_size; i++) {
+        __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
+        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+        {
+            if (__chunkcache_should_pin_chunk(session, chunk)) {
+                /* Increment the stat when a chunk that was initially unpinned becomes pinned. */
+                if (!F_ISSET(chunk, WT_CHUNK_PINNED)) {
+                    WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
+                    WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+                }
+                F_SET(chunk, WT_CHUNK_PINNED);
+            } else {
+                /* Decrement the stat when a chunk that was initially pinned becomes unpinned. */
+                if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
+                    WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
+                    WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+                }
+                F_CLR(chunk, WT_CHUNK_PINNED);
+            }
+        }
+        __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
+    }
+
+    return (0);
+}
+
+/*
  * __wt_chunkcache_setup --
  *     Set up the chunk cache.
  */
 int
-__wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CHUNKCACHE *chunkcache;
     WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
     unsigned int cnt, i;
-    wt_thread_t evict_thread_tid;
     char **pinned_objects;
+    size_t mapped_size;
 
     chunkcache = &S2C(session)->chunkcache;
     pinned_objects = NULL;
     cnt = 0;
 
-    if (chunkcache->type != WT_CHUNKCACHE_UNCONFIGURED && !reconfig)
+    if (F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
-    if (reconfig)
-        WT_RET_MSG(session, EINVAL, "reconfiguration of chunk cache not supported");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.enabled", &cval));
     if (cval.val == 0)
@@ -638,43 +842,99 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         chunkcache->type = WT_CHUNKCACHE_IN_VOLATILE_MEMORY;
     else if (WT_STRING_MATCH("file", cval.str, cval.len) ||
       WT_STRING_MATCH("FILE", cval.str, cval.len)) {
-#ifdef ENABLE_MEMKIND
         chunkcache->type = WT_CHUNKCACHE_FILE;
-        WT_RET(__wt_config_gets(session, cfg, "chunk_cache.device_path", &cval));
-        WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->dev_path));
-        if (!__wt_absolute_path(chunkcache->dev_path))
-            WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
-#else
-        WT_RET_MSG(session, EINVAL, "chunk cache of type FILE requires libmemkind");
-#endif
+        WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
+        if (!__wt_absolute_path(chunkcache->storage_path))
+            WT_RET_MSG(session, EINVAL, "Storage location must be an absolute path");
+
+        WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,
+          WT_FS_OPEN_CREATE | WT_FS_OPEN_FORCE_MMAP, &chunkcache->fh));
+
+        WT_RET(chunkcache->fh->handle->fh_truncate(
+          chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
+
+        WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
+          (void **)&chunkcache->memory, &mapped_size, NULL));
+        if (mapped_size != chunkcache->capacity)
+            WT_RET_MSG(session, EINVAL,
+              "Storage size mapping %lu does not equal capacity of chunk cache %" PRIu64,
+              mapped_size, chunkcache->capacity);
+
+        WT_RET(__wt_calloc(session,
+          WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
+          &chunkcache->free_bitmap));
     }
 
-    WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
-    chunkcache->pinned_objects = pinned_objects;
-    chunkcache->pinned_entries = cnt;
+    WT_ERR(__wt_rwlock_init(session, &chunkcache->pinned_objects.array_lock));
+    WT_ERR(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
+    chunkcache->pinned_objects.array = pinned_objects;
+    chunkcache->pinned_objects.entries = cnt;
 
-    WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
+    WT_ERR(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
 
     for (i = 0; i < chunkcache->hashtable_size; i++) {
         TAILQ_INIT(&(chunkcache->hashtable[i].colliding_chunks));
-        WT_RET(__wt_spin_init(
+        WT_ERR(__wt_spin_init(
           session, &chunkcache->hashtable[i].bucket_lock, "chunk cache bucket lock"));
     }
 
-    if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
-#ifdef ENABLE_MEMKIND
-        WT_RET(memkind_create_pmem(chunkcache->dev_path, 0, &chunkcache->memkind));
-#else
-        WT_RET_MSG(session, EINVAL, "Chunk cache that is not in DRAM requires libmemkind");
-#endif
-    }
+    WT_ERR(__wt_thread_create(
+      session, &chunkcache->evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
 
-    WT_RET(__wt_thread_create(
-      session, &evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
-
-    chunkcache->configured = true;
+    F_SET(chunkcache, WT_CHUNKCACHE_CONFIGURED);
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
       (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) ? "volatile memory" : "file system",
       chunkcache->capacity);
+
     return (0);
+err:
+    __wt_rwlock_destroy(session, &chunkcache->pinned_objects.array_lock);
+    return (ret);
 }
+
+/*
+ * __wt_chunkcache_teardown --
+ *     Tear down the chunk cache.
+ */
+int
+__wt_chunkcache_teardown(WT_SESSION_IMPL *session)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_DECL_RET;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
+        return (0);
+
+    F_SET(chunkcache, WT_CHUNK_CACHE_EXITING);
+    WT_TRET(__wt_thread_join(session, &chunkcache->evict_thread_tid));
+
+    __chunkcache_arr_free(session, &chunkcache->pinned_objects.array);
+    __wt_rwlock_destroy(session, &chunkcache->pinned_objects.array_lock);
+
+    if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
+        WT_TRET(__wt_close(session, &chunkcache->fh));
+        __wt_free(session, chunkcache->storage_path);
+        __wt_free(session, chunkcache->free_bitmap);
+    }
+
+    return (ret);
+}
+
+#ifdef HAVE_UNITTEST
+
+int
+__ut_chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
+{
+    return (__chunkcache_bitmap_alloc(session, bit_index));
+}
+
+void
+__ut_chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t bit_index)
+{
+    __chunkcache_bitmap_free(session, bit_index);
+}
+
+#endif
