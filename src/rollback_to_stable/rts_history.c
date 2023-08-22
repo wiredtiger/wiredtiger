@@ -62,11 +62,12 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
         if (!dryrun) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_HS_UPDATE_REMOVE
-              "deleting history store update with stop_timestamp=%s greater than "
-              "stable_timestamp=%s, time_window=%s, btree_id=%" PRIu32,
-              __wt_timestamp_to_string(hs_tw->stop_ts, ts_string[0]),
+              "deleting history store update from btree_id=%" PRIu32
+              ", update stop_timestamp=%s greater than "
+              "stable_timestamp=%s, time_window=%s",
+              btree_id, __wt_timestamp_to_string(hs_tw->stop_ts, ts_string[0]),
               __wt_timestamp_to_string(ts, ts_string[1]),
-              __wt_time_window_to_string(hs_tw, tw_string), btree_id);
+              __wt_time_window_to_string(hs_tw, tw_string));
             WT_ERR(hs_cursor->remove(hs_cursor));
         }
 
