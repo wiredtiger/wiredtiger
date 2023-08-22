@@ -172,7 +172,7 @@ __wt_rts_btree_walk_btree_apply(
     rollback_txnid = 0;
     write_gen = 0;
     dhandle_allocated = false;
-    btree = S2BT(session);
+    btree = NULL;
 
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
@@ -268,6 +268,7 @@ __wt_rts_btree_walk_btree_apply(
             WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
               ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
         dhandle_allocated = true;
+        btree = S2BT(session);
 
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_TREE "rolling back tree. uri=%s, btree_id=%" PRIu32
