@@ -27,8 +27,9 @@ __get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
     WT_CONNECTION_IMPL *conn;
-    conn = S2C(session);
     uint64_t bucket, hash;
+
+    conn = S2C(session);
 
     hash = __wt_hash_city64(uri, strlen(uri));
     bucket = hash & (conn->hash_size - 1);
@@ -48,7 +49,7 @@ __get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
 static bool
 __should_compact(WT_SESSION_IMPL *session, const char *uri)
 {
-    WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
+    WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_CONNECTION_IMPL *conn;
     uint64_t cur_time;
 
@@ -59,22 +60,23 @@ __should_compact(WT_SESSION_IMPL *session, const char *uri)
         return (false);
 
     /* If we haven't seen this file before we should try and compact it. */
-    dsrc_stat = __get_compact_stat(session, uri);
-    if (dsrc_stat == NULL)
+    compact_stat = __get_compact_stat(session, uri);
+    if (compact_stat == NULL)
         return (true);
 
     /* If we have been unsuccessful recently skip this file for some time. */
     cur_time = __wt_clock(session);
-    if (WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->last_unsuccessful_compact) < 60) {
-        dsrc_stat->skip_count++;
+    if (!compact_stat->success &&
+      WT_CLOCKDIFF_SEC(cur_time, compact_stat->last_compact_time) < 60) {
+        compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
     }
 
     /* If the last compaction pass was less successful than the average. Skip it for some time. */
-    if (dsrc_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
-      WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) < 60) {
-        dsrc_stat->skip_count++;
+    if (compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
+      WT_CLOCKDIFF_SEC(cur_time, compact_stat->last_compact_time) < 60) {
+        compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
     }
@@ -111,7 +113,7 @@ __compact_background_start(
 
     /* Fill starting information prior to running compaction. */
     WT_RET(bm->size(bm, session, &temp_compact_stat->start_size));
-    temp_compact_stat->start_time = __wt_clock(session);
+    temp_compact_stat->last_compact_time = __wt_clock(session);
 
     *compact_stat = temp_compact_stat;
 
@@ -136,15 +138,13 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *c
     compact_stat->bytes_rewritten = bm->block->compact_bytes_rewritten;
 
     /*
-     * If the file failed to decrease in size, mark as an unsuccessful attempt. It's possible for 
-     * compaction to do work (rewriting bytes) while other operations cause the file to increase in 
+     * If the file failed to decrease in size, mark as an unsuccessful attempt. It's possible for
+     * compaction to do work (rewriting bytes) while other operations cause the file to increase in
      * size.
      */
-    if (compact_stat->bytes_recovered <= 0) {
-        compact_stat->last_unsuccessful_compact = __wt_clock(session);
+    if (compact_stat->bytes_recovered <= 0)
         compact_stat->consecutive_unsuccessful_attempts++;
-    } else {
-        compact_stat->last_successful_compact = __wt_clock(session);
+    else {
         compact_stat->consecutive_unsuccessful_attempts = 0;
         conn->background_compact.files_compacted++;
 
@@ -163,7 +163,8 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *c
 
 /*
  * __background_compact_list_cleanup --
- *     Free an entry or all entries in the background compact tracking list.
+ *     Free all or any entry that has not been updated for more than a day in the background compact
+ *     tracking list.
  */
 static void
 __background_compact_list_cleanup(WT_SESSION_IMPL *session, bool all)
@@ -177,7 +178,7 @@ __background_compact_list_cleanup(WT_SESSION_IMPL *session, bool all)
 
     TAILQ_FOREACH_SAFE(compact_stat, &conn->background_compact.compactqh, q, temp_compact_stat)
     {
-        if (all || WT_CLOCKDIFF_SEC(cur_time, compact_stat->start_time) > 86400) {
+        if (all || WT_CLOCKDIFF_SEC(cur_time, compact_stat->last_compact_time) > 86400) {
             /* Remove file entry from both the hashtable and list. */
             hash = __wt_hash_city64(compact_stat->uri, strlen(compact_stat->uri));
             bucket = hash & (conn->hash_size - 1);
