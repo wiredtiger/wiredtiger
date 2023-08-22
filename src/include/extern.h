@@ -2162,6 +2162,9 @@ static inline int __wt_buf_setstr(WT_SESSION_IMPL *session, WT_ITEM *buf, const 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly,
   bool *didworkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_cbt_check_and_mark_page_eviction(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool newpage, size_t total_skipped)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cell_pack_value_match(WT_CELL *page_cell, WT_CELL *val_cell,
   const uint8_t *val_data, bool *matchp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,

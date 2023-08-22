@@ -722,7 +722,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
      */
     F_SET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV);
 
-    /* Clear the count of deleted items and non-visible valid items on the page. */
+    /* Clear the count of globally visible deleted items. */
     cbt->page_obsolete_deleted_count = 0;
     F_SET(cbt, WT_CBT_ALL_DELETED_ITEMS);
 
@@ -903,48 +903,15 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
                 continue;
             }
         }
+
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
          * and only saw deleted records, try to evict the page when we release it. Otherwise
          * repeatedly searching from the beginning of a tree can have quadratic performance. Take
          * care not to force eviction of genuinely empty pages, in new trees.
          */
-        if (page != NULL) {
-            /*
-             * An obsolete visible stop timestamp could have been treated as a tombstone and
-             * accounted for in the deleted count. Such a page might not have any new updates and be
-             * clean, but could benefit from reconciliation getting rid of the obsolete content.
-             * Hence mark the page dirty to force it through reconciliation.
-             */
-            if (cbt->page_obsolete_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
-              (newpage && cbt->page_obsolete_deleted_count > 0)) {
-                WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
-                WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
-            } else if (page->type != WT_PAGE_COL_FIX && total_skipped != 0 &&
-              F_ISSET(cbt, WT_CBT_ALL_DELETED_ITEMS) &&
-              session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
-                /*
-                 * A visible stop timestamp could have been treated as a tombstone and accounted for
-                 * page with no non-deleted updates. Evicting these pages could benefit search
-                 * performance. Generally, tombstones are ignored while searching the history store,
-                 * so we should not see any history store pages in this flow. Ignore the pages from
-                 * fixed length column store tables as they don't get any search performance benefit
-                 * and also sessions with READ UNCOMMITTED isolation, as their search can see the
-                 * results of an uncommitted transaction.
-                 *
-                 * Verify whether any deleted keys were skipped throughout the scan to find empty
-                 * pages. This prevents unnecessarily evicting empty pages.
-                 *
-                 * Due to all deleted items on the page that have not yet become obsolete, there is
-                 * no need to mark the page dirty as in the case of obsolete updates. Reconciling
-                 * the page forcefully might not be beneficial.
-                 */
-                __wt_page_evict_soon(session, cbt->ref);
-                WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
-            }
-        }
-        cbt->page_obsolete_deleted_count = 0;
-        F_SET(cbt, WT_CBT_ALL_DELETED_ITEMS);
+        if (page != NULL)
+            WT_ERR(__wt_cbt_check_and_mark_page_eviction(session, cbt, newpage, total_skipped));
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
