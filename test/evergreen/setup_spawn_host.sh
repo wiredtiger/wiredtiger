@@ -30,10 +30,10 @@ if [[ -n $GDB_CORE_DUMP ]]; then
     # correct path on the new machine.
     OLD_WT_PATH=$(readelf -n ${GDB_CORE_DUMP} | grep "wiredtiger" | head -n 1 | sed -e 's/wiredtiger.*/wiredtiger/' -e 's/^[ \t]*//')
     cat >> ~/.gdbinit << EOF
-    set solib-search-path ${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib
-    set substitution-path ${OLD_WT_PATH} ${HOME}/wiredtiger
-    set pagination off
-    set print pretty on
+set solib-search-path ${HOME}/wiredtiger/cmake_build/lang:${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib
+set substitute-path ${OLD_WT_PATH} ${HOME}/wiredtiger
+set pagination off
+set print pretty on
 EOF
 
 fi
