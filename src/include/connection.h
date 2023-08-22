@@ -46,14 +46,14 @@ extern WT_PROCESS __wt_process;
     do {                                                                                      \
         TAILQ_INSERT_HEAD(&(conn)->background_compact.compactqh, dsrc_stat, q);               \
         TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq); \
-        ++(conn)->background_compact.file_count;                                           \
+        ++(conn)->background_compact.file_count;                                              \
     } while (0)
 
 #define WT_BKG_COMPACT_REMOVE(conn, dsrc_stat, bucket)                                   \
     do {                                                                                 \
         TAILQ_REMOVE(&(conn)->background_compact.compactqh, dsrc_stat, q);               \
         TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq); \
-        --(conn)->background_compact.file_count;                                      \
+        --(conn)->background_compact.file_count;                                         \
     } while (0)
 
 /* WT_BACKGROUND_COMPACT_STAT --
@@ -61,21 +61,18 @@ extern WT_PROCESS __wt_process;
  */
 struct __wt_background_compact_stat {
     char *uri;
-    uint64_t start_time;
-    uint64_t time_taken;
-    uint64_t last_unsuccessful_compact;
-    uint64_t last_successful_compact;
+    uint64_t start_time;                        /* Start time for last compact attempt */
+    uint64_t last_unsuccessful_compact;         /* Last time when compact was unsuccessful */
+    uint64_t last_successful_compact;           /* Last time when compact was successful */
+    uint64_t skip_count;                        /* Number of times we've skipped this file */
+    uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
+    uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
 
-    wt_off_t start_size;
-    wt_off_t end_size;
-    wt_off_t bytes_recovered;
+    wt_off_t start_size;                        /* File size before compact last started */
+    wt_off_t end_size;                          /* File size after compact last ended */
+    wt_off_t bytes_recovered;                   /* Difference in file size before and after */
 
-    uint64_t bytes_rewritten;
-
-    uint64_t skip_count;
-    uint64_t unsuccessful_compact_attempts;
-    uint64_t unsuccessful_attempts_since_last_successful_compact;
-
+    /* List of files background compact has worked on */
     TAILQ_ENTRY(__wt_background_compact_stat) q;
     TAILQ_ENTRY(__wt_background_compact_stat) hashq;
 };
@@ -85,23 +82,21 @@ struct __wt_background_compact_stat {
  *	Structure dedicated to the background compaction server
  */
 struct __wt_background_compact {
-    bool running;             /* Compaction supposed to run */
-    bool signalled;           /* Compact signalled */
-    bool tid_set;             /* Thread set */
-    wt_thread_t tid;          /* Thread */
-    const char *config;       /* Configuration */
-    WT_CONDVAR *cond;         /* Wait mutex */
-    WT_SPINLOCK lock;         /* Compact lock */
-    WT_SESSION_IMPL *session; /* Thread session */
+    bool running;               /* Compaction supposed to run */
+    bool signalled;             /* Compact signalled */
+    bool tid_set;               /* Thread set */
+    wt_thread_t tid;            /* Thread */
+    const char *config;         /* Configuration */
+    WT_CONDVAR *cond;           /* Wait mutex */
+    WT_SPINLOCK lock;           /* Compact lock */
+    WT_SESSION_IMPL *session;   /* Thread session */
 
-    uint64_t files_skipped;
-    uint64_t files_compacted;
+    uint64_t files_skipped;         /* Number of times background server has skipped a file */
+    uint64_t files_compacted;       /* Number of times background server has compacted a file */
+    uint64_t file_count;            /* Number of files in the tracking list */
+    uint64_t bytes_rewritten_ema;   /* Exponential moving average for the bytes rewritten */
 
-    uint64_t file_count;
-
-    /* Exponential moving average for the bytes rewritten. */
-    uint64_t bytes_rewritten_ema;
-
+    /* List of files to track compaction statistics across background server iterations. */
     TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
     TAILQ_HEAD(__wt_bg_compact_qh, __wt_background_compact_stat) compactqh;
 };
