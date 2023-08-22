@@ -53,13 +53,18 @@ __compact_server(void *arg)
         /* When the entire metadata file has been parsed, take a break or wait until signalled. */
         if (full_iteration || !running) {
 
-            full_iteration = false;
             /*
-             * FIXME-WT-11409: Depending on the previous state, we may not want to clear out the
-             * last key used. This could be useful if the server was paused to be resumed later.
+             * In order to always try to parse all the candidates present in the metadata file even
+             * though the compaction server may be stopped at random times, only set the URI to the
+             * prefix for the very first iteration and when all the candidates in the metadata file
+             * have been parsed.
              */
-            __wt_free(session, uri);
-            WT_ERR(__wt_strndup(session, prefix, strlen(prefix), &uri));
+            if (uri == NULL || full_iteration) {
+                full_iteration = false;
+                __wt_free(session, uri);
+                WT_ERR(__wt_strndup(session, prefix, strlen(prefix), &uri));
+            }
+
             /* Check every 10 seconds in case the signal was missed. */
             __wt_cond_wait(
               session, conn->background_compact.cond, 10 * WT_MILLION, __compact_server_run_chk);
@@ -141,18 +146,33 @@ __compact_server(void *arg)
         /*
          * Compact may return:
          * - EBUSY or WT_ROLLBACK for various reasons.
-         * - ETIMEDOUT if the configured timer has elapsed.
          * - ENOENT if the underlying file does not exist.
+         * - ETIMEDOUT if the configured timer has elapsed.
+         * - WT_ERROR if the background compaction has been interrupted.
          */
         if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK) {
+            WT_STAT_CONN_INCR(session, background_compact_fail);
+
             if (ret == EBUSY && __wt_cache_stuck(session))
                 WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
 
             if (ret == ETIMEDOUT)
                 WT_STAT_CONN_INCR(session, background_compact_timeout);
 
-            WT_STAT_CONN_INCR(session, background_compact_fail);
             ret = 0;
+        }
+
+        /*
+         * WT_ERROR should indicate the server was interrupted, make sure it is no longer running.
+         */
+        if (ret == WT_ERROR) {
+            __wt_spin_lock(session, &conn->background_compact.lock);
+            running = conn->background_compact.running;
+            __wt_spin_unlock(session, &conn->background_compact.lock);
+            if (!running) {
+                WT_STAT_CONN_INCR(session, background_compact_interrupted);
+                ret = 0;
+            }
         }
 
         WT_ERR(ret);
@@ -160,15 +180,15 @@ __compact_server(void *arg)
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
-    WT_ERR(__wt_metadata_cursor_close(session));
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
     __wt_free(session, uri);
 
-    if (0) {
-err:
+    if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
-    }
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -183,6 +203,9 @@ __wt_compact_server_create(WT_SESSION_IMPL *session)
     uint32_t session_flags;
 
     conn = S2C(session);
+
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+        return (0);
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_COMPACT);
@@ -253,6 +276,13 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
     cfg[1] = config;
     cfg[2] = NULL;
     stripped_config = NULL;
+
+    /* The background compaction server is not compatible with in-memory or readonly databases. */
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+        __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
+          "Background compact cannot be configured for in-memory or readonly databases.");
+        return (ENOTSUP);
+    }
 
     /* Wait for any previous signal to be processed first. */
     __wt_spin_lock(session, &conn->background_compact.lock);
