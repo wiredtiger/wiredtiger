@@ -165,7 +165,7 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *c
  * __background_compact_list_cleanup --
  *     Free an entry or all entries in the background compact tracking list.
  */
-static int
+static void
 __background_compact_list_cleanup(WT_SESSION_IMPL *session, bool all)
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
@@ -189,8 +189,6 @@ __background_compact_list_cleanup(WT_SESSION_IMPL *session, bool all)
 
     if (all)
         __wt_free(session, conn->background_compact.compacthash);
-
-    return (0);
 }
 
 /*
@@ -241,7 +239,7 @@ __compact_server(void *arg)
                 full_iteration = false;
                 __wt_free(session, uri);
                 WT_ERR(__wt_strndup(session, prefix, strlen(prefix), &uri));
-                WT_ERR(__background_compact_list_cleanup(session, false));
+                __background_compact_list_cleanup(session, false);
             }
 
             /* Check every 10 seconds in case the signal was missed. */
@@ -367,7 +365,7 @@ __compact_server(void *arg)
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    WT_TRET(__background_compact_list_cleanup(session, true));
+    __background_compact_list_cleanup(session, true);
 
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
