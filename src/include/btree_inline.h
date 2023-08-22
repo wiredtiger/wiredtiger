@@ -2281,10 +2281,10 @@ __wt_cbt_clear_all_deleted_items_flag(
         if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
             ++cbt->page_obsolete_deleted_count;
         /*
-         * If the selected tombstone is not the same as the most recent update in the update list
-         * indicates that there are newer updates in the update list that are either not committed
-         * or not visible to the current transaction. In this scenario, consider the page is having
-         * non deleted updates.
+         * There may be more recent updates in the update list that are either not committed or not
+         * visible to the current transaction if the selected tombstone differs from the most recent
+         * update in the update list. Consider that the page in this circumstance has non-deleted
+         * items.
          */
         else if (F_ISSET(cbt, WT_CBT_ALL_DELETED_ITEMS) && first_upd != NULL &&
           (cbt->upd_value->tw.stop_txn != first_upd->txnid ||
