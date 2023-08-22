@@ -68,9 +68,11 @@ CURSTD
 CallsCustDate
 Castagnoli
 Cclmpv
+Ceil
 CentOS
 Checkpointing
 Checksums
+Chunkcache
 CityHash
 ClmSvxz
 CloseHandle
@@ -228,6 +230,7 @@ MONGODB
 MOVEFILE
 MRXB
 MRXBOPC
+MSAN
 MSDN
 MSVC
 MSan
@@ -236,6 +239,7 @@ MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
+McIlroy
 Mellor
 Mewhort
 Mitzenmacher
@@ -323,6 +327,7 @@ RXB
 ReadFile
 Readonly
 Realloc
+Recurse
 RedHat
 Redistributions
 Rogerio
@@ -566,6 +571,7 @@ colgroup
 colgroups
 collatorp
 comparator
+comparators
 comparep
 compat
 cond
@@ -576,7 +582,6 @@ config
 configs
 conn
 connectionp
-const
 constantp
 consts
 cookiep
@@ -803,7 +808,6 @@ hashval
 havesize
 hdr
 hhh
-highjack
 hpp
 hs
 html
@@ -865,7 +869,6 @@ isprint
 isrc
 isspace
 iter
-jemalloc
 jjj
 js
 json
@@ -891,6 +894,7 @@ len
 lengthp
 lenp
 lex
+lexically
 lexicographically
 lf
 lfence
@@ -1102,6 +1106,7 @@ qrrSS
 qsort
 quartile
 queueable
+quicksort
 quiesce
 qup
 rN
@@ -1185,6 +1190,7 @@ sn
 snaplen
 snapsort
 snprintf
+sortable
 sp
 sparc
 spinlock

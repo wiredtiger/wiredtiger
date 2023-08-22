@@ -69,6 +69,8 @@ struct __wt_addr;
 typedef struct __wt_addr WT_ADDR;
 struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
+struct __wt_background_compact;
+typedef struct __wt_background_compact WT_BACKGROUND_COMPACT;
 struct __wt_backup_target;
 typedef struct __wt_backup_target WT_BACKUP_TARGET;
 struct __wt_blkcache;
@@ -119,6 +121,10 @@ struct __wt_chunkcache_chunk;
 typedef struct __wt_chunkcache_chunk WT_CHUNKCACHE_CHUNK;
 struct __wt_chunkcache_hashid;
 typedef struct __wt_chunkcache_hashid WT_CHUNKCACHE_HASHID;
+struct __wt_chunkcache_intermediate_hash;
+typedef struct __wt_chunkcache_intermediate_hash WT_CHUNKCACHE_INTERMEDIATE_HASH;
+struct __wt_chunkcache_pinned_list;
+typedef struct __wt_chunkcache_pinned_list WT_CHUNKCACHE_PINNED_LIST;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_ckpt_snapshot;
@@ -451,6 +457,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cache.h"
 #include "capacity.h"
 #include "cell.h"
+#include "checkpoint.h"
 #include "compact.h"
 #include "config.h"
 #include "cursor.h"

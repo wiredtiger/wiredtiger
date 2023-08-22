@@ -554,30 +554,6 @@ connection_runtime_config = [
         control how aggressively obsolete content is removed when creating checkpoints.
         Default to none, which means no additional work is done to find obsolete content.
         ''', choices=['none', 'reclaim_space']),
-    Config('chunk_cache', '', r'''
-        chunk cache configuration options''',
-        type='category', subconfig=[
-        Config('capacity', '10GB', r'''
-            maximum memory or storage to use for the chunk cache''',
-            min='0', max='100TB'),
-        Config('chunk_cache_evict_trigger', '90', r'''
-            chunk cache percent full that triggers eviction''',
-            min='0', max='100'),
-        Config('chunk_size', '1MB', r'''
-            size of cached chunks''',
-            min='512KB', max='100GB'),
-        Config('device_path', '', r'''
-            the absolute path to the file system or a block device used as cache location'''),
-        Config('enabled', 'false', r'''
-            enable chunk cache''',
-            type='boolean'),
-        Config('hashsize', '1024', r'''
-            number of buckets in the hashtable that keeps track of objects''',
-            min='64', max='1048576'),
-        Config('type', 'FILE', r'''
-            cache location, defaults to the file system.''',
-            choices=['FILE', 'DRAM'], undoc=True),
-        ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
@@ -836,7 +812,7 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'compact_slow',
-        'evict_reposition', 'failpoint_eviction_fail_after_reconciliation',
+        'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prefix_compare',
         'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
@@ -1009,6 +985,19 @@ connection_reconfigure_statistics_log_configuration = [
         type='category', subconfig=
         statistics_log_configuration_common)
 ]
+wiredtiger_open_statistics_log_configuration = [
+    Config('statistics_log', '', r'''
+        log any statistics the database is configured to maintain, to a file. See @ref
+        statistics for more information. Enabling the statistics log server uses a session from
+        the configured session_max''',
+        type='category', subconfig=
+        statistics_log_configuration_common + [
+        Config('path', '"."', r'''
+            the name of a directory into which statistics files are written. The directory
+            must already exist. If the value is not an absolute path, the path is relative to
+            the database home (see @ref absolute_path for more information)''')
+        ])
+]
 
 tiered_storage_configuration_common = [
     Config('local_retention', '300', r'''
@@ -1051,18 +1040,45 @@ wiredtiger_open_tiered_storage_configuration = [
     ]),
 ]
 
-wiredtiger_open_statistics_log_configuration = [
-    Config('statistics_log', '', r'''
-        log any statistics the database is configured to maintain, to a file. See @ref
-        statistics for more information. Enabling the statistics log server uses a session from
-        the configured session_max''',
+chunk_cache_configuration_common = [
+    Config('pinned', '', r'''
+        List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
+        tables exceeding capacity will not be fully retained. Table names can appear
+        in both this and the preload list, but not in both this and the exclude list.
+        Duplicate names are allowed.''',
+        type='list'),
+]
+connection_reconfigure_chunk_cache_configuration = [
+    Config('chunk_cache', '', r'''
+        chunk cache reconfiguration options''',
+        type='category', subconfig=chunk_cache_configuration_common)
+]
+wiredtiger_open_chunk_cache_configuration = [
+    Config('chunk_cache', '', r'''
+        chunk cache configuration options''',
         type='category', subconfig=
-        statistics_log_configuration_common + [
-        Config('path', '"."', r'''
-            the name of a directory into which statistics files are written. The directory
-            must already exist. If the value is not an absolute path, the path is relative to
-            the database home (see @ref absolute_path for more information)''')
-        ])
+        chunk_cache_configuration_common + [
+        Config('capacity', '10GB', r'''
+            maximum memory or storage to use for the chunk cache''',
+            min='512KB', max='100TB'),
+        Config('chunk_cache_evict_trigger', '90', r'''
+            chunk cache percent full that triggers eviction''',
+            min='0', max='100'),
+        Config('chunk_size', '1MB', r'''
+            size of cached chunks''',
+            min='512KB', max='100GB'),
+        Config('storage_path', '', r'''
+            the absolute path to the file used as cache location'''),
+        Config('enabled', 'false', r'''
+            enable chunk cache''',
+            type='boolean'),
+        Config('hashsize', '1024', r'''
+            number of buckets in the hashtable that keeps track of objects''',
+            min='64', max='1048576'),
+        Config('type', 'FILE', r'''
+            cache location, defaults to the file system.''',
+            choices=['FILE', 'DRAM'], undoc=True),
+    ]),
 ]
 
 session_config = [
@@ -1097,6 +1113,7 @@ session_config = [
 
 wiredtiger_open_common =\
     connection_runtime_config +\
+    wiredtiger_open_chunk_cache_configuration +\
     wiredtiger_open_compatibility_configuration +\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
@@ -1336,6 +1353,12 @@ methods = {
 'WT_SESSION.close' : Method([]),
 
 'WT_SESSION.compact' : Method([
+    Config('background', '', r'''
+        enable/disabled the background compaction server.''',
+        type='boolean'),
+    Config('free_space_target', '20MB', r'''
+        minimum amount of space recoverable for compaction to proceed''',
+        min='1MB'),
     Config('timeout', '1200', r'''
         maximum amount of time to allow for compact in seconds. The actual amount of time spent
         in compact may exceed the configured value. A value of zero disables the timeout''',
@@ -1859,6 +1882,7 @@ methods = {
         print global txn information''', type='boolean'),
 ]),
 'WT_CONNECTION.reconfigure' : Method(
+    connection_reconfigure_chunk_cache_configuration +\
     connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\

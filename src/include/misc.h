@@ -86,6 +86,9 @@
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
 
+/* Ceil for unsigned/positive real numbers. */
+#define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
+
 /* Elements in an array. */
 #define WT_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -219,15 +222,6 @@
     } while (0)
 
 /*
- * Some C compiler address sanitizers complain if qsort is passed a NULL base reference, even if
- * there are no elements to compare (note zero elements is allowed by the IEEE Std 1003.1-2017
- * standard). Avoid the complaint.
- */
-#define __wt_qsort(base, nmemb, size, compar) \
-    if ((nmemb) != 0)                         \
-    qsort(base, nmemb, size, compar)
-
-/*
  * Binary search for an integer key.
  */
 #define WT_BINARY_SEARCH(key, arrayp, n, found)                        \
@@ -240,6 +234,26 @@
                 __base = __indx + 1;                                   \
                 --__limit;                                             \
             } else if ((arrayp)[__indx] == (key)) {                    \
+                (found) = true;                                        \
+                break;                                                 \
+            }                                                          \
+        }                                                              \
+    } while (0)
+
+/*
+ * Binary search for a string key. Note: For the binary search to function correctly, the array
+ * should not contain NULL values.
+ */
+#define WT_BINARY_SEARCH_STRING(key, arrayp, n, found)                 \
+    do {                                                               \
+        uint32_t __base, __indx, __limit;                              \
+        (found) = false;                                               \
+        for (__base = 0, __limit = (n); __limit != 0; __limit >>= 1) { \
+            __indx = __base + (__limit >> 1);                          \
+            if (strcmp((arrayp)[__indx], (key)) < 0) {                 \
+                __base = __indx + 1;                                   \
+                --__limit;                                             \
+            } else if (strcmp((arrayp)[__indx], (key)) == 0) {         \
                 (found) = true;                                        \
                 break;                                                 \
             }                                                          \
