@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import os, sys, wiredtiger, wttest
 from random import randrange
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -43,10 +43,10 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         ('row_string', dict(key_format='S', value_format='u')),
     ]
 
-    cache_types = [
-        ('in-memory', dict(chunk_cache_extra_config='type=DRAM')),
-        ('on-disk', dict(chunk_cache_extra_config=f'type=FILE,storage_path={chunk_cache_path}')),
-    ]
+    cache_types = [('in-memory', dict(chunk_cache_extra_config='type=DRAM'))]
+    if sys.byteorder == 'little':
+        # WT's filesystem layer doesn't support mmap on big-endian platforms.
+        cache_types += ('on-disk', dict(chunk_cache_extra_config=f'type=FILE,storage_path={chunk_cache_path}'))
 
     scenarios = make_scenarios(format_values, cache_types)
 
