@@ -767,8 +767,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
     if (0) {
 config_err:
         WT_ERR_MSG(session, EINVAL,
-          "cursor's statistics configuration doesn't match the database statistics "
-          "configuration");
+          "cursor's statistics configuration doesn't match the database statistics configuration");
     }
 
     if (0) {
