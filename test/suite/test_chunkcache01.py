@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 # comes back out unscathed.
 class test_chunkcache01(wttest.WiredTigerTestCase):
     uri = 'table:test_chunkcache01'
-    chunk_cache_path = '{}/chunk_cache_tmp_{}'.format(os.getcwd(), randrange(0, 1000000000))
+    chunk_cache_path = '/tmp/chunk_cache_tmp_{}'.format(randrange(0, 1000000000))
 
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),
