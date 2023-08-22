@@ -207,37 +207,38 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session)
 
 /*
  * __wt_session_compact_check_interrupted --
- *     Check if compaction has been interrupted.
+ *     Check if compaction has been interrupted. Foreground compaction can be interrupted through an
+ *     event handler while background compaction can be disabled at any time using the compact
+ *     session API.
  */
 int
 __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    bool background_compaction;
+
+    background_compaction = false;
     conn = S2C(session);
 
-    /* Compaction can be interrupted through the event handler. */
-    if (session->event_handler->handle_general != NULL) {
+    /* If compaction has been interrupted, we return WT_ERROR to the caller. */
+    if (session == conn->background_compact.session) {
+        background_compaction = true;
+        __wt_spin_lock(session, &conn->background_compact.lock);
+        if (!conn->background_compact.running)
+            ret = WT_ERROR;
+        __wt_spin_unlock(session, &conn->background_compact.lock);
+    } else if (session->event_handler->handle_general != NULL) {
         ret = session->event_handler->handle_general(
           session->event_handler, &conn->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
-        /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
-        if (ret != 0) {
-            __wt_verbose_warning(
-              session, WT_VERB_COMPACT, "%s", "compact interrupted by application");
-            return (WT_ERROR);
-        }
+        if (ret != 0)
+            ret = WT_ERROR;
     }
 
-    /* Background compaction may have been disabled in the meantime. */
-    if (session == conn->background_compact.session) {
-        __wt_spin_lock(session, &conn->background_compact.lock);
-        if (!conn->background_compact.running) {
-            ret = WT_ERROR;
-            __wt_verbose_warning(
-              session, WT_VERB_COMPACT, "%s", "background compact interrupted by application");
-        }
-        __wt_spin_unlock(session, &conn->background_compact.lock);
-        WT_RET(ret);
+    if (ret != 0) {
+        __wt_verbose_warning(session, WT_VERB_COMPACT, "%s interrupted by application",
+          background_compaction ? "background compact" : "compact");
+        return (ret);
     }
 
     /* Compaction can be interrupted if the timeout has exceeded. */
