@@ -221,8 +221,11 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
         ret = session->event_handler->handle_general(
           session->event_handler, &conn->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
         /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
-        if (ret != 0)
-            WT_RET_MSG(session, WT_ERROR, "compact interrupted by application");
+        if (ret != 0) {
+            __wt_verbose_warning(
+              session, WT_VERB_COMPACT, "%s", "compact interrupted by application");
+            return (WT_ERROR);
+        }
     }
 
     /* Compaction can be interrupted if the timeout has exceeded. */
@@ -231,11 +234,13 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     /* Background compaction may have been disabled in the meantime. */
     if (session == conn->background_compact.session) {
         __wt_spin_lock(session, &conn->background_compact.lock);
-        if (!conn->background_compact.running)
+        if (!conn->background_compact.running) {
             ret = WT_ERROR;
+            __wt_verbose_warning(
+              session, WT_VERB_COMPACT, "%s", "background compact interrupted by application");
+        }
         __wt_spin_unlock(session, &conn->background_compact.lock);
-        if (ret != 0)
-            WT_RET_MSG(session, ret, "background compact interrupted by application");
+        WT_RET(ret);
     }
 
     return (0);
