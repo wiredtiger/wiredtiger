@@ -19,6 +19,9 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_UNUSED(session);
 
+    if (block->compacting)
+        return (EBUSY);
+
     /* Switch to first-fit allocation. */
     __wt_block_configure_first_fit(block, true);
 
