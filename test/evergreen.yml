@@ -1292,8 +1292,8 @@ variables:
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
   - &format-stress-sanitizer-test
     exec_timeout_secs: 25200
@@ -1306,8 +1306,8 @@ variables:
         vars:
           format_test_script_args: -t 360
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
   - &race-condition-stress-sanitizer-test
     exec_timeout_secs: 25200
@@ -1320,8 +1320,8 @@ variables:
         vars:
           format_test_script_args: -R -t 360
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
   - &recovery-stress-test
     exec_timeout_secs: 25200
@@ -4071,14 +4071,14 @@ tasks:
       - func: "format test script"
         vars:
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
       - func: "format test"
         vars:
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-wtperf-test
@@ -4409,8 +4409,8 @@ tasks:
       - func: "format test script"
         vars:
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           # Run for 30 mins, and explicitly set data_source to LSM with a large cache
           format_test_script_args: -t 30 data_source=lsm cache_minimum=5000
 
@@ -4668,8 +4668,8 @@ tasks:
         vars:
           format_test_script_args: -t 360
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
   - name: race-condition-stress-sanitizer-test-no-barrier
     tags: ["stress-test-sanitizer"]
@@ -4684,8 +4684,8 @@ tasks:
         vars:
           format_test_script_args: -R -t 360
           additional_env_vars: |
-            ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+            export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
   - name: recovery-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -6281,7 +6281,6 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-perf-testing
   expansions:
-    cmake_generator: Ninja
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: compile
@@ -6305,7 +6304,6 @@ buildvariants:
   expansions:
     additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    cmake_generator: Ninja
   tasks:
     - name: compile-linux-no-ftruncate
     - name: make-check-linux-no-ftruncate-test
@@ -6385,7 +6383,6 @@ buildvariants:
   batchtime: 4320 # 3 days
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    cmake_generator: Ninja
     # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
     posix_configure_flags: -DENABLE_ZSTD=0
   tasks:
@@ -6401,7 +6398,6 @@ buildvariants:
   batchtime: 4320 # 3 days
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    cmake_generator: Ninja
     posix_configure_flags: -DENABLE_ZSTD=0
   tasks:
     - name: compile
@@ -6420,7 +6416,6 @@ buildvariants:
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
-    cmake_generator: Ninja
     posix_configure_flags: -DENABLE_STRICT=0
   tasks:
     - name: compile
@@ -6439,7 +6434,6 @@ buildvariants:
   expansions:
     # Use half number of vCPU to avoid OOM kill failure
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
-    cmake_generator: Ninja
   tasks:
     - name: compile
     - name: unit-test
@@ -6456,7 +6450,6 @@ buildvariants:
   expansions:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
   tasks:
     - name: compile
     - name: make-check-test
@@ -6526,7 +6519,6 @@ buildvariants:
   expansions:
     posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
-    cmake_generator: Ninja
   tasks:
     - name: ".antithesis"
       cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
