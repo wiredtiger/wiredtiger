@@ -2162,7 +2162,7 @@ static inline int __wt_buf_setstr(WT_SESSION_IMPL *session, WT_ITEM *buf, const 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly,
   bool *didworkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_cbt_check_and_mark_page_eviction(
+static inline int __wt_cbt_evict_pages_with_deleted_items(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool newpage, size_t total_skipped)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cell_pack_value_match(WT_CELL *page_cell, WT_CELL *val_cell,

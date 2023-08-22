@@ -863,7 +863,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          * care not to force eviction of genuinely empty pages, in new trees.
          */
         if (page != NULL)
-            WT_ERR(__wt_cbt_check_and_mark_page_eviction(session, cbt, newpage, total_skipped));
+            WT_ERR(__wt_cbt_evict_pages_with_deleted_items(session, cbt, newpage, total_skipped));
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);

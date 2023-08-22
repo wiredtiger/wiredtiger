@@ -2295,13 +2295,13 @@ __wt_cbt_clear_all_deleted_items_flag(
 }
 
 /*
- * __wt_cbt_check_and_mark_page_eviction --
+ * __wt_cbt_evict_pages_with_deleted_items --
  *     Mark the page for eviction if it has a sufficient amount of globally visible deleted items,
  *     or if the page contains all deleted items according to the current session snapshot, in order
  *     to improve scan efficiency.
  */
 static inline int
-__wt_cbt_check_and_mark_page_eviction(
+__wt_cbt_evict_pages_with_deleted_items(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool newpage, size_t total_skipped)
 {
     WT_PAGE *page;
