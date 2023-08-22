@@ -20,7 +20,7 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
 
 /*
  * __get_compact_stat --
- *      Get the statistics for the given uri. 
+ *     Get the statistics for the given uri.
  */
 static WT_BACKGROUND_COMPACT_STAT *
 __get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
@@ -43,7 +43,7 @@ __get_compact_stat(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __should_compact --
- *     Check whether we should proceed with calling compaction on the given file. 
+ *     Check whether we should proceed with calling compaction on the given file.
  */
 static bool
 __should_compact(WT_SESSION_IMPL *session, const char *uri)
@@ -84,7 +84,7 @@ __should_compact(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __compact_background_start --
- *     Prefill compact related statistics for the given file.
+ *     Pre-fill compact related statistics for the given file.
  */
 static int
 __compact_background_start(
@@ -120,7 +120,7 @@ __compact_background_start(
 
 /*
  * __compact_background_end --
- *      Fill resulting compact statistics in the background compact tracking list for a given file.
+ *     Fill resulting compact statistics in the background compact tracking list for a given file.
  */
 static int
 __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *compact_stat)
@@ -163,27 +163,29 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *c
 
 /*
  * __background_compact_list_cleanup --
- *      Free an entry or all entries in the background compact tracking list.
+ *     Free an entry or all entries in the background compact tracking list.
  */
 static int
 __background_compact_list_cleanup(WT_SESSION_IMPL *session, bool all)
 {
-    WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
+    WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
     uint64_t bucket, hash, cur_time;
 
     conn = S2C(session);
     cur_time = __wt_clock(session);
 
-    while ((dsrc_stat = TAILQ_FIRST(&conn->background_compact.compactqh)) != NULL)
-        if (all || WT_CLOCKDIFF_SEC(cur_time, dsrc_stat->start_time) > 86400) {
+    TAILQ_FOREACH_SAFE(compact_stat, &conn->background_compact.compactqh, q, temp_compact_stat)
+    {
+        if (all || WT_CLOCKDIFF_SEC(cur_time, compact_stat->start_time) > 86400) {
             /* Remove file entry from both the hashtable and list. */
-            hash = __wt_hash_city64(dsrc_stat->uri, strlen(dsrc_stat->uri));
+            hash = __wt_hash_city64(compact_stat->uri, strlen(compact_stat->uri));
             bucket = hash & (conn->hash_size - 1);
-            WT_BKG_COMPACT_REMOVE(conn, dsrc_stat, bucket);
-            __wt_free(session, dsrc_stat->uri);
-            __wt_free(session, dsrc_stat);
+            WT_BKG_COMPACT_REMOVE(conn, compact_stat, bucket);
+            __wt_free(session, compact_stat->uri);
+            __wt_free(session, compact_stat);
         }
+    }
 
     if (all)
         __wt_free(session, conn->background_compact.compacthash);
@@ -281,10 +283,10 @@ __compact_server(void *arg)
             WT_ERR(cursor->get_key(cursor, &key));
             /* Check we are still dealing with keys which have the right prefix. */
             if (WT_PREFIX_MATCH(key, prefix)) {
-                /* 
+                /*
                  * Check the list of files background compact has tracked statistics for. This
-                 * avoids having to open a dhandle for the file if compaction is unlikely to 
-                 * work efficiently on this file.
+                 * avoids having to open a dhandle for the file if compaction is unlikely to work
+                 * efficiently on this file.
                  */
                 if (__should_compact(session, key))
                     break;
@@ -326,7 +328,6 @@ __compact_server(void *arg)
 
         WT_ERR(__compact_background_end(session, dsrc_stat));
 
-        /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
          * Compact may return:
          * - EBUSY or WT_ROLLBACK for various reasons.
