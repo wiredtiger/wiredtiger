@@ -228,9 +228,6 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
         }
     }
 
-    /* Compaction can be interrupted if the timeout has exceeded. */
-    WT_RET(__session_compact_check_timeout(session));
-
     /* Background compaction may have been disabled in the meantime. */
     if (session == conn->background_compact.session) {
         __wt_spin_lock(session, &conn->background_compact.lock);
@@ -242,6 +239,9 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
         __wt_spin_unlock(session, &conn->background_compact.lock);
         WT_RET(ret);
     }
+
+    /* Compaction can be interrupted if the timeout has exceeded. */
+    WT_RET(__session_compact_check_timeout(session));
 
     return (0);
 }
