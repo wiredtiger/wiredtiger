@@ -56,20 +56,24 @@ extern WT_PROCESS __wt_process;
         --(conn)->background_compact.file_count;                                         \
     } while (0)
 
+typedef enum __wt_bg_compact_cleanup_type {
+    BG_CLEANUP_ALL_STAT,
+    BG_CLEANUP_STALE_STAT
+} WT_BG_COMPACT_CLEANUP_TYPE;
+
 /* WT_BACKGROUND_COMPACT_STAT --
  *  List of tracking information for each file compact has worked on.
  */
 struct __wt_background_compact_stat {
     const char *uri;
-    bool success;                               /* Last compact success */
-    uint64_t last_compact_time;                 /* Start time for last compact attempt */
+    bool prev_compact_success;                  /* Last compact successfully reclaimed space */
+    uint64_t prev_compact_time;                 /* Start time for last compact attempt */
     uint64_t skip_count;                        /* Number of times we've skipped this file */
     uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
     uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
 
     wt_off_t start_size;      /* File size before compact last started */
     wt_off_t end_size;        /* File size after compact last ended */
-    wt_off_t bytes_recovered; /* Difference in file size before and after */
 
     /* List of files background compact has worked on */
     TAILQ_ENTRY(__wt_background_compact_stat) q;
