@@ -735,6 +735,7 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_DECL_RET;
     char **old_pinned_list, **pinned_objects;
     unsigned int cnt, i;
+    size_t mapped_size, old_capacity;
 
     chunkcache = &S2C(session)->chunkcache;
     old_pinned_list = chunkcache->pinned_objects.array;
@@ -748,6 +749,47 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         WT_RET_MSG(
           session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
+
+    // Then we want to re-adjust the chunk cache size here, adjust the bitmap size and free unused memory
+    // ADJUST THIS TO WT_RET_NOTFOUND_OK
+    // Check what happens if we dont reconfig these values, do we get 0, WTNOTFOUOND etc and SKIP. 
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.capacity", &cval));
+    if (cval.val > 0 )
+        old_capacity = cval.val;
+        chunkcache->capacity = (uint64_t)cval.val;
+    
+    // Write a check if the chunkcache capacity has not changed - skip the work
+
+    // Check type and then proceed - can probably put repeated code in another function
+    if (chunkcache->type == WT_CHUNKCACHE_FILE){
+        WT_RET(chunkcache->fh->handle->fh_truncate(
+          chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
+
+        // WE may not need this section
+        WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
+          (void **)&chunkcache->memory, &mapped_size, NULL));
+        if (mapped_size != chunkcache->capacity)
+            WT_RET_MSG(session, EINVAL,
+              "Storage size mapping %lu does not equal capacity of chunk cache %" PRIu64,
+              mapped_size, chunkcache->capacity);
+
+        // Adjusting the bitmap may be more complex here; how do we preseve current values? 
+        // Can we leave bitmap as is and just adjust cache size?
+        // Thought process is - the chunkcache capacity will be updated here
+        // in the bitmap we use these values to calculate the iterations of the bitmap so we wont be searching out of bounds. 
+
+        if(old_capacity < chunkcache->capacity){
+            // We do want to adjust bitmap size only when the new capacity is larger.
+            // Memcpy the old data, calloc the new data, free the old bitmap. 
+            WT_RET(__wt_calloc(session,
+            WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
+            &chunkcache->free_bitmap));
+        }
+    }
+    F_SET(chunkcache, WT_CHUNKCACHE_CONFIGURED);
+    __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
+      (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) ? "volatile memory" : "file system",
+      chunkcache->capacity);
 
     WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
 
