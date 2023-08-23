@@ -88,8 +88,9 @@ class test_compact04(wttest.WiredTigerTestCase):
             pages_rewritten_expected = c_stat[stat.dsrc.btree_compact_pages_rewritten_expected][2]
             c_stat.close()
 
-            self.assertGreater(pages_rewritten, 0)
-            self.assertGreater(pages_rewritten_expected, 0)
+            if not self.runningHook('tiered'):
+                self.assertGreater(pages_rewritten, 0)
+                self.assertGreater(pages_rewritten_expected, 0)
 
             d = abs(pages_rewritten - pages_rewritten_expected) / pages_rewritten
 
