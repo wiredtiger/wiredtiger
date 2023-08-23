@@ -72,8 +72,8 @@ struct __wt_background_compact_stat {
     uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
     uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
 
-    wt_off_t start_size;      /* File size before compact last started */
-    wt_off_t end_size;        /* File size after compact last ended */
+    wt_off_t start_size; /* File size before compact last started */
+    wt_off_t end_size;   /* File size after compact last ended */
 
     /* List of files background compact has worked on */
     TAILQ_ENTRY(__wt_background_compact_stat) q;

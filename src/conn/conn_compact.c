@@ -187,7 +187,8 @@ __background_compact_list_cleanup(WT_SESSION_IMPL *session, WT_BG_COMPACT_CLEANU
 
     TAILQ_FOREACH_SAFE(compact_stat, &conn->background_compact.compactqh, q, temp_compact_stat)
     {
-        if (cleanup_type == BG_CLEANUP_ALL_STAT || WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) > 86400) {
+        if (cleanup_type == BG_CLEANUP_ALL_STAT ||
+          WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) > 86400) {
             /* Remove file entry from both the hashtable and list. */
             hash = __wt_hash_city64(compact_stat->uri, strlen(compact_stat->uri));
             bucket = hash & (conn->hash_size - 1);
