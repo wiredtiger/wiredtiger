@@ -250,7 +250,7 @@ __compact_server(void *arg)
                 full_iteration = false;
                 __wt_free(session, uri);
                 WT_ERR(__wt_strndup(session, prefix, strlen(prefix), &uri));
-                __background_compact_list_cleanup(session, false);
+                __background_compact_list_cleanup(session, BG_CLEANUP_STALE_STAT);
             }
 
             /* Check every 10 seconds in case the signal was missed. */
@@ -376,7 +376,7 @@ __compact_server(void *arg)
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    __background_compact_list_cleanup(session, true);
+    __background_compact_list_cleanup(session, BG_CLEANUP_ALL_STAT);
 
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
