@@ -48,6 +48,9 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     /* Restore the original allocation plan. */
     __wt_block_configure_first_fit(block, false);
+
+    /* Ensure this the same session that started compaction. */
+    WT_ASSERT(session, block->compact_session_id == session->id);
     block->compact_session_id = WT_SESSION_ID_INVALID;
 
     /* Dump the results of the compaction pass. */
