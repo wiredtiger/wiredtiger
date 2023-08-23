@@ -1729,7 +1729,7 @@ execute_workload(WTPERF *wtperf)
     wt_thread_t idle_table_cycle_thread;
     uint64_t last_backup, last_ckpts, last_flushes, last_scans;
     uint64_t last_inserts, last_reads, last_truncates;
-    uint64_t last_modifies, last_updates;
+    uint64_t last_modifies, last_updates, start_usec;
     uint32_t interval, run_ops, run_time;
     u_int i;
     int ret;
@@ -1743,6 +1743,7 @@ execute_workload(WTPERF *wtperf)
     last_backup = last_ckpts = last_flushes = last_scans = 0;
     last_inserts = last_reads = last_truncates = 0;
     last_modifies = last_updates = 0;
+    start_usec = 0;
     ret = 0;
 
     sessions = NULL;
@@ -1789,6 +1790,7 @@ execute_workload(WTPERF *wtperf)
         wtperf->in_warmup = false;
     }
 
+    start_usec = testutil_time_us(NULL);
     for (interval = opts->report_interval, run_time = opts->run_time, run_ops = opts->run_ops;
          !wtperf->error;) {
         /*
@@ -1845,8 +1847,15 @@ execute_workload(WTPERF *wtperf)
         last_backup = wtperf->backup_ops;
     }
 
-/* Notify the worker threads they are done. */
 err:
+    /*
+     * If the start timer is uninitialized, the test didn't run. Set the test time anyway to avoid
+     * dividing by zero in reporting.
+     */
+    wtperf->testsec =
+      start_usec == 0 ? 1 : (uint32_t)((testutil_time_us(NULL) - start_usec) / WT_MILLION);
+
+    /* Notify the worker threads they are done. */
     wtperf->stop = true;
 
     /* Stop cycling idle tables. */
@@ -2266,7 +2275,6 @@ start_run(WTPERF *wtperf)
     CONFIG_OPTS *opts;
     wt_thread_t monitor_thread;
     uint64_t total_ops;
-    uint32_t run_time;
     int monitor_created, ret, t_ret;
 
     opts = wtperf->opts;
@@ -2356,26 +2364,26 @@ start_run(WTPERF *wtperf)
         wtperf->scan_ops = sum_scan_ops(wtperf);
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
-        run_time = opts->run_time == 0 ? 1 : opts->run_time;
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
-          wtperf->insert_ops / run_time);
+          wtperf->insert_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " modify operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->modify_ops, (wtperf->modify_ops * 100) / total_ops,
-          wtperf->modify_ops / run_time);
+          wtperf->modify_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " read operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->read_ops, (wtperf->read_ops * 100) / total_ops, wtperf->read_ops / run_time);
+          wtperf->read_ops, (wtperf->read_ops * 100) / total_ops,
+          wtperf->read_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " truncate operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->truncate_ops, (wtperf->truncate_ops * 100) / total_ops,
-          wtperf->truncate_ops / run_time);
+          wtperf->truncate_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
-          wtperf->update_ops / run_time);
+          wtperf->update_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
