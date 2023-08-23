@@ -13,43 +13,32 @@
  * because this language feature is not available in C, we have to do use the following trick: Set
  * up all relevant function names, type names, and "template" parameters using macros, and only then
  * include this file. This will define the corresponding templatized functions and types.
+ *
+ * Please refer to skiplist.h for additional details and for an example of these macros.
  */
 
-// --------------- vv this goes to a different file vv ------------------
-
-#define WT_SKIP_T_CURSOR WT_CURSOR_BTREE
-#define WT_SKIP_T_ELEMENT WT_INSERT
-#define WT_SKIP_T_HEAD WT_INSERT_HEAD
-#define WT_SKIP_T_KEY WT_ITEM
-
-#define WT_SKIP_T_KEY_ASSIGN(key, element) \
-    (key)->data = WT_INSERT_KEY(element);  \
-    (key)->size = WT_INSERT_KEY_SIZE(element);
-#define WT_SKIP_T_KEY_COMPARE(session, srch_key, key, cmp) \
-    WT_RET(__wt_compare(session, S2BT(session)->collator, srch_key, key, cmp));
-#define WT_SKIP_T_KEY_COMPARE_SKIP(session, srch_key, key, cmp, match) \
-    WT_RET(__wt_compare_skip(session, S2BT(session)->collator, srch_key, key, cmp, match));
-
-#define WT_SKIP_T_FN_APPEND_SEARCH __wt_skip_append_search__insert
-#define WT_SKIP_T_FN_SEARCH __wt_skip_search__insert
-#define WT_SKIP_T_FN_INSERT __wt_skip_insert__insert
-
-// --------------- ^^ this goes to a different file ^^ ------------------
+/*
+ * TODO: We would like additional functions here, such as going forward and backward within a skip
+ * list, or certain functions for allocating and freeing the skip lists. We will add them later, if
+ * we agree that this is the right overall approach.
+ */
 
 /*
- * WT_SKIP_T_FN_APPEND_SEARCH --
+ * TMPL_FN_APPEND_SEARCH --
  *     Fast append search of a skiplist, creating a skiplist stack as we go. In other words, we
  * quickly check if the given item can be appended to the end of the skiplist, in which case we set
  * the "done" flag to true, and create the stack accordingly. If the key we would like to insert is
- * an exact match, return it via the cursor's "tmp" field.
+ * an exact match, return it via the "key" argument.
  */
 static inline int
-WT_SKIP_T_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt,
-  WT_SKIP_T_HEAD *ins_head, WT_SKIP_T_KEY *srch_key, bool *donep)
+TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head,
+  TMPL_KEY *srch_key, TMPL_KEY *keyp, bool *donep)
 {
-    WT_SKIP_T_ELEMENT *ins;
-    WT_SKIP_T_KEY key;
+    TMPL_ELEMENT *ins;
+    TMPL_KEY key;
     int cmp, i;
+
+    WT_UNUSED(session); /* May or may not be used, depending on the template macros. */
 
     *donep = 0;
 
@@ -63,9 +52,9 @@ WT_SKIP_T_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt,
      * Place a read barrier here to avoid this issue.
      */
     WT_READ_BARRIER();
-    WT_SKIP_T_KEY_ASSIGN(&key, ins);
+    TMPL_KEY_ASSIGN(&key, ins);
 
-    WT_SKIP_T_KEY_COMPARE(session, srch_key, &key, &cmp);
+    TMPL_KEY_COMPARE(session, srch_key, &key, &cmp);
     if (cmp >= 0) {
         /*
          * !!!
@@ -91,8 +80,8 @@ WT_SKIP_T_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt,
          * If we find an exact match, copy the key into the temporary buffer, our callers expect to
          * find it there.
          */
-        if (cbt->compare == 0)
-            WT_SKIP_T_KEY_ASSIGN(cbt->tmp, cbt->ins);
+        if (cbt->compare == 0 && keyp != NULL)
+            TMPL_KEY_ASSIGN(keyp, cbt->ins);
 
         *donep = 1;
     }
@@ -100,17 +89,18 @@ WT_SKIP_T_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt,
 }
 
 /*
- * WT_SKIP_T_FN_SEARCH --
+ * TMPL_FN_SEARCH --
  *     Search a skiplist, creating a skiplist stack as we go.
  */
 static inline int
-WT_SKIP_T_FN_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt, WT_SKIP_T_HEAD *ins_head,
-  WT_SKIP_T_KEY *srch_key)
+TMPL_FN_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head, TMPL_KEY *srch_key)
 {
-    WT_INSERT *ins, **insp, *last_ins;
-    WT_ITEM key;
+    TMPL_ELEMENT *ins, **insp, *last_ins;
+    TMPL_KEY key;
     size_t match, skiphigh, skiplow;
     int cmp, i;
+
+    WT_UNUSED(session); /* May or may not be used, depending on the template macros. */
 
     cmp = 0; /* -Wuninitialized */
 
@@ -144,7 +134,7 @@ WT_SKIP_T_FN_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt, WT_SKIP_T_H
          */
         if (ins != last_ins) {
             last_ins = ins;
-            WT_SKIP_T_KEY_ASSIGN(&key, ins);
+            TMPL_KEY_ASSIGN(&key, ins);
             /*
              * We have an optimization to reduce the number of bytes we need to compare during the
              * search if we know a prefix of the search key matches the keys we have already
@@ -186,7 +176,7 @@ WT_SKIP_T_FN_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt, WT_SKIP_T_H
              * Therefore, an extra read barrier is needed for these platforms.
              */
             match = WT_MIN(skiplow, skiphigh);
-            WT_SKIP_T_KEY_COMPARE_SKIP(session, srch_key, &key, &cmp, &match);
+            TMPL_KEY_COMPARE_SKIP(session, srch_key, &key, &cmp, &match);
         }
 
         if (cmp > 0) { /* Keep going at this level */
@@ -220,6 +210,8 @@ WT_SKIP_T_FN_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt, WT_SKIP_T_H
      * This is an expensive call on a performance-critical path, so we only want to enable it behind
      * the stress_skiplist session flag.
      */
+    // TODO Do this later.
+    //
     // if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
     //     WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
 
@@ -227,17 +219,17 @@ WT_SKIP_T_FN_SEARCH(WT_SESSION_IMPL *session, WT_SKIP_T_CURSOR *cbt, WT_SKIP_T_H
 }
 
 /*
- * __wt_insert_serial --
+ * TMPL_FN_INSERT_INT --
  *     Insert a skiplist entry. The cursor must be already positioned.
  */
 static inline int
-WT_SKIP_T_FN_INSERT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, WT_SKIP_T_CURSOR *cbt,
-  WT_SKIP_T_ELEMENT *new_ins, u_int skipdepth, bool exclusive)
+TMPL_FN_INSERT_INT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_CURSOR *cbt,
+  TMPL_ELEMENT *new_ins, u_int skipdepth, bool exclusive)
 {
     WT_DECL_RET;
-    WT_SKIP_T_ELEMENT ***ins_stack;
-    WT_SKIP_T_ELEMENT *old_ins;
-    WT_SKIP_T_HEAD *ins_head;
+    TMPL_ELEMENT ***ins_stack;
+    TMPL_ELEMENT *old_ins;
+    TMPL_HEAD *ins_head;
     u_int i;
     bool simple;
 
@@ -310,16 +302,68 @@ WT_SKIP_T_FN_INSERT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, WT_SKIP_T_CURSO
     return (ret);
 }
 
+/*
+ * TMPL_FN_INSERT --
+ *     Insert a skiplist entry. This is a convenience function, which we currently use only for
+ * testing.
+ */
+static inline int
+TMPL_FN_INSERT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_HEAD *head, TMPL_ELEMENT *node,
+  u_int skipdepth, bool exclusive)
+{
+    WT_DECL_RET;
+    TMPL_CURSOR cursor;
+    TMPL_KEY key;
+    u_int i;
+
+    memset(&cursor, 0, sizeof(cursor));
+    TMPL_KEY_ASSIGN(&key, node);
+
+    do {
+        /* Position the cursor. */
+        WT_RET(TMPL_FN_SEARCH(session, &cursor, head, &key));
+
+        /* We don't currently support duplicate keys, or modifying existing keys. */
+        if (cursor.compare == 0 && cursor.ins != NULL)
+            return (EEXIST);
+
+        /* Copy the next stack. */
+        for (i = 0; i < skipdepth; i++)
+            node->next[i] = cursor.next_stack[i];
+
+        /* Insert. */
+        ret = TMPL_FN_INSERT_INT(session, lock, &cursor, node, skipdepth, exclusive);
+    } while (ret == WT_RESTART);
+
+    return (ret);
+}
+
+/*
+ * TMPL_FN_CONTAINS --
+ *     Check if a key exists. This is a just a convenience function used for testing.
+ */
+static inline bool
+TMPL_FN_CONTAINS(WT_SESSION_IMPL *session,TMPL_HEAD *head, TMPL_KEY* key)
+{
+    WT_DECL_RET;
+    TMPL_CURSOR cursor;
+    memset(&cursor, 0, sizeof(cursor));
+    ret = TMPL_FN_SEARCH(session, &cursor, head, key);
+    return (ret == 0 && cursor.compare == 0 && cursor.ins != NULL);
+}
+
 /* Undefine the template macros to avoid macro redefinition warnings. */
-#undef WT_SKIP_T_CURSOR
-#undef WT_SKIP_T_ELEMENT
-#undef WT_SKIP_T_HEAD
-#undef WT_SKIP_T_KEY
+#undef TMPL_CURSOR
+#undef TMPL_ELEMENT
+#undef TMPL_HEAD
+#undef TMPL_KEY
 
-#undef WT_SKIP_T_KEY_ASSIGN
-#undef WT_SKIP_T_KEY_COMPARE
-#undef WT_SKIP_T_KEY_COMPARE_SKIP
+#undef TMPL_KEY_ASSIGN
+#undef TMPL_KEY_COMPARE
+#undef TMPL_KEY_COMPARE_SKIP
 
-#undef WT_SKIP_T_FN_APPEND_SEARCH
-#undef WT_SKIP_T_FN_SEARCH
-#undef WT_SKIP_T_FN_INSERT
+#undef TMPL_FN_APPEND_SEARCH
+#undef TMPL_FN_SEARCH
+#undef TMPL_FN_INSERT_INT
+#undef TMPL_FN_INSERT
+#undef TMPL_FN_CONTAINS

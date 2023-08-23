@@ -19,7 +19,7 @@ static inline int
 __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head,
   WT_ITEM *srch_key, bool *donep)
 {
-    return __wt_skip_append_search__insert(session, cbt, ins_head, srch_key, donep);
+    return __wt_skip_append_search__insert(session, cbt, ins_head, srch_key, cbt->tmp, donep);
 }
 
 /*

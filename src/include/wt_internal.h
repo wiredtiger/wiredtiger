@@ -499,7 +499,7 @@ typedef uint64_t wt_timestamp_t;
 #include "mutex_inline.h"     /* required by btree_inline.h */
 #include "txn_inline.h"       /* required by btree_inline.h */
 
-#include "skiplist_template.h" /* XXX */
+#include "skiplist.h" /* requires mutex_inline.h */
 
 #include "bitstring_inline.h"
 #include "block_inline.h"

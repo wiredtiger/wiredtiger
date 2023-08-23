@@ -122,7 +122,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSE
 
     /* Confirm position and insert the new WT_INSERT item. */
     // WT_RET(__insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth));
-    WT_RET(__wt_skip_insert__insert(session, NULL, cbt, new_ins, skipdepth, true));
+    WT_RET(__wt_skip_insert_int__insert(session, NULL, cbt, new_ins, skipdepth, true));
 
     /*
      * Set the calling cursor's record number. If we extended the file, update the last record
@@ -194,7 +194,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CURSOR_BTREE *cbt
     new_ins = *new_insp;
     *new_insp = NULL;
 
-    ret = __wt_skip_insert__insert(
+    ret = __wt_skip_insert_int__insert(
       session, &page->modify->page_lock, cbt, new_ins, skipdepth, exclusive);
 
     if (ret != 0) {

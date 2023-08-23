@@ -94,6 +94,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_skiplist
+    SOURCES skiplist/main.c
+    DIR_NAME skiplist
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_timestamp_abort
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
