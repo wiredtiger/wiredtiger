@@ -176,7 +176,7 @@ class test_compact07(wttest.WiredTigerTestCase):
         # Check that foreground compaction has done some work on the small table.
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
 
-        # Stop the background compaction server before proceeding.
+        # Stop the background compaction server.
         self.session.compact(None, 'background=false')
 
         # Wait for the background compaction server to stop running.
