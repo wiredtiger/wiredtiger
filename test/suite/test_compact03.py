@@ -130,7 +130,8 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         sizeWithOverflow = self.getSize()
         self.pr('After inserting overflow values ' + str(sizeWithoutOverflow // mb) + 'MB')
-        self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
+        if not self.runningHook('tiered'):
+            self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
 
         # 5. Delete middle ~90% of the normal values in the table.
         if self.truncate:

@@ -88,9 +88,13 @@ class test_compact04(wttest.WiredTigerTestCase):
             pages_rewritten_expected = c_stat[stat.dsrc.btree_compact_pages_rewritten_expected][2]
             c_stat.close()
 
-            if not self.runningHook('tiered'):
-                self.assertGreater(pages_rewritten, 0)
-                self.assertGreater(pages_rewritten_expected, 0)
+            # Compact stats can be retrieved with tiered storage but they're not meaningful.
+            # So if we're running tiered gather the stats but return before all the computation.
+            if self.runningHook('tiered'):
+                return
+
+            self.assertGreater(pages_rewritten, 0)
+            self.assertGreater(pages_rewritten_expected, 0)
 
             d = abs(pages_rewritten - pages_rewritten_expected) / pages_rewritten
 
