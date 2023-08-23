@@ -125,6 +125,8 @@ __chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
     WT_CHUNKCACHE *chunkcache;
     bool found;
 
+    __wt_err(session, WT_VERB_CHUNKCACHE, "checking if %s is pinned", chunk->hash_id.objectname);
+
     chunkcache = &S2C(session)->chunkcache;
     found = false;
 
@@ -541,17 +543,20 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     remains_to_read = size;
     retries = 0;
     sleep_usec = WT_THOUSAND;
+    *cache_hit = false;
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         return (ENOTSUP);
 
-    /* Only cache read-only tiered objects. */
-    if (!block->readonly)
-        return (0);
-
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
     WT_STAT_CONN_INCR(session, chunk_cache_lookups);
+
+    /* Only cache read-only tiered objects. */
+    if (!block->readonly) {
+        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "get: not readonly, not caching.");
+        return (0);
+    }
 
     /* A block may span two (or more) chunks. Loop until we have read all the data. */
     while (remains_to_read > 0) {

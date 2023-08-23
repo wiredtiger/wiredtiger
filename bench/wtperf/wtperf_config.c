@@ -938,6 +938,11 @@ config_opt_print(WTPERF *wtperf)
       "\t"
       "Connection configuration: %s\n",
       opts->conn_config);
+    if (opts->chunk_cache_config != NULL)
+        printf(
+          "\t"
+          "Chunk cache configuration: %s\n",
+          opts->chunk_cache_config);
     if (opts->sess_config != NULL)
         printf(
           "\t"

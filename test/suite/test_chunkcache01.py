@@ -64,7 +64,7 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         else:
             chunk_cache_extra_config = 'type=FILE,storage_path=/tmp/chunk_cache_{}'.format(randrange(0, 1000000000))
 
-        return 'tiered_storage=(auth_token=Secret,bucket=bucket1,bucket_prefix=pfx_,name=dir_store),' \
+        return 'verbose=[chunkcache:5],tiered_storage=(auth_token=Secret,bucket=bucket1,bucket_prefix=pfx_,name=dir_store),' \
             'chunk_cache=[enabled=true,chunk_size=100MB,capacity=2GB,{}],'.format(chunk_cache_extra_config)
 
     def conn_extensions(self, extlist):

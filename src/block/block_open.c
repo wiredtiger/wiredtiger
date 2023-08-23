@@ -178,7 +178,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 
     *blockp = NULL;
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s readonly=%s", filename, readonly ? "true" : "false");
 
     block = NULL;
     conn = S2C(session);

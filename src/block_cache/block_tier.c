@@ -68,10 +68,11 @@ __wt_blkcache_tiered_open(
     exist = true;
     if (!local_only)
         WT_ERR(__wt_fs_exist(session, object_name, &exist));
-    if (exist)
+    if (exist) {
+        __wt_verbose(session, WT_VERB_BLOCK, "__wt_blkcache_tiered_open: !exist, using readonly=%s", readonly ? "true" : "false");
         WT_ERR(
           __wt_block_open(session, object_name, objectid, cfg, false, readonly, false, 0, &block));
-    else {
+    } else {
         /* We expect a prefix. */
         WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &pfx));
         WT_ASSERT(session, pfx.len != 0);

@@ -135,6 +135,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                     WT_STAT_CONN_INCR(session, flush_tier_skipped);
                     continue;
                 }
+                __wt_verbose(session, WT_VERB_TIERED, "%s", "CKPT_FLUSH_TIER: actually doing stuff");
             }
             /* Only instantiate the handle if we need to flush. */
             WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, 0));
