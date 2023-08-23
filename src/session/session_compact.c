@@ -208,8 +208,7 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session)
 /*
  * __wt_session_compact_check_interrupted --
  *     Check if compaction has been interrupted. Foreground compaction can be interrupted through an
- *     event handler while background compaction can be disabled at any time using the compact
- *     session API.
+ *     event handler while background compaction can be disabled at any time using the compact API.
  */
 int
 __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
