@@ -395,16 +395,12 @@ __curstat_file_init(
     const char *filename;
 
     /*
-     * If we are only getting the size of the file, we don't need to open the tree.
+     * If we are only getting the size of the file, we don't need to open the tree. This only
+     * applies to file: types. Tiered tables need to use the dhandle.
      */
-    if (F_ISSET(cst, WT_STAT_TYPE_SIZE)) {
+    if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
         filename = uri;
-        if (WT_PREFIX_MATCH(uri, "file:"))
-            WT_PREFIX_SKIP(filename, "file:");
-        else if (WT_PREFIX_MATCH(uri, "tiered:"))
-            WT_PREFIX_SKIP(filename, "tiered:");
-        else
-            return (__wt_unexpected_object_type(session, uri, "file: or tiered:"));
+        WT_PREFIX_SKIP(filename, "file:");
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
         WT_RET(__wt_block_manager_named_size(session, filename, &size));
         cst->u.dsrc_stats.block_size = size;
