@@ -20,7 +20,7 @@ extern bool __wt_fsync_background_chk(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
+extern bool __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name, bool locked)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1339,6 +1339,8 @@ extern int __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOK
   uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_remove_locked(WT_SESSION_IMPL *session, const char *name, bool *removed)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_ikey(WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key,
@@ -2221,8 +2223,8 @@ static inline int __wt_fs_directory_list_single(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_fs_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable,
+  bool locked) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to,
   bool durable) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
@@ -2530,6 +2532,8 @@ static inline void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
 extern WT_EXT *__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int WT_CDECL __ut_txn_mod_compare(const void *a, const void *b, void *context)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
