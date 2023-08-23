@@ -33,9 +33,10 @@ functions:
     - command: expansions.update
       params:
         updates:
-        # The expansion is used for each task that runs a WiredTiger test. All of these variables
-        # are common among the build variants, if there are any specific variables that needs to be
-        # set, users can add onto the additional_env_vars in the variant
+        # The expansion is used for each task that runs a WiredTiger test. The expansions are
+        # created before each task and is meant to be used at the start each task. All of these
+        # variables are common among the build variants, if there are any specific variables that
+        # needs to be set, users can add onto the additional_env_vars in the variant.
         - key: PREPARE_TEST_ENV
           value: |
             export WT_TOPDIR=$(git rev-parse --show-toplevel)
