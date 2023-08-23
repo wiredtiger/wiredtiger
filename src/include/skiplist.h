@@ -55,9 +55,11 @@
 #define TMPL_KEY WT_ITEM
 
 /* Key functionality. */
-#define TMPL_KEY_ASSIGN(key, element)     \
-    (key)->data = WT_INSERT_KEY(element); \
-    (key)->size = WT_INSERT_KEY_SIZE(element);
+#define TMPL_KEY_ASSIGN(key, element)              \
+    {                                              \
+        (key)->data = WT_INSERT_KEY(element);      \
+        (key)->size = WT_INSERT_KEY_SIZE(element); \
+    }
 #define TMPL_KEY_COMPARE(session, srch_key, key, cmp) \
     WT_RET(__wt_compare(session, S2BT(session)->collator, srch_key, key, cmp));
 #define TMPL_KEY_COMPARE_SKIP(session, srch_key, key, cmp, match) \
