@@ -272,6 +272,9 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     if (!forced_salvage)
         WT_ERR(__desc_read(session, allocsize, block));
 
+    /* The block should not be compacted at that time. */
+    block->compact_session_id = WT_SESSION_ID_INVALID;
+
     /* Block is valid, so make it visible in the connection. */
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
 
