@@ -142,11 +142,13 @@ __compact_background_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *c
      * compaction to do work (rewriting bytes) while other operations cause the file to increase in
      * size.
      */
-    if (compact_stat->bytes_recovered <= 0)
+    if (compact_stat->bytes_recovered <= 0) {
         compact_stat->consecutive_unsuccessful_attempts++;
-    else {
+        compact_stat->success = false;
+    } else {
         compact_stat->consecutive_unsuccessful_attempts = 0;
         conn->background_compact.files_compacted++;
+        compact_stat->success = true;
 
         /*
          * Update the moving average of bytes rewritten across each file compact attempt. A
