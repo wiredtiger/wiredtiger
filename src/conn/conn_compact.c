@@ -26,7 +26,7 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
  *     Given a URI, find the next one in the metadata file that is eligible for compaction.
  */
 static int
-__find_next_uri(WT_SESSION_IMPL *session, const char *uri, const char **next_urip)
+__find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_urip)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -36,13 +36,12 @@ __find_next_uri(WT_SESSION_IMPL *session, const char *uri, const char **next_uri
     cursor = NULL;
     exact = 0;
     key = NULL;
-    *next_urip = NULL;
 
     /* Use a metadata cursor to have access to the existing URIs. */
     WT_ERR(__wt_metadata_cursor(session, &cursor));
 
     /* Position the cursor on the given URI. */
-    cursor->set_key(cursor, uri);
+    cursor->set_key(cursor, (const char *)uri->data);
     WT_ERR(cursor->search_near(cursor, &exact));
 
     /*
@@ -69,7 +68,7 @@ __find_next_uri(WT_SESSION_IMPL *session, const char *uri, const char **next_uri
 
     /* Save the selected uri. */
     if (ret == 0)
-        WT_ERR(__wt_strndup(session, key, strlen(key), next_urip));
+        WT_ERR(__wt_buf_set(session, next_urip, cursor->key.data, cursor->key.size));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
@@ -85,19 +84,22 @@ static WT_THREAD_RET
 __compact_server(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(uri);
+    WT_DECL_ITEM(next_uri);
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    const char *config, *next_uri, *uri;
+    const char *config;
     bool full_iteration, running, signalled;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
     config = NULL;
-    next_uri = NULL;
-    uri = NULL;
     full_iteration = running = signalled = false;
+
+    WT_ERR(__wt_scr_alloc(session, 1024, &uri));
+    WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
@@ -112,11 +114,10 @@ __compact_server(void *arg)
              * prefix for the very first iteration and when all the candidates in the metadata file
              * have been parsed.
              */
-            if (uri == NULL || full_iteration) {
+            if (uri->size == 0 || full_iteration) {
                 full_iteration = false;
-                __wt_free(session, uri);
-                WT_ERR(__wt_strndup(
-                  session, WT_BG_COMPACT_URI_PREFIX, strlen(WT_BG_COMPACT_URI_PREFIX), &uri));
+                WT_ERR(__wt_buf_set(
+                  session, uri, WT_BG_COMPACT_URI_PREFIX, strlen(WT_BG_COMPACT_URI_PREFIX)));
             }
 
             /* Check every 10 seconds in case the signal was missed. */
@@ -144,8 +145,7 @@ __compact_server(void *arg)
             continue;
 
         /* Find the next URI to compact. */
-        __wt_free(session, next_uri);
-        WT_ERR_NOTFOUND_OK(__find_next_uri(session, uri, &next_uri), true);
+        WT_ERR_NOTFOUND_OK(__find_next_uri(session, uri, next_uri), true);
 
         /* All the keys with the specified prefix have been parsed. */
         if (ret == WT_NOTFOUND) {
@@ -154,8 +154,7 @@ __compact_server(void *arg)
         }
 
         /* Use the retrieved URI. */
-        __wt_free(session, uri);
-        WT_ERR(__wt_strndup(session, next_uri, strlen(next_uri), &uri));
+        WT_ERR(__wt_buf_set(session, uri, next_uri->data, next_uri->size));
 
         /* Compact the file with the latest configuration. */
         __wt_spin_lock(session, &conn->background_compact.lock);
@@ -168,7 +167,7 @@ __compact_server(void *arg)
 
         WT_ERR(ret);
 
-        ret = wt_session->compact(wt_session, uri, config);
+        ret = wt_session->compact(wt_session, (const char *)uri->data, config);
 
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
@@ -211,8 +210,8 @@ __compact_server(void *arg)
 err:
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
-    __wt_free(session, next_uri);
-    __wt_free(session, uri);
+    __wt_scr_free(session, &uri);
+    __wt_scr_free(session, &next_uri);
 
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
