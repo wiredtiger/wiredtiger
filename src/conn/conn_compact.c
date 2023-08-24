@@ -49,7 +49,7 @@ __find_next_uri(WT_SESSION_IMPL *session, const char *uri, const char **next_uri
      * is lexicographically larger the given one, make sure not to go backwards.
      */
     if (exact <= 0)
-        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+        WT_ERR(cursor->next(cursor));
 
     /* Loop through the eligible candidates. */
     while (ret == 0) {
@@ -63,14 +63,12 @@ __find_next_uri(WT_SESSION_IMPL *session, const char *uri, const char **next_uri
         if (!WT_STREQ(key, WT_HS_URI))
             /* FIXME-WT-11343: check if the table is supposed to be compacted. */
             break;
-        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+        WT_ERR(cursor->next(cursor));
     }
 
     /* Save the selected uri. */
-    if (ret == 0) {
-        __wt_free(session, *next_uri);
-        WT_ERR(__wt_strndup(session, key, strlen(key), next_uri));
-    }
+    if (ret == 0)
+        WT_ERR(__wt_strndup(session, key, strlen(key), next_urip));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
