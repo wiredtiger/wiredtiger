@@ -42,24 +42,10 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
-#define WT_BKG_COMPACT_INSERT(conn, dsrc_stat, bucket)                                        \
-    do {                                                                                      \
-        TAILQ_INSERT_HEAD(&(conn)->background_compact.compactqh, dsrc_stat, q);               \
-        TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq); \
-        ++(conn)->background_compact.file_count;                                              \
-    } while (0)
-
-#define WT_BKG_COMPACT_REMOVE(conn, dsrc_stat, bucket)                                   \
-    do {                                                                                 \
-        TAILQ_REMOVE(&(conn)->background_compact.compactqh, dsrc_stat, q);               \
-        TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], dsrc_stat, hashq); \
-        --(conn)->background_compact.file_count;                                         \
-    } while (0)
-
 typedef enum __wt_bg_compact_cleanup_type {
-    BG_CLEANUP_ALL_STAT,
-    BG_CLEANUP_STALE_STAT
-} WT_BG_COMPACT_CLEANUP_TYPE;
+    BACKGROUND_CLEANUP_ALL_STAT,
+    BACKGROUND_CLEANUP_STALE_STAT
+} WT_BACKGROUND_COMPACT_CLEANUP_TYPE;
 
 /* WT_BACKGROUND_COMPACT_STAT --
  *  List of tracking information for each file compact has worked on.
