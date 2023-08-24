@@ -98,8 +98,8 @@ __compact_server(void *arg)
     full_iteration = running = signalled = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
-    WT_ERR(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
+    WT_ERR(__wt_scr_alloc(session, 1024, &uri));
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
