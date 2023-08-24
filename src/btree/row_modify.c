@@ -435,7 +435,8 @@ __wt_update_obsolete_check(
          * moved forwards. This function is used to trim update lists independently of the page
          * state, ensure there is a modify structure.
          */
-        if (count > 20 && page->modify != NULL) {
+        if (count > 20) {
+            WT_ASSERT(session, page->modify != NULL);
             page->modify->obsolete_check_txn = txn_global->last_running;
             if (txn_global->has_pinned_timestamp)
                 page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
