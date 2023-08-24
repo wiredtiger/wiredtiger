@@ -1729,7 +1729,7 @@ execute_workload(WTPERF *wtperf)
     wt_thread_t idle_table_cycle_thread;
     uint64_t last_backup, last_ckpts, last_flushes, last_scans;
     uint64_t last_inserts, last_reads, last_truncates;
-    uint64_t last_modifies, last_updates, start_usec;
+    uint64_t last_modifies, last_updates;
     uint32_t interval, run_ops, run_time;
     u_int i;
     int ret;
@@ -1743,7 +1743,6 @@ execute_workload(WTPERF *wtperf)
     last_backup = last_ckpts = last_flushes = last_scans = 0;
     last_inserts = last_reads = last_truncates = 0;
     last_modifies = last_updates = 0;
-    start_usec = 0;
     ret = 0;
 
     sessions = NULL;
@@ -1790,7 +1789,7 @@ execute_workload(WTPERF *wtperf)
         wtperf->in_warmup = false;
     }
 
-    start_usec = testutil_time_us(NULL);
+    wtperf->testsec = 0;
     for (interval = opts->report_interval, run_time = opts->run_time, run_ops = opts->run_ops;
          !wtperf->error;) {
         /*
@@ -1798,6 +1797,7 @@ execute_workload(WTPERF *wtperf)
          * and if we're only tracking run time, go back to sleep.
          */
         sleep(1);
+        ++wtperf->testsec;
         if (run_time != 0) {
             if (--run_time == 0)
                 break;
@@ -1848,13 +1848,6 @@ execute_workload(WTPERF *wtperf)
     }
 
 err:
-    /*
-     * If the start timer is uninitialized, the test didn't run. Set the test time anyway to avoid
-     * dividing by zero in reporting.
-     */
-    wtperf->testsec =
-      start_usec == 0 ? 1 : (uint32_t)((testutil_time_us(NULL) - start_usec) / WT_MILLION);
-
     /* Notify the worker threads they are done. */
     wtperf->stop = true;
 
