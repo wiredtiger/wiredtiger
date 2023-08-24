@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /* Prefix of files the background compaction server deals with. */
-#define WT_BG_COMPACT_URI_PREFIX "file:"
+#define WT_COMPACT_URI_PREFIX "file:"
 
 /*
  * __compact_server_run_chk --
@@ -22,11 +22,11 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __find_next_uri --
+ * __background_compact_find_next_uri --
  *     Given a URI, find the next one in the metadata file that is eligible for compaction.
  */
 static int
-__find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_urip)
+__background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_urip)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -55,7 +55,7 @@ __find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_urip)
     while (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
         /* Check we are still dealing with keys which have the right prefix. */
-        if (!WT_PREFIX_MATCH(key, WT_BG_COMPACT_URI_PREFIX)) {
+        if (!WT_PREFIX_MATCH(key, WT_COMPACT_URI_PREFIX)) {
             ret = WT_NOTFOUND;
             break;
         }
@@ -116,8 +116,8 @@ __compact_server(void *arg)
              */
             if (uri->size == 0 || full_iteration) {
                 full_iteration = false;
-                WT_ERR(__wt_buf_set(
-                  session, uri, WT_BG_COMPACT_URI_PREFIX, strlen(WT_BG_COMPACT_URI_PREFIX)));
+                WT_ERR(
+                  __wt_buf_set(session, uri, WT_COMPACT_URI_PREFIX, strlen(WT_COMPACT_URI_PREFIX)));
             }
 
             /* Check every 10 seconds in case the signal was missed. */
@@ -145,7 +145,7 @@ __compact_server(void *arg)
             continue;
 
         /* Find the next URI to compact. */
-        WT_ERR_NOTFOUND_OK(__find_next_uri(session, uri, next_uri), true);
+        WT_ERR_NOTFOUND_OK(__background_compact_find_next_uri(session, uri, next_uri), true);
 
         /* All the keys with the specified prefix have been parsed. */
         if (ret == WT_NOTFOUND) {
