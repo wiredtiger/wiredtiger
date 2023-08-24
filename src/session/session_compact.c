@@ -223,10 +223,13 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     /* If compaction has been interrupted, we return WT_ERROR to the caller. */
     if (session == conn->background_compact.session) {
         background_compaction = true;
-        __wt_spin_lock(session, &conn->background_compact.lock);
-        if (!conn->background_compact.running)
-            ret = WT_ERROR;
-        __wt_spin_unlock(session, &conn->background_compact.lock);
+        /* Only check for interruption when the connection is not being opened/closed. */
+        if (!F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL)) {
+            __wt_spin_lock(session, &conn->background_compact.lock);
+            if (!conn->background_compact.running)
+                ret = WT_ERROR;
+            __wt_spin_unlock(session, &conn->background_compact.lock);
+        }
     } else if (session->event_handler->handle_general != NULL) {
         ret = session->event_handler->handle_general(
           session->event_handler, &conn->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
