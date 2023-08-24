@@ -85,8 +85,8 @@ __compact_server(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(config);
-    WT_DECL_ITEM(uri);
     WT_DECL_ITEM(next_uri);
+    WT_DECL_ITEM(uri);
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
