@@ -6,11 +6,14 @@ if(HAVE_UNITTEST_ASSERTS)
     set(unittests tests/test_assertions.cpp)
 else()
     set(unittests
+        tests/test_binary_search_string.cpp
+        tests/test_bitmap.cpp
         tests/test_bounds_restore.cpp
         tests/test_crc32.cpp
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
         tests/test_pow.cpp
+        tests/test_prepare_mod_sort.cpp
         tests/test_qsort.cpp
         tests/test_reconciliation_tracking.cpp
         tests/test_tailq.cpp

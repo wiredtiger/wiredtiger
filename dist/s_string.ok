@@ -68,9 +68,11 @@ CURSTD
 CallsCustDate
 Castagnoli
 Cclmpv
+Ceil
 CentOS
 Checkpointing
 Checksums
+Chunkcache
 CityHash
 ClmSvxz
 CloseHandle
@@ -195,6 +197,7 @@ JSON
 Jyrki
 KV
 Kanowski's
+Keyedness
 Kounavis
 LANGID
 LF
@@ -228,6 +231,7 @@ MONGODB
 MOVEFILE
 MRXB
 MRXBOPC
+MSAN
 MSDN
 MSVC
 MSan
@@ -568,6 +572,7 @@ colgroup
 colgroups
 collatorp
 comparator
+comparators
 comparep
 compat
 cond
@@ -578,7 +583,6 @@ config
 configs
 conn
 connectionp
-const
 constantp
 consts
 cookiep
@@ -805,7 +809,6 @@ hashval
 havesize
 hdr
 hhh
-highjack
 hpp
 hs
 html
@@ -867,14 +870,15 @@ isprint
 isrc
 isspace
 iter
-jemalloc
 jjj
 js
 json
 kB
 kbits
 kepQFQ
+key'd
 keycmp
+keyedness
 keyid
 keyids
 keylen
@@ -893,6 +897,7 @@ len
 lengthp
 lenp
 lex
+lexically
 lexicographically
 lf
 lfence
@@ -1188,6 +1193,7 @@ sn
 snaplen
 snapsort
 snprintf
+sortable
 sp
 sparc
 spinlock

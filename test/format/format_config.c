@@ -35,6 +35,7 @@ static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(TABLE *);
+static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_directio(void);
 static void config_encryption(void);
@@ -509,6 +510,7 @@ config_run(void)
     config_backward_compatible();                    /* Reset backward compatibility as needed */
     config_mirrors();                                /* Mirrors */
     config_statistics();                             /* Statistics */
+    config_compact();                                /* Compaction */
 
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
@@ -1007,6 +1009,8 @@ config_in_memory(void)
      */
     if (ntables > 10)
         return;
+    if (config_explicit(NULL, "background_compact"))
+        return;
     if (config_explicit(NULL, "backup"))
         return;
     if (config_explicit(NULL, "block_cache"))
@@ -1059,6 +1063,8 @@ config_in_memory_reset(void)
         return;
 
     /* Turn off a lot of stuff. */
+    if (!config_explicit(NULL, "background_compact"))
+        config_off(NULL, "background_compact");
     if (!config_explicit(NULL, "backup"))
         config_off(NULL, "backup");
     if (!config_explicit(NULL, "block_cache"))
@@ -1150,18 +1156,15 @@ config_mirrors(void)
 {
     u_int available_tables, i, mirrors;
     char buf[100];
-    bool already_set, explicit_mirror, fix, var;
+    bool already_set, explicit_mirror;
 
-    fix = var = false;
-    g.mirror_fix_var = false;
+    g.mirror_col_store = false;
     /* Check for a CONFIG file that's already set up for mirroring. */
     for (already_set = false, i = 1; i <= ntables; ++i)
         if (NTV(tables[i], RUNS_MIRROR)) {
             already_set = tables[i]->mirror = true;
-            if (tables[i]->type == FIX)
-                fix = true;
-            if (tables[i]->type == VAR)
-                var = true;
+            if (tables[i]->type == FIX || tables[i]->type == VAR)
+                g.mirror_col_store = true;
             if (g.base_mirror == NULL && tables[i]->type != FIX)
                 g.base_mirror = tables[i];
         }
@@ -1175,8 +1178,6 @@ config_mirrors(void)
          * it lets us avoid a bunch of extra logic around figuring out whether we have an acceptable
          * minimum number of tables.
          */
-        if (fix && var)
-            g.mirror_fix_var = true;
         return;
     }
 
@@ -1254,7 +1255,7 @@ config_mirrors(void)
     config_single(tables[i], "runs.mirror=1", false);
     g.base_mirror = tables[i];
     if (tables[i]->type == VAR)
-        var = true;
+        g.mirror_col_store = true;
     /*
      * Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables, where
      * allowed.
@@ -1265,21 +1266,13 @@ config_mirrors(void)
         if (tables[i] != g.base_mirror) {
             tables[i]->mirror = true;
             config_single(tables[i], "runs.mirror=1", false);
-            if (tables[i]->type == FIX)
-                fix = true;
-            if (tables[i]->type == VAR)
-                var = true;
+            if (tables[i]->type == FIX || tables[i]->type == VAR)
+                g.mirror_col_store = true;
             if (--mirrors == 0)
                 break;
         }
     }
 
-    /*
-     * There is an edge case that is possible only when we are mirroring both VLCS and FLCS tables.
-     * Note if that is true now.
-     */
-    if (fix && var)
-        g.mirror_fix_var = true;
     /*
      * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
      * a mirror as OK, but this lets us assert matching rows).
@@ -2248,4 +2241,59 @@ config_file_type(u_int type)
         break;
     }
     return ("error: unknown file type");
+}
+
+/*
+ * config_compact --
+ *     Generate compaction related configurations.
+ */
+static void
+config_compact(void)
+{
+    char buf[128];
+
+    /* FIXME-WT-11432: Background and foreground compaction should not be executed in parallel. */
+    if (config_explicit(NULL, "background_compact") && GV(BACKGROUND_COMPACT) &&
+      config_explicit(NULL, "ops.compaction") && GV(OPS_COMPACTION))
+        testutil_die(EINVAL,
+          "%s: Background and foreground compaction cannot be enabled at the same time", progname);
+
+    /* Compaction does not work on in-memory databases, disable it. */
+    if (GV(RUNS_IN_MEMORY)) {
+        if (config_explicit(NULL, "background_compact") && GV(BACKGROUND_COMPACT))
+            testutil_die(
+              EINVAL, "%s: Background compaction cannot be enabled for in-memory runs", progname);
+        if (config_explicit(NULL, "ops.compaction") && GV(OPS_COMPACTION))
+            testutil_die(
+              EINVAL, "%s: Foreground compaction cannot be enabled for in-memory runs", progname);
+        config_off(NULL, "background_compact");
+        config_off(NULL, "ops.compaction");
+    }
+
+    /*
+     * FIXME-WT-11432: If both are enabled, disable the one that is not explicitly set or choose one
+     * randomly.
+     */
+    if (GV(BACKGROUND_COMPACT) && GV(OPS_COMPACTION)) {
+        if (config_explicit(NULL, "background_compact"))
+            config_off(NULL, "ops.compaction");
+        else if (config_explicit(NULL, "ops.compaction"))
+            config_off(NULL, "background_compact");
+        else if (mmrand(&g.data_rnd, 1, 2) == 1)
+            config_off(NULL, "background_compact");
+        else
+            config_off(NULL, "ops.compaction");
+    }
+
+    /* Generate values if not explicit set. */
+    if (!config_explicit(NULL, "background_compact.free_space_target")) {
+        testutil_snprintf(buf, sizeof(buf), "background_compact.free_space_target=%" PRIu32,
+          mmrand(&g.extra_rnd, 1, 100));
+        config_single(NULL, buf, false);
+    }
+    if (!config_explicit(NULL, "compact.free_space_target")) {
+        testutil_snprintf(
+          buf, sizeof(buf), "compact.free_space_target=%" PRIu32, mmrand(&g.extra_rnd, 1, 100));
+        config_single(NULL, buf, false);
+    }
 }

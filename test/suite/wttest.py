@@ -643,16 +643,16 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.captureerr.checkAdditional(self, expect)
 
     @contextmanager
-    def expectedStdoutPattern(self, pat, re_flags=0):
+    def expectedStdoutPattern(self, pat, re_flags=0, maxchars=1500):
         self.captureout.check(self)
         yield
-        self.captureout.checkAdditionalPattern(self, pat, re_flags)
+        self.captureout.checkAdditionalPattern(self, pat, re_flags, maxchars)
 
     @contextmanager
-    def expectedStderrPattern(self, pat, re_flags=0):
+    def expectedStderrPattern(self, pat, re_flags=0, maxchars=1500):
         self.captureerr.check(self)
         yield
-        self.captureerr.checkAdditionalPattern(self, pat, re_flags)
+        self.captureerr.checkAdditionalPattern(self, pat, re_flags, maxchars)
 
     @contextmanager
     def customStdoutPattern(self, f):
