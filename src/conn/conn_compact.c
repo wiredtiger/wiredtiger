@@ -84,20 +84,20 @@ static WT_THREAD_RET
 __compact_server(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(config);
     WT_DECL_ITEM(uri);
     WT_DECL_ITEM(next_uri);
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    const char *config;
     bool full_iteration, running, signalled;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    config = NULL;
     full_iteration = running = signalled = false;
 
+    WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
 
@@ -158,16 +158,15 @@ __compact_server(void *arg)
 
         /* Compact the file with the latest configuration. */
         __wt_spin_lock(session, &conn->background_compact.lock);
-        if (config == NULL || !WT_STREQ(config, conn->background_compact.config)) {
-            __wt_free(session, config);
-            ret = __wt_strndup(session, conn->background_compact.config,
-              strlen(conn->background_compact.config), &config);
-        }
+        if (config->size == 0 ||
+          !WT_STREQ((const char *)config->data, conn->background_compact.config))
+            WT_ERR(__wt_buf_set(session, config, conn->background_compact.config,
+              strlen(conn->background_compact.config)));
         __wt_spin_unlock(session, &conn->background_compact.lock);
 
         WT_ERR(ret);
 
-        ret = wt_session->compact(wt_session, (const char *)uri->data, config);
+        ret = wt_session->compact(wt_session, (const char *)uri->data, (const char *)config->data);
 
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
@@ -208,8 +207,8 @@ __compact_server(void *arg)
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
 err:
-    __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
+    __wt_scr_free(session, &config);
     __wt_scr_free(session, &uri);
     __wt_scr_free(session, &next_uri);
 
