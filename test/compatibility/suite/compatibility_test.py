@@ -152,6 +152,8 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         '''
         self._start_dir = os.getcwd()
 
+        self.prhead(f'Starting the test')
+
         # Set up the test directory.
         test_dir = os.path.join(self._parentTestdir, self.sanitized_shortid())
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -176,10 +178,11 @@ def run_tests(suites):
     Run the test suite(s).
     '''
     from testscenarios.scenarios import generate_scenarios
+    verbose = abstract_test_case.AbstractWiredTigerTestCase._verbose
     try:
         tests = unittest.TestSuite()
         tests.addTests(generate_scenarios(suites))
-        result = unittest.TextTestRunner(verbosity=1, resultclass=None).run(tests)
+        result = unittest.TextTestRunner(verbosity=verbose, resultclass=None).run(tests)
         return result
     except BaseException as e:
         # This should not happen for regular test errors, unittest should catch everything
