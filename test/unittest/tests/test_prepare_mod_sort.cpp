@@ -364,7 +364,7 @@ TEST_CASE("Different column store keys test", "[mod_compare]")
 
     // Randomly choose btrees and assign random recnos to the ops.
     for (int i = 0; i < 8; i++)
-        init_op(&ops[i], &btrees[rand() % 6], WT_TXN_OP_BASIC_COL, rand() % 200, NULL);
+        init_op(&ops[i], &btrees[rand() % 6], WT_TXN_OP_BASIC_COL, rand() % 200 + 1, NULL);
 
     qsort(&ops, 8, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
     ret = __mod_ops_sorted(ops, 8);
