@@ -28,9 +28,9 @@ LIB_PATH=$(ls ${HOME}/wiredtiger/cmake_build/*.so* | head -n 1 2>/dev/null)
 if [[ -n $LIB_PATH ]]; then
     # Grab the source directory that the test was run in, and fix up the expected path to the
     # correct path on the new machine.
-    OLD_WT_PATH=$(readelf -n ${LIB_PATH} | grep "wiredtiger" | head -n 1 | sed -e 's/wiredtiger.*/wiredtiger/' -e 's/[^\/]*//')
+    OLD_WT_PATH=$(readelf --debug-dump=info ${LIB_PATH} | grep "wiredtiger" | head -n 1 | sed -e 's/wiredtiger.*/wiredtiger/' -e 's/[^\/]*//')
     cat >> ~/.gdbinit << EOF
-set solib-search-path ${HOME}/wiredtiger/cmake_build/lang:${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib
+set solib-search-path ${HOME}/wiredtiger/cmake_build/lang/python:${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib
 set substitute-path ${OLD_WT_PATH} ${HOME}/wiredtiger
 set pagination off
 set print pretty on
