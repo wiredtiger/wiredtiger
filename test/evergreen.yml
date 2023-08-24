@@ -181,15 +181,20 @@ functions:
             . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
           fi
           # Compiling with CMake.
+          echo "Find CMake"
           . test/evergreen/find_cmake.sh
           # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
           # the previous build directory so we can create a fresh configuration. We can't use the the previous
           # CMake Cache configuration as its likely it will have absolute paths related to the previous build machine.
+          echo "Remove the cmake_build directory, if it already exists"
           if [ -d cmake_build ]; then rm -r cmake_build; fi
+          echo "Create a new cmake_build directory"
           mkdir -p cmake_build
           cd cmake_build
 
+          echo "Call CMake"
           ${configure_env_vars|} $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+          echo "Completed CMake"
         fi
   "python config check":
     command: shell.exec
@@ -208,6 +213,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        echo "Starting 'make wiredtiger' step"
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
           powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
@@ -216,6 +222,7 @@ functions:
           cd cmake_build
           ${compile_env_vars|} ${make_command|ninja} ${smp_command|} 2>&1
         fi
+        echo "Ending 'make wiredtiger' step"
   "compile wiredtiger":
     - *configure_wiredtiger
     - *make_wiredtiger
@@ -1329,7 +1336,12 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
@@ -1352,7 +1364,12 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
@@ -4374,6 +4391,22 @@ tasks:
             for i in $(seq 5); do
                 ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
+  
+  - name: chunkcache-test
+    exec_timeout_secs: 1200 # 20 minutes
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ${python_binary|python3} chunkcache_simple.py
 
   - name: skiplist-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
@@ -5993,6 +6026,7 @@ buildvariants:
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
     - name: unit-test-hook-tiered-s3
+    - name: chunkcache-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -6515,11 +6549,12 @@ buildvariants:
     - name: configure-combinations
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
+    - name: chunkcache-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
     - name: unit-test-extra-long-nonstandalone
-      distros: ubuntu2004-arm64-perf-testing
+      distros: ubuntu2004-arm64-large
     - name: memory-model-test
       batchtime: 40320 # 28 days
 
@@ -6579,3 +6614,137 @@ buildvariants:
     - name: ".antithesis"
       cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
       patchable: false
+
+- name: ubuntu2004-release
+  display_name: "~ Ubuntu 20.04 (Release Build)"
+  run_on:
+  - ubuntu2004-small
+  batchtime: 720 # 12 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: format-smoke-test
+    - name: fops
+    - name: linux-directio
+    - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+    - name: ftruncate-test
+    - name: long-test
+    - name: configure-combinations
+    - name: format-smoke-test
+    - name: s3-tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+
+- name: ubuntu2004-release-arm64
+  display_name: "~ Ubuntu 20.04 (ARM64, Release Build)"
+  run_on:
+  - ubuntu2004-arm64-small
+  batchtime: 720 # 12 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: format-smoke-test
+    - name: fops
+    - name: linux-directio
+    - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+    - name: ftruncate-test
+    - name: long-test
+    - name: configure-combinations
+    - name: format-smoke-test
+    - name: s3-tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+
+- name: ubuntu2004-release-stress-tests
+  display_name: Ubuntu 20.04 Stress tests (Release Build)
+  run_on:
+  - ubuntu2004-test
+  batchtime: 1440 # 24 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-sanitizer"
+    - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: format-predictable-test
+
+# When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
+# fails to load and resolve its dependency.
+- name: ubuntu2004-release-stress-tests-arm64
+  display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build)
+  run_on:
+  - ubuntu2004-arm64-large
+  batchtime: 1440 # 24 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
