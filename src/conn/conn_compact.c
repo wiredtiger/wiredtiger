@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+#define COMPACT_FILE_SLEEP_TIME 60
+
 /*
  * __compact_server_run_chk --
  *     Check to decide if the compact server should continue running.
@@ -110,7 +112,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri)
     /* If we have been unsuccessful recently skip this file for some time. */
     cur_time = __wt_clock(session);
     if (!compact_stat->prev_compact_success &&
-      WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) < 60) {
+      WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) < COMPACT_FILE_SLEEP_TIME) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
@@ -118,7 +120,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri)
 
     /* If the last compaction pass was less successful than the average. Skip it for some time. */
     if (compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
-      WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) < 60) {
+      WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) < COMPACT_FILE_SLEEP_TIME) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
