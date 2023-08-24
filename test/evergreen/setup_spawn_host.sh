@@ -24,7 +24,7 @@ if [[ -n $WT_ARCHIVE ]]; then
 fi
 
 # Setup the gdb environment if there are core dumps present in the artefacts.
-GDB_CORE_DUMP=$(ls ${HOME}/wiredtiger/cmake_build/*.core | head -n 1 2>/dev/null)
+GDB_CORE_DUMP=$(find ${HOME}/wiredtiger/cmake_build -name "*.core" | head -n 1 2>/dev/null)
 if [[ -n $GDB_CORE_DUMP ]]; then
     # Read the wiredtiger shared library and find the old source directory using readelf and fix up
     # the expected path to the correct path on the new machine.
