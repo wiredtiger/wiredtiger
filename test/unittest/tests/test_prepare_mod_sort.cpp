@@ -294,9 +294,9 @@ TEST_CASE("Keyedness sort test", "[mod_compare]")
     init_key(keys[0], "1");
 
     for (int i = 0; i < 6; i++)
-        init_btree(&btrees[i], BTREE_ROW, rand() % 100);
+        init_btree(&btrees[i], BTREE_ROW, i);
     for (int i = 6; i < 12; i++)
-        init_btree(&btrees[i], BTREE_COL_VAR, rand() % 100);
+        init_btree(&btrees[i], BTREE_COL_VAR, i);
 
     for (int i = 0; i < 6; i++)
         init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
