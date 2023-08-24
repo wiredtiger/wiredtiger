@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sys
+import os, re, sys
 from compatibility_config import *
 
 # Remember the top-level test directory and the top-level project directory.
@@ -41,6 +41,9 @@ sys.path.insert(1, os.path.join(TEST_DIR, 'py_utility'))
 # accidentally import the wrong version of the library.
 import test_util
 test_util.setup_3rdparty_paths()
+
+# The default build directory
+DEFAULT_BUILD_DIR = 'build.compatibility'
 
 def is_branch_supported(branch):
     '''
@@ -79,6 +82,25 @@ def branch_path(branch):
         return DIST_TOP_DIR
     return os.path.abspath(os.path.join(DIST_TOP_DIR, BRANCHES_DIR, branch))
 
+def branch_build_path(branch, config):
+    '''
+    Get path to the build directory within a branch.
+    '''
+    dir = os.path.join(branch_path(branch), DEFAULT_BUILD_DIR)
+    if config is not None:
+        config_keys = list(config.keys())
+        config_keys.sort()
+        for k in config_keys:
+            v = config[k]
+            if v is False:
+                continue
+            if v is True:
+                dir += f'-{k}'
+                continue
+            str_v = re.sub(r'[/\s\\\'\"\*\?]', '-', str(v))
+            dir += f'-{k}={str_v}'
+    return dir
+
 def system(command):
     '''
     Run a command, fail if the command execution failed.
@@ -87,31 +109,33 @@ def system(command):
     if r != 0:
         raise Exception('Command \'%s\' failed with code %d.' % (command, r))
 
-def prepare_branch(branch, standalone=True):
+def prepare_branch(branch, config):
     '''
     Check out and build a WiredTiger branch.
     '''
 
-    # If we are running the test on the current branch, make sure it is compiled. We assume that the
-    # user has already run cmake.
-    if branch == 'this':
-        build_path = test_util.find_build_dir()
-        print(f'Building {test_util.get_dist_top_dir()}')
-        system(f'cd "{build_path}" && ninja')
-        return
-
     # Clone the repository and check out the correct branch.
     path = branch_path(branch)
-    if os.path.exists(path):
-        print(f'Branch {branch} is already cloned')
-        system(f'git -C "{path}" pull')
-    else:
-        source = 'git@github.com:wiredtiger/wiredtiger.git'
-        print(f'Cloning branch {branch}')
-        system(f'git clone "{source}" "{path}" -b {branch}')
+    if branch != 'this':
+        if os.path.exists(path):
+            print(f'Branch {branch} is already cloned')
+            system(f'git -C "{path}" pull')
+        else:
+            source = 'git@github.com:wiredtiger/wiredtiger.git'
+            print(f'Cloning branch {branch}')
+            system(f'git clone "{source}" "{path}" -b {branch}')
+
+    # Parse the build config
+    standalone = False
+    if config is not None:
+        for key, value in config.items():
+            if key == 'standalone':
+                standalone = value
+            else:
+                raise Exception(f'Unsupported build configuration key \'{key}\'')
 
     # Build
-    build_path = os.path.join(path, 'build')
+    build_path = branch_build_path(branch, config)
     # Note: This build code works only on branches 6.0 and newer. We will need to update it to
     # support older branches, which use autoconf.
     if not os.path.exists(os.path.join(build_path, 'build.ninja')):

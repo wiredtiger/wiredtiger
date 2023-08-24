@@ -40,13 +40,19 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     The base class for running compatibility tests.
     '''
 
+    def __init__(self, *args, **kwargs):
+        '''
+        Initialize the test case.
+        '''
+        super().__init__(*args, **kwargs)
+        # Nothing else to do at this point
+
     def branch_build_path(self, branch):
         '''
         Get path to a branch.
         '''
-        if branch == 'this':
-            return test_util.find_build_dir()
-        return os.path.join(compatibility_common.branch_path(branch), 'build')
+        build_config = self.build_config if hasattr(self, 'build_config') else None
+        return compatibility_common.branch_build_path(branch, build_config)
 
     def run_method_on_branch(self, branch, method):
         '''
@@ -165,24 +171,20 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.fdTearDown()
         os.chdir(self._start_dir)
 
-def run_suite(suite):
+def run_tests(suites):
     '''
-    Run the test suite.
+    Run the test suite(s).
     '''
+    from testscenarios.scenarios import generate_scenarios
     try:
-        result = unittest.TextTestRunner(verbosity=1, resultclass=None).run(suite)
+        tests = unittest.TestSuite()
+        tests.addTests(generate_scenarios(suites))
+        result = unittest.TextTestRunner(verbosity=1, resultclass=None).run(tests)
         return result
     except BaseException as e:
         # This should not happen for regular test errors, unittest should catch everything
         print("[pid:{}]: ERROR: running test: {}".format(os.getpid(), e))
         raise e
-
-def run(name='__main__'):
-    '''
-    Run the test.
-    '''
-    result = run_suite(unittest.TestLoader().loadTestsFromName(name))
-    sys.exit(0 if result.wasSuccessful() else 1)
 
 def add_branch_pair_scenarios(suite):
     '''
@@ -206,12 +208,15 @@ def add_branch_pair_scenarios(suite):
         else:
             setattr(test, 'scenarios', wtscenario.make_scenarios(branch_scenarios, scenarios))
 
-if __name__ == '__main__':
-    from discover import defaultTestLoader as loader
-    from testscenarios.scenarios import generate_scenarios
+def global_setup():
+    '''
+    Perform the global setup.
+    '''
+
+    # Set the default parameters.
+    wtscenario.set_long_run(True)
 
     # Global setup.
-    wtscenario.set_long_run(True)
     CompatibilityTestCase.setupTestDir()
     CompatibilityTestCase.setupIO()
     CompatibilityTestCase.setupRandom()
@@ -221,19 +226,52 @@ if __name__ == '__main__':
     # however, not using the WiredTiger library for any other purpose until the test starts.
     test_util.setup_wiredtiger_path()
 
+def prepare_tests(suites):
+    '''
+    Prepare the specified test suites for the test.
+    '''
+
+    # Find all build configs.
+    all_build_configs = [{}]
+    for test in testtools.iterate_tests(suites):
+        if hasattr(test, 'build_config'):
+            config = getattr(test, 'build_config')
+            if config is not None and config not in all_build_configs:
+                all_build_configs.append(config)
+
     # Check out and build all relevant branches.
     for branch in compatibility_common.BRANCHES:
-        compatibility_common.prepare_branch(branch)
-    
-    # Load the tests.
-    suite_dir = os.path.dirname(os.path.abspath(__file__))
-    suites = loader.discover(suite_dir)
+        for config in all_build_configs:
+            compatibility_common.prepare_branch(branch, config)
 
     # Add branch arguments to the tests' scenarios.
     add_branch_pair_scenarios(suites)
 
+def run(name='__main__'):
+    '''
+    Run the specified test.
+    '''
+    global_setup()
+    
+    suite = unittest.TestLoader().loadTestsFromName(name)
+    
+    prepare_tests(suite)
+    result = run_tests(suite)
+    sys.exit(0 if result.wasSuccessful() else 1)
+
+if __name__ == '__main__':
+    from discover import defaultTestLoader as loader
+
+    # Global setup: set up paths, default parameter values, and test subsystems.
+    global_setup()
+
+    # Load the tests.
+    suite_dir = os.path.dirname(os.path.abspath(__file__))
+    suites = loader.discover(suite_dir)
+
+    # Prepare the test suites for execution: check out branches, build them, etc.
+    prepare_tests(suites)
+
     # Run the tests.
-    tests = unittest.TestSuite()
-    tests.addTests(generate_scenarios(suites))
-    result = run_suite(tests)
+    result = run_tests(suites)
     sys.exit(0 if result.wasSuccessful() else 1)
