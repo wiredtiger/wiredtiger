@@ -340,7 +340,7 @@ functions:
               -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
           export GOOGLE_APPLICATION_CREDENTIALS="$file"
 
-          PATH=/opt/mongodbtoolchain/v4/bin:$PATH virtualenv -p python3 venv
+          virtualenv -p python3 venv
           source venv/bin/activate
           pip3 install boto3
           pip3 install azure-storage-blob
@@ -4832,7 +4832,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
+            ${PREPARE_PATH}
             virtualenv -p python3 venv
             source venv/bin/activate
             # Need both pymongo and pymongo[srv] as upload-results-atlas.py uses mongo+srv for the URI.
