@@ -26,10 +26,13 @@ fi
 # Setup the gdb environment if there are core dumps present in the artefacts.
 GDB_CORE_DUMP=$(find ${HOME}/wiredtiger/cmake_build -name "*.core" | head -n 1 2>/dev/null)
 if [[ -n $GDB_CORE_DUMP ]]; then
-    # Read the CMakeCache to find the old source directory and fix up the expected path to the
-    # correct path on the new machine.
+    # Read the CMakeCache txt file to find the old source directory and fix up the expected path to
+    # the correct path on the new machine.
     OLD_WT_PATH=$(grep "WiredTiger_SOURCE_DIR" ${HOME}/wiredtiger/cmake_build/CMakeCache.txt | sed -e 's/[^\/]*//')
 
+    # GDB debug symbols include a path to the source code we compiled from, however since we
+    # compiled on a different machine and copied the artefacts to this spawn host the file paths
+    # have changed. substitute-path command tells gdb the new location of our source code
     # Set up the shared library paths and add another source directory to look under using 
     # substitute path. 
     cat >> ~/.gdbinit << EOF
