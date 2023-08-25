@@ -281,10 +281,6 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
 
     WT_STATIC_ASSERT(offsetof(WT_CURSOR_BACKUP, iface) == 0);
 
-    /* Do not allow backup cursors if tiered storage is in use on the connection. */
-    if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)))
-        return (ENOTSUP);
-
     WT_RET(__wt_calloc_one(session, &cb));
     cursor = (WT_CURSOR *)cb;
     *cursor = iface;
@@ -307,6 +303,13 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     } else if (WT_STRING_MATCH("backup:export", uri, strlen(uri)))
         /* Special backup cursor for export operation. */
         F_SET(cb, WT_CURBACKUP_EXPORT);
+
+    /*
+     * Export cursors are for tiered storage. Do not allow backup cursors if tiered storage is in
+     * use on the connection and it isn't an export cursor.
+     */
+    if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)) && !F_ISSET(cb, WT_CURBACKUP_EXPORT))
+        return (ENOTSUP);
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
