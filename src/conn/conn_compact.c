@@ -26,7 +26,7 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
  *     Given a URI, find the next one in the metadata file that is eligible for compaction.
  */
 static int
-__background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_urip)
+__background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_uri)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -68,7 +68,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
 
     /* Save the selected uri. */
     if (ret == 0)
-        WT_ERR(__wt_buf_set(session, next_urip, cursor->key.data, cursor->key.size));
+        WT_ERR(__wt_buf_set(session, next_uri, cursor->key.data, cursor->key.size));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
