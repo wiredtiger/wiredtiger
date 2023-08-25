@@ -30,10 +30,10 @@ if [[ -n $GDB_CORE_DUMP ]]; then
     # the correct path on the new machine.
     OLD_WT_PATH=$(grep "WiredTiger_SOURCE_DIR" ${HOME}/wiredtiger/cmake_build/CMakeCache.txt | sed -e 's/[^\/]*//')
 
-    # GDB debug symbols include a path to the source code we compiled from, however since we
-    # compiled on a different machine and copied the artefacts to this spawn host the file paths
-    # have changed. substitute-path command tells gdb the new location of our source code
-    # Set up the shared library paths and add another source directory to look under using 
+    # GDB debug symbols includes a path to the source code we originally compiled. However since we
+    # compiled on a different machine and copied the artefacts to this spawn host, the file paths
+    # have changed. substitute-path command tells gdb the new location of the source code. Therefore
+    # set up the shared library paths and add another source directory to look under using 
     # substitute path. 
     cat >> ~/.gdbinit << EOF
 set solib-search-path ${HOME}/wiredtiger/cmake_build/lang/python:${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib
