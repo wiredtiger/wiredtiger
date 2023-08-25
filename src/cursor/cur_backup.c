@@ -282,7 +282,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_STATIC_ASSERT(offsetof(WT_CURSOR_BACKUP, iface) == 0);
 
     /* Do not allow backup cursors if tiered storage is in use on the connection. */
-    if (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED))
+    if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)))
         return (ENOTSUP);
 
     WT_RET(__wt_calloc_one(session, &cb));
