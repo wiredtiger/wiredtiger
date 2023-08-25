@@ -2972,7 +2972,7 @@ tasks:
     patch_only: true
     depends_on:
     - name: compile
-    run_on: ubuntu2004-perf-testing
+    run_on: ubuntu2004-medium
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
@@ -6198,7 +6198,7 @@ buildvariants:
     - name: ".stress-test-no-barrier"
     - name: ".stress-test-sanitizer"
       run_on:
-      - ubuntu2004-perf-testing
+      - ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: ".stress-test-1-nonstandalone"
     - name: ".stress-test-2-nonstandalone"
@@ -6251,7 +6251,7 @@ buildvariants:
   batchtime: 720 # twice a day
   run_on:
   # We run on medium as small has too small a disk.
-  - ubuntu2004-perf-testing
+  - ubuntu2004-medium
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
