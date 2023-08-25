@@ -26,10 +26,12 @@ fi
 # Setup the gdb environment if there are core dumps present in the artefacts.
 GDB_CORE_DUMP=$(find ${HOME}/wiredtiger/cmake_build -name "*.core" | head -n 1 2>/dev/null)
 if [[ -n $GDB_CORE_DUMP ]]; then
-    # Read the wiredtiger shared library and find the old source directory using readelf and fix up
-    # the expected path to the correct path on the new machine.
-    LIB_PATH=$(ls ${HOME}/wiredtiger/cmake_build/*.so* | head -n 1 2>/dev/null)
-    OLD_WT_PATH=$(readelf --debug-dump=info ${LIB_PATH} | grep "wiredtiger" | head -n 1 | sed -e 's/wiredtiger.*/wiredtiger/' -e 's/[^\/]*//')
+    # Read the CMakeCache to find the old source directory and fix up the expected path to the
+    # correct path on the new machine.
+    OLD_WT_PATH=$(grep "WiredTiger_SOURCE_DIR" ${HOME}/wiredtiger/cmake_build/CMakeCache.txt | sed -e 's/[^\/]*//')
+
+    # Set up the shared library paths and add another source directory to look under using 
+    # substitute path. 
     cat >> ~/.gdbinit << EOF
 set solib-search-path ${HOME}/wiredtiger/cmake_build/lang/python:${HOME}/wiredtiger/cmake_build:${HOME}/wiredtiger/TCMALLOC_LIB/lib
 set substitute-path ${OLD_WT_PATH} ${HOME}/wiredtiger
