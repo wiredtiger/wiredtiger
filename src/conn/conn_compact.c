@@ -209,8 +209,8 @@ __compact_server(void *arg)
 err:
     __wt_free(session, conn->background_compact.config);
     __wt_scr_free(session, &config);
-    __wt_scr_free(session, &uri);
     __wt_scr_free(session, &next_uri);
+    __wt_scr_free(session, &uri);
 
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
