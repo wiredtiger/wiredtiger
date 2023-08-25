@@ -116,8 +116,8 @@ __compact_server(void *arg)
              */
             if (uri->size == 0 || full_iteration) {
                 full_iteration = false;
-                WT_ERR(
-                  __wt_buf_set(session, uri, WT_COMPACT_URI_PREFIX, strlen(WT_COMPACT_URI_PREFIX)));
+                WT_ERR(__wt_buf_set(
+                  session, uri, WT_COMPACT_URI_PREFIX, strlen(WT_COMPACT_URI_PREFIX) + 1));
             }
 
             /* Check every 10 seconds in case the signal was missed. */
@@ -161,7 +161,7 @@ __compact_server(void *arg)
         if (config->size == 0 ||
           !WT_STREQ((const char *)config->data, conn->background_compact.config))
             WT_ERR(__wt_buf_set(session, config, conn->background_compact.config,
-              strlen(conn->background_compact.config)));
+              strlen(conn->background_compact.config) + 1));
         __wt_spin_unlock(session, &conn->background_compact.lock);
 
         WT_ERR(ret);
