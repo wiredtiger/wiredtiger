@@ -4482,7 +4482,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_SHELL}
+            ${PREPARE_TEST_ENV}
             ${python_binary|python3} chunkcache_simple.py
 
   - name: skiplist-stress-test-nonstandalone
