@@ -939,19 +939,20 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
           "B < %" PRIu32 "B)",
           btree->maxmempage_image, max);
 
-/*
- * Don't let pages grow large compared to the cache size or we can end
- * up in a situation where nothing can be evicted.  Make sure at least
- * 10 pages fit in cache when it is at the dirty trigger where threads
- * stall.
- *
- * Take care getting the cache size: with a shared cache, it may not
- * have been set.  Don't forget to update the API documentation if you
- * alter the bounds for any of the parameters here.
- */
-#define WT_MIN_PAGES 10
+    /*
+     * Don't let pages grow large compared to the cache size or we can end
+     * up in a situation where nothing can be evicted.  Make sure at least
+     * 10 pages fit in cache when it is at the dirty trigger where threads
+     * stall.
+     *
+     * Take care getting the cache size: with a shared cache, it may not
+     * have been set.  Don't forget to update the API documentation if you
+     * alter the bounds for any of the parameters here.
+     */
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
     btree->maxmempage = (uint64_t)cval.val;
+
+#define WT_MIN_PAGES 10
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
         btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
           ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
