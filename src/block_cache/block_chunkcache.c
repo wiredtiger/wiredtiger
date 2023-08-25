@@ -437,7 +437,7 @@ __chunkcache_truncate_file(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
     if ((ret = __wt_ftruncate(session, fh, offset)) != ENOTSUP)
         return (ret);
 
-    return (__wt_file_zero(session, fh, (wt_off_t)0, (wt_off_t)offset, NULL));
+    return (__wt_file_zero(session, fh, (wt_off_t)0, (wt_off_t)offset, WT_THROTTLE_CHUNKCACHE));
 }
 
 /*

@@ -518,7 +518,7 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
  */
 int
 __wt_file_zero(
-  WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t size, WT_THROTTLE_TYPE *type)
+  WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t size, WT_THROTTLE_TYPE type)
 {
     WT_DECL_ITEM(zerobuf);
     WT_DECL_RET;
@@ -526,7 +526,6 @@ __wt_file_zero(
 
     zerobuf = NULL;
     bufsz = WT_MIN((uint64_t)size, WT_MEGABYTE);
-
     WT_RET(__wt_scr_alloc(session, bufsz, &zerobuf));
     memset(zerobuf->mem, 0, zerobuf->memsize);
     off = (uint64_t)start_off;
@@ -546,10 +545,7 @@ __wt_file_zero(
          */
         if ((uint64_t)size - off < bufsz)
             wrlen = (uint64_t)size - off;
-
-        if (type != NULL)
-            __wt_capacity_throttle(session, wrlen, *type);
-
+        __wt_capacity_throttle(session, wrlen, type);
         WT_ERR(__wt_write(session, fh, (wt_off_t)off, (size_t)wrlen, zerobuf->mem));
         off += wrlen;
     }

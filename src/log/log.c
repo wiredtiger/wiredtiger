@@ -638,8 +638,8 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
      */
     if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL)) {
         WT_STAT_CONN_INCR(session, log_zero_fills);
-        return (__wt_file_zero(session, fh, log->first_record, conn->log_file_max,
-          &(WT_THROTTLE_TYPE){WT_THROTTLE_LOG}));
+        return (
+          __wt_file_zero(session, fh, log->first_record, conn->log_file_max, WT_THROTTLE_LOG));
     }
 
     /* If configured to not extend the file, we're done. */
@@ -1412,8 +1412,7 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
     }
 
     WT_STAT_CONN_INCR(session, log_zero_fills);
-    return (__wt_file_zero(
-      session, log_fh, offset, conn->log_file_max, &(WT_THROTTLE_TYPE){WT_THROTTLE_LOG}));
+    return (__wt_file_zero(session, log_fh, offset, conn->log_file_max, WT_THROTTLE_LOG));
 }
 
 /*
