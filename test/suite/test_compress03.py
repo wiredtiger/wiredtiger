@@ -36,18 +36,15 @@ from wtscenario import make_scenarios
 #
 class test_compress03(wttest.WiredTigerTestCase):
 
+    # This test uses Snappy but the statistics should be updated irrelevant of the compressor used.
     compressors = [
-        ('lz4', dict(compressors='lz4')),
         ('snappy', dict(compressors='snappy')),
-        ('zlib', dict(compressors='zlib')),
-        ('zstd', dict(compressors='zstd')),
     ]
     scenarios = make_scenarios(compressors)
 
     uri = "table:test_compress03"
     nrows = 100000
     valuea = "aaaaa"
-    valueb = "bbbbb"
 
     def conn_config(self):
         return f'statistics=(fast),statistics_log=(json,on_close,wait=1,sources=(\"file:\"))'
@@ -57,7 +54,7 @@ class test_compress03(wttest.WiredTigerTestCase):
         extlist.skip_if_missing = True
         extlist.extension('compressors', self.compressors)
 
-    def verify_stats(self, uri):
+    def verify_read_stats(self, uri):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(fast)')
         total_reads = stat_cursor[stat.dsrc.compress_read][2]
         total_reads_hist = stat_cursor[stat.dsrc.compress_read_hist_ratio_2][2]
@@ -67,9 +64,12 @@ class test_compress03(wttest.WiredTigerTestCase):
         total_reads_hist += stat_cursor[stat.dsrc.compress_read_hist_ratio_32][2]
         total_reads_hist += stat_cursor[stat.dsrc.compress_read_hist_ratio_64][2]
         total_reads_hist += stat_cursor[stat.dsrc.compress_read_hist_ratio_max][2]
-        # We expect at least a read of compressed data.
+        stat_cursor.close()
+        # Expect reads.
         assert total_reads and total_reads == total_reads_hist
 
+    def verify_write_stats(self, uri):
+        stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(fast)')
         total_writes = stat_cursor[stat.dsrc.compress_write][2]
         total_writes_hist = stat_cursor[stat.dsrc.compress_write_hist_ratio_2][2]
         total_writes_hist += stat_cursor[stat.dsrc.compress_write_hist_ratio_4][2]
@@ -78,36 +78,36 @@ class test_compress03(wttest.WiredTigerTestCase):
         total_writes_hist += stat_cursor[stat.dsrc.compress_write_hist_ratio_32][2]
         total_writes_hist += stat_cursor[stat.dsrc.compress_write_hist_ratio_64][2]
         total_writes_hist += stat_cursor[stat.dsrc.compress_write_hist_ratio_max][2]
-        # We expect at least a write of compressed data.
+        stat_cursor.close()
+        # Expect writes.
         assert total_writes and total_writes == total_writes_hist
 
-        stat_cursor.close()
-
-    def large_updates(self, uri, value, ds, nrows, ts):
-        cursor = self.session.open_cursor(uri)
-        for i in range(0, nrows):
-            self.session.begin_transaction()
-            cursor[ds.key(i)] = value
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        cursor.close()
-
     def test_compress03(self):
-        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S", config=f"block_compressor={self.compressors}")
+        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",
+                           config=f"block_compressor={self.compressors}")
         ds.populate()
 
-        self.large_updates(self.uri, self.valuea, ds, self.nrows, 1)
-        self.session.checkpoint()
-        self.large_updates(self.uri, self.valuea * 10, ds, self.nrows, 2)
-        self.session.checkpoint()
-        self.large_updates(self.uri, self.valuea * 100, ds, self.nrows, 3)
-        self.session.checkpoint()
-        self.large_updates(self.uri, self.valueb, ds, self.nrows, 4)
-        self.session.checkpoint()
-        self.large_updates(self.uri, self.valueb * 10, ds, self.nrows, 5)
-        self.session.checkpoint()
-        self.large_updates(self.uri, self.valueb * 100, ds, self.nrows, 6)
-        self.session.checkpoint()
-        self.verify_stats(self.uri)
+        # Perform updates.
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(0, self.nrows):
+            cursor[ds.key(i)] = self.valuea
+        cursor.close()
+
+        # Check we have written compressed data.
+        self.verify_write_stats(self.uri)
+
+        self.reopen_conn()
+
+        # Scan everything.
+        cursor = self.session.open_cursor(self.uri)
+        count = 0
+        for _, _ in cursor:
+            count += 1
+        cursor.close()
+        self.assertEqual(count, self.nrows)
+
+        # Check we have read compressed data.
+        self.verify_read_stats(self.uri)
 
 if __name__ == '__main__':
     wttest.run()
