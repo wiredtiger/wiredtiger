@@ -52,7 +52,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
         WT_ERR(cursor->next(cursor));
 
     /* Loop through the eligible candidates. */
-    while (ret == 0) {
+    do {
         WT_ERR(cursor->get_key(cursor, &key));
         /* Check we are still dealing with keys which have the right prefix. */
         if (!WT_PREFIX_MATCH(key, WT_COMPACT_URI_PREFIX)) {
@@ -63,12 +63,11 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
         if (!WT_STREQ(key, WT_HS_URI))
             /* FIXME-WT-11343: check if the table is supposed to be compacted. */
             break;
-        WT_ERR(cursor->next(cursor));
-    }
+    } while ((ret = cursor->next(cursor)) == 0);
+    WT_ERR(ret);
 
     /* Save the selected uri. */
-    if (ret == 0)
-        WT_ERR(__wt_buf_set(session, next_uri, cursor->key.data, cursor->key.size));
+    WT_ERR(__wt_buf_set(session, next_uri, cursor->key.data, cursor->key.size));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
