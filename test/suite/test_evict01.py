@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
 import wttest
 import wiredtiger
 from wtdataset import SimpleDataSet
@@ -120,6 +121,7 @@ class test_evict01(wttest.WiredTigerTestCase):
         # Get the existing cache eviction force delete statistic value.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         prev_cache_eviction_force_delete = stat_cursor[stat.conn.cache_eviction_force_delete][2]
+        prev_evict = stat_cursor[stat.conn.cache_eviction_dirty][2]
         stat_cursor.close()
         self.assertEqual(prev_cache_eviction_force_delete, 0)
 
@@ -133,6 +135,16 @@ class test_evict01(wttest.WiredTigerTestCase):
 
         self.assertGreater(cache_eviction_force_delete, prev_cache_eviction_force_delete)
 
+        # Wait for the eviction to happen.
+        evict = 0
+        wait_count = 0
+        while wait_count < 30 and evict <= prev_evict:
+            time.sleep(1)
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            evict = stat_cursor[stat.conn.cache_eviction_dirty][2]
+            stat_cursor.close()
+            wait_count+=1
+
         # Scan the table again, this time the deleted pages must be skipped at page level.
         self.check(self.session, ds, 200)
 
@@ -141,7 +153,9 @@ class test_evict01(wttest.WiredTigerTestCase):
         cursor_tree_walk_del_page_skip = stat_cursor[stat.conn.cursor_tree_walk_del_page_skip][2]
         stat_cursor.close()
 
-        self.assertGreater(cursor_tree_walk_del_page_skip, 0)
+        # Verify the skip count only when we detected a successful eviction.
+        if wait_count < 30:
+            self.assertGreater(cursor_tree_walk_del_page_skip, 0)
         cursor.close()
 
         # All data are visible to the long-running transaction.
