@@ -145,7 +145,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
      *
      * As updating timestamp might not be an atomic operation, we will manage using state.
      */
-    atomic_store_explicit(&upd->prepare_state, WT_PREPARE_LOCKED, memory_order_relaxed);
+    atomic_store_explicit(&upd->prepare_state, WT_PREPARE_LOCKED, memory_order_release);
     WT_C_MM_WRITE_BARRIER();
     upd->start_ts = txn->commit_timestamp;
     upd->durable_ts = txn->durable_timestamp;
