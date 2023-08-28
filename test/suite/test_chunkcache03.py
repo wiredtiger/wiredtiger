@@ -105,7 +105,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()
 
-        # Read from the unpinned URI's and capture chunks in use.
+        # Read from the unpinned URIs and capture chunks in use.
         self.read_and_verify(uris[2], ds[2])
         self.read_and_verify(uris[3], ds[3])
         chunks_inuse_excluding_pinned = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse)
@@ -114,7 +114,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         # Assert none of the chunks are pinned.
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned), 0)
 
-        # Read from the pinned URI's
+        # Read from the pinned URIs.
         self.read_and_verify(uris[0], ds[0])
         self.read_and_verify(uris[1], ds[1])
         chunks_inuse_including_pinned = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse)
@@ -128,10 +128,10 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         # This proves that the chunks read form pinned objects were all pinned. 
         self.assertEqual(chunks_inuse_including_pinned - chunks_inuse_excluding_pinned, pinned_chunks_inuse)
 
-        # Reconfigure wiredtiger and mark the pinned objects and unpinned and vice-versa
+        # Reconfigure wiredtiger and mark the pinned objects as unpinned and vice-versa.
         self.conn.reconfigure('chunk_cache=[pinned=("table:chunkcache03", "table:chunkcache04")]')
 
-        # After this point all the unpinned chunks should be pined and vice-versa.
+        # After this point all the unpinned chunks should be pinned and vice-versa.
         # Check the following stats.
         new_pinned_chunks_inuse = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned)
         self.assertEqual(chunks_inuse_excluding_pinned, new_pinned_chunks_inuse)
