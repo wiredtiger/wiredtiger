@@ -277,6 +277,7 @@ __compact_server(void *arg)
     config = NULL;
     key = NULL;
     uri = NULL;
+    value = NULL;
     /* The compact operation is only applied on URIs with a specific prefix. */
     prefix = "file:";
     exact = 0;
@@ -442,7 +443,6 @@ err:
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
     __wt_free(session, uri);
-    __wt_free(session, value);
 
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
