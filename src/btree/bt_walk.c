@@ -234,7 +234,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
 
 /*
  * __tree_walk_internal --
- *     Move to the next/previous page in the tree.
+ *     Move to the next/previous page in the tree. Visibility is considered during this walk.
  */
 static inline int
 __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp,
