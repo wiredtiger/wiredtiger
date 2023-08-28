@@ -1940,6 +1940,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * point to updates that could be freed once we don't have a snapshot.
      */
     if (session->ncursors > 0) {
+        // Foo
         WT_DIAGNOSTIC_YIELD;
         WT_RET(__wt_session_copy_values(session));
     }
