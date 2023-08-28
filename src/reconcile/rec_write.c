@@ -2131,6 +2131,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     }
 
     /* Write the disk image and get an address. */
+    if (btree->type == BTREE_COL_VAR)
+        WT_ASSERT(session, chunk->entries != 0);
     WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
       &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
