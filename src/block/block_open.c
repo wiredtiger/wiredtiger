@@ -105,7 +105,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
 
     /* Undo any create on error. */
     if (ret != 0)
-        WT_TRET(__wt_fs_remove(session, filename, false));
+        WT_TRET(__wt_fs_remove(session, filename, false, false));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -198,6 +198,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     /* Basic structure allocation, initialization. */
     WT_ERR(__wt_calloc_one(session, &block));
     WT_ERR(__wt_strdup(session, filename, &block->name));
+    block->compact_session_id = WT_SESSION_ID_INVALID;
     block->objectid = objectid;
     block->ref = 1;
 
