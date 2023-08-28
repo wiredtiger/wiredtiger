@@ -814,8 +814,8 @@ extern int __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_extractor_config(WT_SESSION_IMPL *session, const char *uri, const char *config,
   WT_EXTRACTOR **extractorp, int *ownp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_file_zero(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t size)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_file_zero(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t size,
+  WT_THROTTLE_TYPE type) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
@@ -1920,10 +1920,6 @@ extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
 extern void __wt_print_huffman_code(void *huffman_arg, uint16_t symbol);
-extern void __wt_qsort(
-  void *a, size_t nmemb, size_t elem_sz, int (*cmp)(const void *, const void *));
-extern void __wt_qsort_r(void *a, size_t nmemb, size_t elem_sz,
-  int (*cmp)(const void *, const void *, void *), void *context);
 extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
@@ -2533,7 +2529,7 @@ extern WT_EXT *__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int WT_CDECL __ut_txn_mod_compare(const void *a, const void *b, void *context)
+extern int WT_CDECL __ut_txn_mod_compare(const void *a, const void *b)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
