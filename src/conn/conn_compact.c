@@ -57,6 +57,7 @@ __background_compact_list_remove(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
 
     TAILQ_REMOVE(&(conn)->background_compact.compactqh, compact_stat, q);
     TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], compact_stat, hashq);
+    WT_ASSERT(session, (conn)->background_compact.file_count > 0);
     --(conn)->background_compact.file_count;
 
     __wt_free(session, compact_stat->uri);
@@ -68,9 +69,9 @@ __background_compact_list_remove(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
  *     Get the statistics for the given uri.
  */
 static WT_BACKGROUND_COMPACT_STAT *
-__background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri)
+__background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t id)
 {
-    WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
+    WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
     uint64_t bucket, hash;
 
@@ -80,9 +81,20 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri)
     bucket = hash & (conn->hash_size - 1);
 
     /* Find the uri in the files compacted list. */
-    TAILQ_FOREACH (dsrc_stat, &conn->background_compact.compacthash[bucket], hashq)
-        if (strcmp(uri, dsrc_stat->uri) == 0)
-            return (dsrc_stat);
+    TAILQ_FOREACH_SAFE(
+      compact_stat, &conn->background_compact.compacthash[bucket], hashq, temp_compact_stat)
+    if (strcmp(uri, compact_stat->uri) == 0) {
+        /*
+         * If we've found an entry in the list with the same URI but different ID's we must've
+         * dropped and recreated this table. Reset the entry in this case.
+         */
+        if (id != compact_stat->id) {
+            __background_compact_list_remove(session, compact_stat);
+            return (NULL);
+        }
+
+        return (compact_stat);
+    }
 
     return (NULL);
 }
@@ -92,7 +104,7 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri)
  *     Check whether we should proceed with calling compaction on the given file.
  */
 static bool
-__background_compact_should_run(WT_SESSION_IMPL *session, const char *uri)
+__background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64_t id)
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_CONNECTION_IMPL *conn;
@@ -105,7 +117,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri)
         return (false);
 
     /* If we haven't seen this file before we should try and compact it. */
-    compact_stat = __background_compact_get_stat(session, uri);
+    compact_stat = __background_compact_get_stat(session, uri, id);
     if (compact_stat == NULL)
         return (true);
 
@@ -135,7 +147,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri)
  */
 static int
 __background_compact_start(
-  WT_SESSION_IMPL *session, const char *uri, WT_BACKGROUND_COMPACT_STAT **compact_stat)
+  WT_SESSION_IMPL *session, const char *uri, int64_t id, WT_BACKGROUND_COMPACT_STAT **compact_stat)
 {
     WT_BACKGROUND_COMPACT_STAT *temp_compact_stat;
     WT_BM *bm;
@@ -143,7 +155,7 @@ __background_compact_start(
 
     bm = S2BT(session)->bm;
 
-    temp_compact_stat = __background_compact_get_stat(session, uri);
+    temp_compact_stat = __background_compact_get_stat(session, uri, id);
 
     /* If the table is not in the list, allocate a new entry and insert it. */
     if (temp_compact_stat == NULL) {
@@ -229,10 +241,9 @@ __background_compact_list_cleanup(
     TAILQ_FOREACH_SAFE(compact_stat, &conn->background_compact.compactqh, q, temp_compact_stat)
     {
         if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT ||
-          WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) > 86400) {
+          WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) > WT_DAY)
             /* Remove file entry from both the hashtable and list. */
             __background_compact_list_remove(session, compact_stat);
-        }
     }
 
     if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT)
@@ -247,13 +258,14 @@ static WT_THREAD_RET
 __compact_server(void *arg)
 {
     WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
+    WT_CONFIG_ITEM id;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     int exact;
-    const char *config, *key, *prefix, *uri;
+    const char *config, *key, *prefix, *uri, *value;
     bool full_iteration, running, signalled;
 
     dsrc_stat = NULL;
@@ -334,7 +346,9 @@ __compact_server(void *arg)
                  * avoids having to open a dhandle for the file if compaction is unlikely to work
                  * efficiently on this file.
                  */
-                if (__background_compact_should_run(session, key))
+                WT_ERR(cursor->get_value(cursor, &value));
+                WT_ERR(__wt_config_getones(session, value, "id", &id));
+                if (__background_compact_should_run(session, key, id.val))
                     break;
             } else {
                 ret = WT_NOTFOUND;
@@ -367,8 +381,18 @@ __compact_server(void *arg)
 
         WT_ERR(ret);
 
-        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
-        WT_ERR(__background_compact_start(session, uri, &dsrc_stat));
+        ret = (__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+
+        /*
+         * The file could have been dropped between retrieving the URI from the metadata file and
+         * accessing the dhandle.
+         */
+        if (ret == ENOENT) {
+            ret = 0;
+            continue;
+        }
+
+        WT_ERR(__background_compact_start(session, uri, id.val, &dsrc_stat));
 
         ret = wt_session->compact(wt_session, uri, config);
 
@@ -418,6 +442,7 @@ err:
     __wt_free(session, config);
     __wt_free(session, conn->background_compact.config);
     __wt_free(session, uri);
+    __wt_free(session, value);
 
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));

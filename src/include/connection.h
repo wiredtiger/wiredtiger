@@ -52,6 +52,7 @@ typedef enum __wt_bg_compact_cleanup_type {
  */
 struct __wt_background_compact_stat {
     const char *uri;
+    uint32_t id;                                /* File ID, to uniquely identify a file */
     bool prev_compact_success;                  /* Last compact successfully reclaimed space */
     uint64_t prev_compact_time;                 /* Start time for last compact attempt */
     uint64_t skip_count;                        /* Number of times we've skipped this file */
