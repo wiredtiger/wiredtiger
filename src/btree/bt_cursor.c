@@ -1166,6 +1166,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
         ret = btree->type == BTREE_ROW ?
           __cursor_row_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD) :
           __cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD);
+        session->last_inserted_ref = cbt->ref;
         if (ret == 0)
             goto done;
 
@@ -1216,6 +1217,7 @@ retry:
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
         WT_DIAGNOSTIC_YIELD;
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
+        session->last_inserted_ref = cbt->ref;
         cursor->recno = cbt->recno;
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
@@ -1256,6 +1258,7 @@ retry:
 
         WT_DIAGNOSTIC_YIELD;
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
+        session->last_inserted_ref = cbt->ref;
     }
 
 err:
