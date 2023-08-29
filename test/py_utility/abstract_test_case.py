@@ -440,8 +440,18 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         return self.module_file().replace('.py', '')
 
+    def current_test_id(self):
+        '''
+        Return a test ID. Use this instead of the actual id() function, because we lose its context
+        during compatibility tests.
+        '''
+        if hasattr(self, '_id'):
+            return getattr(self, '_id')
+        self._id = self.id()
+        return self._id
+
     def shortid(self):
-        return self.id().replace("__main__.","")
+        return self.current_test_id().replace("__main__.","")
 
     def sanitized_shortid(self):
         '''

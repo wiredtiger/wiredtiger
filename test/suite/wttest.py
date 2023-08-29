@@ -39,7 +39,7 @@ import unittest
 
 from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, threading, time, traceback, types
-import abstract_test_case, wiredtiger, wthooks, wtscenario
+import abstract_test_case, test_result, wiredtiger, wthooks, wtscenario
 
 # Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
 # and only available (with non-zero argument) on Unix systems.
@@ -94,38 +94,6 @@ class ExtensionList(list):
         if name and name != 'none':
             ext = '' if extarg == None else '=' + extarg
             self.append(dirname + '/' + name + ext)
-
-# Custom result class that will prefix the pid in text output (including if it's a child).
-# Only enabled when we are in verbose mode so we don't check that here.
-class PidAwareTextTestResult(unittest.TextTestResult):
-    _thread_prefix = threading.local()
-
-    def __init__(self, stream, descriptions, verbosity):
-        super(PidAwareTextTestResult, self).__init__(stream, descriptions, verbosity)
-        self._thread_prefix.value = "[pid:{}]: ".format(os.getpid())
-
-    def tags(self, new_tags, gone_tags):
-        # We attach the PID to the thread so we only need the new_tags.
-        for tag in new_tags:
-            if tag.startswith("pid:"):
-                pid = tag[len("pid:"):]
-                self._thread_prefix.value = "[pid:{}/{}]: ".format(os.getpid(), pid)
-
-    def startTest(self, test):
-        self.stream.write(self._thread_prefix.value)
-        super(PidAwareTextTestResult, self).startTest(test)
-
-    def getDescription(self, test):
-        return str(test.shortDescription())
-
-    def printErrorList(self, flavour, errors):
-        for test, err in errors:
-            self.stream.writeln(self.separator1)
-            self.stream.writeln("%s%s: %s" % (self._thread_prefix.value,
-                flavour, self.getDescription(test)))
-            self.stream.writeln(self.separator2)
-            self.stream.writeln("%s%s" % (self._thread_prefix.value, err))
-            self.stream.flush()
 
 class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     _globalSetup = False
@@ -952,7 +920,7 @@ def runsuite(suite, parallel):
                 .format(str(WiredTigerTestCase._seeds[0]), str(WiredTigerTestCase._seeds[1])))
         result_class = None
         if WiredTigerTestCase._verbose > 1:
-            result_class = PidAwareTextTestResult
+            result_class = test_result.PidAwareTextTestResult
         result = unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose, resultclass=result_class).run(suite_to_run)
         WiredTigerTestCase.finalReport()

@@ -33,7 +33,7 @@ sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import compatibility_common
 
 # Now we can import our test/py_utility and third-party dependencies
-import abstract_test_case, testtools, test_util, wtscenario
+import abstract_test_case, testtools, test_result, test_util, wtscenario
 
 class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     '''
@@ -152,7 +152,12 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         '''
         self._start_dir = os.getcwd()
 
-        self.prhead(f'Starting the test')
+        # Remember the current test ID, so that we can pass it along to child processes when we run
+        # functions on different WiredTiger branches.
+        self.current_test_id()
+
+        if CompatibilityTestCase._verbose > 2:
+            self.prhead(f'Starting the test', True)
 
         # Set up the test directory.
         test_dir = os.path.join(self._parentTestdir, self.sanitized_shortid())
@@ -178,11 +183,17 @@ def run_tests(suites):
     Run the test suite(s).
     '''
     from testscenarios.scenarios import generate_scenarios
+
+    result_class = None
     verbose = abstract_test_case.AbstractWiredTigerTestCase._verbose
+
+    if verbose > 1:
+        result_class = test_result.PidAwareTextTestResult
+
     try:
         tests = unittest.TestSuite()
         tests.addTests(generate_scenarios(suites))
-        result = unittest.TextTestRunner(verbosity=verbose, resultclass=None).run(tests)
+        result = unittest.TextTestRunner(verbosity=verbose, resultclass=result_class).run(tests)
         return result
     except BaseException as e:
         # This should not happen for regular test errors, unittest should catch everything
