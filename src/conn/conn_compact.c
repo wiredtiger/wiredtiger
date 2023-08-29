@@ -170,7 +170,7 @@ __background_compact_start(
     if (temp_compact_stat == NULL) {
         WT_ERR(__wt_calloc_one(session, &temp_compact_stat));
         WT_ERR(__wt_strdup(session, uri, &temp_compact_stat->uri));
-        temp_compact_stat->id = id;
+        temp_compact_stat->id = (uint32_t)id;
         __background_compact_list_insert(session, temp_compact_stat);
     }
 
