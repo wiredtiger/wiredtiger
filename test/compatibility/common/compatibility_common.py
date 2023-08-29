@@ -140,9 +140,7 @@ def prepare_branch(branch, config):
     # support older branches, which use autoconf.
     if not os.path.exists(os.path.join(build_path, 'build.ninja')):
         os.mkdir(build_path)
-        # Disable WT_STANDALONE_BUILD, because it is not compatible with branches 6.0 and
-        # earlier.
-        cmake_args = '-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake'
+        cmake_args = '-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake'
         cmake_args += ' -DENABLE_PYTHON=1'
         if not standalone:
             cmake_args += ' -DWT_STANDALONE_BUILD=0'
