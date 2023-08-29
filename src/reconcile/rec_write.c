@@ -1894,7 +1894,7 @@ __rec_set_page_write_gen(WT_BTREE *btree, WT_PAGE_HEADER *dsk)
      * Other than salvage, the write generation number is used to reset the stale transaction id's
      * present on the page upon server restart.
      */
-    dsk->write_gen = ++btree->write_gen;
+    dsk->write_gen = __wt_atomic_add64(&btree->write_gen, 1);
 }
 
 /*
