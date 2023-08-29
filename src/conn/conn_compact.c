@@ -295,19 +295,16 @@ __background_compact_find_next_uri(
             ret = WT_NOTFOUND;
             break;
         }
-        /* There are files that should not be compacted. */
-        if (!WT_STREQ(key, WT_HS_URI)) {
-            /*
-             * Check the list of files background compact has tracked statistics for. This avoids
-             * having to open a dhandle for the file if compaction is unlikely to work efficiently
-             * on this file.
-             */
-            WT_ERR(cursor->get_value(cursor, &value));
-            WT_ERR(__wt_config_getones(session, value, "id", &id));
-            if (__background_compact_should_run(session, key, id.val)) {
-                *next_id = id.val;
-                break;
-            }
+        /*
+         * Check the list of files background compact has tracked statistics for. This avoids having
+         * to open a dhandle for the file if compaction is unlikely to work efficiently on this
+         * file.
+         */
+        WT_ERR(cursor->get_value(cursor, &value));
+        WT_ERR(__wt_config_getones(session, value, "id", &id));
+        if (__background_compact_should_run(session, key, id.val)) {
+            *next_id = id.val;
+            break;
         }
     } while ((ret = cursor->next(cursor)) == 0);
     WT_ERR(ret);
@@ -409,13 +406,14 @@ __compact_server(void *arg)
         __wt_spin_lock(session, &conn->background_compact.lock);
         if (config->size == 0 ||
           !WT_STREQ((const char *)config->data, conn->background_compact.config))
-            WT_ERR(__wt_buf_set(session, config, conn->background_compact.config,
-              strlen(conn->background_compact.config) + 1));
+            ret = __wt_buf_set(session, config, conn->background_compact.config,
+              strlen(conn->background_compact.config) + 1);
         __wt_spin_unlock(session, &conn->background_compact.lock);
 
         WT_ERR(ret);
 
-        ret = (__wt_session_get_dhandle(session, (const char *)uri->data, NULL, NULL, 0));
+        WT_ERR_ERROR_OK(
+          __wt_session_get_dhandle(session, (const char *)uri->data, NULL, NULL, 0), ENOENT, true);
 
         /*
          * The file could have been dropped between retrieving the URI from the metadata file and
