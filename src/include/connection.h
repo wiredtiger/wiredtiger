@@ -47,7 +47,8 @@ typedef enum __wt_bg_compact_cleanup_type {
     BACKGROUND_CLEANUP_STALE_STAT
 } WT_BACKGROUND_COMPACT_CLEANUP_TYPE;
 
-/* WT_BACKGROUND_COMPACT_STAT --
+/* 
+ * WT_BACKGROUND_COMPACT_STAT --
  *  List of tracking information for each file compact has worked on.
  */
 struct __wt_background_compact_stat {
