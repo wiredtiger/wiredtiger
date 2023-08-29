@@ -696,5 +696,5 @@ msg "$success successful jobs, $failure failed jobs"
 
 msg "run ending at $(date)"
 [[ $failure -ne 0 ]] && exit 1
-[[ $success -eq 0 && $timeouts -eq 0]] && exit 1
+[[ $success -eq 0 && $timeouts -eq 0 ]] && exit 1
 exit 0
