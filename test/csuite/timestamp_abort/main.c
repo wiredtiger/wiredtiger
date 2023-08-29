@@ -1934,6 +1934,7 @@ main(int argc, char *argv[])
     if (ret == EXIT_SUCCESS && !opts->preserve)
         testutil_remove(home);
 
-    testutil_cleanup(opts);
+    if (ret == EXIT_SUCCESS)
+        testutil_cleanup(opts);
     return (ret);
 }
