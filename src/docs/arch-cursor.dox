@@ -417,4 +417,33 @@ Thus, in the presence of a memory tracker, uses
 of "stray" pointers will be detected.  Even without a memory tracker, uses of "stray" pointers into
 the freed storage will likely yield the overwritten bytes, and not the previously seen key or value.
 
+@section arch_random_cursor Random Cursor
+
+WiredTiger uses a pseudo-random algorithm when using random cursors with the goal to achieve a good
+random distrubtion and being performant. Only the cursor->next function is used to fetch a random record.
+The current pseudo-random algorithm is as follows:
+
+1. Starting from the root page we descend randomly down using WiredTiger's random number generator (RNG) until we
+reach a leaf page. Once we found a leaf page, we go into different conditions to grab a record from the page. 
+2. First condition: If the page has a sufficiently large number of disk records (1000 or more entries), attempt to find a 
+random visible disk record from the page using WiredTiger's RNG.
+3. Second condition: Loop through all insert lists, and find one that is large (1000 or more entries), once found attempt
+to find a random insert record from the page.
+4. Third condition: If page has small amount of disk records (200 or less entries) or the leaf page is clean, attempt to
+find a random visible disk record from the page using WiredTiger's RNG.
+5. If all conditions fail, compute a random number between 0 - 250 and perform cursor->next or cursor->prev a random
+number of times between 0 and 250. Finally return the visible record that the cursor stopped on. Note: This can be on
+different leaf page than our original page that we descended from.
+
+The algorithm doesn't guarantee a complete randomness to the user and can lead to skewed results depending on the
+underlying tree structure. Usually cases when the tree structure is unbalanced, the records are not uniform, 
+there are many deleted items in the btree, or there are many invisible records to the transaction of the cursor
+can lead to these skewed results.
+
+The \c next_random_sample_size configuration can be used for a better distruibution
+which divides the btree into \c next_random_sample_size pieces, and each 
+subsequent retrieval returns a record from the next one of those pieces. Internally, WiredTiger pseudo-random algorithm
+slightly changes where step 1 is changed from a
+random descent into starting at the beginning of the btree and traversing a set number of timestamp
+finally using same steps to find a random record from the leaf page.
 */
