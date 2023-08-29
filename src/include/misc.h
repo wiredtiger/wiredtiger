@@ -86,6 +86,9 @@
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
 
+/* Ceil for unsigned/positive real numbers. */
+#define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
+
 /* Elements in an array. */
 #define WT_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -217,6 +220,15 @@
             }                                                                          \
         }                                                                              \
     } while (0)
+
+/*
+ * Some C compiler address sanitizers complain if qsort is passed a NULL base reference, even if
+ * there are no elements to compare (note zero elements is allowed by the IEEE Std 1003.1-2017
+ * standard). Avoid the complaint.
+ */
+#define __wt_qsort(base, nmemb, size, compar) \
+    if ((nmemb) != 0)                         \
+    qsort(base, nmemb, size, compar)
 
 /*
  * Binary search for an integer key.
