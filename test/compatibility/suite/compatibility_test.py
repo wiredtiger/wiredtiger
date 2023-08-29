@@ -255,9 +255,9 @@ def run(name='__main__'):
     Run the specified test.
     '''
     global_setup()
-    
+
     suite = unittest.TestLoader().loadTestsFromName(name)
-    
+
     prepare_tests(suite)
     result = run_tests(suite)
     sys.exit(0 if result.wasSuccessful() else 1)

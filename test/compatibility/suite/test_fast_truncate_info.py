@@ -101,7 +101,7 @@ class test_fast_truncate_info(compatibility_test.CompatibilityTestCase):
 
         session = new_conn.open_session()
         session.begin_transaction()
-        
+
         # Truncate a big range of rows.
         start = session.open_cursor(self.uri, None)
         start.set_key(10)

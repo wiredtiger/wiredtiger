@@ -62,7 +62,7 @@ def is_branch_order_asc(a, b):
         raise Exception('Unsupported branch "%s"' % b)
     if a == b:
         return False
-    
+
     # Assume that 'this' branch is newer than 'develop'.
     if a == 'this':
         return False

@@ -264,7 +264,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             raise Exception('setupTestDir() must be called before setupIO()')
         resultFilePath = os.path.abspath(
             os.path.join(AbstractWiredTigerTestCase._parentTestdir, resultFileName))
-        
+
         AbstractWiredTigerTestCase._ignoreStdout = ignoreStdout
         AbstractWiredTigerTestCase._resultFileName = resultFilePath
         AbstractWiredTigerTestCase._verbose = verbose
@@ -433,7 +433,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         Get the (base) file name for this test.
         '''
         return os.path.basename(inspect.getfile(self.__class__))
-    
+
     def module_name(self):
         '''
         Get the module name for this test.

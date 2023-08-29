@@ -61,7 +61,7 @@ class test_wt10533(compatibility_test.CompatibilityTestCase):
 
         conn = wiredtiger.wiredtiger_open('.', 'create,' + self.conn_config)
         session = conn.open_session()
-        
+
         self.pr(f'Running on {wiredtiger.wiredtiger_version()[0]}')
 
         # Create and populate a table.
@@ -90,7 +90,7 @@ class test_wt10533(compatibility_test.CompatibilityTestCase):
         '''
         The second part of the test, which runs on the older branch.
         '''
-        
+
         self.pr(f'Running on {wiredtiger.wiredtiger_version()[0]}')
 
         conn = wiredtiger.wiredtiger_open('.', self.conn_config)

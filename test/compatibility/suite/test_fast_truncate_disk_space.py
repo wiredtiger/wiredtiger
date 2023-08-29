@@ -32,7 +32,7 @@ class test_fast_truncate_disk_space(compatibility_test.CompatibilityTestCase):
     '''
     Test disk space usage with fast-truncate information across database upgrade and downgrade.
     Disk space should not be leaked if fast-truncate information is written out and the
-    database is downgraded. 
+    database is downgraded.
     '''
 
     # Use a standalone build.
@@ -98,7 +98,7 @@ class test_fast_truncate_disk_space(compatibility_test.CompatibilityTestCase):
 
         session = new_conn.open_session()
         session.begin_transaction()
-        
+
         # Truncate a big range of rows.
         start = session.open_cursor(self.uri, None)
         start.set_key(10)

@@ -121,7 +121,7 @@ class PidAwareTextTestResult(unittest.TextTestResult):
     def printErrorList(self, flavour, errors):
         for test, err in errors:
             self.stream.writeln(self.separator1)
-            self.stream.writeln("%s%s: %s" % (self._thread_prefix.value, 
+            self.stream.writeln("%s%s: %s" % (self._thread_prefix.value,
                 flavour, self.getDescription(test)))
             self.stream.writeln(self.separator2)
             self.stream.writeln("%s%s" % (self._thread_prefix.value, err))
@@ -349,7 +349,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def setUpConnectionOpen(self, home):
         self.home = home
         config = self.conn_config
-        
+
         if hasattr(config, '__call__'):
             config = self.conn_config()
 
@@ -784,7 +784,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 if str(err) != os.strerror(errno.EBUSY):
                     raise err
                 session.checkpoint()
-    
+
     def renameUntilSuccess(self, session, uri, newUri, config=None):
         while True:
             try:

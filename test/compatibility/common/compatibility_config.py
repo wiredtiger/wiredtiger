@@ -37,7 +37,7 @@ BRANCHES = ['mongodb-7.0', 'mongodb-6.0']
 
 # The default directory to which the test will check out other branches, relative to the project's
 # top-level directory.
-# 
+#
 # We should reuse the same directory across multiple tests, so that we can check out and build each
 # branch only once. And we'd like this directory to be relative to the project's top-level directory
 # (as opposed to the current directory), because it simplifies the code, as we change the working
