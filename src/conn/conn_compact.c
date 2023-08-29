@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define WT_BACKGROUND_COMPACT_SLEEP_TIME 60
+#define WT_BACKGROUND_COMPACT_MAX_SKIP_TIME 60
 /* Prefix of files the background compaction server deals with. */
 #define WT_BACKGROUND_COMPACT_URI_PREFIX "file:"
 
@@ -44,7 +44,7 @@ __background_compact_list_insert(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
 
 /*
  * __background_compact_list_remove --
- *     Remove compaction statistics for a file from the background compact list.
+ *     Remove and free compaction statistics for a file from the background compact list.
  */
 static void
 __background_compact_list_remove(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *compact_stat)
@@ -68,7 +68,8 @@ __background_compact_list_remove(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
 
 /*
  * __background_compact_get_stat --
- *     Get the statistics for the given uri.
+ *     Get the statistics for the given uri and id. The id ensures uniqueness in the event of
+ *     dropping and recreating files of the same name.
  */
 static WT_BACKGROUND_COMPACT_STAT *
 __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t id)
@@ -78,6 +79,8 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t
     uint64_t bucket, hash;
 
     conn = S2C(session);
+
+    WT_ASSERT(session, uri != NULL);
 
     hash = __wt_hash_city64(uri, strlen(uri));
     bucket = hash & (conn->hash_size - 1);
@@ -125,9 +128,11 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
 
     /* If we have been unsuccessful recently skip this file for some time. */
     cur_time = __wt_clock(session);
-    if (!compact_stat->prev_compact_success &&
-      WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) <
-        WT_BACKGROUND_COMPACT_SLEEP_TIME) {
+    if (WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
+      WT_BACKGROUND_COMPACT_MAX_SKIP_TIME)
+        return (true);
+
+    if (!compact_stat->prev_compact_success) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
@@ -136,7 +141,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     /* If the last compaction pass was less successful than the average. Skip it for some time. */
     if (compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
       WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) <
-        WT_BACKGROUND_COMPACT_SLEEP_TIME) {
+        WT_BACKGROUND_COMPACT_MAX_SKIP_TIME) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
@@ -165,6 +170,7 @@ __background_compact_start(
     if (temp_compact_stat == NULL) {
         WT_ERR(__wt_calloc_one(session, &temp_compact_stat));
         WT_ERR(__wt_strdup(session, uri, &temp_compact_stat->uri));
+        temp_compact_stat->id = id;
         __background_compact_list_insert(session, temp_compact_stat);
     }
 
