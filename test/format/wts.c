@@ -321,7 +321,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], *p, tiered_ext_cfg[1024];
+    char chunkcache_ext_cfg[128], config[8 * 1024], *p, tiered_ext_cfg[1024];
     const char *s, *sources;
 
     p = config;
@@ -415,6 +415,20 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     /* Optional tiered storage. */
     configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
+    /* Chunkcache configuration. */
+    if (GV(CHUNK_CACHE)) {
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0)
+            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
+              GVS(CHUNK_CACHE_STORAGE_PATH));
+        else
+            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "\"\"");
+
+        CONFIG_APPEND(p,
+          ",chunk_cache=(enabled=true,capacity=%" PRIu32 "MB,chunk_size=%" PRIu32 "MB,type=%s,%s)",
+          GV(CHUNK_CACHE_CAPACITY), GV(CHUNK_CACHE_CHUNK_SIZE), GVS(CHUNK_CACHE_TYPE),
+          chunkcache_ext_cfg);
+    }
 
 #define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
 
