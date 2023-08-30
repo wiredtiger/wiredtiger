@@ -104,8 +104,10 @@ class test_backup17(backup_base):
 
         # Assert that we recorded fewer lengths on the consolidated backup.
         self.assertLess(len(uri2_lens), len(uri1_lens))
-        # Assert that we recorded the same total data length for both.
-        self.assertEqual(sum(uri2_lens), sum(uri1_lens))
+        # Assert that we recorded less than or the same total data length for both.
+        # Taking the full incremental forces a checkpoint and therefore the first incremental
+        # also shows a modified block for uri2 that is accounted for in uri1_lens.
+        self.assertEqual(sum(uri2_lens), sum(uri1_lens) - self.granval)
 
 if __name__ == '__main__':
     wttest.run()
