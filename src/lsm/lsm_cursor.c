@@ -1730,6 +1730,11 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
     WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
     bulk = cval.val != 0;
 
+    if (bulk) {
+        if (F_ISSET(session->txn, WT_TXN_RUNNING))
+            WT_RET_MSG(session, EINVAL, "Bulk LSM cursors can't be opened inside a transaction");
+    }
+
     /* Get the LSM tree. */
     ret = __wt_lsm_tree_get(session, uri, bulk, &lsm_tree);
 
