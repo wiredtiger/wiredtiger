@@ -195,9 +195,6 @@ __curbackup_close(WT_CURSOR *cursor)
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-#if 0
-    const char *cfg[3] = {NULL, NULL, NULL};
-#endif
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
@@ -209,26 +206,14 @@ err:
         __wt_backup_destroy(session);
     }
 
+    /*
+     * For either a force stop or a full backup starting an incremental force a checkpoint so that
+     * the new information is visible in the metadata and old backup information does not reappear
+     * if we crash and restart.
+     */
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP) ||
       (F_ISSET(cb, WT_CURBACKUP_INCR) && cb->incr_src == NULL)) {
-#if 0
-        /*
-         * We need to force a checkpoint to the metadata to make any incremental information
-         * durable. Otherwise old backup information could reappear if we crash and restart.
-         */
-        cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_checkpoint);
-        cfg[1] = "force=true";
-        /*
-         * Metadata checkpoints rely on read-committed isolation. Use that here no matter what
-         * isolation the caller's session sets for isolation.
-         */
-        WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
-          WT_WITH_METADATA_LOCK(session,
-            WT_WITH_TXN_ISOLATION(
-              session, WT_ISO_READ_COMMITTED, ret = __wt_checkpoint(session, cfg))));
-#else
         WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
-#endif
     }
 
     /*
