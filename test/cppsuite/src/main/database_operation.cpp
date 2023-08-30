@@ -63,6 +63,7 @@ populate_worker(thread_worker *tc)
             }
         }
     }
+    testutil_check(tc->session->checkpoint(tc->session.get(), nullptr));
     logger::log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
 }
 

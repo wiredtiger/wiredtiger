@@ -276,4 +276,5 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
+    'background_compact' : Method(test_config),
 }
