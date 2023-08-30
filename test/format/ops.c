@@ -2131,7 +2131,6 @@ col_insert(TINFO *tinfo)
     if ((ret = cursor->insert(cursor)) != 0)
         return (ret);
 
-    testutil_check(cursor->search(cursor));
     testutil_check(cursor->get_key(cursor, &tinfo->keyno));
 
     col_insert_add(tinfo); /* Extend the object. */

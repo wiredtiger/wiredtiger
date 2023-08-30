@@ -177,6 +177,9 @@ descend:
         /* Encourage races. */
         WT_DIAGNOSTIC_YIELD;
 
+        if (search_recno != WT_RECNO_OOB)
+            WT_ASSERT(session, search_recno >= pindex->index[base - 1]->key.recno);
+
         /*
          * Swap the current page for the child page. If the page splits while we're retrieving it,
          * restart the search at the root. We cannot restart in the "current" page; for example, if
