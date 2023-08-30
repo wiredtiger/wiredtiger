@@ -227,7 +227,7 @@ err:
             WT_WITH_TXN_ISOLATION(
               session, WT_ISO_READ_COMMITTED, ret = __wt_checkpoint(session, cfg))));
 #else
-	WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
+        WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
 #endif
     }
 
