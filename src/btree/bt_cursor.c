@@ -1221,6 +1221,7 @@ retry:
         cursor->recno = cbt->recno;
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
+        WT_ASSERT(session, cbt->iface.recno >= cbt->ref->key.recno);
 
         WT_DIAGNOSTIC_YIELD;
 
