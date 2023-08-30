@@ -96,7 +96,7 @@ static const char *const uri_shadow = "shadow";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool backup_verify_immediately, backup_verify_quick;
+static bool backup_test_force_stop, backup_verify_immediately, backup_verify_quick;
 static bool columns, stress, use_backups, use_lazyfs, use_ts;
 static uint32_t backup_full_interval, backup_granularity_kb;
 
@@ -195,6 +195,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 static void handle_conn_close(void);
 static void handle_conn_ready(WT_CONNECTION *);
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 
 static WT_CONNECTION *stat_conn = NULL;
@@ -202,7 +203,8 @@ static WT_SESSION *stat_session = NULL;
 static volatile bool stat_run = false;
 static wt_thread_t stat_th;
 
-static WT_EVENT_HANDLER my_event = {NULL, NULL, NULL, NULL, handle_general};
+static WT_EVENT_HANDLER other_event = {handle_error, NULL, NULL, NULL, NULL};
+static WT_EVENT_HANDLER reopen_event = {handle_error, NULL, NULL, NULL, handle_general};
 
 /*
  * __int_comparator --
@@ -283,6 +285,24 @@ handle_conn_ready(WT_CONNECTION *conn)
     stat_conn = conn;
     stat_run = true;
     testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, (void *)&unused));
+}
+
+/*
+ * handle_error --
+ *     Function to handle errors.
+ */
+static int
+handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+{
+    (void)(handler);
+    (void)(session);
+    (void)(error);
+
+    /* Ignore complaints about incremental backup not being configured. */
+    if (backup_test_force_stop && strstr(errmsg, "Incremental backup is not configured") != NULL)
+        return (0);
+
+    return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
 
 /*
@@ -665,6 +685,35 @@ backup_delete_old_backups(int retain, int last_full)
 }
 
 /*
+ * backup_force_stop --
+ *     Force-stop incremental backups.
+ */
+static void
+backup_force_stop(WT_CONNECTION *conn)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_SESSION *session;
+
+    printf("Force-stop incremental backups\n");
+
+    /* Open the session. */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    /* Force-stop incremental backups. */
+    testutil_check(
+      session->open_cursor(session, "backup:", NULL, "incremental=(force_stop=true)", &cursor));
+    testutil_check(cursor->close(cursor));
+
+    /* Check that we don't have any backup info. */
+    ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
+    testutil_assert(ret == EINVAL);
+
+    /* Clean up. */
+    testutil_check(session->close(session, NULL));
+}
+
+/*
  * thread_ckpt_run --
  *     Runner function for the checkpoint thread.
  */
@@ -809,6 +858,11 @@ create:
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&td->extra_rnd) % MAX_BACKUP_INVL;
         __wt_sleep(sleep_time, 0);
+
+        if (backup_test_force_stop && i % 2 == 0) {
+            backup_force_stop(td->conn);
+            last_backup = 0; /* Force creation of a new full backup. */
+        }
 
         /* Create a backup. */
         u = BACKUP_INDEX(td, i);
@@ -1109,7 +1163,7 @@ run_workload(uint32_t workload_iteration)
     if (!opts->compat && !opts->inmem)
         strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, NULL, &conn, false, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &other_event, &conn, false, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
@@ -1358,7 +1412,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
      * Open the connection which forces recovery to be run.
      */
     if (backup_index == 0) {
-        testutil_wiredtiger_open(opts, WT_HOME_DIR, NULL, &my_event, &conn, true, false);
+        testutil_wiredtiger_open(opts, WT_HOME_DIR, NULL, &reopen_event, &conn, true, false);
         printf("Connection open and recovery complete. Verify content\n");
         /* Compare against the copy of the home directory just before recovery. */
         if (use_backups) {
@@ -1380,12 +1434,12 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         testutil_copy(backup_dir, buf);
 
         /*
-         * Open the database connection to the backup. But don't pass our event handlers, so that we
-         * don't create another statistics thread. Not only we don't need it here, but trying to
-         * create it would cause the test to abort as we currently allow only one statistics thread
-         * at a time.
+         * Open the database connection to the backup. But don't pass the general event handler, so
+         * that we don't create another statistics thread. Not only we don't need it here, but
+         * trying to create it would cause the test to abort as we currently allow only one
+         * statistics thread at a time.
          */
-        testutil_wiredtiger_open(opts, buf, NULL, NULL, &conn, true, false);
+        testutil_wiredtiger_open(opts, buf, NULL, &other_event, &conn, true, false);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
@@ -1653,6 +1707,7 @@ main(int argc, char *argv[])
 
     backup_full_interval = 4;
     backup_granularity_kb = 1024;
+    backup_test_force_stop = false;
     backup_verify_immediately = true;
     backup_verify_quick = false;
     columns = stress = false;
@@ -1668,7 +1723,7 @@ main(int argc, char *argv[])
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "BcF:I:LlsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BcF:fI:LlsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'B':
             use_backups = true;
@@ -1679,6 +1734,9 @@ main(int argc, char *argv[])
             break;
         case 'F':
             backup_full_interval = (uint32_t)atoi(__wt_optarg);
+            break;
+        case 'f':
+            backup_test_force_stop = true;
             break;
         case 'I':
             num_iterations = (uint32_t)atoi(__wt_optarg);
@@ -1789,12 +1847,13 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           stress ? "true" : "false", use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
                " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
           progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", columns ? " -c" : "",
-          use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "",
-          stress ? " -s" : "", !use_ts ? " -z" : "", backup_full_interval, opts->home,
-          num_iterations, nth, timeout, opts->data_seed, opts->extra_seed);
+          backup_test_force_stop ? " -f" : "", use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
+          opts->tiered_storage ? " -PT" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
+          backup_full_interval, opts->home, num_iterations, nth, timeout, opts->data_seed,
+          opts->extra_seed);
 
         /*
          * Go inside the home directory (typically WT_TEST), but not all the way into the database's
