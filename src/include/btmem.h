@@ -1289,8 +1289,12 @@ struct __wt_update {
      * prevent unexpected repeated/reordered reads.
      */
     volatile uint64_t txnid; /* transaction ID */
-
-    wt_timestamp_t durable_ts; /* timestamps */
+    /*
+     * Timestamps. Discourage direct access to the durable timestamp via underscore naming, care
+     * needs to be taken when reading the durable timestamp, to ensure the prepare state is taken
+     * into consideration in the correct order.
+     */
+    wt_timestamp_t __durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
 
     /*

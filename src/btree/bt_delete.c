@@ -434,7 +434,7 @@ __tombstone_update_alloc(
      */
     if (page_del != NULL) {
         upd->txnid = page_del->txnid;
-        upd->durable_ts = page_del->durable_timestamp;
+        upd->__durable_ts = page_del->durable_timestamp;
         upd->start_ts = page_del->timestamp;
         upd->prepare_state = page_del->prepare_state;
     }

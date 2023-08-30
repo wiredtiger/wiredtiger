@@ -161,7 +161,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *first, *next_upd, *upd, *tombstone;
-    wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
+    wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts, *durable_ts;
     uint64_t stop_txn, hs_upd_type, raw;
     uint8_t *p, version_prepare_state;
     bool upd_found;
@@ -201,7 +201,9 @@ __curversion_next_int(WT_CURSOR *cursor)
                  * the last update in the update list, retrieve the ondisk value.
                  */
                 version_cursor->upd_stop_txnid = upd->txnid;
-                version_cursor->upd_durable_stop_ts = upd->durable_ts;
+                WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+                version_cursor->upd_durable_stop_ts = *durable_ts;
+                // version_cursor->upd_durable_stop_ts = upd->durable_ts;
                 version_cursor->upd_stop_ts = upd->start_ts;
 
                 /* No need to check the next update if the tombstone is globally visible. */
@@ -240,12 +242,12 @@ __curversion_next_int(WT_CURSOR *cursor)
                  * that particular version of the update.
                  */
                 WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-                  upd->txnid, upd->start_ts, upd->durable_ts, version_cursor->upd_stop_txnid,
+                  upd->txnid, upd->start_ts, durable_ts, version_cursor->upd_stop_txnid,
                   version_cursor->upd_stop_ts, version_cursor->upd_durable_stop_ts, upd->type,
                   version_prepare_state, upd->flags, WT_CURVERSION_UPDATE_CHAIN));
 
                 version_cursor->upd_stop_txnid = upd->txnid;
-                version_cursor->upd_durable_stop_ts = upd->durable_ts;
+                version_cursor->upd_durable_stop_ts = *durable_ts;
                 version_cursor->upd_stop_ts = upd->start_ts;
 
                 upd_found = true;

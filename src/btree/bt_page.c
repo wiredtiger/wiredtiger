@@ -130,6 +130,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
 {
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
+    wt_timestamp_t *upd_durable_ts, *tombstone_durable_ts;
     size_t size, total_size;
 
     size = 0;
@@ -137,10 +138,14 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
 
     tombstone = upd = NULL;
     total_size = 0;
+    upd_durable_ts = WT_TS_NONE;
+    tombstone_durable_ts = WT_TS_NONE;
+
+    WT_ASSERT(session, __wt_txn_upd_get_durable(upd, upd_durable_ts) == 0);
 
     WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
     total_size += size;
-    upd->durable_ts = unpack->tw.durable_start_ts;
+    *upd_durable_ts = unpack->tw.durable_start_ts;
     upd->start_ts = unpack->tw.start_ts;
     upd->txnid = unpack->tw.start_txn;
     F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
@@ -153,7 +158,9 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     if (WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
         total_size += size;
-        tombstone->durable_ts = WT_TS_NONE;
+
+        WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, upd_durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_set_durable(upd_durable_ts, WT_TS_NONE) == 0);
         tombstone->start_ts = unpack->tw.stop_ts;
         tombstone->txnid = unpack->tw.stop_txn;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
@@ -167,14 +174,15 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         if (unpack->tw.start_ts == unpack->tw.stop_ts &&
           unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
           unpack->tw.start_txn == unpack->tw.stop_txn) {
-            upd->durable_ts = WT_TS_NONE;
+            WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, tombstone_durable_ts) == 0);
+            tombstone_durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
         }
 
         tombstone->next = upd;
         *updp = tombstone;
     } else {
-        upd->durable_ts = WT_TS_NONE;
+        upd_durable_ts = WT_TS_NONE;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         *updp = upd;
     }

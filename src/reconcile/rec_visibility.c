@@ -73,6 +73,7 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
+    wt_timestamp_t *durable_ts;
     size_t size, total_size;
     bool tombstone_globally_visible;
 
@@ -162,7 +163,9 @@ __rec_append_orig_value(
             total_size += size;
             tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
-            tombstone->durable_ts = unpack->tw.durable_stop_ts;
+            WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, durable_ts) == 0);
+            WT_ASSERT(session, __wt_txn_upd_set_durable(durable_ts, (wt_timestamp_t *) unpack->tw.durable_stop_ts) == 0);
+            // tombstone->__durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
         } else {
             /*
@@ -192,7 +195,9 @@ __rec_append_orig_value(
         total_size += size;
         append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
-        append->durable_ts = unpack->tw.durable_start_ts;
+        WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_set_durable(durable_ts, (wt_timestamp_t *) unpack->tw.durable_stop_ts) == 0);
+        // append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
     }
 
@@ -362,6 +367,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
+    wt_timestamp_t *prev_upd_durable_ts, *upd_durable_ts;
 
     /*
      * There is no selected update to go to disk as such we don't need to check the updates
@@ -421,9 +427,12 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
+        WT_ASSERT(session, __wt_txn_upd_get_durable(prev_upd, prev_upd_durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(upd, upd_durable_ts) == 0);
+
         WT_ASSERT_ALWAYS(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts,
+            prev_upd->start_ts == *prev_upd_durable_ts || *prev_upd_durable_ts >= *upd_durable_ts,
           "Durable timestamps cannot be out of order for prepared updates");
 
         /* Validate that the updates older than us have older timestamps. */
@@ -463,13 +472,13 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (vpack != NULL && !vpack->tw.prepare) {
         WT_ASSERT_ALWAYS(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts ||
-            prev_upd->durable_ts >= vpack->tw.durable_start_ts,
+            prev_upd->start_ts == *prev_upd_durable_ts ||
+            *prev_upd_durable_ts >= vpack->tw.durable_start_ts,
           "Durable timestamps cannot be out of order for prepared updates");
         WT_ASSERT_ALWAYS(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
-            prev_upd->durable_ts >= vpack->tw.durable_stop_ts,
+            prev_upd->start_ts == *prev_upd_durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
+            *prev_upd_durable_ts >= vpack->tw.durable_stop_ts,
           "Durable timestamps cannot be out of order for prepared updates");
         if (prev_upd->start_ts < vpack->tw.start_ts ||
           (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
@@ -662,6 +671,7 @@ __rec_fill_tw_from_upd_select(
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *upd, *tombstone;
+    wt_timestamp_t *durable_ts;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -689,7 +699,8 @@ __rec_fill_tw_from_upd_select(
      * that the value is visible to any timestamp/transaction id ahead of it.
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_TIME_WINDOW_SET_STOP(select_tw, upd);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+        WT_TIME_WINDOW_SET_STOP(select_tw, upd, durable_ts);
         tombstone = upd_select->tombstone = upd;
 
         /* Find the update this tombstone applies to. */
