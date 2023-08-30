@@ -2205,15 +2205,19 @@ struct __wt_connection {
      * @config{debug_mode = (, control the settings of various extended debugging features., a set
      * of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * checkpoint_retention, adjust log removal to retain the log records of this number of
-     * checkpoints.  Zero or one means perform normal removal., an integer between \c 0 and \c 1024;
-     * default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in
-     * diagnostic mode\, dump core in the case of data corruption., a boolean flag; default \c
-     * true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to
-     * make a copy of any data returned by a cursor operation and return the copy instead.  The copy
-     * is freed on the next cursor operation.  This allows memory sanitizers to detect inappropriate
+     * background_compact_expire_time, how long the compact stats for a file should be tracked for
+     * before expiring., an integer; default \c 86400.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * background_compact_skip_time, how long a file should sleep before background compact tries
+     * again., an integer; default \c 60.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention,
+     * adjust log removal to retain the log records of this number of checkpoints.  Zero or one
+     * means perform normal removal., an integer between \c 0 and \c 1024; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
+     * core in the case of data corruption., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a
+     * copy of any data returned by a cursor operation and return the copy instead.  The copy is
+     * freed on the next cursor operation.  This allows memory sanitizers to detect inappropriate
      * references to memory owned by cursors., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_reposition, if true\, for operations with snapshot
      * isolation the cursor temporarily releases any page that requires force eviction\, then
@@ -2972,8 +2976,14 @@ struct __wt_connection {
  * @config{debug_mode = (, control the settings of various extended debugging features., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * checkpoint_retention, adjust log removal to retain the log records of this number of checkpoints.
- * Zero or one means perform normal removal., an integer between \c 0 and \c 1024; default \c 0.}
+ * background_compact_expire_time, how long the compact stats for a file should be tracked for
+ * before expiring., an integer; default \c 86400.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * background_compact_skip_time, how long a file should sleep before background compact tries
+ * again., an integer; default \c 60.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust
+ * log removal to retain the log records of this number of checkpoints.  Zero or one means perform
+ * normal removal., an integer between \c 0 and \c 1024; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
  * core in the case of data corruption., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;cursor_copy, if true\, use the system allocator to make a copy of

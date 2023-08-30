@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-#define WT_BACKGROUND_COMPACT_MAX_SKIP_TIME 60
 /* Prefix of files the background compaction server deals with. */
 #define WT_BACKGROUND_COMPACT_URI_PREFIX "file:"
 
@@ -129,7 +128,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     /* If we have been unsuccessful recently skip this file for some time. */
     cur_time = __wt_clock(session);
     if (WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
-      WT_BACKGROUND_COMPACT_MAX_SKIP_TIME)
+      conn->background_compact.file_skip_time)
         return (true);
 
     if (!compact_stat->prev_compact_success) {
@@ -141,7 +140,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     /* If the last compaction pass was less successful than the average. Skip it for some time. */
     if (compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
       WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) <
-        WT_BACKGROUND_COMPACT_MAX_SKIP_TIME) {
+        conn->background_compact.file_skip_time) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
@@ -251,7 +250,8 @@ __background_compact_list_cleanup(
     TAILQ_FOREACH_SAFE(compact_stat, &conn->background_compact.compactqh, q, temp_compact_stat)
     {
         if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT ||
-          WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) > WT_DAY)
+          WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
+            conn->background_compact.file_expire_time)
             /* Remove file entry from both the hashtable and list. */
             __background_compact_list_remove(session, compact_stat);
     }

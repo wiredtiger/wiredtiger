@@ -2054,6 +2054,32 @@ err:
 }
 
 /*
+ * __debug_mode_background_compact_config --
+ *     Set the debug configurations for the background compact server.
+ */
+static int
+__debug_mode_background_compact_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    ret = __wt_config_gets(session, cfg, "debug_mode.background_compact_expire_time", &cval);
+    if (ret == 0 && cval.len != 0)
+        conn->background_compact.file_expire_time = (uint64_t)cval.val;
+    WT_RET_NOTFOUND_OK(ret);
+
+    ret = __wt_config_gets(session, cfg, "debug_mode.background_compact_skip_time", &cval);
+    if (ret == 0 && cval.len != 0)
+        conn->background_compact.file_skip_time = (uint64_t)cval.val;
+    WT_RET_NOTFOUND_OK(ret);
+
+    return (0);
+}
+
+/*
  * __wt_debug_mode_config --
  *     Set debugging configuration.
  */
@@ -2068,6 +2094,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
 
     WT_RET(__debug_mode_log_retention_config(session, cfg));
+    WT_RET(__debug_mode_background_compact_config(session, cfg));
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)
