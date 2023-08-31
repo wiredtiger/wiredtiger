@@ -37,8 +37,8 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 '''
-- Evaluating chunkcache performance both in-memory and on-disk, to test the functionality of pinned chunks.
-- Verifying the functionality of reconfiguring pinned configurations.
+- Evaluate chunkcache performance both in-memory and on-disk, to test the functionality of pinned chunks.
+- Verify the functionality of reconfiguring pinned configurations.
 '''
 class test_chunkcache03(wttest.WiredTigerTestCase):
     rows = 10000
@@ -125,7 +125,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         self.assertGreater(pinned_chunks_inuse, 0)
 
         # Assert that the difference b/w the total chunks present and the unpinned chunks equal pinned chunks.
-        # This proves that the chunks read form pinned objects were all pinned. 
+        # This proves that the chunks read from pinned objects were all pinned.
         self.assertEqual(chunks_inuse_including_pinned - chunks_inuse_excluding_pinned, pinned_chunks_inuse)
 
         # Reconfigure wiredtiger and mark the pinned objects as unpinned and vice-versa.
