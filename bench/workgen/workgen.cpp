@@ -653,6 +653,8 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             WT_DECL_RET;
             // Spin on EBUSY. We do not expect to get stuck.
             while ((ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
+                if (stopping)
+                    return 0;
                 VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
                 sleep(1);
             }
@@ -848,12 +850,15 @@ ContextInternal::ContextInternal()
     _context_count = count;
 }
 
-ContextInternal::~ContextInternal() {}
+ContextInternal::~ContextInternal()
+{
+    delete _dyn_mutex;
+}
 
 int
 ContextInternal::create_all(WT_CONNECTION *conn)
 {
-    if (_table_runtime.size() < _tint_last) {
+    if (_table_runtime.size() <= _tint_last) {
         // The array references are 1-based, we'll waste one entry.
         _table_runtime.resize(_tint_last + 1);
     }
@@ -1270,15 +1275,15 @@ ThreadRunner::free_all()
         _rand_state = nullptr;
     }
     if (_cursors != nullptr) {
-        delete _cursors;
+        delete [] _cursors;
         _cursors = nullptr;
     }
     if (_keybuf != nullptr) {
-        delete _keybuf;
+        delete [] _keybuf;
         _keybuf = nullptr;
     }
     if (_valuebuf != nullptr) {
-        delete _valuebuf;
+        delete [] _valuebuf;
         _valuebuf = nullptr;
     }
 }
@@ -2351,6 +2356,7 @@ Operation::kv_gen(
     uint_t max = iskey ? internal->_keymax : internal->_valuemax;
     if (n > max)
         THROW((iskey ? "Key" : "Value") << " (" << n << ") too large for size (" << size << ")");
+
     /* Setup the buffer, defaulting to zero filled. */
     workgen_u64_to_string_zf(n, result, size);
 
@@ -2527,9 +2533,9 @@ Track::Track(const Track &other)
 Track::~Track()
 {
     if (us != nullptr) {
-        delete us;
-        delete ms;
-        delete sec;
+        delete [] us;
+        delete [] ms;
+        delete [] sec;
     }
 }
 
@@ -3180,6 +3186,7 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         // TODO: recover from partial failure here
         WT_RET(runner->create_all(conn));
     }
+
     WT_RET(context->_internal->create_all(conn));
     return (0);
 }
