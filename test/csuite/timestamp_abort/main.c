@@ -1883,6 +1883,13 @@ main(int argc, char *argv[])
                 printf("\n=== Iteration %" PRIu32 "/%" PRIu32 "\n", iteration, num_iterations);
 
             /*
+             * Advance the random number generators, so that child process created in the loop would
+             * not all start with the same random state.
+             */
+            (void)__wt_random(&opts->data_rnd);
+            (void)__wt_random(&opts->extra_rnd);
+
+            /*
              * Fork a child to insert as many items. We will then randomly kill the child, run
              * recovery and make sure all items we wrote exist after recovery runs.
              */
