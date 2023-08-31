@@ -58,13 +58,13 @@ functions:
             # Create the common sanitizer options and export the specific sanitizer environment
             # variables.
             COMMON_SAN_OPTIONS="abort_on_error=1:disable_coredump=0"
-            if [[ ${CMAKE_BUILD_TYPE|} =~ ASan ]]; then
+            if [[ "${CMAKE_BUILD_TYPE|}" =~ ASan ]]; then
               export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
               export TESTUTIL_BYPASS_ASAN=1
-            elif [[ ${CMAKE_BUILD_TYPE|} =~ MSan ]]; then
+            elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
               export MSAN_OPTIONS="abort_on_error=1:disable_coredump=0:verbosity=3"
               export TESTUTIL_MSAN=1
-            elif [[ ${CMAKE_BUILD_TYPE|} =~ MSan ]]; then
+            elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
               export UBSAN_OPTIONS="abort_on_error=1:disable_coredump=0:print_stacktrace=1"
             fi
 
