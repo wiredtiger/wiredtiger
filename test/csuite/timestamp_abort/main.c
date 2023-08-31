@@ -666,7 +666,7 @@ backup_delete_old_backups(int retain)
 
                 /* Check if this is a full backup - we'd like to keep at least one. */
                 testutil_snprintf(buf, sizeof(buf), "%s/full", dir->d_name);
-                if (stat(buf, &sb) != 0 && errno == ENOENT)
+                if (stat(buf, &sb) == 0)
                     last_full = WT_MAX(last_full, i);
 
                 /* If we have too many backups, finish next time. */
