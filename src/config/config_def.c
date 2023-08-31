@@ -183,8 +183,8 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_debug_mode_subconfigs[] = {
-  {"background_compact_expire_time", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    INT64_MIN, INT64_MAX, NULL},
+  {"background_compact_close_idle_time", "int", NULL, NULL, NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, INT64_MIN, INT64_MAX, NULL},
   {"background_compact_skip_time", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
     INT64_MIN, INT64_MAX, NULL},
   {"checkpoint_retention", "int", NULL, "min=0,max=1024", NULL, 0, NULL,
@@ -3255,7 +3255,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_cleanup=none,chunk_cache=(pinned=),"
     "compatibility=(release=),"
-    "debug_mode=(background_compact_expire_time=86400,"
+    "debug_mode=(background_compact_close_idle_time=86400,"
     "background_compact_skip_time=60,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
     "eviction=false,log_retention=0,realloc_exact=false,"
@@ -3551,7 +3551,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
     ",type=FILE),compatibility=(release=,require_max=,require_min=),"
     "config_base=true,create=false,"
-    "debug_mode=(background_compact_expire_time=86400,"
+    "debug_mode=(background_compact_close_idle_time=86400,"
     "background_compact_skip_time=60,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
     "eviction=false,log_retention=0,realloc_exact=false,"
@@ -3599,7 +3599,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
     ",type=FILE),compatibility=(release=,require_max=,require_min=),"
     "config_base=true,create=false,"
-    "debug_mode=(background_compact_expire_time=86400,"
+    "debug_mode=(background_compact_close_idle_time=86400,"
     "background_compact_skip_time=60,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
     "eviction=false,log_retention=0,realloc_exact=false,"
@@ -3646,7 +3646,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "chunk_cache=(capacity=10GB,chunk_cache_evict_trigger=90,"
     "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
     ",type=FILE),compatibility=(release=,require_max=,require_min=),"
-    "debug_mode=(background_compact_expire_time=86400,"
+    "debug_mode=(background_compact_close_idle_time=86400,"
     "background_compact_skip_time=60,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
     "eviction=false,log_retention=0,realloc_exact=false,"
@@ -3692,7 +3692,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "chunk_cache=(capacity=10GB,chunk_cache_evict_trigger=90,"
     "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
     ",type=FILE),compatibility=(release=,require_max=,require_min=),"
-    "debug_mode=(background_compact_expire_time=86400,"
+    "debug_mode=(background_compact_close_idle_time=86400,"
     "background_compact_skip_time=60,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
     "eviction=false,log_retention=0,realloc_exact=false,"
