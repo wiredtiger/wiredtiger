@@ -1460,17 +1460,14 @@ config_chunk_cache(void)
 {
     char buf[128];
     const char *chunkcache_type;
-    const char *storage_source;
 
-    storage_source = GVS(TIERED_STORAGE_STORAGE_SOURCE);
     chunkcache_type = NULL;
 
-    /* Chunkcache does not work unless tiered storage is configured with dir_store. */
-    if (!g.tiered_storage_config || strcmp(storage_source, "dir_store") != 0) {
+    /* Chunkcache does not work unless tiered storage is configured. */
+    if (!g.tiered_storage_config) {
         if (config_explicit(NULL, "chunk_cache") && GV(CHUNK_CACHE))
             testutil_die(EINVAL,
-              "%s: chunkcache cannot be enabled unless tiered storage is configured with dir_store",
-              progname);
+              "%s: chunkcache cannot be enabled unless tiered storage is configured.", progname);
         return;
     }
 
@@ -1490,7 +1487,7 @@ config_chunk_cache(void)
 
         /* Enable chunkcache 50% of the time if not explicit set. */
         testutil_snprintf(
-          buf, sizeof(buf), "chunk_cache=%s", mmrand(&g.data_rnd, 1, 100) <= 100 ? "on" : "off");
+          buf, sizeof(buf), "chunk_cache=%s", mmrand(&g.data_rnd, 1, 100) <= 50 ? "on" : "off");
         config_single(NULL, buf, false);
     }
 

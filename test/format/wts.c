@@ -422,7 +422,7 @@ create_database(const char *home, WT_CONNECTION **connp)
             testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
               GVS(CHUNK_CACHE_STORAGE_PATH));
         else
-            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "\"\"");
+            chunkcache_ext_cfg[0] = '\0';
 
         CONFIG_APPEND(p,
           ",chunk_cache=(enabled=true,capacity=%" PRIu32 "MB,chunk_size=%" PRIu32 "MB,type=%s,%s)",
