@@ -213,7 +213,12 @@ err:
      */
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP) ||
       (F_ISSET(cb, WT_CURBACKUP_INCR) && cb->incr_src == NULL)) {
-        WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
+        /* Must be declared and initialized after session is set in the CURSOR_API macro. */
+        const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL};
+
+        /* Mark the connection modified to make sure a checkpoint happens even on an idle system. */
+        S2C(session)->modified = true;
+        WT_TRET(__wt_txn_checkpoint(session, cfg, true));
     }
 
     /*

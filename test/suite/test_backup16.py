@@ -147,7 +147,7 @@ class test_backup16(backup_base):
         # new data. The old table with old data also appears because the full incremental
         # forces a full checkpoint and that leads to a block in the existing file to
         # change from writing new internal checkpoint information to the table itself.
-        files_to_backup = [self.file1, self.file2, self.file4, self.file5]
+        files_to_backup = [self.file1, self.file4, self.file5]
         self.verify_incr_backup(files_to_backup)
 
         # Add more data and checkpoint. Earlier old tables without new data should not
