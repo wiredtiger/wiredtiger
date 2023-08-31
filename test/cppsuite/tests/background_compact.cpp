@@ -78,7 +78,6 @@ public:
         int64_t bytes_avail_reuse, pages_reviewed, pages_rewritten, size;
 
         const int64_t megabyte = 1024 * 1024;
-        const int64_t kilobyte = 1024;
 
         std::string log_prefix =
           type_string(tw->type) + " thread {" + std::to_string(tw->id) + "}: ";
@@ -101,17 +100,15 @@ public:
               tw->stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED, &pages_reviewed);
             metrics_monitor::get_stat(
               tw->stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN, &pages_rewritten);
-            metrics_monitor::get_stat(
-              tw->stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &size);
+            metrics_monitor::get_stat(tw->stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &size);
 
-            logger::log_msg(
-              LOG_INFO, log_prefix + "block reuse bytes = " + std::to_string(bytes_avail_reuse /  megabyte));
+            logger::log_msg(LOG_INFO,
+              log_prefix + "block reuse bytes = " + std::to_string(bytes_avail_reuse / megabyte));
             logger::log_msg(
               LOG_INFO, log_prefix + "pages_reviewed = " + std::to_string(pages_reviewed));
             logger::log_msg(
               LOG_INFO, log_prefix + "pages_rewrittenn = " + std::to_string(pages_rewritten));
-            logger::log_msg(
-              LOG_INFO, log_prefix + "size = " + std::to_string(size / megabyte));
+            logger::log_msg(LOG_INFO, log_prefix + "size = " + std::to_string(size / megabyte));
             tw->sleep();
         }
     }

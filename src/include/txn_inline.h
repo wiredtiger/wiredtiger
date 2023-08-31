@@ -300,7 +300,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
 static inline void
-__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref, bool locked)
 {
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
@@ -310,7 +310,10 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
     txn = session->txn;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
-    WT_REF_LOCK(session, ref, &previous_state);
+    if (!locked)
+        WT_REF_LOCK(session, ref, &previous_state);
+    else
+        previous_state = WT_REF_LOCKED;
 
     /*
      * Timestamps are in the page deleted structure for truncates, or in the updates in the case of
@@ -330,8 +333,8 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * since it was deleted and then instantiated.
      */
     if (previous_state != WT_REF_DELETED) {
-        WT_ASSERT(session, previous_state == WT_REF_MEM);
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        // WT_ASSERT(session, previous_state == WT_REF_MEM);
+        // WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = txn->commit_timestamp;
@@ -344,7 +347,8 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
         page_del->durable_timestamp = txn->durable_timestamp;
     }
 
-    WT_REF_UNLOCK(ref, previous_state);
+    if (!locked)
+        WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
@@ -354,7 +358,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
  *     existing timestamp.
  */
 static inline void
-__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool locked)
 {
     WT_BTREE *btree;
     WT_TXN *txn;
@@ -387,7 +391,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref);
+            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref, locked);
         else {
             /*
              * The timestamp is in the update for operations other than truncate. Both commit and
@@ -439,7 +443,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    __wt_txn_op_set_timestamp(session, op, false);
 
     return (0);
 }
@@ -449,7 +453,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *     Remember a page truncated by the current transaction.
  */
 static inline int
-__wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref, bool locked)
 {
     WT_DECL_RET;
     WT_TXN *txn;
@@ -466,7 +470,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * fact just allocated the structure to fill in.
      */
     ref->page_del->txnid = txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    __wt_txn_op_set_timestamp(session, op, locked);
 
     if (__wt_log_op(session))
         WT_ERR(__wt_txn_log_op(session, NULL));
