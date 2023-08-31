@@ -839,7 +839,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
-    WT_REF *next_walk;
+    WT_REF *next_walk, *cur;
     uint32_t flags;
 
     btree = S2BT(session);
@@ -869,6 +869,16 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     page = next_walk->page;
     btree->last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
                                                         __col_fix_last_recno(next_walk);
+
+    if (btree->type == BTREE_COL_VAR) {
+        cur = btree->root;
+        while (cur->type == WT_PAGE_COL_INT) {
+            cur = cur->page.u.intl.__index->index[cur->page.u.intl.__index->entries - 1];
+        }
+
+        WT_ASSERT(session, cur->type == WT_PAGE_COL_VAR);
+        WT_ASSERT(session, btree->last_recno >= cur->key.recno);
+    }
 
     return (__wt_page_release(session, next_walk, 0));
 }
