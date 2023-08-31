@@ -871,12 +871,12 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
                                                         __col_fix_last_recno(next_walk);
 
     if (btree->type == BTREE_COL_VAR) {
-        cur = btree->root;
-        while (cur->type == WT_PAGE_COL_INT) {
-            cur = cur->page.u.intl.__index->index[cur->page.u.intl.__index->entries - 1];
+        cur = &btree->root;
+        while (cur->page->type == WT_PAGE_COL_INT) {
+            cur = cur->page->u.intl.__index->index[cur->page->u.intl.__index->entries - 1];
         }
 
-        WT_ASSERT(session, cur->type == WT_PAGE_COL_VAR);
+        WT_ASSERT(session, cur->page->type == WT_PAGE_COL_VAR);
         WT_ASSERT(session, btree->last_recno >= cur->key.recno);
     }
 
