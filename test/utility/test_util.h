@@ -504,10 +504,10 @@ void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
 void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
 void testutil_recreate_dir(const char *);
 void testutil_remove(const char *);
+void testutil_sentinel(const char *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_sentinel(const char *, const char *);
 void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
