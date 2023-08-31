@@ -1275,15 +1275,15 @@ ThreadRunner::free_all()
         _rand_state = nullptr;
     }
     if (_cursors != nullptr) {
-        delete [] _cursors;
+        delete[] _cursors;
         _cursors = nullptr;
     }
     if (_keybuf != nullptr) {
-        delete [] _keybuf;
+        delete[] _keybuf;
         _keybuf = nullptr;
     }
     if (_valuebuf != nullptr) {
-        delete [] _valuebuf;
+        delete[] _valuebuf;
         _valuebuf = nullptr;
     }
 }
@@ -2533,9 +2533,9 @@ Track::Track(const Track &other)
 Track::~Track()
 {
     if (us != nullptr) {
-        delete [] us;
-        delete [] ms;
-        delete [] sec;
+        delete[] us;
+        delete[] ms;
+        delete[] sec;
     }
 }
 
