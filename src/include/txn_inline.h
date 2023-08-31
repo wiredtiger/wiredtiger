@@ -320,10 +320,11 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * instantiated pages. We also need to update any page deleted structure in the ref. Both commit
      * and durable timestamps need to be updated.
      *
-     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
-     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
-     * least, global visibility in the sense we need to use it for truncations, in which prepared
-     * and uncommitted transactions are not visible.)
+     * Only two cases are possible. First: the state is WT_REF_DELETED or WT_REF_LOCKED and we're in
+     * the process of deleting it. In this case page_del cannot be NULL yet because an uncommitted
+     * operation cannot have reached global visibility. (Or at least, global visibility in the sense
+     * we need to use it for truncations, in which prepared and uncommitted transactions are not
+     * visible.)
      *
      * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
      * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
@@ -332,9 +333,9 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * non-null page_del structure to update, depending on whether the page has been reconciled
      * since it was deleted and then instantiated.
      */
-    if (previous_state != WT_REF_DELETED) {
-        // WT_ASSERT(session, previous_state == WT_REF_MEM);
-        // WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+    if (previous_state != WT_REF_DELETED && !locked) {
+        WT_ASSERT(session, previous_state == WT_REF_MEM);
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = txn->commit_timestamp;
