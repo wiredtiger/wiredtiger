@@ -1458,7 +1458,7 @@ config_statistics(void)
 static void
 config_chunk_cache(void)
 {
-    char buf[128];
+    char buf[128], chunkcache_storage_path[512];
     const char *chunkcache_type;
 
     chunkcache_type = NULL;
@@ -1504,7 +1504,7 @@ config_chunk_cache(void)
                   progname);
         } else {
             if (GV(RUNS_IN_MEMORY))
-                config_single(NULL, "chunkcache.type=DRAM", false);
+                config_single(NULL, "chunk_cache.type=DRAM", false);
             else {
                 /*
                  * Alternate between running chunk cache with the 'File' type and the 'DRAM' type.
@@ -1517,9 +1517,10 @@ config_chunk_cache(void)
 
         if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0 &&
           !config_explicit(NULL, "chunk_cache.storage_path")) {
-            testutil_snprintf(buf, sizeof(buf), "chunk_cache.storage_path=/tmp/chunkcache%" PRIu32,
-              mmrand(&g.data_rnd, 1, 1000000000));
-            config_single(NULL, buf, false);
+            testutil_snprintf(chunkcache_storage_path, sizeof(chunkcache_storage_path),
+              "chunk_cache.storage_path=%s/%s/WiredTigerChunkCache", getcwd(buf, sizeof(buf)),
+              g.home);
+            config_single(NULL, chunkcache_storage_path, false);
         }
 
         if (!config_explicit(NULL, "chunk_cache.capacity") &&
