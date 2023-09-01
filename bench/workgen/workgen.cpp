@@ -287,8 +287,11 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
          * Drop the table. Keep retrying on EBUSY failure - it is an expected return when
          * checkpoints are happening.
          */
-        while ((ret = session->drop(session, uri, "checkpoint_wait=false")) == EBUSY)
+        while ((ret = session->drop(session, uri, "checkpoint_wait=false")) == EBUSY) {
+            if (stopping)
+                return 0;
             sleep(1);
+        }
 
         if (ret != 0) {
             THROW("Table drop failed in cycle_idle_tables.");
@@ -614,7 +617,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             ASSERT(tables_remaining >= 0);
             int drop_count = std::min(tables_remaining, _workload->options.drop_count);
             int drops = 0;
-            while (drops < drop_count) {
+            while (drops < drop_count && !stopping) {
                 if (select_table_for_drop(pending_delete) != 0) {
                     continue;
                 }
