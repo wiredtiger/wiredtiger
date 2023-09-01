@@ -87,7 +87,7 @@ __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
             fstr->off += (wt_off_t)len;
         }
 
-        c = *(p = fstr->buf.data);
+        c = *(p = (const char*)fstr->buf.data);
         fstr->buf.data = ++p;
 
         /* Leave space for a trailing NUL. */
@@ -132,7 +132,7 @@ __fstream_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va
 
     for (;;) {
         va_copy(ap_copy, ap);
-        if ((p = buf->mem) != NULL)
+        if ((p = (char *)buf->mem) != NULL)
             p += buf->size;
         space = buf->memsize - buf->size;
 

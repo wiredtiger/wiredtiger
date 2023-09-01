@@ -460,7 +460,7 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
          * when read.
          */
         cip = &page->pg_var[cbt->slot];
-        cell = WT_COL_PTR(page, cip);
+        cell = (WT_CELL *)WT_COL_PTR(page, cip);
         if (__wt_cell_type(cell) == WT_CELL_DEL)
             return (0);
 
@@ -1788,7 +1788,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    size_t orig, new;
+    size_t orig, new_size;
     bool overwrite;
 
     cursor = &cbt->iface;
@@ -1828,11 +1828,11 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 
     orig = cursor->value.size;
     WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &cursor->value, modify->data));
-    new = cursor->value.size;
+    new_size = cursor->value.size;
     WT_ERR(__cursor_size_chk(session, &cursor->value));
 
     WT_STAT_CONN_DATA_INCRV(
-      session, cursor_update_bytes_changed, new > orig ? new - orig : orig - new);
+      session, cursor_update_bytes_changed, new_size > orig ? new_size - orig : orig - new_size);
 
     /*
      * WT_CURSOR.modify is update-without-overwrite.

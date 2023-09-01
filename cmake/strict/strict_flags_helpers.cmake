@@ -169,6 +169,18 @@ function(get_clang_base_flags flags)
         list(APPEND clang_flags "-Wno-implicit-int-float-conversion")
     endif()
 
+    if (USE_CPP_FOR_C_FILES)
+        list(APPEND clang_flags "-Wno-old-style-cast")
+        list(APPEND clang_flags "-Wno-zero-as-null-pointer-constant")
+        list(APPEND clang_flags "-Wno-c++98-compat-pedantic")
+        list(APPEND clang_flags "-Wno-gnu-anonymous-struct")
+        list(APPEND clang_flags "-Wno-documentation")
+        list(APPEND clang_flags "-Wno-c99-extensions")
+        list(APPEND clang_flags "-Wno-nested-anon-types")
+        list(APPEND clang_flags "-Wno-deprecated")
+        list(APPEND clang_flags "-Wno-unreachable-code-return")
+    endif()
+
     set(${flags} ${clang_flags} PARENT_SCOPE)
 
 endfunction()

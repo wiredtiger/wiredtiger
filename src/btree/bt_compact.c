@@ -109,7 +109,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
      * If there's no address at all (the page has never been written), allocate a new WT_ADDR
      * structure, otherwise, the address has already been instantiated, replace the cookie.
      */
-    addr = ref->addr;
+    addr = (WT_ADDR *)ref->addr;
     WT_ASSERT(session, addr != NULL);
 
     if (__wt_off_page(ref->home, addr))

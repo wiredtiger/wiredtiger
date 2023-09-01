@@ -428,7 +428,7 @@ __posix_file_read(
 
     /* Break reads larger than 1GB into 1GB chunks. */
     nr = 0;
-    for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
+    for (addr = (uint8_t *)buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
         chunk = WT_MIN(len, WT_GIGABYTE);
         /*
          * The WT_SYSCALL_RETRY macro expects 0 for success. pread returns > 0 when it successfully
@@ -620,7 +620,7 @@ __posix_file_write(
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
     /* Break writes larger than 1GB into 1GB chunks. */
-    for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
+    for (addr = (const uint8_t *)buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
         chunk = WT_MIN(len, WT_GIGABYTE);
         if ((nw = pwrite(pfh->fd, addr, chunk, offset)) < 0)
             WT_RET_MSG(session, __wt_errno(),

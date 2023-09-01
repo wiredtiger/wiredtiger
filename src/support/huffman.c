@@ -325,7 +325,7 @@ __wt_huffman_open(
     /*
      * Order the array by symbol and check for invalid symbols and duplicates.
      */
-    sym = symbol_frequency_array;
+    sym = (INDEXED_SYMBOL *)symbol_frequency_array;
     __wt_qsort(sym, symcnt, sizeof(INDEXED_SYMBOL), indexed_symbol_compare);
     for (i = 0; i < symcnt; ++i) {
         if (i > 0 && sym[i].symbol == sym[i - 1].symbol)
@@ -499,7 +499,7 @@ __wt_huffman_close(WT_SESSION_IMPL *session, void *huffman_arg)
 {
     WT_HUFFMAN_OBJ *huffman;
 
-    huffman = huffman_arg;
+    huffman = (WT_HUFFMAN_OBJ *)huffman_arg;
 
     __wt_free(session, huffman->code2symbol);
     __wt_free(session, huffman->codes);
@@ -565,7 +565,7 @@ __wt_huffman_encode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *
     /* Count of bits in shift register ('bits' above). */
     uint8_t valid;
 
-    huffman = huffman_arg;
+    huffman = (WT_HUFFMAN_OBJ *)huffman_arg;
     from = from_arg;
     tmp = NULL;
 
@@ -596,7 +596,7 @@ __wt_huffman_encode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *
     bits = 0;
     bitpos = WT_HUFFMAN_HEADER;
     valid = WT_HUFFMAN_HEADER;
-    out = tmp->mem;
+    out = (uint8_t *)tmp->mem;
     for (bytes = 0; bytes < from_len; bytes++) {
         WT_ASSERT(session, WT_PTR_IN_RANGE(from, from_arg, from_len));
 
@@ -676,7 +676,7 @@ __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *
     uint8_t padding_info, symbol, *to, valid;
     const uint8_t *from;
 
-    huffman = huffman_arg;
+    huffman = (WT_HUFFMAN_OBJ *)huffman_arg;
     from = from_arg;
     tmp = NULL;
 
@@ -709,7 +709,7 @@ __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *
      */
     max_len = (uint32_t)(from_len_bits / huffman->min_depth);
     WT_ERR(__wt_scr_alloc(session, max_len, &tmp));
-    to = tmp->mem;
+    to = (uint8_t *)tmp->mem;
 
     /* The first byte of input is a special case because of header bits. */
     bits = *from++;

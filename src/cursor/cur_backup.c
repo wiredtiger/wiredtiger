@@ -578,7 +578,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         }
 
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)k.len, k.str));
-        uri = tmp->data;
+        uri = (const char *)tmp->data;
         if (v.len != 0)
             WT_ERR_MSG(session, EINVAL, "%s: invalid backup target: URIs may need quoting", uri);
 

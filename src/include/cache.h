@@ -248,6 +248,9 @@ struct __wt_cache {
  * WT_CACHE_POOL --
  *	A structure that represents a shared cache.
  */
+
+TAILQ_HEAD(__wt_cache_pool_qh, __wt_connection_impl);
+
 struct __wt_cache_pool {
     WT_SPINLOCK cache_pool_lock;
     WT_CONDVAR *cache_pool_cond;
@@ -258,7 +261,7 @@ struct __wt_cache_pool {
     uint64_t currently_used;
     uint32_t refs; /* Reference count for structure. */
     /* Locked: List of connections participating in the cache pool. */
-    TAILQ_HEAD(__wt_cache_pool_qh, __wt_connection_impl) cache_pool_qh;
+    struct __wt_cache_pool_qh cache_pool_qh;
 
     uint8_t pool_managed; /* Cache pool has a manager thread */
 

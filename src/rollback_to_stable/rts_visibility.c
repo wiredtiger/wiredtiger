@@ -85,7 +85,7 @@ __wt_rts_visibility_page_needs_abort(
     const char *tag;
     bool prepared, result;
 
-    addr = ref->addr;
+    addr = (WT_ADDR *)ref->addr;
     mod = ref->page == NULL ? NULL : ref->page->modify;
     durable_ts = WT_TS_NONE;
     newest_txn = WT_TXN_NONE;

@@ -49,7 +49,7 @@ __wt_block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
     WT_EXT *ext;
     u_int i;
 
-    bms = session->block_manager;
+    bms = (WT_BLOCK_MGR_SESSION *)session->block_manager;
 
     /* Return a WT_EXT structure for use from a cached list. */
     if (bms != NULL && bms->ext_cache != NULL) {
@@ -83,7 +83,7 @@ __block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
     WT_BLOCK_MGR_SESSION *bms;
     WT_EXT *ext;
 
-    bms = session->block_manager;
+    bms = (WT_BLOCK_MGR_SESSION *)session->block_manager;
 
     for (; bms->ext_cache_cnt < max; ++bms->ext_cache_cnt) {
         WT_RET(__block_ext_alloc(session, &ext));
@@ -103,7 +103,7 @@ __wt_block_ext_free(WT_SESSION_IMPL *session, WT_EXT *ext)
 {
     WT_BLOCK_MGR_SESSION *bms;
 
-    if ((bms = session->block_manager) == NULL)
+    if ((bms = (WT_BLOCK_MGR_SESSION *)session->block_manager) == NULL)
         __wt_free(session, ext);
     else {
         ext->next[0] = bms->ext_cache;
@@ -123,7 +123,7 @@ __block_ext_discard(WT_SESSION_IMPL *session, u_int max)
     WT_BLOCK_MGR_SESSION *bms;
     WT_EXT *ext, *next;
 
-    bms = session->block_manager;
+    bms = (WT_BLOCK_MGR_SESSION *)session->block_manager;
     if (max != 0 && bms->ext_cache_cnt <= max)
         return (0);
 
@@ -162,7 +162,7 @@ __wt_block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
 {
     WT_BLOCK_MGR_SESSION *bms;
 
-    bms = session->block_manager;
+    bms = (WT_BLOCK_MGR_SESSION *)session->block_manager;
 
     /* Return a WT_SIZE structure for use from a cached list. */
     if (bms != NULL && bms->sz_cache != NULL) {
@@ -190,7 +190,7 @@ __block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
     WT_BLOCK_MGR_SESSION *bms;
     WT_SIZE *sz;
 
-    bms = session->block_manager;
+    bms = (WT_BLOCK_MGR_SESSION *)session->block_manager;
 
     for (; bms->sz_cache_cnt < max; ++bms->sz_cache_cnt) {
         WT_RET(__block_size_alloc(session, &sz));
@@ -210,7 +210,7 @@ __wt_block_size_free(WT_SESSION_IMPL *session, WT_SIZE *sz)
 {
     WT_BLOCK_MGR_SESSION *bms;
 
-    if ((bms = session->block_manager) == NULL)
+    if ((bms = (WT_BLOCK_MGR_SESSION *)session->block_manager) == NULL)
         __wt_free(session, sz);
     else {
         sz->next[0] = bms->sz_cache;
@@ -230,7 +230,7 @@ __block_size_discard(WT_SESSION_IMPL *session, u_int max)
     WT_BLOCK_MGR_SESSION *bms;
     WT_SIZE *sz, *nsz;
 
-    bms = session->block_manager;
+    bms = (WT_BLOCK_MGR_SESSION *)session->block_manager;
     if (max != 0 && bms->sz_cache_cnt <= max)
         return (0);
 

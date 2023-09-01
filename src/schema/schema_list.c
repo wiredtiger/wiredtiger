@@ -105,7 +105,7 @@ __wt_schema_get_table(WT_SESSION_IMPL *session, const char *name, size_t namelen
     WT_RET(__wt_scr_alloc(session, namelen + 1, &namebuf));
     WT_ERR(__wt_buf_fmt(session, namebuf, "table:%.*s", (int)namelen, name));
 
-    WT_ERR(__wt_schema_get_table_uri(session, namebuf->data, ok_incomplete, flags, tablep));
+    WT_ERR(__wt_schema_get_table_uri(session, (const char *)namebuf->data, ok_incomplete, flags, tablep));
 
 err:
     __wt_scr_free(session, &namebuf);

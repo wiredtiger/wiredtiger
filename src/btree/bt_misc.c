@@ -30,7 +30,7 @@ __wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size
         buf->data = WT_ERR_STRING;
         buf->size = strlen(WT_ERR_STRING);
     }
-    return (buf->data);
+    return ((const char *)buf->data);
 }
 
 /*

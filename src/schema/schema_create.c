@@ -243,7 +243,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                  * information as the imported file was not part of any backup.
                  */
                 WT_ERR(__wt_reset_blkmod(session, config, buf));
-                filecfg[3] = buf->mem;
+                filecfg[3] = (const char *)buf->mem;
             } else if (session->import_list == NULL) {
                 /*
                  * If there is no file metadata provided, the user should be specifying a "repair".
@@ -274,7 +274,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
               WT_BTREE_VERSION_MAX.minor));
             for (p = filecfg; *p != NULL; ++p)
                 ;
-            *p = val->data;
+            *p = (const char *)val->data;
             WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
         } else {
             /* Try to recreate the associated metadata from the imported data source. */
@@ -422,7 +422,7 @@ __wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri, const char 
 
     entry.uri = uri;
     entry.config = NULL;
-    result = bsearch(&entry, session->import_list->entries, session->import_list->entries_next,
+    result = (WT_IMPORT_ENTRY *)bsearch(&entry, session->import_list->entries, session->import_list->entries_next,
       sizeof(WT_IMPORT_ENTRY), __create_import_cmp_uri);
 
     if (result == NULL)
@@ -568,7 +568,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         if (table->is_tiered_shared) {
             WT_ERR(__wt_schema_tiered_shared_colgroup_name(
               session, tablename, i == 0 ? true : false, buf));
-            name = buf->data;
+            name = (const char *)buf->data;
         }
 
         /* Check if the column group already exists. */
@@ -586,18 +586,18 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         /* Add the source to the colgroup config before collapsing. */
         if (__wt_config_getones(session, config, "source", &cval) == 0 && cval.len != 0) {
             WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
-            source = namebuf.data;
+            source = (const char *)namebuf.data;
         } else if (table->is_tiered_shared) {
             WT_ERR(__schema_tiered_shared_colgroup_source(
               session, table, i == 0 ? true : false, &namebuf));
-            source = namebuf.data;
+            source = (const char *)namebuf.data;
             WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
-            *cfgp++ = confbuf.data;
+            *cfgp++ = (const char *)confbuf.data;
         } else {
             WT_ERR(__wt_schema_colgroup_source(session, table, cgname, config, &namebuf));
-            source = namebuf.data;
+            source = (const char *)namebuf.data;
             WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
-            *cfgp++ = confbuf.data;
+            *cfgp++ = (const char *)confbuf.data;
         }
 
         if (session->import_list != NULL)
@@ -615,7 +615,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
                 WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
             }
 
-            sourcecfg[1] = fmt.data;
+            sourcecfg[1] = (const char *)fmt.data;
         }
 
         WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
@@ -788,10 +788,10 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
 
     if (__wt_config_getones(session, config, "source", &cval) == 0) {
         WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
-        source = namebuf.data;
+        source = (const char *)namebuf.data;
     } else {
         WT_ERR(__wt_schema_index_source(session, table, idxname, config, &namebuf));
-        source = namebuf.data;
+        source = (const char *)namebuf.data;
 
         /* Add the source name to the index config before collapsing. */
         WT_ERR(__wt_buf_catfmt(session, &confbuf, ",source=\"%s\"", source));
@@ -867,20 +867,20 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
       session, table, icols.str, icols.len, (const char *)extra_cols.data, false, &fmt));
 
     /* Check for a record number index key, which makes no sense. */
-    WT_ERR(__wt_config_getones(session, fmt.data, "key_format", &cval));
+    WT_ERR(__wt_config_getones(session, (const char *)fmt.data, "key_format", &cval));
     if (cval.len == 1 && cval.str[0] == 'r')
         WT_ERR_MSG(
           session, EINVAL, "column-store index may not use the record number as its index key");
 
     WT_ERR(__wt_buf_catfmt(session, &fmt, ",index_key_columns=%u", npublic_cols));
 
-    sourcecfg[1] = fmt.data;
+    sourcecfg[1] = (const char *)fmt.data;
     WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
 
     WT_ERR(__wt_schema_create(session, source, sourceconf));
 
     cfg[1] = sourceconf;
-    cfg[2] = confbuf.data;
+    cfg[2] = (const char *)confbuf.data;
     WT_ERR(__wt_config_collapse(session, cfg, &idxconf));
 
     if (!exists) {
@@ -991,7 +991,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 
         /* Concatenate the metadata base string with the tiered storage shared string. */
         WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", tablecfg, "shared=true"));
-        WT_ERR(__wt_metadata_insert(session, uri, tmp->mem));
+        WT_ERR(__wt_metadata_insert(session, uri, (const char *)tmp->mem));
     } else
         WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
@@ -1131,7 +1131,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
               ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
               conn->bstorage->bucket, conn->bstorage->bucket_prefix, ++conn->next_file_id,
               WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
-            cfg[1] = tmp->data;
+            cfg[1] = (const char *)tmp->data;
             cfg[2] = config;
             cfg[3] = "tiers=()";
             WT_ERR(__wt_config_tiered_strip(session, cfg, &metadata));

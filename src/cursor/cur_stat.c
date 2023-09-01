@@ -114,7 +114,7 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
         if ((p = va_arg(ap, const char **)) != NULL)
             *p = desc;
         if ((p = va_arg(ap, const char **)) != NULL)
-            *p = cst->pv.data;
+            *p = (const char *)cst->pv.data;
         if ((v = va_arg(ap, uint64_t *)) != NULL)
             *v = cst->v;
         va_end(ap);

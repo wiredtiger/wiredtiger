@@ -141,7 +141,7 @@ __wt_block_read_off_blind(
      */
     WT_RET(__wt_scr_alloc(session, block->allocsize, &tmp));
     WT_ERR(__wt_read(session, block->fh, offset, (size_t)block->allocsize, tmp->mem));
-    blk = WT_BLOCK_HEADER_REF(tmp->mem);
+    blk = (WT_BLOCK_HEADER *)WT_BLOCK_HEADER_REF(tmp->mem);
     __wt_block_header_byteswap(blk);
 
     *sizep = blk->disk_size;
@@ -216,7 +216,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
      * We incrementally read through the structure before doing a checksum, do little- to big-endian
      * handling early on, and then select from the original or swapped structure as needed.
      */
-    blk = WT_BLOCK_HEADER_REF(buf->mem);
+    blk = (WT_BLOCK_HEADER *)WT_BLOCK_HEADER_REF(buf->mem);
     __wt_block_header_byteswap_copy(blk, &swap);
     check_size = F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP;
     if (swap.checksum == checksum) {
@@ -226,7 +226,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
              * Swap the page-header as needed; this doesn't belong here, but it's the best place to
              * catch all callers.
              */
-            __wt_page_header_byteswap(buf->mem);
+            __wt_page_header_byteswap((WT_PAGE_HEADER *)buf->mem);
             return (0);
         }
 

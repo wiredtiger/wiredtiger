@@ -141,7 +141,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
          * checkpoint (the file is being created), or the load call returns no root page (the
          * checkpoint is for an empty file).
          */
-        WT_ERR(bm->checkpoint_load(bm, session, ckpt.raw.data, ckpt.raw.size, root_addr,
+        WT_ERR(bm->checkpoint_load(bm, session, (const uint8_t *)ckpt.raw.data, ckpt.raw.size, root_addr,
           &root_addr_size, F_ISSET(btree, WT_BTREE_READONLY)));
         if (creation || root_addr_size == 0)
             WT_ERR(__btree_tree_open_empty(session, creation));
@@ -633,7 +633,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if ((ret = __wt_blkcache_read(session, &dsk, addr, addr_size)) == 0)
-        ret = __wt_verify_dsk(session, tmp->data, &dsk);
+        ret = __wt_verify_dsk(session, (const char *)tmp->data, &dsk);
     /*
      * Flag any failed read or verification: if we're in startup, it may be fatal.
      */

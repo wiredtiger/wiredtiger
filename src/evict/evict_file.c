@@ -23,7 +23,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint32_t rec_flags, walk_flags;
 
     dhandle = session->dhandle;
-    btree = dhandle->handle;
+    btree = (WT_BTREE *)dhandle->handle;
 
     /*
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction

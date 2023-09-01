@@ -358,6 +358,13 @@ union __wt_rand_state {
     struct {
         uint32_t w, z;
     } x;
+#ifdef __cplusplus
+    __wt_rand_state volatile &operator=(__wt_rand_state volatile &from) volatile
+    {
+        v = from.v;
+        return *this;
+    }
+#endif
 };
 
 /*
@@ -400,7 +407,7 @@ union __wt_rand_state {
             (buf)->size = 0;                                                    \
         for (;;) {                                                              \
             WT_ASSERT(session, (buf)->memsize >= (buf)->size);                  \
-            if ((__p = (buf)->mem) != NULL)                                     \
+            if ((__p = (char *)(buf)->mem) != NULL)                                     \
                 __p += (buf)->size;                                             \
             __space = (buf)->memsize - (buf)->size;                             \
                                                                                 \

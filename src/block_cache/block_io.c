@@ -117,7 +117,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
             WT_STAT_SESSION_INCRV(session, read_time, time_diff);
         }
 
-        dsk = ip->data;
+        dsk = (const WT_PAGE_HEADER *)ip->data;
         WT_STAT_CONN_DATA_INCR(session, cache_read);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
             WT_STAT_DATA_INCR(session, compress_read);
@@ -130,7 +130,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
      * If the block is encrypted, copy the skipped bytes of the image into place, then decrypt. DRAM
      * block-cache blocks are never encrypted.
      */
-    dsk = ip->data;
+    dsk = (const WT_PAGE_HEADER *)ip->data;
     if (!blkcache_found || blkcache->type != WT_BLKCACHE_DRAM) {
         if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
             if (encryptor == NULL || encryptor->decrypt == NULL)
@@ -156,7 +156,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     if (!skip_cache_put)
         WT_ERR(__wt_blkcache_put(session, ip, addr, addr_size, false));
 
-    dsk = ip->data;
+    dsk = (const WT_PAGE_HEADER *)ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
         if (compressor == NULL || compressor->decompress == NULL) {
             ret = __blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
@@ -211,7 +211,7 @@ verify:
         if (tmp == NULL)
             WT_ERR(__wt_scr_alloc(session, 4 * 1024, &tmp));
         WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
-        WT_ERR(__wt_verify_dsk(session, tmp->data, buf));
+        WT_ERR(__wt_verify_dsk(session, (const char *)tmp->data, buf));
     }
 
 err:
@@ -315,7 +315,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
             ip = ctmp;
 
             /* Set the disk header flags. */
-            dsk = ip->mem;
+            dsk = (WT_PAGE_HEADER *)ip->mem;
             F_SET(dsk, WT_PAGE_COMPRESSED);
 
             /* Optionally return the compressed size. */
@@ -342,7 +342,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
         ip = etmp;
 
         /* Set the disk header flags. */
-        dsk = ip->mem;
+        dsk = (WT_PAGE_HEADER *)ip->mem;
         if (compressed)
             F_SET(dsk, WT_PAGE_COMPRESSED);
         F_SET(dsk, WT_PAGE_ENCRYPTED);
@@ -383,7 +383,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
      * images that are created during recovery may have the write generation number less than the
      * btree base write generation number, so don't verify it.
      */
-    dsk = ip->mem;
+    dsk = (WT_PAGE_HEADER *)ip->mem;
     WT_ASSERT(session, dsk->write_gen != 0);
 
     WT_STAT_CONN_DATA_INCR(session, cache_write);

@@ -20,7 +20,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbulk);
-    r = cbulk->reconcile;
+    r = (WT_RECONCILE *)cbulk->reconcile;
     btree = S2BT(session);
 
     if (cbulk->entry == cbulk->nrecs) {
@@ -36,7 +36,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
             __bit_clear_end(
-              WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
+              (uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
             WT_RET(__wt_rec_split(session, r, 0));
         }
         cbulk->entry = 0;
@@ -57,7 +57,7 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     WT_RECONCILE *r;
     WT_TIME_WINDOW tw;
 
-    r = cbulk->reconcile;
+    r = (WT_RECONCILE *)cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
 
@@ -91,13 +91,13 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     uint32_t entries, offset, page_entries, page_size;
     const uint8_t *data;
 
-    r = cbulk->reconcile;
+    r = (WT_RECONCILE *)cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
 
     if (((r->recno - 1) * btree->bitcnt) & 0x7)
         WT_RET_MSG(session, EINVAL, "Bulk bitmap load not aligned on a byte boundary");
-    for (data = cursor->value.data, entries = (uint32_t)cursor->value.size; entries > 0;
+    for (data = (const uint8_t *)cursor->value.data, entries = (uint32_t)cursor->value.size; entries > 0;
          entries -= page_entries, data += page_size) {
         WT_RET(__rec_col_fix_bulk_insert_split_check(cbulk));
 
@@ -127,7 +127,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     WT_REC_KV *val;
     WT_TIME_WINDOW tw;
 
-    r = cbulk->reconcile;
+    r = (WT_RECONCILE *)cbulk->reconcile;
     btree = S2BT(session);
     WT_TIME_WINDOW_INIT(&tw);
 
@@ -286,12 +286,12 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * build a new cell.
          */
         if (addr == NULL && __wt_off_page(page, ref->addr))
-            addr = ref->addr;
+            addr = (WT_ADDR *)ref->addr;
         if (addr != NULL) {
             __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
-            __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
+            __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)ref->addr, vpack);
             if (cms.state == WT_CHILD_PROXY || F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
                  * Need to build a proxy (page-deleted) cell or rebuild the cell with updated time
@@ -954,7 +954,7 @@ __wt_rec_col_fix(
 
             /* Make sure the trailing bits in the bitmap get cleared. */
             __bit_clear_end(
-              WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
+              (uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
 
             /* Now split. */
             WT_ERR(__wt_rec_split(session, r, 0));
@@ -987,7 +987,7 @@ __wt_rec_col_fix(
     }
 
     /* Make sure the trailing bits in the bitmap get cleared. */
-    __bit_clear_end(WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
+    __bit_clear_end((uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
 
     /* Write the remnant page. */
     WT_ERR(__wt_rec_split_finish(session, r));
@@ -1276,7 +1276,7 @@ __wt_rec_col_var(
     /* For each entry in the in-memory page... */
     WT_COL_FOREACH (page, cip, i) {
         ovfl_state = OVFL_IGNORE;
-        cell = WT_COL_PTR(page, cip);
+        cell = (WT_CELL *)WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, cell, vpack);
         nrepeat = __wt_cell_rle(vpack);
         ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));

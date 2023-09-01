@@ -17,7 +17,7 @@ static inline char *
 __curstd_config_value_for(const char *config, const char *var, size_t len)
 {
     char *cfg;
-    if ((cfg = strstr(config, var)) == NULL)
+    if ((cfg = (char *)strstr(config, var)) == NULL)
         return (NULL);
     return (cfg + len);
 }
@@ -431,7 +431,7 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
             key->data = cursor->key.data;
             key->size = cursor->key.size;
         } else if (WT_STREQ(fmt, "S"))
-            *va_arg(ap, const char **) = cursor->key.data;
+            *va_arg(ap, const char **) = (const char *)cursor->key.data;
         else
             ret = __wt_struct_unpackv(session, cursor->key.data, cursor->key.size, fmt, ap);
     }
@@ -569,7 +569,7 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
         value->data = cursor->value.data;
         value->size = cursor->value.size;
     } else if (WT_STREQ(fmt, "S"))
-        *va_arg(ap, const char **) = cursor->value.data;
+        *va_arg(ap, const char **) = (const char *)cursor->value.data;
     else if (WT_STREQ(fmt, "t") || (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t")))
         *va_arg(ap, uint8_t *) = *(uint8_t *)cursor->value.data;
     else

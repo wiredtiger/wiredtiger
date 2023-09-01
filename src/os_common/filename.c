@@ -120,11 +120,11 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
     WT_ERR(__wt_buf_fmt(session, tmp, "%s.copy", to));
 
     WT_ERR(__wt_remove_if_exists(session, to, false));
-    WT_ERR(__wt_remove_if_exists(session, tmp->data, false));
+    WT_ERR(__wt_remove_if_exists(session, (const char *)tmp->data, false));
 
     /* Open the from and temporary file handles. */
     WT_ERR(__wt_open(session, from, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &ffh));
-    WT_ERR(__wt_open(session, tmp->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
+    WT_ERR(__wt_open(session, (const char *)tmp->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
       WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &tfh));
 
 /*
@@ -147,7 +147,7 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
     WT_ERR(__wt_fsync(session, tfh, true));
     WT_ERR(__wt_close(session, &tfh));
 
-    ret = __wt_fs_rename(session, tmp->data, to, true);
+    ret = __wt_fs_rename(session, (const char *)tmp->data, to, true);
 
 err:
     WT_TRET(__wt_close(session, &ffh));

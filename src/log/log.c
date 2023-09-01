@@ -47,7 +47,7 @@ __log_checksum_match(WT_ITEM *buf, uint32_t reclen)
     uint32_t checksum_saved, checksum_tmp;
     bool checksum_matched;
 
-    logrec = buf->mem;
+    logrec = (WT_LOG_RECORD *)buf->mem;
     checksum_saved = checksum_tmp = logrec->checksum;
 #ifdef WORDS_BIGENDIAN
     checksum_tmp = __wt_bswap32(checksum_tmp);
@@ -870,7 +870,7 @@ __log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, WT_FH **fh
     __wt_verbose(session, WT_VERB_LOG, "opening log %s", (const char *)buf->data);
     if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
         FLD_SET(wtopen_flags, WT_FS_OPEN_DIRECTIO);
-    WT_ERR(__wt_open(session, buf->data, WT_FS_OPEN_FILE_TYPE_LOG, wtopen_flags, fhp));
+    WT_ERR(__wt_open(session, (const char*)buf->data, WT_FS_OPEN_FILE_TYPE_LOG, wtopen_flags, fhp));
 err:
     __wt_scr_free(session, &buf);
     return (ret);
@@ -1117,7 +1117,7 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
      * All file setup, writing the header and pre-allocation was done before. We only need to rename
      * it.
      */
-    WT_ERR(__wt_fs_rename(session, from_path->data, to_path->data, false));
+    WT_ERR(__wt_fs_rename(session, (const char *)from_path->data, (const char *)to_path->data, false));
 
 err:
     __wt_scr_free(session, &from_path);
@@ -1562,7 +1562,7 @@ __wt_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const char *dest)
     /*
      * Rename it into place and make it available.
      */
-    WT_ERR(__wt_fs_rename(session, from_path->data, to_path->data, false));
+    WT_ERR(__wt_fs_rename(session, (const char *)from_path->data, (const char *)to_path->data, false));
 
 err:
     __wt_scr_free(session, &from_path);
@@ -1585,7 +1585,7 @@ __wt_log_remove(WT_SESSION_IMPL *session, const char *file_prefix, uint32_t logn
     WT_RET(__wt_scr_alloc(session, 0, &path));
     WT_ERR(__wt_log_filename(session, lognum, file_prefix, path));
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove log %s", (const char *)path->data);
-    WT_ERR(__wt_fs_remove(session, path->data, false, false));
+    WT_ERR(__wt_fs_remove(session, (const char *)path->data, false, false));
 err:
     __wt_scr_free(session, &path);
     return (ret);
@@ -1889,7 +1889,7 @@ __log_check_partial_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t recle
      * to last byte is non-zero and the last byte is zero, that could still technically be the
      * result of a partial write, however unlikely it may be.
      */
-    rec = buf->mem;
+    rec = (uint8_t *)buf->mem;
     return (reclen > 0 && rec[reclen - 1] == 0);
 }
 

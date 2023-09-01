@@ -74,7 +74,7 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
     else
         WT_RET(__wt_buf_grow(session, *escapedp, needed));
     WT_IGNORE_RET(
-      __wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size));
+      __wt_json_unpack_str((u_char *)(*escapedp)->mem, (*escapedp)->memsize, (const u_char *)item->data, item->size));
     return (0);
 }
 
@@ -93,7 +93,7 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
         WT_RET(__wt_scr_alloc(session, needed, escapedp));
     else
         WT_RET(__wt_buf_grow(session, *escapedp, needed));
-    __wt_fill_hex(item->data, item->size, (*escapedp)->mem, (*escapedp)->memsize, NULL);
+    __wt_fill_hex((const uint8_t *)item->data, item->size, (uint8_t *)(*escapedp)->mem, (*escapedp)->memsize, NULL);
     return (0);
 }
 

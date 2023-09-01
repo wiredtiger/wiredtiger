@@ -24,7 +24,7 @@ __wt_curstat_colgroup_init(
 
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", colgroup->source));
-    ret = __wt_curstat_init(session, buf->data, NULL, cfg, cst);
+    ret = __wt_curstat_init(session, (const char *)buf->data, NULL, cfg, cst);
 
 err:
     __wt_scr_free(session, &buf);
@@ -47,7 +47,7 @@ __wt_curstat_index_init(
 
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", idx->source));
-    ret = __wt_curstat_init(session, buf->data, NULL, cfg, cst);
+    ret = __wt_curstat_init(session, (const char *)buf->data, NULL, cfg, cst);
 
 err:
     __wt_scr_free(session, &buf);
@@ -96,9 +96,9 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
      * drop). That is fine - failing here results in falling back to the slow path of opening the
      * handle.
      */
-    WT_ERR(__wt_fs_exist(session, namebuf.data, &exist));
+    WT_ERR(__wt_fs_exist(session, (const char *)namebuf.data, &exist));
     if (exist) {
-        WT_ERR(__wt_fs_size(session, namebuf.data, &filesize));
+        WT_ERR(__wt_fs_size(session, (const char *)namebuf.data, &filesize));
 
         /* Setup and populate the statistics structure */
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
@@ -126,7 +126,7 @@ __wt_curstat_table_init(
     WT_CURSOR *stat_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_DSRC_STATS *new, *stats;
+    WT_DSRC_STATS *new_stats, *stats;
     WT_TABLE *table;
     u_int i;
     const char *name;
@@ -156,12 +156,12 @@ __wt_curstat_table_init(
     stats = &cst->u.dsrc_stats;
     for (i = 0; i < WT_COLGROUPS(table); i++) {
         WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->cgroups[i]->name));
-        WT_ERR(__wt_curstat_open(session, buf->data, NULL, cfg, &stat_cursor));
-        new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
+        WT_ERR(__wt_curstat_open(session, (const char *)buf->data, NULL, cfg, &stat_cursor));
+        new_stats = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
         if (i == 0)
-            *stats = *new;
+            *stats = *new_stats;
         else
-            __wt_stat_dsrc_aggregate_single(new, stats);
+            __wt_stat_dsrc_aggregate_single(new_stats, stats);
         WT_ERR(stat_cursor->close(stat_cursor));
     }
 
@@ -169,9 +169,9 @@ __wt_curstat_table_init(
     WT_ERR(__wt_schema_open_indices(session, table));
     for (i = 0; i < table->nindices; i++) {
         WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->indices[i]->name));
-        WT_ERR(__wt_curstat_open(session, buf->data, NULL, cfg, &stat_cursor));
-        new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
-        __wt_stat_dsrc_aggregate_single(new, stats);
+        WT_ERR(__wt_curstat_open(session, (const char *)buf->data, NULL, cfg, &stat_cursor));
+        new_stats = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
+        __wt_stat_dsrc_aggregate_single(new_stats, stats);
         WT_ERR(stat_cursor->close(stat_cursor));
     }
 

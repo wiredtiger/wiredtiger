@@ -328,7 +328,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
 
         /* Format the message into a scratch buffer, growing it if necessary. */
         WT_ERR(__wt_scr_alloc(session, 4 * 1024, &tmp));
-        WT_ERR(__wt_vsnprintf_len_set(tmp->mem, tmp->memsize, &len, fmt, ap));
+        WT_ERR(__wt_vsnprintf_len_set((char *)tmp->mem, tmp->memsize, &len, fmt, ap));
         tmp->size = len;
         if (len >= tmp->memsize) {
             WT_ERR(__wt_buf_grow(session, tmp, len + 1024));
@@ -339,7 +339,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
              * analyzer might figure it out).
              */
             no_stderr = true;
-            WT_ERR(__wt_vsnprintf_len_set(tmp->mem, tmp->memsize, &len, fmt, ap_copy));
+            WT_ERR(__wt_vsnprintf_len_set((char *)tmp->mem, tmp->memsize, &len, fmt, ap_copy));
             tmp->size = len;
             if (len >= tmp->memsize)
                 goto err;
@@ -348,7 +348,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         /* Allocate a scratch buffer (known to be large enough), and JSON encode the message. */
         WT_ERR(__wt_scr_alloc(session, tmp->size * WT_MAX_JSON_ENCODE + 256, &json_msg));
         json_msg->size =
-          __wt_json_unpack_str((uint8_t *)json_msg->mem, json_msg->memsize, tmp->data, tmp->size);
+          __wt_json_unpack_str((uint8_t *)json_msg->mem, json_msg->memsize, (const u_char *)tmp->data, tmp->size);
 
         /* Append the rest of the message to the JSON buffer (we allocated extra space for it). */
         p = (char *)json_msg->mem + json_msg->size;
@@ -370,13 +370,13 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
          */
         len = WT_PTRDIFF(p, json_msg->mem);
         if (sizeof(msg) - prefix_len > len) {
-            strcpy(msg + prefix_len, json_msg->mem);
+            strcpy(msg + prefix_len, (const char *)json_msg->mem);
             final = msg;
         } else {
             WT_ERR(__wt_buf_grow(session, tmp, prefix_len + len + 1));
-            strcpy(tmp->mem, msg);
-            strcpy((char *)tmp->mem + prefix_len, json_msg->mem);
-            final = tmp->mem;
+            strcpy((char *)tmp->mem, msg);
+            strcpy((char *)tmp->mem + prefix_len, (const char *)json_msg->mem);
+            final = (char *)tmp->mem;
         }
     } else {
         /* Category and verbosity level. */
@@ -404,7 +404,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         if (remain == 0) {
             WT_ERR(__wt_scr_alloc(session, prefix_len + len + 1024, &tmp));
             WT_ERR(__wt_buf_set(session, tmp, msg, prefix_len));
-            final = tmp->mem;
+            final = (char *)tmp->mem;
             p = (char *)tmp->mem + prefix_len;
             remain = tmp->memsize - prefix_len;
             /*
@@ -419,7 +419,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
                 remain -= len;
                 p += len;
                 if (err != NULL)
-                    __eventv_append_error(err, tmp->mem, p, &remain);
+                    __eventv_append_error(err, (char *)tmp->mem, p, &remain);
             } else
                 remain = 0;
 
@@ -659,7 +659,7 @@ __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((
 
     wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
-    ret = handler->handle_message(handler, wt_session, buf->data);
+    ret = handler->handle_message(handler, wt_session, (const char *)buf->data);
 
 err:
     __wt_scr_free(session, &buf);
@@ -688,7 +688,7 @@ __wt_ext_msg_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
 
     wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
-    ret = handler->handle_message(handler, wt_session, buf->data);
+    ret = handler->handle_message(handler, wt_session, (const char *)buf->data);
 
 err:
     __wt_scr_free(session, &buf);

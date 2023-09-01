@@ -336,9 +336,9 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
      */
     WT_RET(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ckpt->bpriv));
 
-    ci = ckpt->bpriv;
+    ci = (WT_BLOCK_CKPT *)ckpt->bpriv;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    WT_RET(__wt_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
+    WT_RET(__wt_block_ckpt_unpack(session, block, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, ci));
 
     /* Extent lists from non-local objects aren't useful, we're going to skip them. */
     if (ci->root_objectid != block->objectid) {
@@ -448,7 +448,7 @@ __ckpt_add_blkmod_entry(
     WT_ASSERT(session, blk_mod->bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
     WT_ASSERT(session, end_bit < blk_mod->nbits);
     /* Set all the bits needed to record this offset/length pair. */
-    __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    __bit_nset((uint8_t *)blk_mod->bitstring.mem, start_bit, end_bit);
     return (0);
 }
 
@@ -686,7 +686,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             continue;
 
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
-            __wt_ckpt_verbose(session, block, "delete", ckpt->name, ckpt->raw.data, ckpt->raw.size);
+            __wt_ckpt_verbose(session, block, "delete", ckpt->name, (const uint8_t *)ckpt->raw.data, ckpt->raw.size);
 
         /*
          * Find the checkpoint into which we'll roll this checkpoint's blocks: it's the next real
@@ -699,11 +699,11 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         /*
          * Set the from/to checkpoint structures, where the "to" value may be the live tree.
          */
-        a = ckpt->bpriv;
+        a = (WT_BLOCK_CKPT *)ckpt->bpriv;
         if (F_ISSET(next_ckpt, WT_CKPT_ADD))
             b = &block->live;
         else
-            b = next_ckpt->bpriv;
+            b = (WT_BLOCK_CKPT *)next_ckpt->bpriv;
 
         /*
          * Free the root page: there's nothing special about this free, the root page is allocated
@@ -768,7 +768,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     /* Update checkpoints marked for update. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_UPDATE))
-            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
+            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, (WT_BLOCK_CKPT *)ckpt->bpriv));
 
 live_update:
     /* Truncate the file if that's possible. */
@@ -824,7 +824,7 @@ live_update:
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (!F_ISSET(ckpt, WT_CKPT_DELETE))
             break;
-    if ((a = ckpt->bpriv) == NULL)
+    if ((a = (WT_BLOCK_CKPT *)ckpt->bpriv) == NULL)
         a = &block->live;
     if (a->discard.entries != 0)
         WT_ERR_MSG(
@@ -841,7 +841,7 @@ err:
 
     /* Discard any checkpoint information we loaded. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if ((ci = ckpt->bpriv) != NULL)
+        if ((ci = (WT_BLOCK_CKPT *)ckpt->bpriv) != NULL)
             __wt_block_ckpt_destroy(session, ci);
 
     return (ret);
@@ -886,7 +886,7 @@ __ckpt_update(
          * Copy the INCOMPLETE checkpoint information into the checkpoint.
          */
         WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
-        endp = ckpt->raw.mem;
+        endp = (uint8_t *)ckpt->raw.mem;
         WT_RET(__wt_block_ckpt_pack(session, block, &endp, ci, true));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
@@ -955,12 +955,12 @@ __ckpt_update(
 
     /* Copy the COMPLETE checkpoint information into the checkpoint. */
     WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
-    endp = ckpt->raw.mem;
+    endp = (uint8_t *)ckpt->raw.mem;
     WT_RET(__wt_block_ckpt_pack(session, block, &endp, ci, false));
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
-        __wt_ckpt_verbose(session, block, "create", ckpt->name, ckpt->raw.data, ckpt->raw.size);
+        __wt_ckpt_verbose(session, block, "create", ckpt->name, (const uint8_t *)ckpt->raw.data, ckpt->raw.size);
 
     return (0);
 }

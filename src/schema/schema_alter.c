@@ -309,7 +309,7 @@ __alter_tree(WT_SESSION_IMPL *session, const char *name, const char *newcfg[])
     WT_ERR(__wt_buf_fmt(session, data_source, "%.*s", (int)cval.len, cval.str));
 
     /* Alter the data source */
-    WT_ERR(__schema_alter(session, data_source->data, newcfg));
+    WT_ERR(__schema_alter(session, (const char *)data_source->data, newcfg));
 
     /* Alter the index or colgroup */
     if (is_colgroup)

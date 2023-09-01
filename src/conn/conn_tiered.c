@@ -134,7 +134,7 @@ __tier_flush_meta(
     WT_ERR(__wt_buf_fmt(
       session, buf, "flush_time=%" PRIu64 ",flush_timestamp=\"%s\"", now, hex_timestamp));
     cfg[0] = obj_value;
-    cfg[1] = buf->mem;
+    cfg[1] = (const char *)buf->mem;
     WT_ERR(__wt_config_collapse(session, cfg, &newconfig));
     WT_ERR(__wt_metadata_update(session, obj_uri, newconfig));
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
@@ -382,7 +382,7 @@ __tiered_server(void *arg)
     const char *msg;
     bool signalled;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
 
     WT_CLEAR(path);

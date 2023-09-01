@@ -40,8 +40,8 @@ __config_check_compare(const void *keyvoid, const void *checkvoid)
     const WT_CONFIG_ITEM *key;
     int cmp;
 
-    key = keyvoid;
-    check = checkvoid;
+    key = (const WT_CONFIG_ITEM *)keyvoid;
+    check = (WT_CONFIG_CHECK *)checkvoid;
     cmp = strncmp(key->str, check->name, key->len);
     if (cmp == 0) {
         if (check->name[key->len] == '\0')

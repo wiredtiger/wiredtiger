@@ -74,6 +74,14 @@
  * WT_DATA_HANDLE --
  *	A handle for a generic named data source.
  */
+
+enum WT_DHANDLE_TYPE_ENUM {
+    WT_DHANDLE_TYPE_BTREE,
+    WT_DHANDLE_TYPE_TABLE,
+    WT_DHANDLE_TYPE_TIERED,
+    WT_DHANDLE_TYPE_TIERED_TREE
+};
+
 struct __wt_data_handle {
     WT_RWLOCK rwlock; /* Lock for shared/exclusive ops */
     TAILQ_ENTRY(__wt_data_handle) q;
@@ -102,13 +110,7 @@ struct __wt_data_handle {
 
     WT_DATA_SOURCE *dsrc; /* Data source for this handle */
     void *handle;         /* Generic handle */
-
-    enum {
-        WT_DHANDLE_TYPE_BTREE,
-        WT_DHANDLE_TYPE_TABLE,
-        WT_DHANDLE_TYPE_TIERED,
-        WT_DHANDLE_TYPE_TIERED_TREE
-    } type;
+    enum WT_DHANDLE_TYPE_ENUM type;
 
 #define WT_DHANDLE_BTREE(dhandle) \
     ((dhandle)->type == WT_DHANDLE_TYPE_BTREE || (dhandle)->type == WT_DHANDLE_TYPE_TIERED)

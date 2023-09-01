@@ -273,3 +273,10 @@ add_subdirectory(test)
 if(ENABLE_LLVM)
     add_subdirectory(tools/xray_to_optrack)
 endif()
+
+
+if(USE_CPP_FOR_C_FILES)
+    file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
+    SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX )
+endif()
+
