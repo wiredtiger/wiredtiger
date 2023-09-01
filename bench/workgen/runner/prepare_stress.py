@@ -192,7 +192,7 @@ workload.options.max_latency=50000
 # oldest_timestamp_lag - Number of seconds lag to the oldest_timestamp from current time.
 workload.options.oldest_timestamp_lag=60
 # stable_timestamp_lag - Number of seconds lag to the stable_timestamp from current time.
-workload.options.stable_timestamp_lag=20
+workload.options.stable_timestamp_lag=30
 # timestamp_advance is the number of seconds to wait before moving oldest and stable timestamp.
 workload.options.timestamp_advance=1
 ret = workload.run(conn)
