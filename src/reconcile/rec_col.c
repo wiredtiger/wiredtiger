@@ -35,8 +35,8 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
              */
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
-            __bit_clear_end(
-              (uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
+            __bit_clear_end((uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem),
+              cbulk->entry, btree->bitcnt);
             WT_RET(__wt_rec_split(session, r, 0));
         }
         cbulk->entry = 0;
@@ -97,8 +97,8 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
     if (((r->recno - 1) * btree->bitcnt) & 0x7)
         WT_RET_MSG(session, EINVAL, "Bulk bitmap load not aligned on a byte boundary");
-    for (data = (const uint8_t *)cursor->value.data, entries = (uint32_t)cursor->value.size; entries > 0;
-         entries -= page_entries, data += page_size) {
+    for (data = (const uint8_t *)cursor->value.data, entries = (uint32_t)cursor->value.size;
+         entries > 0; entries -= page_entries, data += page_size) {
         WT_RET(__rec_col_fix_bulk_insert_split_check(cbulk));
 
         page_entries = WT_MIN(entries, cbulk->nrecs - cbulk->entry);
@@ -953,8 +953,8 @@ __wt_rec_col_fix(
             }
 
             /* Make sure the trailing bits in the bitmap get cleared. */
-            __bit_clear_end(
-              (uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
+            __bit_clear_end((uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem),
+              r->entries, btree->bitcnt);
 
             /* Now split. */
             WT_ERR(__wt_rec_split(session, r, 0));
@@ -987,7 +987,8 @@ __wt_rec_col_fix(
     }
 
     /* Make sure the trailing bits in the bitmap get cleared. */
-    __bit_clear_end((uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
+    __bit_clear_end(
+      (uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), r->entries, btree->bitcnt);
 
     /* Write the remnant page. */
     WT_ERR(__wt_rec_split_finish(session, r));

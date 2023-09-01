@@ -131,8 +131,8 @@ __wt_tiered_bucket_config(
     storage = nstorage->storage_source;
     if (cachedir.len != 0)
         WT_ERR(__wt_buf_fmt(session, buf, "cache_directory=%s", new_bucket->cache_directory));
-    WT_ERR(storage->ss_customize_file_system(
-      storage, &session->iface, new_bucket->bucket, new_bucket->auth_token, (const char *)buf->data, &new_bucket->file_system));
+    WT_ERR(storage->ss_customize_file_system(storage, &session->iface, new_bucket->bucket,
+      new_bucket->auth_token, (const char *)buf->data, &new_bucket->file_system));
     new_bucket->storage_source = storage;
     if (shared.val)
         new_bucket->tiered_shared = true;

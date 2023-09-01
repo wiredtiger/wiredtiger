@@ -2159,7 +2159,8 @@ copy_image:
      */
     WT_ASSERT(session,
       verify_image == false ||
-        __wt_verify_dsk_image(session, "[reconcile-image]", (const WT_PAGE_HEADER *)chunk->image.data, 0, &multi->addr,
+        __wt_verify_dsk_image(session, "[reconcile-image]",
+          (const WT_PAGE_HEADER *)chunk->image.data, 0, &multi->addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
 #endif
     /*
@@ -2234,8 +2235,8 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         if (cbulk->entry != 0) {
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
-            __bit_clear_end(
-              (uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
+            __bit_clear_end((uint8_t *)WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem),
+              cbulk->entry, btree->bitcnt);
         }
         break;
     case BTREE_COL_VAR:

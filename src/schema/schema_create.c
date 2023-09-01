@@ -422,8 +422,8 @@ __wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri, const char 
 
     entry.uri = uri;
     entry.config = NULL;
-    result = (WT_IMPORT_ENTRY *)bsearch(&entry, session->import_list->entries, session->import_list->entries_next,
-      sizeof(WT_IMPORT_ENTRY), __create_import_cmp_uri);
+    result = (WT_IMPORT_ENTRY *)bsearch(&entry, session->import_list->entries,
+      session->import_list->entries_next, sizeof(WT_IMPORT_ENTRY), __create_import_cmp_uri);
 
     if (result == NULL)
         WT_RET_MSG(session, WT_NOTFOUND, "failed to find metadata for %s", uri);

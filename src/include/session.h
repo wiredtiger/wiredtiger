@@ -59,11 +59,7 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 /* A fake session ID for when we need to refer to a session that is actually NULL. */
 #define WT_SESSION_ID_NULL 0xfffffffe
 
-enum WT_COMPACT_STATE_ENUM {
-    WT_COMPACT_NONE = 0,
-    WT_COMPACT_RUNNING,
-    WT_COMPACT_SUCCESS
-};
+enum WT_COMPACT_STATE_ENUM { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS };
 
 /*
  * WT_SESSION_IMPL --
@@ -77,7 +73,7 @@ struct __wt_stash {
 };
 
 struct __wt_session_stash {
-    struct __wt_stash  *list;
+    struct __wt_stash *list;
     size_t cnt;   /* Array entries */
     size_t alloc; /* Allocated bytes */
 };

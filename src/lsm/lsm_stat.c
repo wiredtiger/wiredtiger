@@ -101,10 +101,10 @@ __curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cs
          * filter's information, then aggregate into the top-level.
          */
         new_stats = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
-        WT_STAT_WRITE(
-          session, new_stats, bloom_size, (int64_t)((chunk->count * lsm_tree->bloom_bit_count) / 8));
-        WT_STAT_WRITE(
-          session, new_stats, bloom_page_evict, new_stats->cache_eviction_clean + new_stats->cache_eviction_dirty);
+        WT_STAT_WRITE(session, new_stats, bloom_size,
+          (int64_t)((chunk->count * lsm_tree->bloom_bit_count) / 8));
+        WT_STAT_WRITE(session, new_stats, bloom_page_evict,
+          new_stats->cache_eviction_clean + new_stats->cache_eviction_dirty);
         WT_STAT_WRITE(session, new_stats, bloom_page_read, new_stats->cache_read);
 
         __wt_stat_dsrc_aggregate_single(new_stats, stats);

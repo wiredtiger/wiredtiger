@@ -47,7 +47,8 @@ struct __wt_rwlock { /* Read/write lock */
             uint32_t readers_active; /* Count of active readers */
         } s;
 #ifdef __cplusplus
-        __wt_rwlock_union volatile &operator=(__wt_rwlock_union volatile &from) volatile
+        __wt_rwlock_union volatile &
+        operator=(__wt_rwlock_union volatile &from) volatile
         {
             v = from.v;
             return *this;

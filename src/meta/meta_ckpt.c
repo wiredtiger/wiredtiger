@@ -1138,7 +1138,8 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
             if (ckpt->raw.size == 0)
                 ckpt->addr.size = 0;
             else
-                WT_RET(__wt_raw_to_hex(session, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
+                WT_RET(__wt_raw_to_hex(
+                  session, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
         }
 
         WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
@@ -1210,7 +1211,8 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
           !F_ISSET(blk, WT_BLOCK_MODS_RENAME) && __wt_random(&session->rnd) % 10 == 0)
             skip_rename = true;
 
-        WT_RET(__wt_raw_to_hex(session, (const uint8_t *)blk->bitstring.data, blk->bitstring.size, &bitstring));
+        WT_RET(__wt_raw_to_hex(
+          session, (const uint8_t *)blk->bitstring.data, blk->bitstring.size, &bitstring));
         WT_RET(__wt_buf_catfmt(session, buf,
           "%s\"%s\"=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",offset=%" PRIu64
           "%s,blocks=%.*s)",
@@ -1535,8 +1537,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
     /* Handle the snapshot information. */
 
     WT_ERR(__meta_print_snapshot(session, valbuf));
-    WT_ERR(__meta_sysinfo_update(
-      session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI, (const char *)valbuf->data));
+    WT_ERR(__meta_sysinfo_update(session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI,
+      (const char *)valbuf->data));
 
     /* Print what we did. */
 
@@ -1560,7 +1562,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
     if (full) {
         WT_ERR(__wt_buf_fmt(
           session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, conn->base_write_gen));
-        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, (const char *)valbuf->data));
+        WT_ERR(
+          __wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, (const char *)valbuf->data));
     }
 
 err:
@@ -1649,7 +1652,8 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
     else {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_buf_fmt(session, tmp, "%s.%s", WT_SYSTEM_CKPT_SNAPSHOT_URI, ckpt_name));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, (const char *)tmp->data, &sys_config), false);
+        WT_ERR_NOTFOUND_OK(
+          __wt_metadata_search(session, (const char *)tmp->data, &sys_config), false);
     }
 
     /* Extract the components of the metadata string. */

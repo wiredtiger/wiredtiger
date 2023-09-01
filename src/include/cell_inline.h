@@ -1324,20 +1324,20 @@ __wt_page_cell_data_ref_kv(
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
-#define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = (uint8_t *)WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                 \
+#define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                                \
+    do {                                                                                          \
+        uint32_t __i;                                                                             \
+        uint8_t *__cell;                                                                          \
+        for (__cell = (uint8_t *)WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; \
+             __i > 0; __cell += (unpack).__len, --__i) {                                          \
             __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));
 
-#define WT_CELL_FOREACH_KV(session, dsk, unpack)                                                \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = (uint8_t *)WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                 \
+#define WT_CELL_FOREACH_KV(session, dsk, unpack)                                                  \
+    do {                                                                                          \
+        uint32_t __i;                                                                             \
+        uint8_t *__cell;                                                                          \
+        for (__cell = (uint8_t *)WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; \
+             __i > 0; __cell += (unpack).__len, --__i) {                                          \
             __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack));
 
 #define WT_CELL_FOREACH_FIX_TIMESTAMPS(session, dsk, aux, unpack)                              \

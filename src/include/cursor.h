@@ -95,7 +95,6 @@ struct __wt_cursor_backup {
         NULL :                                   \
         (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
 
-
 enum WT_CBT_RETRY_ENUM { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE };
 
 struct __wt_cursor_btree {

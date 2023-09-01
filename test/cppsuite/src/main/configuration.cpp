@@ -179,8 +179,7 @@ configuration::get(
 
     const char *error_msg = "Configuration value doesn't match requested type";
     if (type == types::STRING &&
-      (value.type != WT_CONFIG_ITEM_STRING &&
-        value.type != WT_CONFIG_ITEM_ID))
+      (value.type != WT_CONFIG_ITEM_STRING && value.type != WT_CONFIG_ITEM_ID))
         testutil_die(-1, error_msg);
     else if (type == types::BOOL && value.type != WT_CONFIG_ITEM_BOOL)
         testutil_die(-1, error_msg);

@@ -589,7 +589,8 @@ __wt_checksum_sw(const void *chunk, size_t len)
     crc = 0xffffffff;
 
     /* Checksum one byte at a time to the first 4B boundary. */
-    for (p = (const uint8_t *)chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len)
+    for (p = (const uint8_t *)chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0;
+         ++p, --len)
 #ifdef WORDS_BIGENDIAN
         crc = g_crc_slicing[0][((crc >> 24) ^ *p) & 0xFF] ^ (crc << 8);
 #else

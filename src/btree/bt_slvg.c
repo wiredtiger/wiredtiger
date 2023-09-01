@@ -2201,8 +2201,8 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
              * there were no overflow items at all.
              */
             searchp = (WT_TRACK **)(ss->ovfl == NULL ?
-              NULL :
-              bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare));
+                NULL :
+                bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare));
 
             /*
              * If the overflow page doesn't exist or if another page has already claimed it, this

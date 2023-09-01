@@ -52,9 +52,9 @@ static int __verify_dsk_row_leaf(WT_VERIFY_INFO *);
  * WT_CELL_FOREACH macro, created because the loop can't simply unpack cells,
  * verify has to do additional work to ensure that unpack is safe.
  */
-#define WT_CELL_FOREACH_VRFY(session, dsk, cell, unpack, i)                                 \
-    for ((cell) = (WT_CELL *)WT_PAGE_HEADER_BYTE(S2BT(session), dsk), (i) = (dsk)->u.entries; (i) > 0; \
-         (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
+#define WT_CELL_FOREACH_VRFY(session, dsk, cell, unpack, i)                                   \
+    for ((cell) = (WT_CELL *)WT_PAGE_HEADER_BYTE(S2BT(session), dsk), (i) = (dsk)->u.entries; \
+         (i) > 0; (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
 
 #define WT_CELL_FOREACH_FIX_TIMESTAMPS_VRFY(session, dsk, aux, cell, unpack, i)                \
     for ((cell) = (WT_CELL *)((uint8_t *)(dsk) + (aux)->dataoffset), (i) = (aux)->entries * 2; \
@@ -210,8 +210,8 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
 int
 __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)
 {
-    return (__wt_verify_dsk_image(
-      session, tag, (const WT_PAGE_HEADER *)buf->data, buf->size, NULL, WT_VRFY_DISK_CONTINUE_ON_FAILURE));
+    return (__wt_verify_dsk_image(session, tag, (const WT_PAGE_HEADER *)buf->data, buf->size, NULL,
+      WT_VRFY_DISK_CONTINUE_ON_FAILURE));
 }
 
 /*
@@ -487,7 +487,8 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
         case WT_CELL_KEY_OVFL:
-            if ((ret = bm->addr_invalid(bm, vi->session, (const uint8_t *)unpack->data, unpack->size)) == EINVAL)
+            if ((ret = bm->addr_invalid(
+                   bm, vi->session, (const uint8_t *)unpack->data, unpack->size)) == EINVAL)
                 (void)__err_cell_corrupt_or_eof(ret, vi);
             WT_ERR(ret);
             break;
@@ -651,7 +652,8 @@ __verify_dsk_row_leaf(WT_VERIFY_INFO *vi)
         switch (cell_type) {
         case WT_CELL_KEY_OVFL:
         case WT_CELL_VALUE_OVFL:
-            if ((ret = bm->addr_invalid(bm, vi->session, (const uint8_t *)unpack->data, unpack->size)) == EINVAL)
+            if ((ret = bm->addr_invalid(
+                   bm, vi->session, (const uint8_t *)unpack->data, unpack->size)) == EINVAL)
                 (void)__err_cell_corrupt_or_eof(ret, vi);
             WT_ERR(ret);
             break;

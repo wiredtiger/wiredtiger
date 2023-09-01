@@ -594,7 +594,8 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
             WT_RET(ds->f(ds, ", %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
 
         WT_RET(__wt_scr_alloc(session, 128, &buf));
-        ret = ds->f(ds, ", %s", __wt_addr_string(session, (const uint8_t *)unpack->data, unpack->size, buf));
+        ret = ds->f(
+          ds, ", %s", __wt_addr_string(session, (const uint8_t *)unpack->data, unpack->size, buf));
         __wt_scr_free(session, &buf);
         WT_RET(ret);
         break;
@@ -688,7 +689,8 @@ __debug_cell_kv(
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
     case WT_CELL_VALUE_OVFL:
-        WT_RET(ds->f(ds, ", %s", __wt_addr_string(session, (const uint8_t *)unpack->data, unpack->size, ds->t1)));
+        WT_RET(ds->f(ds, ", %s",
+          __wt_addr_string(session, (const uint8_t *)unpack->data, unpack->size, ds->t1)));
         break;
     }
     WT_RET(ds->f(ds, "\n"));

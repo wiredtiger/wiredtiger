@@ -253,8 +253,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
         /* Load the checkpoint. */
-        WT_ERR(bm->checkpoint_load(
-          bm, session, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, root_addr, &root_addr_size, true));
+        WT_ERR(bm->checkpoint_load(bm, session, (const uint8_t *)ckpt->raw.data, ckpt->raw.size,
+          root_addr, &root_addr_size, true));
 
         /* Skip trees with no root page. */
         if (root_addr_size != 0) {
@@ -621,7 +621,8 @@ celltype_err:
             }
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack_addr(session, child_ref->home->dsk, (WT_CELL *)child_ref->addr, unpack);
+            __wt_cell_unpack_addr(
+              session, child_ref->home->dsk, (WT_CELL *)child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -662,7 +663,8 @@ celltype_err:
                 WT_RET(__verify_row_int_key_order(session, page, child_ref, entry, vs));
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack_addr(session, child_ref->home->dsk, (WT_CELL *)child_ref->addr, unpack);
+            __wt_cell_unpack_addr(
+              session, child_ref->home->dsk, (WT_CELL *)child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -971,7 +973,8 @@ __verify_page_content_int(
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
-            if ((ret = __verify_overflow(session, (const uint8_t *)unpack.data, unpack.size, vs)) != 0)
+            if ((ret = __verify_overflow(session, (const uint8_t *)unpack.data, unpack.size, vs)) !=
+              0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
@@ -1123,7 +1126,8 @@ __verify_page_content_leaf(
         case WT_CELL_KEY_OVFL:
         case WT_CELL_VALUE_OVFL:
             found_ovfl = true;
-            if ((ret = __verify_overflow(session, (const uint8_t *)unpack.data, unpack.size, vs)) != 0)
+            if ((ret = __verify_overflow(session, (const uint8_t *)unpack.data, unpack.size, vs)) !=
+              0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",

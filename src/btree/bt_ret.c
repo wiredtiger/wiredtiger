@@ -178,7 +178,8 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
     case WT_PAGE_COL_VAR:
         if (page->pg_var == NULL)
             return (false);
-        __read_col_time_window(session, page, (WT_CELL *)WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
+        __read_col_time_window(
+          session, page, (WT_CELL *)WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
         break;
     case WT_PAGE_COL_FIX:
         return (__wt_col_fix_get_time_window(session, cbt->ref, cbt->recno, tw));

@@ -110,8 +110,10 @@ struct __wt_tiered {
     uint32_t flags;
 
 #ifdef __cplusplus
-    __wt_tiered &operator=(const __wt_tiered &other) {
-        iface = (WT_DATA_HANDLE&)other.iface;
+    __wt_tiered &
+    operator=(const __wt_tiered &other)
+    {
+        iface = (WT_DATA_HANDLE &)other.iface;
 
         obj_config = other.obj_config;
         key_format = other.key_format;

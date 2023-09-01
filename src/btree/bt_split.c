@@ -1681,7 +1681,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* Verify any disk image we have. */
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_DISK_VALIDATE,
       multi->disk_image == NULL ||
-        __wt_verify_dsk_image(session, "[page instantiate]", (const WT_PAGE_HEADER *)multi->disk_image, 0, &multi->addr,
+        __wt_verify_dsk_image(session, "[page instantiate]",
+          (const WT_PAGE_HEADER *)multi->disk_image, 0, &multi->addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0,
       "Failed to verify a disk image");
 

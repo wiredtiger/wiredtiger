@@ -347,8 +347,8 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
 
         /* Allocate a scratch buffer (known to be large enough), and JSON encode the message. */
         WT_ERR(__wt_scr_alloc(session, tmp->size * WT_MAX_JSON_ENCODE + 256, &json_msg));
-        json_msg->size =
-          __wt_json_unpack_str((uint8_t *)json_msg->mem, json_msg->memsize, (const u_char *)tmp->data, tmp->size);
+        json_msg->size = __wt_json_unpack_str(
+          (uint8_t *)json_msg->mem, json_msg->memsize, (const u_char *)tmp->data, tmp->size);
 
         /* Append the rest of the message to the JSON buffer (we allocated extra space for it). */
         p = (char *)json_msg->mem + json_msg->size;

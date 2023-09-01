@@ -244,7 +244,7 @@ enum WT_BLOCK_CKPT_STATE {
     WT_CKPT_INPROGRESS,
     WT_CKPT_PANIC_ON_FAILURE,
     WT_CKPT_SALVAGE
-} ;
+};
 
 /*
  * WT_BLOCK --
@@ -280,9 +280,9 @@ struct __wt_block {
      * There is only a single checkpoint in a file that can be written; stored here, only accessed
      * by one WT_BM handle.
      */
-    WT_SPINLOCK live_lock; /* Live checkpoint lock */
-    WT_BLOCK_CKPT live;    /* Live checkpoint */
-    bool live_open;        /* Live system is open */
+    WT_SPINLOCK live_lock;               /* Live checkpoint lock */
+    WT_BLOCK_CKPT live;                  /* Live checkpoint */
+    bool live_open;                      /* Live system is open */
     enum WT_BLOCK_CKPT_STATE ckpt_state; /* Live checkpoint status */
 
     WT_CKPT *final_ckpt; /* Final live checkpoint write */

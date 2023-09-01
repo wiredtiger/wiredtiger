@@ -346,7 +346,8 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
             endprefix = strchr(desc, ':');
             prefixlen = WT_PTRDIFF(endprefix, desc);
             WT_ASSERT(session, endprefix != NULL);
-            if (first || tmp->size != prefixlen || strncmp(desc, (const char *)tmp->data, tmp->size) != 0) {
+            if (first || tmp->size != prefixlen ||
+              strncmp(desc, (const char *)tmp->data, tmp->size) != 0) {
                 WT_ERR(__wt_buf_set(session, tmp, desc, prefixlen));
                 WT_ERR(__wt_fprintf(
                   session, conn->stat_fs, "%s\"%.*s\":{", first ? "" : "},", (int)prefixlen, desc));
@@ -474,10 +475,11 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
         WT_RET_MSG(session, ENOMEM, "strftime path conversion");
 
     /* If the path has changed, cycle the log file. */
-    if (conn->stat_fs == NULL || path == NULL || strcmp((const char *)tmp->mem, (const char *)path->mem) != 0) {
+    if (conn->stat_fs == NULL || path == NULL ||
+      strcmp((const char *)tmp->mem, (const char *)path->mem) != 0) {
         WT_RET(__wt_fclose(session, &conn->stat_fs));
-        WT_RET(__wt_fopen(session, (const char *)tmp->mem, WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED, WT_STREAM_APPEND,
-          &conn->stat_fs));
+        WT_RET(__wt_fopen(session, (const char *)tmp->mem, WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED,
+          WT_STREAM_APPEND, &conn->stat_fs));
 
         if (path != NULL)
             WT_RET(__wt_buf_setstr(session, path, (const char *)tmp->mem));

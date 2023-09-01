@@ -3710,7 +3710,7 @@ struct __wt_config_item {
      * ("ISO C90"), that integer will be stored in the \c val field.
      */
     int64_t val;
-    
+
     /*!
      * The type of value determined by the parser.  In all cases,
      * the \c str and \c len fields are set.

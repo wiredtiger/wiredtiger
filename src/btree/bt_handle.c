@@ -141,8 +141,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
          * checkpoint (the file is being created), or the load call returns no root page (the
          * checkpoint is for an empty file).
          */
-        WT_ERR(bm->checkpoint_load(bm, session, (const uint8_t *)ckpt.raw.data, ckpt.raw.size, root_addr,
-          &root_addr_size, F_ISSET(btree, WT_BTREE_READONLY)));
+        WT_ERR(bm->checkpoint_load(bm, session, (const uint8_t *)ckpt.raw.data, ckpt.raw.size,
+          root_addr, &root_addr_size, F_ISSET(btree, WT_BTREE_READONLY)));
         if (creation || root_addr_size == 0)
             WT_ERR(__btree_tree_open_empty(session, creation));
         else {

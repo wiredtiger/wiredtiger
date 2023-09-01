@@ -120,7 +120,8 @@ __rec_cell_build_leaf_key(
                 pfx_max = size;
             if (r->last->size < pfx_max)
                 pfx_max = r->last->size;
-            for (a = (const uint8_t *)data, b = (const uint8_t *)r->last->data; pfx < pfx_max; ++pfx)
+            for (a = (const uint8_t *)data, b = (const uint8_t *)r->last->data; pfx < pfx_max;
+                 ++pfx)
                 if (*a++ != *b++)
                     break;
 
@@ -655,8 +656,8 @@ __rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
         p = vpack->data;
         size = vpack->size;
     } else {
-        WT_ERR(
-          __wt_huffman_decode(session, btree->huffman_value, (const uint8_t *)vpack->data, vpack->size, tmpval));
+        WT_ERR(__wt_huffman_decode(
+          session, btree->huffman_value, (const uint8_t *)vpack->data, vpack->size, tmpval));
         p = tmpval->data;
         size = tmpval->size;
     }

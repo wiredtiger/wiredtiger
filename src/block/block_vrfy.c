@@ -119,7 +119,8 @@ __verify_last_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 
     ci = &_ci;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    WT_ERR(__wt_block_ckpt_unpack(session, block, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, ci));
+    WT_ERR(
+      __wt_block_ckpt_unpack(session, block, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, ci));
 
     el = &ci->avail;
     if (el->offset != WT_BLOCK_INVALID_OFFSET) {
@@ -148,7 +149,8 @@ __verify_set_file_size(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 
     ci = &_ci;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    WT_ERR(__wt_block_ckpt_unpack(session, block, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, ci));
+    WT_ERR(
+      __wt_block_ckpt_unpack(session, block, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, ci));
 
     if (block->verify_layout) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
