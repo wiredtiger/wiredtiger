@@ -686,13 +686,13 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     while (!stopping) {
         if (_workload->options.oldest_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIu64, time_us);
+            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
         if (_workload->options.stable_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIu64, time_us);
+            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
@@ -1768,7 +1768,7 @@ ThreadRunner::op_run(Operation *op)
                 uint64_t read =
                   WorkgenTimeStamp::get_timestamp_lag(op->transaction->read_timestamp_lag);
                 snprintf(
-                  buf, BUF_SIZE, "%s=%" PRIu64, op->transaction->_begin_config.c_str(), read);
+                  buf, BUF_SIZE, "%s=%" PRIx64, op->transaction->_begin_config.c_str(), read);
             } else {
                 snprintf(buf, BUF_SIZE, "%s", op->transaction->_begin_config.c_str());
             }
@@ -1864,14 +1864,14 @@ err:
             // Set prepare, commit and durable timestamp if prepare is set.
             if (op->transaction->use_prepare_timestamp) {
                 time_us = WorkgenTimeStamp::get_timestamp();
-                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIu64, time_us);
+                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIx64, time_us);
                 ret = _session->prepare_transaction(_session, buf);
-                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64,
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64,
                   time_us, time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
-                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64, commit_time_us);
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else {
                 ret =
