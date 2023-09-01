@@ -57,6 +57,7 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
     def conn_config(self):
         if not os.path.exists('bucket1'):
             os.mkdir('bucket1')
+
         if self.chunk_cache_type == 'dram':
             chunk_cache_extra_config = 'type=DRAM'
         else:
