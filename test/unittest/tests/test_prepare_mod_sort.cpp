@@ -113,14 +113,14 @@ init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITE
 
 /* Initialize a row-store key. */
 void
-init_key(WT_ITEM *key, const char *key_data)
+init_key(WT_SESSION_IMPL *session, WT_ITEM *key, std::string key_str)
 {
-    key->data = key_data;
-    key->size = sizeof(key_data);
+    WT_ASSERT(session, __wt_buf_init(session, key, key_str.size()) == 0);
+    WT_ASSERT(session, __wt_buf_set(session, key, key_str.c_str(), key_str.size()) == 0);
 }
 
 /* Generate random alphanumeric keys. */
-const char *
+std::string
 random_keys(size_t length)
 {
     auto randchar = []() -> char {
@@ -132,7 +132,7 @@ random_keys(size_t length)
     };
     static std::string str(length, 0);
     std::generate_n(str.begin(), length, randchar);
-    return str.c_str();
+    return str;
 }
 
 /* Allocate space for row-store keys. */
@@ -176,9 +176,9 @@ TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
 
     allocate_key_space(session, key_count, keys);
 
-    init_key(keys[0], "51");
-    init_key(keys[1], "4");
-    init_key(keys[2], "54");
+    init_key(session, keys[0], "51");
+    init_key(session, keys[1], "4");
+    init_key(session, keys[2], "54");
 
     init_btree(&btrees[0], BTREE_COL_VAR, 1);
     init_btree(&btrees[1], BTREE_ROW, 2);
@@ -214,7 +214,7 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
     allocate_key_space(session, key_count, keys);
 
     for (int i = 0; i < 6; i++)
-        init_key(keys[i], random_keys(3));
+        init_key(session, keys[i], random_keys(3));
 
     init_btree(&btrees[0], BTREE_COL_VAR, 1);
     init_btree(&btrees[1], BTREE_ROW, 2);
@@ -256,10 +256,12 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
     const int key_count = 1;
     bool ret;
     WT_ITEM *keys[key_count];
+    std::string key_str = "1";
 
     allocate_key_space(session, key_count, keys);
 
-    init_key(keys[0], "1");
+    WT_ASSERT(session, __wt_buf_init(session, keys[0], 1) == 0);
+    WT_ASSERT(session, __wt_buf_set(session, keys[0], "1", key_str.size()) == 0);
 
     for (int i = 0; i < 6; i++)
         init_btree(&btrees[i], BTREE_ROW, rand() % 400);
@@ -288,10 +290,11 @@ TEST_CASE("Keyedness sort test", "[mod_compare]")
     const int key_count = 1;
     bool ret;
     WT_ITEM *keys[key_count];
+    std::string key_str = "1";
 
     allocate_key_space(session, key_count, keys);
 
-    init_key(keys[0], "1");
+    init_key(session, keys[0], key_str);
 
     for (int i = 0; i < 6; i++)
         init_btree(&btrees[i], BTREE_ROW, i);
@@ -331,7 +334,7 @@ TEST_CASE("Many different row-store keys", "[mod_compare]")
     allocate_key_space(session, key_count, keys);
 
     for (int i = 0; i < 12; i++)
-        init_key(keys[i], random_keys(5));
+        init_key(session, keys[i], random_keys(5));
 
     for (int i = 0; i < 6; i++)
         init_btree(&btrees[i], BTREE_ROW, 1);
