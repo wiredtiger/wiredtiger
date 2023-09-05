@@ -46,7 +46,7 @@ __background_compact_list_insert(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
  */
 static void
 __background_compact_list_remove(
-  WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *compact_stat, int bucket)
+  WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *compact_stat, uint64_t bucket)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -167,7 +167,7 @@ __wt_background_compact_start(WT_SESSION_IMPL *session)
     if (compact_stat == NULL) {
         WT_ERR(__wt_calloc_one(session, &compact_stat));
         WT_ERR(__wt_strdup(session, uri, &compact_stat->uri));
-        compact_stat->id = (uint32_t)id;
+        compact_stat->id = id;
         __background_compact_list_insert(session, compact_stat);
     }
 
@@ -246,18 +246,14 @@ __background_compact_list_cleanup(
     WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
     uint64_t cur_time, i;
-    uint64_t time_diff;
 
     conn = S2C(session);
     cur_time = __wt_clock(session);
-
-    WT_UNUSED(time_diff);
 
     for (i = 0; i < conn->hash_size; i++)
         TAILQ_FOREACH_SAFE(
           compact_stat, &conn->background_compact.compacthash[i], hashq, temp_compact_stat)
         {
-            time_diff = WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time);
             if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT ||
               WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
                 conn->background_compact.max_file_idle_time)
@@ -347,12 +343,12 @@ __compact_server(void *arg)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     int64_t id;
-    bool full_iteration, running, signalled, release_dhandle;
+    bool full_iteration, running, signalled;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    full_iteration = running = signalled = release_dhandle = false;
+    full_iteration = running = signalled = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
