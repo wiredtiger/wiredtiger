@@ -38,6 +38,7 @@ __background_compact_list_insert(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
 
     TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], compact_stat, hashq);
     ++(conn)->background_compact.file_count;
+    WT_STAT_CONN_INCR(session, background_compact_files_tracked);
 }
 
 /*
@@ -55,6 +56,7 @@ __background_compact_list_remove(
     TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], compact_stat, hashq);
     WT_ASSERT(session, (conn)->background_compact.file_count > 0);
     --(conn)->background_compact.file_count;
+    WT_STAT_CONN_DECR(session, background_compact_files_tracked);
 
     __wt_free(session, compact_stat->uri);
     __wt_free(session, compact_stat);
@@ -154,7 +156,7 @@ __wt_background_compact_start(WT_SESSION_IMPL *session)
     WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_BM *bm;
     WT_DECL_RET;
-    int64_t id;
+    uint32_t id;
     const char *uri;
 
     bm = S2BT(session)->bm;
