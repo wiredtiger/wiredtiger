@@ -420,7 +420,7 @@ the freed storage will likely yield the overwritten bytes, and not the previousl
 @section arch_random_cursor Random Cursor
 
 WiredTiger uses a pseudo-random algorithm when using random cursors with the goal to achieve a good
-random distribution and being performant. Only the cursor->next function can be used to fetch a random record.
+random distribution and being performant. Only the \c cursor->next function can be used to fetch a random record.
 The current pseudo-random algorithm is as follows:
 
 1. Starting from the root page we descend randomly down using WiredTiger's random number generator (RNG) until we
@@ -431,10 +431,9 @@ random visible disk record from the page using WiredTiger's RNG.
 to find a random insert record from the page.
 4. Third condition: If the page has small amount of disk records (200 or less entries) or the leaf page is clean, attempt to
 find a random visible disk record from the page using WiredTiger's RNG.
-5. If all conditions fail, compute a random number between 0 - 250 and perform cursor->next or cursor->prev a random
-number of times between 0 and 250. The cursor->next and cursor prev function makes sure that 
-the record returns back a visible record. There we can return the record that the cursor stopped on. 
-Note: This can be on different leaf page than our original page that we descended from.
+5. If all conditions fail, move onto the next or previous visbible record in the btree a random number of times
+between 0 and 250. There we can return the record that the cursor stopped on. Note: This can be on different leaf
+page than our original page that we descended from.
 
 The algorithm doesn't guarantee a complete randomness to the user and can lead to skewed results depending on the
 underlying tree structure. Usually cases when the tree structure is unbalanced, the records are not uniform, 
