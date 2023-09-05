@@ -145,55 +145,63 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
 }
 
 /*
- * __background_compact_start --
+ * __wt_background_compact_start --
  *     Pre-fill compact related statistics for the given file.
  */
-static int
-__background_compact_start(
-  WT_SESSION_IMPL *session, const char *uri, int64_t id, WT_BACKGROUND_COMPACT_STAT **compact_stat)
+int
+__wt_background_compact_start(WT_SESSION_IMPL *session)
 {
-    WT_BACKGROUND_COMPACT_STAT *temp_compact_stat;
+    WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_BM *bm;
     WT_DECL_RET;
+    int64_t id;
+    const char *uri;
 
     bm = S2BT(session)->bm;
+    id = S2BT(session)->id;
+    uri = bm->block->name;
 
-    temp_compact_stat = __background_compact_get_stat(session, uri, id);
+    compact_stat = __background_compact_get_stat(session, uri, id);
 
     /* If the table is not in the list, allocate a new entry and insert it. */
-    if (temp_compact_stat == NULL) {
-        WT_ERR(__wt_calloc_one(session, &temp_compact_stat));
-        WT_ERR(__wt_strdup(session, uri, &temp_compact_stat->uri));
-        temp_compact_stat->id = (uint32_t)id;
-        __background_compact_list_insert(session, temp_compact_stat);
+    if (compact_stat == NULL) {
+        WT_ERR(__wt_calloc_one(session, &compact_stat));
+        WT_ERR(__wt_strdup(session, uri, &compact_stat->uri));
+        compact_stat->id = (uint32_t)id;
+        __background_compact_list_insert(session, compact_stat);
     }
 
     /* Fill starting information prior to running compaction. */
-    WT_ERR(bm->size(bm, session, &temp_compact_stat->start_size));
-    temp_compact_stat->prev_compact_time = __wt_clock(session);
-
-    *compact_stat = temp_compact_stat;
+    WT_ERR(bm->size(bm, session, &compact_stat->start_size));
+    compact_stat->prev_compact_time = __wt_clock(session);
 
     return (0);
 
 err:
-    __wt_free(session, temp_compact_stat);
+    __wt_free(session, compact_stat);
 
     return (ret);
 }
 
 /*
- * __background_compact_end --
+ * __wt_background_compact_end --
  *     Fill resulting compact statistics in the background compact tracking list for a given file.
  */
-static int
-__background_compact_end(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *compact_stat)
+int
+__wt_background_compact_end(WT_SESSION_IMPL *session)
 {
+    WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_BM *bm;
     WT_CONNECTION_IMPL *conn;
     wt_off_t bytes_recovered;
+    int64_t id;
+    const char *uri;
 
     bm = S2BT(session)->bm;
+    id = S2BT(session)->id;
+    uri = bm->block->name;
+
+    compact_stat = __background_compact_get_stat(session, uri, id);
     conn = S2C(session);
 
     WT_RET(bm->size(bm, session, &compact_stat->end_size));
@@ -238,14 +246,18 @@ __background_compact_list_cleanup(
     WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
     uint64_t cur_time, i;
+    uint64_t time_diff;
 
     conn = S2C(session);
     cur_time = __wt_clock(session);
+
+    WT_UNUSED(time_diff);
 
     for (i = 0; i < conn->hash_size; i++)
         TAILQ_FOREACH_SAFE(
           compact_stat, &conn->background_compact.compacthash[i], hashq, temp_compact_stat)
         {
+            time_diff = WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time);
             if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT ||
               WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
                 conn->background_compact.max_file_idle_time)
@@ -327,7 +339,6 @@ err:
 static WT_THREAD_RET
 __compact_server(void *arg)
 {
-    WT_BACKGROUND_COMPACT_STAT *dsrc_stat;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(config);
     WT_DECL_ITEM(next_uri);
@@ -338,7 +349,6 @@ __compact_server(void *arg)
     int64_t id;
     bool full_iteration, running, signalled, release_dhandle;
 
-    dsrc_stat = NULL;
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
@@ -414,21 +424,6 @@ __compact_server(void *arg)
 
         WT_ERR(ret);
 
-        WT_ERR_ERROR_OK(
-          __wt_session_get_dhandle(session, (const char *)uri->data, NULL, NULL, 0), ENOENT, true);
-        release_dhandle = true;
-
-        /*
-         * The file could have been dropped between retrieving the URI from the metadata file and
-         * accessing the dhandle.
-         */
-        if (ret == ENOENT) {
-            ret = 0;
-            continue;
-        }
-
-        WT_ERR(__background_compact_start(session, (const char *)uri->data, id, &dsrc_stat));
-
         ret = wt_session->compact(wt_session, (const char *)uri->data, (const char *)config->data);
 
         /*
@@ -463,11 +458,6 @@ __compact_server(void *arg)
             }
         }
 
-        WT_ERR(__background_compact_end(session, dsrc_stat));
-
-        release_dhandle = false;
-        WT_ERR(__wt_session_release_dhandle(session));
-
         WT_ERR(ret);
     }
 
@@ -481,8 +471,6 @@ err:
     __wt_scr_free(session, &next_uri);
     __wt_scr_free(session, &uri);
 
-    if (release_dhandle)
-        WT_TRET(__wt_session_release_dhandle(session));
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
     return (WT_THREAD_RET_VALUE);
