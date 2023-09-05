@@ -557,13 +557,10 @@ connection_runtime_config = [
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
-        Config('background_compact_close_idle_time', '86400', r'''
-               amount of time in seconds a file needs to be idle for in the background 
-               compaction server before removing it's statistics.''',
-               type='int'),
-        Config('background_compact_skip_time', '60', r'''
-               how long a file should sleep before background compact tries again. ''',
-               type='int'),
+        Config('background_compact', 'false', r'''
+               if true, background compact aggressively removes compact statistics for a file and
+               decreases the max amount of time a file can be skipped for.''', 
+               type='boolean'),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
             type='boolean'),

@@ -63,8 +63,7 @@ struct __wt_background_compact_stat {
     wt_off_t start_size; /* File size before compact last started */
     wt_off_t end_size;   /* File size after compact last ended */
 
-    /* List of files background compact has worked on */
-    TAILQ_ENTRY(__wt_background_compact_stat) q;
+    /* Hash of files background compact has worked on */
     TAILQ_ENTRY(__wt_background_compact_stat) hashq;
 };
 
@@ -87,12 +86,11 @@ struct __wt_background_compact {
     uint64_t file_count;          /* Number of files in the tracking list */
     uint64_t bytes_rewritten_ema; /* Exponential moving average for the bytes rewritten */
 
-    uint64_t file_expire_time; /* Debug configuration to set when the file stats should expire */
-    uint64_t file_skip_time;   /* Debug configuration to set how long a file should sleep for */
+    uint64_t max_file_idle_time; /* File compact idle time */
+    uint64_t max_file_skip_time; /* File compact skip time */
 
     /* List of files to track compaction statistics across background server iterations. */
     TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
-    TAILQ_HEAD(__wt_bg_compact_qh, __wt_background_compact_stat) compactqh;
 };
 
 /*

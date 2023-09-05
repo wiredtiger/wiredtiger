@@ -2062,19 +2062,17 @@ __debug_mode_background_compact_config(WT_SESSION_IMPL *session, const char *cfg
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
 
     conn = S2C(session);
 
-    ret = __wt_config_gets(session, cfg, "debug_mode.background_compact_expire_time", &cval);
-    if (ret == 0 && cval.len != 0)
-        conn->background_compact.file_expire_time = (uint64_t)cval.val;
-    WT_RET_NOTFOUND_OK(ret);
-
-    ret = __wt_config_gets(session, cfg, "debug_mode.background_compact_skip_time", &cval);
-    if (ret == 0 && cval.len != 0)
-        conn->background_compact.file_skip_time = (uint64_t)cval.val;
-    WT_RET_NOTFOUND_OK(ret);
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.background_compact", &cval));
+    if (cval.val) {
+        conn->background_compact.max_file_idle_time = 30;
+        conn->background_compact.max_file_skip_time = 20;
+    } else {
+        conn->background_compact.max_file_idle_time = WT_DAY;
+        conn->background_compact.max_file_skip_time = 60 * WT_MINUTE;
+    }
 
     return (0);
 }

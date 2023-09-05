@@ -36,7 +36,6 @@ __background_compact_list_insert(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
     hash = __wt_hash_city64(compact_stat->uri, strlen(compact_stat->uri));
     bucket = hash & (conn->hash_size - 1);
 
-    TAILQ_INSERT_HEAD(&(conn)->background_compact.compactqh, compact_stat, q);
     TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], compact_stat, hashq);
     ++(conn)->background_compact.file_count;
 }
@@ -46,17 +45,13 @@ __background_compact_list_insert(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
  *     Remove and free compaction statistics for a file from the background compact list.
  */
 static void
-__background_compact_list_remove(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *compact_stat)
+__background_compact_list_remove(
+  WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_STAT *compact_stat, int bucket)
 {
     WT_CONNECTION_IMPL *conn;
-    uint64_t bucket, hash;
 
     conn = S2C(session);
 
-    hash = __wt_hash_city64(compact_stat->uri, strlen(compact_stat->uri));
-    bucket = hash & (conn->hash_size - 1);
-
-    TAILQ_REMOVE(&(conn)->background_compact.compactqh, compact_stat, q);
     TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], compact_stat, hashq);
     WT_ASSERT(session, (conn)->background_compact.file_count > 0);
     --(conn)->background_compact.file_count;
@@ -93,7 +88,7 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t
          * dropped and recreated this table. Reset the entry in this case.
          */
         if (id != compact_stat->id) {
-            __background_compact_list_remove(session, compact_stat);
+            __background_compact_list_remove(session, compact_stat, bucket);
             return (NULL);
         }
 
@@ -128,7 +123,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     /* If we have been unsuccessful recently skip this file for some time. */
     cur_time = __wt_clock(session);
     if (WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
-      conn->background_compact.file_skip_time)
+      conn->background_compact.max_file_skip_time)
         return (true);
 
     if (!compact_stat->prev_compact_success) {
@@ -140,7 +135,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     /* If the last compaction pass was less successful than the average. Skip it for some time. */
     if (compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
       WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) <
-        conn->background_compact.file_skip_time) {
+        conn->background_compact.max_file_skip_time) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
@@ -242,19 +237,20 @@ __background_compact_list_cleanup(
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
-    uint64_t cur_time;
+    uint64_t cur_time, i;
 
     conn = S2C(session);
     cur_time = __wt_clock(session);
 
-    TAILQ_FOREACH_SAFE(compact_stat, &conn->background_compact.compactqh, q, temp_compact_stat)
-    {
-        if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT ||
-          WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
-            conn->background_compact.file_expire_time)
-            /* Remove file entry from both the hashtable and list. */
-            __background_compact_list_remove(session, compact_stat);
-    }
+    for (i = 0; i < conn->hash_size; i++)
+        TAILQ_FOREACH_SAFE(
+          compact_stat, &conn->background_compact.compacthash[i], hashq, temp_compact_stat)
+        {
+            if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT ||
+              WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
+                conn->background_compact.max_file_idle_time)
+                __background_compact_list_remove(session, compact_stat, i);
+        }
 
     if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT)
         __wt_free(session, conn->background_compact.compacthash);
@@ -340,13 +336,13 @@ __compact_server(void *arg)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     int64_t id;
-    bool full_iteration, running, signalled;
+    bool full_iteration, running, signalled, release_dhandle;
 
     dsrc_stat = NULL;
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    full_iteration = running = signalled = false;
+    full_iteration = running = signalled = release_dhandle = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
@@ -420,6 +416,7 @@ __compact_server(void *arg)
 
         WT_ERR_ERROR_OK(
           __wt_session_get_dhandle(session, (const char *)uri->data, NULL, NULL, 0), ENOENT, true);
+        release_dhandle = true;
 
         /*
          * The file could have been dropped between retrieving the URI from the metadata file and
@@ -433,8 +430,6 @@ __compact_server(void *arg)
         WT_ERR(__background_compact_start(session, (const char *)uri->data, id, &dsrc_stat));
 
         ret = wt_session->compact(wt_session, (const char *)uri->data, (const char *)config->data);
-
-        WT_ERR(__background_compact_end(session, dsrc_stat));
 
         /*
          * Compact may return:
@@ -468,6 +463,11 @@ __compact_server(void *arg)
             }
         }
 
+        WT_ERR(__background_compact_end(session, dsrc_stat));
+
+        release_dhandle = false;
+        WT_ERR(__wt_session_release_dhandle(session));
+
         WT_ERR(ret);
     }
 
@@ -481,6 +481,8 @@ err:
     __wt_scr_free(session, &next_uri);
     __wt_scr_free(session, &uri);
 
+    if (release_dhandle)
+        WT_TRET(__wt_session_release_dhandle(session));
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
     return (WT_THREAD_RET_VALUE);
@@ -504,8 +506,6 @@ __wt_compact_server_create(WT_SESSION_IMPL *session)
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_COMPACT);
-
-    TAILQ_INIT(&conn->background_compact.compactqh);
 
     WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->background_compact.compacthash));
     for (i = 0; i < conn->hash_size; i++)
