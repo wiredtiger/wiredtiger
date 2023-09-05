@@ -1191,7 +1191,9 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
         # The task name gives us the test name to run (workgen-test-<filename>)
-        ${python_binary|python3} $(echo ${task_name}| cut -d'-' -f 3-).py
+        FILENAME=`echo ${task_name}| cut -d'-' -f 3-`
+        echo "Running $FILENAME.py"
+        ${python_binary|python3} $FILENAME.py
 
 #######################################
 #               Variables             #
@@ -1364,6 +1366,7 @@ variables:
           times: 25
 
   - &workgen-test
+    tags: ["workgen-test"]
     exec_timeout_secs: 21600
     commands:
       - func: "get project"
@@ -6040,83 +6043,63 @@ tasks:
 
   - <<: *workgen-test
     name: "workgen-test-compress_ratio"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-evict-btree-hs"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-example_dynamic_tables"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-example_prepare"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-example_prepare_evict_reconcile"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-example_simple"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-example_txn"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-insert_stress"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-insert_test"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-maintain_low_dirty_cache"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-many-dhandle-stress"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-multi_btree_heavy_stress"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-multiversion"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-prepare_stress"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-read_write_storms"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-read_write_sync_long"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-read_write_sync_short"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-skiplist_stress"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-small_btree"
-    tags: ["workgen-test"]
 
   - <<: *workgen-test
     name: "workgen-test-small_btree_reopen"
-    tags: ["workgen-test"]
 
 #######################################
 #     Antithesis Integration          #
