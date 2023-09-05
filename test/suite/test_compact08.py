@@ -26,104 +26,45 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from time import sleep
-import wttest
-from wiredtiger import stat
+import wiredtiger, wttest
 
 # test_compact08.py
-# Test background compaction interruption. The background compaction server is considered as
-# interrupted if is it disabled while it is compacting a table. If it is disable between two tables,
-# it is not considered as an interruption.
+# Verify compaction for in-memory and readonly databases is not allowed.
 class test_compact08(wttest.WiredTigerTestCase):
-    # Make compact slow to increase the chances of interruption. 
-    conn_config = 'timing_stress_for_test=[compact_slow]'
-    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
-    # Have enough tables to give the server something to work on.
-    num_tables = 5
-    table_numkv = 100 * 1000
-    table_uri='table:test_compact08'
+    uri = 'file:test_compact08'
 
-    delete_range_len = 10 * 1000
-    delete_ranges_count = 4
-    value_size = 1024 # The value should be small enough so that we don't create overflow pages.
+    def background_compaction(self):
+        self.session.compact(None, 'background=true')
+    def foreground_compaction(self):
+        self.session.compact(self.uri, None)
 
-    def get_bg_compaction_interrupted(self):
-        c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
-        running = c[stat.conn.background_compact_interrupted][2]
-        c.close()
-        return running
-
-    def get_bg_compaction_running(self):
-        c = self.session.open_cursor('statistics:', None, 'statistics=(all)')
-        running = c[stat.conn.background_compact_running][2]
-        c.close()
-        return running
-
-    # Create the table in a way that it creates a mostly empty file.
     def test_compact08(self):
 
-        # FIXME-WT-11399
-        if self.runningHook('tiered'):
-            self.skipTest("this test does not yet work with tiered storage")
+        # Create a table.
+        self.session.create(self.uri, None)
 
-        # Create the tables and populate them.
-        for i in range(0, self.num_tables):
-            uri = f'{self.table_uri}_{i}'
-            self.session.create(uri, self.create_params)
-            c = self.session.open_cursor(uri, None)
-            for k in range(self.table_numkv):
-                c[k] = ('%07d' % k) + '_' + 'abcd' * ((self.value_size // 4) - 2)
-            c.close()
-        self.session.checkpoint()
+        # Create an inmemory database.
+        self.reopen_conn(config='in_memory=true')
 
-        # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
-        # than one iteration.
-        for i in range(0, self.num_tables):
-            uri = f'{self.table_uri}_{i}'
-            c = self.session.open_cursor(uri, None)
-            for r in range(self.delete_ranges_count):
-                start = r * self.table_numkv // self.delete_ranges_count
-                for i in range(self.delete_range_len):
-                    c.set_key(start + i)
-                    c.remove()
-            c.close()
-
-        num_interruption = 0
-        # Expect a message indication the interruption.
-        with self.expectedStderrPattern('background compact interrupted by application'):
-            # It is possible that the server was disabled between two tables which is not considered
-            # as an interruption, retry a few times if needed.
-            for i in range(0, 10):
-
-                # Background compaction should not be running yet.
-                self.assertEqual(self.get_bg_compaction_running(), 0)
-
-                # Start the background compaction server with a low threshold to make sure it starts
-                # working.
-                self.session.compact(None, 'background=true,free_space_target=1MB')
-
-                # Wait for the server to wake up.
-                running = self.get_bg_compaction_running()
-                while not running:
-                    sleep(1)
-                    running = self.get_bg_compaction_running()
-                self.assertEqual(running, 1)
-
-                # Disable the server which may interrupt compaction.
-                self.session.compact(None, 'background=false')
-
-                # Wait for the server to stop.
-                while running:
-                    sleep(1)
-                    running = self.get_bg_compaction_running()
-                self.assertEqual(running, 0)
-
-                # Check the server has been interrupted.
-                num_interruption = self.get_bg_compaction_interrupted()
-                if num_interruption > 0:
-                    break
-
-        self.assertEqual(num_interruption, 1)
+        # Foreground compaction.
+        with self.expectedStdoutPattern('Compact does not work for in-memory databases'):
+           self.foreground_compaction()
+        # Background compaction.
+        with self.expectedStdoutPattern('Background compact cannot be configured for in-memory or readonly databases'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.background_compaction())
+        
+        # Reopen in readonly mode.
+        self.reopen_conn(config='in_memory=false,readonly=true')
+        
+        # Foreground compaction.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.foreground_compaction(),
+            '/Operation not supported/')
+        # Background compaction.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.background_compaction(),
+            '/Operation not supported/')
 
 if __name__ == '__main__':
     wttest.run()

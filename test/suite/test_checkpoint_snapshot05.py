@@ -112,6 +112,10 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
         s.close()
 
     def test_checkpoint_snapshot(self):
+        # FIXME - WT-11492 Re-enable this test once WT-11492 is fixed.
+        if os.name == 'nt':
+            self.skipTest('Skip this test on Windows until WT-11492 is fixed')
+
         self.moresetup()
 
         ds = SimpleDataSet(self, self.uri, 0, \
@@ -152,7 +156,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
             while not ckpt_snapshot:
                 time.sleep(1)
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_snapshot = stat_cursor[stat.conn.txn_checkpoint_snapshot_acquired][2]
+                ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
                 stat_cursor.close()
 
             session1.commit_transaction()
