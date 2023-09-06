@@ -84,17 +84,19 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t
     /* Find the uri in the files compacted list. */
     TAILQ_FOREACH_SAFE(
       compact_stat, &conn->background_compact.compacthash[bucket], hashq, temp_compact_stat)
-    if (strcmp(uri, compact_stat->uri) == 0) {
-        /*
-         * If we've found an entry in the list with the same URI but different ID's we must've
-         * dropped and recreated this table. Reset the entry in this case.
-         */
-        if (id != compact_stat->id) {
-            __background_compact_list_remove(session, compact_stat, bucket);
-            return (NULL);
-        }
+    {
+        if (strcmp(uri, compact_stat->uri) == 0) {
+            /*
+             * If we've found an entry in the list with the same URI but different ID's we must've
+             * dropped and recreated this table. Reset the entry in this case.
+             */
+            if (id != compact_stat->id) {
+                __background_compact_list_remove(session, compact_stat, bucket);
+                return (NULL);
+            }
 
-        return (compact_stat);
+            return (compact_stat);
+        }
     }
 
     return (NULL);
@@ -122,22 +124,18 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     if (compact_stat == NULL)
         return (true);
 
-    /* If we have been unsuccessful recently skip this file for some time. */
+    /* Proceed with compaction when the file has not been compacted for some time. */
     cur_time = __wt_clock(session);
-    if (WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
+    if (WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >=
       conn->background_compact.max_file_skip_time)
         return (true);
 
-    if (!compact_stat->prev_compact_success) {
-        compact_stat->skip_count++;
-        conn->background_compact.files_skipped++;
-        return (false);
-    }
-
-    /* If the last compaction pass was less successful than the average. Skip it for some time. */
-    if (compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema &&
-      WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) <
-        conn->background_compact.max_file_skip_time) {
+    /*
+     * If the last compaction pass was unsuccessful or less successful than the average, skip it for
+     * some time.
+     */
+    if (!compact_stat->prev_compact_success ||
+      compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         return (false);
@@ -148,7 +146,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
 
 /*
  * __wt_background_compact_start --
- *     Pre-fill compact related statistics for the given file.
+ *     Pre-fill compact related statistics for the file being compacted by the current session.
  */
 int
 __wt_background_compact_start(WT_SESSION_IMPL *session)
@@ -187,7 +185,8 @@ err:
 
 /*
  * __wt_background_compact_end --
- *     Fill resulting compact statistics in the background compact tracking list for a given file.
+ *     Fill resulting compact statistics in the background compact tracking list for the file being
+ *     compacted by the current session.
  */
 int
 __wt_background_compact_end(WT_SESSION_IMPL *session)
@@ -238,8 +237,8 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
 
 /*
  * __background_compact_list_cleanup --
- *     Free all or any entry that has not been updated for more than a day in the background compact
- *     tracking list.
+ *     Free all entries as part of cleanup or any entry that has been idle for too long in the
+ *     background compact tracking list.
  */
 static void
 __background_compact_list_cleanup(
@@ -271,8 +270,7 @@ __background_compact_list_cleanup(
  *     Given a URI, find the next one in the metadata file that is eligible for compaction.
  */
 static int
-__background_compact_find_next_uri(
-  WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_uri, int64_t *next_id)
+__background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_ITEM *next_uri)
 {
     WT_CONFIG_ITEM id;
     WT_CURSOR *cursor;
@@ -314,10 +312,8 @@ __background_compact_find_next_uri(
          */
         WT_ERR(cursor->get_value(cursor, &value));
         WT_ERR(__wt_config_getones(session, value, "id", &id));
-        if (__background_compact_should_run(session, key, id.val)) {
-            *next_id = id.val;
+        if (__background_compact_should_run(session, key, id.val))
             break;
-        }
     } while ((ret = cursor->next(cursor)) == 0);
     WT_ERR(ret);
 
@@ -346,6 +342,8 @@ __compact_server(void *arg)
     WT_SESSION_IMPL *session;
     int64_t id;
     bool full_iteration, running, signalled;
+
+    WT_UNUSED(id);
 
     session = arg;
     conn = S2C(session);
@@ -401,7 +399,7 @@ __compact_server(void *arg)
             continue;
 
         /* Find the next URI to compact. */
-        WT_ERR_NOTFOUND_OK(__background_compact_find_next_uri(session, uri, next_uri, &id), true);
+        WT_ERR_NOTFOUND_OK(__background_compact_find_next_uri(session, uri, next_uri), true);
 
         /* All the keys with the specified prefix have been parsed. */
         if (ret == WT_NOTFOUND) {
