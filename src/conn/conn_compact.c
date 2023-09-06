@@ -59,8 +59,8 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
             ret = WT_NOTFOUND;
             break;
         }
-        /* There are files that should not be compacted. */
-        if (!WT_STREQ(key, WT_HS_URI))
+        /* The history store file and tiered tables cannot be compacted. */
+        if (!WT_STREQ(key, WT_HS_URI) && !WT_SUFFIX_MATCH(key, ".wtobj"))
             /* FIXME-WT-11343: check if the table is supposed to be compacted. */
             break;
     } while ((ret = cursor->next(cursor)) == 0);
