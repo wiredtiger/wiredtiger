@@ -829,13 +829,14 @@ err:
 }
 
 /*
- * __btree_last_recno_noskip --
- *     Callback used when walking the tree attempting to find the last record number. The last record number of a btree should be the highest record number that the tree has seen,
+ * __btree_last_recno_no_skip --
+ *     Callback used when walking the tree attempting to find the last record number. The last
+ *     record number of a btree should be the highest record number that the tree has seen,
  *     including deleted content. Never skip a page when walking the tree in search of this maximum
  *     even for globally visible deleted pages.
  */
 static int
-__btree_last_recno_noskip(
+__btree_last_recno_no_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_UNUSED(session);
@@ -882,7 +883,8 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     flags = WT_READ_PREV | WT_READ_VISIBLE_ALL;
 
     next_walk = NULL;
-    WT_RET(__wt_tree_walk_custom_skip(session, &next_walk, &__btree_last_recno_noskip, NULL, flags));
+    WT_RET(
+      __wt_tree_walk_custom_skip(session, &next_walk, &__btree_last_recno_no_skip, NULL, flags));
     if (next_walk == NULL)
         return (WT_NOTFOUND);
 
