@@ -1248,9 +1248,7 @@ retry:
             }
         }
 
-        WT_DIAGNOSTIC_YIELD;
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
-        session->last_inserted_ref = cbt->ref;
     }
 
 err:
