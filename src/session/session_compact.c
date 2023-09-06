@@ -452,6 +452,12 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
         goto err;
     }
 
+    /* Tiered tables cannot be compacted. */
+    if (WT_SUFFIX_MATCH(uri, ".wtobj")) {
+        ret = __wt_object_unsupported(session, uri);
+        goto err;
+    }
+
     /* Setup the session handle's compaction state structure. */
     memset(&compact, 0, sizeof(WT_COMPACT_STATE));
     session->compact = &compact;
