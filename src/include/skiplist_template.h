@@ -28,11 +28,13 @@
  *     Fast append search of a skiplist, creating a skiplist stack as we go. In other words, we
  * quickly check if the given item can be appended to the end of the skiplist, in which case we set
  * the "done" flag to true, and create the stack accordingly. If the key we would like to insert is
- * an exact match, return it via the "key" argument.
+ * an exact match, return it via the "key" argument. Return the result of the last comparison via
+ * the "cmp" and "element" pointers.
  */
 static inline int
-TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head,
-  TMPL_KEY *srch_key, TMPL_KEY *keyp, bool *donep)
+TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_HEAD *ins_head, TMPL_ELEMENT ***ins_stack,
+  TMPL_ELEMENT **next_stack, TMPL_KEY *srch_key, TMPL_KEY *keyp, TMPL_ELEMENT **elementp, int *cmpp,
+  bool *donep)
 {
     TMPL_ELEMENT *ins;
     TMPL_KEY key;
@@ -67,21 +69,23 @@ TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins
          * serialized insert function.
          */
         for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
-            cbt->ins_stack[i] = (i == 0)  ? &ins->next[0] :
+            ins_stack[i] = (i == 0)       ? &ins->next[0] :
               (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] :
                                             &ins_head->head[i];
-            cbt->next_stack[i] = NULL;
+            next_stack[i] = NULL;
         }
-        cbt->compare = -cmp;
-        cbt->ins = ins;
-        cbt->ins_head = ins_head;
+
+        if (cmpp != NULL)
+            *cmpp = -cmp;
+        if (elementp != NULL)
+            *elementp = ins;
 
         /*
          * If we find an exact match, copy the key into the temporary buffer, our callers expect to
          * find it there.
          */
-        if (cbt->compare == 0 && keyp != NULL)
-            TMPL_KEY_ASSIGN(keyp, cbt->ins);
+        if (cmp == 0 && keyp != NULL)
+            TMPL_KEY_ASSIGN(keyp, ins);
 
         *donep = 1;
     }
@@ -89,11 +93,12 @@ TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins
 }
 
 /*
- * TMPL_FN_SEARCH --
- *     Search a skiplist, creating a skiplist stack as we go.
+ * TMPL_FN_INSERT_SEARCH --
+ *     Search a skiplist in preparation for an insert, creating a skiplist stack as we go.
  */
 static inline int
-TMPL_FN_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head, TMPL_KEY *srch_key)
+TMPL_FN_INSERT_SEARCH(WT_SESSION_IMPL *session, TMPL_HEAD *ins_head, TMPL_ELEMENT ***ins_stack,
+  TMPL_ELEMENT **next_stack, TMPL_KEY *srch_key, TMPL_KEY *keyp, TMPL_ELEMENT **elementp, int *cmpp)
 {
     TMPL_ELEMENT *ins, **insp, *last_ins;
     TMPL_KEY key;
@@ -123,8 +128,8 @@ TMPL_FN_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head, 
          */
         WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
         if (ins == NULL) {
-            cbt->next_stack[i] = NULL;
-            cbt->ins_stack[i--] = insp--;
+            next_stack[i] = NULL;
+            ins_stack[i--] = insp--;
             continue;
         }
 
@@ -179,12 +184,21 @@ TMPL_FN_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head, 
             TMPL_KEY_COMPARE_SKIP(session, srch_key, &key, &cmp, &match);
         }
 
+        /*
+         * When no exact match is found, the search returns the smallest key larger than the
+         * searched-for key, or the largest key smaller than the searched-for key, if there is no
+         * larger key. Our callers depend on that: specifically, the fixed-length column store
+         * cursor code interprets returning a key smaller than the searched-for key to mean the
+         * searched-for key is larger than any key on the page. Don't change that behavior, things
+         * will break.
+         */
+
         if (cmp > 0) { /* Keep going at this level */
             insp = &ins->next[i];
             skiplow = match;
         } else if (cmp < 0) { /* Drop down a level */
-            cbt->next_stack[i] = ins;
-            cbt->ins_stack[i--] = insp--;
+            next_stack[i] = ins;
+            ins_stack[i--] = insp--;
             skiphigh = match;
         } else
             for (; i >= 0; i--) {
@@ -192,8 +206,8 @@ TMPL_FN_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head, 
                  * It is possible that we read an old value down the stack due to read reordering on
                  * CPUs with weak memory ordering. Add a read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_WEAK_MEMORDER(cbt->next_stack[i], ins->next[i]);
-                cbt->ins_stack[i] = &ins->next[i];
+                WT_ORDERED_READ_WEAK_MEMORDER(next_stack[i], ins->next[i]);
+                ins_stack[i] = &ins->next[i];
             }
     }
 
@@ -202,9 +216,15 @@ TMPL_FN_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head, 
      * compare field to its new value. If we went past the last item in the list, return the last
      * one: that is used to decide whether we are positioned in a skiplist.
      */
-    cbt->compare = -cmp;
-    cbt->ins = (ins != NULL) ? ins : last_ins;
-    cbt->ins_head = ins_head;
+    if (ins == NULL)
+        ins = last_ins;
+    if (cmpp != NULL)
+        *cmpp = -cmp;
+    if (elementp != NULL)
+        *elementp = ins;
+
+    if (cmp == 0 && ins != NULL && keyp != NULL)
+        TMPL_KEY_ASSIGN(keyp, ins);
 
     /*
      * This is an expensive call on a performance-critical path, so we only want to enable it behind
@@ -219,11 +239,11 @@ TMPL_FN_SEARCH(WT_SESSION_IMPL *session, TMPL_CURSOR *cbt, TMPL_HEAD *ins_head, 
 }
 
 /*
- * TMPL_FN_INSERT_INT --
+ * TMPL_FN_INSERT_INTERNAL --
  *     Insert a skiplist entry. The cursor must be already positioned.
  */
 static inline int
-TMPL_FN_INSERT_INT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_CURSOR *cbt,
+TMPL_FN_INSERT_INTERNAL(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_CURSOR *cbt,
   TMPL_ELEMENT *new_ins, u_int skipdepth, bool exclusive)
 {
     WT_DECL_RET;
@@ -249,10 +269,9 @@ TMPL_FN_INSERT_INT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_CURSOR *cbt
             simple = false;
 
     /*
-     * Update the skiplist elements referencing the new item. If we fail connecting one of
-     * the upper levels in the skiplist, return success: the levels we updated are correct and
-     * sufficient. Even though we don't get the benefit of the memory we allocated, we can't roll
-     * back.
+     * Update the skiplist elements referencing the new item. If we fail connecting one of the upper
+     * levels in the skiplist, return success: the levels we updated are correct and sufficient.
+     * Even though we don't get the benefit of the memory we allocated, we can't roll back.
      *
      * All structure setup must be flushed before the structure is entered into the list. We need a
      * write barrier here, our callers depend on it. Don't pass complex arguments to the macro, some
@@ -321,7 +340,8 @@ TMPL_FN_INSERT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_HEAD *head, TMP
 
     do {
         /* Position the cursor. */
-        WT_RET(TMPL_FN_SEARCH(session, &cursor, head, &key));
+        WT_RET(TMPL_FN_INSERT_SEARCH(session, head, cursor.ins_stack, cursor.next_stack, &key, NULL,
+          &cursor.ins, &cursor.compare));
 
         /* We don't currently support duplicate keys, or modifying existing keys. */
         if (cursor.compare == 0 && cursor.ins != NULL)
@@ -332,7 +352,8 @@ TMPL_FN_INSERT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_HEAD *head, TMP
             node->next[i] = cursor.next_stack[i];
 
         /* Insert. */
-        ret = TMPL_FN_INSERT_INT(session, lock, &cursor, node, skipdepth, exclusive);
+        cursor.ins_head = head; // XXX
+        ret = TMPL_FN_INSERT_INTERNAL(session, lock, &cursor, node, skipdepth, exclusive);
     } while (ret == WT_RESTART);
 
     return (ret);
@@ -343,12 +364,13 @@ TMPL_FN_INSERT(WT_SESSION_IMPL *session, WT_SPINLOCK *lock, TMPL_HEAD *head, TMP
  *     Check if a key exists. This is a just a convenience function used for testing.
  */
 static inline bool
-TMPL_FN_CONTAINS(WT_SESSION_IMPL *session,TMPL_HEAD *head, TMPL_KEY* key)
+TMPL_FN_CONTAINS(WT_SESSION_IMPL *session, TMPL_HEAD *head, TMPL_KEY *key)
 {
     WT_DECL_RET;
     TMPL_CURSOR cursor;
     memset(&cursor, 0, sizeof(cursor));
-    ret = TMPL_FN_SEARCH(session, &cursor, head, key);
+    ret = TMPL_FN_INSERT_SEARCH(
+      session, head, cursor.ins_stack, cursor.next_stack, key, NULL, &cursor.ins, &cursor.compare);
     return (ret == 0 && cursor.compare == 0 && cursor.ins != NULL);
 }
 
@@ -363,7 +385,7 @@ TMPL_FN_CONTAINS(WT_SESSION_IMPL *session,TMPL_HEAD *head, TMPL_KEY* key)
 #undef TMPL_KEY_COMPARE_SKIP
 
 #undef TMPL_FN_APPEND_SEARCH
-#undef TMPL_FN_SEARCH
-#undef TMPL_FN_INSERT_INT
+#undef TMPL_FN_INSERT_SEARCH
+#undef TMPL_FN_INSERT_INTERNAL
 #undef TMPL_FN_INSERT
 #undef TMPL_FN_CONTAINS

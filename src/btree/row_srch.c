@@ -8,8 +8,8 @@
 
 #include "wt_internal.h"
 
-//static inline int __validate_next_stack(
-//  WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);
+// static inline int __validate_next_stack(
+//   WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);
 
 /*
  * __search_insert_append --
@@ -19,7 +19,14 @@ static inline int
 __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head,
   WT_ITEM *srch_key, bool *donep)
 {
-    return __wt_skip_append_search__insert(session, cbt, ins_head, srch_key, cbt->tmp, donep);
+    WT_DECL_RET;
+
+    ret = __wt_skip_append_search__insert(session, ins_head, cbt->ins_stack, cbt->next_stack,
+      srch_key, cbt->tmp, &cbt->ins, &cbt->compare, donep);
+    if (*donep)
+        cbt->ins_head = ins_head;
+
+    return (ret);
 }
 
 /*
@@ -30,7 +37,9 @@ int
 __wt_search_insert(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key)
 {
-    return __wt_skip_search__insert(session, cbt, ins_head, srch_key);
+    cbt->ins_head = ins_head;
+    return (__wt_skip_insert_search__insert(session, ins_head, cbt->ins_stack, cbt->next_stack,
+      srch_key, NULL, &cbt->ins, &cbt->compare));
 }
 
 #if 0
@@ -569,11 +578,9 @@ leaf_match:
         if (done)
             return (0);
     }
-    WT_ERR(__wt_search_insert(session, cbt, ins_head, srch_key));
-    if (cbt->compare == 0) {
-        cbt->tmp->data = WT_INSERT_KEY(cbt->ins);
-        cbt->tmp->size = WT_INSERT_KEY_SIZE(cbt->ins);
-    }
+    cbt->ins_head = ins_head;
+    WT_ERR(__wt_skip_insert_search__insert(session, ins_head, cbt->ins_stack, cbt->next_stack,
+      srch_key, cbt->tmp, &cbt->ins, &cbt->compare));
     return (0);
 
 err:

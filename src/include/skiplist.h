@@ -31,8 +31,8 @@
  *
  * Most importantly, we would need to refactor several fields from WT_CURSOR_BTREE into its own
  * struct and also rename "ins" to something else. This is not particularly challenging, but it's
- * not worth doing at this point, as it would result in a huge PR. This way, the PR would be kept
- * at a much more reasonable size.
+ * not worth doing at this point, as it would result in a huge PR. This way, the PR would be kept at
+ * a much more reasonable size.
  */
 
 /*
@@ -67,8 +67,8 @@
 
 /* Functions to define. */
 #define TMPL_FN_APPEND_SEARCH __wt_skip_append_search__insert
-#define TMPL_FN_SEARCH __wt_skip_search__insert
-#define TMPL_FN_INSERT_INT __wt_skip_insert_int__insert
+#define TMPL_FN_INSERT_SEARCH __wt_skip_insert_search__insert
+#define TMPL_FN_INSERT_INTERNAL __wt_skip_insert_internal__insert
 #define TMPL_FN_INSERT __wt_skip_insert__insert
 #define TMPL_FN_CONTAINS __wt_skip_contains__insert
 
@@ -78,8 +78,8 @@
 /*
  * Skip list definitions for an int (for testing).
  *
- * This will probably be eventually separated out into the test code, but for now, keeping it
- * here to demonstrate adding a skip list with another data type.
+ * This will probably be eventually separated out into the test code, but for now, keeping it here
+ * to demonstrate adding a skip list with another data type.
  *
  * If we like this, we would add here a skip list definition that is used in our column store. This
  * would also store WT_INSERT, but the key and the key comparison functions will be for recno. This
@@ -132,7 +132,7 @@ __wt_int_compare(int a, int b)
 static inline int
 __wt_int_compare_p(const int *ap, const int *bp)
 {
-    return __wt_int_compare(*ap, *bp);
+    return (__wt_int_compare(*ap, *bp));
 }
 
 /* Type names. */
@@ -149,8 +149,8 @@ __wt_int_compare_p(const int *ap, const int *bp)
 
 /* Functions to define. */
 #define TMPL_FN_APPEND_SEARCH __wt_skip_append_search__int
-#define TMPL_FN_SEARCH __wt_skip_search__int
-#define TMPL_FN_INSERT_INT __wt_skip_insert_int__int
+#define TMPL_FN_INSERT_SEARCH __wt_skip_insert_search__int
+#define TMPL_FN_INSERT_INTERNAL __wt_skip_insert_internal__int
 #define TMPL_FN_INSERT __wt_skip_insert__int
 #define TMPL_FN_CONTAINS __wt_skip_contains__int
 

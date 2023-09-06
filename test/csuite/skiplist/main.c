@@ -39,7 +39,7 @@ extern char *__wt_optarg;
 static int
 cmp_int(const void *a, const void *b)
 {
-    return __wt_int_compare_p((int *)a, (int *)b);
+    return (__wt_int_compare_p((int *)a, (int *)b));
 }
 
 /*
@@ -52,9 +52,9 @@ run(WT_SESSION_IMPL *session, size_t num_keys)
     WT_INT_NODE *next, *node;
     WT_INT_SKIPLIST skiplist;
     WT_RAND_STATE rnd;
-    int *all_keys, last, v;
     size_t n, s;
     u_int depth;
+    int *all_keys, last, v;
 
     __wt_random_init_seed(NULL, &rnd);
 
@@ -138,8 +138,8 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_SESSION *session;
     int ch;
-    const char *working_dir;
     char home[PATH_MAX];
+    const char *working_dir;
 
     (void)testutil_set_progname(argv);
     working_dir = "WT_TEST.skiplist";

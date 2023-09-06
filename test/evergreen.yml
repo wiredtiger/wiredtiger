@@ -2169,6 +2169,16 @@ tasks:
         vars:
           test_name: scope
 
+  - name: csuite-skiplist-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: skiplist
+
   - name: csuite-truncated-log-test
     tags: ["pull_request"]
     depends_on:
@@ -4489,7 +4499,7 @@ tasks:
             for i in $(seq 5); do
                 ${python_binary|python3} skiplist_stress.py
             done
-  
+
   - name: chunkcache-test
     exec_timeout_secs: 1200 # 20 minutes
     commands:

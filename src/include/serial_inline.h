@@ -7,91 +7,6 @@
  */
 
 /*
- * __insert_simple_func --
- *     Worker function to add a WT_INSERT entry to the middle of a skiplist.
- */
-static inline int
-__insert_simple_func(
-  WT_SESSION_IMPL *session, WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
-{
-    WT_INSERT *old_ins;
-    u_int i;
-
-    WT_UNUSED(session);
-
-    /*
-     * Update the skiplist elements referencing the new WT_INSERT item. If we fail connecting one of
-     * the upper levels in the skiplist, return success: the levels we updated are correct and
-     * sufficient. Even though we don't get the benefit of the memory we allocated, we can't roll
-     * back.
-     *
-     * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it. Don't pass complex arguments to the macro, some
-     * implementations read the old value multiple times.
-     */
-    for (i = 0; i < skipdepth; i++) {
-        /*
-         * The insert stack position must be read only once - if the compiler chooses to re-read the
-         * shared variable it could lead to skip list corruption. Specifically the comparison
-         * against the next pointer might indicate that the skip list location is still valid, but
-         * that may no longer be true when the atomic_cas operation executes.
-         *
-         * Place a read barrier here to avoid this issue.
-         */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
-            return (i == 0 ? WT_RESTART : 0);
-    }
-
-    return (0);
-}
-
-/*
- * __insert_serial_func --
- *     Worker function to add a WT_INSERT entry to a skiplist.
- */
-static inline int
-__insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
-  WT_INSERT *new_ins, u_int skipdepth)
-{
-    WT_INSERT *old_ins;
-    u_int i;
-
-    /* The cursor should be positioned. */
-    WT_ASSERT(session, ins_stack[0] != NULL);
-
-    /*
-     * Update the skiplist elements referencing the new WT_INSERT item.
-     *
-     * Confirm we are still in the expected position, and no item has been added where our insert
-     * belongs. If we fail connecting one of the upper levels in the skiplist, return success: the
-     * levels we updated are correct and sufficient. Even though we don't get the benefit of the
-     * memory we allocated, we can't roll back.
-     *
-     * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it. Don't pass complex arguments to the macro, some
-     * implementations read the old value multiple times.
-     */
-    for (i = 0; i < skipdepth; i++) {
-        /*
-         * The insert stack position must be read only once - if the compiler chooses to re-read the
-         * shared variable it could lead to skip list corruption. Specifically the comparison
-         * against the next pointer might indicate that the skip list location is still valid, but
-         * that may no longer be true when the atomic_cas operation executes.
-         *
-         * Place a read barrier here to avoid this issue.
-         */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
-            return (i == 0 ? WT_RESTART : 0);
-        if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
-            ins_head->tail[i] = new_ins;
-    }
-
-    return (0);
-}
-
-/*
  * __col_append_serial_func --
  *     Worker function to allocate a record number as necessary, then add a WT_INSERT entry to a
  *     skiplist.
@@ -121,8 +36,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSE
     }
 
     /* Confirm position and insert the new WT_INSERT item. */
-    // WT_RET(__insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth));
-    WT_RET(__wt_skip_insert_int__insert(session, NULL, cbt, new_ins, skipdepth, true));
+    WT_RET(__wt_skip_insert_internal__insert(session, NULL, cbt, new_ins, skipdepth, true));
 
     /*
      * Set the calling cursor's record number. If we extended the file, update the last record
@@ -194,7 +108,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CURSOR_BTREE *cbt
     new_ins = *new_insp;
     *new_insp = NULL;
 
-    ret = __wt_skip_insert_int__insert(
+    ret = __wt_skip_insert_internal__insert(
       session, &page->modify->page_lock, cbt, new_ins, skipdepth, exclusive);
 
     if (ret != 0) {
