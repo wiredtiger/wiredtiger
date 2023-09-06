@@ -867,7 +867,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,
           WT_FS_OPEN_CREATE | WT_FS_OPEN_FORCE_MMAP, &chunkcache->fh));
 
-        WT_RET(__wt_ftruncate(session, chunkcache->fh, (wt_off_t)offset));
+        WT_RET(__wt_ftruncate(session, chunkcache->fh, (wt_off_t)chunkcache->capacity));
 
         if (chunkcache->fh->handle->fh_map == NULL) {
             WT_IGNORE_RET(__wt_close(session, &chunkcache->fh));
