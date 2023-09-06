@@ -36,18 +36,6 @@ workload_manager=
         thread_count=1
     ),
 
-    custom_config=
-    (
-        op_rate=5s,
-        thread_count=4
-    ),
-
-    background_compact_config=
-    (
-        thread_count=1,
-        free_space_target_mb=1,
-    ),
-
     checkpoint_config=
     (
         op_rate=10s,

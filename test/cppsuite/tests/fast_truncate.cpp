@@ -32,10 +32,10 @@
 
 namespace test_harness {
 /* Defines what data is written to the tracking table for use in custom validation. */
-class operation_tracker_background_compact : public operation_tracker {
+class operation_tracker_fast_truncate : public operation_tracker {
 
 public:
-    operation_tracker_background_compact(
+    operation_tracker_fast_truncate(
       configuration *config, const bool use_compression, timestamp_manager &tsm)
         : operation_tracker(config, use_compression, tsm)
     {
@@ -56,61 +56,31 @@ public:
  * Class that defines operations that do nothing as an example. This shows how database operations
  * can be overridden and customized.
  */
-class background_compact : public test {
+class fast_truncate : public test {
 public:
-    background_compact(const test_args &args) : test(args)
+    fast_truncate(const test_args &args) : test(args)
     {
         init_operation_tracker(
-          new operation_tracker_background_compact(_config->get_subconfig(OPERATION_TRACKER),
+          new operation_tracker_fast_truncate(_config->get_subconfig(OPERATION_TRACKER),
             _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
     }
 
     void
     run() override final
     {
-        /* You can remove the call to the base class to fully customize your test. */
         test::run();
     }
 
     void
-    custom_operation(thread_worker *tw) override final
+    background_compact_operation(thread_worker *) override final
     {
-        int64_t bytes_avail_reuse, pages_reviewed, pages_rewritten, size;
-
-        const int64_t megabyte = 1024 * 1024;
-
-        std::string log_prefix =
-          type_string(tw->type) + " thread {" + std::to_string(tw->id) + "}: ";
-        logger::log_msg(
-          LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
-
-        /* Make sure that thread statistics cursor is null before we open it. */
-        testutil_assert(tw->stat_cursor.get() == nullptr);
-
-        collection &coll = tw->db.get_collection(tw->id);
-        std::string uri = STATISTICS_URI + coll.name;
-
-        logger::log_msg(LOG_INFO, "custom thread uri: " + uri);
-        tw->stat_cursor = tw->session.open_scoped_cursor(uri);
-
-        while (tw->running()) {
-            metrics_monitor::get_stat(
-              tw->stat_cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &bytes_avail_reuse);
-            metrics_monitor::get_stat(
-              tw->stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED, &pages_reviewed);
-            metrics_monitor::get_stat(
-              tw->stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN, &pages_rewritten);
-            metrics_monitor::get_stat(tw->stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &size);
-
-            logger::log_msg(LOG_INFO,
-              log_prefix + "block reuse bytes = " + std::to_string(bytes_avail_reuse / megabyte));
-            logger::log_msg(
-              LOG_INFO, log_prefix + "pages_reviewed = " + std::to_string(pages_reviewed));
-            logger::log_msg(
-              LOG_INFO, log_prefix + "pages_rewrittenn = " + std::to_string(pages_rewritten));
-            logger::log_msg(LOG_INFO, log_prefix + "size = " + std::to_string(size / megabyte));
-            tw->sleep();
-        }
+        logger::log_msg(LOG_WARN, "background_compact_operation: nothing done");
+    }
+    
+    void
+    custom_operation(thread_worker *) override final
+    {
+        logger::log_msg(LOG_WARN, "custom_operation: nothing done");
     }
 
     void
@@ -125,12 +95,7 @@ public:
         logger::log_msg(
           LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
 
-        /*
-         * We need two types of cursors. One cursor is a random cursor to randomly select a key and
-         * the other one is a standard cursor to remove the random key. This is required as the
-         * random cursor does not support the remove operation.
-         */
-        std::map<uint64_t, scoped_cursor> rnd_cursors, cursors;
+        std::map<uint64_t, scoped_cursor> rnd_cursors;
 
         /* Loop while the test is running. */
         while (tw->running()) {
@@ -143,17 +108,15 @@ public:
             /* Choose a random collection to update. */
             collection &coll = tw->db.get_random_collection();
 
-            /* Look for existing cursors in our cursor cache. */
-            if (cursors.find(coll.id) == cursors.end()) {
+            /* Look for an existing cursor in our cursor cache. */
+            if (rnd_cursors.find(coll.id) == rnd_cursors.end()) {
                 logger::log_msg(LOG_TRACE,
                   "Thread {" + std::to_string(tw->id) +
                     "} Creating cursor for collection: " + coll.name);
-                /* Open the two cursors for the chosen collection. */
+                /* Open a cursor for the chosen collection. */
                 scoped_cursor rnd_cursor =
                   tw->session.open_scoped_cursor(coll.name, "next_random=true");
                 rnd_cursors.emplace(coll.id, std::move(rnd_cursor));
-                scoped_cursor cursor = tw->session.open_scoped_cursor(coll.name);
-                cursors.emplace(coll.id, std::move(cursor));
             }
 
             /* Start a transaction if possible. */
@@ -161,7 +124,6 @@ public:
 
             /* Get the cursor associated with the collection. */
             scoped_cursor &rnd_cursor = rnd_cursors[coll.id];
-            scoped_cursor &cursor = cursors[coll.id];
 
             /* Choose a random key to delete. */
             int ret = rnd_cursor->next(rnd_cursor.get());
@@ -201,14 +163,13 @@ public:
             if (tw->txn.commit())
                 logger::log_msg(LOG_INFO,
                   "thread {" + std::to_string(tw->id) + "} committed truncation from " + first_key +
-                    " to " + end_key + " on table [" + coll.name + "]");
+                    " to " + end_key + " on [" + coll.name + "]");
             else
                 logger::log_msg(LOG_INFO,
                   "thread {" + std::to_string(tw->id) + "} failed to commit truncation of " +
                     std::to_string(std::stoi(end_key) - std::stoi(first_key)) + " records.");
 
             /* Reset our cursors to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
             testutil_check(rnd_cursor->reset(rnd_cursor.get()));
 
             /* Commit the current transaction if we're able to. */
@@ -224,6 +185,7 @@ public:
         /* Make sure the last operation is rolled back now the work is finished. */
         tw->txn.try_rollback();
     }
+
     void
     update_operation(thread_worker *) override final
     {
