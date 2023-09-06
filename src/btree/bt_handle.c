@@ -830,7 +830,7 @@ err:
 
 /*
  * __btree_last_recno_noskip --
- *     The last record number of a btree should be the highest record number that the tree has seen,
+ *     Callback used when walking the tree attempting to find the last record number. The last record number of a btree should be the highest record number that the tree has seen,
  *     including deleted content. Never skip a page when walking the tree in search of this maximum
  *     even for globally visible deleted pages.
  */
@@ -859,7 +859,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
-    WT_REF *next_walk, *cur;
+    WT_REF *next_walk;
     uint32_t flags;
 
     btree = S2BT(session);
@@ -883,23 +883,12 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
 
     next_walk = NULL;
     WT_RET(__wt_tree_walk_custom_skip(session, &next_walk, &__btree_last_recno_noskip, NULL, flags));
-    /* WT_RET(__wt_tree_walk(session, &next_walk, flags)); */
     if (next_walk == NULL)
         return (WT_NOTFOUND);
 
     page = next_walk->page;
     btree->last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
                                                         __col_fix_last_recno(next_walk);
-
-    if (btree->type == BTREE_COL_VAR) {
-        cur = &btree->root;
-        while (cur->page->type == WT_PAGE_COL_INT) {
-            cur = cur->page->u.intl.__index->index[cur->page->u.intl.__index->entries - 1];
-        }
-
-        WT_ASSERT(session, cur->page->type == WT_PAGE_COL_VAR);
-        WT_ASSERT(session, btree->last_recno >= cur->key.recno);
-    }
 
     return (__wt_page_release(session, next_walk, 0));
 }

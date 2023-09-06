@@ -251,8 +251,6 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         else
             WT_ERR(__wt_insert_serial(
               session, page, cbt->ins_head, cbt->ins_stack, &ins, ins_size, skipdepth, exclusive));
-        if (modify_type != WT_UPDATE_INVALID)
-            WT_ASSERT(session, btree->last_recno >= cbt->recno);
     }
 
     inserted_to_update_chain = true;
@@ -312,7 +310,6 @@ err:
         }
     }
 
-    WT_ASSERT(session, btree->last_recno >= recno);
     return (ret);
 }
 

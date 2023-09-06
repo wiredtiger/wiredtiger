@@ -345,8 +345,6 @@ struct __wt_session_impl {
     WT_FH *optrack_fh;
 
     WT_SESSION_STATS stats;
-
-    WT_REF *last_inserted_ref;
 };
 
 /* Consider moving this to session_inline.h if it ever appears. */

@@ -1166,7 +1166,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
         ret = btree->type == BTREE_ROW ?
           __cursor_row_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD) :
           __cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD);
-        session->last_inserted_ref = cbt->ref;
         if (ret == 0)
             goto done;
 
@@ -1188,7 +1187,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_ERR(__wt_cursor_localkey(cursor));
     WT_ERR(__cursor_localvalue(cursor));
     __cursor_state_save(cursor, &state);
-    /* TODO probably just an error. */
 
 retry:
     WT_ERR(__wt_cursor_func_init(cbt, true));
@@ -1204,8 +1202,6 @@ retry:
                 goto duplicate;
         }
 
-        WT_DIAGNOSTIC_YIELD;
-
         ret = __cursor_row_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD);
     } else if (append_key) {
         /*
@@ -1215,15 +1211,10 @@ retry:
         cbt->iface.recno = WT_RECNO_OOB;
         cbt->compare = 1;
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
-        WT_DIAGNOSTIC_YIELD;
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
-        session->last_inserted_ref = cbt->ref;
         cursor->recno = cbt->recno;
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
-        WT_ASSERT(session, cbt->iface.recno >= cbt->ref->key.recno);
-
-        WT_DIAGNOSTIC_YIELD;
 
         /*
          * If not overwriting, fail if the key exists. Creating a record past the end of the tree in
@@ -1455,7 +1446,6 @@ retry:
              * If we find a matching record, check whether an update would conflict. Do this before
              * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
              */
-            /* TODO this seems sus. */
             WT_ERR(__curfile_update_check(cbt));
             WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, &valid, true));
             WT_ERR(ret);
@@ -1487,7 +1477,6 @@ retry:
                  */
                 WT_ERR(__cursor_col_modify(cbt, &flcs_zero, WT_UPDATE_STANDARD));
 
-            WT_DIAGNOSTIC_YIELD;
             ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else if (__cursor_fix_implicit(btree, cbt)) {
             /*
