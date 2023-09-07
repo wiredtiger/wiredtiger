@@ -301,14 +301,14 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
  *     ID.
  */
 static inline uint64_t
-__chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, WT_BLOCK *block,
-  uint32_t objectid, wt_off_t offset)
+__chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
+  const char *object_name, uint32_t objectid, wt_off_t offset)
 {
     WT_CHUNKCACHE_INTERMEDIATE_HASH intermediate;
     uint64_t hash_final;
 
     WT_CLEAR(intermediate);
-    intermediate.name_hash = __wt_hash_city64(block->name, strlen(block->name));
+    intermediate.name_hash = __wt_hash_city64(object_name, strlen(object_name));
     intermediate.objectid = objectid;
     intermediate.offset = WT_CHUNK_OFFSET(chunkcache, offset);
 
@@ -327,7 +327,7 @@ __chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, 
     WT_CLEAR(*hash_id);
     hash_id->objectid = objectid;
     hash_id->offset = WT_CHUNK_OFFSET(chunkcache, offset);
-    hash_id->objectname = block->name;
+    hash_id->objectname = object_name;
 
     hash_final = __wt_hash_city64(&intermediate, sizeof(intermediate));
 
@@ -427,6 +427,22 @@ __chunkcache_eviction_thread(void *arg)
 }
 
 /*
+ * __chunkcache_truncate_file --
+ *     Truncate a chunkcache file to the specified offset. If the underlying file system doesn't
+ *     support truncate then we need to zero out the rest of the file, doing an effective truncate.
+ */
+static int
+__chunkcache_truncate_file(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
+{
+    WT_DECL_RET;
+
+    if ((ret = __wt_ftruncate(session, fh, offset)) != ENOTSUP)
+        return (ret);
+
+    return (__wt_file_zero(session, fh, (wt_off_t)0, (wt_off_t)offset, WT_THROTTLE_CHUNKCACHE));
+}
+
+/*
  * __chunkcache_str_cmp --
  *     Qsort function: sort string array.
  */
@@ -491,7 +507,7 @@ __config_get_sorted_pinned_objects(WT_SESSION_IMPL *session, const char *cfg[],
                   (char *)cval.str);
 
             WT_PREFIX_SKIP_REQUIRED(session, k.str, "table:");
-            WT_ERR(__wt_buf_fmt(session, tmp, "%.*s.wt", (int)(k.len - strlen("table:")), k.str));
+            WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)(k.len - strlen("table:")), k.str));
             WT_ERR(__wt_strndup(session, tmp->data, tmp->size, &pinned_objects[cnt]));
         }
         WT_ERR_NOTFOUND_OK(ret, false);
@@ -536,6 +552,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
+    const char *object_name;
     bool chunk_cached, valid;
 
     chunkcache = &S2C(session)->chunkcache;
@@ -544,6 +561,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     retries = 0;
     sleep_usec = WT_THOUSAND;
     *cache_hit = false;
+    object_name = NULL;
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         return (ENOTSUP);
@@ -558,11 +576,14 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
         return (0);
     }
 
+    WT_RET(
+      __wt_tiered_name(session, session->dhandle, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
+
     /* A block may span two (or more) chunks. Loop until we have read all the data. */
     while (remains_to_read > 0) {
         /* Find the bucket for the chunk containing this offset. */
         bucket_id = __chunkcache_tmp_hash(
-          chunkcache, &hash_id, block, objectid, offset + (wt_off_t)already_read);
+          chunkcache, &hash_id, object_name, objectid, offset + (wt_off_t)already_read);
 retry:
         chunk_cached = false;
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
@@ -660,7 +681,7 @@ retry:
  * __wt_chunkcache_remove --
  *     Remove the chunk containing an outdated block.
  */
-void
+int
 __wt_chunkcache_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, uint32_t size)
 {
@@ -669,6 +690,7 @@ __wt_chunkcache_remove(
     WT_CHUNKCACHE_HASHID hash_id;
     size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
     uint64_t bucket_id;
+    const char *object_name;
     bool valid;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
@@ -676,18 +698,26 @@ __wt_chunkcache_remove(
     chunkcache = &S2C(session)->chunkcache;
     already_removed = 0;
     remains_to_remove = size;
+    object_name = NULL;
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
-        return;
+        return (0);
+
+    /* Remove chunks for read-only tiered objects. */
+    if (!block->readonly)
+        return (0);
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "remove block: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
+
+    WT_RET(
+      __wt_tiered_name(session, session->dhandle, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
 
     /* A block may span many chunks. Loop until we have removed all the chunks. */
     while (remains_to_remove > 0) {
         /* Find the bucket for the containing chunk. */
         bucket_id = __chunkcache_tmp_hash(
-          chunkcache, &hash_id, block, objectid, offset + (wt_off_t)already_removed);
+          chunkcache, &hash_id, object_name, objectid, offset + (wt_off_t)already_removed);
         removable_in_chunk = (size_t)WT_CHUNK_OFFSET(chunkcache, (size_t)offset + already_removed) +
           chunkcache->chunk_size - ((size_t)offset + already_removed);
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
@@ -725,6 +755,8 @@ __wt_chunkcache_remove(
         if (remains_to_remove > 0)
             WT_STAT_CONN_INCR(session, chunk_cache_spans_chunks_remove);
     }
+
+    return (0);
 }
 
 /*
@@ -856,8 +888,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,
           WT_FS_OPEN_CREATE | WT_FS_OPEN_FORCE_MMAP, &chunkcache->fh));
 
-        WT_RET(chunkcache->fh->handle->fh_truncate(
-          chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
+        WT_RET(__chunkcache_truncate_file(session, chunkcache->fh, (wt_off_t)chunkcache->capacity));
 
         if (chunkcache->fh->handle->fh_map == NULL) {
             WT_IGNORE_RET(__wt_close(session, &chunkcache->fh));
