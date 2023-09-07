@@ -171,34 +171,36 @@ __compact_server(void *arg)
 
         /* FIXME-WT-11343: compaction is done, update the data structure for this table. */
         /*
-         * Compact may return:
+         * Compact may return errors that can be silenced:
          * - EBUSY or WT_ROLLBACK for various reasons.
          * - ENOENT if the underlying file does not exist.
          * - ETIMEDOUT if the configured timer has elapsed.
          * - WT_ERROR if the background compaction has been interrupted.
          */
-        if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK) {
+        if (ret != 0) {
             WT_STAT_CONN_INCR(session, background_compact_fail);
-
-            if (ret == EBUSY && __wt_cache_stuck(session))
-                WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
-
-            if (ret == ETIMEDOUT)
-                WT_STAT_CONN_INCR(session, background_compact_timeout);
-
-            ret = 0;
-        }
-
-        /*
-         * WT_ERROR should indicate the server was interrupted, make sure it is no longer running.
-         */
-        if (ret == WT_ERROR) {
-            __wt_spin_lock(session, &conn->background_compact.lock);
-            running = conn->background_compact.running;
-            __wt_spin_unlock(session, &conn->background_compact.lock);
-            if (!running) {
-                WT_STAT_CONN_INCR(session, background_compact_interrupted);
+            /* The following errors are always silenced. */
+            if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK) {
+                if (ret == EBUSY) {
+                    if (__wt_cache_stuck(session))
+                        WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
+                } else if (ret == ETIMEDOUT)
+                    WT_STAT_CONN_INCR(session, background_compact_timeout);
                 ret = 0;
+            }
+
+            /*
+             * Verify WT_ERROR comes from an interruption by checking the server is no longer
+             * expected to be running.
+             */
+            else if (ret == WT_ERROR) {
+                __wt_spin_lock(session, &conn->background_compact.lock);
+                running = conn->background_compact.running;
+                __wt_spin_unlock(session, &conn->background_compact.lock);
+                if (!running) {
+                    WT_STAT_CONN_INCR(session, background_compact_interrupted);
+                    ret = 0;
+                }
             }
         }
 
