@@ -47,7 +47,7 @@ class checkpoint_thread(threading.Thread):
                 raise ValueError("checkpoint_count_max must be a positive integer")
             self._max_count = count_max
         else:
-            # Infinite checkpoints, so run until signalled.
+            # Infinite checkpoints: run until signalled.
             self._max_count = 0
 
         threading.Thread.__init__(self)
