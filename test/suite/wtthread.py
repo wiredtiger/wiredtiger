@@ -39,8 +39,6 @@ class checkpoint_thread(threading.Thread):
         """
         self.conn = conn
         self.done = done
-
-        self.continue_checkpointing = lambda: True
         self.checkpoint_count = 0
         
         if "checkpoint_count_max" in kwargs:
