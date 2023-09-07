@@ -676,7 +676,15 @@ int
 __wt_rec_row_leaf(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
-    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
+    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE,
+      .durable_ts = 0,
+      .start_ts = 0,
+      .prev_durable_ts = 0,
+      .next = NULL,
+      .size = 0,
+      .type = WT_UPDATE_TOMBSTONE,
+      .prepare_state = 0,
+      .flags = 0};
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *kpack, _kpack, *vpack, _vpack;

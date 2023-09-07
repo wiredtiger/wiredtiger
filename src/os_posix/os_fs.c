@@ -126,7 +126,7 @@ __posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
      * This layer should never see a path that doesn't include a trailing path separator, this code
      * asserts that fact.
      */
-    dir = tmp->mem;
+    dir = (char *)tmp->mem;
     strrchr(dir, '/')[1] = '\0';
 
     fd = 0; /* -Wconditional-uninitialized */
