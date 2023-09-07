@@ -183,10 +183,10 @@ main(int argc, char *argv[])
     std::string cfg, config_filename, current_cfg, current_test_name, home, test_name,
       wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"fast_truncate",
-      "reverse_split", "bounded_cursor_perf", "bounded_cursor_prefix_indices",
-      "bounded_cursor_prefix_search_near", "bounded_cursor_prefix_stat", "bounded_cursor_stress",
-      "burst_inserts", "cache_resize", "hs_cleanup", "operations_test", "test_template"};
+    const std::vector<std::string> all_tests = {"fast_truncate", "reverse_split",
+      "bounded_cursor_perf", "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
+      "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
+      "hs_cleanup", "operations_test", "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);

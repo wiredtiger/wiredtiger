@@ -189,7 +189,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* History store truncation is non-transactional. */
     if (!WT_IS_HS(session->dhandle))
-        WT_ERR(__wt_txn_modify_page_delete(session, ref, true));
+        WT_ERR(__wt_txn_modify_page_delete(session, ref));
 
     *skipp = true;
     WT_STAT_CONN_DATA_INCR(session, rec_page_delete_fast);

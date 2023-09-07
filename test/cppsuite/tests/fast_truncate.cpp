@@ -76,7 +76,7 @@ public:
     {
         logger::log_msg(LOG_WARN, "background_compact_operation: nothing done");
     }
-    
+
     void
     custom_operation(thread_worker *) override final
     {

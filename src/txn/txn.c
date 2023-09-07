@@ -1723,7 +1723,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 if (cache->hs_fileid != 0 && op->btree->id == cache->hs_fileid)
                     break;
 
-                __wt_txn_op_set_timestamp(session, op, false);
+                __wt_txn_op_set_timestamp(session, op);
                 WT_ERR(__txn_timestamp_usage_check(session, op, upd));
             } else {
                 /*
@@ -1749,7 +1749,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
-            __wt_txn_op_set_timestamp(session, op, false);
+            __wt_txn_op_set_timestamp(session, op);
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
