@@ -861,9 +861,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         chunkcache->type = WT_CHUNKCACHE_FILE;
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
-        if (!__wt_absolute_path(chunkcache->storage_path))
-            WT_RET_MSG(session, EINVAL, "Storage location must be an absolute path");
-
         WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,
           WT_FS_OPEN_CREATE | WT_FS_OPEN_FORCE_MMAP, &chunkcache->fh));
 

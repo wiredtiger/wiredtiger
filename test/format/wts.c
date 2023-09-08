@@ -418,7 +418,8 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     /* Chunkcache configuration. */
     if (GV(CHUNK_CACHE)) {
-        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0)
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0 &&
+          strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0)
             testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
               GVS(CHUNK_CACHE_STORAGE_PATH));
         else

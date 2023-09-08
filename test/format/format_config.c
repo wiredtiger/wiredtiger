@@ -1458,7 +1458,7 @@ config_statistics(void)
 static void
 config_chunk_cache(void)
 {
-    char buf[128], chunkcache_storage_path[512];
+    char buf[128];
     const char *chunkcache_type;
 
     chunkcache_type = NULL;
@@ -1515,13 +1515,11 @@ config_chunk_cache(void)
             }
         }
 
-        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0 &&
-          !config_explicit(NULL, "chunk_cache.storage_path")) {
-            testutil_snprintf(chunkcache_storage_path, sizeof(chunkcache_storage_path),
-              "chunk_cache.storage_path=%s/%s/WiredTigerChunkCache", getcwd(buf, sizeof(buf)),
-              g.home);
-            config_single(NULL, chunkcache_storage_path, false);
-        }
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "DRAM") == 0 &&
+          config_explicit(NULL, "chunk_cache.storage_path"))
+            testutil_die(EINVAL,
+              "For chunk_cache.type=%s, passing in the chunk_cache.storage_path=%s is unnecessary.",
+              chunkcache_type, GVS(CHUNK_CACHE_STORAGE_PATH));
 
         if (!config_explicit(NULL, "chunk_cache.capacity") &&
           !config_explicit(NULL, "chunk_cache.chunk_size"))
