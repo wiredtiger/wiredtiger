@@ -32,15 +32,13 @@
 
 namespace test_harness {
 /*
- * 
+ * Test timestamped fast truncate operations using a random cursor.
  */
 class fast_truncate : public test {
 public:
     fast_truncate(const test_args &args) : test(args)
     {
-        init_operation_tracker(
-          new operation_tracker_fast_truncate(_config->get_subconfig(OPERATION_TRACKER),
-            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
+        init_operation_tracker();
     }
 
     void
