@@ -959,9 +959,10 @@ ops(void *arg)
     uint32_t max_rows, ntries, range, rnd;
     u_int i;
     const char *iso_config;
-    bool greater_than, intxn, prepared;
+    bool greater_than, intxn, prepared, mirrored_truncate;
 
     tinfo = arg;
+    mirrored_truncate = false;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -993,6 +994,7 @@ ops(void *arg)
 
     for (intxn = false; !tinfo->quit;) {
 rollback_retry:
+        mirrored_truncate = false;
         if (tinfo->quit)
             break;
 
@@ -1289,7 +1291,9 @@ rollback_retry:
                 goto rollback;
             skip2 = table;
         }
-        if (ret == 0 && table->mirror)
+        if (ret == 0 && table->mirror) {
+            if(op == TRUNCATE)
+                mirrored_truncate = true;
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
@@ -1300,6 +1304,7 @@ rollback_retry:
                     if (ret == WT_ROLLBACK)
                         break;
                 }
+        }
 skip_operation:
         table = tinfo->table = NULL;
 
@@ -1393,6 +1398,23 @@ rollback:
             rollback_transaction(tinfo);
             snap_repeat_update(tinfo, false);
             break;
+        }
+
+        if (op == TRUNCATE && mirrored_truncate) {
+            /*
+             * At the end of a mirrored truncate all tables must contain the same keys. It's ok if a
+             * parallel insert has added keys back inside the truncated range as long as all mirror
+             * tables have that same key.
+             *
+             * Verifies can be expensive so we limit them to smaller ranges and only infrequently
+             * check larger ranges.
+             */
+            if (tinfo->last != 0 && tinfo->keyno != 0) {
+                if ((tinfo->last - tinfo->keyno) < 10000)
+                    wts_verify_mirrors(g.wts_conn, NULL, tinfo);
+                else if (mmrand(&tinfo->data_rnd, 0, 10) == 1)
+                    wts_verify_mirrors(g.wts_conn, NULL, tinfo);
+            }
         }
 
         intxn = false;
