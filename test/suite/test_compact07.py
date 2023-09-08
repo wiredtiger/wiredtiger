@@ -181,9 +181,9 @@ class test_compact07(wttest.WiredTigerTestCase):
 
         # Check that foreground compaction has done some work on the small table.
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
-        
-        # Get how many files are currently in the background compaction tracking list.
-        files_tracked = self.get_bg_compaction_files_tracked()
+
+        # Check that we have some files in the background compaction tracking list.
+        self.assertGreater(self.get_bg_compaction_files_tracked(), 0)
 
         # Drop the tables and wait for sometime for them to be removed from the background 
         # compaction server list.
@@ -195,7 +195,7 @@ class test_compact07(wttest.WiredTigerTestCase):
         
         # The tables should get removed from the tracking list once they exceed the max idle time 
         # after they're dropped.
-        while self.get_bg_compaction_files_tracked() >= files_tracked:
+        while self.get_bg_compaction_files_tracked() > 1:
             time.sleep(1)
         
         # Stop the background compaction server.

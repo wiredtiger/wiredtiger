@@ -36,8 +36,8 @@ __background_compact_list_insert(WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT
     hash = __wt_hash_city64(compact_stat->uri, strlen(compact_stat->uri));
     bucket = hash & (conn->hash_size - 1);
 
-    TAILQ_INSERT_HEAD(&(conn)->background_compact.compacthash[bucket], compact_stat, hashq);
-    ++(conn)->background_compact.file_count;
+    TAILQ_INSERT_HEAD(&conn->background_compact.compacthash[bucket], compact_stat, hashq);
+    ++conn->background_compact.file_count;
     WT_STAT_CONN_INCR(session, background_compact_files_tracked);
 }
 
@@ -53,9 +53,9 @@ __background_compact_list_remove(
 
     conn = S2C(session);
 
-    TAILQ_REMOVE(&(conn)->background_compact.compacthash[bucket], compact_stat, hashq);
-    WT_ASSERT(session, (conn)->background_compact.file_count > 0);
-    --(conn)->background_compact.file_count;
+    TAILQ_REMOVE(&conn->background_compact.compacthash[bucket], compact_stat, hashq);
+    WT_ASSERT(session, conn->background_compact.file_count > 0);
+    --conn->background_compact.file_count;
     WT_STAT_CONN_DECR(session, background_compact_files_tracked);
 
     __wt_free(session, compact_stat->uri);
@@ -87,7 +87,7 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t
     {
         if (strcmp(uri, compact_stat->uri) == 0) {
             /*
-             * If we've found an entry in the list with the same URI but different ID's we must've
+             * If we've found an entry in the list with the same URI but different IDs we must've
              * dropped and recreated this table. Reset the entry in this case.
              */
             if (id != compact_stat->id) {
@@ -203,6 +203,9 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
     uri = bm->block->name;
 
     compact_stat = __background_compact_get_stat(session, uri, id);
+
+    WT_ASSERT(session, compact_stat != NULL);
+
     conn = S2C(session);
 
     WT_RET(bm->size(bm, session, &compact_stat->end_size));
@@ -340,10 +343,7 @@ __compact_server(void *arg)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    int64_t id;
     bool full_iteration, running, signalled;
-
-    WT_UNUSED(id);
 
     session = arg;
     conn = S2C(session);
