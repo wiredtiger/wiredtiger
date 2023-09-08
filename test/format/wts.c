@@ -313,6 +313,30 @@ configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 }
 
 /*
+ * configure_chunkcache --
+ *     Configure chunkcache settings for opening a connection.
+ */
+static void
+configure_chunkcache(char **p, size_t max)
+{
+    char chunkcache_ext_cfg[512];
+
+    if (GV(CHUNK_CACHE)) {
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0 &&
+          strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0)
+            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
+              GVS(CHUNK_CACHE_STORAGE_PATH));
+        else
+            chunkcache_ext_cfg[0] = '\0';
+
+        CONFIG_APPEND(*p,
+          ",chunk_cache=(enabled=true,capacity=%" PRIu32 "MB,chunk_size=%" PRIu32 "MB,type=%s,%s)",
+          GV(CHUNK_CACHE_CAPACITY), GV(CHUNK_CACHE_CHUNK_SIZE), GVS(CHUNK_CACHE_TYPE),
+          chunkcache_ext_cfg);
+    }
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
@@ -321,7 +345,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char chunkcache_ext_cfg[512], config[8 * 1024], *p, tiered_ext_cfg[1024];
+    char config[8 * 1024], *p, tiered_ext_cfg[1024];
     const char *s, *sources;
 
     p = config;
@@ -416,20 +440,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional tiered storage. */
     configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
-    /* Chunkcache configuration. */
-    if (GV(CHUNK_CACHE)) {
-        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0 &&
-          strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0)
-            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
-              GVS(CHUNK_CACHE_STORAGE_PATH));
-        else
-            chunkcache_ext_cfg[0] = '\0';
-
-        CONFIG_APPEND(p,
-          ",chunk_cache=(enabled=true,capacity=%" PRIu32 "MB,chunk_size=%" PRIu32 "MB,type=%s,%s)",
-          GV(CHUNK_CACHE_CAPACITY), GV(CHUNK_CACHE_CHUNK_SIZE), GVS(CHUNK_CACHE_TYPE),
-          chunkcache_ext_cfg);
-    }
+    /* Optional chunkcache. */
+    configure_chunkcache(&p, max);
 
 #define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
 
