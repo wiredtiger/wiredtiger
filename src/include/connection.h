@@ -86,8 +86,9 @@ struct __wt_background_compact {
     uint64_t file_count;          /* Number of files in the tracking list */
     uint64_t bytes_rewritten_ema; /* Exponential moving average for the bytes rewritten */
 
-    uint64_t max_file_idle_time; /* File compact idle time */
-    uint64_t max_file_skip_time; /* File compact skip time */
+    uint64_t max_file_idle_time;       /* File compact idle time */
+    uint64_t max_file_skip_time;       /* File compact skip time */
+    uint64_t full_iteration_wait_time; /* Time in seconds to wait after a full iteration */
 
     /* List of files to track compaction statistics across background server iterations. */
     TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;

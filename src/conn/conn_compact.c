@@ -374,9 +374,10 @@ __compact_server(void *arg)
                 __background_compact_list_cleanup(session, BACKGROUND_CLEANUP_STALE_STAT);
             }
 
-            /* Check every 10 seconds in case the signal was missed. */
-            __wt_cond_wait(
-              session, conn->background_compact.cond, 10 * WT_MILLION, __compact_server_run_chk);
+            /* Check periodically in case the signal was missed. */
+            __wt_cond_wait(session, conn->background_compact.cond,
+              conn->background_compact.full_iteration_wait_time * WT_MILLION,
+              __compact_server_run_chk);
         }
 
         /* Check if we're quitting or being reconfigured. */
