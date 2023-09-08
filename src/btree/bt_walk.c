@@ -259,13 +259,11 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_ASSERT(session, LF_ISSET(WT_READ_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /*
-     * All tree walks except for rollback-to-stable skip deleted pages. We set read-skip-deleted
-     * here because we didn't want to add a flag to all of the tree-walk callers, and we make it
-     * worse because we don't want to add a flag that turns the read-skip-deleted flag off, so we
-     * test the RTS flag itself.
+     * Rollback-to-stable does not skip deleted pages. We set read-see-deleted here because we can't
+     * add flags to cursor->next and prev, which can end up doing a tree walk.
      */
-    if (!F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-        LF_SET(WT_READ_SKIP_DELETED);
+    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+        LF_SET(WT_READ_SEE_DELETED);
 
     /*
      * !!!
@@ -442,7 +440,7 @@ descend:
                 if (skip)
                     break;
                 empty_internal = false;
-            } else if (LF_ISSET(WT_READ_SKIP_DELETED) && current_state == WT_REF_DELETED) {
+            } else if (!LF_ISSET(WT_READ_SEE_DELETED) && current_state == WT_REF_DELETED) {
                 /*
                  * Try to skip deleted pages visible to us.
                  */
