@@ -262,8 +262,8 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
      * Rollback-to-stable does not skip deleted pages. We set read-see-deleted here because we can't
      * add flags to cursor->next and prev, which can end up doing a tree walk.
      */
-    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-        LF_SET(WT_READ_SEE_DELETED);
+    if (!F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) && !LF_ISSET(WT_READ_SEE_DELETED))
+        LF_SET(WT_READ_SKIP_DELETED);
 
     /*
      * !!!
@@ -440,7 +440,7 @@ descend:
                 if (skip)
                     break;
                 empty_internal = false;
-            } else if (!LF_ISSET(WT_READ_SEE_DELETED) && current_state == WT_REF_DELETED) {
+            } else if (LF_ISSET(WT_READ_SKIP_DELETED) && current_state == WT_REF_DELETED) {
                 /*
                  * Try to skip deleted pages visible to us.
                  */
