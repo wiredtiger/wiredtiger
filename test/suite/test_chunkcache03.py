@@ -27,24 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, sys
-import random
-import threading
-import time
 import wiredtiger, wttest
 
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 '''
-Testing chunkcache in-memory and on-disk.
-
-Create a multithreaded environment to allow for the allocation and deallocation of bits
-in the bitmap (for the on-disk case) and chunks.
+- Evaluate chunkcache performance both in-memory and on-disk, to test the functionality of pinned chunks.
+- Verify the functionality of reconfiguring pinned configurations.
 '''
-class test_chunkcache02(wttest.WiredTigerTestCase):
-    uri = "table:test_chunkcache02"
+class test_chunkcache03(wttest.WiredTigerTestCase):
     rows = 10000
-    num_threads = 5
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
@@ -69,7 +62,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             chunk_cache_extra_config = 'type=FILE,storage_path=' +  current_dir + '/WiredTigerChunkCache'
 
         return 'tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20MB,{}],'.format(chunk_cache_extra_config)
+            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20GB,pinned=("table:chunkcache01", "table:chunkcache02"),{}],'.format(chunk_cache_extra_config)
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':
@@ -81,25 +74,27 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
-
-    def read_and_verify(self, rows, ds):
-        session = self.conn.open_session()
-        cursor = session.open_cursor(self.uri)
-        for i in range(1, rows * 10):
-            key = random.randint(1, rows - 1)
-            cursor.set_key(ds.key(key))
-            cursor.search()
-            self.assertEqual(cursor.get_value(), str(key) * self.rows)
-
-    def test_chunkcache02(self):
-        ds = SimpleDataSet(
-            self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
-        ds.populate()
-
-        # Insert a large amount of data.
-        cursor = self.session.open_cursor(self.uri)
+    
+    def insert(self, uri, ds):
+        cursor = self.session.open_cursor(uri)
         for i in range(1, self.rows):
-            cursor[ds.key(i)] = str(i) * self.rows
+            cursor[ds.key(i)] = str(i) * 100
+
+    def read_and_verify(self, uri, ds):
+        cursor = self.session.open_cursor(uri)
+        for i in range(1, self.rows):
+            cursor.set_key(ds.key(i))
+            cursor.search()
+            self.assertEqual(cursor.get_value(), str(i) * 100)
+
+    def test_chunkcache03(self):
+        uris = ["table:chunkcache01", "table:chunkcache02", "table:chunkcache03", "table:chunkcache04"]
+        ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in uris]
+            
+        # Insert data in four tables.
+        for i, dataset in enumerate(ds):
+            dataset.populate()
+            self.insert(uris[i], dataset)
         
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
@@ -107,23 +102,33 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()
 
-        '''
-        Allow a specified number of threads to perform reads and data verification.
-        This action forces the chunks to be cached, considering the intentionally
-        small size of the chunk cache. This process also triggers eviction,
-        testing both chunk allocation and deallocation. It's important to note
-        that there's a possibility of re-reading freed chunks which only extends the scope
-        of this testing.
-        '''
-        threads = []
-        for _ in range(self.num_threads):
-            thread = threading.Thread(target=self.read_and_verify, args=(self.rows, ds,))
-            threads.append(thread)
-            thread.start()
+        # Read from the unpinned URIs and capture chunks in use.
+        self.read_and_verify(uris[2], ds[2])
+        self.read_and_verify(uris[3], ds[3])
+        chunks_inuse_excluding_pinned = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse)
+        self.assertGreater(chunks_inuse_excluding_pinned, 0)
 
-        for thread in threads:
-            thread.join()
+        # Assert none of the chunks are pinned.
+        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned), 0)
 
-        # Check relevant chunkcache stats.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse), 0)
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_evicted), 0)
+        # Read from the pinned URIs.
+        self.read_and_verify(uris[0], ds[0])
+        self.read_and_verify(uris[1], ds[1])
+        chunks_inuse_including_pinned = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse)
+        self.assertGreater(chunks_inuse_including_pinned, chunks_inuse_excluding_pinned)
+
+        # Assert that chunks are pinned.
+        pinned_chunks_inuse = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned)
+        self.assertGreater(pinned_chunks_inuse, 0)
+
+        # Assert that the difference b/w the total chunks present and the unpinned chunks equal pinned chunks.
+        # This proves that the chunks read from pinned objects were all pinned.
+        self.assertEqual(chunks_inuse_including_pinned - chunks_inuse_excluding_pinned, pinned_chunks_inuse)
+
+        # Reconfigure wiredtiger and mark the pinned objects as unpinned and vice-versa.
+        self.conn.reconfigure('chunk_cache=[pinned=("table:chunkcache03", "table:chunkcache04")]')
+
+        # After this point all the unpinned chunks should be pinned and vice-versa.
+        # Check the following stats.
+        new_pinned_chunks_inuse = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned)
+        self.assertEqual(chunks_inuse_excluding_pinned, new_pinned_chunks_inuse)
