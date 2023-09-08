@@ -2472,6 +2472,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
                 goto err;
         /* FALLTHROUGH */
         case EBUSY:
+            /* Eviction can busy fail, it is an expected error. Hide the error from our caller. */
+            ret = 0;
             break;
         case WT_NOTFOUND:
             /* Allow the queue to re-populate before retrying. */
@@ -2496,8 +2498,12 @@ err:
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
-        if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            WT_TRET(__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW));
+        /*
+         * Check if a rollback is required only if there has not been an error. Returning an error
+         * takes precedence over asking for a rollback. We can not do both.
+         */
+        if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
+            ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
             __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
