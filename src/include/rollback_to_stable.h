@@ -68,15 +68,17 @@ static WT_VERBOSE_MULTI_CATEGORY WT_VERB_RECOVERY_RTS_RTS_ONLY =
   WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS}));
 
 /* Enable rollback to stable verbose messaging during recovery. */
-#define WT_VERB_RECOVERY_RTS(session)                                                              \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                                                   \
-    WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS : WT_VERB_RECOVERY_RTS_RTS_ONLY)
+#define WT_VERB_RECOVERY_RTS(session)                                                    \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS : \
+                                                 WT_VERB_RECOVERY_RTS_RTS_ONLY)
 
 #else
 
-#define WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS}))
+#define WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS \
+    WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS}))
 
-#define WT_VERB_RECOVERY_RTS_RTS_ONLY WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS}))
+#define WT_VERB_RECOVERY_RTS_RTS_ONLY \
+    WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS}))
 
 /* Enable rollback to stable verbose messaging during recovery. */
 #define WT_VERB_RECOVERY_RTS(session)                                                              \

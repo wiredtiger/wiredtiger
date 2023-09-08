@@ -9,8 +9,8 @@
 #include "wt_internal.h"
 
 /* Enable all recovery-related verbose messaging events. */
-static WT_VERBOSE_MULTI_CATEGORY  WT_VERB_RECOVERY_ALL =
-    WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS}));
+static WT_VERBOSE_MULTI_CATEGORY WT_VERB_RECOVERY_ALL = WT_DECL_VERBOSE_MULTI_CATEGORY(
+  ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS}));
 
 /* State maintained during recovery. */
 typedef struct {
@@ -1008,8 +1008,7 @@ done:
             eviction_started = true;
         }
 
-        __wt_verbose_multi(session,
-          WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS,
+        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS,
           "[RECOVERY_RTS] performing recovery rollback_to_stable with stable_timestamp=%s and "
           "oldest_timestamp=%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
