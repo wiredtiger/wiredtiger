@@ -32,7 +32,6 @@ import threading
 import time
 import wiredtiger, wttest
 
-from random import randrange
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 

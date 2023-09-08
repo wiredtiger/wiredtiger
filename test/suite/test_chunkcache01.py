@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, sys, wiredtiger, wttest
-from random import randrange
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
