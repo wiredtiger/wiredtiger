@@ -2949,7 +2949,7 @@ struct __wt_connection {
  * Duplicate names are allowed., a list of strings; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * storage_path, the path (absolute or relative) to the file used as cache location., a string;
- * default \c WiredTigerChunkCache.}
+ * default empty.}
  * @config{ ),,}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of

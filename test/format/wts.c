@@ -322,10 +322,10 @@ configure_chunkcache(char **p, size_t max)
     char chunkcache_ext_cfg[512];
 
     if (GV(CHUNK_CACHE)) {
-        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0 &&
-          strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0)
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0)
             testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
-              GVS(CHUNK_CACHE_STORAGE_PATH));
+              strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0 ? GVS(CHUNK_CACHE_STORAGE_PATH) :
+                                                                  "WiredTigerChunkCache");
         else
             chunkcache_ext_cfg[0] = '\0';
 

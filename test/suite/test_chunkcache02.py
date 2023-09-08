@@ -63,7 +63,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             os.mkdir('bucket2')
 
         return 'tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20MB,type={}],'.format(self.chunk_cache_type)
+            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20MB,type={},storage_path=WiredTigerChunkCache],'.format(self.chunk_cache_type)
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':

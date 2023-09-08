@@ -1067,7 +1067,7 @@ wiredtiger_open_chunk_cache_configuration = [
         Config('chunk_size', '1MB', r'''
             size of cached chunks''',
             min='512KB', max='100GB'),
-        Config('storage_path', 'WiredTigerChunkCache', r'''
+        Config('storage_path', '', r'''
             the path (absolute or relative) to the file used as cache location'''),
         Config('enabled', 'false', r'''
             enable chunk cache''',
