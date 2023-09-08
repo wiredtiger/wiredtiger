@@ -3666,6 +3666,9 @@ int wiredtiger_unpack_uint(WT_PACK_STREAM *ps, uint64_t *up)
  * @{
  */
 
+/*!
+ * The possible values for the type of a WT_CONFIG_ITEM.
+ */
 enum WT_CONFIG_ITEM_ENUM {
     /*! A string value with quotes stripped. */
     WT_CONFIG_ITEM_STRING,
