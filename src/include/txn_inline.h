@@ -297,7 +297,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 
 /*
  * __wt_txn_op_delete_commit_apply_page_del_timestamp --
- *     Apply the correct start and durable timestamps to any updates in the page del update list.
+ *     Apply the correct start and durable timestamps to the page delete structure.
  */
 static inline void
 __wt_txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -335,11 +335,10 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * instantiated pages. We also need to update any page deleted structure in the ref. Both commit
      * and durable timestamps need to be updated.
      *
-     * Only two cases are possible. First: the state is WT_REF_DELETED or WT_REF_LOCKED and we're in
-     * the process of deleting it. In this case page_del cannot be NULL yet because an uncommitted
-     * operation cannot have reached global visibility. (Or at least, global visibility in the sense
-     * we need to use it for truncations, in which prepared and uncommitted transactions are not
-     * visible.)
+     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
+     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
+     * least, global visibility in the sense we need to use it for truncations, in which prepared
+     * and uncommitted transactions are not visible.)
      *
      * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
      * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
@@ -368,7 +367,6 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
  *     Updates without a commit time and logged objects don't have timestamps, and only the most
  *     recently committed data matches files on disk.
  */
-
 static inline bool
 __wt_txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
