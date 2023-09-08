@@ -34,7 +34,7 @@ from wtdataset import SimpleDataSet
 # Test that we can set the commit timestamp before performing fast truncate.
 class test_truncate22(wttest.WiredTigerTestCase):
     uri = 'table:test_truncate22'
-    conn_config = 'cache_size=100MB,statistics=(all)'
+    conn_config = 'statistics=(all)'
     key_format_values = (
         ('column', dict(key_format='r', value_format='S')),
         ('integer-row', dict(key_format='i', value_format='S'))
@@ -70,6 +70,12 @@ class test_truncate22(wttest.WiredTigerTestCase):
         # Advance stable.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
         self.session.checkpoint()
+        
+        # Check that we removed the first half of the dataset as part of the truncation.
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows  // 2):
+            cursor.set_key(ds.key(i))
+            self.assertNotEqual(cursor.search(), 0)
 
 if __name__ == '__main__':
     wttest.run()
