@@ -50,7 +50,7 @@ functions:
               export LD_LIBRARY_PATH=$WT_BUILDDIR
             fi
 
-            if [[ "${CMAKE_PREFIX_PATH|}" =~ TCMALLOC_LIB ]]; then
+            if [[ "${enable_tcmalloc}" =~ true ]]; then
               export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_TOPDIR/TCMALLOC_LIB/lib"
               export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
             fi
@@ -77,6 +77,9 @@ functions:
             else
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
             fi
+        # The expansion is used for any task that requires the mongodbtoolchain binaries.
+        - key: smp_command
+          value: -j $(grep -c ^processor /proc/cpuinfo)
 
   "get project":
     command: git.get_project
@@ -158,7 +161,7 @@ functions:
         # Note that the config flags are resolved prior to changing to cmake_build directory.
         DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
           ${CMAKE_INSTALL_PREFIX|-DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL} \
-          ${CMAKE_PREFIX_PATH|} \
+          ${CMAKE_PREFIX_PATH|-DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"} \
           ${CMAKE_TOOLCHAIN_FILE|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake} \
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
@@ -1238,7 +1241,6 @@ variables:
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
     <<: *configure_flags_with_builtins
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
 
@@ -1408,57 +1410,52 @@ tasks:
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
     commands:
+      - command: expansions.update
+        params:
+          updates:
+            - key: CMAKE_TOOLCHAIN_FILE
+              value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
       - func: "get project"
       - func: "compile wiredtiger"
-        vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
       - func: "compile wiredtiger"
-        vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
-        vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           GNU_C_VERSION: -DGNU_C_VERSION=7
       - func: "compile wiredtiger"
-        vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           GNU_C_VERSION: -DGNU_C_VERSION=8
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=8
       - func: "compile wiredtiger"
-        vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           GNU_C_VERSION: -DGNU_C_VERSION=9
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
     commands:
+      - command: expansions.update
+        params:
+          updates:
+            - key: CMAKE_TOOLCHAIN_FILE
+              value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
       - func: "compile wiredtiger"
         vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           CLANG_C_VERSION: -DCLANG_C_VERSION=6.0
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=6.0
       - func: "compile wiredtiger"
         vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           CLANG_C_VERSION: -DCLANG_C_VERSION=7
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=7
       - func: "compile wiredtiger"
         vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           CLANG_C_VERSION: -DCLANG_C_VERSION=8
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
 
@@ -4436,8 +4433,6 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-        vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
@@ -4455,8 +4450,6 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-        vars:
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
@@ -4475,7 +4468,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
@@ -4732,7 +4724,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       - func: "format test predictable"
         vars:
           times: 5
@@ -4745,7 +4736,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       - func: "format test tiered"
         vars:
           times: 10
@@ -4758,7 +4748,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       - func: "schema abort predictable"
         vars:
           times: 5
@@ -6083,9 +6072,8 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
     - name: ".pull_request !.pull_request_compilers"
@@ -6140,8 +6128,7 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    enable_tcmalloc: true
     additional_env_vars: |
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
@@ -6159,7 +6146,6 @@ buildvariants:
   expansions:
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
   tasks:
     - name: compile
     - name: make-check-test
@@ -6177,7 +6163,6 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
     # builds) as -O1, making test binaries more difficult to debug. 
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     additional_env_vars: |
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
@@ -6208,8 +6193,7 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
     # builds) as -O1, making test binaries more difficult to debug. 
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    enable_tcmalloc: true
     additional_env_vars: |
       export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
   tasks:
@@ -6231,8 +6215,7 @@ buildvariants:
   run_on:
   - ubuntu2004-wt-build
   expansions:
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    enable_tcmalloc: true
   tasks:
     - name: ".pull_request_compilers"
 
@@ -6241,9 +6224,8 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
   tasks:
     # FIXME-WT-11606 Remove this temporary task.
     - name: format-11507-test
@@ -6276,9 +6258,8 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
   tasks:
     # FIXME-WT-11606 Remove this temporary task.
     - name: format-11507-test
@@ -6302,8 +6283,7 @@ buildvariants:
   # We run on medium as small has too small a disk.
   - ubuntu2004-medium
   expansions:
-    cmake_generator: Ninja
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
   tasks:
     - name: compile
     - name: compile-nonstandalone
@@ -6316,7 +6296,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
   tasks:
     - name: compile
     - name: compile-nonstandalone
@@ -6331,13 +6311,25 @@ buildvariants:
   tasks:
     - name: package
 
+- name: linux-no-ftruncate
+  display_name: Linux no ftruncate
+  batchtime: 1440 # 1 day
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+  tasks:
+    - name: compile-linux-no-ftruncate
+    - name: make-check-linux-no-ftruncate-test
+    - name: unit-linux-no-ftruncate-test
+    - name: format-linux-no-ftruncate
+
 - name: rhel80
   display_name: RHEL 8.0
   run_on:
   - rhel80-test
   expansions:
     additional_env_vars: export LD_PRELOAD="/usr/local/lib/libeatmydata.so:$LD_PRELOAD"
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: "Unix Makefiles"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
   tasks:
@@ -6402,7 +6394,6 @@ buildvariants:
   - ubuntu1804-large
   batchtime: 4320 # 3 days
   expansions:
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
     posix_configure_flags: -DENABLE_ZSTD=0
   tasks:
@@ -6417,7 +6408,6 @@ buildvariants:
   - rhel80-zseries-build
   batchtime: 4320 # 3 days
   expansions:
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     posix_configure_flags: -DENABLE_ZSTD=0
   tasks:
     - name: compile
@@ -6468,7 +6458,7 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: compile
@@ -6507,7 +6497,7 @@ buildvariants:
   expansions:
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
   tasks:
     - name: compile
     - name: make-check-test
@@ -6605,8 +6595,7 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -6626,8 +6615,7 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    enable_tcmalloc: true
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
