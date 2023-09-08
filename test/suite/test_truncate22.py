@@ -73,7 +73,7 @@ class test_truncate22(wttest.WiredTigerTestCase):
         
         # Check that we removed the first half of the dataset as part of the truncation.
         cursor = self.session.open_cursor(self.uri)
-        for i in range(1, self.nrows  // 2):
+        for i in range(1, self.nrows // 2):
             cursor.set_key(ds.key(i))
             self.assertNotEqual(cursor.search(), 0)
 
