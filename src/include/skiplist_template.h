@@ -44,8 +44,6 @@ TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_HEAD *ins_head, TMPL_ELEMEN
 
     *donep = 0;
 
-    if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
-        return (0);
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
      * move this assignment above within the loop below if it needs to (and may read a different
@@ -53,9 +51,13 @@ TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_HEAD *ins_head, TMPL_ELEMEN
      *
      * Place a read barrier here to avoid this issue.
      */
-    WT_READ_BARRIER();
-    TMPL_KEY_ASSIGN(&key, ins);
+    WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
 
+    /* If there's no insert chain to search, we're done. */
+    if (ins == NULL)
+        return (NULL);
+
+    TMPL_KEY_ASSIGN(&key, ins);
     TMPL_KEY_COMPARE(session, srch_key, &key, &cmp);
     if (cmp >= 0) {
         /*
