@@ -6,6 +6,10 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
+#include "dhandle.h"
+
 /*
  * Define the maximum number of tiers for convenience. We expect at most two initially. This can
  * change if more are needed. It is easier to have the array statically allocated initially than
@@ -110,6 +114,7 @@ struct __wt_tiered {
     uint32_t flags;
 
 #ifdef __cplusplus
+#ifdef __clang__
     __wt_tiered &
     operator=(const __wt_tiered &other)
     {
@@ -128,8 +133,9 @@ struct __wt_tiered {
         oldest_id = other.oldest_id;
         flags = other.flags;
 
-        return *this;
+        return (*this);
     }
+#endif
 #endif
 };
 

@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Condition variables:
  *
@@ -51,7 +53,7 @@ struct __wt_rwlock { /* Read/write lock */
         operator=(__wt_rwlock_union volatile &from) volatile
         {
             v = from.v;
-            return *this;
+            return (*this);
         }
 #endif
     } u;

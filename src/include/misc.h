@@ -363,7 +363,7 @@ union __wt_rand_state {
     operator=(__wt_rand_state volatile &from) volatile
     {
         v = from.v;
-        return *this;
+        return (*this);
     }
 #endif
 };

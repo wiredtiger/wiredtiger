@@ -43,12 +43,12 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (WT_VERBOSE_ISSET(session, WT_VERB_HS) ||
       (ckpt_gen_current > ckpt_gen_last &&
         __wt_atomic_casv64(&cache->hs_verb_gen_write, ckpt_gen_last, ckpt_gen_current))) {
+        WT_VERBOSE_CATEGORY category_array[] = {WT_VERB_HS, WT_VERB_HS_ACTIVITY};
+        WT_VERBOSE_MULTI_CATEGORY categories = WT_DECL_VERBOSE_MULTI_CATEGORY(category_array);
         WT_IGNORE_RET_BOOL(__wt_eviction_clean_needed(session, &pct_full));
         WT_IGNORE_RET_BOOL(__wt_eviction_dirty_needed(session, &pct_dirty));
 
-        __wt_verbose_multi(session,
-          WT_DECL_VERBOSE_MULTI_CATEGORY(
-            ((WT_VERBOSE_CATEGORY[]){WT_VERB_HS, WT_VERB_HS_ACTIVITY})),
+        __wt_verbose_multi(session, categories,
           "Page reconciliation triggered history store write: file ID %" PRIu32
           ". Current history store file size: %" PRId64
           ", cache dirty: %2.3f%% , cache use: %2.3f%%",

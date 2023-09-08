@@ -6,6 +6,10 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
+#include "mutex.h"
+
 /*
  * Helpers for calling a function with a data handle in session->dhandle then restoring afterwards.
  */
