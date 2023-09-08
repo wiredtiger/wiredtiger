@@ -445,11 +445,11 @@ uniformly distributed.
 - A high number of deleted items are within the btree.
 - A high number of invisible records in the transaction of the cursor.
 
-The \c next_random_sample_size configuration can be used for a better distribution
-which divides the btree into \c next_random_sample_size pieces, and each subsequent retrieval
-returns a record from the next one of those pieces. Internally, this configuration results in a
-slight modification to the original pseudo-random algorithm described at the start of this section.
-The process remains the same expcept for Step 1, where instead of performing a random descent,
+The \c next_random_sample_size configuration is an option that can be used for users looking for a better distribution.
+The concept is that the btree becomes divided into \c next_random_sample_size pieces, and each subsequent
+\c cursor->next call will retrieve a random record from the following divided piece. Internally, this
+configuration results in a slight modification to the original pseudo-random algorithm described at the start
+of this section. The process remains the same except for Step 1, where instead of performing a random descent,
 the algorithm will now start from the beginning of the btree and traverse a fixed number of times
-according to the set \c next_random_sample_size number.
+to next the divided segment.
 */
