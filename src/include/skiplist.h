@@ -60,10 +60,12 @@
         (key)->data = WT_INSERT_KEY(element);      \
         (key)->size = WT_INSERT_KEY_SIZE(element); \
     }
+#define TMPL_KEY_COMPARE_EXTRA_VARS WT_COLLATOR *collator;
+#define TMPL_KEY_COMPARE_INIT collator = S2BT(session)->collator;
 #define TMPL_KEY_COMPARE(session, srch_key, key, cmp) \
-    WT_RET(__wt_compare(session, S2BT(session)->collator, srch_key, key, cmp));
+    WT_RET(__wt_compare(session, collator, srch_key, key, cmp));
 #define TMPL_KEY_COMPARE_SKIP(session, srch_key, key, cmp, match) \
-    WT_RET(__wt_compare_skip(session, S2BT(session)->collator, srch_key, key, cmp, match));
+    WT_RET(__wt_compare_skip(session, collator, srch_key, key, cmp, match));
 
 /* Functions to define. */
 #define TMPL_FN_APPEND_SEARCH __wt_skip_append_search__insert
@@ -143,6 +145,8 @@ __wt_int_compare_p(const int *ap, const int *bp)
 
 /* Key functionality. */
 #define TMPL_KEY_ASSIGN(keyp, element) *(keyp) = element->key;
+#define TMPL_KEY_COMPARE_EXTRA_VARS
+#define TMPL_KEY_COMPARE_INIT
 #define TMPL_KEY_COMPARE(session, srch_key, key, cmp) *(cmp) = __wt_int_compare_p(srch_key, key);
 #define TMPL_KEY_COMPARE_SKIP(session, srch_key, key, cmp, match) \
     *(cmp) = __wt_int_compare_p(srch_key, key);

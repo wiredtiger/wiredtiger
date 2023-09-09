@@ -39,9 +39,11 @@ TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_HEAD *ins_head, TMPL_ELEMEN
     TMPL_ELEMENT *ins;
     TMPL_KEY key;
     int cmp, i;
+    TMPL_KEY_COMPARE_EXTRA_VARS;
 
     WT_UNUSED(session); /* May or may not be used, depending on the template macros. */
 
+    TMPL_KEY_COMPARE_INIT;
     *donep = 0;
 
     /*
@@ -55,7 +57,7 @@ TMPL_FN_APPEND_SEARCH(WT_SESSION_IMPL *session, TMPL_HEAD *ins_head, TMPL_ELEMEN
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
-        return (NULL);
+        return (0);
 
     TMPL_KEY_ASSIGN(&key, ins);
     TMPL_KEY_COMPARE(session, srch_key, &key, &cmp);
@@ -106,9 +108,11 @@ TMPL_FN_INSERT_SEARCH(WT_SESSION_IMPL *session, TMPL_HEAD *ins_head, TMPL_ELEMEN
     TMPL_KEY key;
     size_t match, skiphigh, skiplow;
     int cmp, i;
+    TMPL_KEY_COMPARE_EXTRA_VARS;
 
     WT_UNUSED(session); /* May or may not be used, depending on the template macros. */
 
+    TMPL_KEY_COMPARE_INIT;
     cmp = 0; /* -Wuninitialized */
 
     /*
@@ -384,6 +388,8 @@ TMPL_FN_CONTAINS(WT_SESSION_IMPL *session, TMPL_HEAD *head, TMPL_KEY *key)
 
 #undef TMPL_KEY_ASSIGN
 #undef TMPL_KEY_COMPARE
+#undef TMPL_KEY_COMPARE_EXTRA_VARS
+#undef TMPL_KEY_COMPARE_INIT
 #undef TMPL_KEY_COMPARE_SKIP
 
 #undef TMPL_FN_APPEND_SEARCH
