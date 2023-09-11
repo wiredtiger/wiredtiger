@@ -24,6 +24,8 @@ find bench dist examples ext src test \
     -name '*.dox' -o \
     -name '*.in' -o \
     -name 's_*' -o \
+    -name '*.sh' -o \
+    -name 'CONFIG.*' -o \
     -name 'Makefile.am' |
     sed -e '/Makefile.in/d' \
         -e '/checksum\/power8/d' \
