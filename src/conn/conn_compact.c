@@ -343,12 +343,12 @@ __compact_server(void *arg)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool full_iteration, running, signalled;
+    bool full_iteration, running;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    full_iteration = running = signalled = false;
+    full_iteration = running = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
