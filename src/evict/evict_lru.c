@@ -2472,8 +2472,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
                 goto err;
         /* FALLTHROUGH */
         case EBUSY:
-            /* Eviction can busy fail, it is an expected error. Hide the error from our caller. */
-            ret = 0;
             break;
         case WT_NOTFOUND:
             /* Allow the queue to re-populate before retrying. */
@@ -2486,8 +2484,12 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         /* Stop if we've exceeded the time out. */
         if (time_start != 0 && cache_max_wait_us != 0) {
             time_stop = __wt_clock(session);
-            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
+            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) >
+              cache_max_wait_us) {
+                /* Don't leak expected errors from eviction back to the application. */
+                ret = 0;
                 goto err;
+            }
         }
     }
 
