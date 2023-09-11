@@ -78,6 +78,7 @@ __wt_rts_visibility_page_needs_abort(
     WT_CELL_UNPACK_ADDR vpack;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    WT_TIME_AGGREGATE *ta;
     wt_timestamp_t durable_ts;
     uint64_t newest_txn;
     uint32_t i;
@@ -106,16 +107,18 @@ __wt_rts_visibility_page_needs_abort(
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
-        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, &mod->mod_replace.ta);
-        prepared = mod->mod_replace.ta.prepare;
+        __wt_addr_get_ta(&mod->mod_replace, &ta);
+        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
+        prepared = ta->prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi block";
         /* Calculate the max durable timestamp by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            durable_ts = WT_MAX(
-              durable_ts, __rts_visibility_get_ref_max_durable_timestamp(session, &multi->addr.ta));
-            if (multi->addr.ta.prepare)
+            __wt_addr_get_ta(&multi->addr, &ta);
+            durable_ts =
+              WT_MAX(durable_ts, __rts_visibility_get_ref_max_durable_timestamp(session, ta));
+            if (ta->prepare)
                 prepared = true;
         }
         result = (durable_ts > rollback_timestamp) || prepared;
@@ -131,17 +134,18 @@ __wt_rts_visibility_page_needs_abort(
     } else if (!__wt_off_page(ref->home, addr)) {
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
-        __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
-        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, &vpack.ta);
-        prepared = vpack.ta.prepare;
-        newest_txn = vpack.ta.newest_txn;
+        __wt_cell_unpack_addr_get_ta(session, ref->home->dsk, (WT_CELL *)addr, &ta);
+        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
+        prepared = ta->prepare;
+        newest_txn = ta->newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (addr != NULL) {
         tag = "address";
-        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, &addr->ta);
-        prepared = addr->ta.prepare;
-        newest_txn = addr->ta.newest_txn;
+        __wt_addr_get_ta(addr, &ta);
+        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
+        prepared = ta->prepare;
+        newest_txn = ta->newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     }

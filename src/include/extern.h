@@ -2441,6 +2441,7 @@ static inline uint64_t __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline uint64_t __wt_txn_oldest_id(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline void __wt_addr_get_ta(WT_ADDR *addr, WT_TIME_AGGREGATE **tap);
 static inline void __wt_btree_disable_bulk(WT_SESSION_IMPL *session);
 static inline void __wt_buf_free(WT_SESSION_IMPL *session, WT_ITEM *buf);
 static inline void __wt_cache_decr_check_size(
@@ -2463,10 +2464,13 @@ static inline void __wt_cache_read_gen_incr(WT_SESSION_IMPL *session);
 static inline void __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cbt_clear_all_deleted_items_flag(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *first_upd);
+static inline void __wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp);
 static inline void __wt_cell_type_reset(
   WT_SESSION_IMPL *session, WT_CELL *cell, u_int old_type, u_int new_type);
 static inline void __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL *cell, WT_CELL_UNPACK_ADDR *unpack_addr);
+static inline void __wt_cell_unpack_addr_get_ta(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell, WT_TIME_AGGREGATE **tap);
 static inline void __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL *cell, WT_CELL_UNPACK_KV *unpack_value);
 static inline void __wt_cond_wait(
