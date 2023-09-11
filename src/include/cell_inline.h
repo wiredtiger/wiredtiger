@@ -1180,12 +1180,10 @@ static inline void
 __wt_cell_unpack_addr_get_ta(
   WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell, WT_TIME_AGGREGATE **tap)
 {
-    WT_CELL_UNPACK_ADDR *unpack_addr;
+    WT_CELL_UNPACK_ADDR unpack_addr;
 
-    unpack_addr = NULL;
-
-    __wt_cell_unpack_addr(session, dsk, cell, unpack_addr);
-    *tap = &unpack_addr->ta;
+    __wt_cell_unpack_addr(session, dsk, cell, &unpack_addr);
+    *tap = &unpack_addr.ta;
 }
 
 /*
