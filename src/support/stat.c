@@ -1293,6 +1293,9 @@ static const char *const __stats_connection_desc[] = {
   "LSM: tree queue hit maximum",
   "autocommit: retries for readonly operations",
   "autocommit: retries for update operations",
+  "background-compact: background compact bytes recovered",
+  "background-compact: background compact bytes rewritten",
+  "background-compact: background compact bytes rewritten ema",
   "background-compact: background compact failed calls",
   "background-compact: background compact failed calls due to cache pressure",
   "background-compact: background compact interrupted",
@@ -1973,6 +1976,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->lsm_work_queue_max = 0;
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
+    stats->background_compact_bytes_recovered = 0;
+    stats->background_compact_bytes_rewritten = 0;
+    stats->background_compact_bytes_rewritten_ema = 0;
     stats->background_compact_fail = 0;
     stats->background_compact_fail_cache_pressure = 0;
     stats->background_compact_interrupted = 0;
@@ -2602,6 +2608,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->lsm_work_queue_max += WT_STAT_READ(from, lsm_work_queue_max);
     to->autocommit_readonly_retry += WT_STAT_READ(from, autocommit_readonly_retry);
     to->autocommit_update_retry += WT_STAT_READ(from, autocommit_update_retry);
+    to->background_compact_bytes_recovered +=
+      WT_STAT_READ(from, background_compact_bytes_recovered);
+    to->background_compact_bytes_rewritten +=
+      WT_STAT_READ(from, background_compact_bytes_rewritten);
+    to->background_compact_bytes_rewritten_ema +=
+      WT_STAT_READ(from, background_compact_bytes_rewritten_ema);
     to->background_compact_fail += WT_STAT_READ(from, background_compact_fail);
     to->background_compact_fail_cache_pressure +=
       WT_STAT_READ(from, background_compact_fail_cache_pressure);

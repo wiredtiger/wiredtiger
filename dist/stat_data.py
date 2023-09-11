@@ -207,6 +207,9 @@ conn_stats = [
     BackgroundCompactStat('background_compact_skipped', 'background compact skipped as process would not reduce file size', 'no_scale'),
     BackgroundCompactStat('background_compact_success', 'background compact successful calls', 'no_scale'),
     BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
+    BackgroundCompactStat('background_compact_bytes_rewritten', 'background compact bytes rewritten','size'),
+    BackgroundCompactStat('background_compact_bytes_rewritten_ema', 'background compact bytes rewritten ema','size'),
+    BackgroundCompactStat('background_compact_bytes_recovered', 'background compact bytes recovered','size'),
 
     ##########################################
     # Block cache statistics

@@ -212,6 +212,9 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
     compact_stat->bytes_rewritten = bm->block->compact_bytes_rewritten;
     bytes_recovered = compact_stat->start_size - compact_stat->end_size;
 
+    WT_STAT_CONN_INCRV(session, background_compact_bytes_rewritten, compact_stat->bytes_rewritten);
+    WT_STAT_CONN_INCRV(session, background_compact_bytes_recovered, bytes_recovered);
+
     /*
      * If the file failed to decrease in size, mark as an unsuccessful attempt. It's possible for
      * compaction to do work (rewriting bytes) while other operations cause the file to increase in
@@ -233,6 +236,9 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
         conn->background_compact.bytes_rewritten_ema =
           (uint64_t)(0.1 * bm->block->compact_bytes_rewritten +
             0.9 * conn->background_compact.bytes_rewritten_ema);
+
+        WT_STAT_CONN_SET(session, background_compact_bytes_rewritten_ema,
+          conn->background_compact.bytes_rewritten_ema);
     }
 
     return (0);

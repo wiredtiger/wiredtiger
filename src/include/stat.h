@@ -351,6 +351,9 @@ struct __wt_connection_stats {
     int64_t lsm_work_queue_max;
     int64_t autocommit_readonly_retry;
     int64_t autocommit_update_retry;
+    int64_t background_compact_bytes_recovered;
+    int64_t background_compact_bytes_rewritten;
+    int64_t background_compact_bytes_rewritten_ema;
     int64_t background_compact_fail;
     int64_t background_compact_fail_cache_pressure;
     int64_t background_compact_interrupted;
