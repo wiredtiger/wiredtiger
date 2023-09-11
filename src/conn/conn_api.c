@@ -1108,7 +1108,6 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *s, *session;
     WT_TIMER timer;
-    uint64_t time_diff;
     uint32_t i;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
@@ -1224,9 +1223,12 @@ err:
         F_SET(conn, WT_CONN_LEAK_MEMORY);
 
     /* Time since the shutdown has started. */
-    __wt_timer_evaluate(session, &timer, &time_diff);
+    __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.shutdown);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-      "shutdown has successfully finished and ran for %" PRIu64 " seconds", time_diff);
+      "shutdown was completed successfully and took %" PRIu64 " ms, including %" PRIu64
+      " ms for the rollback to stable, and %" PRIu64 " ms for the checkpoint.",
+      conn->shutdown_timeline.shutdown, conn->shutdown_timeline.rts,
+      conn->shutdown_timeline.checkpoint);
 
     WT_TRET(__wt_connection_close(conn));
 

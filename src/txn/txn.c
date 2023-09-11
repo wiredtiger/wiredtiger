@@ -2466,7 +2466,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_DECL_RET;
     WT_SESSION_IMPL *s;
     WT_TIMER timer;
-    uint64_t time_diff;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
     bool use_timestamp;
@@ -2501,7 +2500,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
 
             /* Time since the shutdown RTS has started. */
-            __wt_timer_evaluate(session, &timer, &time_diff);
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.rts);
             if (ret != 0)
                 __wt_verbose_notice(session, WT_VERB_RTS,
                   WT_RTS_VERB_TAG_SHUTDOWN_RTS
@@ -2510,8 +2509,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             else
                 __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
-                  " seconds",
-                  time_diff);
+                  " milliseconds",
+                  conn->shutdown_timeline.rts);
         }
 
         s = NULL;
@@ -2532,10 +2531,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             WT_TRET(__wt_session_close_internal(s));
 
             /* Time since the shutdown checkpoint has started. */
-            __wt_timer_evaluate(session, &timer, &time_diff);
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.checkpoint);
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "shutdown checkpoint has successfully finished and ran for %" PRIu64 " seconds",
-              time_diff);
+              "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
+              conn->shutdown_timeline.checkpoint);
         }
     }
 

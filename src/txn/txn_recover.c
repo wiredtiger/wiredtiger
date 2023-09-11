@@ -785,7 +785,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY_FILE *metafile;
     WT_TIMER timer, rts_timer, checkpoint_timer;
     wt_off_t hs_size;
-    uint64_t time_diff;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
@@ -991,9 +990,10 @@ done:
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
     /* Time since the Log replay has started. */
-    __wt_timer_evaluate(session, &timer, &time_diff);
+    __wt_timer_evaluate(session, &timer, &conn->recovery_timeline.log_replay);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-      "recovery log replay has successfully finished and ran for %" PRIu64 " seconds", time_diff);
+      "recovery log replay has successfully finished and ran for %" PRIu64 " milliseconds",
+      conn->recovery_timeline.log_replay);
 
     WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
@@ -1029,10 +1029,11 @@ done:
         WT_ERR(conn->rts->rollback_to_stable(session, NULL, true));
 
         /* Time since the rollback to stable has started. */
-        __wt_timer_evaluate(session, &rts_timer, &time_diff);
+        __wt_timer_evaluate(session, &rts_timer, &conn->recovery_timeline.rts);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-          "recovery rollback to stable has successfully finished and ran for %" PRIu64 " seconds",
-          time_diff);
+          "recovery rollback to stable has successfully finished and ran for %" PRIu64
+          " milliseconds",
+          conn->recovery_timeline.rts);
     }
 
     /*
@@ -1052,10 +1053,10 @@ done:
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
         /* Time since the recovery checkpoint has started. */
-        __wt_timer_evaluate(session, &checkpoint_timer, &time_diff);
+        __wt_timer_evaluate(session, &checkpoint_timer, &conn->recovery_timeline.checkpoint);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-          "recovery checkpoint has successfully finished and ran for %" PRIu64 " seconds",
-          time_diff);
+          "recovery checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
+          conn->recovery_timeline.checkpoint);
     }
 
     /* Remove any backup file now that metadata has been synced. */
@@ -1079,9 +1080,13 @@ done:
     FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
     /* Time since the recovery has started. */
-    __wt_timer_evaluate(session, &timer, &time_diff);
+    __wt_timer_evaluate(session, &timer, &conn->recovery_timeline.recovery);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-      "recovery has successfully finished and ran for %" PRIu64 " seconds", time_diff);
+      "recovery was completed successfully and took %" PRIu64 " ms, including %" PRIu64
+      " ms for the log replay, %" PRIu64 " ms the rollback to stable, and %" PRIu64
+      " ms the checkpoint.",
+      conn->recovery_timeline.recovery, conn->recovery_timeline.log_replay,
+      conn->recovery_timeline.rts, conn->recovery_timeline.checkpoint);
 
 err:
     WT_TRET(__recovery_close_cursors(&r));
