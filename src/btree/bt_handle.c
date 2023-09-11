@@ -829,27 +829,6 @@ err:
 }
 
 /*
- * __btree_last_recno_no_skip --
- *     Callback used when walking the tree attempting to find the last record number. The last
- *     record number of a btree should be the highest record number that the tree has seen,
- *     including deleted content. Never skip a page when walking the tree in search of this maximum
- *     even for globally visible deleted pages.
- */
-static int
-__btree_last_recno_no_skip(
-  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
-{
-    WT_UNUSED(session);
-    WT_UNUSED(ref);
-    WT_UNUSED(context);
-    WT_UNUSED(visible_all);
-
-    *skipp = false;
-
-    return (0);
-}
-
-/*
  * __btree_get_last_recno --
  *     Set the last record number for a column-store. Note that this is used to handle appending to
  *     a column store after a truncate operation. It is not related to the WT_CURSOR::largest_key
@@ -883,8 +862,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     flags = WT_READ_PREV | WT_READ_VISIBLE_ALL | WT_READ_SEE_DELETED;
 
     next_walk = NULL;
-    WT_RET(
-      __wt_tree_walk_custom_skip(session, &next_walk, &__btree_last_recno_no_skip, NULL, flags));
+    WT_RET(__wt_tree_walk(session, &next_walk, flags));
     if (next_walk == NULL)
         return (WT_NOTFOUND);
 
