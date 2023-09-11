@@ -75,7 +75,6 @@ __wt_rts_visibility_page_needs_abort(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_ADDR *addr;
-    WT_CELL_UNPACK_ADDR vpack;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE *ta;

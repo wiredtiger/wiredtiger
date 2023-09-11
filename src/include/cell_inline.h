@@ -1182,6 +1182,8 @@ __wt_cell_unpack_addr_get_ta(
 {
     WT_CELL_UNPACK_ADDR *unpack_addr;
 
+    unpack_addr = NULL;
+
     __wt_cell_unpack_addr(session, dsk, cell, unpack_addr);
     *tap = &unpack_addr->ta;
 }
