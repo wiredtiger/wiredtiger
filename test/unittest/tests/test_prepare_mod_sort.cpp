@@ -115,8 +115,12 @@ init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITE
 void
 init_key(WT_SESSION_IMPL *session, WT_ITEM *key, std::string key_str)
 {
-    WT_ASSERT(session, __wt_buf_init(session, key, key_str.size()) == 0);
-    WT_ASSERT(session, __wt_buf_set(session, key, key_str.c_str(), key_str.size()) == 0);
+    WT_DECL_RET;
+
+    ret = __wt_buf_init(session, key, key_str.size());
+    WT_ASSERT(session, ret == 0);
+    ret = __wt_buf_set(session, key, key_str.c_str(), key_str.size());
+    WT_ASSERT(session, ret == 0);
 }
 
 /* Generate random alphanumeric keys. */
@@ -260,8 +264,7 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
 
     allocate_key_space(session, key_count, keys);
 
-    WT_ASSERT(session, __wt_buf_init(session, keys[0], 1) == 0);
-    WT_ASSERT(session, __wt_buf_set(session, keys[0], "1", key_str.size()) == 0);
+    init_key(session, keys[0], key_str);
 
     for (int i = 0; i < 6; i++)
         init_btree(&btrees[i], BTREE_ROW, rand() % 400);
