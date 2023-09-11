@@ -234,7 +234,9 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
 
 /*
  * __tree_walk_internal --
- *     Move to the next/previous page in the tree. Visibility is considered during this walk.
+ *     Move to the next/previous page in the tree, skipping pages in the WT_REF_DELETED state and
+ *     for other reasons. Those other reasons are generally controlled by the flags passed in to
+ *     this function.
  */
 static inline int
 __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp,
@@ -259,8 +261,15 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_ASSERT(session, LF_ISSET(WT_READ_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /*
-     * Rollback-to-stable does not skip deleted pages. We set read-see-deleted here because we can't
-     * add flags to cursor->next and prev, which can end up doing a tree walk.
+     * Historically, all tree walks skipped deleted pages. There are now some exceptions to this:
+     * Rollback to stable, and column store append. Rather than add the read-see-deleted flag to
+     * every single tree walk call, we hide these pages unless:
+     *
+     * 1. We detect that rollback to stable is in progress
+     * 2. Callers opt into seeing these pages with the read-see-deleted flag.
+     *
+     * Ideally, rollback to stable would also use the read-see-deleted flag but it uses cursor->next
+     * and cursor->prev, which don't have flags.
      */
     if (!F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) && !LF_ISSET(WT_READ_SEE_DELETED))
         LF_SET(WT_READ_SKIP_DELETED);
