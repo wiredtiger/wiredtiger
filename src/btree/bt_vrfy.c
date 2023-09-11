@@ -50,7 +50,7 @@ static int __verify_page_content_leaf(
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
-static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, uint64_t, WT_VSTUFF *);
+static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 
 /*
  * __verify_config --
@@ -277,8 +277,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             addr_unpack.raw = WT_CELL_ADDR_INT;
 
             /* Verify the tree. */
-            WT_WITH_PAGE_INDEX(session,
-              ret = __verify_tree(session, &btree->root, &addr_unpack, ckpt->write_gen, vs));
+            WT_WITH_PAGE_INDEX(
+              session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
@@ -418,8 +418,8 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unp
  *     Our job is to check logical relationships in the page and in the tree.
  */
 static int
-__verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack,
-  uint64_t parent_write_gen, WT_VSTUFF *vs)
+__verify_tree(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -538,11 +538,13 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_u
      * content to check.
      */
     if (page->dsk != NULL) {
-        if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= parent_write_gen)
+        /* Validate the page disk write generation number against a parent's write generation
+         * number. */
+        if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= ref->home->dsk->write_gen)
             WT_RET_MSG(session, EINVAL,
               "child write generation number %" PRIu64
               " is greater/equal to the parent page write generation number %" PRIu64,
-              page->dsk->write_gen, parent_write_gen);
+              page->dsk->write_gen, ref->home->dsk->write_gen);
 
         switch (page->type) {
         case WT_PAGE_COL_FIX:
@@ -645,7 +647,7 @@ celltype_err:
                 continue;
             } else
                 WT_RET(ret);
-            ret = __verify_tree(session, child_ref, unpack, child_ref->home->dsk->write_gen, vs);
+            ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
             WT_RET(ret);
@@ -686,7 +688,7 @@ celltype_err:
                 continue;
             } else
                 WT_RET(ret);
-            ret = __verify_tree(session, child_ref, unpack, child_ref->home->dsk->write_gen, vs);
+            ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
             WT_RET(ret);
