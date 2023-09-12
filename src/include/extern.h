@@ -2107,8 +2107,6 @@ static inline bool __wt_spin_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref,
   WT_PAGE_INDEX *saved_pindex) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline bool __wt_txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_txn_snap_min_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2521,8 +2519,6 @@ static inline void __wt_txn_cursor_op(WT_SESSION_IMPL *session);
 static inline void __wt_txn_err_set(WT_SESSION_IMPL *session, int ret);
 static inline void __wt_txn_op_delete_apply_prepare_state(
   WT_SESSION_IMPL *session, WT_REF *ref, bool commit);
-static inline void __wt_txn_op_delete_commit_apply_page_del_timestamp(
-  WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_txn_op_delete_commit_apply_timestamps(
   WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno);

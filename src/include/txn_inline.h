@@ -296,17 +296,19 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 }
 
 /*
- * __wt_txn_op_delete_commit_apply_page_del_timestamp --
+ * __txn_op_delete_commit_apply_page_del_timestamp --
  *     Apply the correct start and durable timestamps to the page delete structure.
  */
 static inline void
-__wt_txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF *ref)
+__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
 
     txn = session->txn;
     page_del = ref->page_del;
+
+    WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = txn->commit_timestamp;
@@ -357,27 +359,25 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
             }
     }
 
-    __wt_txn_op_delete_commit_apply_page_del_timestamp(session, ref);
+    __txn_op_delete_commit_apply_page_del_timestamp(session, ref);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
- * __wt_txn_should_assign_timestamp --
- *     Updates without a commit time and logged objects don't have timestamps, and only the most
- *     recently committed data matches files on disk.
+ * __txn_should_assign_timestamp --
+ *     Some updates may not have any timestamps associated with them, for example, if they were made
+ *     by a transaction that doesn't assign a commit timestamp or they are updates on tables with
+ *     write-ahead-logging enabled. It is important for correctness reasons not to assign any
+ *     timestamps to an update that should not have them, so make the check explicit in this
+ *     function.
  */
 static inline bool
-__wt_txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    WT_BTREE *btree;
-    WT_TXN *txn;
-
-    btree = op->btree;
-    txn = session->txn;
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    if (!F_ISSET(session->txn, WT_TXN_HAS_TS_COMMIT))
         return (false);
-    if (F_ISSET(btree, WT_BTREE_LOGGED))
+    if (F_ISSET(op->btree, WT_BTREE_LOGGED))
         return (false);
 
     return (true);
@@ -397,7 +397,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
     txn = session->txn;
 
-    if (!__wt_txn_should_assign_timestamp(session, op))
+    if (!__txn_should_assign_timestamp(session, op))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -495,8 +495,8 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     ref->page_del->txnid = txn->id;
 
-    if (__wt_txn_should_assign_timestamp(session, op))
-        __wt_txn_op_delete_commit_apply_page_del_timestamp(session, op->u.ref);
+    if (__txn_should_assign_timestamp(session, op))
+        __txn_op_delete_commit_apply_page_del_timestamp(session, op->u.ref);
 
     if (__wt_log_op(session))
         WT_ERR(__wt_txn_log_op(session, NULL));
