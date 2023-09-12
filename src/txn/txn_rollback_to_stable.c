@@ -1569,16 +1569,13 @@ err:
  *     Log a verbose message about the progress of the current rollback to stable.
  */
 static void
-__rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
-  uint64_t rollback_count, uint64_t *rollback_msg_count)
+__rollback_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t rollback_count,
+  uint64_t *rollback_msg_count)
 {
-    struct timespec cur_time;
     uint64_t time_diff;
 
-    __wt_epoch(session, &cur_time);
-
     /* Time since the rollback started. */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
+    __wt_timer_evaluate(session, rollback_start, &time_diff);
 
     if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
@@ -1749,7 +1746,9 @@ int
 __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 {
     WT_DECL_RET;
+    WT_TIMER timer;
     wt_timestamp_t rollback_timestamp;
+    uint64_t time_diff;
     char *config;
 
     /*
@@ -1763,7 +1762,11 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
     if (!*skipp)
         return (0);
 
+    __wt_timer_start(session, &timer);
     WT_RET(__wt_metadata_search(session, uri, &config));
+
+    __wt_verbose_multi(
+      session, WT_VERB_RECOVERY_RTS(session), "starting rollback to stable on uri %s", uri);
 
     /* Read the stable timestamp once, when we first start up. */
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
@@ -1772,8 +1775,11 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
     ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
-    __wt_free(session, config);
+    __wt_timer_evaluate(session, &timer, &time_diff);
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+      "finished rollback to stable on uri %s and has ran for %" PRIu64 " seconds", uri, time_diff);
 
+    __wt_free(session, config);
     return (ret);
 }
 
@@ -1785,21 +1791,20 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
 static int
 __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
-    struct timespec rollback_timer;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_TIMER timer;
     uint64_t rollback_count, rollback_msg_count;
     const char *config, *uri;
 
-    /* Initialize the verbose tracking timer. */
-    __wt_epoch(session, &rollback_timer);
+    __wt_timer_start(session, &timer);
     rollback_count = 0;
     rollback_msg_count = 0;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a progress message. */
-        __rollback_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
+        __rollback_progress_msg(session, &timer, rollback_count, &rollback_msg_count);
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));
@@ -1920,6 +1925,8 @@ int
 __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 {
     WT_DECL_RET;
+    WT_TIMER timer;
+    uint64_t time_diff;
 
     WT_UNUSED(cfg);
 
@@ -1932,11 +1939,16 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
     WT_RET(
       __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session));
 
+    __wt_timer_start(session, &timer);
+
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable(session, no_ckpt)));
 
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%s", "finished rollback to stable");
+    /* Time since the RTS started. */
+    __wt_timer_evaluate(session, &timer, &time_diff);
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+      "finished rollback to stable and has ran for %" PRIu64 " seconds", time_diff);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     WT_TRET(__wt_session_close_internal(session));
