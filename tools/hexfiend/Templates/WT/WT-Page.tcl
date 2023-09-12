@@ -2,7 +2,6 @@
 
 little_endian
 
-include "Utility/General.tcl"
 include "WT/_Utils.tcl-inc"
 include "WT/_Consts.tcl-inc"
 include "WT/_Impl.tcl-inc"

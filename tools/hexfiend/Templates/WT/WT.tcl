@@ -8,7 +8,6 @@ little_endian
 
 requires 0 "41 D8 01 00"
 
-include "Utility/General.tcl"
 include "WT/_Utils.tcl-inc"
 include "WT/_Consts.tcl-inc"
 include "WT/_Impl.tcl-inc"

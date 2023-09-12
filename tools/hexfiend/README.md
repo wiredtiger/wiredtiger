@@ -1,6 +1,6 @@
 # Binary Explorer for WiredTiger files
 
-This is an **experimental** support of WiredTiger-related files for [HexFiend](https://hexfiend.com/)
+This is an **experimental** support of WiredTiger-related files for the [HexFiend](https://hexfiend.com/)
 viewer (MacOS only, sorry).
 
 ![Screenshot](img/screenshot-small.png)
@@ -17,8 +17,8 @@ this repo adds support for the following files:
 
 Run `install.sh` or do manually the following:
 
-1. Install HexFiend viewer from https://hexfiend.com/ or via `brew install hex-fiend`
-2. Copy the template files into `~/Library/Application Support/com.ridiculousfish.HexFiend/Templates/`
+1. Install the HexFiend viewer from [hexfiend.com](https://hexfiend.com/) or via `brew install hex-fiend`.
+2. Copy the template files into `~/Library/Application Support/com.ridiculousfish.HexFiend/Templates/`.
 
 ### Configuring HexFiend
 
@@ -62,7 +62,7 @@ Some non-obvious tips:
 
 ### CLI
 
-Command line tool is an early prototype. It has bugs and missing features.
+The command line tool is an early prototype. It has bugs and missing features.
 
 Usage:
 
@@ -79,13 +79,13 @@ $ hexparse WT-log WT_TEST.test_checkpoint/WiredTigerLog.0000000001 | less -S
 
 ## Uninstalling
 
-Removing HexFiend and all templates from the system:
+To uninstall HexFiend and remove all templates from the system, you can use the following commands:
 
 ```bash
 $ brew remove --zap hex-fiend
 ```
 
-or manually:
+Alternatively, you can remove the files manually:
 
 ```bash
 $ rm -rf \

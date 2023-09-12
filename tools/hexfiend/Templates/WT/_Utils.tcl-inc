@@ -13,6 +13,14 @@ proc globals {args} {
   }
 }
 
+proc main_guard {body} {
+    if [catch {
+        uplevel 1 $body
+    }] {
+        uplevel 1 { entry "FATAL" $errorInfo }
+    }
+}
+
 proc main_guard2 {body args} {
   parseIfOkErrArgs "" default
   set err [catch { uplevel 1 $body; return 1 }]
@@ -44,17 +52,6 @@ proc ssection {args} {
     }
   }
 
-  #set catchCode [join [list "" \
-  #  {global errorInfo} \
-  #  [concat entry {"ERROR \[[dx [pos]]\]"} "\"$sectionName\$errorInfo\"" 1 {[expr {[pos] < [len] ? [pos]-1 : [len]-1}]}] \
-  #  {expr 0} \
-  #  "" \
-  #] "\n"]
-  #set catchCode "
-  #  global errorInfo
-  #  entry \"ERROR \\\[\[dx \[pos\]\]\\\]\" \"$sectionName\$errorInfo\" 1 \[expr {\[pos\] < \[len\] ? \[pos\]-1 : \[len\]-1}\]
-  #  expr 0
-  #"
   set catchCode [join [list {
     global errorInfo
     entry "ERROR \[[dx [pos]]\]" "} $sectionName {$errorInfo" 1 [expr {[pos] < [len] ? [pos]-1 : [len]-1}]

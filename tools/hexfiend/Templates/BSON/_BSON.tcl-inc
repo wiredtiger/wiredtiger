@@ -3,7 +3,6 @@
 # https://bsonspec.org/spec.html
 
 package require cmdline
-include "Utility/General.tcl"
 include "WT/_Utils.tcl-inc"
 
 enum BSON_TYPE {

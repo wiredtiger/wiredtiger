@@ -13,7 +13,7 @@ fi
 
 echo
 echo "=== Copying templates ..."
-cp -a "$SRCDIR/Templates" "$DSTDIR/"
+mkdir -p "$DSTDIR" && cp -a "$SRCDIR/Templates" "$DSTDIR/"
 
 
 cat << _END

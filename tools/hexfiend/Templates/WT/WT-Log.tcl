@@ -7,7 +7,6 @@ little_endian
 #requires 0 "80 00 00 00 32 5D AE F0 00 00 00 00 00 00 00 00 64 10 10 00"
 requires 16 "64 10 10 00"
 
-include "Utility/General.tcl"
 include "WT/_Utils.tcl-inc"
 include "WT/_Consts.tcl-inc"
 include "WT/_Impl.tcl-inc"
