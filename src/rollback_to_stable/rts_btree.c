@@ -326,7 +326,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     else
         WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
 
-    /* Retrieve the time window from the unpacked cell. */
+    /* Retrieve the time window from the unpacked value cell. */
     __wt_cell_get_tw(unpack, &tw);
 
     newer_hs_durable_ts = tw->durable_start_ts;
@@ -634,7 +634,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     if (is_ondisk_stable != NULL)
         *is_ondisk_stable = false;
 
-    /* Retrieve the time window from the unpacked cell. */
+    /* Retrieve the time window from the unpacked value cell. */
     __wt_cell_get_tw(vpack, &tw);
 
     prepared = tw->prepare;

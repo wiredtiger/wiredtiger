@@ -6,8 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "wt_internal.h"
-
 /*
  * __cell_check_value_validity --
  *     Check the value's validity window for sanity.

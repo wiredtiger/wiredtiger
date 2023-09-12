@@ -133,6 +133,7 @@ __wt_rts_visibility_page_needs_abort(
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
+        /* Retrieve the time aggregate from the unpacked address cell. */
         __wt_cell_get_ta(&vpack, &ta);
         durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
         prepared = ta->prepare;
