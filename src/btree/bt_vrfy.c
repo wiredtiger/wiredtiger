@@ -538,8 +538,12 @@ __verify_tree(
      * content to check.
      */
     if (page->dsk != NULL) {
-        /* Validate the page disk write generation number against a parent's write generation
-         * number. */
+        /*
+         * Compare the write generation number on the page to the write generation number on the
+         * parent. Since a parent page's reconciliation takes place once all of its child pages have
+         * been completed, the parent page's write generation number must be higher than that of its
+         * children.
+         */
         if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= ref->home->dsk->write_gen)
             WT_RET_MSG(session, EINVAL,
               "child write generation number %" PRIu64
