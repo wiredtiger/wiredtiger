@@ -306,7 +306,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
         }
 
         /* Skip files not eligible for compaction. */
-        WT_ERR_ERROR_OK(__wt_compact_uri_check(session, key), ENOTSUP, true);
+        WT_ERR_ERROR_OK(__wt_compact_check_eligibility(session, key), ENOTSUP, true);
         if (ret == 0) {
             /*
              * Check the list of files background compact has tracked statistics for. This avoids

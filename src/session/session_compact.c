@@ -361,11 +361,11 @@ err:
 }
 
 /*
- * __wt_compact_uri_check --
- *     Function to check whether the specified URI can be compacted.
+ * __wt_compact_check_eligibility --
+ *     Function to check whether the specified URI is eligible for compaction.
  */
 int
-__wt_compact_uri_check(WT_SESSION_IMPL *session, const char *uri)
+__wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char *uri)
 {
     bool is_server;
 
@@ -377,7 +377,7 @@ __wt_compact_uri_check(WT_SESSION_IMPL *session, const char *uri)
 
     /*
      * Tiered tables cannot be compacted. Don't print any message if this function is executed by
-     * the background compaction server.
+     * the background compaction server as it is handled internally.
      */
     if (WT_SUFFIX_MATCH(uri, ".wtobj"))
         WT_RET(is_server ? ENOTSUP : __wt_object_unsupported(session, uri));
@@ -477,8 +477,8 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
         goto err;
     }
 
-    /* Compaction may need to skip specific files. */
-    WT_ERR(__wt_compact_uri_check(session, uri));
+    /* Check the file is eligible for compaction. */
+    WT_ERR(__wt_compact_check_eligibility(session, uri));
 
     /* Setup the session handle's compaction state structure. */
     memset(&compact, 0, sizeof(WT_COMPACT_STATE));
