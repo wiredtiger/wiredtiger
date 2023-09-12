@@ -1223,12 +1223,12 @@ err:
         F_SET(conn, WT_CONN_LEAK_MEMORY);
 
     /* Time since the shutdown has started. */
-    __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.shutdown);
+    __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.shutdown_ms);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-      "shutdown was completed successfully and took %" PRIu64 " ms, including %" PRIu64
-      " ms for the rollback to stable, and %" PRIu64 " ms for the checkpoint.",
-      conn->shutdown_timeline.shutdown, conn->shutdown_timeline.rts,
-      conn->shutdown_timeline.checkpoint);
+      "shutdown was completed successfully and took %" PRIu64 "ms, including %" PRIu64
+      "ms for the rollback to stable, and %" PRIu64 "ms for the checkpoint.",
+      conn->shutdown_timeline.shutdown_ms, conn->shutdown_timeline.rts_ms,
+      conn->shutdown_timeline.checkpoint_ms);
 
     WT_TRET(__wt_connection_close(conn));
 

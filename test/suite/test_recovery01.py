@@ -31,11 +31,10 @@ from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
-from rollback_to_stable_util import test_rollback_to_stable_base
 
-# test_rollback_to_stable43.py
+# test_recovery01.py
 # Test WiredTiger logs time spent during recovery and shutdown.
-class test_rollback_to_stable43(test_rollback_to_stable_base):
+class test_recovery01(wttest.WiredTigerTestCase):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
@@ -50,7 +49,6 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
 
     scenarios = make_scenarios(format_values, restart_values)
 
-    # Don't raise errors for the verbose logs that are generated.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RECOVERY_PROGRESS')
@@ -59,17 +57,44 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
         config = 'cache_size=50MB,statistics=(all),log=(enabled=true),verbose=(recovery_progress)'
         return config
 
-    def test_rollback_to_stable(self):
+    def large_updates(self, uri, value, ds, nrows, commit_ts):
+        # Update a large number of records.
+        session = self.session
+        cursor = session.open_cursor(uri)
+        for i in range(1, nrows+1):
+            session.begin_transaction()
+            cursor[ds.key(i)] = value
+            if commit_ts == 0:
+                session.commit_transaction()
+            else:
+                session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        cursor.close()
+
+    def check(self, check_value, uri, nrows, read_ts):
+        session = self.session
+        if read_ts == 0:
+            session.begin_transaction()
+        else:
+            session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
+        cursor = session.open_cursor(uri)
+        count = 0
+        for k, v in cursor:
+            self.assertEqual(v, check_value)
+            count += 1
+        session.commit_transaction()
+        self.assertEqual(count, nrows)
+
+    def test_recovery(self):
         nrows = 1000
 
         # Create two tables. One logged and another one non-logged.
-        uri_1 = "table:rollback_to_stable43_1"
+        uri_1 = "table:recovery01_1"
         ds_1 = SimpleDataSet(
             self, uri_1, 0, key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=true)')
         ds_1.populate()
 
-        uri_2 = "table:rollback_to_stable43_2"
+        uri_2 = "table:recovery01_2"
         ds_2 = SimpleDataSet(
             self, uri_2, 0, key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=false)')
@@ -86,17 +111,17 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        self.large_updates(uri_1, valuea, ds_1, nrows, False, 0)
-        self.check(valuea, uri_1, nrows, None, 0)
+        self.large_updates(uri_1, valuea, ds_1, nrows, 0)
+        self.check(valuea, uri_1, nrows, 0)
 
-        self.large_updates(uri_2, valuea, ds_2, nrows, False, 10)
-        self.check(valuea, uri_2, nrows, None, 10)
+        self.large_updates(uri_2, valuea, ds_2, nrows, 10)
+        self.check(valuea, uri_2, nrows, 10)
 
-        self.large_updates(uri_1, valueb, ds_1, nrows, False, 0)
-        self.check(valueb, uri_1, nrows, None, 0)
+        self.large_updates(uri_1, valueb, ds_1, nrows, 0)
+        self.check(valueb, uri_1, nrows, 0)
 
-        self.large_updates(uri_2, valueb, ds_2, nrows, False, 20)
-        self.check(valueb, uri_2, nrows, None, 20)
+        self.large_updates(uri_2, valueb, ds_2, nrows, 20)
+        self.check(valueb, uri_2, nrows, 20)
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
@@ -106,12 +131,9 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
         else:
             self.reopen_conn()
 
-        self.ignoreStdoutPatternIfExists('.')
-        self.ignoreStderrPatternIfExists('.')
-
-        self.check(valueb, uri_1, nrows, None, 0)
-        self.check(valuea, uri_2, nrows, None, 10)
-        self.check(valuea, uri_2, nrows, None, 20)
+        self.check(valueb, uri_1, nrows, 0)
+        self.check(valuea, uri_2, nrows, 10)
+        self.check(valuea, uri_2, nrows, 20)
 
 if __name__ == '__main__':
     wttest.run()
