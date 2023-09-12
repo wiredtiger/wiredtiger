@@ -1173,22 +1173,6 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
 }
 
 /*
- * __wt_cell_unpack_addr_get_ta --
- *     Unpack an address WT_CELL and set the WT_TIME_AGGREGATE.
- */
-static inline void
-__wt_cell_unpack_addr_get_ta(
-  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell, WT_TIME_AGGREGATE **tap)
-{
-    WT_CELL_UNPACK_ADDR unpack_addr;
-
-    WT_TIME_AGGREGATE_INIT(&unpack_addr.ta);
-
-    __wt_cell_unpack_addr(session, dsk, cell, &unpack_addr);
-    *tap = &unpack_addr.ta;
-}
-
-/*
  * __wt_cell_unpack_addr --
  *     Unpack an address WT_CELL into a structure.
  */
@@ -1242,6 +1226,16 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
     __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
+}
+
+/*
+ * __wt_cell_get_ta --
+ *     Set the time aggregate from an unpacked address.
+ */
+static inline void
+__wt_cell_get_ta(WT_CELL_UNPACK_ADDR *unpack_addr, WT_TIME_AGGREGATE **tap)
+{
+    *tap = &unpack_addr->ta;
 }
 
 /*
