@@ -1230,7 +1230,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
 
 /*
  * __wt_cell_get_ta --
- *     Set the time aggregate from an unpacked address.
+ *     Set the time aggregate from an unpacked address cell.
  */
 static inline void
 __wt_cell_get_ta(WT_CELL_UNPACK_ADDR *unpack_addr, WT_TIME_AGGREGATE **tap)
@@ -1240,7 +1240,7 @@ __wt_cell_get_ta(WT_CELL_UNPACK_ADDR *unpack_addr, WT_TIME_AGGREGATE **tap)
 
 /*
  * __wt_cell_get_tw --
- *     Set the time window from an unpacked cell.
+ *     Set the time window from an unpacked value cell.
  */
 static inline void
 __wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp)
