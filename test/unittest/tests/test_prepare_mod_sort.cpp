@@ -118,6 +118,7 @@ init_key(WT_SESSION_IMPL *session, WT_ITEM *key, std::string key_str)
     WT_DECL_RET;
 
     ret = __wt_buf_init(session, key, key_str.size());
+    WT_ASSERT(session, ret == 0);
     ret = __wt_buf_set(session, key, key_str.c_str(), key_str.size());
     WT_ASSERT(session, ret == 0);
 }
@@ -160,7 +161,7 @@ TEST_CASE("Basic cols and non key'd op", "[mod_compare]")
     init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_COL, 54, NULL);
 
     __wt_qsort(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
-    REQUIRE(__mod_ops_sorted(ops, 0, 0) == true);
+    REQUIRE(__mod_ops_sorted(ops, 2, 0) == true);
 }
 
 // Test sorting with row and non-key'd operations.
@@ -319,9 +320,8 @@ TEST_CASE("Keyedness sort test", "[mod_compare]")
     REQUIRE(ret == true);
 }
 
-// This is a causing the problem
 // Test sorting with randomly generated keys on 2 row-store b-trees.
-TEST_CASE("Many different row-store keys", "[mod_compare_what]")
+TEST_CASE("Many different row-store keys", "[mod_compare]")
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session = conn.createSession();
@@ -342,7 +342,7 @@ TEST_CASE("Many different row-store keys", "[mod_compare_what]")
     for (int i = 6; i < 12; i++)
         init_btree(&btrees[i], BTREE_ROW, 2);
 
-    // // Operations will have randomly chosen btrees and randomly generated keys.
+    // Operations will have randomly chosen btrees and randomly generated keys.
     for (int i = 0; i < 12; i++)
         init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
 
