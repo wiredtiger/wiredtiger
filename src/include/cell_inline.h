@@ -1182,6 +1182,8 @@ __wt_cell_unpack_addr_get_ta(
 {
     WT_CELL_UNPACK_ADDR unpack_addr;
 
+    WT_TIME_AGGREGATE_INIT(&unpack_addr.ta);
+
     __wt_cell_unpack_addr(session, dsk, cell, &unpack_addr);
     *tap = &unpack_addr.ta;
 }
@@ -1250,16 +1252,6 @@ static inline void
 __wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp)
 {
     *twp = &unpack_value->tw;
-}
-
-/*
- * __wt_addr_get_ta --
- *     Set the time aggregate from the block address.
- */
-static inline void
-__wt_addr_get_ta(WT_ADDR *addr, WT_TIME_AGGREGATE **tap)
-{
-    *tap = &addr->ta;
 }
 
 /*

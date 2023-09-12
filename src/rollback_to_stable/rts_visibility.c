@@ -106,18 +106,16 @@ __wt_rts_visibility_page_needs_abort(
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
-        __wt_addr_get_ta(&mod->mod_replace, &ta);
-        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
-        prepared = ta->prepare;
+        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, &mod->mod_replace.ta);
+        prepared = mod->mod_replace.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi block";
         /* Calculate the max durable timestamp by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            __wt_addr_get_ta(&multi->addr, &ta);
-            durable_ts =
-              WT_MAX(durable_ts, __rts_visibility_get_ref_max_durable_timestamp(session, ta));
-            if (ta->prepare)
+            durable_ts = WT_MAX(
+              durable_ts, __rts_visibility_get_ref_max_durable_timestamp(session, &multi->addr.ta));
+            if (multi->addr.ta.prepare)
                 prepared = true;
         }
         result = (durable_ts > rollback_timestamp) || prepared;
@@ -141,10 +139,9 @@ __wt_rts_visibility_page_needs_abort(
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (addr != NULL) {
         tag = "address";
-        __wt_addr_get_ta(addr, &ta);
-        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
-        prepared = ta->prepare;
-        newest_txn = ta->newest_txn;
+        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, &addr->ta);
+        prepared = addr->ta.prepare;
+        newest_txn = addr->ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     }
