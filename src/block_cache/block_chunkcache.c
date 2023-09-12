@@ -425,22 +425,6 @@ __chunkcache_eviction_thread(void *arg)
 }
 
 /*
- * __chunkcache_truncate_file --
- *     Truncate a chunkcache file to the specified offset. If the underlying file system doesn't
- *     support truncate then we need to zero out the rest of the file, doing an effective truncate.
- */
-static int
-__chunkcache_truncate_file(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
-{
-    WT_DECL_RET;
-
-    if ((ret = __wt_ftruncate(session, fh, offset)) != ENOTSUP)
-        return (ret);
-
-    return (__wt_file_zero(session, fh, (wt_off_t)0, (wt_off_t)offset, WT_THROTTLE_CHUNKCACHE));
-}
-
-/*
  * __chunkcache_str_cmp --
  *     Qsort function: sort string array.
  */
@@ -876,14 +860,14 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
       WT_STRING_MATCH("FILE", cval.str, cval.len)) {
         chunkcache->type = WT_CHUNKCACHE_FILE;
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
-        WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
-        if (!__wt_absolute_path(chunkcache->storage_path))
-            WT_RET_MSG(session, EINVAL, "Storage location must be an absolute path");
+        if (cval.len == 0)
+            WT_RET_MSG(session, EINVAL, "chunk cache storage path not provided in the config.");
 
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
         WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,
           WT_FS_OPEN_CREATE | WT_FS_OPEN_FORCE_MMAP, &chunkcache->fh));
 
-        WT_RET(__chunkcache_truncate_file(session, chunkcache->fh, (wt_off_t)chunkcache->capacity));
+        WT_RET(__wt_ftruncate(session, chunkcache->fh, (wt_off_t)chunkcache->capacity));
 
         if (chunkcache->fh->handle->fh_map == NULL) {
             WT_IGNORE_RET(__wt_close(session, &chunkcache->fh));
