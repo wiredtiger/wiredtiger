@@ -73,7 +73,6 @@ functions:
             else
               num_threads="-j $(grep -c ^processor /proc/cpuinfo)"
             fi
-            echo $num_threads
             ${additional_env_vars}
         # The expansion is used for any task that requires the mongodbtoolchain binaries.
         - key: PREPARE_PATH
@@ -89,7 +88,6 @@ functions:
             else
               num_threads="-j $(grep -c ^processor /proc/cpuinfo)"
             fi
-            echo $num_threads
 
 
   "get project":
