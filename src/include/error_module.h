@@ -92,7 +92,7 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 
 extern void
-    __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((noreturn))
+__wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((noreturn))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 
 #define __wt_errx(session, ...) \
