@@ -1236,7 +1236,7 @@ __wt_cell_get_ta(WT_CELL_UNPACK_ADDR *unpack_addr, WT_TIME_AGGREGATE **tap)
     *tap = &unpack_addr->ta;
 }
 
- /*
+/*
  * __wt_cell_get_tw --
  *     Get the underlying time window from an unpacked value cell.
  */
