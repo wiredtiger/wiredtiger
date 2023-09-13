@@ -32,7 +32,6 @@ func_ok()
 {
     sed \
         -e '/int __bm_stat$/d' \
-        -e '/int __btree_last_recno_no_skip$/d' \
         -e '/int __checkpoint_presync$/d' \
         -e '/int __compact_uri_analyze$/d' \
         -e '/int __compact_walk_page_skip$/d' \
