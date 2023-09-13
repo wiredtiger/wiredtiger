@@ -42,6 +42,58 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
+typedef enum __wt_bg_compact_cleanup_type {
+    BACKGROUND_CLEANUP_ALL_STAT,
+    BACKGROUND_CLEANUP_STALE_STAT
+} WT_BACKGROUND_COMPACT_CLEANUP_TYPE;
+
+/*
+ * WT_BACKGROUND_COMPACT_STAT --
+ *  List of tracking information for each file compact has worked on.
+ */
+struct __wt_background_compact_stat {
+    const char *uri;
+    uint32_t id;                                /* File ID */
+    bool prev_compact_success;                  /* Last compact successfully reclaimed space */
+    uint64_t prev_compact_time;                 /* Start time for last compact attempt */
+    uint64_t skip_count;                        /* Number of times we've skipped this file */
+    uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
+    uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
+
+    wt_off_t start_size; /* File size before compact last started */
+    wt_off_t end_size;   /* File size after compact last ended */
+
+    /* Hash of files background compact has worked on */
+    TAILQ_ENTRY(__wt_background_compact_stat) hashq;
+};
+
+/*
+ * WT_BACKGROUND_COMPACT --
+ *	Structure dedicated to the background compaction server
+ */
+struct __wt_background_compact {
+    bool running;             /* Compaction supposed to run */
+    bool signalled;           /* Compact signalled */
+    bool tid_set;             /* Thread set */
+    wt_thread_t tid;          /* Thread */
+    const char *config;       /* Configuration */
+    WT_CONDVAR *cond;         /* Wait mutex */
+    WT_SPINLOCK lock;         /* Compact lock */
+    WT_SESSION_IMPL *session; /* Thread session */
+
+    uint64_t files_skipped;       /* Number of times background server has skipped a file */
+    uint64_t files_compacted;     /* Number of times background server has compacted a file */
+    uint64_t file_count;          /* Number of files in the tracking list */
+    uint64_t bytes_rewritten_ema; /* Exponential moving average for the bytes rewritten */
+
+    uint64_t max_file_idle_time;       /* File compact idle time */
+    uint64_t max_file_skip_time;       /* File compact skip time */
+    uint64_t full_iteration_wait_time; /* Time in seconds to wait after a full iteration */
+
+    /* List of files to track compaction statistics across background server iterations. */
+    TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
+};
+
 /*
  * WT_BUCKET_STORAGE --
  *	A list entry for a storage source with a unique name (bucket, prefix).
@@ -233,6 +285,8 @@ struct __wt_backup_target {
 };
 typedef TAILQ_HEAD(__wt_backuphash, __wt_backup_target) WT_BACKUPHASH;
 
+extern const WT_NAME_FLAG __wt_stress_types[];
+
 /*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
@@ -246,17 +300,18 @@ struct __wt_connection_impl {
 
     const char *cfg; /* Connection configuration */
 
-    WT_SPINLOCK api_lock;        /* Connection API spinlock */
-    WT_SPINLOCK checkpoint_lock; /* Checkpoint spinlock */
-    WT_SPINLOCK fh_lock;         /* File handle queue spinlock */
-    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
-    WT_SPINLOCK metadata_lock;   /* Metadata update spinlock */
-    WT_SPINLOCK reconfig_lock;   /* Single thread reconfigure */
-    WT_SPINLOCK schema_lock;     /* Schema operation spinlock */
-    WT_RWLOCK table_lock;        /* Table list lock */
-    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
-    WT_SPINLOCK turtle_lock;     /* Turtle file spinlock */
-    WT_RWLOCK dhandle_lock;      /* Data handle list lock */
+    WT_SPINLOCK api_lock;               /* Connection API spinlock */
+    WT_SPINLOCK checkpoint_lock;        /* Checkpoint spinlock */
+    WT_RWLOCK debug_log_retention_lock; /* Log retention reconfiguration lock */
+    WT_SPINLOCK fh_lock;                /* File handle queue spinlock */
+    WT_SPINLOCK flush_tier_lock;        /* Flush tier spinlock */
+    WT_SPINLOCK metadata_lock;          /* Metadata update spinlock */
+    WT_SPINLOCK reconfig_lock;          /* Single thread reconfigure */
+    WT_SPINLOCK schema_lock;            /* Schema operation spinlock */
+    WT_RWLOCK table_lock;               /* Table list lock */
+    WT_SPINLOCK tiered_lock;            /* Tiered work queue spinlock */
+    WT_SPINLOCK turtle_lock;            /* Turtle file spinlock */
+    WT_RWLOCK dhandle_lock;             /* Data handle list lock */
 
     /* Connection queue */
     TAILQ_ENTRY(__wt_connection_impl) q;
@@ -283,6 +338,8 @@ struct __wt_connection_impl {
 
     /* Configuration */
     const WT_CONFIG_ENTRY **config_entries;
+
+    WT_BACKGROUND_COMPACT background_compact; /* Background compaction server */
 
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
 
@@ -403,6 +460,20 @@ struct __wt_connection_impl {
     uint64_t ckpt_write_bytes;
     uint64_t ckpt_write_pages;
 
+    /* Record the important timestamps of each stage in recovery. */
+    struct __wt_recovery_timeline {
+        uint64_t log_replay_ms;
+        uint64_t rts_ms;
+        uint64_t checkpoint_ms;
+        uint64_t recovery_ms;
+    } recovery_timeline;
+
+    /* Record the important timestamps of each stage in shutdown. */
+    struct __wt_shutdown_timeline {
+        uint64_t rts_ms;
+        uint64_t checkpoint_ms;
+        uint64_t shutdown_ms;
+    } shutdown_timeline;
     /* Checkpoint and incremental backup data */
     uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
@@ -432,6 +503,7 @@ struct __wt_connection_impl {
 
     WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
 
+#define WT_CONN_TIERED_STORAGE_ENABLED(conn) ((conn)->bstorage != NULL)
     WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
     WT_BUCKET_STORAGE bstorage_none; /* Bucket storage for "none" */
 
@@ -571,6 +643,7 @@ struct __wt_connection_impl {
     bool mmap_all; /* use mmap for all I/O on data files */
     int page_size; /* OS page size for mmap alignment */
 
+    /* Access to these fields is protected by the debug_log_retention_lock. */
     WT_LSN *debug_ckpt;      /* Debug mode checkpoint LSNs. */
     size_t debug_ckpt_alloc; /* Checkpoint retention allocated. */
     uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
@@ -598,13 +671,12 @@ struct __wt_connection_impl {
 #define WT_DIAGNOSTIC_CURSOR_CHECK 0x004u
 #define WT_DIAGNOSTIC_DISK_VALIDATE 0x008u
 #define WT_DIAGNOSTIC_EVICTION_CHECK 0x010u
-#define WT_DIAGNOSTIC_GENERATION_CHECK 0x020u
-#define WT_DIAGNOSTIC_HS_VALIDATE 0x040u
-#define WT_DIAGNOSTIC_KEY_OUT_OF_ORDER 0x080u
-#define WT_DIAGNOSTIC_LOG_VALIDATE 0x100u
-#define WT_DIAGNOSTIC_PREPARED 0x200u
-#define WT_DIAGNOSTIC_SLOW_OPERATION 0x400u
-#define WT_DIAGNOSTIC_TXN_VISIBILITY 0x800u
+#define WT_DIAGNOSTIC_HS_VALIDATE 0x020u
+#define WT_DIAGNOSTIC_KEY_OUT_OF_ORDER 0x040u
+#define WT_DIAGNOSTIC_LOG_VALIDATE 0x080u
+#define WT_DIAGNOSTIC_PREPARED 0x100u
+#define WT_DIAGNOSTIC_SLOW_OPERATION 0x200u
+#define WT_DIAGNOSTIC_TXN_VISIBILITY 0x400u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     /* Categories of assertions that can be runtime enabled. */
     uint16_t extra_diagnostics_flags;
@@ -631,7 +703,7 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_CHECKPOINT_STOP 0x0000040u
 #define WT_TIMING_STRESS_COMPACT_SLOW 0x0000080u
 #define WT_TIMING_STRESS_EVICT_REPOSITION 0x0000100u
-#define WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION 0x0000200u
+#define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x0000200u
 #define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x0000400u
 #define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x0000800u
 #define WT_TIMING_STRESS_HS_SEARCH 0x0001000u
@@ -668,11 +740,12 @@ struct __wt_connection_impl {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_SERVER_CAPACITY 0x01u
 #define WT_CONN_SERVER_CHECKPOINT 0x02u
-#define WT_CONN_SERVER_LOG 0x04u
-#define WT_CONN_SERVER_LSM 0x08u
-#define WT_CONN_SERVER_STATISTICS 0x10u
-#define WT_CONN_SERVER_SWEEP 0x20u
-#define WT_CONN_SERVER_TIERED 0x40u
+#define WT_CONN_SERVER_COMPACT 0x04u
+#define WT_CONN_SERVER_LOG 0x08u
+#define WT_CONN_SERVER_LSM 0x10u
+#define WT_CONN_SERVER_STATISTICS 0x20u
+#define WT_CONN_SERVER_SWEEP 0x40u
+#define WT_CONN_SERVER_TIERED 0x80u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 

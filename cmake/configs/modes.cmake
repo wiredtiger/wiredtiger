@@ -138,8 +138,8 @@ set(ubsan_compiler_cxx_flag "-fsanitize=undefined")
 
 # MSAN build variant flags.
 set(msan_link_flags "-fsanitize=memory")
-set(msan_compiler_c_flag "-fsanitize=memory" "-fno-optimize-sibling-calls")
-set(msan_compiler_cxx_flag "-fsanitize=memory" "-fno-optimize-sibling-calls")
+set(msan_compiler_c_flag "-fsanitize=memory" "-fno-optimize-sibling-calls" "-fsanitize-memory-track-origins=2")
+set(msan_compiler_cxx_flag "-fsanitize=memory" "-fno-optimize-sibling-calls" "-fsanitize-memory-track-origins=2")
 
 # TSAN build variant flags.
 set(tsan_link_flags "-fsanitize=thread")
@@ -186,8 +186,6 @@ define_build_mode(Coverage
     DEPENDS "NOT MSVC"
 )
 
-define_build_mode(Debug)
-
 # Set the WiredTiger default build type to Debug.
 # Primary users of the build are our developers, who want as much help diagnosing
 # issues as possible. Builds targeted for release to customers should switch to a "Release" setting.
@@ -222,3 +220,6 @@ else()
     string(REPLACE "-g" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
 endif()
 
+if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
+    add_compile_options(-fno-strict-aliasing)
+endif()

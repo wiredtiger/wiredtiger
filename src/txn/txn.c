@@ -517,7 +517,7 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[], bool
     if (cfg == NULL)
         return (0);
 
-    /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
+    /* Retrieve the maximum operation time. */
     WT_RET(__wt_config_gets_def(session, cfg, "operation_timeout_ms", 0, &cval));
 
     /*
@@ -555,10 +555,9 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_config_gets_def(session, cfg, "isolation", 0, &cval));
     if (cval.len != 0)
-        txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
-          WT_ISO_SNAPSHOT :
-          WT_STRING_MATCH("read-committed", cval.str, cval.len) ? WT_ISO_READ_COMMITTED :
-                                                                  WT_ISO_READ_UNCOMMITTED;
+        txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ? WT_ISO_SNAPSHOT :
+          WT_STRING_MATCH("read-committed", cval.str, cval.len)          ? WT_ISO_READ_COMMITTED :
+                                                                           WT_ISO_READ_UNCOMMITTED;
 
     WT_ERR(__txn_config_operation_timeout(session, cfg, false));
 
@@ -640,7 +639,7 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
     ret = __wt_config_getones(session, config, "isolation", &cval);
     if (ret == 0 && cval.len != 0) {
         session->isolation = txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
-          WT_ISO_SNAPSHOT :
+                                                                    WT_ISO_SNAPSHOT :
           WT_STRING_MATCH("read-uncommitted", cval.str, cval.len) ? WT_ISO_READ_UNCOMMITTED :
                                                                     WT_ISO_READ_COMMITTED;
     }
@@ -1046,8 +1045,12 @@ __txn_search_prepared_op(
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
-    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL, WT_NOTFOUND,
-      "unable to locate update associated with a prepared operation");
+    /*
+     * We cannot guarantee that we find an update when collators are being used as we cannot sort
+     * modifications on collated b-trees.
+     */
+    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL || op->btree->collator != NULL,
+      WT_NOTFOUND, "unable to locate update associated with a prepared operation");
 
     return (0);
 }
@@ -1128,7 +1131,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
     }
 
     /* Resolve the prepared update to be a committed update. */
-    __txn_resolve_prepared_update(session, upd);
+    __txn_apply_prepare_state_update(session, upd, true);
 
     /* Sleep for 100ms in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
@@ -1466,6 +1469,29 @@ err:
 }
 
 /*
+ * __txn_mod_sortable_key --
+ *     Given an operation return a boolean indicating if it has a sortable key.
+ */
+static inline bool
+__txn_mod_sortable_key(WT_TXN_OP *opt)
+{
+    switch (opt->type) {
+    case (WT_TXN_OP_NONE):
+    case (WT_TXN_OP_REF_DELETE):
+    case (WT_TXN_OP_TRUNCATE_COL):
+    case (WT_TXN_OP_TRUNCATE_ROW):
+        return (false);
+    case (WT_TXN_OP_BASIC_COL):
+    case (WT_TXN_OP_BASIC_ROW):
+    case (WT_TXN_OP_INMEM_COL):
+    case (WT_TXN_OP_INMEM_ROW):
+        return (true);
+    }
+    __wt_abort(NULL);
+    return (false);
+}
+
+/*
  * __txn_mod_compare --
  *     Qsort comparison routine for transaction modify list.
  */
@@ -1473,24 +1499,62 @@ static int WT_CDECL
 __txn_mod_compare(const void *a, const void *b)
 {
     WT_TXN_OP *aopt, *bopt;
+    bool a_has_sortable_key;
+    bool b_has_sortable_key;
 
     aopt = (WT_TXN_OP *)a;
     bopt = (WT_TXN_OP *)b;
 
-    /* If the files are different, order by ID. */
-    if (aopt->btree->id != bopt->btree->id)
-        return (aopt->btree->id < bopt->btree->id);
+    /*
+     * We want to sort on two things:
+     *  - B-tree ID
+     *  - Key
+     * However, there are a number of modification types that don't have a key to be sorted on. This
+     * requires us to add a stage between sorting on B-tree ID and key. At this intermediate stage,
+     * we sort on whether the modifications have a key.
+     *
+     * We need to uphold the contract that all modifications on the same key are contiguous in the
+     * final modification array. Technically they could be separated by non key modifications,
+     * but for simplicity's sake we sort them apart.
+     *
+     * Qsort comparators are expected to return -1 if the first argument is smaller than the second,
+     * 1 if the second argument is smaller than the first, and 0 if both arguments are equal.
+     */
+
+    /* Order by b-tree ID. */
+    if (aopt->btree->id < bopt->btree->id)
+        return (-1);
+    if (aopt->btree->id > bopt->btree->id)
+        return (1);
 
     /*
-     * If the files are the same, order by the key. Row-store collators require WT_SESSION pointers,
-     * and we don't have one. Compare the keys if there's no collator, otherwise return equality.
-     * Column-store is always easy.
+     * Order by whether the given operation has a key. We don't want to call key compare incorrectly
+     * especially given that u is a union which would create undefined behavior.
      */
-    if (aopt->type == WT_TXN_OP_BASIC_ROW || aopt->type == WT_TXN_OP_INMEM_ROW)
+    a_has_sortable_key = __txn_mod_sortable_key(aopt);
+    b_has_sortable_key = __txn_mod_sortable_key(bopt);
+    if (a_has_sortable_key && !b_has_sortable_key)
+        return (-1);
+    if (!a_has_sortable_key && b_has_sortable_key)
+        return (1);
+    /*
+     * In the case where both arguments don't have a key they are considered to be equal, we don't
+     * care exactly how they get sorted.
+     */
+    if (!a_has_sortable_key && !b_has_sortable_key)
+        return (0);
+
+    /* Finally, order by key. We cannot sort if there is a collator as we need a session pointer. */
+    if (aopt->btree->type == BTREE_ROW) {
         return (aopt->btree->collator == NULL ?
             __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
             0);
-    return (aopt->u.op_col.recno < bopt->u.op_col.recno);
+    }
+    if (aopt->u.op_col.recno < bopt->u.op_col.recno)
+        return (-1);
+    if (aopt->u.op_col.recno > bopt->u.op_col.recno)
+        return (1);
+    return (0);
 }
 
 /*
@@ -1677,7 +1741,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * the total mod_count.
                  */
                 if ((i * 36) % txn->mod_count == 0)
-                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1, NULL);
+                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1);
 
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
@@ -1920,17 +1984,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
             ++prepared_updates;
 
-            /* Set prepare timestamp. */
-            upd->start_ts = txn->prepare_timestamp;
-
-            /*
-             * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign
-             * it with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be
-             * a problem.
-             */
-            upd->durable_ts = WT_TS_NONE;
-
-            WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+            __txn_apply_prepare_state_update(session, upd, false);
             op->u.op_upd = NULL;
 
             /*
@@ -2282,16 +2336,16 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ? 0 : txn_global->current - checkpoint_pinned);
 
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_max, conn->ckpt_prep_max);
+    WT_STAT_SET(session, stats, checkpoint_prep_max, conn->ckpt_prep_max);
     if (conn->ckpt_prep_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, txn_checkpoint_prep_min, conn->ckpt_prep_min);
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_recent, conn->ckpt_prep_recent);
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_total, conn->ckpt_prep_total);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_max, conn->ckpt_time_max);
+        WT_STAT_SET(session, stats, checkpoint_prep_min, conn->ckpt_prep_min);
+    WT_STAT_SET(session, stats, checkpoint_prep_recent, conn->ckpt_prep_recent);
+    WT_STAT_SET(session, stats, checkpoint_prep_total, conn->ckpt_prep_total);
+    WT_STAT_SET(session, stats, checkpoint_time_max, conn->ckpt_time_max);
     if (conn->ckpt_time_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, txn_checkpoint_time_min, conn->ckpt_time_min);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
+        WT_STAT_SET(session, stats, checkpoint_time_min, conn->ckpt_time_min);
+    WT_STAT_SET(session, stats, checkpoint_time_recent, conn->ckpt_time_recent);
+    WT_STAT_SET(session, stats, checkpoint_time_total, conn->ckpt_time_total);
 }
 
 /*
@@ -2411,6 +2465,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *s;
+    WT_TIMER timer;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
     bool use_timestamp;
@@ -2438,16 +2493,24 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * clean shutdown.
          */
         if (use_timestamp) {
+            __wt_timer_start(session, &timer);
             __wt_verbose(session, WT_VERB_RTS,
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
 
+            /* Time since the shutdown RTS has started. */
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.rts_ms);
             if (ret != 0)
                 __wt_verbose_notice(session, WT_VERB_RTS,
                   WT_RTS_VERB_TAG_SHUTDOWN_RTS
                   "performing shutdown rollback to stable failed with code %s",
                   __wt_strerror(session, ret, NULL, 0));
+            else
+                __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+                  "shutdown rollback to stable has successfully finished and ran for %" PRIu64
+                  " milliseconds",
+                  conn->shutdown_timeline.rts_ms);
         }
 
         s = NULL;
@@ -2455,6 +2518,9 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
         if (s != NULL) {
             const char *checkpoint_cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
+
+            __wt_timer_start(session, &timer);
+
             WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
             /*
@@ -2463,6 +2529,12 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
 
             WT_TRET(__wt_session_close_internal(s));
+
+            /* Time since the shutdown checkpoint has started. */
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
+            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+              "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
+              conn->shutdown_timeline.checkpoint_ms);
         }
     }
 
@@ -2666,3 +2738,11 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int WT_CDECL
+__ut_txn_mod_compare(const void *a, const void *b)
+{
+    return (__txn_mod_compare(a, b));
+}
+#endif

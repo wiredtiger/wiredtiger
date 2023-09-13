@@ -40,6 +40,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
     WT_TIERED_WORK_UNIT *entry;
     uint64_t now;
     const char *object;
+    bool removed;
 
     entry = NULL;
     for (;;) {
@@ -59,7 +60,14 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
          * If the handle is still open, it could still be in use for reading. In that case put the
          * work unit back on the work queue and keep trying.
          */
-        if (__wt_handle_is_open(session, object)) {
+        ret = __wt_remove_locked(session, object, &removed);
+        if (removed) {
+            /*
+             * We are responsible for freeing the work unit when we're done with it.
+             */
+            WT_ASSERT(session, ret == 0);
+            __wt_tiered_work_free(session, entry);
+        } else {
             __wt_verbose_debug2(
               session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
             WT_STAT_CONN_INCR(session, local_objects_inuse);
@@ -70,16 +78,8 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             WT_ASSERT(session, entry->tiered != NULL && entry->tiered->bstorage != NULL);
             entry->op_val = now + entry->tiered->bstorage->retain_secs;
             __wt_tiered_requeue_work(session, entry);
-        } else {
-            __wt_verbose_debug2(
-              session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
-            WT_STAT_CONN_INCR(session, local_objects_removed);
-            WT_ERR(__wt_fs_remove(session, object, false));
-            /*
-             * We are responsible for freeing the work unit when we're done with it.
-             */
-            __wt_tiered_work_free(session, entry);
         }
+        WT_ERR(ret);
         entry = NULL;
     }
 err:
@@ -172,9 +172,14 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
 
     WT_ASSERT(session, (op == WT_TIERED_WORK_FLUSH || op == WT_TIERED_WORK_FLUSH_FINISH));
     tmp = NULL;
+    /*
+     * It is possible that the tiered object was closed before the work unit was processed. The work
+     * unit holds a reference on the dhandle but if the bucket storage is gone there is nothing to
+     * do.
+     */
     if (tiered->bstorage == NULL) {
         __wt_verbose(session, WT_VERB_TIERED, "DO_OP: tiered %p NULL bstorage.", (void *)tiered);
-        WT_ASSERT(session, tiered->bstorage != NULL);
+        return (0);
     }
     storage_source = tiered->bstorage->storage_source;
     bucket_fs = tiered->bstorage->file_system;

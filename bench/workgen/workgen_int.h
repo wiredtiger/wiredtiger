@@ -55,10 +55,7 @@ struct WorkgenTimeStamp {
     WorkgenTimeStamp() {}
 
     static uint64_t get_timestamp_lag(double seconds) {
-        uint64_t start_time;
-        workgen_clock(&start_time);
-
-        return (ns_to_us(start_time) - secs_us(seconds));
+        return (get_timestamp() - secs_us(seconds));
     }
 
     static void sleep(double seconds) {
@@ -66,9 +63,16 @@ struct WorkgenTimeStamp {
     }
 
     static uint64_t get_timestamp() {
-        uint64_t start_time;
-        workgen_clock(&start_time);
-        return (ns_to_us(start_time));
+        thread_local uint64_t last_ts = 0;
+        uint64_t ts;
+        struct timespec t;
+
+        workgen_epoch(&t);
+        ts = ns_to_us((uint64_t)(sec_to_ns(t.tv_sec) + t.tv_nsec));
+        if (ts <= last_ts)
+            ts = last_ts + 1;
+        last_ts = ts;
+        return ts;
     }
 };
 
@@ -282,8 +286,8 @@ struct RTSOperationInternal : OperationInternal {
 struct TableOperationInternal : OperationInternal {
     uint_t _keysize;    // derived from Key._size and Table.options.key_size
     uint_t _valuesize;
-    uint_t _keymax;
-    uint_t _valuemax;
+    uint64_t _keymax;
+    uint64_t _valuemax;
 
     TableOperationInternal() : OperationInternal(), _keysize(0), _valuesize(0),
 			       _keymax(0), _valuemax(0) {}

@@ -161,7 +161,7 @@ while :; do
 	-R)
 		stress_split_test=1
 		shift ;;
-        -r)
+	-r)
 		live_record_binary="$2"
 		if [ ! $(command -v "$live_record_binary") ]; then
 			msg "-r option argument \"${live_record_binary}\" does not exist in path"
@@ -282,6 +282,7 @@ msg "configuration: $format_binary [-c $config]\
 failure=0
 success=0
 running=0
+timeouts=0
 status="format.sh-status"
 
 # skip_known_errors
@@ -467,10 +468,13 @@ resolve()
 		# give the parent recording binary a chance to complete if we are using it
 		[[ ! -z $live_record_binary ]] && sleep 2
 
-		# Check for Sanitizer failures, have to do this prior to success because both can be reported.
-		grep -E -i 'Sanitizer' $log > /dev/null && {
-			report_failure $dir
-			continue
+		# Process group leader core dump indicates a bug, in contrast to any spurious cores
+		# from killing zombified child processes. This is to guard against spuriously
+		# missing memory sanitizer errors, which has occured historically even when
+		# abort_on_error=1 was passed to MSan.
+		[[ -f "dump_t.${pid}.core" ]] && {
+		    report_failure $dir
+		    continue
 		}
 
 		# Remove successful jobs.
@@ -641,8 +645,10 @@ check_timer()
 		elapsed=$(($now - $start_time))
 
 		# If we've run out of time, terminate all running jobs.
-		[[ $elapsed -ge $seconds ]] &&
+		[[ $elapsed -ge $seconds ]] && {
+			timeouts="$(($timeouts + 1))"
 			force_quit_reason "run timed out at $(date), after $elapsed seconds"
+		}
 	}
 }
 
@@ -690,5 +696,5 @@ msg "$success successful jobs, $failure failed jobs"
 
 msg "run ending at $(date)"
 [[ $failure -ne 0 ]] && exit 1
-[[ $success -eq 0 ]] && exit 1
+[[ $success -eq 0 && $timeouts -eq 0 ]] && exit 1
 exit 0

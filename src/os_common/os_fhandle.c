@@ -46,7 +46,7 @@ __fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle, bool
  *     Return if there's an open handle matching a name.
  */
 bool
-__wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
+__wt_handle_is_open(WT_SESSION_IMPL *session, const char *name, bool locked)
 {
     WT_CONNECTION_IMPL *conn;
     WT_FH *fh;
@@ -59,7 +59,8 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
     hash = __wt_hash_city64(name, strlen(name));
     bucket = hash & (conn->hash_size - 1);
 
-    __wt_spin_lock(session, &conn->fh_lock);
+    if (!locked)
+        __wt_spin_lock(session, &conn->fh_lock);
 
     TAILQ_FOREACH (fh, &conn->fhhash[bucket], hashq)
         if (strcmp(name, fh->name) == 0) {
@@ -67,9 +68,37 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
             break;
         }
 
-    __wt_spin_unlock(session, &conn->fh_lock);
+    if (!locked)
+        __wt_spin_unlock(session, &conn->fh_lock);
 
     return (found);
+}
+
+/*
+ * __wt_remove_locked --
+ *     While locked, if the handle is not open, remove the local file.
+ */
+int
+__wt_remove_locked(WT_SESSION_IMPL *session, const char *name, bool *removed)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+    *removed = false;
+    __wt_spin_lock(session, &conn->fh_lock);
+    if (__wt_handle_is_open(session, name, true)) {
+        __wt_spin_unlock(session, &conn->fh_lock);
+        return (0);
+    } else {
+        __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCKED: actually remove %s", name);
+        WT_ERR(__wt_fs_remove(session, name, false, true));
+        WT_STAT_CONN_INCR(session, local_objects_removed);
+        *removed = true;
+    }
+err:
+    __wt_spin_unlock(session, &conn->fh_lock);
+    return (ret);
 }
 
 /*
@@ -488,21 +517,15 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
  *     Zero out the file from offset for size bytes.
  */
 int
-__wt_file_zero(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t size)
+__wt_file_zero(
+  WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t size, WT_THROTTLE_TYPE type)
 {
     WT_DECL_ITEM(zerobuf);
     WT_DECL_RET;
-    WT_THROTTLE_TYPE type;
     uint64_t bufsz, off, partial, wrlen;
 
     zerobuf = NULL;
     bufsz = WT_MIN((uint64_t)size, WT_MEGABYTE);
-    /*
-     * For now logging is the only type and statistic. This needs updating if block manager decides
-     * to use this function.
-     */
-    type = WT_THROTTLE_LOG;
-    WT_STAT_CONN_INCR(session, log_zero_fills);
     WT_RET(__wt_scr_alloc(session, bufsz, &zerobuf));
     memset(zerobuf->mem, 0, zerobuf->memsize);
     off = (uint64_t)start_off;

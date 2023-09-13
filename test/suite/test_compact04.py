@@ -30,7 +30,7 @@
 #   Test the accuracy of compact work estimation.
 #
 
-import time, wiredtiger, wttest
+import wttest
 from wiredtiger import stat
 
 # Test the accuracy of compact work estimation.
@@ -87,6 +87,11 @@ class test_compact04(wttest.WiredTigerTestCase):
             pages_rewritten = c_stat[stat.dsrc.btree_compact_pages_rewritten][2]
             pages_rewritten_expected = c_stat[stat.dsrc.btree_compact_pages_rewritten_expected][2]
             c_stat.close()
+
+            # Compact stats can be retrieved with tiered storage but they're not meaningful.
+            # So if we're running tiered gather the stats but return before all the computation.
+            if self.runningHook('tiered'):
+                return
 
             self.assertGreater(pages_rewritten, 0)
             self.assertGreater(pages_rewritten_expected, 0)

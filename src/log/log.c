@@ -313,11 +313,13 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
      * If we are storing debugging LSNs to retain additional log files from removal, then rotate the
      * newest LSN into the array.
      */
+    __wt_writelock(session, &conn->debug_log_retention_lock);
     if (conn->debug_ckpt_cnt != 0) {
         for (i = (int)conn->debug_ckpt_cnt - 1; i > 0; --i)
             conn->debug_ckpt[i] = conn->debug_ckpt[i - 1];
         conn->debug_ckpt[0] = *ckpt_lsn;
     }
+    __wt_writeunlock(session, &conn->debug_log_retention_lock);
 }
 
 /*
@@ -634,8 +636,11 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
      * If the user configured zero filling, pre-allocate the log file manually. Otherwise use the
      * file extension method to create and zero the log file based on what is available.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL))
-        return (__wt_file_zero(session, fh, log->first_record, conn->log_file_max));
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL)) {
+        WT_STAT_CONN_INCR(session, log_zero_fills);
+        return (
+          __wt_file_zero(session, fh, log->first_record, conn->log_file_max, WT_THROTTLE_LOG));
+    }
 
     /* If configured to not extend the file, we're done. */
     if (conn->log_extend_len == 0)
@@ -1406,7 +1411,8 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
         }
     }
 
-    return (__wt_file_zero(session, log_fh, offset, conn->log_file_max));
+    WT_STAT_CONN_INCR(session, log_zero_fills);
+    return (__wt_file_zero(session, log_fh, offset, conn->log_file_max, WT_THROTTLE_LOG));
 }
 
 /*
@@ -1579,7 +1585,7 @@ __wt_log_remove(WT_SESSION_IMPL *session, const char *file_prefix, uint32_t logn
     WT_RET(__wt_scr_alloc(session, 0, &path));
     WT_ERR(__wt_log_filename(session, lognum, file_prefix, path));
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove log %s", (const char *)path->data);
-    WT_ERR(__wt_fs_remove(session, path->data, false));
+    WT_ERR(__wt_fs_remove(session, path->data, false, false));
 err:
     __wt_scr_free(session, &path);
     return (ret);

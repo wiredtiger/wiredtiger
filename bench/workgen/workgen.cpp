@@ -287,8 +287,11 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
          * Drop the table. Keep retrying on EBUSY failure - it is an expected return when
          * checkpoints are happening.
          */
-        while ((ret = session->drop(session, uri, "checkpoint_wait=false")) == EBUSY)
+        while ((ret = session->drop(session, uri, "checkpoint_wait=false")) == EBUSY) {
+            if (stopping)
+                return 0;
             sleep(1);
+        }
 
         if (ret != 0) {
             THROW("Table drop failed in cycle_idle_tables.");
@@ -614,7 +617,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             ASSERT(tables_remaining >= 0);
             int drop_count = std::min(tables_remaining, _workload->options.drop_count);
             int drops = 0;
-            while (drops < drop_count) {
+            while (drops < drop_count && !stopping) {
                 if (select_table_for_drop(pending_delete) != 0) {
                     continue;
                 }
@@ -653,6 +656,8 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             WT_DECL_RET;
             // Spin on EBUSY. We do not expect to get stuck.
             while ((ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
+                if (stopping)
+                    return 0;
                 VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
                 sleep(1);
             }
@@ -681,13 +686,13 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     while (!stopping) {
         if (_workload->options.oldest_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIu64, time_us);
+            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
         if (_workload->options.stable_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIu64, time_us);
+            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
@@ -848,12 +853,15 @@ ContextInternal::ContextInternal()
     _context_count = count;
 }
 
-ContextInternal::~ContextInternal() {}
+ContextInternal::~ContextInternal()
+{
+    delete _dyn_mutex;
+}
 
 int
 ContextInternal::create_all(WT_CONNECTION *conn)
 {
-    if (_table_runtime.size() < _tint_last) {
+    if (_table_runtime.size() <= _tint_last) {
         // The array references are 1-based, we'll waste one entry.
         _table_runtime.resize(_tint_last + 1);
     }
@@ -1270,15 +1278,15 @@ ThreadRunner::free_all()
         _rand_state = nullptr;
     }
     if (_cursors != nullptr) {
-        delete _cursors;
+        delete[] _cursors;
         _cursors = nullptr;
     }
     if (_keybuf != nullptr) {
-        delete _keybuf;
+        delete[] _keybuf;
         _keybuf = nullptr;
     }
     if (_valuebuf != nullptr) {
-        delete _valuebuf;
+        delete[] _valuebuf;
         _valuebuf = nullptr;
     }
 }
@@ -1760,7 +1768,7 @@ ThreadRunner::op_run(Operation *op)
                 uint64_t read =
                   WorkgenTimeStamp::get_timestamp_lag(op->transaction->read_timestamp_lag);
                 snprintf(
-                  buf, BUF_SIZE, "%s=%" PRIu64, op->transaction->_begin_config.c_str(), read);
+                  buf, BUF_SIZE, "%s=%" PRIx64, op->transaction->_begin_config.c_str(), read);
             } else {
                 snprintf(buf, BUF_SIZE, "%s", op->transaction->_begin_config.c_str());
             }
@@ -1856,14 +1864,14 @@ err:
             // Set prepare, commit and durable timestamp if prepare is set.
             if (op->transaction->use_prepare_timestamp) {
                 time_us = WorkgenTimeStamp::get_timestamp();
-                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIu64, time_us);
+                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIx64, time_us);
                 ret = _session->prepare_transaction(_session, buf);
-                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64,
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64,
                   time_us, time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
-                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64, commit_time_us);
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else {
                 ret =
@@ -2348,9 +2356,10 @@ Operation::kv_gen(
     TableOperationInternal *internal = static_cast<TableOperationInternal *>(_internal);
 
     uint_t size = iskey ? internal->_keysize : internal->_valuesize;
-    uint_t max = iskey ? internal->_keymax : internal->_valuemax;
+    uint64_t max = iskey ? internal->_keymax : internal->_valuemax;
     if (n > max)
         THROW((iskey ? "Key" : "Value") << " (" << n << ") too large for size (" << size << ")");
+
     /* Setup the buffer, defaulting to zero filled. */
     workgen_u64_to_string_zf(n, result, size);
 
@@ -2527,9 +2536,9 @@ Track::Track(const Track &other)
 Track::~Track()
 {
     if (us != nullptr) {
-        delete us;
-        delete ms;
-        delete sec;
+        delete[] us;
+        delete[] ms;
+        delete[] sec;
     }
 }
 
@@ -2973,7 +2982,7 @@ WorkloadOptions::WorkloadOptions()
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
       create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
       drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
-      mirror_tables(false), mirror_suffix("_mirror"), _options()
+      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -3034,6 +3043,8 @@ WorkloadOptions::WorkloadOptions()
     _options.add_bool("mirror_tables", mirror_tables, "mirror database operations");
     _options.add_string(
       "mirror_suffix", mirror_suffix, "the suffix to append to mirrored table names");
+    _options.add_int("background_compact", background_compact,
+      "minimum amount of space recoverable for compaction to proceed in MB, 0 to disable.");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -3178,6 +3189,7 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         // TODO: recover from partial failure here
         WT_RET(runner->create_all(conn));
     }
+
     WT_RET(context->_internal->create_all(conn));
     return (0);
 }
@@ -3379,6 +3391,23 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
                 stopping = true;
             }
         }
+    }
+
+    // Start the background compaction thread.
+    if (options->background_compact > 0) {
+        WT_SESSION *session;
+
+        if (conn->open_session(conn, nullptr, nullptr, &session) != 0)
+            THROW("Error opening a session.");
+
+        const std::string bg_compact_cfg("background=true,free_space_target=" +
+          std::to_string(options->background_compact) + "MB");
+        int ret = session->compact(session, nullptr, bg_compact_cfg.c_str());
+        if (ret != 0)
+            THROW_ERRNO(ret, "WT_SESSION->compact background compaction could not be enabled.");
+
+        if ((ret = session->close(session, NULL)) != 0)
+            THROW("Session close failed.");
     }
 
     timespec now;

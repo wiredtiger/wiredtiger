@@ -73,6 +73,10 @@ done<<END_OF_INPUT>$fc
 CONFIG configuration_list[] = {
 {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0}
 
+{"background_compact", "configure background compaction", C_BOOL, 10, 0, 0}
+
+{"background_compact.free_space_target", "free space target for background compaction (MB)", 0x0, 1, 100, UINT_MAX}
+
 {"backup", "configure backups", C_BOOL, 20, 0, 0}
 
 {"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0}
@@ -140,6 +144,18 @@ CONFIG configuration_list[] = {
 {"checkpoint.log_size", "MB of log to wait if wiredtiger checkpoints configured", 0x0, 20, 200, 1024}
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
+
+{"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0}
+
+{"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 10, 1024, 100 * 1024}
+
+{"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 100, 100 * 1024}
+
+{"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE, 0, 0, 0}
+
+{"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0}
+
+{"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
@@ -293,9 +309,11 @@ CONFIG configuration_list[] = {
 
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
 
+{"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0}
+
 {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0}
 
-{"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after reconciliation", C_BOOL, 30, 0, 0}
+{"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0}
 
 {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts", C_BOOL, 30, 0, 0}
 
@@ -330,6 +348,8 @@ CONFIG configuration_list[] = {
 {"tiered_storage.storage_source", "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
+
+{"transaction.operation_timeout_ms", "requested limit on the time taken to complete operations in this transaction", 0, 0, 0, UINT_MAX}
 
 {"transaction.timestamps", "all transactions (or none), have timestamps", C_BOOL, 80, 0, 0}
 
