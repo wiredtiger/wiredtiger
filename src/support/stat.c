@@ -175,7 +175,6 @@ static const char *const __stats_dsrc_desc[] = {
   "compression: number of blocks with compress ratio smaller than 8",
   "compression: page written failed to compress",
   "compression: page written was too small to compress",
-  "cursor: Total number of deleted pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
@@ -505,7 +504,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->compress_hist_ratio_8 = 0;
     stats->compress_write_fail = 0;
     stats->compress_write_too_small = 0;
-    stats->cursor_tree_walk_del_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
@@ -821,7 +819,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->compress_hist_ratio_8 += from->compress_hist_ratio_8;
     to->compress_write_fail += from->compress_write_fail;
     to->compress_write_too_small += from->compress_write_too_small;
-    to->cursor_tree_walk_del_page_skip += from->cursor_tree_walk_del_page_skip;
     to->cursor_next_skip_total += from->cursor_next_skip_total;
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
@@ -1145,7 +1142,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->compress_hist_ratio_8 += WT_STAT_READ(from, compress_hist_ratio_8);
     to->compress_write_fail += WT_STAT_READ(from, compress_write_fail);
     to->compress_write_too_small += WT_STAT_READ(from, compress_write_too_small);
-    to->cursor_tree_walk_del_page_skip += WT_STAT_READ(from, cursor_tree_walk_del_page_skip);
     to->cursor_next_skip_total += WT_STAT_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
@@ -1300,6 +1296,7 @@ static const char *const __stats_connection_desc[] = {
   "background-compact: background compact skipped as process would not reduce file size",
   "background-compact: background compact successful calls",
   "background-compact: background compact timeout",
+  "background-compact: number of files tracked by background compaction",
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
   "block-cache: evicted blocks",
@@ -1413,8 +1410,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages evicted that were dirty count",
   "cache: forced eviction - pages evicted that were dirty time (usecs)",
   "cache: forced eviction - pages selected because of a large number of updates to a single item",
-  "cache: forced eviction - pages selected because of all deleted items found",
-  "cache: forced eviction - pages selected because of too many obsolete deleted items count",
+  "cache: forced eviction - pages selected because of too many deleted items count",
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
   "cache: forced eviction - pages selected unable to be evicted time",
@@ -1585,7 +1581,6 @@ static const char *const __stats_connection_desc[] = {
   "connection: total fsync I/Os",
   "connection: total read I/Os",
   "connection: total write I/Os",
-  "cursor: Total number of deleted pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
@@ -1979,6 +1974,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->background_compact_skipped = 0;
     stats->background_compact_success = 0;
     stats->background_compact_timeout = 0;
+    stats->background_compact_files_tracked = 0;
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
     stats->block_cache_blocks_evicted = 0;
@@ -2083,7 +2079,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_force_dirty_time = 0;
     stats->cache_eviction_force_long_update_list = 0;
     stats->cache_eviction_force_delete = 0;
-    stats->cache_eviction_force_obsolete_delete = 0;
     stats->cache_eviction_force = 0;
     stats->cache_eviction_force_fail = 0;
     stats->cache_eviction_force_fail_time = 0;
@@ -2246,7 +2241,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->fsync_io = 0;
     stats->read_io = 0;
     stats->write_io = 0;
-    stats->cursor_tree_walk_del_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
@@ -2608,6 +2602,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->background_compact_skipped += WT_STAT_READ(from, background_compact_skipped);
     to->background_compact_success += WT_STAT_READ(from, background_compact_success);
     to->background_compact_timeout += WT_STAT_READ(from, background_compact_timeout);
+    to->background_compact_files_tracked += WT_STAT_READ(from, background_compact_files_tracked);
     to->block_cache_blocks_update += WT_STAT_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_READ(from, block_cache_bytes_update);
     to->block_cache_blocks_evicted += WT_STAT_READ(from, block_cache_blocks_evicted);
@@ -2727,8 +2722,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_force_long_update_list +=
       WT_STAT_READ(from, cache_eviction_force_long_update_list);
     to->cache_eviction_force_delete += WT_STAT_READ(from, cache_eviction_force_delete);
-    to->cache_eviction_force_obsolete_delete +=
-      WT_STAT_READ(from, cache_eviction_force_obsolete_delete);
     to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
     to->cache_eviction_force_fail += WT_STAT_READ(from, cache_eviction_force_fail);
     to->cache_eviction_force_fail_time += WT_STAT_READ(from, cache_eviction_force_fail_time);
@@ -2915,7 +2908,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->fsync_io += WT_STAT_READ(from, fsync_io);
     to->read_io += WT_STAT_READ(from, read_io);
     to->write_io += WT_STAT_READ(from, write_io);
-    to->cursor_tree_walk_del_page_skip += WT_STAT_READ(from, cursor_tree_walk_del_page_skip);
     to->cursor_next_skip_total += WT_STAT_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
