@@ -278,5 +278,6 @@ endif()
 if(USE_CPP_FOR_C_FILES)
     file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
     SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX )
+    add_compile_definitions(wt_objs PRIVATE "-DUSE_CPP_FOR_C_FILES=1" )
 endif()
 

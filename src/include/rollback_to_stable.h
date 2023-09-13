@@ -60,33 +60,25 @@
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && S2C(session)->recovery_ckpt_snap_min != 0 && \
       (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
-#ifdef __cplusplus
+#ifdef USE_CPP_FOR_C_FILES
 static WT_VERBOSE_MULTI_CATEGORY WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS =
   WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS}));
 
 static WT_VERBOSE_MULTI_CATEGORY WT_VERB_RECOVERY_RTS_RTS_ONLY =
   WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS}));
+#else
+#define WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS \
+    WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS}))
+
+#define WT_VERB_RECOVERY_RTS_RTS_ONLY \
+    WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS}))
+#endif
 
 /* Enable rollback to stable verbose messaging during recovery. */
 #define WT_VERB_RECOVERY_RTS(session)                                                    \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS : \
                                                  WT_VERB_RECOVERY_RTS_RTS_ONLY)
 
-#else
-
-#define WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS \
-    WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS}))
-
-#define WT_VERB_RECOVERY_RTS_RTS_ONLY \
-    WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS}))
-
-/* Enable rollback to stable verbose messaging during recovery. */
-#define WT_VERB_RECOVERY_RTS(session)                                                              \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                                                   \
-        WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})) : \
-        WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS})))
-
-#endif
 
 /* Increment a connection stat, or the dry-run version if needed. */
 #define WT_RTS_STAT_CONN_INCR(session, stat)           \
