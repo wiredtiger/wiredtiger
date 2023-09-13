@@ -366,8 +366,8 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 
 /*
  * __txn_should_assign_timestamp --
- *     Some updates may not have any timestamps associated with them, for example, if they were made
- *     by a transaction that doesn't assign a commit timestamp or they are updates on tables with
+ *     We don't apply timestamps to updates in some cases, for example, if they were made by a
+ *     transaction that doesn't assign a commit timestamp or they are updates on tables with
  *     write-ahead-logging enabled. It is important for correctness reasons not to assign any
  *     timestamps to an update that should not have them, so make the check explicit in this
  *     function.
