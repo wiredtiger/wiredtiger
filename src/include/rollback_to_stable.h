@@ -79,7 +79,6 @@ static WT_VERBOSE_MULTI_CATEGORY WT_VERB_RECOVERY_RTS_RTS_ONLY =
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS : \
                                                  WT_VERB_RECOVERY_RTS_RTS_ONLY)
 
-
 /* Increment a connection stat, or the dry-run version if needed. */
 #define WT_RTS_STAT_CONN_INCR(session, stat)           \
     do {                                               \
