@@ -9,7 +9,8 @@ In addition to what's shipped with the HexFiend distribution,
 this repo adds support for the following files:
 
 * Whole `.wt` file.
-* File containing a sequence of WT pages (can be saved from gdb or a bigger file).
+* File containing a sequence of WT pages. They can be saved from gdb or a bigger file:
+  * `dd bs=1 if=/proc/12345678/mem skip=$(printf %d 0x7ffff7f81010) count=2048 of=wtpages.bin`
 * WT Log
 * A sequence of BSON documents.
 
