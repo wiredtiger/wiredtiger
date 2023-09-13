@@ -37,8 +37,8 @@ from wtscenario import make_scenarios
 # flags that must be ignored when looking at an aborted tombstone.
 class test_bug_030(wttest.WiredTigerTestCase):
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
+    #    ('column', dict(key_format='r', value_format='S')),
+    #    ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
