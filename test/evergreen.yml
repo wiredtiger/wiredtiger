@@ -68,11 +68,6 @@ functions:
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
             fi
 
-            if [ -n "${num_threads}" ]; then
-              num_threads="${num_threads}"
-            else
-              num_threads="-j $(grep -c ^processor /proc/cpuinfo)"
-            fi
             ${additional_env_vars}
         # The expansion is used for any task that requires the mongodbtoolchain binaries.
         - key: PREPARE_PATH
@@ -81,12 +76,6 @@ functions:
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
             else
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
-            fi
-
-            if [ -n "${num_threads}" ]; then
-              num_threads="${num_threads}"
-            else
-              num_threads="-j $(grep -c ^processor /proc/cpuinfo)"
             fi
 
 
@@ -172,7 +161,7 @@ functions:
           ${CMAKE_INSTALL_PREFIX|-DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL} \
           ${CMAKE_PREFIX_PATH|-DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"} \
           ${CMAKE_TOOLCHAIN_FILE|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake} \
-          ${ENABLE_TCMALLOC|-DENABLE_TCMALLOC=1}
+          ${ENABLE_TCMALLOC|}
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
           ${ENABLE_STATIC|} \
@@ -284,9 +273,9 @@ functions:
           # Compiling with CMake generated Ninja file.
           cd cmake_build
           if [ "${cmake_generator|Ninja}" = "Ninja" ]; then
-            ninja ${num_threads} 2>&1
+            ninja ${num_parallel} 2>&1
           else
-            make ${num_threads} 2>&1
+            make ${num_parallel} 2>&1
           fi
         fi
         echo "Ending 'make wiredtiger' step"
@@ -407,7 +396,7 @@ functions:
               pushd cmake_build
               # Adding -DENABLE_PYTHON=1 -DENABLE_STRICT=1 as 6.0 does not default these like develop.
               $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 ../.
-              make -C lang/python ${num_threads}
+              make -C lang/python ${num_parallel}
             fi
             # Pop to root project directory.
             popd
@@ -497,8 +486,8 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build
-        echo "Using num threads '${num_threads}' for 'make check all'"
-        $CTEST -L check ${num_threads} --output-on-failure ${check_args|} 2>&1
+        echo "Using num threads '${num_parallel}' for 'make check all'"
+        $CTEST -L check ${num_parallel} --output-on-failure ${check_args|} 2>&1
 
   "cppsuite test":
     - command: shell.exec
@@ -601,11 +590,11 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
         cd cmake_build
-        echo "Using num_threads '${num_threads}' for 'unit test'"
+        echo "Using num_parallel '${num_parallel}' for 'unit test'"
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${num_threads} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${num_parallel} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${num_threads} 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${num_parallel} 2>&1
         fi
 
   "code coverage analysis":
@@ -739,7 +728,7 @@ functions:
         ${PREPARE_TEST_ENV}
         ${format_test_setting|}
         for i in $(seq ${times|1}); do
-          ./format.sh ${num_threads} ${format_test_script_args|} 2>&1
+          ./format.sh ${num_parallel} ${format_test_script_args|} 2>&1
         done
   "format test tiered":
     command: shell.exec
@@ -1263,7 +1252,7 @@ variables:
       # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
       CMAKE_TOOLCHAIN_FILE:
       CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-      num_threads: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
+      num_parallel: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
       cmake_generator: "Unix Makefiles"
       additional_env_vars: |
         export LD_LIBRARY_PATH=""
@@ -2658,7 +2647,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' ${num_threads} 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' ${num_parallel} 2>&1
 
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
@@ -4364,7 +4353,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            ./run_format_configs.sh ${num_threads}
+            ./run_format_configs.sh ${num_parallel}
 
   - name: static-wt-build-test
     commands:
@@ -6087,8 +6076,9 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    num_threads: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: ".unit_test_long"
@@ -6142,9 +6132,11 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     additional_env_vars: |
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
-      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"  
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest"
     - name: examples-c-test
@@ -6160,6 +6152,7 @@ buildvariants:
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0 
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: make-check-test
@@ -6177,12 +6170,14 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
     # builds) as -O1, making test binaries more difficult to debug. 
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     additional_env_vars: |
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the 
     # make-check-test task and are covered by the csuite-long-running task.
     check_args: -LE "cppsuite|long_running"
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -6207,7 +6202,9 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release 
     # builds) as -O1, making test binaries more difficult to debug. 
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     additional_env_vars: export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -6226,6 +6223,9 @@ buildvariants:
   display_name: "! Ubuntu 20.04 Compilers"
   run_on:
   - ubuntu2004-wt-build
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".pull_request_compilers"
 
@@ -6234,7 +6234,9 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     # FIXME-WT-11606 Remove this temporary task.
     - name: format-11507-test
@@ -6267,7 +6269,9 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     # FIXME-WT-11606 Remove this temporary task.
     - name: format-11507-test
@@ -6290,6 +6294,8 @@ buildvariants:
   run_on:
   # We run on medium as small has too small a disk.
   - ubuntu2004-medium
+  expansions:
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: compile-nonstandalone
@@ -6301,6 +6307,9 @@ buildvariants:
   batchtime: 720 # twice a day
   run_on:
   - ubuntu2004-arm64-large
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: compile-nonstandalone
@@ -6323,6 +6332,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile-linux-no-ftruncate
     - name: make-check-linux-no-ftruncate-test
@@ -6338,6 +6348,7 @@ buildvariants:
     additional_env_vars: export LD_PRELOAD="/usr/local/lib/libeatmydata.so:$LD_PRELOAD"
     cmake_generator: "Unix Makefiles"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: make-check-test
@@ -6418,6 +6429,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     posix_configure_flags: -DENABLE_ZSTD=0
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: generate-datafile-big-endian
@@ -6433,7 +6445,7 @@ buildvariants:
     format_test_setting: ulimit -c unlimited
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
-    num_threads: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
+    num_parallel: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     posix_configure_flags: -DENABLE_STRICT=0
@@ -6454,7 +6466,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     # Use half number of vCPU to avoid OOM kill failure
-    num_threads: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
+    num_parallel: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
   tasks:
     - name: compile
     - name: unit-test
@@ -6469,7 +6481,8 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
-    num_threads: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: compile
     - name: make-check-test
@@ -6505,7 +6518,8 @@ buildvariants:
   - amazon2-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
-    num_threads: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
   tasks:
     - name: compile
@@ -6536,8 +6550,10 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    posix_configure_flags: -DENABLE_TCMALLOC=0 -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0 
+    posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".antithesis"
       cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
@@ -6551,7 +6567,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    num_threads: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: compile
     - name: make-check-test
@@ -6579,7 +6595,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    num_threads: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: compile
     - name: make-check-test
@@ -6607,6 +6623,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -6627,6 +6644,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
