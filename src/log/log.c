@@ -1949,7 +1949,8 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
          * Check if we have to sync the parent directory. Some combinations of sync flags may result
          * in the log file not yet stable in its parent directory. Do that now if needed.
          */
-        if (F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC_DIR) && (log->sync_dir_lsn.l.file < sync_lsn.l.file)) {
+        if (F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC_DIR) &&
+          (log->sync_dir_lsn.l.file < sync_lsn.l.file)) {
             WT_ASSERT(session, log->log_dir_fh != NULL);
             __wt_verbose(session, WT_VERB_LOG,
               "log_release: sync directory %s to LSN %" PRIu32 "/%" PRIu32, log->log_dir_fh->name,
@@ -1966,7 +1967,8 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
         /*
          * Sync the log file if needed.
          */
-        if (F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC) && __wt_log_cmp(&log->sync_lsn, &slot->slot_end_lsn) < 0) {
+        if (F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC) &&
+          __wt_log_cmp(&log->sync_lsn, &slot->slot_end_lsn) < 0) {
             __wt_verbose(session, WT_VERB_LOG,
               "log_release: sync log %s to LSN %" PRIu32 "/%" PRIu32, log->log_fh->name,
               sync_lsn.l.file, sync_lsn.l.offset);
