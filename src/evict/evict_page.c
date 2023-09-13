@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -298,6 +298,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         clean_page = true;
         FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
     }
+
+    __wt_page_trace(session, ref, "evict");
 
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
@@ -889,4 +891,26 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         WT_IS_METADATA(btree->dhandle));
 
     return (0);
+}
+
+/*
+ * __wt_page_trace --
+ *     Print a trace message about the page
+ */
+void
+__wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message)
+{
+    WT_ADDR_COPY addr;
+    WT_DECL_ITEM(tmp);
+    WT_PAGE *page;
+
+    page = ref->page;
+
+    if (__wt_ref_addr_copy(session, ref, &addr)) {
+        WT_RET(__wt_scr_alloc(session, 0, &tmp));
+        __wt_verbose(session, WT_VERB_CACHE_TRACE, "%s %p addr %s type %s read_gen %" PRIu64,
+          message, (void *)page, __wt_addr_string(session, addr.addr, addr.size, tmp),
+          WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen);
+        __wt_scr_free(session, &tmp);
+    }
 }
