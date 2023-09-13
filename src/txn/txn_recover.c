@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /* Enable all recovery-related verbose messaging events. */
-#ifdef __cplusplus
+#ifdef USE_CPP_FOR_C_FILES
 static WT_VERBOSE_MULTI_CATEGORY WT_VERB_RECOVERY_ALL = WT_DECL_VERBOSE_MULTI_CATEGORY(
   ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS}));
 #else

@@ -48,7 +48,7 @@ struct __wt_rwlock { /* Read/write lock */
             uint8_t readers_queued;  /* Count of queued readers */
             uint32_t readers_active; /* Count of active readers */
         } s;
-#ifdef __cplusplus
+#ifdef USE_CPP_FOR_C_FILES
         __wt_rwlock_union volatile &
         operator=(__wt_rwlock_union volatile &from) volatile
         {

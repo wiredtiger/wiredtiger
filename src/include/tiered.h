@@ -114,7 +114,7 @@ struct __wt_tiered {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
-#ifdef __cplusplus
+#ifdef USE_CPP_FOR_C_FILES
 #ifdef __clang__
     __wt_tiered &
     operator=(const __wt_tiered &other)

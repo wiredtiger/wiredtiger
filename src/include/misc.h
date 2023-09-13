@@ -359,7 +359,7 @@ union __wt_rand_state {
     struct {
         uint32_t w, z;
     } x;
-#ifdef __cplusplus
+#ifdef USE_CPP_FOR_C_FILES
     __wt_rand_state volatile &
     operator=(__wt_rand_state volatile &from) volatile
     {
