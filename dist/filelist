@@ -131,7 +131,6 @@ src/meta/meta_turtle.c
 src/optrack/optrack.c
 src/os_common/filename.c
 src/os_common/os_abort.c
-src/os_common/os_alloc.c
 src/os_common/os_errno.c
 src/os_common/os_fhandle.c
 src/os_common/os_fs_inmemory.c

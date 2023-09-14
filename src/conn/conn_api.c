@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-#include "os_module.h"
-
 /*
  * ext_collate --
  *     Call the collation function (external API version).
@@ -2758,9 +2756,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     session = verify_session = NULL;
     merge_cfg = NULL;
     config_base_set = try_salvage = verify_meta = false;
-
-    /* Test Module call */
-    WT_RET(test_mod());
 
     WT_RET(__wt_library_init());
 

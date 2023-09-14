@@ -14,5 +14,5 @@ TEST_CASE("OS Module: test_mod", "[os_module]")
     CHECK(test_mod() == 0);
 
     char *tmp;
-    CHECK(__wt_calloc_mod(NULL, 1, 1024, &tmp) == 0);
+    CHECK(__wt_calloc(NULL, 1, 1024, &tmp) == 0);
 }
