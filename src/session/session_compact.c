@@ -367,6 +367,8 @@ err:
 bool
 __wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char *uri)
 {
+    WT_UNUSED(session);
+
     /* Tiered tables cannot be compacted. */
     if (WT_SUFFIX_MATCH(uri, ".wtobj"))
         return (false);
