@@ -305,9 +305,8 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
             break;
         }
 
-        /* Skip files not eligible for compaction. */
-        WT_ERR_ERROR_OK(__wt_compact_check_eligibility(session, key), ENOTSUP, true);
-        if (ret == 0) {
+        /* Check the file is eligible for compaction. */
+        if (__wt_compact_check_eligibility(session, key)) {
             /*
              * Check the list of files background compact has tracked statistics for. This avoids
              * having to open a dhandle for the file if compaction is unlikely to work efficiently
