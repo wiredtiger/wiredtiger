@@ -6378,6 +6378,7 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE:
     CMAKE_INSTALL_PREFIX:
     python_binary: "/cygdrive/c/python/Python311/python"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: make-check-test
