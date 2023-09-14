@@ -1774,8 +1774,6 @@ extern uint64_t __wt_session_gen(WT_SESSION_IMPL *session, int which)
 extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base) WT_GCC_FUNC_DECL_ATTRIBUTE(
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void *__wt_ext_scr_alloc(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, size_t size);
-extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
-  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
@@ -1842,10 +1840,6 @@ extern void __wt_encrypt_size(
 extern void __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
   WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 6, 7)))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern void __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line,
-  WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
-  WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 5, 6)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);

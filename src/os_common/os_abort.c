@@ -13,7 +13,7 @@
  *     Abort the process, dropping core.
  */
 void
-__wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((noreturn))
+__wt_abort(WT_SESSION_IMPL *session)  WT_GCC_FUNC_ATTRIBUTE((noreturn))
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 #ifdef HAVE_ATTACH

@@ -43,17 +43,6 @@
 // modules without diagnostic - need to look into future to test modules diag also.
 
 /*
- * test_mod --
- *     A module test function
- */
-int
-test_mod(void)
-{
-    printf("Testing.. \n");
-    return (0);
-}
-
-/*
  * __wt_calloc --
  *     ANSI calloc function.
  */

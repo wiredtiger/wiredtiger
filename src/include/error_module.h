@@ -86,14 +86,14 @@ typedef enum {
 #endif
 /* Copied from verbose.h */
 
-extern void
-__wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_CATEGORY category,
-    const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
+extern void __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line,
+  WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 5, 6)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 
 extern void
-__wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((noreturn))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+__wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 
 #define __wt_errx(session, ...) \
     __wt_errx_func(session, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
