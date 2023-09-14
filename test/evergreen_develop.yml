@@ -12,7 +12,7 @@ variables:
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
     HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     database: WTPerformanceDataDB
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
@@ -159,8 +159,8 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
+    num_parallel: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   # As these tests run infrequently by the time they fail we may have had
   # a lot of prior commits that would also fail for the same test. This is acceptable
   # as our infrequent tests aren't tracking critical failures, but we don't want

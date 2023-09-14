@@ -486,7 +486,7 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build
-        echo "Using num threads '${num_parallel}' for 'make check all'"
+        echo "Using number of parallel processes '${num_parallel}' for 'make check all'"
         $CTEST -L check ${num_parallel} --output-on-failure ${check_args|} 2>&1
 
   "cppsuite test":
