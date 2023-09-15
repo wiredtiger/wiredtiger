@@ -108,7 +108,6 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
     uint64_t minutes, time_diff_ms, v;
-    uint32_t i, session_cnt;
     int pause_cnt;
     bool verbose_timeout_flags;
 
@@ -126,11 +125,9 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the sessions that could have been active when we started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (minutes = 0, pause_cnt = 0, s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-        if (!s->active)
-            continue;
-
+    minutes = 0;
+    pause_cnt = 0;
+    WT_SESSION_FOREACH_BEGIN(s, conn) {
         for (;;) {
             /* Ensure we only read the value once. */
             WT_ORDERED_READ(v, s->generations[which]);
@@ -209,6 +206,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
             }
         }
     }
+    WT_SESSION_FOREACH_END;
 }
 
 /*
@@ -221,34 +219,22 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
     uint64_t oldest, v;
-    uint32_t i, session_cnt;
 
     conn = S2C(session);
-
-    /*
-     * No lock is required because the session array is fixed size, but it may contain inactive
-     * entries. We must review any active session, so insert a read barrier after reading the active
-     * session count. That way, no matter what sessions come or go, we'll check the slots for all of
-     * the sessions that could have been active when we started our check.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
     /*
      * We need to order the read of the connection generation before the read of the session
      * generation. If the session generation read is ordered before the connection generation read
      * it could read an earlier session generation value. This would then violate the acquisition
      * semantics and could result in us reading 0 for the session generation when it is non-zero.
      */
-    WT_ORDERED_READ(oldest, conn->generations[which]);
-    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-        if (!s->active)
-            continue;
-
+    WT_SESSION_FOREACH_BEGIN(s, conn) {
         /* Ensure we only read the value once. */
         WT_ORDERED_READ(v, s->generations[which]);
 
         if (v != 0 && v < oldest)
             oldest = v;
     }
+    WT_SESSION_FOREACH_END;
 
     return (oldest);
 }
@@ -263,27 +249,17 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
     uint64_t v;
-    uint32_t i, session_cnt;
 
     conn = S2C(session);
 
-    /*
-     * No lock is required because the session array is fixed size, but it may contain inactive
-     * entries. We must review any active session, so insert a read barrier after reading the active
-     * session count. That way, no matter what sessions come or go, we'll check the slots for all of
-     * the sessions that could have been active when we started our check.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-        if (!s->active)
-            continue;
-
+    WT_SESSION_FOREACH_BEGIN(s, conn) {
         /* Ensure we only read the value once. */
         WT_ORDERED_READ(v, s->generations[which]);
 
         if (v != 0 && generation >= v)
             return (true);
     }
+    WT_SESSION_FOREACH_END;
     return (false);
 }
 
