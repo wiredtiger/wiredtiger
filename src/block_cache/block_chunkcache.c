@@ -763,38 +763,47 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     if (!chunkcache->capacity == old_capacity){
         if (chunkcache->type == WT_CHUNKCACHE_FILE){
             WT_RET(chunkcache->fh->handle->fh_truncate(
-            chunkcache->fh->handle, &session->iface, (wt_off_t)chunkcache->capacity));
+            chunkcache->fh->handle, &session->ifaces (wt_off_t)chunkcache->capacity));
 
             // WE may not need this section
             WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
             (void **)&chunkcache->memory, &mapped_size, NULL));
+            // Because truncate can move the memory ptr position - we need to walk the entire 
+            // chunkcache and re-adjust all the pointers.
             if (mapped_size != chunkcache->capacity)
                 WT_RET_MSG(session, EINVAL,
                 "Storage size mapping %lu does not equal capacity of chunk cache %" PRIu64,
                 mapped_size, chunkcache->capacity);
 
-            // Can we leave bitmap as is and just adjust cache size?
-
             // If its smaller then just drop the rest // free the in memory space / file (this is done by truncate)
             // iterate through bucket - if offset is in bad zone then free. 
-        
+
             // Thought process is - the chunkcache capacity will be updated here
             // in the bitmap we use these values to calculate the iterations of the bitmap so we wont be searching out of bounds. 
 
             // We do want to adjust bitmap size only when the new capacity is larger.
-            // Memcpy the old data, calloc the new data, free the old bitmap.
             if(old_capacity < chunkcache->capacity){
                 WT_RET(__wt_calloc(session, WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, 
                 chunkcache->chunk_size), sizeof(uint8_t), free_bitmap_new));            
                 memcpy(free_bitmap_new, chunkcache->free_bitmap, 
                 WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size));
+
+                // this mechanism can go after we acquire a lock
                 __wt_atomic_cas_ptr(&chunkcache->free_bitmap, &chunkcache->free_bitmap, 
                     &free_bitmap_new);
 
-                // Need a lock here or have a mechanism to make sure nothing is pointing to this array before we free
+                // Stash in WT generation.c
                 __wt_free(session, free_bitmap_new);
 
+                // Update stats
+                // (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
+                // WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
+
             }
+        } else if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY){
+            // Call eviction to reduce chunkcache capacity
+            WT_ERR(__wt_thread_create(
+            session, &chunkcache->evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
         }
     }
 
@@ -818,7 +827,6 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     __chunkcache_arr_free(session, &old_pinned_list);
 
     /* Iterate through all the chunks and mark them as pinned if necessary. */
-    // Rehash all the chunks here ??
     for (i = 0; i < chunkcache->hashtable_size; i++) {
         __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
