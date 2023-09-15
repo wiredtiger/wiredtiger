@@ -139,9 +139,7 @@ class test_compact03(wttest.WiredTigerTestCase):
             c2 = self.session.open_cursor(self.uri, None)
             c1.set_key((self.nrecords // 100) * 5)
             c2.set_key((self.nrecords // 100) * 95)
-            # Handle occasional WT_ROLLBACK errors.
-            with self.transaction(session=self.session):
-                self.assertEqual(self.session.truncate(None, c1, c2, None), 0)
+            self.assertEqual(self.session.truncate(None, c1, c2, None), 0)
             c1.close()
             c2.close()
         else:
