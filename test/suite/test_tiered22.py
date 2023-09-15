@@ -37,7 +37,7 @@ class test_tiered22(TieredConfigMixin, wttest.WiredTigerTestCase):
                                                  tiered_only=True)
     scenarios = make_scenarios(storage_sources)
 
-    def test__compaction(self):
+    def test_tiered22(self):
         uri = "table:tiered"
         uri_local_file = 'tiered-0000000001.wtobj'
         self.session.create(uri, "key_format=S,value_format=S")
