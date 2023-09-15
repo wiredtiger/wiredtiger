@@ -590,11 +590,15 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
         cd cmake_build
-        echo "Using num_jobs '-j ${num_jobs}' for 'unit test'"
+        threads_command=""
+        if [[ -n ${num_jobs} ]]; then
+          echo "Using num_jobs '-j ${num_jobs}' for 'unit test'"
+          threads_command="-j ${num_jobs}"
+        fi
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} -j ${num_jobs} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} -j ${num_jobs} 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} $threads_command 2>&1
         fi
 
   "code coverage analysis":
@@ -1308,6 +1312,7 @@ variables:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
@@ -1321,7 +1326,9 @@ variables:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           format_test_script_args: -t 360
+
 
   - &race-condition-stress-sanitizer-test
     exec_timeout_secs: 25200
@@ -1332,6 +1339,7 @@ variables:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           format_test_script_args: -R -t 360
 
   - &recovery-stress-test
@@ -4063,9 +4071,11 @@ tasks:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           format_test_script_args: -S
       - func: "format test"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-wtperf-test
@@ -4395,6 +4405,7 @@ tasks:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           # Run for 30 mins, and explicitly set data_source to LSM with a large cache
           format_test_script_args: -t 30 data_source=lsm cache_minimum=5000
 
@@ -4645,6 +4656,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           format_test_script_args: -t 360
 
   - name: race-condition-stress-sanitizer-test-no-barrier
@@ -4658,6 +4670,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           format_test_script_args: -R -t 360
 
   - name: recovery-stress-test-no-barrier
@@ -6374,11 +6387,11 @@ buildvariants:
   - windows-64-vs2017-test
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
-    # Remove the default configurations for the toolchain and install prefix.
+    # Remove the default configurations for the toolchain, install prefix and number of jobs.
     CMAKE_TOOLCHAIN_FILE:
     CMAKE_INSTALL_PREFIX:
+    num_jobs:
     python_binary: "/cygdrive/c/python/Python311/python"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: make-check-test
@@ -6417,6 +6430,7 @@ buildvariants:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
     posix_configure_flags: -DENABLE_ZSTD=0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
     - name: generate-datafile-little-endian
