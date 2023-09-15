@@ -287,6 +287,21 @@ typedef TAILQ_HEAD(__wt_backuphash, __wt_backup_target) WT_BACKUPHASH;
 
 extern const WT_NAME_FLAG __wt_stress_types[];
 
+#define WT_SESSION_FOREACH_BEGIN(session, conn)                                                \
+    do {                                                                                       \
+        uint32_t __i, __session_cnt;                                                           \
+        u_int __active;                                                                        \
+        __session_cnt = *(volatile uint32_t *)&(conn)->session_cnt;                            \
+        for (__i = 0, (session) = (conn)->sessions; __i < __session_cnt; ++__i, ++(session)) { \
+            WT_ORDERED_READ(__active, (session)->active);                                      \
+            if (!__active)                                                                     \
+                continue;
+
+#define WT_SESSION_FOREACH_END \
+    }                          \
+    }                          \
+    while (0)
+
 /*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
