@@ -2337,7 +2337,7 @@ __wt_cbt_evict_pages_with_deleted_items(
          * to mark the page dirty as in the case of obsolete updates. Reconciling the page
          * forcefully might not be beneficial.
          */
-        F_CLR_ATOMIC_16(cbt->ref->page, WT_PAGE_SCRUB_EVICTION);
+        F_SET_ATOMIC_16(cbt->ref->page, WT_PAGE_SCRUB_EVICTION);
         __wt_page_evict_soon(session, cbt->ref);
         WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
     }
