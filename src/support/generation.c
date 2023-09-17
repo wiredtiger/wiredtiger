@@ -127,7 +127,8 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
      */
     minutes = 0;
     pause_cnt = 0;
-    WT_SESSION_FOREACH_BEGIN(s, conn) {
+    WT_SESSION_FOREACH_BEGIN(s, conn)
+    {
         for (;;) {
             /* Ensure we only read the value once. */
             WT_ORDERED_READ(v, s->generations[which]);
@@ -227,7 +228,9 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * it could read an earlier session generation value. This would then violate the acquisition
      * semantics and could result in us reading 0 for the session generation when it is non-zero.
      */
-    WT_SESSION_FOREACH_BEGIN(s, conn) {
+    WT_ORDERED_READ(oldest, conn->generations[which]);
+    WT_SESSION_FOREACH_BEGIN(s, conn)
+    {
         /* Ensure we only read the value once. */
         WT_ORDERED_READ(v, s->generations[which]);
 
@@ -252,7 +255,8 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
     conn = S2C(session);
 
-    WT_SESSION_FOREACH_BEGIN(s, conn) {
+    WT_SESSION_FOREACH_BEGIN(s, conn)
+    {
         /* Ensure we only read the value once. */
         WT_ORDERED_READ(v, s->generations[which]);
 
