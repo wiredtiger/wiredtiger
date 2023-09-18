@@ -171,5 +171,9 @@ class PerfStatCollection:
                                    output_label='Latency update(in micro sec) Max',
                                    input_offset=11),
             PerfStatDBSize(short_label="database_size",
-                           output_label='Database Size (in bytes)')
+                           output_label='Database Size (in bytes)'),
+            PerfStatCount(short_label="chunk_cache_inserted",
+                          stat_file='WiredTigerStat*',
+                          pattern='chunk-cache: number of misses',
+                          output_label='Chunks inserted into chunk cache')
         ]
