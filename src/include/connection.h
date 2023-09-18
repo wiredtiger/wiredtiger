@@ -287,14 +287,22 @@ typedef TAILQ_HEAD(__wt_backuphash, __wt_backup_target) WT_BACKUPHASH;
 
 extern const WT_NAME_FLAG __wt_stress_types[];
 
-#define WT_SESSION_FOREACH_BEGIN(session, conn)                                                \
-    do {                                                                                       \
-        uint32_t __i, __session_cnt;                                                           \
-        u_int __active;                                                                        \
-        __session_cnt = *(volatile uint32_t *)&(conn)->session_cnt;                            \
-        for (__i = 0, (session) = (conn)->sessions; __i < __session_cnt; ++__i, ++(session)) { \
-            WT_ORDERED_READ(__active, (session)->active);                                      \
-            if (!__active)                                                                     \
+#define WT_SESSION_FOREACH_BEGIN(array_session, conn)                                           \
+    do {                                                                                        \
+        uint32_t __i, __session_cnt;                                                            \
+        u_int __active;                                                                         \
+                                                                                                \
+        /*                                                                                      \
+         * The session count variable can change concurrently with the reader thread traversing \
+         * the array. It is up to the algorithm doing the traversal, e.g. hazard pointers,      \
+         * generations to handle the consequences of a new session being created or closed out. \
+         */                                                                                     \
+        __session_cnt = *(volatile uint32_t *)&(conn)->session_cnt;                             \
+        WT_ORDERED_READ(__session_cnt, (conn)->session_cnt);                                    \
+        for (__i = 0, (array_session) = (conn)->sessions; __i < __session_cnt;                  \
+             ++__i, ++(array_session)) {                                                        \
+            WT_ORDERED_READ(__active, (array_session)->active);                                 \
+            if (!__active)                                                                      \
                 continue;
 
 #define WT_SESSION_FOREACH_END \
