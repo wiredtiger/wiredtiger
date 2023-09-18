@@ -138,6 +138,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
       compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
+        WT_STAT_CONN_INCR(session, background_compact_skipped);
         return (false);
     }
 
