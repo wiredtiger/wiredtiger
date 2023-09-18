@@ -1292,6 +1292,8 @@ static const char *const __stats_connection_desc[] = {
   "background-compact: background compact failed calls",
   "background-compact: background compact failed calls due to cache pressure",
   "background-compact: background compact interrupted",
+  "background-compact: background compact moving average of bytes rewritten",
+  "background-compact: background compact recovered bytes",
   "background-compact: background compact running",
   "background-compact: background compact skipped file as not meeting requirements for compaction",
   "background-compact: background compact successful calls",
@@ -1326,6 +1328,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes read via memory map API",
   "block-manager: bytes read via system call API",
   "block-manager: bytes written",
+  "block-manager: bytes written by compaction",
   "block-manager: bytes written for checkpoint",
   "block-manager: bytes written via memory map API",
   "block-manager: bytes written via system call API",
@@ -1972,6 +1975,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->background_compact_fail = 0;
     stats->background_compact_fail_cache_pressure = 0;
     stats->background_compact_interrupted = 0;
+    stats->background_compact_ema = 0;
+    stats->background_compact_bytes_recovered = 0;
     stats->background_compact_running = 0;
     stats->background_compact_skipped = 0;
     stats->background_compact_success = 0;
@@ -2006,6 +2011,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_read_mmap = 0;
     stats->block_byte_read_syscall = 0;
     stats->block_byte_write = 0;
+    stats->block_byte_write_compact = 0;
     stats->block_byte_write_checkpoint = 0;
     stats->block_byte_write_mmap = 0;
     stats->block_byte_write_syscall = 0;
@@ -2602,6 +2608,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->background_compact_fail_cache_pressure +=
       WT_STAT_READ(from, background_compact_fail_cache_pressure);
     to->background_compact_interrupted += WT_STAT_READ(from, background_compact_interrupted);
+    to->background_compact_ema += WT_STAT_READ(from, background_compact_ema);
+    to->background_compact_bytes_recovered +=
+      WT_STAT_READ(from, background_compact_bytes_recovered);
     to->background_compact_running += WT_STAT_READ(from, background_compact_running);
     to->background_compact_skipped += WT_STAT_READ(from, background_compact_skipped);
     to->background_compact_success += WT_STAT_READ(from, background_compact_success);
@@ -2637,6 +2646,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_read_mmap += WT_STAT_READ(from, block_byte_read_mmap);
     to->block_byte_read_syscall += WT_STAT_READ(from, block_byte_read_syscall);
     to->block_byte_write += WT_STAT_READ(from, block_byte_write);
+    to->block_byte_write_compact += WT_STAT_READ(from, block_byte_write_compact);
     to->block_byte_write_checkpoint += WT_STAT_READ(from, block_byte_write_checkpoint);
     to->block_byte_write_mmap += WT_STAT_READ(from, block_byte_write_mmap);
     to->block_byte_write_syscall += WT_STAT_READ(from, block_byte_write_syscall);
