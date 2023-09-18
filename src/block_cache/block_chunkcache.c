@@ -886,8 +886,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.flushed_data_cache_insertion", &cval));
-    cval.val != 0 ? F_SET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION) :
-                    F_CLR(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION);
+    if (cval.val != 0)
+        F_SET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION);
 
     WT_ERR(__wt_rwlock_init(session, &chunkcache->pinned_objects.array_lock));
     WT_ERR(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));

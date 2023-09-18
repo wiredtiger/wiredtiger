@@ -1082,7 +1082,7 @@ wiredtiger_open_chunk_cache_configuration = [
             number of buckets in the hashtable that keeps track of objects''',
             min='64', max='1048576'),
         Config('flushed_data_cache_insertion', 'true', r'''
-            configure enabling caching of freshly-flushed data, before it is removed locally.''',
+            enable caching of freshly-flushed data, before it is removed locally.''',
             type='boolean', undoc=True),
         Config('type', 'FILE', r'''
             cache location, defaults to the file system.''',
