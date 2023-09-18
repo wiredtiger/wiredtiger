@@ -199,6 +199,7 @@ conn_stats = [
     ##########################################
     # Background compaction statistics
     ##########################################
+    BackgroundCompactStat('background_compact_ema', 'background compact moving average of bytes rewritten', 'no_scale'),
     BackgroundCompactStat('background_compact_fail', 'background compact failed calls', 'no_scale'),
     BackgroundCompactStat('background_compact_fail_cache_pressure', 'background compact failed calls due to cache pressure', 'no_scale'),
     BackgroundCompactStat('background_compact_files_tracked', 'number of files tracked by background compaction', 'no_scale'),

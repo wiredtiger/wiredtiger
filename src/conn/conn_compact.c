@@ -230,6 +230,8 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
         conn->background_compact.bytes_rewritten_ema =
           (uint64_t)(0.1 * bm->block->compact_bytes_rewritten +
             0.9 * conn->background_compact.bytes_rewritten_ema);
+        WT_STAT_CONN_SET(
+          session, background_compact_ema, conn->background_compact.bytes_rewritten_ema);
     }
 
     return (0);
