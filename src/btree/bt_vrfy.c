@@ -276,7 +276,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
-/* FIXME-WT-10927 */
+/* FIXME-WT-11698 */
 #if 0
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
