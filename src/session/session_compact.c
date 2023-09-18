@@ -316,8 +316,7 @@ __compact_worker(WT_SESSION_IMPL *session)
              */
             if (ret == 0) {
                 if (session->compact_state == WT_COMPACT_SUCCESS) {
-                    if (session == S2C(session)->background_compact.session)
-                        WT_STAT_CONN_INCR(session, background_compact_success);
+                    WT_STAT_CONN_INCR(session, session_table_compact_dhandle_success);
                     another_pass = true;
                 } else
                     session->op_handle[i]->compact_skip = true;

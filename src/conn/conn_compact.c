@@ -457,7 +457,8 @@ __compact_server(void *arg)
                 }
             }
             WT_ERR(ret);
-        }
+        } else
+            WT_STAT_CONN_INCR(session, background_compact_success);
     }
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
