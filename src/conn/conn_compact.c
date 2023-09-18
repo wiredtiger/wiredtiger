@@ -218,6 +218,7 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
         compact_stat->consecutive_unsuccessful_attempts++;
         compact_stat->prev_compact_success = false;
     } else {
+        WT_STAT_CONN_INCRV(session, background_compact_bytes_recovered, bytes_recovered);
         compact_stat->consecutive_unsuccessful_attempts = 0;
         conn->background_compact.files_compacted++;
         compact_stat->prev_compact_success = true;
