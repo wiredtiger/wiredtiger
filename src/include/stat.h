@@ -572,6 +572,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
     int64_t checkpoints;
+    int64_t checkpoints_compact;
     int64_t checkpoint_sync;
     int64_t checkpoint_presync;
     int64_t checkpoint_hs_pages_reconciled;
@@ -853,6 +854,7 @@ struct __wt_connection_stats {
     int64_t session_table_alter_success;
     int64_t session_table_alter_trigger_checkpoint;
     int64_t session_table_alter_skip;
+    int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
     int64_t session_table_compact_running;
