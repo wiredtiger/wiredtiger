@@ -265,6 +265,8 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 
     /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
     WT_RET(__wt_session_compact_check_interrupted(session));
+
+    WT_STAT_CONN_INCR(session, checkpoints_compact);
     return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
 }
 
