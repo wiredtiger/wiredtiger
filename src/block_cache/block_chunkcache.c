@@ -412,7 +412,7 @@ __chunkcache_eviction_thread(void *arg)
                     WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
                       "evicted chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
-                      (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                      (char *)chunk->hash_id.objectname, chunk->hash_id.objectid,
                       chunk->chunk_offset, (uint64_t)chunk->chunk_size);
                 }
             }
