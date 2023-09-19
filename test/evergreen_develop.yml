@@ -141,6 +141,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   tasks:
+    - name: compatibility-test-suite
     - name: compatibility-test-upgrade-to-latest
 
 - name: compatibility-tests
@@ -150,7 +151,6 @@ buildvariants:
   tasks:
     - name: compatibility-test-for-newer-releases
     - name: compatibility-test-for-patch-releases
-    - name: compatibility-test-suite
     - name: import-compatibility-test
 
 - name: infrequent-checks
