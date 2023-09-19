@@ -625,7 +625,7 @@ functions:
       bucket: build_external
       permissions: public-read
       content_type: text/html
-      remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/
+      remote_file: wiredtiger/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/
 
   "code coverage publish summary":
     command: s3.put
@@ -640,7 +640,7 @@ functions:
       # This will ensure that it sorts before the per-file report pages which also get a space
       # at the start of their display name (why this happens is not yet clear).
       display_name: " 1 Coverage report main page"
-      remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
+      remote_file: wiredtiger/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/1_coverage_report_main.html
 
   "format test":
     command: shell.exec
