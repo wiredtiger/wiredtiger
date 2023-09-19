@@ -2338,7 +2338,7 @@ __wt_cbt_evict_pages_with_deleted_items(
          * forcefully might not be beneficial.
          */
         F_SET_ATOMIC_16(cbt->ref->page, WT_PAGE_SCRUB_EVICTION);
-        __wt_page_evict_soon(session, cbt->ref);
+        WT_RET(__wt_page_dirty_and_evict_soon(session, cbt->ref));
         WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
     }
 
