@@ -44,6 +44,7 @@
 #include "operations_test.cpp"
 #include "reverse_split.cpp"
 #include "test_template.cpp"
+#include "background_compact.cpp"
 
 extern "C" {
 #include "test_util.h"
@@ -157,6 +158,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         reverse_split(args).run();
     else if (test_name == "test_template")
         test_template(args).run();
+    else if (test_name == "background_compact")
+        background_compact(args).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
@@ -180,8 +183,8 @@ main(int argc, char *argv[])
     std::string cfg, config_filename, current_cfg, current_test_name, home, test_name,
       wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"reverse_split", "bounded_cursor_perf",
-      "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
+    const std::vector<std::string> all_tests = {"background_compact", "reverse_split",
+      "bounded_cursor_perf", "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
       "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
       "hs_cleanup", "operations_test", "test_template"};
 
