@@ -299,7 +299,6 @@ extern const WT_NAME_FLAG __wt_stress_types[];
          * out.                                                                                  \
          */                                                                                      \
         __session_cnt = *(volatile uint32_t *)&(conn)->session_cnt;                              \
-        WT_ORDERED_READ(__session_cnt, (conn)->session_cnt);                                     \
         for (__i = 0, (array_session) = (conn)->sessions; __i < __session_cnt;                   \
              ++__i, ++(array_session)) {                                                         \
             WT_ORDERED_READ(__active, (array_session)->active);                                  \
