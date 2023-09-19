@@ -159,8 +159,7 @@ __wt_curstat_table_init(
     if (table->is_simple) {
         WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->cgroups[0]->name));
         ret = __wt_curstat_init(session, buf->data, NULL, cfg, cst);
-        __wt_scr_free(session, &buf);
-        return (ret);
+        goto err;
     }
 
     /*
