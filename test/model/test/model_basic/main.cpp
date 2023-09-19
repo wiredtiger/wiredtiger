@@ -116,7 +116,7 @@ wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
 
     testutil_check(cursor->close(cursor));
     if (timestamp == 0)
-        testutil_snprintf(cfg, sizeof(cfg), "");
+        cfg[0] = '\0';
     else
         testutil_snprintf(cfg, sizeof(cfg), "commit_timestamp=%" PRIx64, timestamp);
     testutil_check(session->commit_transaction(session, cfg));
@@ -144,7 +144,7 @@ wt_remove(
 
     testutil_check(cursor->close(cursor));
     if (timestamp == 0)
-        testutil_snprintf(cfg, sizeof(cfg), "");
+        cfg[0] = '\0';
     else
         testutil_snprintf(cfg, sizeof(cfg), "commit_timestamp=%" PRIx64, timestamp);
     testutil_check(session->commit_transaction(session, cfg));
@@ -174,7 +174,7 @@ wt_update(WT_SESSION *session, const char *uri, const model::data_value &key,
 
     testutil_check(cursor->close(cursor));
     if (timestamp == 0)
-        testutil_snprintf(cfg, sizeof(cfg), "");
+        cfg[0] = '\0';
     else
         testutil_snprintf(cfg, sizeof(cfg), "commit_timestamp=%" PRIx64, timestamp);
     testutil_check(session->commit_transaction(session, cfg));

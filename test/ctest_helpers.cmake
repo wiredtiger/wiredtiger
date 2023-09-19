@@ -240,7 +240,7 @@ function(define_c_test)
         PARSE_ARGV
         0
         "C_TEST"
-        ""
+        "CXX"
         "TARGET;DIR_NAME;EXEC_SCRIPT;LABEL"
         "SOURCES;LIBS;FLAGS;ARGUMENTS;VARIANTS;DEPENDS;ADDITIONAL_FILES"
     )
@@ -271,6 +271,9 @@ function(define_c_test)
         endif()
         if(NOT "${C_TEST_ADDITIONAL_FILES}" STREQUAL "")
             list(APPEND additional_file_args ${C_TEST_ADDITIONAL_FILES})
+        endif()
+        if(C_TEST_CXX)
+            list(APPEND additional_file_args CXX)
         endif()
         set(exec_wrapper)
         if(WT_WIN)

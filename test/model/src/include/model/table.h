@@ -113,7 +113,7 @@ public:
      *     Create a verification cursor for the table. This method is not thread-safe. In fact,
      *     nothing is thread-safe until the returned cursor stops being used!
      */
-    kv_table_verify_cursor &&verify_cursor();
+    kv_table_verify_cursor verify_cursor();
 
 protected:
     /*

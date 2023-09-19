@@ -99,11 +99,10 @@ kv_table::update(const data_value &key, const data_value &value, uint64_t timest
  *     Create a verification cursor for the table. This method is not thread-safe. In fact, nothing
  *     is thread-safe until the returned cursor stops being used!
  */
-kv_table_verify_cursor &&
+kv_table_verify_cursor
 kv_table::verify_cursor()
 {
-    kv_table_verify_cursor k(_data);
-    return (std::move(k));
+    return (std::move(kv_table_verify_cursor(_data)));
 }
 
 } /* namespace model */
