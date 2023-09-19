@@ -739,6 +739,24 @@ __wt_chunkcache_remove(
 }
 
 /*
+ * __wt_chunkcache_ingest --
+ *     Read all the contents from a file and insert it into the chunkcache.
+ */
+int 
+__wt_chunkcache_ingest(char *name, uint32_t objectid) {
+    handle = __wt_open(name);
+    size = __wt_size(handle);
+    remains_to_write = size;
+
+    while (remains_to_write > 0) {
+        bucket_id = hash(name, objectid, size - remains_to_write);
+        __chunkcache_alloc_chunk(..., &chunk, ...);
+        memcpy(chunk->chunk_memory, buf, chunk_sz);
+        remains_to_write -= chunk_sz;
+    }
+}
+
+/*
  * __wt_chunkcache_reconfig --
  *     Re-configure the chunk cache.
  */
