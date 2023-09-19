@@ -255,7 +255,7 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, WT_BLOCK *bl
         return (ret);
     }
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "allocate: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
-      (char *)&(*newchunk)->hash_id.objectname, (*newchunk)->hash_id.objectid,
+      (*newchunk)->hash_id.objectname, (*newchunk)->hash_id.objectid,
       (uint64_t)(*newchunk)->chunk_offset, (uint64_t)(*newchunk)->chunk_size);
 
     return (0);
@@ -412,8 +412,8 @@ __chunkcache_eviction_thread(void *arg)
                     WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
                       "evicted chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
-                      (char *)chunk->hash_id.objectname, chunk->hash_id.objectid,
-                      chunk->chunk_offset, (uint64_t)chunk->chunk_size);
+                      chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->chunk_offset,
+                      (uint64_t)chunk->chunk_size);
                 }
             }
             __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
@@ -713,7 +713,7 @@ __wt_chunkcache_remove(
                     __chunkcache_free_chunk(session, chunk);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
                       "removed chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
-                      (char *)&hash_id.objectname, hash_id.objectid, chunk->chunk_offset,
+                      hash_id.objectname, hash_id.objectid, chunk->chunk_offset,
                       (uint64_t)chunk->chunk_size);
                     break;
                 }
