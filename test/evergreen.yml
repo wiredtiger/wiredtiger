@@ -3725,6 +3725,29 @@ tasks:
       - name: "coverage-report-catch2"
     commands:
       - func: "get project"
+      - command: shell.exec
+        vars:
+          dependent_task: coverage-report-catch2
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            echo "Code Change Report"
+            echo "=================="
+            echo "expansions:"
+            echo ". is_patch      =  ${is_patch}"
+            echo ". task_id       =  ${task_id}"
+            echo ". task_name     =  ${task_name}"
+            echo ". build_id      =  ${build_id}"
+            echo ". version_id    =  ${version_id}"
+            echo ". revision      =  ${revision}"
+            echo ". github_commit =  ${github_commit}"
+            echo ". project       =  ${project}"
+            echo ". execution     =  ${execution}"
+            echo ". remote path   =  wiredtiger/${build_variant}/${revision}/${dependent_task}_${build_id}-${execution}/full_coverage_report.json"
+            mkdir -p coverage_report
+            git status
+            git diff --cached > coverage_report/diff.txt
       - command: s3.get
         params:
           aws_key: ${aws_key}
