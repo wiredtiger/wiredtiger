@@ -3720,6 +3720,33 @@ tasks:
       - func: "code coverage publish report"
       - func: "code coverage publish summary"
 
+  - name: code-change-report
+    depends_on:
+      - name: "coverage-report-catch2"
+    commands:
+      - func: "get project"
+      - command: s3.get
+        params:
+          aws_key: ${aws_key}
+          aws_secret: ${aws_secret}
+          remote_file: wiredtiger/${build_variant}/${revision}/${dependent_task}_${build_id}-${execution}/full_coverage_report.json
+          bucket: build_external
+          local_file: wiredtiger/coverage_report/full_coverage_report.json
+      - command: shell.exec
+        vars:
+          dependent_task: coverage-report-catch2
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            echo "Code Change Report"
+            echo "=================="
+            pwd
+            ls -l
+            ls -l coverage_report
+            cat coverage_report/diff.txt
+#            cat coverage_report/full_coverage_report.json
+
   - name: s3-tiered-storage-extensions-test
     tags: ["python"]
     commands:
