@@ -298,7 +298,7 @@ extern const WT_NAME_FLAG __wt_stress_types[];
          * generations, etc, to handle the consequences of a new session being created or closed \
          * out.                                                                                  \
          */                                                                                      \
-        __session_cnt = *(volatile uint32_t *)&(conn)->session_cnt;                              \
+        __session_cnt = *(volatile uint32_t *)&((conn)->session_cnt);                            \
         for (__i = 0, (array_session) = (conn)->sessions; __i < __session_cnt;                   \
              ++__i, ++(array_session)) {                                                         \
             WT_ORDERED_READ(__active, (array_session)->active);                                  \
