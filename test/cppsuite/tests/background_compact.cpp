@@ -31,221 +31,177 @@
 #include "src/main/test.h"
 
 namespace test_harness {
-/* Defines what data is written to the tracking table for use in custom validation. */
-class operation_tracker_background_compact : public operation_tracker {
-
-public:
-    operation_tracker_background_compact(
-      configuration *config, const bool use_compression, timestamp_manager &tsm)
-        : operation_tracker(config, use_compression, tsm)
-    {
-    }
-
-    void
-    set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
-    {
-        /* You can replace this call to define your own tracking table contents. */
-        operation_tracker::set_tracking_cursor(
-          session, operation, collection_id, key, value, ts, op_track_cursor);
-    }
-};
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overridden and customized.
+ * This test produces a workload that encourages the background compaction server to do work by
+ * performing random truncations over a randomly selected table. The test also simulates a
+ * "maintenance window" which allows compact to continue running while all other operations are
+ * paused. The period of the maintenance window is set byt the custom operations op_rate. Inserts
+ * are also performed to ensure the files continue to grow.
  */
 class background_compact : public test {
-    bool maintenance_window = false;
+    bool maintenance_window = true;
 
 public:
     background_compact(const test_args &args) : test(args)
     {
-        init_operation_tracker(
-          new operation_tracker_background_compact(_config->get_subconfig(OPERATION_TRACKER),
-            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
+        init_operation_tracker();
     }
 
-    void
-    run() override final
-    {
-        /* You can remove the call to the base class to fully customize your test. */
-        test::run();
-    }
-
+    /* Custom operation to simulate toggling maintenance windows in a workload. */
     void
     custom_operation(thread_worker *tw) override final
     {
-        int64_t bytes_avail_reuse, pages_reviewed, pages_rewritten, size;
-
-        const int64_t megabyte = 1024 * 1024;
-
         std::string log_prefix =
           type_string(tw->type) + " thread {" + std::to_string(tw->id) + "}: ";
         logger::log_msg(
           LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
 
-        uint64_t collection_count = tw->db.get_collection_count();
-
         while (tw->running()) {
-            logger::log_msg(LOG_INFO, log_prefix + "=== Toggle maintanence window ===");
-
-            for (int i = 0; i < collection_count; i++) {
-                /* Make sure that thread statistics cursor is null before we open it. */
-                // testutil_assert(tw->stat_cursor.get() == nullptr);
-
-                collection &coll = tw->db.get_collection(i);
-                std::string uri = STATISTICS_URI + coll.name;
-
-                logger::log_msg(LOG_INFO, "custom thread uri: " + uri);
-                tw->stat_cursor = tw->session.open_scoped_cursor(uri);
-
-                metrics_monitor::get_stat(
-                  tw->stat_cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &bytes_avail_reuse);
-                metrics_monitor::get_stat(
-                  tw->stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED, &pages_reviewed);
-                metrics_monitor::get_stat(
-                  tw->stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN, &pages_rewritten);
-                metrics_monitor::get_stat(tw->stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &size);
-
-                logger::log_msg(LOG_INFO,
-                  log_prefix +
-                    "block reuse bytes = " + std::to_string(bytes_avail_reuse / megabyte));
-                logger::log_msg(
-                  LOG_INFO, log_prefix + "pages_reviewed = " + std::to_string(pages_reviewed));
-                logger::log_msg(
-                  LOG_INFO, log_prefix + "pages_rewritten = " + std::to_string(pages_rewritten));
-                logger::log_msg(LOG_INFO, log_prefix + "size = " + std::to_string(size / megabyte));
-            }
-
             maintenance_window = !maintenance_window;
+            std::string state = maintenance_window ? "On" : "Off";
+            logger::log_msg(LOG_INFO, log_prefix + " toggle maintenance window " + state);
+
             tw->sleep();
         }
     }
 
     void
-    read_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "read_operation: nothing done");
-    }
-
-    void
     remove_operation(thread_worker *tw) override final
     {
-        logger::log_msg(
-          LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
+        std::string log_prefix =
+          type_string(tw->type) + " thread {" + std::to_string(tw->id) + "}: ";
+        logger::log_msg(LOG_INFO, log_prefix + "commencing.");
 
-        /*
-         * We need two types of cursors. One cursor is a random cursor to randomly select a key
-         * and the other one is a standard cursor to remove the random key. This is required as
-         * the random cursor does not support the remove operation.
-         */
-        std::map<uint64_t, scoped_cursor> rnd_cursors, cursors;
+        std::map<uint64_t, scoped_cursor> rnd_cursors;
+        std::map<uint64_t, scoped_cursor> stat_cursors;
 
         /* Loop while the test is running. */
         while (tw->running()) {
+            /* Make sure we're not doing any work during the maintenance window. */
             if (maintenance_window) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 continue;
             }
 
             /*
-             * Sleep the period defined by the op_rate in the configuration. Do this at the
-             * start of the loop as it could be skipped by a subsequent continue call.
+             * Sleep the period defined by the op_rate in the configuration. Do this at the start of
+             * the loop as it could be skipped by a subsequent continue call.
              */
             tw->sleep();
 
-            /* Choose a random collection to update. */
+            /* Choose a random collection to truncate. */
             collection &coll = tw->db.get_random_collection();
 
-            /* Look for existing cursors in our cursor cache. */
-            if (cursors.find(coll.id) == cursors.end()) {
-                logger::log_msg(LOG_TRACE,
-                  "Thread {" + std::to_string(tw->id) +
-                    "} Creating cursor for collection: " + coll.name);
+            /* Look for an existing random cursor in our cursor cache. */
+            if (rnd_cursors.find(coll.id) == rnd_cursors.end()) {
+                logger::log_msg(
+                  LOG_TRACE, log_prefix + "Creating cursors for collection: " + coll.name);
                 /* Open the two cursors for the chosen collection. */
                 scoped_cursor rnd_cursor =
                   tw->session.open_scoped_cursor(coll.name, "next_random=true");
                 rnd_cursors.emplace(coll.id, std::move(rnd_cursor));
-                scoped_cursor cursor = tw->session.open_scoped_cursor(coll.name);
-                cursors.emplace(coll.id, std::move(cursor));
+                std::string stat_uri = STATISTICS_URI + coll.name;
+                scoped_cursor stat_cursor = tw->session.open_scoped_cursor(stat_uri);
+                stat_cursors.emplace(coll.id, std::move(stat_cursor));
             }
 
-            /* Start a transaction if possible. */
-            tw->txn.try_begin();
-
-            /* Get the cursor associated with the collection. */
+            /* Get the cursors associated with the collection. */
+            scoped_cursor &stat_cursor = stat_cursors[coll.id];
             scoped_cursor &rnd_cursor = rnd_cursors[coll.id];
-            scoped_cursor &cursor = cursors[coll.id];
 
-            /* Choose a random key to delete. */
-            int ret = rnd_cursor->next(rnd_cursor.get());
+            /* Get the file statistics so we know how much to truncate. */
+            int64_t entries, bytes_avail_reuse, file_size;
+            metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BTREE_ENTRIES, &entries);
+            metrics_monitor::get_stat(
+              stat_cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &bytes_avail_reuse);
+            metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &file_size);
 
-            if (ret != 0) {
-                /*
-                 * It is possible not to find anything if the collection is empty. In that case,
-                 * finish the current transaction as we might be able to see new records after
-                 * starting a new one.
-                 */
-                if (ret == WT_NOTFOUND) {
-                    WT_IGNORE_RET_BOOL(tw->txn.commit());
-                } else if (ret == WT_ROLLBACK) {
-                    tw->txn.rollback();
-                } else {
-                    testutil_die(ret, "Unexpected error returned from cursor->next()");
-                }
-                testutil_check(rnd_cursor->reset(rnd_cursor.get()));
-                continue;
-            }
-
-            const char *key_str;
-            testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key_str));
-
-            std::string first_key = key_str;
-            uint64_t key_count = coll.get_key_count();
-            uint64_t n_keys_to_delete =
-              random_generator::instance().generate_integer<uint64_t>(0, key_count / 20);
-            std::string end_key = tw->pad_string(
-              std::to_string(std::stoi(first_key) + n_keys_to_delete), first_key.size());
-
-            /* If we generate an invalid range or our truncate fails rollback the transaction.
-             */
-            if (end_key == first_key || !tw->truncate(coll.id, first_key, end_key, "")) {
-                tw->txn.rollback();
-                continue;
-            }
-            /* Commit the current transaction if we're able to. */
-            if (tw->txn.can_commit()) {
+            /* Don't truncate if we already have enough free space for compact to do work. */
+            int64_t pct_free_space = (bytes_avail_reuse / file_size) * 100;
+            if (pct_free_space > 20) {
                 logger::log_msg(LOG_INFO,
-                  type_string(tw->type) + " thread {" + std::to_string(tw->id) +
-                    "} committing removed keys from " + first_key + " from table: [" + coll.name +
-                    "]");
-                WT_IGNORE_RET_BOOL(tw->txn.commit());
+                  log_prefix + "Skip truncating coll " + std::to_string(coll.id) +
+                    " free space available = " + std::to_string(pct_free_space));
+                testutil_check(stat_cursor->reset(stat_cursor.get()));
+                continue;
             }
-            // if (tw->txn.commit())
-            //     logger::log_msg(LOG_INFO,
-            //       "thread {" + std::to_string(tw->id) + "} committed truncation from " +
-            //       first_key +
-            //         " to " + end_key + " on table [" + coll.name + "]");
-            // else
-            //     logger::log_msg(LOG_INFO,
-            //       "thread {" + std::to_string(tw->id) + "} failed to commit truncation of " +
-            //         std::to_string(std::stoi(end_key) - std::stoi(first_key)) + " records.");
 
-            /* Reset our cursors to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
-            testutil_check(rnd_cursor->reset(rnd_cursor.get()));
+            /*
+             * Truncate a range of keys between 0 and 100 until we've truncated a total of 20% of
+             * the entries in the table.
+             */
+            int64_t n_keys_to_truncate = (entries / 100) * 20;
+            int64_t keys_truncated = 0;
+            while (keys_truncated < n_keys_to_truncate) {
+                /* Start a transaction if possible. */
+                tw->txn.try_begin();
+
+                /* Choose a random key to delete. */
+                int ret = rnd_cursor->next(rnd_cursor.get());
+
+                if (ret != 0) {
+                    /*
+                     * It is possible not to find anything if the collection is empty. In that case,
+                     * finish the current transaction as we might be able to see new records after
+                     * starting a new one.
+                     */
+                    if (ret == WT_NOTFOUND) {
+                        WT_IGNORE_RET_BOOL(tw->txn.commit());
+                    } else if (ret == WT_ROLLBACK) {
+                        tw->txn.rollback();
+                    } else {
+                        testutil_die(ret, "Unexpected error returned from cursor->next()");
+                    }
+                    testutil_check(rnd_cursor->reset(rnd_cursor.get()));
+                    continue;
+                }
+
+                const char *key_str;
+                testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key_str));
+
+                std::string first_key = key_str;
+                uint64_t truncate_range =
+                  random_generator::instance().generate_integer<uint64_t>(0, 100);
+                std::string end_key = tw->pad_string(
+                  std::to_string(std::stoi(first_key) + truncate_range), first_key.size());
+
+                /*
+                 * If we generate an invalid range or our truncate fails rollback the transaction.
+                 */
+                if (end_key == first_key || !tw->truncate(coll.id, first_key, end_key, "")) {
+                    tw->txn.rollback();
+                    logger::log_msg(LOG_TRACE, log_prefix + "truncate failed");
+                    continue;
+                }
+
+                if (tw->txn.commit()) {
+                    logger::log_msg(LOG_TRACE,
+                      log_prefix + " committed truncation of " + std::to_string(truncate_range) +
+                        " records.");
+                    keys_truncated += truncate_range;
+                } else
+                    logger::log_msg(LOG_TRACE,
+                      log_prefix + "failed to commit truncation of " +
+                        std::to_string(truncate_range) + " records.");
+
+                /* Reset our cursor to avoid pinning content. */
+                testutil_check(rnd_cursor->reset(rnd_cursor.get()));
+            }
+
+            logger::log_msg(LOG_TRACE,
+              log_prefix + "truncated " + std::to_string(keys_truncated) + " keys out of " +
+                std::to_string(n_keys_to_truncate));
+
+            /*
+             * Take a checkpoint here so we can read the correct statistics next time we hit this
+             * file.
+             */
+            testutil_check(tw->session->checkpoint(tw->session.get(), nullptr));
         }
 
         /* Make sure the last operation is rolled back now the work is finished. */
         tw->txn.try_rollback();
-    }
-
-    void
-    update_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "update_operation: nothing done");
     }
 
     void
@@ -305,9 +261,9 @@ public:
                     if (tc->txn.can_commit()) {
                         if (tc->txn.commit()) {
                             /*
-                             * We need to inform the database model that we've added these keys
-                             * as some other thread may rely on the key_count data. Only do so
-                             * if we successfully committed.
+                             * We need to inform the database model that we've added these keys as
+                             * some other thread may rely on the key_count data. Only do so if we
+                             * successfully committed.
                              */
                             cc.coll.increase_key_count(added_count);
                         } else {
@@ -331,9 +287,53 @@ public:
     }
 
     void
-    validate(const std::string &, const std::string &, database &) override final
+    validate(const std::string &operation_table_name, const std::string &schema_table_name,
+      database &db) override final
     {
-        logger::log_msg(LOG_WARN, "validate: nothing done");
+        std::string log_prefix = "Validation: ";
+        logger::log_msg(LOG_INFO, "Starting validation");
+        scoped_session session = connection_manager::instance().create_session();
+        const int64_t megabyte = 1024 * 1024;
+
+        /* Individual data source statistics. */
+        int64_t bytes_avail_reuse, pages_reviewed, pages_rewritten, size;
+        for (int i = 0; i < db.get_collection_count(); i++) {
+            collection &coll = db.get_collection(i);
+            std::string uri = STATISTICS_URI + coll.name;
+
+            logger::log_msg(LOG_INFO, "custom thread uri: " + uri);
+            scoped_cursor stat_cursor = session.open_scoped_cursor(uri);
+
+            metrics_monitor::get_stat(
+              stat_cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &bytes_avail_reuse);
+            metrics_monitor::get_stat(
+              stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED, &pages_reviewed);
+            metrics_monitor::get_stat(
+              stat_cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN, &pages_rewritten);
+            metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &size);
+
+            logger::log_msg(LOG_INFO,
+              log_prefix + "block reuse bytes = " + std::to_string(bytes_avail_reuse / megabyte));
+            logger::log_msg(
+              LOG_INFO, log_prefix + "pages_reviewed = " + std::to_string(pages_reviewed));
+            logger::log_msg(
+              LOG_INFO, log_prefix + "pages_rewritten = " + std::to_string(pages_rewritten));
+            logger::log_msg(LOG_INFO, log_prefix + "size = " + std::to_string(size / megabyte));
+        }
+
+        /* Check the background compact statistics. */
+        int64_t skipped, success;
+        scoped_cursor conn_stat_cursor = session.open_scoped_cursor(STATISTICS_URI);
+
+        metrics_monitor::get_stat(
+          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED, &skipped);
+        testutil_assert(skipped > 0);
+
+        metrics_monitor::get_stat(
+          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_SUCCESS, &success);
+        testutil_assert(success > 0);
+
+        logger::log_msg(LOG_INFO, "Validation successful.");
     }
 };
 

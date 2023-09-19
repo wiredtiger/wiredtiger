@@ -1,5 +1,5 @@
 # Configuration for background_compact.
-duration_seconds=60,
+duration_seconds=600,
 cache_size_mb=10000,
 
 timestamp_manager=
@@ -14,32 +14,32 @@ workload_manager=
 (
     populate_config=
     (
-        collection_count=3,
+        collection_count=10,
         key_count_per_collection=1000000,
-        thread_count=3,
+        thread_count=10,
         key_size=10,
-        value_size=1000
+        value_size=10000
     ),
 
     insert_config=
     (
-        thread_count=3,
+        thread_count=10,
         op_rate=10ms,
         ops_per_transaction=(min=5,max=20),
         key_size=10,
-        value_size=1000
+        value_size=10000
     ),
 
     remove_config=
     (
-        op_rate=2s,
+        op_rate=1s,
         ops_per_transaction=( max=1,min=0),
         thread_count=1
     ),
 
     custom_config=
     (
-        op_rate=10s,
+        op_rate=60s,
         thread_count=1
     ),
 
