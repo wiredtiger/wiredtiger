@@ -2231,7 +2231,7 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
-    static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
+    static const WT_NAME_FLAG verbtypes[] = {{"config_all_verbos", WT_VERB_CONFIG_ALL_VERBOS},
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
@@ -2255,6 +2255,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
+    int i;
+    WT_VERBOSE_LEVEL verbose_value;
 
     conn = S2C(session);
 
@@ -2271,25 +2273,28 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
 
-        if (ret == WT_NOTFOUND)
+        if (ret == WT_NOTFOUND) {
             /*
              * If the given event isn't specified in configuration string, default it to the
              * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
              * verbosity message.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_NOTICE;
-        else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
+            verbose_value = WT_VERBOSE_NOTICE;
+            goto verbos_assign;
+        } else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0) {
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
              * the event to WT_VERBOSE_DEBUG_1. Correspondingly, all legacy uses of '__wt_verbose',
              * being messages without an explicit verbosity level, will default to
              * 'WT_VERBOSE_DEBUG_1'.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_DEBUG_1;
-        else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
-          sval.val <= WT_VERBOSE_DEBUG_5)
-            conn->verbose[ft->flag] = (WT_VERBOSE_LEVEL)sval.val;
-        else
+            verbose_value = WT_VERBOSE_DEBUG_1;
+            goto verbos_assign;
+        } else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
+          sval.val <= WT_VERBOSE_DEBUG_5) {
+            verbose_value = (WT_VERBOSE_LEVEL)sval.val;
+            goto verbos_assign;
+        } else {
             /*
              * We only support verbosity values in the form of positive numbers (representing
              * verbosity levels e.g. [checkpoint:1,rts:0]) and boolean expressions (e.g.
@@ -2297,6 +2302,15 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * negative numbers and strings.
              */
             WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s'", ft->name);
+        }
+
+verbos_assign:
+        if (ft->flag == WT_VERB_CONFIG_ALL_VERBOS) {
+            for (i = WT_VERB_CONFIG_ALL_VERBOS; i < WT_VERB_NUM_CATEGORIES; i++)
+                conn->verbose[i] = verbose_value;
+        } else { 
+            conn->verbose[ft->flag] = verbose_value;
+        }
     }
 
     return (0);

@@ -396,7 +396,7 @@ static const char *confchk_timing_stress_for_test_choices[] = {"aggressive_stash
 static const char *confchk_verbose_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
+  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
   "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
@@ -510,11 +510,11 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test_choices},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"block_cache\","
+    "choices=[\"config_all_verbos\",\"api\",\"backup\",\"block\",\"block_cache\","
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -2207,8 +2207,6 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_chunk_cache_subconfigs[] = 
     512LL * WT_KILOBYTE, 100LL * WT_GIGABYTE, NULL},
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, INT64_MIN,
     INT64_MAX, NULL},
-  {"flushed_data_cache_insertion", "boolean", NULL, NULL, NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_BOOLEAN, INT64_MIN, INT64_MAX, NULL},
   {"hashsize", "int", NULL, "min=64,max=1048576", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 64,
     1048576LL, NULL},
   {"pinned", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, INT64_MIN, INT64_MAX,
@@ -2224,7 +2222,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,
-    3, 4, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
+    3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_compatibility_subconfigs[] = {
   {"release", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN,
@@ -2388,10 +2386,10 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
-static const char *confchk_verbose13_choices[] = {"api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
+static const char *confchk_verbose13_choices[] = {"config_all_verbos", "api", "backup", "block", 
+  "block_cache", "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
+  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
   "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
@@ -2425,7 +2423,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN, INT64_MAX, confchk_checkpoint_cleanup2_choices},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     INT64_MIN, INT64_MAX, NULL},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 8,
     confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
@@ -2559,11 +2557,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"block_cache\","
+    "choices=[\"config_all_verbos\",\"api\",\"backup\",\"block\",\"block_cache\","
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -2607,11 +2605,11 @@ static const char *confchk_timing_stress_for_test3_choices[] = {"aggressive_stas
   "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
   "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
 
-static const char *confchk_verbose14_choices[] = {"api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
+static const char *confchk_verbose14_choices[] = {"config_all_verbos", "api", "backup", "block", 
+  "block_cache", "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
-  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
+  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", 
+  "lsm_manager", "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
 
@@ -2644,7 +2642,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN, INT64_MAX, confchk_checkpoint_cleanup3_choices},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     INT64_MIN, INT64_MAX, NULL},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 8,
     confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
@@ -2778,11 +2776,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"block_cache\","
+    "choices=[\"config_all_verbos\",\"api\",\"backup\",\"block\",\"block_cache\","
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -2829,10 +2827,10 @@ static const char *confchk_timing_stress_for_test4_choices[] = {"aggressive_stas
   "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
   "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
 
-static const char *confchk_verbose15_choices[] = {"api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
+static const char *confchk_verbose15_choices[] = {"config_all_verbos", "api", "backup", "block", 
+  "block_cache", "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
+  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
   "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
@@ -2866,7 +2864,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN, INT64_MAX, confchk_checkpoint_cleanup4_choices},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     INT64_MIN, INT64_MAX, NULL},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 8,
     confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
@@ -2988,11 +2986,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     2, confchk_wiredtiger_open_transaction_sync_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"block_cache\","
+    "choices=[\"config_all_verbos\",\"api\",\"backup\",\"block\",\"block_cache\","
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -3039,11 +3037,11 @@ static const char *confchk_timing_stress_for_test5_choices[] = {"aggressive_stas
   "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
   "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
 
-static const char *confchk_verbose16_choices[] = {"api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
+static const char *confchk_verbose16_choices[] = {"config_all_verbos", "api", "backup", "block", 
+  "block_cache","checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
-  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
+  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", 
+  "lsm_manager", "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
 
@@ -3076,7 +3074,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN, INT64_MAX, confchk_checkpoint_cleanup5_choices},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     INT64_MIN, INT64_MAX, NULL},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 8,
     confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
@@ -3198,11 +3196,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     2, confchk_wiredtiger_open_transaction_sync_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"block_cache\","
+    "choices=[\"config_all_verbos\",\"api\",\"backup\",\"block\",\"block_cache\","
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -3546,9 +3544,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_cleanup=none,checkpoint_sync=true,"
     "chunk_cache=(capacity=10GB,chunk_cache_evict_trigger=90,"
-    "chunk_size=1MB,enabled=false,flushed_data_cache_insertion=true,"
-    "hashsize=1024,pinned=,storage_path=,type=FILE),"
-    "compatibility=(release=,require_max=,require_min=),"
+    "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
+    ",type=FILE),compatibility=(release=,require_max=,require_min=),"
     "config_base=true,create=false,"
     "debug_mode=(background_compact=false,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
@@ -3594,9 +3591,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_cleanup=none,checkpoint_sync=true,"
     "chunk_cache=(capacity=10GB,chunk_cache_evict_trigger=90,"
-    "chunk_size=1MB,enabled=false,flushed_data_cache_insertion=true,"
-    "hashsize=1024,pinned=,storage_path=,type=FILE),"
-    "compatibility=(release=,require_max=,require_min=),"
+    "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
+    ",type=FILE),compatibility=(release=,require_max=,require_min=),"
     "config_base=true,create=false,"
     "debug_mode=(background_compact=false,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
@@ -3642,9 +3638,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_cleanup=none,checkpoint_sync=true,"
     "chunk_cache=(capacity=10GB,chunk_cache_evict_trigger=90,"
-    "chunk_size=1MB,enabled=false,flushed_data_cache_insertion=true,"
-    "hashsize=1024,pinned=,storage_path=,type=FILE),"
-    "compatibility=(release=,require_max=,require_min=),"
+    "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
+    ",type=FILE),compatibility=(release=,require_max=,require_min=),"
     "debug_mode=(background_compact=false,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
     "eviction=false,log_retention=0,realloc_exact=false,"
@@ -3688,9 +3683,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_cleanup=none,checkpoint_sync=true,"
     "chunk_cache=(capacity=10GB,chunk_cache_evict_trigger=90,"
-    "chunk_size=1MB,enabled=false,flushed_data_cache_insertion=true,"
-    "hashsize=1024,pinned=,storage_path=,type=FILE),"
-    "compatibility=(release=,require_max=,require_min=),"
+    "chunk_size=1MB,enabled=false,hashsize=1024,pinned=,storage_path="
+    ",type=FILE),compatibility=(release=,require_max=,require_min=),"
     "debug_mode=(background_compact=false,checkpoint_retention=0,"
     "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
     "eviction=false,log_retention=0,realloc_exact=false,"
