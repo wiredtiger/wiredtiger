@@ -24,7 +24,7 @@ def find_function(function_list, file_path: str, line_number: int):
     return None
 
 
-def get_git_info(git_working_tree_dir:str, verbose:bool):
+def get_git_info(git_working_tree_dir: str, verbose: bool):
     repository_path = discover_repository(git_working_tree_dir)
     assert repository_path is not None
 
@@ -81,7 +81,30 @@ def get_git_info(git_working_tree_dir:str, verbose:bool):
     return change_list
 
 
-def create_report_info(patch_info, coverage_data):
+def find_file_in_coverage_data(coverage_data: dict, file_path: str):
+    file_data = None
+
+    for file in coverage_data['files']:
+        if file['file'] == file_path:
+            file_data = file
+
+    return file_data
+
+
+def find_covered_branches(coverage_data: dict, file_path: str, line_number: int):
+    branches = dict()
+
+    file_data = find_file_in_coverage_data(coverage_data=coverage_data, file_path=file_path)
+
+    if file_data is not None:
+        for line_info in file_data['lines']:
+            if line_info['line_number'] == line_number:
+                branches = line_info['branches']
+
+    return branches
+
+
+def create_report_info(patch_info: dict, coverage_data: dict):
     report = dict()
 
     for new_file in patch_info:
@@ -101,6 +124,10 @@ def create_report_info(patch_info, coverage_data):
                 line_info['content'] = line.content
                 line_info['new_lineno'] = line.new_lineno
                 line_info['old_lineno'] = line.old_lineno
+
+                if line.new_lineno > 0:
+                    line_info['branches'] = find_covered_branches(coverage_data=coverage_data, file_path=new_file, line_number=line.new_lineno)
+
                 lines_info.append(line_info)
 
             change_info['lines'] = lines_info
