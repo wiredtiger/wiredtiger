@@ -27,6 +27,7 @@
  */
 
 #include <algorithm>
+#include <iostream>
 
 #include "model/table.h"
 #include "wiredtiger.h"
@@ -34,69 +35,17 @@
 namespace model {
 
 /*
- * NONE --
- *     The "None" value.
+ * kv_table::contains_any --
+ *     Check whether the table contains the given key-value pair. If there are multiple values
+ *     associated with the given timestamp, return true if any of them match.
  */
-const data_value NONE = data_value::create_none();
-
-/*
- * kv_item::add_update --
- *     Add an update.
- */
-int
-kv_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
+bool
+kv_table::contains_any(const data_value &key, const data_value &value, uint64_t timestamp)
 {
-    std::lock_guard lock_guard(_lock);
-    kv_update::timestamp_comparator cmp;
-
-    /* If this is a non-timestamped update, there cannot be existing timestamped updates. */
-    if (update.global()) {
-        if (!_updates.empty() && !_updates[_updates.size() - 1].global())
-            return (EINVAL);
-    }
-
-    /* Position the update. */
-    auto i = std::upper_bound(_updates.begin(), _updates.end(), update, cmp);
-
-    /* If need be, fail if the key does not exist. */
-    if (must_exist) {
-        if (_updates.empty())
-            return (WT_NOTFOUND);
-
-        auto j = i;
-        if (j == _updates.begin() || (--j)->value() == NONE)
-            return (WT_NOTFOUND);
-    }
-
-    /* If need be, fail if the key exists. */
-    if (must_not_exist && !_updates.empty()) {
-        auto j = i;
-        if (j != _updates.begin() && (--j)->value() != NONE)
-            return (WT_DUPLICATE_KEY);
-    }
-
-    /* Insert. */
-    _updates.insert(i, update);
-    return (0);
-}
-
-/*
- * kv_item::get --
- *     Get the corresponding value.
- */
-const data_value &
-kv_item::get(uint64_t timestamp)
-{
-    std::lock_guard lock_guard(_lock);
-    kv_update::timestamp_comparator cmp;
-
-    if (_updates.empty())
-        return (NONE);
-
-    auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
-    if (i == _updates.begin())
-        return (NONE);
-    return ((--i)->value());
+    kv_item *item = item_if_exists(key);
+    if (item == NULL)
+        return (false);
+    return (item->contains_any(value, timestamp));
 }
 
 /*
@@ -143,6 +92,18 @@ int
 kv_table::update(const data_value &key, const data_value &value, uint64_t timestamp, bool overwrite)
 {
     return (item(key).add_update(std::move(kv_update(value, timestamp)), !overwrite, false));
+}
+
+/*
+ * kv_table::verify_cursor --
+ *     Create a verification cursor for the table. This method is not thread-safe. In fact, nothing
+ *     is thread-safe until the returned cursor stops being used!
+ */
+kv_table_verify_cursor &&
+kv_table::verify_cursor()
+{
+    kv_table_verify_cursor k(_data);
+    return (std::move(k));
 }
 
 } /* namespace model */

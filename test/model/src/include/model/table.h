@@ -29,335 +29,17 @@
 #ifndef MODEL_TABLE_H
 #define MODEL_TABLE_H
 
+#include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
 #include <vector>
 
+#include "model/core.h"
+#include "model/verify.h"
+#include "wiredtiger.h"
+
 namespace model {
-
-/*
- * data_value --
- *     The data value stored in the model used for keys and values. We use a generic class, rather
- *     than a specific type such as std::string, to give us flexibility to change data types in the
- *     future, e.g., if this becomes necessary to explore additional code paths.
- */
-class data_value {
-
-public:
-    /*
-     * data_value::data_value --
-     *     Create a new instance.
-     */
-    inline data_value(const char *data) : _data(data), _none(false) {}
-
-    /*
-     * data_value::data_value --
-     *     Create a new instance.
-     */
-    inline data_value(const std::string &data) : _data(data), _none(false) {}
-
-    /*
-     * data_value::data_value --
-     *     Create a new instance.
-     */
-    inline data_value(const std::string &&data) : _data(std::move(data)), _none(false) {}
-
-    /*
-     * data_value::tombstone --
-     *     Create an instance of a "None" value.
-     */
-    inline static data_value
-    create_none()
-    {
-        data_value v(std::move(std::string("(none)")));
-        v._none = true;
-        return v;
-    }
-
-    /*
-     * data_value::as_string --
-     *     Return the data value as a string.
-     */
-    inline const std::string &
-    as_string() const
-    {
-        return (_data);
-    }
-
-    /*
-     * data_value::operator== --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator==(const data_value &other) const
-    {
-        if (_none && other._none)
-            return (true);
-        if (_none != other._none)
-            return (false);
-        return (_data == other._data);
-    }
-
-    /*
-     * data_value::operator!= --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator!=(const data_value &other) const
-    {
-        return !(*this == other);
-    }
-
-    /*
-     * data_value::operator< --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator<(const data_value &other) const
-    {
-        if (_none != other._none)
-            return (_none);
-        return (_data < other._data);
-    }
-
-    /*
-     * data_value::operator<= --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator<=(const data_value &other) const
-    {
-        if (_none != other._none)
-            return (_none);
-        if (_none && other._none)
-            return (true);
-        return (_data <= other._data);
-    }
-
-    /*
-     * data_value::operator> --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator>(const data_value &other) const
-    {
-        return !(*this <= other);
-    }
-
-    /*
-     * data_value::operator> --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator>=(const data_value &other) const
-    {
-        return !(*this < other);
-    }
-
-    /*
-     * data_value::tombstone --
-     *     Check if this is a None value.
-     */
-    inline bool
-    none() const
-    {
-        return (_none);
-    }
-
-private:
-    std::string _data;
-    bool _none;
-};
-
-/*
- * NONE --
- *     The "None" value.
- */
-extern const data_value NONE;
-
-/*
- * kv_update --
- *     The data value stored in a KV table, together with the relevant update information, such as
- *     the timestamp.
- */
-class kv_update {
-
-public:
-    /*
-     * kv_update::timestamp_comparator --
-     *     The comparator that uses timestamps only.
-     */
-    struct timestamp_comparator {
-
-        /*
-         * kv_update::timestamp_comparator::operator() --
-         *     Compare two updates.
-         */
-        bool
-        operator()(const kv_update &left, const kv_update &right) const
-        {
-            return (left._timestamp < right._timestamp);
-        }
-
-        /*
-         * kv_update::timestamp_comparator::operator() --
-         *     Compare the update to the given timestamp.
-         */
-        bool
-        operator()(const kv_update &left, uint64_t timestamp) const
-        {
-            return (left._timestamp < timestamp);
-        }
-
-        /*
-         * kv_update::timestamp_comparator::operator() --
-         *     Compare the update to the given timestamp.
-         */
-        bool
-        operator()(uint64_t timestamp, const kv_update &right) const
-        {
-            return (timestamp < right._timestamp);
-        }
-    };
-
-    /*
-     * kv_update::kv_update --
-     *     Create a new instance.
-     */
-    inline kv_update(const data_value &value, uint64_t timestamp)
-        : _value(value), _timestamp(timestamp)
-    {
-    }
-
-    /*
-     * kv_update::operator== --
-     *     Compare to another instance.
-     */
-    inline bool
-    operator==(const kv_update &other) const
-    {
-        return (_value == other._value && _timestamp == other._timestamp);
-    }
-
-    /*
-     * kv_update::operator!= --
-     *     Compare to another instance.
-     */
-    inline bool
-    operator!=(const kv_update &other) const
-    {
-        return !(*this == other);
-    }
-
-    /*
-     * kv_update::operator< --
-     *     Compare to another instance.
-     */
-    inline bool
-    operator<(const kv_update &other) const
-    {
-        if (_timestamp != other._timestamp)
-            return (_timestamp < other._timestamp);
-        if (_value != other._value)
-            return (_value < other._value);
-        return (true);
-    }
-
-    /*
-     * kv_update::operator<= --
-     *     Compare to another instance.
-     */
-    inline bool
-    operator<=(const kv_update &other) const
-    {
-        return (*this < other || *this == other);
-    }
-
-    /*
-     * kv_update::operator> --
-     *     Compare to another instance.
-     */
-    inline bool
-    operator>(const kv_update &other) const
-    {
-        return !(*this <= other);
-    }
-
-    /*
-     * kv_update::operator>= --
-     *     Compare to another instance.
-     */
-    inline bool
-    operator>=(const kv_update &other) const
-    {
-        return !(*this < other);
-    }
-
-    /*
-     * kv_update::value --
-     *     Get the value.
-     */
-    inline const data_value &
-    value() const
-    {
-        return (_value);
-    }
-
-    /*
-     * kv_update::global --
-     *     Check if this is a globally-visible, non-timestamped update.
-     */
-    inline bool
-    global() const
-    {
-        return (_timestamp == 0);
-    }
-
-    /*
-     * kv_update::value --
-     *     Get the value.
-     */
-    inline uint64_t
-    timestamp() const
-    {
-        return (_timestamp);
-    }
-
-private:
-    uint64_t _timestamp;
-    data_value _value;
-};
-
-/*
- * kv_item --
- *     The value part of a key-value pair, together with its metadata and previous versions.
- */
-class kv_item {
-
-public:
-    /*
-     * kv_item::kv_item --
-     *     Create a new instance.
-     */
-    inline kv_item() {}
-
-    /*
-     * kv_item::add_update --
-     *     Add an update.
-     */
-    int add_update(kv_update &&update, bool must_exist, bool overwrite);
-
-    /*
-     * kv_item::get --
-     *     Get the corresponding value.
-     */
-    const data_value &get(uint64_t timestamp = UINT64_MAX);
-
-private:
-    std::mutex _lock;
-    std::vector<kv_update> _updates; /* sorted list of updates */
-};
 
 /*
  * kv_table --
@@ -377,10 +59,18 @@ public:
      *     Get the name of the table.
      */
     inline const char *
-    name() const
+    name() const noexcept
     {
         return (_name.c_str());
     }
+
+    /*
+     * kv_table::contains_any --
+     *     Check whether the table contains the given key-value pair. If there are multiple values
+     *     associated with the given timestamp, return true if any of them match.
+     */
+    bool contains_any(
+      const data_value &key, const data_value &value, uint64_t timestamp = UINT64_MAX);
 
     /*
      * kv_table::get --
@@ -407,6 +97,23 @@ public:
      */
     int update(const data_value &key, const data_value &value, uint64_t timestamp = 0,
       bool overwrite = true);
+
+    /*
+     * kv_table::verify --
+     *     Verify the table by comparing a WiredTiger table against the model.
+     */
+    inline bool
+    verify(WT_CONNECTION *connection)
+    {
+        return (kv_table_verifier(*this).verify(connection));
+    }
+
+    /*
+     * kv_table::verify_cursor --
+     *     Create a verification cursor for the table. This method is not thread-safe. In fact,
+     *     nothing is thread-safe until the returned cursor stops being used!
+     */
+    kv_table_verify_cursor &&verify_cursor();
 
 protected:
     /*
@@ -435,6 +142,12 @@ protected:
     }
 
 private:
+    /*
+     * This data structure is designed so that the global lock is only necessary for the map
+     * operations; it is okay to release the lock while the caller is still operating on the data
+     * returned from the map. To keep this property going, do not remove the any elements from the
+     * map.
+     */
     std::map<data_value, kv_item> _data;
     std::mutex _lock;
     std::string _name;

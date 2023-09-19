@@ -313,6 +313,26 @@ test_model_basic(void)
     testutil_assert(table.get(key1, 55) == value3);
     testutil_assert(table.get(key1) == value4);
 
+    testutil_assert(!table.contains_any(key1, value1, 5));
+    testutil_assert(!table.contains_any(key1, value2, 5));
+    testutil_assert(!table.contains_any(key1, value3, 5));
+    testutil_assert(!table.contains_any(key1, value4, 5));
+
+    testutil_assert(table.contains_any(key1, value1, 50));
+    testutil_assert(table.contains_any(key1, value2, 50));
+    testutil_assert(table.contains_any(key1, value3, 50));
+    testutil_assert(!table.contains_any(key1, value4, 50));
+
+    testutil_assert(table.contains_any(key1, value1, 55));
+    testutil_assert(table.contains_any(key1, value2, 55));
+    testutil_assert(table.contains_any(key1, value3, 55));
+    testutil_assert(!table.contains_any(key1, value4, 55));
+
+    testutil_assert(!table.contains_any(key1, value1, 60));
+    testutil_assert(!table.contains_any(key1, value2, 60));
+    testutil_assert(!table.contains_any(key1, value3, 60));
+    testutil_assert(table.contains_any(key1, value4, 60));
+
     /* Test insert without overwrite. */
     testutil_assert(table.insert(key1, value1, 60, false) == WT_DUPLICATE_KEY);
     testutil_assert(table.insert(key1, value1, 65, false) == WT_DUPLICATE_KEY);
@@ -379,6 +399,8 @@ test_model_basic_wt(void)
     wt_model_assert(table, uri, key1, 45);
     wt_model_assert(table, uri, key1);
 
+    testutil_assert(table.verify(conn));
+
     /* Test globally visible (non-timestamped) updates. */
     wt_model_insert_both(table, uri, key2, value1);
     wt_model_assert(table, uri, key2, 0);
@@ -411,6 +433,8 @@ test_model_basic_wt(void)
     wt_model_assert(table, uri, key1, 55);
     wt_model_assert(table, uri, key1);
 
+    testutil_assert(table.verify(conn));
+
     /* Test insert without overwrite. */
     wt_model_insert_both(table, uri, key1, value1, 60, false);
     wt_model_insert_both(table, uri, key1, value1, 65, false);
@@ -425,6 +449,12 @@ test_model_basic_wt(void)
     wt_model_remove_both(table, uri, key1, 80);
     wt_model_update_both(table, uri, key1, value1, 80, false);
     wt_model_update_both(table, uri, key1, value1, 85, false);
+
+    testutil_assert(table.verify(conn));
+
+    /* Now try to get the verification to fail. */
+    testutil_check(table.remove(key2, 1000));
+    testutil_assert(!table.verify(conn));
 
     /* Clean up. */
     testutil_check(session->close(session, NULL));
