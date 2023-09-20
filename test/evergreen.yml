@@ -627,7 +627,7 @@ functions:
       content_type: text/html
       remote_file: wiredtiger/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/
 
-  "code coverage publish summary":
+  "code coverage publish main page":
     command: s3.put
     params:
       aws_secret: ${aws_secret}
@@ -636,10 +636,7 @@ functions:
       bucket: build_external
       permissions: public-read
       content_type: text/html
-      # Ensure that the first character of the display_name is a space
-      # This will ensure that it sorts before the per-file report pages which also get a space
-      # at the start of their display name (why this happens is not yet clear).
-      display_name: " 1 Coverage report main page"
+      display_name: "Coverage report main page"
       remote_file: wiredtiger/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/1_coverage_report_main.html
 
   "format test":
@@ -3690,8 +3687,9 @@ tasks:
           stats_dir: ./wiredtiger/coverage_report
           test-name: code_coverage
           collection: CodeCoverage
+        # Publish the main page before the report so that it appears top of the list of files in the patch build.
+      - func: "code coverage publish main page"
       - func: "code coverage publish report"
-      - func: "code coverage publish summary"
 
   - name: coverage-report-catch2
     # This task measures code coverage achieved by only the Catch2-based unit tests.
@@ -3717,8 +3715,9 @@ tasks:
             # Record the end time, in seconds
             date +%s >> ../time.txt
       - func: "code coverage analysis"
+        # Publish the main page before the report so that it appears top of the list of files in the patch build.
+      - func: "code coverage publish main page"
       - func: "code coverage publish report"
-      - func: "code coverage publish summary"
 
   - name: code-change-report
     depends_on:
