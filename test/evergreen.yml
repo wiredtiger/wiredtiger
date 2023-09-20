@@ -1906,17 +1906,6 @@ tasks:
           test_config_filename: configs/bounded_cursor_prefix_indices_stress.txt
           test_name: bounded_cursor_prefix_indices
 
-  # This is a perf test and as such doesn't run under the stress test tag.
-  - name: cppsuite-bounded-cursor-perf-stress
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "cppsuite test"
-        vars:
-          test_config_filename: configs/bounded_cursor_perf_stress.txt
-          test_name: bounded_cursor_perf
-
   - name: cppsuite-reverse-split-stress
     tags: ["cppsuite-stress-test"]
     depends_on:
@@ -2044,6 +2033,64 @@ tasks:
         vars:
           test_config_filename: configs/reverse_split_stress.txt
           test_name: reverse_split
+
+# Cppsuite perf tests
+  - name: cppsuite-hs-cleanup-default-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/hs_cleanup_default.txt
+          test_name: hs_cleanup
+
+  - name: cppsuite-hs-cleanup-stress-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/hs_cleanup_stress.txt
+          test_name: hs_cleanup
+
+  - name: cppsuite-operations-test-default-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/operations_test_default.txt
+          test_name: operations_test
+
+  - name: cppsuite-operations-test-stress-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/operations_test_stress.txt
+          test_name: operations_test
+  # This is a perf test and as such doesn't run under the stress test tag. This name seems excessive
+  # but in order to have a consistent naming system is required, the issue here is that the test
+  # itself has the word "perf" in it.
+  - name: cppsuite-bounded-cursor-perf-stress-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/bounded_cursor_perf_stress.txt
+          test_name: bounded_cursor_perf
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
