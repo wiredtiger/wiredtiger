@@ -488,85 +488,102 @@ functions:
         $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
 
   "cppsuite test run": &cppsuite_test_run
-    - command: shell.exec
-      params:
-        # The tests need to be executed in the cppsuite directory as some required libraries have
-        # their paths defined relative to this directory.
-        # The below script saves the exit code from the test to use it later in this function. By
-        # doing this we can define our own custom artifact upload task without it being cancelled by
-        # the test failing.
-        # Additionally if the test fails perf statistics won't be uploaded as they may be invalid
-        # due to the test failure.
-        working_dir: "wiredtiger/cmake_build/test/cppsuite"
-        shell: bash
-        script: |
-          set -o verbose
-          ${PREPARE_TEST_ENV}
-          ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
-          exit_code=$?
-          echo "$exit_code" > cppsuite_exit_code
-          if [ "$exit_code" != 0 ]; then
-            echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
-          fi
-          exit 0
-    # Since we later remove the WiredTiger folder, we need to check for core dumps now.
-    - *dump_stacktraces
-    - *upload_stacktraces
+    command: shell.exec
+    params:
+      # The tests need to be executed in the cppsuite directory as some required libraries have
+      # their paths defined relative to this directory.
+      # The below script saves the exit code from the test to use it later in this function. By
+      # doing this we can define our own custom artifact upload task without it being cancelled by
+      # the test failing.
+      # Additionally if the test fails perf statistics won't be uploaded as they may be invalid
+      # due to the test failure.
+      working_dir: "wiredtiger/cmake_build/test/cppsuite"
+      shell: bash
+      script: |
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
+        exit_code=$?
+        echo "$exit_code" > cppsuite_exit_code
+        if [ "$exit_code" != 0 ]; then
+          echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
+        fi
+        exit 0
 
-  "cppsuite test cleanup": &cppsuite_test_cleanup
   # Delete unnecessary data from the upload.
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          rm -rf wiredtiger/cmake_build/examples
-          rm -rf wiredtiger/cmake_build/bench
-          mv wiredtiger/cmake_build/test/cppsuite wiredtiger/cmake_build/
-          rm -rf wiredtiger/cmake_build/test/
-          mkdir wiredtiger/cmake_build/test/
-          mv wiredtiger/cmake_build/cppsuite wiredtiger/cmake_build/test/cppsuite
-    - command: archive.targz_pack
-      params:
-        target: archive.tgz
-        source_dir: wiredtiger/cmake_build/
-        include:
-          - "./**"
-    - command: s3.put
-      params:
-        aws_secret: ${aws_secret}
-        aws_key: ${aws_key}
-        local_file: archive.tgz
-        bucket: build_external
-        permissions: public-read
-        content_type: application/tar
-        display_name: cppsuite-test
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+  "cppsuite test remove files": &cppsuite_remove_files
+    command: shell.exec
+    params:
+      shell: bash
+      script: |
+        rm -rf wiredtiger/cmake_build/examples
+        rm -rf wiredtiger/cmake_build/bench
+        mv wiredtiger/cmake_build/test/cppsuite wiredtiger/cmake_build/
+        rm -rf wiredtiger/cmake_build/test/
+        mkdir wiredtiger/cmake_build/test/
+        mv wiredtiger/cmake_build/cppsuite wiredtiger/cmake_build/test/cppsuite
+
+  "cppsuite archive": &cppsuite_archive
+    command: archive.targz_pack
+    params:
+      target: archive.tgz
+      source_dir: wiredtiger/cmake_build/
+      include:
+        - "./**"
+
+  "cppsuite s3 put": &cppsuite_s3_put
+    command: s3.put
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_file: archive.tgz
+      bucket: build_external
+      permissions: public-read
+      content_type: application/tar
+      display_name: cppsuite-test
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+
+  "cppsuite remove dir": &cppsuite_remove_dir
     # We remove the wiredtiger directory here to avoid to getting archived again by post tasks.
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o verbose
-          if [ -f wiredtiger/cmake_build/test/cppsuite/cppsuite_exit_code ]; then
-            exit_code=`cat wiredtiger/cmake_build/test/cppsuite/cppsuite_exit_code`
-          else
-            exit_code=0
-          fi
-          rm -rf wiredtiger
-          exit "$exit_code"
+    command: shell.exec
+    params:
+      shell: bash
+      script: |
+        set -o verbose
+        if [ -f wiredtiger/cmake_build/test/cppsuite/cppsuite_exit_code ]; then
+          exit_code=`cat wiredtiger/cmake_build/test/cppsuite/cppsuite_exit_code`
+        else
+          exit_code=0
+        fi
+        rm -rf wiredtiger
+        exit "$exit_code"
 
   # The typical cppsuite test function. Doesn't upload perf statistics to evergreen.
   "cppsuite test":
     - *cppsuite_test_run
-    - *cppsuite_test_cleanup
+    # Since we later remove the WiredTiger folder, we need to check for core dumps now.
+    - *dump_stacktraces
+    - *upload_stacktraces
+    # Cleanup tasks.
+    - *cppsuite_remove_files
+    - *cppsuite_archive
+    - *cppsuite_s3_put
+    - *cppsuite_remove_dir
 
   # This cppsuite test function uploads perf statistics and should only be used on perf variants.
   "cppsuite perf test":
     - *cppsuite_test_run
+    # Since we later remove the WiredTiger folder, we need to check for core dumps now.
+    - *dump_stacktraces
+    - *upload_stacktraces
     - command: perf.send
       params:
         file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
-    - *cppsuite_test_cleanup
+    # Cleanup tasks.
+    - *cppsuite_remove_files
+    - *cppsuite_archive
+    - *cppsuite_s3_put
+    - *cppsuite_remove_dir
 
   "wt2853_perf test":
     command: shell.exec
