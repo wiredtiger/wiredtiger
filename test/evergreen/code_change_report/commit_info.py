@@ -1,6 +1,7 @@
 from change_info import ChangeInfo
 from changed_function import ChangedFunction
 
+
 class CommitInfo:
     def __init__(self,
                  short_id: str,
@@ -24,4 +25,3 @@ class CommitInfo:
             changed_functions[changed_function.function_name] = changed_function
 
         return changed_functions
-

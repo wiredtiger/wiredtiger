@@ -1,6 +1,6 @@
 import argparse
 import json
-from pygit2 import discover_repository, Repository
+from pygit2 import discover_repository, Repository, Diff
 from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
 
 from change_info import ChangeInfo
@@ -24,34 +24,8 @@ def find_function(function_list, file_path: str, line_number: int):
     return None
 
 
-def get_git_info(git_working_tree_dir: str, verbose: bool):
-    repository_path = discover_repository(git_working_tree_dir)
-    assert repository_path is not None
-
-    repo = Repository(repository_path)
-    latest_commit = repo.head.target
-    commits = list(repo.walk(latest_commit, GIT_SORT_NONE))
-
-    if verbose:
-        print("Num commits found:{}".format(len(commits)))
-
-    commit = commits[0]
+def diff_to_change_list(diff: Diff, verbose: bool):
     change_list = dict()
-
-    message_lines = commit.message.splitlines()
-    message_first_line = message_lines[0]
-
-    if verbose:
-        print("{}: {}".format(commit.hex, message_first_line))
-
-    commit_url = 'https://github.com/wiredtiger/wiredtiger/commit/{}'.format(commit.id)
-
-    if verbose:
-        print("  Files changed in {} ({})".format(commit.short_id, commit_url))
-
-    commit_info = CommitInfo(short_id=commit.short_id, long_id=str(commit.id), message=commit.message)
-    prev_commit = commit.parents[0]
-    diff = prev_commit.tree.diff_to_tree(commit.tree)
     for patch in diff:
         if verbose:
             print('    {}: {}'.format(patch.delta.status_char(), patch.delta.new_file.path))
@@ -81,6 +55,37 @@ def get_git_info(git_working_tree_dir: str, verbose: bool):
     return change_list
 
 
+def get_git_info(git_working_tree_dir: str, verbose: bool):
+    repository_path = discover_repository(git_working_tree_dir)
+    assert repository_path is not None
+
+    repo = Repository(repository_path)
+    latest_commit = repo.head.target
+    commits = list(repo.walk(latest_commit, GIT_SORT_NONE))
+
+    if verbose:
+        print("Num commits found:{}".format(len(commits)))
+
+    commit = commits[0]
+
+    message_lines = commit.message.splitlines()
+    message_first_line = message_lines[0]
+
+    if verbose:
+        print("{}: {}".format(commit.hex, message_first_line))
+
+    commit_url = 'https://github.com/wiredtiger/wiredtiger/commit/{}'.format(commit.id)
+
+    if verbose:
+        print("  Files changed in {} ({})".format(commit.short_id, commit_url))
+
+    prev_commit = commit.parents[0]
+    diff = prev_commit.tree.diff_to_tree(commit.tree)
+    change_list = diff_to_change_list(diff=diff, verbose=verbose)
+
+    return change_list
+
+
 def find_file_in_coverage_data(coverage_data: dict, file_path: str):
     file_data = None
 
@@ -91,17 +96,38 @@ def find_file_in_coverage_data(coverage_data: dict, file_path: str):
     return file_data
 
 
-def find_covered_branches(coverage_data: dict, file_path: str, line_number: int):
-    branches = dict()
+def find_line_data(coverage_data: dict, file_path: str, line_number: int):
+    line_data = None
 
     file_data = find_file_in_coverage_data(coverage_data=coverage_data, file_path=file_path)
 
     if file_data is not None:
         for line_info in file_data['lines']:
             if line_info['line_number'] == line_number:
-                branches = line_info['branches']
+                line_data = line_info
+
+    return line_data
+
+def find_covered_branches(coverage_data: dict, file_path: str, line_number: int):
+    branches = list()
+
+    line_data = find_line_data(coverage_data=coverage_data, file_path=file_path, line_number=line_number)
+
+    if line_data is not None:
+        branches = line_data['branches']
 
     return branches
+
+
+def find_line_coverage(coverage_data: dict, file_path: str, line_number: int):
+    line_coverage = -1
+
+    line_data = find_line_data(coverage_data=coverage_data, file_path=file_path, line_number=line_number)
+
+    if line_data is not None:
+        line_coverage = line_data['count']
+
+    return line_coverage
 
 
 def create_report_info(patch_info: dict, coverage_data: dict):
@@ -126,6 +152,7 @@ def create_report_info(patch_info: dict, coverage_data: dict):
                 line_info['old_lineno'] = line.old_lineno
 
                 if line.new_lineno > 0:
+                    line_info['count'] = find_line_coverage(coverage_data=coverage_data, file_path=new_file, line_number=line.new_lineno)
                     line_info['branches'] = find_covered_branches(coverage_data=coverage_data, file_path=new_file, line_number=line.new_lineno)
 
                 lines_info.append(line_info)
@@ -142,12 +169,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--coverage', required=True, help='Path to the gcovr json code coverage data file')
     parser.add_argument('-g', '--git_root', required=True, help='path of the Git working directory')
-    parser.add_argument('-p', '--git_patch', help='Path to the git patch file')
+    parser.add_argument('-d', '--git_diff', help='Path to the git diff file')
     parser.add_argument('-o', '--outfile', help='Path of the file to write output to')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
     verbose = args.verbose
+    git_diff = args.git_diff
 
     if verbose:
         print('Code Coverage Analysis')
@@ -155,12 +183,19 @@ def main():
         print('Configuration:')
         print('  Coverage data file:  {}'.format(args.coverage))
         print('  Git root path:  {}'.format(args.git_root))
-        print('  Git patch path:  {}'.format(args.git_patch))
+        print('  Git diff path:  {}'.format(git_diff))
         print('  Output file:  {}'.format(args.outfile))
 
     git_working_tree_dir = args.git_root
-    patch_info = get_git_info(git_working_tree_dir=git_working_tree_dir, verbose=verbose)
     coverage_data = read_coverage_data(args.coverage)
+
+    if git_diff is None:
+        patch_info = get_git_info(git_working_tree_dir=git_working_tree_dir, verbose=verbose)
+    else:
+        file = open(git_diff, mode="r")
+        data = file.read()
+        diff = Diff.parse_diff(data)
+        patch_info = diff_to_change_list(diff, verbose)
 
     report_info = create_report_info(patch_info=patch_info, coverage_data=coverage_data)
 
