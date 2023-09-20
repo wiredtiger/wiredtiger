@@ -487,7 +487,7 @@ functions:
         echo "Using smp_command '${smp_command}' for 'make check all'"
         $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
 
-  "cppsuite test":
+  "cppsuite test run": &cppsuite_test_run
     - command: shell.exec
       params:
         # The tests need to be executed in the cppsuite directory as some required libraries have
@@ -512,10 +512,9 @@ functions:
     # Since we later remove the WiredTiger folder, we need to check for core dumps now.
     - *dump_stacktraces
     - *upload_stacktraces
-    - command: perf.send
-      params:
-        file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
-    # Delete unnecessary data from the upload.
+
+  "cppsuite test cleanup": &cppsuite_test_cleanup
+  # Delete unnecessary data from the upload.
     - command: shell.exec
       params:
         shell: bash
@@ -555,6 +554,19 @@ functions:
           fi
           rm -rf wiredtiger
           exit "$exit_code"
+
+  # The typical cppsuite test function. Doesn't upload perf statistics to evergreen.
+  "cppsuite test":
+    - *cppsuite_test_run
+    - *cppsuite_test_cleanup
+
+  # This cppsuite test function uploads perf statistics and should only be used on perf variants.
+  "cppsuite perf test":
+    - *cppsuite_test_run
+    - command: perf.send
+      params:
+        file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
+    - *cppsuite_test_cleanup
 
   "wt2853_perf test":
     command: shell.exec
