@@ -7715,7 +7715,7 @@ typedef enum {
     WT_VERB_BACKUP,               /*!< Backup messages. */
     WT_VERB_BLKCACHE,
     WT_VERB_BLOCK,                /*!< Block manager messages. */
-    WT_VERB_CACHE_TRACE,          /*!< Checkpoint messages. */
+    WT_VERB_CACHE_TRACE,          /*!< Cache access tracing. */
     WT_VERB_CHECKPOINT,           /*!< Checkpoint messages. */
     WT_VERB_CHECKPOINT_CLEANUP,
     WT_VERB_CHECKPOINT_PROGRESS,  /*!< Checkpoint progress messages. */
