@@ -487,6 +487,7 @@ functions:
         echo "Using smp_command '${smp_command}' for 'make check all'"
         $CTEST -L check ${smp_command|} --output-on-failure ${check_args|} 2>&1
 
+  # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run
     command: shell.exec
     params:
@@ -523,6 +524,7 @@ functions:
         mkdir wiredtiger/cmake_build/test/
         mv wiredtiger/cmake_build/cppsuite wiredtiger/cmake_build/test/cppsuite
 
+  # Custom cppsuite archive tasks.
   "cppsuite archive": &cppsuite_archive
     command: archive.targz_pack
     params:
@@ -531,6 +533,7 @@ functions:
       include:
         - "./**"
 
+  # Custom cppsuite s3 artifact upload task.
   "cppsuite s3 put": &cppsuite_s3_put
     command: s3.put
     params:
@@ -544,7 +547,7 @@ functions:
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
 
   "cppsuite remove dir": &cppsuite_remove_dir
-    # We remove the wiredtiger directory here to avoid to getting archived again by post tasks.
+    # We remove the wiredtiger directory here to avoid it getting archived again by post tasks.
     command: shell.exec
     params:
       shell: bash
