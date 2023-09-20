@@ -128,7 +128,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
      */
     *recnop = recno;
     if (recno > btree->last_recno)
-        btree->last_recno = recno;
+        __wt_atomic_cas64(&btree->last_recno, btree->last_recno, recno);
 
     return (0);
 }
