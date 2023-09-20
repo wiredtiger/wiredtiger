@@ -29,15 +29,16 @@
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/main/test.h"
+#include "src/main/validator.h"
 
 namespace test_harness {
 
-/*
- * This test produces a workload that encourages the background compaction server to do work by
- * performing random truncations over a randomly selected table. The test also simulates a
- * "maintenance window" which allows compact to continue running while all other operations are
- * paused. The period of the maintenance window is set byt the custom operations op_rate. Inserts
- * are also performed to ensure the files continue to grow.
+/* This test produces a workload that encourages the background compaction server to do work by:
+ *      1. Performing random truncations over a randomly selected tables.
+ *      2. Providing a "maintenance window" which allows compact to continue running while all other
+ *         operations are paused. The period of the maintenance window is set by the custom
+ *         operations op_rate.
+ *      3. Performing inserts to ensure the files continue to grow.
  */
 class background_compact : public test {
     bool maintenance_window = true;
@@ -154,7 +155,7 @@ public:
                         testutil_die(ret, "Unexpected error returned from cursor->next()");
                     }
                     testutil_check(rnd_cursor->reset(rnd_cursor.get()));
-                    continue;
+                    break;
                 }
 
                 const char *key_str;
@@ -210,8 +211,7 @@ public:
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        /* Helper struct which stores a pointer to a collection and a cursor associated with it.
-         */
+        /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
             collection_cursor(collection &coll, scoped_cursor &&cursor)
                 : coll(coll), cursor(std::move(cursor))
@@ -287,8 +287,7 @@ public:
     }
 
     void
-    validate(const std::string &operation_table_name, const std::string &schema_table_name,
-      database &db) override final
+    validate(const std::string &, const std::string &, database &db) override final
     {
         std::string log_prefix = "Validation: ";
         logger::log_msg(LOG_INFO, "Starting validation");
@@ -313,12 +312,14 @@ public:
             metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &size);
 
             logger::log_msg(LOG_INFO,
-              log_prefix + "block reuse bytes = " + std::to_string(bytes_avail_reuse / megabyte));
+              log_prefix + "block reuse bytes = " + std::to_string(bytes_avail_reuse / megabyte) +
+                "MB");
             logger::log_msg(
               LOG_INFO, log_prefix + "pages_reviewed = " + std::to_string(pages_reviewed));
             logger::log_msg(
               LOG_INFO, log_prefix + "pages_rewritten = " + std::to_string(pages_rewritten));
-            logger::log_msg(LOG_INFO, log_prefix + "size = " + std::to_string(size / megabyte));
+            logger::log_msg(
+              LOG_INFO, log_prefix + "size = " + std::to_string(size / megabyte) + "MB");
         }
 
         /* Check the background compact statistics. */

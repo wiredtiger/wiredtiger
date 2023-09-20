@@ -149,6 +149,8 @@ static const uint8_t confchk_timestamp_manager_subconfigs_jump[WT_CONFIG_JUMP_TA
 static const WT_CONFIG_CHECK confchk_background_compact_config_subconfigs[] = {
   {"free_space_target_mb", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
     INT64_MIN, INT64_MAX, NULL},
+  {"op_rate", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN,
+    INT64_MAX, NULL},
   {"thread_count", "int", NULL, "min=0,max=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 0, 1,
     NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, NULL}};
@@ -157,7 +159,7 @@ static const uint8_t confchk_background_compact_config_subconfigs_jump[WT_CONFIG
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_checkpoint_config_subconfigs[] = {
   {"op_rate", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN,
@@ -301,7 +303,7 @@ static const uint8_t confchk_update_config_subconfigs_jump[WT_CONFIG_JUMP_TABLE_
 
 static const WT_CONFIG_CHECK confchk_workload_manager_subconfigs[] = {
   {"background_compact_config", "category", NULL, NULL,
-    confchk_background_compact_config_subconfigs, 2,
+    confchk_background_compact_config_subconfigs, 3,
     confchk_background_compact_config_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, INT64_MIN,
     INT64_MAX, NULL},
   {"checkpoint_config", "category", NULL, NULL, confchk_checkpoint_config_subconfigs, 2,
@@ -898,18 +900,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_background_compact, 11, confchk_background_compact_jump},
   {"bounded_cursor_perf",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -925,18 +927,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_perf, 11, confchk_bounded_cursor_perf_jump},
   {"bounded_cursor_prefix_indices",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -952,18 +954,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_prefix_indices, 11, confchk_bounded_cursor_prefix_indices_jump},
   {"bounded_cursor_prefix_search_near",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -979,18 +981,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_prefix_search_near, 11, confchk_bounded_cursor_prefix_search_near_jump},
   {"bounded_cursor_prefix_stat",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1007,18 +1009,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
     "stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_prefix_stat, 12, confchk_bounded_cursor_prefix_stat_jump},
   {"bounded_cursor_stress",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1034,18 +1036,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_stress, 11, confchk_bounded_cursor_stress_jump},
   {"burst_inserts",
     "burst_duration=90,cache_max_wait_ms=0,cache_size_mb=0,"
@@ -1062,18 +1064,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_burst_inserts, 12, confchk_burst_inserts_jump},
   {"cache_resize",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1089,18 +1091,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_cache_resize, 11, confchk_cache_resize_jump},
   {"hs_cleanup",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1116,18 +1118,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_hs_cleanup, 11, confchk_hs_cleanup_jump},
   {"operations_test",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1143,18 +1145,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_operations_test, 11, confchk_operations_test_jump},
   {"reverse_split",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1170,18 +1172,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_reverse_split, 11, confchk_reverse_split_jump},
   {"search_near_01",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1198,18 +1200,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
     "stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_search_near_01, 12, confchk_search_near_01_jump},
   {"search_near_02",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1225,18 +1227,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_search_near_02, 11, confchk_search_near_02_jump},
   {"search_near_03",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1252,18 +1254,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_search_near_03, 11, confchk_search_near_03_jump},
   {"test_template",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
@@ -1279,18 +1281,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
     "op_rate=1s,stable_lag=1),"
     "workload_manager=(background_compact_config=(free_space_target_mb=20"
-    ",thread_count=0),checkpoint_config=(op_rate=60s,thread_count=1),"
-    "custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
+    ",op_rate=60s,thread_count=0),checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_test_template, 11, confchk_test_template_jump},
   {NULL, NULL, NULL, 0, NULL}};
 

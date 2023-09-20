@@ -1806,6 +1806,55 @@ tasks:
           test_config_filename: configs/reverse_split_default.txt
           test_name: reverse_split
 
+  - name: cppsuite-background-many-collection
+    tags: ["cppsuite-stress-test"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(background_compact)
+          test_config_filename: configs/background_compact_many_collections.txt
+          test_name: background_compact
+
+  - name: cppsuite-background-compact-checkpoint-stress
+    tags: ["cppsuite-stress-test"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(background_compact)
+          test_config_filename: configs/background_compact_checkpoint_stress.txt
+          test_name: background_compact
+
+  - name: cppsuite-background-compact-checkpoint-stress-slow
+    tags: ["cppsuite-stress-test"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(background_compact),timing_stress_for_test=[checkpoint_slow]
+          test_config_filename: configs/background_compact_checkpoint_stress.txt
+          test_name: background_compact
+
+  - name: cppsuite-background-compact-large
+    tags: ["cppsuite-stress-test"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(background_compact)
+          test_config_filename: configs/background_compact_large.txt
+          test_name: background_compact
+
+
   - name: cppsuite-operations-test-stress
     depends_on:
       - name: compile
