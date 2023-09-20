@@ -1461,7 +1461,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
      * contain the current item if we don't have enough items to split an internal page.
      */
     inuse = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-    if (inuse < r->split_size / 2 && !__wt_rec_need_split(r, 0)) {
+    if (inuse < r->min_split_size && !__wt_rec_need_split(r, 0)) {
         WT_ASSERT(session, r->page->type != WT_PAGE_COL_FIX);
         goto done;
     }
