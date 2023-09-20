@@ -203,8 +203,8 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     else {
         /* WT_TIERED_WORK_FLUSH */
         /* This call make take a while, and may fail due to network timeout. */
-        // TODO here: tidy up code 
-        if (&S2C(session)->chunkcache->configured)
+        // printf("%s %u", local_name, id);
+        if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED| WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION))
             __wt_chunkcache_ingest(local_name, id);
         ret = storage_source->ss_flush(
           storage_source, &session->iface, bucket_fs, local_name, tmp, NULL);
