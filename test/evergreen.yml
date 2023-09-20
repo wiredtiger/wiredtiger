@@ -1770,7 +1770,7 @@ tasks:
           test_config_filename: configs/bounded_cursor_prefix_stat_default.txt
           test_name: bounded_cursor_prefix_stat
 
-  - name: bounded-cursor-prefix-search-near-default
+  - name: cppsuite-bounded-cursor-prefix-search-near-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -1782,7 +1782,7 @@ tasks:
           test_config_filename: configs/bounded_cursor_prefix_search_near_default.txt
           test_name: bounded_cursor_prefix_search_near
 
-  - name: bounded-cursor-prefix-indices-default
+  - name: cppsuite-bounded-cursor-prefix-indices-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
