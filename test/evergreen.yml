@@ -3731,9 +3731,9 @@ tasks:
           working_dir: "wiredtiger"
           shell: bash
           script: |
-            echo "Code Change Report"
-            echo "=================="
-            echo "expansions:"
+            echo "Code Change Report (Step 1)"
+            echo "==========================="
+            echo "expansions: (for debugging this task)"
             echo ". is_patch      =  ${is_patch}"
             echo ". task_id       =  ${task_id}"
             echo ". task_name     =  ${task_name}"
@@ -3745,8 +3745,6 @@ tasks:
             echo ". execution     =  ${execution}"
             echo ". remote path   =  wiredtiger/${build_variant}/${revision}/${dependent_task}_${build_id}-${execution}/full_coverage_report.json"
             mkdir -p coverage_report
-            git status
-            git diff --cached > coverage_report/diff.txt
       - command: s3.get
         params:
           aws_key: ${aws_key}
@@ -3761,13 +3759,32 @@ tasks:
           working_dir: "wiredtiger"
           shell: bash
           script: |
-            echo "Code Change Report"
-            echo "=================="
-            pwd
-            ls -l
-            ls -l coverage_report
-            cat coverage_report/diff.txt
-#            cat coverage_report/full_coverage_report.json
+            echo "Code Change Report (Step 2)"
+            echo "==========================="
+            git status
+
+            virtualenv -p ${python_binary|python3} venv
+            source venv/bin/activate
+            pip3 install pygit2==1.10.1
+            
+            echo "expansions: (for debugging this task)"
+            echo ". is_patch      =  ${is_patch}"
+             
+            if [ ${is_patch|false} = true ]; then
+              echo "This is a patch build"
+              # Obtain the diff for this 
+              git diff --cached > coverage_report/diff.txt
+              sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
+              ls -l coverage_report
+              cat coverage_report/diff.txt
+              ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . -d coverage_report/diff.txt -o coverage_report/code_change_report.json
+            else
+              echo "This is a non-patch build"
+              ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . -o coverage_report/code_change_report.json
+            fi
+            
+            cat coverage_report/code_change_report.json
+      - func: "code coverage publish report"
 
   - name: s3-tiered-storage-extensions-test
     tags: ["python"]
