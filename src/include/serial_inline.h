@@ -101,7 +101,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
   WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
 {
     WT_BTREE *btree;
-    uint64_t recno;
+    uint64_t recno, local_recno;
     u_int i;
 
     btree = S2BT(session);
@@ -126,10 +126,10 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
      * Set the calling cursor's record number. If we extended the file, update the last record
      * number.
      */
+    *recnop = recno;
     do {
-        *recnop = recno;
-    } while (!__wt_atomic_cas64(&btree->last_recno, btree->last_recno, recno) &&
-      (recno > btree->last_recno));
+        local_recno = *((volatile uint64_t *)(btree->last_recno));
+    } while ((recno > local_recno) && !__wt_atomic_cas64(&btree->last_recno, local_recno, recno));
 
     return (0);
 }
