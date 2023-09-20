@@ -33,7 +33,6 @@ BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
-BClmvxz
 BLKCACHE
 BLmRrSVv
 BOOL
@@ -69,10 +68,13 @@ CURSTD
 CallsCustDate
 Castagnoli
 Cclmpv
+Ceil
 CentOS
 Checkpointing
 Checksums
+Chunkcache
 CityHash
+ClmSvxz
 CloseHandle
 CmP
 Codec
@@ -195,6 +197,7 @@ JSON
 Jyrki
 KV
 Kanowski's
+Keyedness
 Kounavis
 LANGID
 LF
@@ -228,9 +231,12 @@ MONGODB
 MOVEFILE
 MRXB
 MRXBOPC
+MSAN
 MSDN
 MSVC
+MSan
 MUTEX
+MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
@@ -329,6 +335,7 @@ SDK
 SIMD
 SLVG
 SMT
+SPINLOCK
 SSHH
 SSq
 STR
@@ -418,6 +425,7 @@ WinNT
 WiredTiger
 WiredTiger's
 WiredTigerCheckpoint
+WiredTigerChunkCache
 WiredTigerHS
 WiredTigerLAS
 WiredTigerLog
@@ -563,6 +571,7 @@ colgroup
 colgroups
 collatorp
 comparator
+comparators
 comparep
 compat
 cond
@@ -782,6 +791,7 @@ gettimeofday
 getv
 ggg
 github
+globfree
 gobare
 goesc
 gostring
@@ -798,7 +808,6 @@ hashval
 havesize
 hdr
 hhh
-highjack
 hpp
 hs
 html
@@ -860,14 +869,15 @@ isprint
 isrc
 isspace
 iter
-jemalloc
 jjj
 js
 json
 kB
 kbits
 kepQFQ
+key'd
 keycmp
+keyedness
 keyid
 keyids
 keylen
@@ -886,6 +896,7 @@ len
 lengthp
 lenp
 lex
+lexically
 lexicographically
 lf
 lfence
@@ -899,7 +910,6 @@ linux
 llll
 llu
 llvm
-ln
 loadtext
 loc
 localTime
@@ -1122,6 +1132,7 @@ reconfiguring
 recsize
 rectype
 recurse
+reentrant
 refp
 regionp
 relocked
@@ -1141,7 +1152,6 @@ rmw
 rng
 rotN
 rotn
-rp
 rpc
 rts
 ru
@@ -1175,11 +1185,13 @@ sizev
 skiplist
 skiplists
 skipp
+skippable
 slvg
 sn
 snaplen
 snapsort
 snprintf
+sortable
 sp
 sparc
 spinlock

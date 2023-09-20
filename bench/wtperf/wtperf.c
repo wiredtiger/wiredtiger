@@ -40,7 +40,6 @@ static int find_table_count(WTPERF *);
 static WT_THREAD_RET monitor(void *);
 static WT_THREAD_RET populate_thread(void *);
 static void randomize_value(WTPERF_THREAD *, char *, int64_t);
-static void recreate_dir(const char *);
 static WT_THREAD_RET scan_worker(void *);
 static int start_all_runs(WTPERF *);
 static int start_run(WTPERF *);
@@ -362,7 +361,7 @@ worker(void *arg)
         goto err;
     }
     for (i = 0; i < opts->table_count_idle; i++) {
-        testutil_check(__wt_snprintf(buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i));
+        testutil_snprintf(buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i);
         if ((ret = session->open_cursor(session, buf, NULL, NULL, &tmp_cursor)) != 0) {
             lprintf(wtperf, ret, 0, "Error opening idle table %s", buf);
             goto err;
@@ -1064,12 +1063,12 @@ monitor(void *arg)
     /* Open the logging file. */
     len = strlen(wtperf->monitor_dir) + 100;
     path = dmalloc(len);
-    testutil_check(__wt_snprintf(path, len, "%s/monitor", wtperf->monitor_dir));
+    testutil_snprintf(path, len, "%s/monitor", wtperf->monitor_dir);
     if ((fp = fopen(path, "w")) == NULL) {
         lprintf(wtperf, errno, 0, "%s", path);
         goto err;
     }
-    testutil_check(__wt_snprintf(path, len, "%s/monitor.json", wtperf->monitor_dir));
+    testutil_snprintf(path, len, "%s/monitor.json", wtperf->monitor_dir);
     if ((jfp = fopen(path, "w")) == NULL) {
         lprintf(wtperf, errno, 0, "%s", path);
         goto err;
@@ -1149,8 +1148,8 @@ monitor(void *arg)
         if (jfp != NULL) {
             buf_size = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt);
             testutil_assert(buf_size != 0);
-            testutil_check(__wt_snprintf(&buf[buf_size], sizeof(buf) - buf_size, ".%3.3" PRIu64 "Z",
-              (uint64_t)ns_to_ms((uint64_t)t.tv_nsec)));
+            testutil_snprintf(&buf[buf_size], sizeof(buf) - buf_size, ".%3.3" PRIu64 "Z",
+              (uint64_t)ns_to_ms((uint64_t)t.tv_nsec));
             (void)fprintf(jfp, "{");
             if (first) {
                 (void)fprintf(jfp, "\"version\":\"%s\",", WIREDTIGER_VERSION_STRING);
@@ -1710,6 +1709,12 @@ execute_populate(WTPERF *wtperf)
     return (0);
 }
 
+static bool
+need_reopen(CONFIG_OPTS *opts)
+{
+    return opts->readonly || opts->reopen_connection || (strlen(opts->chunk_cache_config) != 0);
+}
+
 static int
 close_reopen(WTPERF *wtperf)
 {
@@ -1721,7 +1726,7 @@ close_reopen(WTPERF *wtperf)
     if (opts->in_memory)
         return (0);
 
-    if (!opts->readonly && !opts->reopen_connection)
+    if (!need_reopen(opts))
         return (0);
     /*
      * Reopen the connection. We do this so that the workload phase always starts with the on-disk
@@ -1813,6 +1818,7 @@ execute_workload(WTPERF *wtperf)
         wtperf->in_warmup = false;
     }
 
+    wtperf->testsec = 0;
     for (interval = opts->report_interval, run_time = opts->run_time, run_ops = opts->run_ops;
          !wtperf->error;) {
         /*
@@ -1820,6 +1826,7 @@ execute_workload(WTPERF *wtperf)
          * and if we're only tracking run time, go back to sleep.
          */
         sleep(1);
+        ++wtperf->testsec;
         if (run_time != 0) {
             if (--run_time == 0)
                 break;
@@ -1870,8 +1877,8 @@ execute_workload(WTPERF *wtperf)
         last_backup = wtperf->backup_ops;
     }
 
-/* Notify the worker threads they are done. */
 err:
+    /* Notify the worker threads they are done. */
     wtperf->stop = true;
 
     /* Stop cycling idle tables. */
@@ -1967,17 +1974,15 @@ create_uris(WTPERF *wtperf)
         /* If there is only one table, just use the base name. */
         wtperf->uris[i] = dmalloc(len);
         if (total_table_count == 1)
-            testutil_check(__wt_snprintf(wtperf->uris[i], len, "table:%s", opts->table_name));
+            testutil_snprintf(wtperf->uris[i], len, "table:%s", opts->table_name);
         else
-            testutil_check(
-              __wt_snprintf(wtperf->uris[i], len, "table:%s%05" PRIu32, opts->table_name, i));
+            testutil_snprintf(wtperf->uris[i], len, "table:%s%05" PRIu32, opts->table_name, i);
     }
 
     /* Create the log-like-table URI. */
     len = strlen("table:") + strlen(opts->table_name) + strlen("_log_table") + 1;
     wtperf->log_table_uri = dmalloc(len);
-    testutil_check(
-      __wt_snprintf(wtperf->log_table_uri, len, "table:%s_log_table", opts->table_name));
+    testutil_snprintf(wtperf->log_table_uri, len, "table:%s_log_table", opts->table_name);
 }
 
 static int
@@ -1998,7 +2003,7 @@ create_tables(WTPERF *wtperf)
     }
 
     for (i = 0; i < opts->table_count_idle; i++) {
-        testutil_check(__wt_snprintf(buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i));
+        testutil_snprintf(buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i);
         if ((ret = session->create(session, buf, opts->table_config)) != 0) {
             lprintf(wtperf, ret, 0, "Error creating idle table %s", buf);
             return (ret);
@@ -2022,8 +2027,7 @@ create_tables(WTPERF *wtperf)
             return (ret);
         }
         if (opts->index) {
-            testutil_check(
-              __wt_snprintf(buf, 512, "index:%s:val_idx", wtperf->uris[i] + strlen("table:")));
+            testutil_snprintf(buf, 512, "index:%s:val_idx", wtperf->uris[i] + strlen("table:"));
             if ((ret = session->create(session, buf, "columns=(val)")) != 0) {
                 lprintf(wtperf, ret, 0, "Error creating index %s", buf);
                 return (ret);
@@ -2248,16 +2252,15 @@ start_all_runs(WTPERF *wtperf)
          */
         len = strlen(wtperf->home) + 5;
         next_wtperf->home = dmalloc(len);
-        testutil_check(__wt_snprintf(next_wtperf->home, len, "%s/D%02d", wtperf->home, (int)i));
+        testutil_snprintf(next_wtperf->home, len, "%s/D%02d", wtperf->home, (int)i);
         if (opts->create != 0)
-            recreate_dir(next_wtperf->home);
+            testutil_recreate_dir(next_wtperf->home);
 
         len = strlen(wtperf->monitor_dir) + 5;
         next_wtperf->monitor_dir = dmalloc(len);
-        testutil_check(
-          __wt_snprintf(next_wtperf->monitor_dir, len, "%s/D%02d", wtperf->monitor_dir, (int)i));
+        testutil_snprintf(next_wtperf->monitor_dir, len, "%s/D%02d", wtperf->monitor_dir, (int)i);
         if (opts->create != 0 && strcmp(next_wtperf->home, next_wtperf->monitor_dir) != 0)
-            recreate_dir(next_wtperf->monitor_dir);
+            testutil_recreate_dir(next_wtperf->monitor_dir);
 
         testutil_check(__wt_thread_create(NULL, &threads[i], thread_run_wtperf, next_wtperf));
     }
@@ -2295,7 +2298,6 @@ start_run(WTPERF *wtperf)
     CONFIG_OPTS *opts;
     wt_thread_t monitor_thread;
     uint64_t total_ops;
-    uint32_t run_time;
     int monitor_created, ret, t_ret;
 
     opts = wtperf->opts;
@@ -2386,26 +2388,26 @@ start_run(WTPERF *wtperf)
         wtperf->scan_time = sum_scan_time(wtperf);
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
-        run_time = opts->run_time == 0 ? 1 : opts->run_time;
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
-          wtperf->insert_ops / run_time);
+          wtperf->insert_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " modify operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->modify_ops, (wtperf->modify_ops * 100) / total_ops,
-          wtperf->modify_ops / run_time);
+          wtperf->modify_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " read operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->read_ops, (wtperf->read_ops * 100) / total_ops, wtperf->read_ops / run_time);
+          wtperf->read_ops, (wtperf->read_ops * 100) / total_ops,
+          wtperf->read_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " truncate operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->truncate_ops, (wtperf->truncate_ops * 100) / total_ops,
-          wtperf->truncate_ops / run_time);
+          wtperf->truncate_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
-          wtperf->update_ops / run_time);
+          wtperf->update_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
@@ -2607,8 +2609,8 @@ main(int argc, char *argv[])
             sreq_len = strlen("session_max=") + 6;
             req_len += sreq_len;
             sess_cfg = dmalloc(sreq_len);
-            testutil_check(__wt_snprintf(sess_cfg, sreq_len, "session_max=%" PRIu32,
-              opts->session_count_idle + wtperf->workers_cnt + opts->populate_threads + 10));
+            testutil_snprintf(sess_cfg, sreq_len, "session_max=%" PRIu32,
+              opts->session_count_idle + wtperf->workers_cnt + opts->populate_threads + 10);
         }
         req_len += opts->in_memory ? strlen("in_memory=true") : 0;
         req_len += user_cconfig != NULL ? strlen(user_cconfig) : 0;
@@ -2617,28 +2619,28 @@ main(int argc, char *argv[])
         pos = 0;
         append_comma = "";
         if (wtperf->compress_ext != NULL && strlen(wtperf->compress_ext) != 0) {
-            testutil_check(__wt_snprintf_len_incr(
-              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->compress_ext));
+            testutil_snprintf_len_incr(
+              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->compress_ext);
             append_comma = ",";
         }
         if (wtperf->tiered_ext != NULL && strlen(wtperf->tiered_ext) != 0) {
-            testutil_check(__wt_snprintf_len_incr(
-              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->tiered_ext));
+            testutil_snprintf_len_incr(
+              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->tiered_ext);
             append_comma = ",";
         }
         if (opts->in_memory) {
-            testutil_check(__wt_snprintf_len_incr(
-              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, "in_memory=true"));
+            testutil_snprintf_len_incr(
+              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, "in_memory=true");
             append_comma = ",";
         }
         if (sess_cfg != NULL && strlen(sess_cfg) != 0) {
-            testutil_check(__wt_snprintf_len_incr(
-              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, sess_cfg));
+            testutil_snprintf_len_incr(
+              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, sess_cfg);
             append_comma = ",";
         }
         if (user_cconfig != NULL && strlen(user_cconfig) != 0) {
-            testutil_check(__wt_snprintf_len_incr(
-              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, user_cconfig));
+            testutil_snprintf_len_incr(
+              cc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, user_cconfig);
         }
 
         if (strlen(cc_buf) != 0 &&
@@ -2655,18 +2657,18 @@ main(int argc, char *argv[])
         pos = 0;
         append_comma = "";
         if (wtperf->compress_table != NULL && strlen(wtperf->compress_table) != 0) {
-            testutil_check(__wt_snprintf_len_incr(
-              tc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->compress_table));
+            testutil_snprintf_len_incr(
+              tc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, wtperf->compress_table);
             append_comma = ",";
         }
         if (opts->index) {
-            testutil_check(__wt_snprintf_len_incr(
-              tc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, INDEX_COL_NAMES));
+            testutil_snprintf_len_incr(
+              tc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, INDEX_COL_NAMES);
             append_comma = ",";
         }
         if (user_tconfig != NULL && strlen(user_tconfig) != 0) {
-            testutil_check(__wt_snprintf_len_incr(
-              tc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, user_tconfig));
+            testutil_snprintf_len_incr(
+              tc_buf + pos, req_len - pos, &pos, "%s%s", append_comma, user_tconfig);
         }
 
         if (strlen(tc_buf) != 0 &&
@@ -2676,23 +2678,12 @@ main(int argc, char *argv[])
     if (opts->log_partial && opts->table_count > 1) {
         req_len = strlen(opts->table_config) + strlen(LOG_PARTIAL_CONFIG) + 1;
         wtperf->partial_config = dmalloc(req_len);
-        testutil_check(__wt_snprintf(
-          wtperf->partial_config, req_len, "%s%s", opts->table_config, LOG_PARTIAL_CONFIG));
+        testutil_snprintf(
+          wtperf->partial_config, req_len, "%s%s", opts->table_config, LOG_PARTIAL_CONFIG);
     }
-    /*
-     * Set the config for reopen. If readonly add in that string. If not readonly then just copy the
-     * original conn_config.
-     */
-    if (opts->readonly)
-        req_len = strlen(opts->conn_config) + strlen(READONLY_CONFIG) + 1;
-    else
-        req_len = strlen(opts->conn_config) + 1;
-    wtperf->reopen_config = dmalloc(req_len);
-    if (opts->readonly)
-        testutil_check(__wt_snprintf(
-          wtperf->reopen_config, req_len, "%s%s", opts->conn_config, READONLY_CONFIG));
-    else
-        testutil_check(__wt_snprintf(wtperf->reopen_config, req_len, "%s", opts->conn_config));
+
+    /* Generate config for the close/reopen after populating. */
+    wtperf->reopen_config = config_reopen(opts);
 
     /* Sanity-check the configuration. */
     if ((ret = config_sanity(wtperf)) != 0)
@@ -2700,12 +2691,12 @@ main(int argc, char *argv[])
 
     /* If creating, remove and re-create the home directory. */
     if (opts->create != 0)
-        recreate_dir(wtperf->home);
+        testutil_recreate_dir(wtperf->home);
 
     /* Write a copy of the config. */
     req_len = strlen(wtperf->home) + strlen("/CONFIG.wtperf") + 1;
     path = dmalloc(req_len);
-    testutil_check(__wt_snprintf(path, req_len, "%s/CONFIG.wtperf", wtperf->home));
+    testutil_snprintf(path, req_len, "%s/CONFIG.wtperf", wtperf->home);
     config_opt_log(opts, path);
     free(path);
 
@@ -2808,15 +2799,6 @@ stop_threads(u_int num, WTPERF_THREAD *threads)
      * stop the threads; the thread structure is still being read by the monitor thread (among
      * others). As a standalone program, leaking memory isn't a concern, and it's simpler that way.
      */
-}
-
-static void
-recreate_dir(const char *name)
-{
-    /* Clean the directory if it already exists. */
-    testutil_clean_work_dir(name);
-    /* Recreate the directory. */
-    testutil_make_work_dir(name);
 }
 
 static int

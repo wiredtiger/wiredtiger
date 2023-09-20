@@ -17,12 +17,15 @@ static void __block_dump_file_stat(WT_SESSION_IMPL *, WT_BLOCK *, bool);
 int
 __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_UNUSED(session);
+
+    if (block->compact_session_id != WT_SESSION_ID_INVALID)
+        return (EBUSY);
 
     /* Switch to first-fit allocation. */
     __wt_block_configure_first_fit(block, true);
 
     /* Reset the compaction state information. */
+    block->compact_session_id = session->id;
     block->compact_pct_tenths = 0;
     block->compact_bytes_reviewed = 0;
     block->compact_bytes_rewritten = 0;
@@ -31,6 +34,9 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
+
+    if (session == S2C(session)->background_compact.session)
+        WT_RET(__wt_background_compact_start(session));
 
     return (0);
 }
@@ -45,12 +51,20 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
     /* Restore the original allocation plan. */
     __wt_block_configure_first_fit(block, false);
 
+    /* Ensure this the same session that started compaction. */
+    WT_ASSERT(session, block->compact_session_id == session->id);
+    block->compact_session_id = WT_SESSION_ID_INVALID;
+
     /* Dump the results of the compaction pass. */
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1)) {
         __wt_spin_lock(session, &block->live_lock);
         __block_dump_file_stat(session, block, false);
         __wt_spin_unlock(session, &block->live_lock);
     }
+
+    if (session == S2C(session)->background_compact.session)
+        WT_RET(__wt_background_compact_end(session));
+
     return (0);
 }
 
@@ -123,7 +137,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     WT_EXT *ext;
     wt_off_t avail_eighty, avail_ninety, off, size, eighty, ninety;
 
-    /* IMPORTANT: We assume here that block->live_lock is locked. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* Sum the available bytes in the initial 80% and 90% of the file. */
     avail_eighty = avail_ninety = avail_bytes_before_start_offset;
@@ -380,10 +394,12 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     block->compact_pages_rewritten_expected = block->compact_pages_rewritten + total_pages_to_move;
     __wt_verbose_debug1(session, WT_VERB_COMPACT,
-      "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64 " total",
+      "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
+      " total, target %" PRIu64 "MB (%" PRIu64 "B)",
       block->name, total_pages_to_move,
       total_pages_to_move * (uint64_t)avg_block_size / WT_MEGABYTE,
-      block->compact_pages_rewritten_expected);
+      block->compact_pages_rewritten_expected, session->compact->free_space_target / WT_MEGABYTE,
+      session->compact->free_space_target);
 }
 
 /*
@@ -460,8 +476,20 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_2))
         __block_dump_file_stat(session, block, true);
 
-    __block_compact_skip_internal(
-      session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+    /*
+     * Check if the number of available bytes matches the expected configured threshold. Only
+     * perform that check during the first iteration.
+     */
+    if (block->compact_pages_reviewed == 0 &&
+      block->live.avail.bytes < session->compact->free_space_target)
+        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+          "%s: skipping because the number of available bytes %" PRIu64
+          "B is less than the configured threshold %" PRIu64 "B.",
+          block->name, block->live.avail.bytes, session->compact->free_space_target);
+    else
+        __block_compact_skip_internal(
+          session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+
     __wt_spin_unlock(session, &block->live_lock);
 
     return (0);
@@ -654,6 +682,8 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
     uintmax_t bucket_size;
     u_int i;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
+
     el = &block->live.avail;
     size = block->size;
 
@@ -671,8 +701,8 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
     }
 
     __wt_verbose_debug1(session, WT_VERB_COMPACT,
-      "file size %" PRIuMAX "MB (%" PRIuMAX ") with %" PRIuMAX "%% space available %" PRIuMAX
-      "MB (%" PRIuMAX ")",
+      "file size %" PRIuMAX "MB (%" PRIuMAX "B) with %" PRIuMAX "%% space available %" PRIuMAX
+      "MB (%" PRIuMAX "B)",
       (uintmax_t)size / WT_MEGABYTE, (uintmax_t)size,
       ((uintmax_t)el->bytes * 100) / (uintmax_t)size, (uintmax_t)el->bytes / WT_MEGABYTE,
       (uintmax_t)el->bytes);

@@ -436,6 +436,8 @@ __clsm_open_cursors(WT_CURSOR_LSM *clsm, bool update, u_int start_chunk, uint32_
     locked = false;
     lsm_tree = clsm->lsm_tree;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     /*
      * Ensure that any snapshot update has cursors on the right set of chunks to guarantee
      * visibility is correct.
@@ -1727,6 +1729,9 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
 
     WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
     bulk = cval.val != 0;
+
+    if (bulk && F_ISSET(session->txn, WT_TXN_RUNNING))
+        WT_RET_MSG(session, EINVAL, "Bulk LSM cursors can't be opened inside a transaction");
 
     /* Get the LSM tree. */
     ret = __wt_lsm_tree_get(session, uri, bulk, &lsm_tree);

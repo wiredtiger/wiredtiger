@@ -101,7 +101,7 @@ main(int argc, char *argv[])
     g.nworkers = 1;
     g.evict_reposition_timing_stress = false;
     g.sweep_stress = g.use_timestamps = false;
-    g.failpoint_eviction_fail_after_reconciliation = false;
+    g.failpoint_eviction_split = false;
     g.failpoint_hs_delete_key_from_ts = false;
     g.hs_checkpoint_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
@@ -166,7 +166,7 @@ main(int argc, char *argv[])
                 g.evict_reposition_timing_stress = true;
                 break;
             case '7':
-                g.failpoint_eviction_fail_after_reconciliation = true;
+                g.failpoint_eviction_split = true;
                 break;
             default:
                 return (usage());
@@ -272,8 +272,8 @@ main(int argc, char *argv[])
                     g.cookies[i].type = ROW;
             } else
                 g.cookies[i].type = ttype;
-            testutil_check(__wt_snprintf(
-              g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id));
+            testutil_snprintf(
+              g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id);
         }
 
         /*
@@ -359,26 +359,24 @@ wt_connect(const char *config_open)
         fast_eviction = true;
 
     /* Set up the basic configuration string first. */
-    testutil_check(__wt_snprintf(config, sizeof(config),
+    testutil_snprintf(config, sizeof(config),
       "create,cache_cursors=false,statistics=(all),statistics_log=(json,on_close,wait=1),log=("
       "enabled),"
       "error_prefix=\"%s\",cache_size=1G, eviction_dirty_trigger=%i, "
       "eviction_dirty_target=%i,%s%s%s",
       progname, fast_eviction ? 5 : 20, fast_eviction ? 1 : 5, g.debug_mode ? DEBUG_MODE_CFG : "",
-      config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
+      config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open);
 
-    if (g.evict_reposition_timing_stress || g.sweep_stress ||
-      g.failpoint_eviction_fail_after_reconciliation || g.failpoint_hs_delete_key_from_ts ||
-      g.hs_checkpoint_timing_stress || g.checkpoint_slow_timing_stress) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), ",timing_stress_for_test=[%s%s%s%s%s%s]",
+    if (g.evict_reposition_timing_stress || g.sweep_stress || g.failpoint_eviction_split ||
+      g.failpoint_hs_delete_key_from_ts || g.hs_checkpoint_timing_stress ||
+      g.checkpoint_slow_timing_stress) {
+        testutil_snprintf(buf, sizeof(buf), ",timing_stress_for_test=[%s%s%s%s%s%s]",
           g.checkpoint_slow_timing_stress ? "checkpoint_slow" : "",
           g.evict_reposition_timing_stress ? "evict_reposition" : "",
-          g.failpoint_eviction_fail_after_reconciliation ?
-            "failpoint_eviction_fail_after_reconciliation" :
-            "",
+          g.failpoint_eviction_split ? "failpoint_eviction_split" : "",
           g.failpoint_hs_delete_key_from_ts ? "failpoint_history_store_delete_key_from_ts" : "",
           g.hs_checkpoint_timing_stress ? "history_store_checkpoint_delay" : "",
-          g.sweep_stress ? "aggressive_sweep" : ""));
+          g.sweep_stress ? "aggressive_sweep" : "");
         strcat(config, buf);
     }
 
@@ -392,8 +390,8 @@ wt_connect(const char *config_open)
      * If we are using tiered add in the extension and tiered storage configuration.
      */
     if (g.opts.tiered_storage) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", g.home));
-        testutil_make_work_dir(buf);
+        testutil_snprintf(buf, sizeof(buf), "%s/bucket", g.home);
+        testutil_recreate_dir(buf);
     }
 
     printf("WT open config: %s\n", config);
@@ -442,7 +440,7 @@ cleanup(bool remove_dir)
     g.ntables_created = 0;
 
     if (remove_dir)
-        testutil_make_work_dir(g.home);
+        testutil_recreate_dir(g.home);
 }
 
 /*
@@ -698,7 +696,7 @@ usage(void)
       "\t\t3: hs_checkpoint_timing_stress\n"
       "\t\t5: checkpoint_slow_timing_stress\n"
       "\t\t6: evict_reposition_timing_stress\n"
-      "\t\t7: failpoint_eviction_fail_after_reconciliation\n"
+      "\t\t7: failpoint_eviction_split\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row | lsm )\n"
       "\t-v verify only\n"

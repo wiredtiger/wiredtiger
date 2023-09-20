@@ -89,7 +89,7 @@ __wt_tiered_bucket_config(
      * Check if tiered storage is set on the connection. If someone wants tiered storage on a table,
      * it needs to be configured on the database as well.
      */
-    if (conn->bstorage == NULL && bstoragep != &conn->bstorage)
+    if (!WT_CONN_TIERED_STORAGE_ENABLED(conn) && bstoragep != &conn->bstorage)
         WT_ERR_MSG(
           session, EINVAL, "table tiered storage requires connection tiered storage to be set");
     /* A bucket and bucket_prefix are required, cache_directory and auth_token are not. */
@@ -107,7 +107,8 @@ __wt_tiered_bucket_config(
      * Check if tiered storage shared is set on the connection. If someone wants tiered storage on a
      * table, it needs to be configured on the database as well.
      */
-    if (conn->bstorage != NULL && conn->bstorage->tiered_shared == false && shared.val)
+    if (WT_CONN_TIERED_STORAGE_ENABLED(conn) && conn->bstorage->tiered_shared == false &&
+      shared.val)
         WT_ERR_MSG(session, EINVAL,
           "table tiered storage shared requires connection tiered storage shared to be set");
 
@@ -164,11 +165,13 @@ err:
 int
 __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 {
+    WT_BUCKET_STORAGE *prev_bstorage;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     conn = S2C(session);
+    prev_bstorage = conn->bstorage;
 
     if (!reconfig)
         WT_RET(__wt_tiered_bucket_config(session, cfg, &conn->bstorage));
@@ -176,16 +179,22 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
         WT_ERR(__tiered_common_config(session, cfg, conn->bstorage));
 
     /* If the connection is not set up for tiered storage there is nothing more to do. */
-    if (conn->bstorage == NULL)
+    if (!WT_CONN_TIERED_STORAGE_ENABLED(conn))
         return (0);
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
     __wt_verbose(
       session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
 
+    /* Check for incompatible configuration options. */
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+        WT_ERR_MSG(session, EINVAL,
+          "the \"in_memory\" connection configuration is not compatible with tiered storage");
+
+    /* Set up the rest of the tiered storage configuration. c*/
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.interval", &cval));
     conn->tiered_interval = (uint64_t)cval.val;
 
-    WT_ASSERT(session, conn->bstorage != NULL);
+    WT_ASSERT(session, WT_CONN_TIERED_STORAGE_ENABLED(conn));
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
     /*
@@ -197,10 +206,14 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     return (0);
 
 err:
-    __wt_free(session, conn->bstorage->auth_token);
-    __wt_free(session, conn->bstorage->bucket);
-    __wt_free(session, conn->bstorage->bucket_prefix);
-    __wt_free(session, conn->bstorage->cache_directory);
-    __wt_free(session, conn->bstorage);
+    /*
+     * Restore the connection's bucket storage to the previous value in the case it changed. If
+     * __wt_tiered_bucket_config() failed, it should have freed its own newly allocated bucket
+     * storage object. If it succeeded, it might have added a new bucket storage, which will be
+     * eventually freed up when the connection closes; there is no harm in keeping it. (We could
+     * remove it, but that would require first adding functionality to remove an individual bucket
+     * storage, which is at the time of this writing not implemented.)
+     */
+    conn->bstorage = prev_bstorage;
     return (ret);
 }

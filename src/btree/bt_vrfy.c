@@ -189,6 +189,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     const char *name;
     bool bm_start, quit, skip_hs;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     btree = S2BT(session);
     bm = btree->bm;
     ckptbase = NULL;
@@ -277,8 +280,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
-/* FIXME-WT-10927 */
-#if 0
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it.
@@ -291,7 +292,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                  * after that and unloading this checkpoint.
                  */
             }
-#endif
+
             /*
              * If the read_corrupt mode was turned on, we may have continued traversing and
              * verifying the pages of the tree despite encountering an error. Set the error.
@@ -536,7 +537,19 @@ __verify_tree(
      * (just created), it won't have a disk image; if there is no disk image, there is no page
      * content to check.
      */
-    if (page->dsk != NULL)
+    if (page->dsk != NULL) {
+        /*
+         * Compare the write generation number on the page to the write generation number on the
+         * parent. Since a parent page's reconciliation takes place once all of its child pages have
+         * been completed, the parent page's write generation number must be higher than that of its
+         * children.
+         */
+        if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= ref->home->dsk->write_gen)
+            WT_RET_MSG(session, EINVAL,
+              "child write generation number %" PRIu64
+              " is greater/equal to the parent page write generation number %" PRIu64,
+              page->dsk->write_gen, ref->home->dsk->write_gen);
+
         switch (page->type) {
         case WT_PAGE_COL_FIX:
             WT_RET(__verify_page_content_fix(session, ref, addr_unpack, vs));
@@ -550,6 +563,7 @@ __verify_tree(
             WT_RET(__verify_page_content_leaf(session, ref, addr_unpack, vs));
             break;
         }
+    }
 
     /* Compare the address type against the page type. */
     switch (page->type) {
@@ -706,22 +720,31 @@ __verify_row_int_key_order(
 
     btree = S2BT(session);
 
-    /* The maximum key is set, we updated it from a leaf page first. */
-    WT_ASSERT(session, vs->max_addr->size != 0);
+    /*
+     * The maximum key is usually set from the leaf page first. If the first leaf page is corrupted,
+     * it is possible that the key is not set. In that case skip this check.
+     */
+    if (!vs->verify_err)
+        WT_ASSERT(session, vs->max_addr->size != 0);
 
     /* Get the parent page's internal key. */
     __wt_ref_key(parent, ref, &item.data, &item.size);
 
-    /* Compare the key against the largest key we've seen so far. */
-    WT_RET(__wt_compare(session, btree->collator, &item, vs->max_key, &cmp));
-    if (cmp <= 0)
-        WT_RET_MSG(session, WT_ERROR,
-          "the internal key in entry %" PRIu32
-          " on the page at %s sorts before the last key appearing on page %s, earlier in the tree: "
-          "%s, %s",
-          entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
-          __wt_buf_set_printable(session, item.data, item.size, false, vs->tmp2),
-          __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, false, vs->tmp3));
+    /* There is an edge case where the maximum key is not set due the first leaf being corrupted. */
+    if (vs->max_addr->size != 0) {
+        /* Compare the key against the largest key we've seen so far. */
+        WT_RET(__wt_compare(session, btree->collator, &item, vs->max_key, &cmp));
+        if (cmp <= 0)
+            WT_RET_MSG(session, WT_ERROR,
+              "the internal key in entry %" PRIu32
+              " on the page at %s sorts before the last key appearing on page %s, earlier in the "
+              "tree: "
+              "%s, %s",
+              entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
+              __wt_buf_set_printable(session, item.data, item.size, false, vs->tmp2),
+              __wt_buf_set_printable(
+                session, vs->max_key->data, vs->max_key->size, false, vs->tmp3));
+    }
 
     /* Update the largest key we've seen to the key just checked. */
     WT_RET(__wt_buf_set(session, vs->max_key, item.data, item.size));

@@ -325,6 +325,9 @@ __lsm_checkpoint_chunk(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     /*
      * Turn on metadata tracking to ensure the checkpoint gets the necessary handle locks.
      */
@@ -636,7 +639,7 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
     WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, uri, drop_cfg));
 
     if (ret == 0)
-        ret = __wt_fs_remove(session, uri + strlen("file:"), false);
+        ret = __wt_fs_remove(session, uri + strlen("file:"), false, false);
     __wt_verbose(session, WT_VERB_LSM, "Dropped %s", uri);
 
     if (ret == EBUSY || ret == ENOENT)

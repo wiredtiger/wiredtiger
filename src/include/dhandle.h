@@ -38,9 +38,9 @@
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
 
-#define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->session_ref, 1)
+#define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->references, 1)
 
-#define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)
+#define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->references, 1)
 
 #define WT_DHANDLE_NEXT(session, dhandle, head, field)                                     \
     do {                                                                                   \
@@ -90,11 +90,11 @@ struct __wt_data_handle {
     const char *orig_meta_base; /* Copy of the base metadata configuration */
 #endif
     /*
-     * Sessions holding a connection's data handle will have a non-zero reference count; sessions
-     * using a connection's data handle will have a non-zero in-use count. Instances of cached
-     * cursors referencing the data handle appear in session_cache_ref.
+     * Sessions holding a connection's data handle and queued tiered storage work units will hold
+     * references; sessions using a connection's data handle will have a non-zero in-use count.
+     * Instances of cached cursors referencing the data handle appear in session_cache_ref.
      */
-    uint32_t session_ref;          /* Sessions referencing this handle */
+    uint32_t references;           /* References to this handle */
     int32_t session_inuse;         /* Sessions using this handle */
     uint32_t excl_ref;             /* Refs of handle by excl_session */
     uint64_t timeofdeath;          /* Use count went to 0 */
@@ -128,21 +128,21 @@ struct __wt_data_handle {
 
 /*
  * Flags values over 0xfff are reserved for WT_BTREE_*. This lets us combine the dhandle and btree
- * flags when we need, for example, to pass both sets in a function call.
+ * flags when we need, for example, to pass both sets in a function call. These flags can only be
+ * changed when a dhandle is locked exclusively.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DHANDLE_DEAD 0x001u         /* Dead, awaiting discard */
 #define WT_DHANDLE_DISCARD 0x002u      /* Close on release */
 #define WT_DHANDLE_DISCARD_KILL 0x004u /* Mark dead on release */
 #define WT_DHANDLE_DROPPED 0x008u      /* Handle is dropped */
-#define WT_DHANDLE_EVICTED 0x010u      /* Btree is evicted (advisory) */
-#define WT_DHANDLE_EXCLUSIVE 0x020u    /* Exclusive access */
-#define WT_DHANDLE_HS 0x040u           /* History store table */
-#define WT_DHANDLE_IS_METADATA 0x080u  /* Metadata handle */
-#define WT_DHANDLE_LOCK_ONLY 0x100u    /* Handle only used as a lock */
-#define WT_DHANDLE_OPEN 0x200u         /* Handle is open */
+#define WT_DHANDLE_EXCLUSIVE 0x010u    /* Exclusive access */
+#define WT_DHANDLE_HS 0x020u           /* History store table */
+#define WT_DHANDLE_IS_METADATA 0x040u  /* Metadata handle */
+#define WT_DHANDLE_LOCK_ONLY 0x080u    /* Handle only used as a lock */
+#define WT_DHANDLE_OPEN 0x100u         /* Handle is open */
                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 12 */
-    uint32_t flags;
+    uint16_t flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DHANDLE_TS_ASSERT_READ_ALWAYS 0x1u /* Assert read always checking. */
@@ -156,4 +156,9 @@ struct __wt_data_handle {
 #define WT_DHANDLE_LOCK_WRITE 0x1u /* Write lock is acquired. */
                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t lock_flags;
+
+    /* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_DHANDLE_ADVISORY_EVICTED 0x1u /* Btree is evicted */
+                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t advisory_flags;
 };

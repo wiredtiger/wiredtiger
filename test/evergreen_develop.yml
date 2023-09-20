@@ -8,20 +8,14 @@ variables:
 - &perf-tasks-template
   batchtime: 1440 # 1 day
   expansions: &ubuntu2004-perf-tests-expansions-template
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_BUILDDIR/test/utility/
+    additional_env_vars: export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_BUILDDIR/test/utility/"
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
     HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    pip3_binary: '/opt/mongodbtoolchain/v4/bin/pip3'
-    virtualenv_binary: '/opt/mongodbtoolchain/v4/bin/virtualenv'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
-    make_command: ninja
+    database: WTPerformanceDataDB
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -42,6 +36,9 @@ variables:
     - name: Wiredtiger-perf-log-jobs
       execution_tasks:
       - ".log-perf"
+    - name: Wiredtiger-perf-chunk-cache-jobs
+      execution_tasks:
+      - ".chunk-cache-perf"
     - name: Wiredtiger-perf-long-jobs
       execution_tasks:
       - ".long-perf"
@@ -58,7 +55,7 @@ buildvariants:
   name: ubuntu2004-perf-tests
   display_name: Ubuntu 20.04 Performance tests
   run_on:
-    - ubuntu2004-medium
+    - ubuntu2004-perf-testing
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTests
@@ -71,6 +68,7 @@ buildvariants:
     - name: ".checkpoint-perf"
     - name: ".evict-perf"
     - name: ".log-perf"
+    - name: ".chunk-cache-perf"
     - name: ".long-perf"
     - name: ".oplog-perf"
     - name: many-dhandle-stress
@@ -81,7 +79,7 @@ buildvariants:
   name: ubuntu2004-perf-tests-arm64
   display_name: Ubuntu 20.04 Performance tests (ARM64)
   run_on:
-    - ubuntu2004-arm64-large
+    - ubuntu2004-arm64-perf-testing
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTestsARM64
@@ -94,6 +92,7 @@ buildvariants:
     - name: ".checkpoint-perf"
     - name: ".evict-perf"
     - name: ".log-perf"
+    - name: ".chunk-cache-perf"
     - name: ".long-perf"
     - name: ".oplog-perf"
     - name: many-dhandle-stress
@@ -108,7 +107,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    doc_update_branches: develop,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
+    doc_update_branches: develop,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
   tasks:
     - name: doc-update
 
@@ -117,19 +116,14 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars:
-      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-    make_command: ninja
+    database: WTCodeStatisticsDB
+    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     cmake_generator: Ninja
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: coverage-report
-      batchtime: 10080 # 7 days
+    - name: coverage-report-catch2
     - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent
@@ -147,6 +141,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   tasks:
+    - name: compatibility-test-suite
     - name: compatibility-test-upgrade-to-latest
 
 - name: compatibility-tests
@@ -163,20 +158,13 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
-    make_command: ninja
-  # As these tests run infrequently by the time they fail we may have had 
-  # a lot of prior commits that would also fail for the same test. This is acceptable 
-  # as our infrequent tests aren't tracking critical failures, but we don't want 
-  # to perform stepback as evergreen will run the same test on all of these older commits 
+  # As these tests run infrequently by the time they fail we may have had
+  # a lot of prior commits that would also fail for the same test. This is acceptable
+  # as our infrequent tests aren't tracking critical failures, but we don't want
+  # to perform stepback as evergreen will run the same test on all of these older commits
   # and generate a lot of redundant BFGs.
   stepback: false
   tasks:

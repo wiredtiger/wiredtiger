@@ -288,6 +288,8 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
     if (!reconfig) {
         WT_RET(__wt_config_gets(session, cfg, "log.file_max", &cval));
         conn->log_file_max = (wt_off_t)cval.val;
+        if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
+            conn->log_file_max = (wt_off_t)WT_ALIGN(conn->log_file_max, conn->buffer_alignment);
         /*
          * With the default log file extend configuration or if the log file extension size is
          * larger than the configured maximum log file size, set the log file extension size to the
@@ -372,23 +374,16 @@ __log_remove_once_int(
 }
 
 /*
- * __log_remove_once --
- *     Perform one iteration of log removal. Must be called with the log removal lock held.
+ * __compute_min_lognum --
+ *     Determine the number of the earliest log file we must keep.
  */
-static int
-__log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
+static uint32_t
+__compute_min_lognum(WT_SESSION_IMPL *session, WT_LOG *log, uint32_t backup_file)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_LOG *log;
-    uint32_t dbg_val, min_lognum;
-    u_int logcount;
-    char **logfiles;
+    uint32_t min_lognum;
 
     conn = S2C(session);
-    log = conn->log;
-    logcount = 0;
-    logfiles = NULL;
 
     /*
      * If we're coming from a backup cursor we want the smaller of the last full log file copied in
@@ -398,12 +393,14 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     min_lognum = backup_file == 0 ? WT_MIN(log->ckpt_lsn.l.file, log->sync_lsn.l.file) :
                                     WT_MIN(log->ckpt_lsn.l.file, backup_file);
 
+    __wt_readlock(session, &conn->debug_log_retention_lock);
+
     /* Adjust the number of log files to retain based on debugging options. */
-    WT_ORDERED_READ(dbg_val, conn->debug_ckpt_cnt);
-    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN) && dbg_val != 0)
-        min_lognum = WT_MIN(conn->debug_ckpt[dbg_val - 1].l.file, min_lognum);
-    WT_ORDERED_READ(dbg_val, conn->debug_log_cnt);
-    if (dbg_val != 0) {
+
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN) && conn->debug_ckpt_cnt != 0)
+        min_lognum = WT_MIN(conn->debug_ckpt[conn->debug_ckpt_cnt - 1].l.file, min_lognum);
+
+    if (conn->debug_log_cnt != 0) {
         /*
          * If we're performing checkpoints, apply the retain value as a minimum, increasing the
          * number the log files we keep. If not performing checkpoints, it's an absolute number of
@@ -413,13 +410,42 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
          *
          * Check for N+1, that is, we retain N full log files, and one partial.
          */
-        if ((dbg_val + 1) >= log->fileid)
-            return (0);
-        if (WT_IS_INIT_LSN(&log->ckpt_lsn))
-            min_lognum = log->fileid - (dbg_val + 1);
+        if ((conn->debug_log_cnt + 1) >= log->fileid)
+            min_lognum = 0;
+        else if (WT_IS_INIT_LSN(&log->ckpt_lsn))
+            min_lognum = log->fileid - (conn->debug_log_cnt + 1);
         else
-            min_lognum = WT_MIN(log->fileid - (dbg_val + 1), min_lognum);
+            min_lognum = WT_MIN(log->fileid - (conn->debug_log_cnt + 1), min_lognum);
     }
+
+    __wt_readunlock(session, &conn->debug_log_retention_lock);
+    return (min_lognum);
+}
+
+/*
+ * __log_remove_once --
+ *     Perform one iteration of log removal. Must be called with the log removal lock held.
+ */
+static int
+__log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_LOG *log;
+    uint32_t min_lognum;
+    u_int logcount;
+    char **logfiles;
+
+    conn = S2C(session);
+    log = conn->log;
+    logcount = 0;
+    logfiles = NULL;
+
+    min_lognum = __compute_min_lognum(session, log, backup_file);
+    if (min_lognum == 0)
+        /* We want to retain all log files. Nothing to do here. */
+        return (0);
+
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove to log number %" PRIu32, min_lognum);
 
     /*
@@ -567,12 +593,10 @@ __log_file_server(void *arg)
     WT_LSN close_end_lsn;
     WT_SESSION_IMPL *session;
     uint32_t filenum;
-    bool locked;
 
     session = arg;
     conn = S2C(session);
     log = conn->log;
-    locked = false;
     while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
         /*
          * If there is a log file to close, make sure any outstanding write operations have
@@ -615,12 +639,10 @@ __log_file_server(void *arg)
                 }
                 WT_SET_LSN(&close_end_lsn, close_end_lsn.l.file + 1, 0);
                 __wt_spin_lock(session, &log->log_sync_lock);
-                locked = true;
                 WT_ERR(__wt_close(session, &close_fh));
                 WT_ASSERT(session, __wt_log_cmp(&close_end_lsn, &log->sync_lsn) >= 0);
                 WT_ASSIGN_LSN(&log->sync_lsn, &close_end_lsn);
                 __wt_cond_signal(session, log->log_sync_cond);
-                locked = false;
                 __wt_spin_unlock(session, &log->log_sync_lock);
             }
         }
@@ -633,8 +655,7 @@ __log_file_server(void *arg)
 err:
         WT_IGNORE_RET(__wt_panic(session, ret, "log close server error"));
     }
-    if (locked)
-        __wt_spin_unlock(session, &log->log_sync_lock);
+    __wt_spin_unlock_if_owned(session, &log->log_sync_lock);
     return (WT_THREAD_RET_VALUE);
 }
 

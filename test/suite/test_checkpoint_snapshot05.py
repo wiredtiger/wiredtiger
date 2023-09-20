@@ -143,7 +143,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
+        ckpt = checkpoint_thread(self.conn, done, checkpoint_count_max=1)
         try:
             ckpt.start()
             
@@ -152,7 +152,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
             while not ckpt_snapshot:
                 time.sleep(1)
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_snapshot = stat_cursor[stat.conn.txn_checkpoint_snapshot_acquired][2]
+                ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
                 stat_cursor.close()
 
             session1.commit_transaction()

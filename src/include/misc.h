@@ -43,6 +43,7 @@
 #define WT_MILLION (WT_MILLION_LITERAL)
 #define WT_BILLION (1000000000)
 
+#define WT_DAY (86400)
 #define WT_MINUTE (60)
 
 #define WT_PROGRESS_MSG_PERIOD (20)
@@ -85,6 +86,9 @@
 /* Min, max. */
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
+
+/* Ceil for unsigned/positive real numbers. */
+#define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
 
 /* Elements in an array. */
 #define WT_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
@@ -246,6 +250,26 @@
         }                                                              \
     } while (0)
 
+/*
+ * Binary search for a string key. Note: For the binary search to function correctly, the array
+ * should not contain NULL values.
+ */
+#define WT_BINARY_SEARCH_STRING(key, arrayp, n, found)                 \
+    do {                                                               \
+        uint32_t __base, __indx, __limit;                              \
+        (found) = false;                                               \
+        for (__base = 0, __limit = (n); __limit != 0; __limit >>= 1) { \
+            __indx = __base + (__limit >> 1);                          \
+            if (strcmp((arrayp)[__indx], (key)) < 0) {                 \
+                __base = __indx + 1;                                   \
+                --__limit;                                             \
+            } else if (strcmp((arrayp)[__indx], (key)) == 0) {         \
+                (found) = true;                                        \
+                break;                                                 \
+            }                                                          \
+        }                                                              \
+    } while (0)
+
 #define WT_CLEAR(s) memset(&(s), 0, sizeof(s))
 
 /* Check if a string matches a prefix. */
@@ -274,10 +298,19 @@
  */
 #define WT_STREQ(s, cs) (sizeof(cs) == 2 ? (s)[0] == (cs)[0] && (s)[1] == '\0' : strcmp(s, cs) == 0)
 
-/* Check if a string matches a byte string of len bytes. */
-#define WT_STRING_MATCH(str, bytes, len)                                                        \
-    (((const char *)(str))[0] == ((const char *)(bytes))[0] && strncmp(str, bytes, len) == 0 && \
-      (str)[len] == '\0')
+/*
+ * Check if a non-empty string matches a byte sequence of len bytes. The macro expects both strings
+ * to be of non-zero length in order to be a match. The bytes argument does not need to be
+ * null-terminated. Similar to other string related functions, this is not expected to work on NULL
+ * values.
+ */
+#define WT_STRING_MATCH(str, bytes, len) __wt_string_match(str, bytes, len)
+
+static inline bool
+__wt_string_match(const char *str, const char *bytes, size_t len)
+{
+    return (len > 0 && (strlen(str) == len) && (strncmp(str, bytes, len) == 0));
+}
 
 /*
  * Macro that produces a string literal that isn't wrapped in quotes, to avoid tripping up spell

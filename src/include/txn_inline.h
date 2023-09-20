@@ -129,27 +129,74 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 }
 
 /*
- * __txn_resolve_prepared_update --
- *     Resolve a prepared update as committed update.
+ * __txn_apply_prepare_state_update --
+ *     Change the prepared state of an update.
  */
 static inline void
-__txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
     WT_TXN *txn;
 
     txn = session->txn;
-    /*
-     * In case of a prepared transaction, the order of modification of the prepare timestamp to
-     * commit timestamp in the update chain will not affect the data visibility, a reader will
-     * encounter a prepared update resulting in prepare conflict.
-     *
-     * As updating timestamp might not be an atomic operation, we will manage using state.
-     */
-    upd->prepare_state = WT_PREPARE_LOCKED;
-    WT_WRITE_BARRIER();
-    upd->start_ts = txn->commit_timestamp;
-    upd->durable_ts = txn->durable_timestamp;
-    WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+
+    if (commit) {
+        /*
+         * In case of a prepared transaction, the order of modification of the prepare timestamp to
+         * commit timestamp in the update chain will not affect the data visibility, a reader will
+         * encounter a prepared update resulting in prepare conflict.
+         *
+         * As updating timestamp might not be an atomic operation, we will manage using state.
+         */
+        upd->prepare_state = WT_PREPARE_LOCKED;
+        WT_WRITE_BARRIER();
+        upd->start_ts = txn->commit_timestamp;
+        upd->durable_ts = txn->durable_timestamp;
+        WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+    } else {
+        /* Set prepare timestamp. */
+        upd->start_ts = txn->prepare_timestamp;
+
+        /*
+         * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
+         * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
+         * problem.
+         */
+        upd->durable_ts = WT_TS_NONE;
+        WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+    }
+}
+
+/*
+ * __txn_apply_prepare_state_page_del --
+ *     Change a prepared page deleted structure's prepared state.
+ */
+static inline void
+__txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool commit)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+    if (commit) {
+        /*
+         * The page deleted structure is only checked in tree walk. If it is prepared, we will
+         * instantiate the leaf page and check the keys on it. Therefore, we don't need to worry
+         * about reading the partial state and don't need to lock the state.
+         */
+        page_del->timestamp = txn->commit_timestamp;
+        page_del->durable_timestamp = txn->durable_timestamp;
+        WT_PUBLISH(page_del->prepare_state, WT_PREPARE_RESOLVED);
+    } else {
+        /* Set prepare timestamp. */
+        page_del->timestamp = txn->prepare_timestamp;
+
+        /*
+         * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
+         * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
+         * problem.
+         */
+        page_del->durable_timestamp = WT_TS_NONE;
+        WT_PUBLISH(page_del->prepare_state, WT_PREPARE_INPROGRESS);
+    }
 }
 
 /*
@@ -211,23 +258,11 @@ static inline void
 __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_PAGE_DELETED *page_del;
-    WT_TXN *txn;
     WT_UPDATE **updp;
-    wt_timestamp_t ts;
-    uint8_t prepare_state, previous_state;
-
-    txn = session->txn;
+    uint8_t previous_state;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
-
-    if (commit) {
-        ts = txn->commit_timestamp;
-        prepare_state = WT_PREPARE_RESOLVED;
-    } else {
-        ts = txn->prepare_timestamp;
-        prepare_state = WT_PREPARE_INPROGRESS;
-    }
 
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
@@ -250,26 +285,35 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
         WT_ASSERT(session, previous_state == WT_REF_MEM);
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
-            for (; *updp != NULL; ++updp) {
-                (*updp)->start_ts = ts;
-                /*
-                 * Holding the ref locked means we have exclusive access, so if we are committing we
-                 * don't need to use the prepare locked transition state.
-                 */
-                (*updp)->prepare_state = prepare_state;
-                if (commit)
-                    (*updp)->durable_ts = txn->durable_timestamp;
-            }
-    }
-    page_del = ref->page_del;
-    if (page_del != NULL) {
-        page_del->timestamp = ts;
-        if (commit)
-            page_del->durable_timestamp = txn->durable_timestamp;
-        WT_PUBLISH(page_del->prepare_state, prepare_state);
+            for (; *updp != NULL; ++updp)
+                __txn_apply_prepare_state_update(session, *updp, commit);
     }
 
+    if ((page_del = ref->page_del) != NULL)
+        __txn_apply_prepare_state_page_del(session, page_del, commit);
+
     WT_REF_UNLOCK(ref, previous_state);
+}
+
+/*
+ * __txn_op_delete_commit_apply_page_del_timestamp --
+ *     Apply the correct start and durable timestamps to the page delete structure.
+ */
+static inline void
+__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_PAGE_DELETED *page_del;
+    WT_TXN *txn;
+
+    txn = session->txn;
+    page_del = ref->page_del;
+
+    WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+
+    if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
+        page_del->timestamp = txn->commit_timestamp;
+        page_del->durable_timestamp = txn->durable_timestamp;
+    }
 }
 
 /*
@@ -279,7 +323,6 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 static inline void
 __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
     WT_UPDATE **updp;
     uint8_t previous_state;
@@ -315,13 +358,29 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
                 (*updp)->durable_ts = txn->durable_timestamp;
             }
     }
-    page_del = ref->page_del;
-    if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
-        page_del->timestamp = txn->commit_timestamp;
-        page_del->durable_timestamp = txn->durable_timestamp;
-    }
+
+    __txn_op_delete_commit_apply_page_del_timestamp(session, ref);
 
     WT_REF_UNLOCK(ref, previous_state);
+}
+
+/*
+ * __txn_should_assign_timestamp --
+ *     We don't apply timestamps to updates in some cases, for example, if they were made by a
+ *     transaction that doesn't assign a commit timestamp or they are updates on tables with
+ *     write-ahead-logging enabled. It is important for correctness reasons not to assign any
+ *     timestamps to an update that should not have them, so make the check explicit in this
+ *     function.
+ */
+static inline bool
+__txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+{
+    if (!F_ISSET(session->txn, WT_TXN_HAS_TS_COMMIT))
+        return (false);
+    if (F_ISSET(op->btree, WT_BTREE_LOGGED))
+        return (false);
+
+    return (true);
 }
 
 /*
@@ -333,20 +392,12 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 static inline void
 __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    WT_BTREE *btree;
     WT_TXN *txn;
     WT_UPDATE *upd;
 
-    btree = op->btree;
     txn = session->txn;
 
-    /*
-     * Updates without a commit time and logged objects don't have timestamps, and only the most
-     * recently committed data matches files on disk.
-     */
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-        return;
-    if (F_ISSET(btree, WT_BTREE_LOGGED))
+    if (!__txn_should_assign_timestamp(session, op))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -360,7 +411,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
             upd = op->u.op_upd;
 
             /* Resolve prepared update to be committed update. */
-            __txn_resolve_prepared_update(session, upd);
+            __txn_apply_prepare_state_update(session, upd, true);
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
@@ -443,7 +494,9 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * fact just allocated the structure to fill in.
      */
     ref->page_del->txnid = txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+
+    if (__txn_should_assign_timestamp(session, op))
+        __txn_op_delete_commit_apply_page_del_timestamp(session, op->u.ref);
 
     if (__wt_log_op(session))
         WT_ERR(__wt_txn_log_op(session, NULL));
@@ -793,25 +846,18 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 }
 
 /*
- * __wt_txn_visible --
- *     Can the current transaction see the given ID / timestamp?
+ * __wt_txn_timestamp_visible --
+ *     Can the current transaction see the given timestamp?
  */
 static inline bool
-__wt_txn_visible(
-  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+__wt_txn_timestamp_visible(
+  WT_SESSION_IMPL *session, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
 
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    if (!__txn_visible_id(session, id))
-        return (false);
-
-    /* Transactions read their writes, regardless of timestamps. */
-    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->id)
-        return (true);
 
     /* Timestamp check. */
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_READ) || timestamp == WT_TS_NONE)
@@ -830,6 +876,47 @@ __wt_txn_visible(
           (durable_timestamp <= txn->checkpoint_stable_timestamp));
 
     return (timestamp <= txn_shared->read_timestamp);
+}
+
+/*
+ * __wt_txn_snap_min_visible --
+ *     Can the current transaction snapshot minimum/read timestamp see the given ID/timestamp? This
+ *     visibility check should only be used when assessing broader visibility based on aggregated
+ *     time window. It does not reflect whether a specific update is visible to a transaction.
+ */
+static inline bool
+__wt_txn_snap_min_visible(
+  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+{
+    /* Transaction snapshot minimum check. */
+    if (!WT_TXNID_LT(id, session->txn->snap_min))
+        return (false);
+
+    /* Transactions read their writes, regardless of timestamps. */
+    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->id)
+        return (true);
+
+    /* Timestamp check. */
+    return (__wt_txn_timestamp_visible(session, timestamp, durable_timestamp));
+}
+
+/*
+ * __wt_txn_visible --
+ *     Can the current transaction see the given ID/timestamp?
+ */
+static inline bool
+__wt_txn_visible(
+  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+{
+    if (!__txn_visible_id(session, id))
+        return (false);
+
+    /* Transactions read their writes, regardless of timestamps. */
+    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->id)
+        return (true);
+
+    /* Timestamp check. */
+    return (__wt_txn_timestamp_visible(session, timestamp, durable_timestamp));
 }
 
 /*
@@ -895,6 +982,7 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
   size_t *sizep)
 {
     WT_UPDATE *upd;
+    size_t allocsz; /* Allocation size in bytes. */
 
     *updp = NULL;
 
@@ -909,6 +997,11 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
         (value != NULL &&
           !(modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE)));
 
+    if (value == NULL || value->size == 0)
+        allocsz = WT_UPDATE_SIZE_NOVALUE;
+    else
+        allocsz = WT_UPDATE_SIZE + value->size;
+
     /*
      * Allocate the WT_UPDATE structure and room for the value, then copy any value into place.
      * Memory is cleared, which is the equivalent of setting:
@@ -918,7 +1011,7 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
      *    WT_UPDATE.prepare_state = WT_PREPARE_INIT;
      *    WT_UPDATE.flags = 0;
      */
-    WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + (value == NULL ? 0 : value->size), &upd));
+    WT_RET(__wt_calloc(session, 1, allocsz, &upd));
     if (value != NULL && value->size != 0) {
         upd->size = WT_STORE_SIZE(value->size);
         memcpy(upd->data, value->data, value->size);
@@ -951,7 +1044,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
   WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
 {
     WT_VISIBLE_TYPE upd_visible;
-    uint8_t prepare_state, type;
+    uint64_t prepare_txnid;
+    uint8_t prepare_state;
+
+    prepare_txnid = WT_TXN_NONE;
 
     if (prepare_updp != NULL)
         *prepare_updp = NULL;
@@ -960,12 +1056,40 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
     __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
-        WT_ORDERED_READ(type, upd->type);
         /* Skip reserved place-holders, they're never visible. */
-        if (type == WT_UPDATE_RESERVE)
+        if (upd->type == WT_UPDATE_RESERVE)
             continue;
 
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
+
+        /*
+         * We previously found a prepared update, check if the update has the same transaction id,
+         * if it does it must not be visible as it is part of the same transaction as the previous
+         * prepared update.
+         */
+        if (prepare_txnid != WT_TXN_NONE && upd->txnid == prepare_txnid) {
+            /*
+             * If we see an update with prepare resolved this indicates that the read, which is
+             * configured to ignore prepared updates raced with the commit of the same prepared
+             * transaction. Increment a stat to track this.
+             *
+             * This case exists as reconciliation chooses which update to write to disk in a newest
+             * to oldest fashion, and if prepared update resolution happens in the same direction
+             * some artifacts of a prepared transaction could be written to disk while some remain
+             * only in-memory. Instead prepared update resolution is recursively done from oldest to
+             * newest. Which mean that our reader would see a prepared update followed by a
+             * committed update.
+             *
+             * There is an alternate solution which would have reconciliation forget the chosen
+             * update if it sees a prepared update after it. That would allow the update chain
+             * resolution to occur from newest to oldest and this reader edge case would no longer
+             * exist. That solution needs further exploration.
+             */
+            if (prepare_state == WT_PREPARE_RESOLVED)
+                WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_commit);
+            continue;
+        }
+
         /*
          * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
          * to the stop time window of the update value being returned to the caller. Caller can
@@ -973,7 +1097,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * the time window already has a stop time set then we must have seen a tombstone prior to
          * ours in the update list, and therefore don't need to do this again.
          */
-        if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
+        if (upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
@@ -1002,15 +1126,17 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * history store instead of on-disk value.
          */
         if (upd->txnid != WT_TXN_ABORTED && restored_updp != NULL &&
-          F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) && type == WT_UPDATE_STANDARD) {
+          F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) && upd->type == WT_UPDATE_STANDARD) {
             WT_ASSERT(session, *restored_updp == NULL);
             *restored_updp = upd;
         }
 
         if (upd_visible == WT_VISIBLE_PREPARE) {
             /* Ignore the prepared update, if transaction configuration says so. */
-            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
+            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+                prepare_txnid = upd->txnid;
                 continue;
+            }
 
             return (WT_PREPARE_CONFLICT);
         }
@@ -1147,7 +1273,7 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
+        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }
@@ -1226,6 +1352,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
+
+    WT_ASSERT_ALWAYS(
+      session, txn->mod_count == 0, "The mod count should be 0 when beginning a transaction");
 
     return (0);
 }

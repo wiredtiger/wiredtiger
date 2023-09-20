@@ -75,7 +75,7 @@ static const char *const uri_collection = "table:collection";
 
 static const char *const ready_file = "child_ready";
 
-static bool use_columns, use_lazyfs, use_ts, use_txn;
+static bool aggressive_sweep, use_columns, use_lazyfs, use_ts, use_txn;
 static volatile bool stable_set;
 
 static uint32_t nth;                       /* Number of threads. */
@@ -101,13 +101,12 @@ static TEST_OPTS *opts, _opts;
     "log=(enabled,file_max=10M,remove=false),statistics=(all),statistics_log=(json,on_close,wait=" \
     "1)"
 
-#define ENV_CONFIG_TXNSYNC \
-    ENV_CONFIG_DEF         \
-    ",transaction_sync=(enabled,method=none)"
+#define ENV_CONFIG_SWEEP \
+    ",file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)"
 
-#define ENV_CONFIG_TXNSYNC_FSYNC \
-    ENV_CONFIG_DEF               \
-    ",transaction_sync=(enabled,method=fsync)"
+#define ENV_CONFIG_TXNSYNC ",transaction_sync=(enabled,method=none)"
+
+#define ENV_CONFIG_TXNSYNC_FSYNC ",transaction_sync=(enabled,method=fsync)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -148,13 +147,28 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * usage --
- *     TODO: Add a comment describing this function.
+ *     Display usage statement and exit failure.
  */
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-BClmvxz]\n",
+    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-ClmSvxz]\n",
       progname);
+    fprintf(stderr, "%s",
+      "\t-C compatibility\n"
+      "\t-c use variable-length columns\n"
+      "\t-h home directory\n"
+      "\t-l use LazyFS\n"
+      "\t-m in-memory\n"
+      "\t-P tiered storage options\n"
+      "\t-p preserve directory contents\n"
+      "\t-S set sweep server to be aggressive\n"
+      "\t-s set a stop timestamp to stop the threads to run\n"
+      "\t-T set number of threads\n"
+      "\t-t set timeout in seconds\n"
+      "\t-v verify only\n"
+      "\t-x use transactions\n"
+      "\t-z don't use timestamps\n");
     exit(EXIT_FAILURE);
 }
 
@@ -270,7 +284,7 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
      * Generate a unique object name. Use the iteration count provided by the caller. The caller
      * ensures it to be unique.
      */
-    testutil_check(__wt_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id));
+    testutil_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id);
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -286,7 +300,7 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
     else if (ret != EINVAL)
         testutil_die(ret, "session.open_cursor bulk unique: %s, new_uri");
 
-    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    testutil_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false");
     /* For testing we want to remove objects too. */
     if (opts->tiered_storage)
         strcat(dropconf, ",remove_shared=true");
@@ -381,7 +395,7 @@ test_create_unique(THREAD_DATA *td, uint64_t unique_id, int force)
      * Generate a unique object name. Use the iteration count provided by the caller. The caller
      * ensures it to be unique.
      */
-    testutil_check(__wt_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id));
+    testutil_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id);
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -393,7 +407,7 @@ test_create_unique(THREAD_DATA *td, uint64_t unique_id, int force)
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
 
-    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    testutil_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false");
     /* For testing we want to remove objects too. */
     if (opts->tiered_storage)
         strcat(dropconf, ",remove_shared=true");
@@ -421,7 +435,7 @@ test_drop(THREAD_DATA *td, int force)
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
-    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    testutil_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false");
     /* For testing we want to remove objects too. */
     if (opts->tiered_storage)
         strcat(dropconf, ",remove_shared=true");
@@ -455,7 +469,7 @@ test_upgrade(THREAD_DATA *td)
     WT_DECL_RET;
     WT_SESSION *session;
 
-    /* FIXME-WT-9423 Remove this return when tiered storage supports upgrade. */
+    /* FIXME-WT-11366 Remove this return when tiered storage supports upgrade. */
     if (opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
@@ -477,7 +491,7 @@ test_verify(THREAD_DATA *td)
     WT_DECL_RET;
     WT_SESSION *session;
 
-    /* FIXME-WT-9423 Remove this return when tiered storage supports verify. */
+    /* FIXME-WT-10520 Remove this return when tiered storage supports verify. */
     if (opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
@@ -543,8 +557,8 @@ thread_ts_run(void *arg)
              * Set both the oldest and stable timestamp so that we don't need to maintain read
              * availability at older timestamps.
              */
-            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-              "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, oldest_ts, oldest_ts));
+            testutil_snprintf(tscfg, sizeof(tscfg),
+              "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, oldest_ts, oldest_ts);
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
             last_ts = oldest_ts;
             stable_timestamp = oldest_ts;
@@ -566,7 +580,6 @@ static WT_THREAD_RET
 thread_ckpt_run(void *arg)
 {
     struct timespec now, start;
-    FILE *fp;
     THREAD_DATA *td;
     WT_SESSION *session;
     uint64_t ts;
@@ -586,10 +599,10 @@ thread_ckpt_run(void *arg)
     ts = 0;
     created_ready = ready_for_kill = false;
 
-    testutil_check(__wt_snprintf(ckpt_config, sizeof(ckpt_config), "use_timestamp=true"));
+    testutil_snprintf(ckpt_config, sizeof(ckpt_config), "use_timestamp=true");
 
-    testutil_check(__wt_snprintf(
-      ckpt_flush_config, sizeof(ckpt_flush_config), "flush_tier=(enabled,force),%s", ckpt_config));
+    testutil_snprintf(
+      ckpt_flush_config, sizeof(ckpt_flush_config), "flush_tier=(enabled,force),%s", ckpt_config);
 
     set_flush_tier_delay(&td->extra_rnd);
 
@@ -599,8 +612,6 @@ thread_ckpt_run(void *arg)
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
-        flush_tier = false;
-        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
         if (use_ts) {
             ts = get_all_committed_ts();
             /*
@@ -620,8 +631,11 @@ thread_ckpt_run(void *arg)
             }
         }
 
-        /* Set the configurations. Set use_timestamps regardless of whether timestamps are in use.
-         */
+        /* Determine if we're flushing once we know we're actually doing the checkpoint. */
+        flush_tier = false;
+        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
+
+        /* Set the configuration based on whether we're flushing. */
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
 
         /*
@@ -648,8 +662,7 @@ thread_ckpt_run(void *arg)
          * can cause a false positive for a timeout.
          */
         if (ready_for_kill && !created_ready) {
-            testutil_assert_errno((fp = fopen(ready_file, "w")) != NULL);
-            testutil_assert_errno(fclose(fp) == 0);
+            testutil_sentinel(NULL, ready_file);
             created_ready = true;
         }
 
@@ -694,7 +707,7 @@ thread_run(void *arg)
     /*
      * Set up the separate file for checking.
      */
-    testutil_check(__wt_snprintf(cbuf, sizeof(cbuf), RECORDS_FILE, td->info));
+    testutil_snprintf(cbuf, sizeof(cbuf), RECORDS_FILE, td->info);
     (void)unlink(cbuf);
     testutil_assert_errno((fp = fopen(cbuf, "w")) != NULL);
     /*
@@ -809,7 +822,7 @@ thread_run(void *arg)
             cur_local->set_key(cur_local, i + 1);
             cur_oplog->set_key(cur_oplog, i + 1);
         } else {
-            testutil_check(__wt_snprintf(kname, sizeof(kname), ROW_KEY_FORMAT, i));
+            testutil_snprintf(kname, sizeof(kname), ROW_KEY_FORMAT, i);
             cur_coll->set_key(cur_coll, kname);
             cur_local->set_key(cur_local, kname);
             cur_oplog->set_key(cur_oplog, kname);
@@ -817,12 +830,12 @@ thread_run(void *arg)
         /*
          * Put an informative string into the value so that it can be viewed well in a binary dump.
          */
-        testutil_check(__wt_snprintf(cbuf, sizeof(cbuf),
-          "COLL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i));
-        testutil_check(__wt_snprintf(lbuf, sizeof(lbuf),
-          "LOCAL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i));
-        testutil_check(__wt_snprintf(obuf, sizeof(obuf),
-          "OPLOG: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i));
+        testutil_snprintf(cbuf, sizeof(cbuf),
+          "COLL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i);
+        testutil_snprintf(lbuf, sizeof(lbuf),
+          "LOCAL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i);
+        testutil_snprintf(obuf, sizeof(obuf),
+          "OPLOG: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i);
         data.size = __wt_random(&td->data_rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
@@ -837,17 +850,15 @@ thread_run(void *arg)
              * This is only done on the regular session.
              */
             if (use_prep && i % PREPARE_FREQ == 0) {
-                testutil_check(
-                  __wt_snprintf(tscfg, sizeof(tscfg), "prepare_timestamp=%" PRIx64, stable_ts));
+                testutil_snprintf(tscfg, sizeof(tscfg), "prepare_timestamp=%" PRIx64, stable_ts);
                 testutil_check(session->prepare_transaction(session, tscfg));
                 if (i % PREPARE_YIELD == 0)
                     __wt_yield();
 
-                testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, stable_ts, stable_ts));
+                testutil_snprintf(tscfg, sizeof(tscfg),
+                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, stable_ts, stable_ts);
             } else
-                testutil_check(
-                  __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts));
+                testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts);
 
             testutil_check(session->commit_transaction(session, tscfg));
             if (use_prep) {
@@ -855,8 +866,7 @@ thread_run(void *arg)
                  * Durable timestamp should not be passed as oplog transaction is a non-prepared
                  * transaction.
                  */
-                testutil_check(
-                  __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts));
+                testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts);
                 testutil_check(oplog_session->commit_transaction(oplog_session, tscfg));
             }
             /*
@@ -923,12 +933,13 @@ run_workload(void)
     stable_set = false;
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
-    if (opts->inmem)
-        strcpy(envconf, ENV_CONFIG_DEF);
-    else if (use_lazyfs)
-        strcpy(envconf, ENV_CONFIG_TXNSYNC_FSYNC);
+    strcpy(envconf, ENV_CONFIG_DEF);
+    if (use_lazyfs)
+        strcat(envconf, ENV_CONFIG_TXNSYNC_FSYNC);
     else
-        strcpy(envconf, ENV_CONFIG_TXNSYNC);
+        strcat(envconf, ENV_CONFIG_TXNSYNC);
+    if (aggressive_sweep)
+        strcat(envconf, ENV_CONFIG_SWEEP);
 
     /* Open WiredTiger without recovery. */
     testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &event_handler, &conn, false, false);
@@ -938,11 +949,11 @@ run_workload(void)
     /*
      * Create all the tables.
      */
-    testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
-      "key_format=%s,value_format=u,log=(enabled=false)", use_columns ? "r" : "S"));
+    testutil_snprintf(tableconf, sizeof(tableconf),
+      "key_format=%s,value_format=u,log=(enabled=false)", use_columns ? "r" : "S");
     testutil_check(session->create(session, uri_collection, tableconf));
-    testutil_check(__wt_snprintf(
-      tableconf, sizeof(tableconf), "key_format=%s,value_format=u", use_columns ? "r" : "S"));
+    testutil_snprintf(
+      tableconf, sizeof(tableconf), "key_format=%s,value_format=u", use_columns ? "r" : "S");
     testutil_check(session->create(session, uri_local, tableconf));
     testutil_check(session->create(session, uri_oplog, tableconf));
     /*
@@ -1046,7 +1057,6 @@ int
 main(int argc, char *argv[])
 {
     struct sigaction sa;
-    struct stat sb;
     FILE *fp;
     REPORT c_rep[MAX_TH], l_rep[MAX_TH], o_rep[MAX_TH];
     WT_CONNECTION *conn;
@@ -1060,7 +1070,7 @@ main(int argc, char *argv[])
     uint32_t i, rand_value, timeout;
     int base, ch, status;
     char *end_number, *stop_arg;
-    char buf[PATH_MAX], fname[64], kname[64], statname[1024];
+    char buf[PATH_MAX], fname[64], kname[64];
     char cwd_start[PATH_MAX]; /* The working directory when we started */
     bool fatal, rand_th, rand_time, verify_only;
 
@@ -1069,22 +1079,22 @@ main(int argc, char *argv[])
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 
-    use_lazyfs = lazyfs_is_implicitly_enabled();
-    use_ts = true;
     /*
      * Setting this to false forces us to use internal library code. Allow an override but default
      * to using that code.
      */
-    use_txn = false;
+    aggressive_sweep = use_columns = use_lazyfs = use_txn = false;
     nth = MIN_TH;
-    rand_th = rand_time = true;
+    rand_th = rand_time = use_ts = true;
     stop_timestamp = 0;
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:Ch:mP:pT:v", opts);
+    use_lazyfs = lazyfs_is_implicitly_enabled();
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:s:T:t:vxz")) != EOF)
+    testutil_parse_begin_opt(argc, argv, "Ch:mP:pT:v", opts);
+
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:Ss:T:t:vxz")) != EOF)
         switch (ch) {
         case 'c':
             /* Variable-length columns only; fixed would require considerable changes */
@@ -1092,6 +1102,9 @@ main(int argc, char *argv[])
             break;
         case 'l':
             use_lazyfs = true;
+            break;
+        case 'S':
+            aggressive_sweep = true;
             break;
         case 's':
             stop_arg = __wt_optarg;
@@ -1123,9 +1136,8 @@ main(int argc, char *argv[])
             break;
         default:
             /* The option is either one that we're asking testutil to support, or illegal. */
-            if (testutil_parse_single_opt(opts, ch) != 0) {
+            if (testutil_parse_single_opt(opts, ch) != 0)
                 usage();
-            }
         }
     argc -= __wt_optind;
     if (argc != 0)
@@ -1135,9 +1147,7 @@ main(int argc, char *argv[])
         usage();
     }
 
-    /*
-     * Among other things, this initializes the random number generators in the option structure.
-     */
+    /* Among other things, this initializes the random number generators in the option structure. */
     testutil_parse_end_opt(opts);
 
     testutil_work_dir_from_path(home, sizeof(home), opts->home);
@@ -1157,21 +1167,21 @@ main(int argc, char *argv[])
     /* Create the database, run the test, and fail. */
     if (!verify_only) {
         /* Create the test's home directory. */
-        testutil_make_work_dir(home);
+        testutil_recreate_dir(home);
 
         /* Set up the test subdirectories. */
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, RECORDS_DIR));
-        testutil_make_work_dir(buf);
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, WT_HOME_DIR));
-        testutil_make_work_dir(buf);
+        testutil_snprintf(buf, sizeof(buf), "%s/%s", home, RECORDS_DIR);
+        testutil_mkdir(buf);
+        testutil_snprintf(buf, sizeof(buf), "%s/%s", home, WT_HOME_DIR);
+        testutil_mkdir(buf);
 
         /* Set up LazyFS. */
         if (use_lazyfs)
             testutil_lazyfs_setup(&lazyfs, home);
 
         if (opts->tiered_storage) {
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s/bucket", home, WT_HOME_DIR));
-            testutil_make_work_dir(buf);
+            testutil_snprintf(buf, sizeof(buf), "%s/%s/bucket", home, WT_HOME_DIR);
+            testutil_mkdir(buf);
         }
 
         if (rand_time) {
@@ -1202,11 +1212,11 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
                " " TESTUTIL_SEED_FORMAT "\n",
           progname, opts->compat ? " -C" : "", use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
-          opts->tiered_storage ? " -PT" : "", !use_ts ? " -z" : "", opts->home, stop_timestamp, nth,
-          timeout, opts->data_seed, opts->extra_seed);
+          opts->tiered_storage ? " -PT" : "", aggressive_sweep ? " -S" : "", !use_ts ? " -z" : "",
+          opts->home, stop_timestamp, nth, timeout, opts->data_seed, opts->extra_seed);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
@@ -1230,8 +1240,7 @@ main(int argc, char *argv[])
          * If we have a stop timestamp, the ready file is created when the child threads have all
          * reached the stop point, so there's no reason to sleep.
          */
-        testutil_check(__wt_snprintf(statname, sizeof(statname), "%s/%s", home, ready_file));
-        while (stat(statname, &sb) != 0)
+        while (!testutil_exists(home, ready_file))
             testutil_sleep_wait(1, pid);
         if (stop_timestamp == 0)
             sleep(timeout);
@@ -1300,7 +1309,7 @@ main(int argc, char *argv[])
         initialize_rep(&c_rep[i]);
         initialize_rep(&l_rep[i]);
         initialize_rep(&o_rep[i]);
-        testutil_check(__wt_snprintf(fname, sizeof(fname), RECORDS_FILE, i));
+        testutil_snprintf(fname, sizeof(fname), RECORDS_FILE, i);
         if ((fp = fopen(fname, "r")) == NULL)
             testutil_die(errno, "fopen: %s", fname);
 
@@ -1341,7 +1350,7 @@ main(int argc, char *argv[])
                 cur_local->set_key(cur_local, key + 1);
                 cur_oplog->set_key(cur_oplog, key + 1);
             } else {
-                testutil_check(__wt_snprintf(kname, sizeof(kname), ROW_KEY_FORMAT, key));
+                testutil_snprintf(kname, sizeof(kname), ROW_KEY_FORMAT, key);
                 cur_coll->set_key(cur_coll, kname);
                 cur_local->set_key(cur_local, kname);
                 cur_oplog->set_key(cur_oplog, kname);
@@ -1467,7 +1476,7 @@ main(int argc, char *argv[])
 
     /* Delete the work directory. */
     if (ret == EXIT_SUCCESS && !opts->preserve)
-        testutil_clean_work_dir(home);
+        testutil_remove(home);
 
     testutil_cleanup(opts);
     return (ret);

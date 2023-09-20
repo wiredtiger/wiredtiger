@@ -20,6 +20,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_TXN *txn;
     u_int i;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
+
     mod = ref->page->modify;
     txn = session->txn;
 
@@ -182,11 +184,14 @@ __sync_page_skip(
      * FIXME: Read internal pages from non-logged tables when the remove/truncate
      * operation is performed using no timestamp.
      */
+
     if (addr.type == WT_ADDR_LEAF_NO ||
-      (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) && addr.ta.newest_stop_durable_ts == WT_TS_NONE)) {
+      (addr.ta.newest_stop_durable_ts == WT_TS_NONE &&
+        (F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT) ||
+          !F_ISSET(S2BT(session), WT_BTREE_LOGGED)))) {
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
-        WT_STAT_CONN_DATA_INCR(session, cc_pages_walk_skipped);
+        WT_STAT_CONN_DATA_INCR(session, checkpoint_cleanup_pages_walk_skipped);
         *skipp = true;
     }
     return (0);
@@ -209,7 +214,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
-    bool dirty, internal_cleanup, is_hs, tried_eviction;
+    bool dirty, internal_cleanup, is_hs, is_internal, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -347,12 +352,18 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (walk == NULL)
                 break;
 
-            if (F_ISSET(walk, WT_REF_FLAG_INTERNAL) && internal_cleanup) {
+            is_internal = F_ISSET(walk, WT_REF_FLAG_INTERNAL);
+            if (is_internal && internal_cleanup) {
                 WT_WITH_PAGE_INDEX(session, ret = __wt_sync_obsolete_cleanup(session, walk));
                 WT_ERR(ret);
             }
 
             page = walk->page;
+
+            if (is_internal)
+                WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
+            else
+                WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
@@ -382,7 +393,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 continue;
             }
 
-            if (F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
+            if (is_internal) {
                 internal_bytes += page->memory_footprint;
                 ++internal_pages;
                 /* Slow down checkpoints. */
@@ -409,7 +420,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * Once the transaction has given up it's snapshot it is no longer safe to reconcile
              * pages. That happens prior to the final metadata checkpoint.
              */
-            if (F_ISSET(walk, WT_REF_FLAG_LEAF) &&
+            if (!is_internal &&
               (page->read_gen == WT_READGEN_WONT_NEED ||
                 FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) &&
               !tried_eviction && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
@@ -423,6 +434,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 continue;
             }
             tried_eviction = false;
+
+            WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
+            if (FLD_ISSET(rec_flags, WT_REC_HS))
+                WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
@@ -438,6 +453,22 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_checkpoint_progress(session, false);
             }
         }
+
+        /*
+         * During normal checkpoints, mark the tree dirty if the btree has modifications that are
+         * not visible to the checkpoint. There is a drawback in this approach as we compare the
+         * btree's maximum transaction id with the checkpoint snap_min and it is possible that this
+         * transaction may be visible to the checkpoint, but still, we mark the tree as dirty if
+         * there is a long-running transaction in the database.
+         *
+         * Do not mark the tree dirty if there is no change to stable timestamp compared to the last
+         * checkpoint.
+         */
+        if (!btree->modified && !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
+          (btree->rec_max_txn >= txn->snap_min ||
+            (conn->txn_global.checkpoint_timestamp != conn->txn_global.last_ckpt_timestamp &&
+              btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp)))
+            __wt_tree_modify_set(session);
         break;
     case WT_SYNC_CLOSE:
     case WT_SYNC_DISCARD:

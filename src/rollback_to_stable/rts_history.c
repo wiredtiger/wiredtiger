@@ -20,11 +20,14 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_TIME_WINDOW *hs_tw;
+    uint32_t btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     char tw_string[WT_TIME_STRING_SIZE];
     bool dryrun;
 
     dryrun = S2C(session)->rts->dryrun;
+
+    btree_id = S2BT(session)->id;
 
     /* Open a history store table cursor. */
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
@@ -43,7 +46,7 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
      * records until the first update with the start timestamp larger than or equal to the specified
      * timestamp.
      */
-    hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
+    hs_cursor->set_key(hs_cursor, 4, btree_id, key, WT_TS_MAX, UINT64_MAX);
     ret = __wt_curhs_search_near_before(session, hs_cursor);
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         /* Retrieve the time window from the history cursor. */
@@ -58,10 +61,10 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
 
         if (!dryrun) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-              WT_RTS_VERB_TAG_HS_UPDATE_REMOVE
-              "deleting history store update with stop_timestamp=%s greater than "
-              "stable_timestamp=%s, time_window=%s",
-              __wt_timestamp_to_string(hs_tw->stop_ts, ts_string[0]),
+              WT_RTS_VERB_TAG_HS_UPDATE_REMOVE "deleting history store update for btree_id=%" PRIu32
+                                               "with update stop_timestamp=%s greater than "
+                                               "stable_timestamp=%s, time_window=%s",
+              btree_id, __wt_timestamp_to_string(hs_tw->stop_ts, ts_string[0]),
               __wt_timestamp_to_string(ts, ts_string[1]),
               __wt_time_window_to_string(hs_tw, tw_string));
             WT_ERR(hs_cursor->remove(hs_cursor));
@@ -215,16 +218,18 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
     WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
 
     /*
-     * The rollback operation should be performed on the history store file when the checkpoint
-     * durable start/stop timestamp is greater than the rollback timestamp. But skip if there is no
-     * stable timestamp.
+     * The rollback operation should be skipped if there is no stable timestamp. Otherwise, it
+     * should be performed if one of the following criteria is satisfied:
+     * - The history store has dirty content.
+     * - The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
      *
      * Note that the corresponding code for RTS btree apply also checks whether there _are_
      * timestamped updates by checking max_durable_ts; that check is redundant here for several
      * reasons, the most immediate being that max_durable_ts cannot be none (zero) because it's
      * greater than rollback_timestamp, which is itself greater than zero.
      */
-    if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
+    if ((S2BT(session)->modified || max_durable_ts > rollback_timestamp) &&
+      rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_ROLLBACK "tree rolled back with durable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));

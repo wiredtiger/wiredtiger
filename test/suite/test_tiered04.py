@@ -120,6 +120,10 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check(cn, 0, 1)
         c.close()
 
+        # Test data source statistics for a tiered table. First before the checkpoint.
+        self.assertGreater(self.get_stat(stat.dsrc.block_size, "file:WiredTiger.wt"), 0)
+        self.assertGreater(self.get_stat(stat.dsrc.block_size, self.uri), 0)
+
         flush = 0
         # Check the local retention. After a flush_tier call the object file should exist in
         # the local database. Then after sleeping long enough it should be removed.
@@ -128,6 +132,10 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # We should not have flushed either tiered table.
         skip = self.get_stat(stat.conn.flush_tier_skipped, None)
         self.assertEqual(skip, 2)
+
+        # Test data source statistics for a tiered table after the flush tier and checkpoint.
+        self.assertGreater(self.get_stat(stat.dsrc.block_size, "file:WiredTiger.wt"), 0)
+        self.assertGreater(self.get_stat(stat.dsrc.block_size, self.uri), 0)
 
         self.session.checkpoint('flush_tier=(enabled)')
         # Now we should have switched both tables. The skip value should stay the same.
@@ -153,7 +161,7 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         time.sleep(1)
         self.pr("Check removal of ")
         self.pr(self.obj1file)
-        # FIXME-WT-10838: We can't remove files from open tables because we don't know whether
+        # FIXME-WT-10953: We can't remove files from open tables because we don't know whether
         # there are active read requests to those files.
         # self.assertFalse(os.path.exists(self.obj1file))
         # remove2 = self.get_stat(stat.conn.local_objects_removed, None)

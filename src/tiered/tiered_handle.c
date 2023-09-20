@@ -481,6 +481,7 @@ err:
 int
 __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *buf)
 {
+    WT_TIERED_TIERS *t;
     uint32_t i;
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
 
@@ -489,14 +490,13 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
       ",flush_time=%" PRIu64 ",flush_timestamp=\"%s\",last=%" PRIu32 ",oldest=%" PRIu32 ",tiers=(",
       S2C(session)->flush_most_recent, hex_timestamp, tiered->current_id, tiered->oldest_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
-        if (tiered->tiers[i].name == NULL) {
-            __wt_verbose(session, WT_VERB_TIERED,
-              "TIER_SET_META: tiered %p names[%" PRIu32 "] NULL", (void *)tiered, i);
+        t = &tiered->tiers[i];
+        __wt_verbose(session, WT_VERB_TIERED,
+          "TIER_SET_META: tiered %p tiers[%" PRIu32 "]: dhandle %p flags %" PRIx32 " name %s",
+          (void *)tiered, i, (void *)t->tier, t->flags, t->name == NULL ? "NULL" : t->name);
+        if (t->name == NULL)
             continue;
-        }
-        __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: tiered %p names[%" PRIu32 "]: %s",
-          (void *)tiered, i, tiered->tiers[i].name);
-        WT_RET(__wt_buf_catfmt(session, buf, "%s\"%s\"", i == 0 ? "" : ",", tiered->tiers[i].name));
+        WT_RET(__wt_buf_catfmt(session, buf, "%s\"%s\"", i == 0 ? "" : ",", t->name));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
     return (0);
@@ -689,6 +689,12 @@ __wt_tiered_name(
         WT_ASSERT(session, !LF_ISSET(WT_TIERED_NAME_SHARED));
         WT_PREFIX_SKIP_REQUIRED(session, name, "tier:");
     }
+
+    if (LF_ISSET(WT_TIERED_NAME_SKIP_PREFIX)) {
+        *retp = name;
+        return (0);
+    }
+
     return (__wt_tiered_name_str(session, name, id, flags, retp));
 }
 
@@ -839,6 +845,8 @@ __tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
     __wt_free(session, tiered->obj_config);
     tiered->current_id = tiered->next_id = tiered->oldest_id = 0;
     tiered->flags = 0;
+    __wt_verbose(
+      session, WT_VERB_TIERED, "TIERED_CLEANUP: tiered %p set bstorage NULL", (void *)tiered);
     tiered->bstorage = NULL;
 }
 
@@ -851,7 +859,11 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: tiered %p called final %d", (void *)tiered,
       (int) final);
-    __tiered_cleanup(session, tiered, final);
+    /*
+     * We are only closing the handle so only clean up the tiers. We don't yet want to free the
+     * entire structure. That will happen when we discard it.
+     */
+    __tiered_cleanup_tiers(session, tiered, final);
 
     return (__wt_btree_close(session));
 }
@@ -885,8 +897,8 @@ __wt_tiered_tree_open(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Set dhandle->handle with tiered tree structure, initialized.
      */
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_TREE_OPEN: Called %s", session->dhandle->name);
     WT_ASSERT(session, session->dhandle != NULL);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_TREE_OPEN: Called %s", session->dhandle->name);
     WT_RET(__wt_metadata_cursor(session, &cursor));
     WT_ERR(__wt_tiered_name(
       session, session->dhandle, 0, WT_TIERED_NAME_OBJECT | WT_TIERED_NAME_PREFIX, &object));

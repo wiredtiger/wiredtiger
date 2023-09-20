@@ -73,7 +73,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 
-static char home[1024]; /* Program working dir */
+static pid_t child_pid = 0;
 
 static const char *const uri_main = "table:main";
 static const char *const uri_rev = "table:rev";
@@ -94,8 +94,7 @@ static const char *const uri_rev = "table:rev";
 #define DEFAULT_CYCLES 5
 #define DEFAULT_INTERVAL 3
 
-#define MAX_CKPT_INVL 6  /* Maximum interval between checkpoints */
-#define MAX_FLUSH_INVL 4 /* Maximum interval between flush_tier calls */
+#define MAX_CKPT_INVL 6 /* Maximum interval between checkpoints */
 
 #define KEY_SEP "_" /* Must be one char string */
 
@@ -187,7 +186,6 @@ static uint64_t schema_frequency;
       SCHEMA_INTEGRATED | SCHEMA_RENAME)
 #define SCHEMA_MASK 0xffffu
 #define TEST_CKPT 0x10000u
-#define TEST_TIERED 0x20000u
 
 extern int __wt_optind;
 extern char *__wt_optarg;
@@ -199,9 +197,12 @@ typedef struct {
     char *data;
     uint32_t datasize;
     uint32_t id;
+    WT_RAND_STATE extra_rnd;
 
     uint32_t flags; /* Uses SCHEMA_* values above */
 } WT_THREAD_DATA;
+
+static TEST_OPTS *opts, _opts;
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
@@ -276,14 +277,14 @@ large_buf(char *large, size_t lsize, uint32_t id, bool fill)
     /*
      * Set up a large value putting our id in it every 1024 bytes or so.
      */
-    testutil_check(__wt_snprintf(lgbuf, sizeof(lgbuf),
-      "th-%" PRIu32 "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s", id, SPACES, SPACES, SPACES, SPACES, SPACES,
-      SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES));
+    testutil_snprintf(lgbuf, sizeof(lgbuf), "th-%" PRIu32 "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s", id,
+      SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES, SPACES,
+      SPACES, SPACES, SPACES, SPACES, SPACES);
 
     len = strlen(lgbuf);
     for (i = 0; i < lsize - len; i += len)
         if (fill)
-            testutil_check(__wt_snprintf(&large[i], lsize - i, "%s", lgbuf));
+            testutil_snprintf(&large[i], lsize - i, "%s", lgbuf);
         else
             testutil_check(strncmp(&large[i], lgbuf, len));
 }
@@ -316,14 +317,14 @@ gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid, const char *l
     size_t keyid_size, large_size;
     char keyid[64];
 
-    testutil_check(__wt_snprintf(keyid, sizeof(keyid), "%10.10" PRIu64, id));
+    testutil_snprintf(keyid, sizeof(keyid), "%10.10" PRIu64, id);
     keyid_size = strlen(keyid);
     if (!forward)
         reverse(keyid);
     testutil_assert(keyid_size + 4 <= buf_size);
     large_size = (buf_size - 4) - keyid_size;
-    testutil_check(__wt_snprintf(
-      buf, buf_size, "%s" KEY_SEP "%1.1x" KEY_SEP "%.*s", keyid, threadid, (int)large_size, large));
+    testutil_snprintf(
+      buf, buf_size, "%s" KEY_SEP "%1.1x" KEY_SEP "%.*s", keyid, threadid, (int)large_size, large);
 }
 
 /*
@@ -333,7 +334,7 @@ gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid, const char *l
 static void
 gen_table_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 {
-    testutil_check(__wt_snprintf(buf, buf_size, "table:A%" PRIu64 "-%" PRIu32, id, threadid));
+    testutil_snprintf(buf, buf_size, "table:A%" PRIu64 "-%" PRIu32, id, threadid);
 }
 
 /*
@@ -347,7 +348,7 @@ gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid, uint
         /* table is not renamed, so use original table name */
         gen_table_name(buf, buf_size, id, threadid);
     else
-        testutil_check(__wt_snprintf(buf, buf_size, "table:B%" PRIu64 "-%" PRIu32, id, threadid));
+        testutil_snprintf(buf, buf_size, "table:B%" PRIu64 "-%" PRIu32, id, threadid);
 }
 
 /*
@@ -451,64 +452,57 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
 }
 
 /*
+ * set_flush_tier_delay --
+ *     Set up a random delay for the next flush_tier.
+ */
+static void
+set_flush_tier_delay(WT_RAND_STATE *rnd)
+{
+    /*
+     * We are checkpointing with a random interval up to MAX_CKPT_INVL seconds, and we'll do a flush
+     * tier randomly every 0-10 seconds.
+     */
+    opts->tiered_flush_interval_us = __wt_random(rnd) % (10 * WT_MILLION + 1);
+}
+
+/*
  * thread_ckpt_run --
  *     Runner function for the checkpoint thread.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
 {
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
     WT_THREAD_DATA *td;
     uint32_t sleep_time;
     int i;
-
-    __wt_random_init(&rnd);
+    char ckpt_flush_config[128];
+    bool flush_tier;
 
     td = (WT_THREAD_DATA *)arg;
+    testutil_snprintf(ckpt_flush_config, sizeof(ckpt_flush_config), "flush_tier=(enabled,force)");
+    set_flush_tier_delay(&td->extra_rnd);
+
     /*
      * Keep a separate file with the records we wrote for checking.
      */
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     for (i = 1;; ++i) {
-        sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
-        sleep(sleep_time);
-        testutil_check(session->checkpoint(session, NULL));
+        sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
+        flush_tier = false;
+        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
+        testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : NULL));
         printf("Checkpoint %d complete.\n", i);
+        if (flush_tier) {
+            testutil_tiered_flush_complete(opts, session, NULL);
+            printf("Finished a flush_tier\n");
+            set_flush_tier_delay(&td->extra_rnd);
+        }
         fflush(stdout);
     }
     /* NOTREACHED */
 }
 
-/*
- * thread_flush_run --
- *     Runner function for the flush_tier thread.
- */
-static WT_THREAD_RET
-thread_flush_run(void *arg)
-{
-    WT_RAND_STATE rnd;
-    WT_SESSION *session;
-    WT_THREAD_DATA *td;
-    uint32_t i, sleep_time;
-
-    __wt_random_init(&rnd);
-
-    td = (WT_THREAD_DATA *)arg;
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 1;; ++i) {
-        sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
-        sleep(sleep_time);
-        /*
-         * Currently not testing any of the flush tier configuration strings other than defaults. We
-         * expect the defaults are what MongoDB wants for now.
-         */
-        testutil_check(session->flush_tier(session, NULL));
-        printf("Flush tier %" PRIu32 " completed.\n", i);
-        fflush(stdout);
-    }
-    /* NOTREACHED */
-}
 static WT_THREAD_RET thread_run(void *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
@@ -636,15 +630,16 @@ create_db(const char *method, uint32_t flags)
     WT_SESSION *session;
     char envconf[512], tierconf[128];
 
-    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method));
-    if (LF_ISSET(TEST_TIERED)) {
-        testutil_check(__wt_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, ""));
+    WT_UNUSED(flags);
+    testutil_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method);
+    if (opts->tiered_storage) {
+        testutil_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, "");
         strcat(envconf, tierconf);
         strcat(envconf, ENV_CONFIG_TIER);
     }
 
     printf("create_db: wiredtiger_open configuration: %s\n", envconf);
-    testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
+    testutil_check(wiredtiger_open(opts->home, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, uri_main, "key_format=S,value_format=S"));
     testutil_check(session->create(session, uri_rev, "key_format=S,value_format=S"));
@@ -670,17 +665,17 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
     WT_CONNECTION *conn;
     WT_THREAD_DATA *td;
     wt_thread_t *thr;
-    uint32_t ckpt_id, flush_id, i;
+    uint32_t ckpt_id, i;
     char envconf[512], tierconf[128];
 
-    /* Allocate number of threads plus two more for checkpoint and flush. */
-    thr = dcalloc(nth + 2, sizeof(*thr));
-    td = dcalloc(nth + 2, sizeof(WT_THREAD_DATA));
-    if (chdir(home) != 0)
-        testutil_die(errno, "Child chdir: %s", home);
-    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method));
-    if (LF_ISSET(TEST_TIERED)) {
-        testutil_check(__wt_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, "../"));
+    /* Allocate number of threads plus another for checkpoint. */
+    thr = dcalloc(nth + 1, sizeof(*thr));
+    td = dcalloc(nth + 1, sizeof(WT_THREAD_DATA));
+    if (chdir(opts->home) != 0)
+        testutil_die(errno, "Child chdir: %s", opts->home);
+    testutil_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method);
+    if (opts->tiered_storage) {
+        testutil_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, "../");
         strcat(envconf, tierconf);
         strcat(envconf, ENV_CONFIG_TIER);
     }
@@ -688,6 +683,10 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
     printf("fill_db: wiredtiger_open configuration: %s\n", envconf);
     testutil_check(wiredtiger_open(".", NULL, envconf, &conn));
 
+    if (opts->tiered_storage) {
+        set_flush_tier_delay(&opts->extra_rnd);
+        testutil_tiered_begin(opts);
+    }
     datasize += 1; /* Add an extra byte for string termination */
     printf(
       "Create %" PRIu32 " writer threads. Schema frequency %" PRIu64 "\n", nth, schema_frequency);
@@ -696,6 +695,7 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
         td[i].data = dcalloc(datasize, 1);
         td[i].datasize = datasize;
         td[i].id = i;
+        testutil_random_from_random(&td[i].extra_rnd, &opts->extra_rnd);
         td[i].flags = flags;
         testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i]));
     }
@@ -706,12 +706,6 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
         td[ckpt_id].conn = conn;
         td[ckpt_id].id = ckpt_id;
         testutil_check(__wt_thread_create(NULL, &thr[ckpt_id], thread_ckpt_run, &td[ckpt_id]));
-    }
-    if (LF_ISSET(TEST_TIERED)) {
-        flush_id = nth + 1;
-        td[flush_id].conn = conn;
-        td[flush_id].id = flush_id;
-        testutil_check(__wt_thread_create(NULL, &thr[flush_id], thread_flush_run, &td[flush_id]));
     }
     /*
      * The threads never exit, so the child will just wait here until it is killed.
@@ -888,6 +882,21 @@ kill_child(pid_t pid)
 }
 
 /*
+ * die --
+ *     Called when testutil_assert or testutil_check fails to clean up a child process if it exists.
+ */
+static void
+die(void)
+{
+    pid_t pid;
+
+    pid = child_pid;
+    child_pid = 0;
+    if (pid != 0)
+        kill_child(pid);
+}
+
+/*
  * check_db --
  *     Make a copy of the database and verify its contents.
  */
@@ -913,9 +922,9 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
         large_arr[th] = dcalloc(LARGE_WRITE_SIZE, 1);
         large_buf(large_arr[th], LARGE_WRITE_SIZE, th, true);
     }
-    testutil_check(__wt_snprintf(checkdir, sizeof(checkdir), "../%s.CHECK", home));
-    testutil_check(__wt_snprintf(dbgdir, sizeof(savedir), "../%s.DEBUG", home));
-    testutil_check(__wt_snprintf(savedir, sizeof(savedir), "../%s.SAVE", home));
+    testutil_snprintf(checkdir, sizeof(checkdir), "../%s.CHECK", opts->home);
+    testutil_snprintf(dbgdir, sizeof(savedir), "../%s.DEBUG", opts->home);
+    testutil_snprintf(savedir, sizeof(savedir), "../%s.SAVE", opts->home);
 
     /*
      * We make a copy of the directory (possibly using direct I/O) for recovery and checking, and an
@@ -928,14 +937,14 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
      * Copy the original home directory explicitly without direct I/O. Copy this first because
      * copying with directio may abort and we want to see what the original copy saw.
      */
-    copy_directory(home, dbgdir, false);
-    copy_directory(home, checkdir, directio);
+    copy_directory(opts->home, dbgdir, false);
+    copy_directory(opts->home, checkdir, directio);
     copy_directory(checkdir, savedir, false);
 
     printf("Open database, run recovery and verify content\n");
-    testutil_check(__wt_snprintf(envconf, sizeof(envconf), TESTUTIL_ENV_CONFIG_REC));
-    if (LF_ISSET(TEST_TIERED)) {
-        testutil_check(__wt_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, ""));
+    testutil_snprintf(envconf, sizeof(envconf), TESTUTIL_ENV_CONFIG_REC);
+    if (opts->tiered_storage) {
+        testutil_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, "");
         strcat(envconf, tierconf);
         strcat(envconf, ENV_CONFIG_TIER);
     }
@@ -1111,6 +1120,11 @@ handler(int sig)
     int status, termsig;
 
     WT_UNUSED(sig);
+
+    /* Check if child has been killed by die(), if so, no need to wait. */
+    if (child_pid == 0)
+        return;
+
     testutil_assert_errno((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) != -1);
     if (pid == 0)
         return; /* Nothing to wait for. */
@@ -1167,6 +1181,10 @@ main(int argc, char *argv[])
     bool populate_only, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
+    custom_die = die; /* Set our own abort handler */
+
+    opts = &_opts;
+    memset(opts, 0, sizeof(*opts));
 
     datasize = DEFAULT_DATA_SIZE;
     nth = MIN_TH;
@@ -1189,15 +1207,12 @@ main(int argc, char *argv[])
         return (EXIT_SUCCESS);
     }
     for (i = 0, p = args; i < (uint32_t)argc; i++) {
-        testutil_check(
-          __wt_snprintf_len_set(p, sizeof(args) - (size_t)(p - args), &size, " %s", argv[i]));
+        testutil_snprintf_len_set(p, sizeof(args) - (size_t)(p - args), &size, " %s", argv[i]);
         p += size;
     }
-    while ((ch = __wt_getopt(progname, argc, argv, "BCd:f:h:i:m:n:PpS:T:t:v")) != EOF)
+    testutil_parse_begin_opt(argc, argv, "h:P:pT:", opts);
+    while ((ch = __wt_getopt(progname, argc, argv, "Cd:f:h:i:m:n:PpS:T:t:v")) != EOF)
         switch (ch) {
-        case 'B':
-            LF_SET(TEST_TIERED);
-            break;
         case 'C':
             LF_SET(TEST_CKPT);
             break;
@@ -1275,16 +1290,21 @@ main(int argc, char *argv[])
             verify_only = true;
             break;
         default:
-            usage();
+            /* The option is either one that we're asking testutil to support, or illegal. */
+            if (testutil_parse_single_opt(opts, ch) != 0)
+                usage();
         }
     argc -= __wt_optind;
     if (argc != 0)
         usage();
 
-    if (LF_ISSET(TEST_TIERED) && !LF_ISSET(TEST_CKPT))
+    /* Among other things, this initializes the random number generators in the option structure. */
+    testutil_parse_end_opt(opts);
+
+    if (opts->tiered_storage && !LF_ISSET(TEST_CKPT))
         usage();
 
-    testutil_work_dir_from_path(home, sizeof(home), working_dir);
+    testutil_work_dir_from_path(opts->home, PATH_MAX, working_dir);
     /*
      * If the user wants to verify they need to tell us how many threads there were so we know what
      * records we can expect.
@@ -1306,13 +1326,10 @@ main(int argc, char *argv[])
     }
     printf("CONFIG:%s\n", args);
     if (!verify_only) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s", home));
-        if ((status = system(buf)) < 0)
-            testutil_die(status, "system: %s", buf);
-        testutil_make_work_dir(home);
-        if (LF_ISSET(TEST_TIERED)) {
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
-            testutil_make_work_dir(buf);
+        testutil_recreate_dir(opts->home);
+        if (opts->tiered_storage) {
+            testutil_snprintf(buf, sizeof(buf), "%s/bucket", opts->home);
+            testutil_mkdir(buf);
         }
 
         __wt_random_init_seed(NULL, &rnd);
@@ -1345,6 +1362,7 @@ main(int argc, char *argv[])
         }
 
         /* parent */
+        child_pid = pid;
         /*
          * Sleep for the configured amount of time before killing the child.
          */
@@ -1374,6 +1392,7 @@ main(int argc, char *argv[])
         testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
         testutil_assert_errno(kill(pid, SIGKILL) == 0);
         testutil_assert_errno(waitpid(pid, &status, 0) != -1);
+        child_pid = 0;
     }
     if (verify_only && !check_db(nth, datasize, 0, false, flags)) {
         printf("FAIL\n");
@@ -1382,8 +1401,8 @@ main(int argc, char *argv[])
     printf("SUCCESS\n");
 
     if (!preserve) {
-        testutil_clean_test_artifacts(home);
-        testutil_clean_work_dir(home);
+        testutil_clean_test_artifacts(opts->home);
+        testutil_remove(opts->home);
     }
 
     return (EXIT_SUCCESS);

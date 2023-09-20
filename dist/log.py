@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import os, re, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 import log_data
 
@@ -136,13 +135,19 @@ tfile.write('/* DO NOT EDIT: automatically built by dist/log.py. */\n')
 tfile.write('''
 #include "wt_internal.h"
 
+/*
+ * __wt_logrec_alloc --
+ *\tAllocate a new WT_ITEM structure.
+ */
 int
 __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
 \tWT_ITEM *logrec;
+\tWT_LOG *log;
 
+\tlog = S2C(session)->log;
 \tWT_RET(
-\t    __wt_scr_alloc(session, WT_ALIGN(size + 1, WT_LOG_ALIGN), &logrec));
+\t    __wt_scr_alloc(session, WT_ALIGN(size + 1, log->allocsize), &logrec));
 \tWT_CLEAR(*(WT_LOG_RECORD *)logrec->data);
 \tlogrec->size = offsetof(WT_LOG_RECORD, record);
 
@@ -150,12 +155,20 @@ __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 \treturn (0);
 }
 
+/*
+ * __wt_logrec_free --
+ *\tFree the given WT_ITEM structure.
+ */
 void
 __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 {
 \t__wt_scr_free(session, logrecp);
 }
 
+/*
+ * __wt_logrec_read --
+ *\tRead the record type.
+ */
 int
 __wt_logrec_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
@@ -168,6 +181,10 @@ __wt_logrec_read(WT_SESSION_IMPL *session,
 \treturn (0);
 }
 
+/*
+ * __wt_logop_read --
+ *\tRead the operation type.
+ */
 int
 __wt_logop_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end,
@@ -177,6 +194,10 @@ __wt_logop_read(WT_SESSION_IMPL *session,
 \t    session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
 }
 
+/*
+ * __logrec_make_json_str --
+ *\tUnpack a string into JSON escaped format.
+ */
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -193,6 +214,10 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
 \treturn (0);
 }
 
+/*
+ * __logrec_make_hex_str --
+ *\tConvert data to a hexadecimal representation.
+ */
 static int
 __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -212,6 +237,10 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
 # Emit code to read, write and print log operations (within a log record)
 for optype in log_data.optypes:
     tfile.write('''
+/*
+ * __wt_logop_%(name)s_pack --
+ *\tPack the log operation %(name)s.
+ */
 int
 __wt_logop_%(name)s_pack(
     WT_SESSION_IMPL *session, WT_ITEM *logrec%(comma)s
@@ -247,6 +276,10 @@ __wt_logop_%(name)s_pack(
 })
 
     tfile.write('''
+/*
+ * __wt_logop_%(name)s_unpack --
+ *\tUnpack the log operation %(name)s.
+ */
 int
 __wt_logop_%(name)s_unpack(
     WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end%(comma)s
@@ -275,6 +308,10 @@ __wt_logop_%(name)s_unpack(
 })
 
     tfile.write('''
+/*
+ * __wt_logop_%(name)s_print --
+ *\tPrint the log operation %(name)s.
+ */
 int
 __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -306,6 +343,10 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
 
 # Emit the printlog entry point
 tfile.write('''
+/*
+ * __wt_txn_op_printlog --
+ *\tPrint operation from a log cookie.
+ */
 int
 __wt_txn_op_printlog(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)

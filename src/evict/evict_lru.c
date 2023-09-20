@@ -172,6 +172,8 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
     cache = S2C(session)->cache;
     found = false;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_queue_lock);
+
     for (q = 0; q < last_queue_idx && !found; q++) {
         __wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
         elem = cache->evict_queues[q].evict_max;
@@ -406,6 +408,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     conn = S2C(session);
     cache = conn->cache;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
+
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
 
@@ -470,33 +474,35 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
     __wt_epoch(session, &now);
 
-#define WT_CACHE_STUCK_TIMEOUT_MS (300 * WT_THOUSAND)
-    time_diff_ms = WT_TIMEDIFF_MS(now, cache->stuck_time);
-
+    /* The checks below should only be executed when a cache timeout has been set. */
+    if (cache->cache_stuck_timeout_ms > 0) {
+        time_diff_ms = WT_TIMEDIFF_MS(now, cache->stuck_time);
 #ifdef HAVE_DIAGNOSTIC
-    /* Enable extra logs 20ms before timing out. */
-    if (time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS - 20) {
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-    }
-#endif
-
-    if (time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS) {
-#ifdef HAVE_DIAGNOSTIC
-        __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
-        WT_RET(__wt_verbose_dump_txn(session));
-        WT_RET(__wt_verbose_dump_cache(session));
-        return (__wt_set_return(session, ETIMEDOUT));
-#else
-        if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
-            WT_RET(__wt_verbose_dump_txn(session));
-            WT_RET(__wt_verbose_dump_cache(session));
-
-            /* Reset the timer. */
-            __wt_epoch(session, &cache->stuck_time);
+        /* Enable extra logs 20ms before timing out. */
+        if (cache->cache_stuck_timeout_ms < 20 ||
+          (time_diff_ms > cache->cache_stuck_timeout_ms - 20)) {
+            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
         }
 #endif
+
+        if (time_diff_ms >= cache->cache_stuck_timeout_ms) {
+#ifdef HAVE_DIAGNOSTIC
+            __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
+            WT_RET(__wt_verbose_dump_txn(session));
+            WT_RET(__wt_verbose_dump_cache(session));
+            return (__wt_set_return(session, ETIMEDOUT));
+#else
+            if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
+                WT_RET(__wt_verbose_dump_txn(session));
+                WT_RET(__wt_verbose_dump_cache(session));
+
+                /* Reset the timer. */
+                __wt_epoch(session, &cache->stuck_time);
+            }
+#endif
+        }
     }
     return (0);
 }
@@ -1754,6 +1760,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     restarts = 0;
     give_up = urgent_queued = false;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_walk_lock);
+
     /*
      * Figure out how many slots to fill from this tree. Note that some care is taken in the
      * calculation to avoid overflow.
@@ -2092,7 +2100,7 @@ fast:
          * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
          */
         if (__wt_btree_bytes_evictable(session) == 0)
-            F_SET(session->dhandle, WT_DHANDLE_EVICTED);
+            FLD_SET(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
     } else if (btree->evict_walk_period > 0)
         btree->evict_walk_period /= 2;
 
@@ -2413,6 +2421,11 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     if (app_thread)
         time_start = __wt_clock(session);
 
+    /*
+     * Note that this for loop is designed to reset expected eviction error codes before exiting,
+     * namely, the busy return and empty eviction queue. We do not need the calling functions to
+     * have to deal with internal eviction return codes.
+     */
     for (initial_progress = cache->eviction_progress;; ret = 0) {
         /*
          * If eviction is stuck, check if this thread is likely causing problems and should be
@@ -2438,6 +2451,13 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          */
         if (__wt_op_timer_fired(session))
             break;
+
+        /* Check if we have exceeded the global or the session timeout for waiting on the cache. */
+        if (time_start != 0 && cache_max_wait_us != 0) {
+            time_stop = __wt_clock(session);
+            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
+                break;
+        }
 
         /*
          * Check if we have become busy.
@@ -2473,12 +2493,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         default:
             goto err;
         }
-        /* Stop if we've exceeded the time out. */
-        if (time_start != 0 && cache_max_wait_us != 0) {
-            time_stop = __wt_clock(session);
-            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
-                goto err;
-        }
     }
 
 err:
@@ -2488,8 +2502,12 @@ err:
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
-        if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            WT_TRET(__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW));
+        /*
+         * Check if a rollback is required only if there has not been an error. Returning an error
+         * takes precedence over asking for a rollback. We can not do both.
+         */
+        if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
+            ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
             __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);

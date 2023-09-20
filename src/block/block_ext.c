@@ -503,6 +503,9 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
     WT_EXT *ext, **estack[WT_SKIP_MAXDEPTH];
     WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
 
+    /* The live lock must be locked. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
+
     /* If a sync is running, no other sessions can allocate blocks. */
     WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
@@ -611,10 +614,10 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
 
     WT_RET(__wt_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
-    ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
-    __wt_chunkcache_remove(session, block, objectid, offset, size);
-    __wt_spin_unlock(session, &block->live_lock);
+    WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)size));
+    WT_TRET(__wt_chunkcache_remove(session, block, objectid, offset, size));
 
+    __wt_spin_unlock(session, &block->live_lock);
     return (ret);
 }
 
@@ -627,6 +630,10 @@ __wt_block_off_free(
   WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, wt_off_t size)
 {
     WT_DECL_RET;
+
+    /* The live lock must be locked, except for when we are running salvage. */
+    if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE))
+        WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can free blocks. */
     WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
@@ -695,6 +702,8 @@ __wt_block_extlist_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_C
 {
     WT_EXT *alloc, *discard;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
+
     alloc = ci->alloc.off[0];
     discard = ci->discard.off[0];
 
@@ -729,6 +738,8 @@ __block_ext_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *ael, 
     WT_EXT *a, *b, **ext;
     WT_EXTLIST *avail, *el;
     wt_off_t off, size;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     avail = &block->live.ckpt_avail;
 
@@ -903,6 +914,11 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
     WT_EXT *ext;
     WT_EXTLIST tmp;
     u_int i;
+
+    /*
+     * We should hold the live lock here when running on the live checkpoint. But there is no easy
+     * way to determine if the checkpoint is live so we cannot assert the locking here.
+     */
 
     __wt_verbose_debug2(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
 
@@ -1253,7 +1269,8 @@ __wt_block_extlist_write(
 
     /* Write the extent list to disk. */
     WT_ERR(__wt_block_write_off(
-      session, block, tmp, &el->objectid, &el->offset, &el->size, &el->checksum, true, true, true));
+      session, block, tmp, &el->offset, &el->size, &el->checksum, true, true, true));
+    el->objectid = block->objectid;
 
     /*
      * Remove the allocated blocks from the system's allocation list, extent blocks never appear on

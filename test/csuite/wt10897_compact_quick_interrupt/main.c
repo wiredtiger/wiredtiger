@@ -50,24 +50,6 @@ static bool skipped_compaction = false;
 static bool do_interrupt_compaction = false;
 
 /*
- * error_handler --
- *     Error handler.
- */
-static int
-error_handler(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
-{
-    (void)(handler);
-    (void)(session);
-    (void)(error);
-
-    if (strstr(message, "compact interrupted") != NULL)
-        interrupted_compaction = true;
-
-    fprintf(stderr, "%s\n", message);
-    return (0);
-}
-
-/*
  * message_handler --
  *     Message handler.
  */
@@ -79,6 +61,8 @@ message_handler(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *mess
 
     if (strstr(message, "skipping compaction") != NULL)
         skipped_compaction = true;
+    else if (strstr(message, "compact interrupted") != NULL)
+        interrupted_compaction = true;
 
     fprintf(stderr, "%s\n", message);
     return (0);
@@ -104,10 +88,10 @@ handle_general(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *sessi
 }
 
 static WT_EVENT_HANDLER event_handler = {
-  error_handler, message_handler, /* Message handlers */
-  NULL,                           /* Progress handler */
-  NULL,                           /* Close handler */
-  handle_general                  /* General handler */
+  NULL, message_handler, /* Message handlers */
+  NULL,                  /* Progress handler */
+  NULL,                  /* Close handler */
+  handle_general         /* General handler */
 };
 
 /*
@@ -183,7 +167,7 @@ main(int argc, char *argv[])
 
     /* Initialize the database with just a few records. */
     testutil_work_dir_from_path(home, sizeof(home), "WT_TEST.compact-quick-interrupt");
-    testutil_make_work_dir(home);
+    testutil_recreate_dir(home);
 
     testutil_check(wiredtiger_open(home, &event_handler, conn_config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -235,7 +219,7 @@ main(int argc, char *argv[])
     testutil_check(conn->close(conn, NULL));
 
     if (!opts->preserve)
-        testutil_clean_work_dir(home);
+        testutil_remove(home);
     testutil_cleanup(opts);
     return (EXIT_SUCCESS);
 }

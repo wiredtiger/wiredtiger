@@ -2,12 +2,18 @@
 
 #include "wt_internal.h"
 
+/*
+ * __wt_logrec_alloc --
+ *     Allocate a new WT_ITEM structure.
+ */
 int
 __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
     WT_ITEM *logrec;
+    WT_LOG *log;
 
-    WT_RET(__wt_scr_alloc(session, WT_ALIGN(size + 1, WT_LOG_ALIGN), &logrec));
+    log = S2C(session)->log;
+    WT_RET(__wt_scr_alloc(session, WT_ALIGN(size + 1, log->allocsize), &logrec));
     WT_CLEAR(*(WT_LOG_RECORD *)logrec->data);
     logrec->size = offsetof(WT_LOG_RECORD, record);
 
@@ -15,12 +21,20 @@ __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
     return (0);
 }
 
+/*
+ * __wt_logrec_free --
+ *     Free the given WT_ITEM structure.
+ */
 void
 __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 {
     __wt_scr_free(session, logrecp);
 }
 
+/*
+ * __wt_logrec_read --
+ *     Read the record type.
+ */
 int
 __wt_logrec_read(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
@@ -33,6 +47,10 @@ __wt_logrec_read(
     return (0);
 }
 
+/*
+ * __wt_logop_read --
+ *     Read the operation type.
+ */
 int
 __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *optypep,
   uint32_t *opsizep)
@@ -40,6 +58,10 @@ __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end
     return (__wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
 }
 
+/*
+ * __logrec_make_json_str --
+ *     Unpack a string into JSON escaped format.
+ */
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -56,6 +78,10 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
     return (0);
 }
 
+/*
+ * __logrec_make_hex_str --
+ *     Convert data to a hexadecimal representation.
+ */
 static int
 __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -71,6 +97,10 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
     return (0);
 }
 
+/*
+ * __wt_logop_col_modify_pack --
+ *     Pack the log operation col_modify.
+ */
 int
 __wt_logop_col_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -92,6 +122,10 @@ __wt_logop_col_modify_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_modify_unpack --
+ *     Unpack the log operation col_modify.
+ */
 int
 __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
@@ -109,6 +143,10 @@ __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_col_modify_print --
+ *     Print the log operation col_modify.
+ */
 int
 __wt_logop_col_modify_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -141,6 +179,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_col_put_pack --
+ *     Pack the log operation col_put.
+ */
 int
 __wt_logop_col_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -162,6 +204,10 @@ __wt_logop_col_put_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_put_unpack --
+ *     Unpack the log operation col_put.
+ */
 int
 __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
@@ -179,6 +225,10 @@ __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
     return (0);
 }
 
+/*
+ * __wt_logop_col_put_print --
+ *     Print the log operation col_put.
+ */
 int
 __wt_logop_col_put_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -211,6 +261,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_col_remove_pack --
+ *     Pack the log operation col_remove.
+ */
 int
 __wt_logop_col_remove_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno)
@@ -232,6 +286,10 @@ __wt_logop_col_remove_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_remove_unpack --
+ *     Unpack the log operation col_remove.
+ */
 int
 __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop)
@@ -249,6 +307,10 @@ __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_col_remove_print --
+ *     Print the log operation col_remove.
+ */
 int
 __wt_logop_col_remove_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -268,6 +330,10 @@ __wt_logop_col_remove_print(
     return (0);
 }
 
+/*
+ * __wt_logop_col_truncate_pack --
+ *     Pack the log operation col_truncate.
+ */
 int
 __wt_logop_col_truncate_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t start, uint64_t stop)
@@ -289,6 +355,10 @@ __wt_logop_col_truncate_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_truncate_unpack --
+ *     Unpack the log operation col_truncate.
+ */
 int
 __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
@@ -306,6 +376,10 @@ __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
     return (0);
 }
 
+/*
+ * __wt_logop_col_truncate_print --
+ *     Print the log operation col_truncate.
+ */
 int
 __wt_logop_col_truncate_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -327,6 +401,10 @@ __wt_logop_col_truncate_print(
     return (0);
 }
 
+/*
+ * __wt_logop_row_modify_pack --
+ *     Pack the log operation row_modify.
+ */
 int
 __wt_logop_row_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -348,6 +426,10 @@ __wt_logop_row_modify_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_row_modify_unpack --
+ *     Unpack the log operation row_modify.
+ */
 int
 __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
@@ -365,6 +447,10 @@ __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_row_modify_print --
+ *     Print the log operation row_modify.
+ */
 int
 __wt_logop_row_modify_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -403,6 +489,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_row_put_pack --
+ *     Pack the log operation row_put.
+ */
 int
 __wt_logop_row_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -424,6 +514,10 @@ __wt_logop_row_put_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_row_put_unpack --
+ *     Unpack the log operation row_put.
+ */
 int
 __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
@@ -441,6 +535,10 @@ __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
     return (0);
 }
 
+/*
+ * __wt_logop_row_put_print --
+ *     Print the log operation row_put.
+ */
 int
 __wt_logop_row_put_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -479,6 +577,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_row_remove_pack --
+ *     Pack the log operation row_remove.
+ */
 int
 __wt_logop_row_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key)
 {
@@ -499,6 +601,10 @@ __wt_logop_row_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t f
     return (0);
 }
 
+/*
+ * __wt_logop_row_remove_unpack --
+ *     Unpack the log operation row_remove.
+ */
 int
 __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp)
@@ -516,6 +622,10 @@ __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_row_remove_print --
+ *     Print the log operation row_remove.
+ */
 int
 __wt_logop_row_remove_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -546,6 +656,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_row_truncate_pack --
+ *     Pack the log operation row_truncate.
+ */
 int
 __wt_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
   WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
@@ -567,6 +681,10 @@ __wt_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t
     return (0);
 }
 
+/*
+ * __wt_logop_row_truncate_unpack --
+ *     Unpack the log operation row_truncate.
+ */
 int
 __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
@@ -584,6 +702,10 @@ __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
     return (0);
 }
 
+/*
+ * __wt_logop_row_truncate_print --
+ *     Print the log operation row_truncate.
+ */
 int
 __wt_logop_row_truncate_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -624,6 +746,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_checkpoint_start_pack --
+ *     Pack the log operation checkpoint_start.
+ */
 int
 __wt_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
 {
@@ -644,6 +770,10 @@ __wt_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
     return (0);
 }
 
+/*
+ * __wt_logop_checkpoint_start_unpack --
+ *     Unpack the log operation checkpoint_start.
+ */
 int
 __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end)
 {
@@ -659,6 +789,10 @@ __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
     return (0);
 }
 
+/*
+ * __wt_logop_checkpoint_start_print --
+ *     Print the log operation checkpoint_start.
+ */
 int
 __wt_logop_checkpoint_start_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -671,6 +805,10 @@ __wt_logop_checkpoint_start_print(
     return (0);
 }
 
+/*
+ * __wt_logop_prev_lsn_pack --
+ *     Pack the log operation prev_lsn.
+ */
 int
 __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn)
 {
@@ -691,6 +829,10 @@ __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev
     return (0);
 }
 
+/*
+ * __wt_logop_prev_lsn_unpack --
+ *     Unpack the log operation prev_lsn.
+ */
 int
 __wt_logop_prev_lsn_unpack(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
@@ -708,6 +850,10 @@ __wt_logop_prev_lsn_unpack(
     return (0);
 }
 
+/*
+ * __wt_logop_prev_lsn_print --
+ *     Print the log operation prev_lsn.
+ */
 int
 __wt_logop_prev_lsn_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -722,6 +868,10 @@ __wt_logop_prev_lsn_print(
     return (0);
 }
 
+/*
+ * __wt_logop_txn_timestamp_pack --
+ *     Pack the log operation txn_timestamp.
+ */
 int
 __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_t time_sec,
   uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
@@ -745,6 +895,10 @@ __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_
     return (0);
 }
 
+/*
+ * __wt_logop_txn_timestamp_unpack --
+ *     Unpack the log operation txn_timestamp.
+ */
 int
 __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint64_t *time_secp, uint64_t *time_nsecp, uint64_t *commit_tsp, uint64_t *durable_tsp,
@@ -764,6 +918,10 @@ __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, co
     return (0);
 }
 
+/*
+ * __wt_logop_txn_timestamp_print --
+ *     Print the log operation txn_timestamp.
+ */
 int
 __wt_logop_txn_timestamp_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -791,6 +949,10 @@ __wt_logop_txn_timestamp_print(
     return (0);
 }
 
+/*
+ * __wt_txn_op_printlog --
+ *     Print operation from a log cookie.
+ */
 int
 __wt_txn_op_printlog(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)

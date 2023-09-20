@@ -149,18 +149,19 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = generate_prefix(random_prefix, test_name),
             num_ops=20,
             ss_name = 's3_store')),
-        ('gcp_store', dict(is_tiered = True,
-            is_tiered_shared = tiered_shared,
-            is_local_storage = False,
-            has_cache = False,
-            auth_token = get_auth_token('gcp_store'),
-            bucket = get_bucket_name('gcp_store', 0),
-            bucket1 = get_bucket_name('gcp_store', 1),
-            bucket_prefix = generate_prefix(random_prefix, test_name),
-            bucket_prefix1 = generate_prefix(random_prefix, test_name),
-            bucket_prefix2 = generate_prefix(random_prefix, test_name),
-            num_ops=100,
-            ss_name = 'gcp_store')),
+        # FIXME-WT-10582: Enable the GCP tests once we have swapped to a production account.
+        # ('gcp_store', dict(is_tiered = True,
+        #     is_tiered_shared = tiered_shared,
+        #     is_local_storage = False,
+        #     has_cache = False,
+        #     auth_token = get_auth_token('gcp_store'),
+        #     bucket = get_bucket_name('gcp_store', 0),
+        #     bucket1 = get_bucket_name('gcp_store', 1),
+        #     bucket_prefix = generate_prefix(random_prefix, test_name),
+        #     bucket_prefix1 = generate_prefix(random_prefix, test_name),
+        #     bucket_prefix2 = generate_prefix(random_prefix, test_name),
+        #     num_ops=100,
+        #     ss_name = 'gcp_store')),
         ('azure_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = False,
@@ -173,7 +174,7 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = generate_prefix(random_prefix, test_name),
             num_ops=100,
             ss_name = 'azure_store')),
-        # This must be the last item as we seperate the non-tiered from the tiered items later on.
+        # This must be the last item as we separate the non-tiered from the tiered items later on.
         ('non_tiered', dict(is_tiered = False)),
     ]
 
@@ -201,11 +202,15 @@ class TieredConfigMixin:
         else:
             return self.tiered_shared_conn_config()
 
+    # Can be overridden
+    def additional_conn_config(self):
+        return ''
+
     # Setup tiered connection config.
     def tiered_conn_config(self):
         # Handle non_tiered storage scenarios.
         if not self.is_tiered_scenario():
-            return ''
+            return self.additional_conn_config()
 
         # Setup directories structure for local tiered storage.
         if self.is_local_storage:
@@ -214,8 +219,10 @@ class TieredConfigMixin:
                 os.mkdir(bucket_full_path)
 
         # Build tiered storage connection string.
+        # Any additional configuration appears first to override this configuration.
         return \
-            'tiered_storage=(auth_token=%s,' % self.auth_token + \
+            self.additional_conn_config() + \
+            ',tiered_storage=(auth_token=%s,' % self.auth_token + \
             'bucket=%s,' % self.bucket + \
             'bucket_prefix=%s,' % self.bucket_prefix + \
             'name=%s),' % self.ss_name
@@ -223,7 +230,7 @@ class TieredConfigMixin:
     def tiered_shared_conn_config(self):
         # Handle non_tiered storage scenarios.
         if not self.is_tiered_shared_scenario():
-            return ''
+            return self.additional_conn_config()
 
         # Setup directories structure for local tiered storage.
         if self.is_local_storage:
@@ -232,8 +239,10 @@ class TieredConfigMixin:
                 os.mkdir(bucket_full_path)
 
         # Build tiered storage connection string.
+        # Any additional configuration appears first to override this configuration.
         return \
-            'tiered_storage=(auth_token=%s,' % self.auth_token + \
+            self.additional_conn_config() + ',' + \
+            ',tiered_storage=(auth_token=%s,' % self.auth_token + \
             'bucket=%s,' % self.bucket + \
             'bucket_prefix=%s,' % self.bucket_prefix + \
             'name=%s, shared=true),' % self.ss_name

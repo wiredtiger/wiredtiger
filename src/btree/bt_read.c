@@ -287,6 +287,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (LF_ISSET(WT_READ_PREFETCH))
         WT_STAT_CONN_INCR(session, cache_pages_read_ahead);
 
+    /*
+     * If configured, free stashed memory more aggressively to encourage finding bugs in generation
+     * tracking code.
+     */
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE))
+        __wt_stash_discard(session);
+
     for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
         switch (current_state = ref->state) {
@@ -313,7 +320,7 @@ read:
 
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
-            F_CLR(session->dhandle, WT_DHANDLE_EVICTED);
+            FLD_CLR(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
 
             /*
              * If configured to not trash the cache, leave the page generation unset, we'll set it

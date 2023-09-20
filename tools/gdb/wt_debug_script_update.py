@@ -3,10 +3,14 @@ import bson
 from pprint import pprint
 
 # Usage examples:
-# coll_dh = get_data_handle(conn, 'file:collection-5550--7194480883124807592.wt')
+# To dump data from the original file handle.
+# coll_dh = get_data_handle(conn, 'file:collection-5550--7194480883124807592.wt', NULL)
 # dump_handle(coll_dh)
-# index_dh = get_data_handle(conn, 'file:index-5558--7194480883124807592.wt')
-# dump_handle(index_dh)
+#
+# To dump data from the checkpoint of file handle.
+# coll_dh = get_data_handle(conn, 'file:collection-5550--7194480883124807592.wt', 'WiredTigerCheckpoint.5')
+# dump_handle(coll_dh)
+
 
 def dbg(ident, var):
     print('----------')
@@ -42,14 +46,20 @@ def walk_wt_list(lst):
 
     return ret
 
-def get_data_handle(conn, handle_name):
+def get_data_handle(conn, handle_name, checkpoint_name=None):
     #dbg('datahandles', conn['dhqh'])
     ret = None
     for handle in walk_wt_list(conn['dhqh']):
         #print("Handle: " + str(handle['name']))
+        #print("Handle checkpoint: " + str(handle['checkpoint']))
         if handle['name'].string() == handle_name:
-            ret = handle
-
+            if checkpoint_name and handle['checkpoint'] and handle['checkpoint'].string() == checkpoint_name:
+                ret = handle
+            elif not checkpoint_name:
+                ret = handle
+    if ret:
+        print("Found Handle: " + str(ret['name']))
+        print("Found Handle checkpoint: " + str(ret['checkpoint']))
     return ret
 
 def get_btree_handle(dhandle):
@@ -138,6 +148,30 @@ def dump_disk(leaf_page):
     page_bytes = gdb.selected_inferior().read_memory(int(dsk.address) + wt_page_header_size + wt_block_header_size, int(dsk['mem_size'])).tobytes()
     print("Dsk:\n" + str(page_bytes))
 
+def dump_leaf_page(leaf_page):
+    dbg('leaf', leaf_page)
+    dump_disk(leaf_page)
+    dump_modified(leaf_page)
+
+def dump_int_page(int_page):
+    dbg('Internal page', int_page)
+    pindex = int_page['u']['intl']['__index'].dereference()
+    dbg('pindex', pindex)
+    num_entries = int(pindex['entries'])
+    for i in range(0, num_entries):
+        if not pindex['index'][i].dereference()['page']:
+            continue
+        page = pindex['index'][i].dereference()['page'].dereference()
+        dbg('page', page)
+        page_type = page['type']
+        dbg('page type', page_type)
+        # The page types WT_PAGE_COL_INT and WT_PAGE_ROW_INT are set for
+        # internal pages of the tree. These values are defined in btmem.h
+        if page_type == 3 or page_type == 6:
+            dump_int_page(page)
+        else:
+            dump_leaf_page(page)
+
 def dump_handle(dhandle):
     print("Dumping: " + dhandle['name'].string())
     btree = get_btree_handle(dhandle)
@@ -146,13 +180,5 @@ def dump_handle(dhandle):
     #dbg('btree', get_btree_handle(user))
     dbg('root', btree['root'])
     dbg('root page', root_page)
-    rpindex = root_page['u']['intl']['__index'].dereference()
-    dbg('rpindex', rpindex)
-    leaf_num_entries = int(rpindex['entries'])
-    #dbg('rp-pre-index', rpindex['index'].dereference().dereference())
-    for i in range(0, leaf_num_entries):
-        leaf_page = rpindex['index'][i].dereference()['page'].dereference()
-        dbg('leaf page', i)
-        dbg('leaf', leaf_page)
-        dump_disk(leaf_page)
-        dump_modified(leaf_page)
+    dump_int_page(root_page)
+

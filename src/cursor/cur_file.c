@@ -427,7 +427,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     tret = 0;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update);
+    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, insert_check);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -1121,6 +1121,9 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
             WT_RET_MSG(session, EINVAL, "Value for 'bulk' must be a boolean or 'bitmap'");
 
         if (bulk) {
+            if (F_ISSET(session->txn, WT_TXN_RUNNING))
+                WT_RET_MSG(session, EINVAL, "Bulk cursors can't be opened inside a transaction");
+
             WT_RET(__wt_config_gets(session, cfg, "checkpoint_wait", &cval));
             checkpoint_wait = cval.val != 0;
         }

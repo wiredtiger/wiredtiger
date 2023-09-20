@@ -113,7 +113,11 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     bool verbose_timeout_flags;
 
     conn = S2C(session);
+#ifdef HAVE_DIAGNOSTIC
     verbose_timeout_flags = false;
+#else
+    WT_UNUSED(verbose_timeout_flags);
+#endif
     __wt_epoch(NULL, &start);
 
     /*
@@ -156,8 +160,8 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                 __wt_sleep(0, 10);
 
             /*
-             * If we wait for more than a minute, log the event. In DIAGNOSTIC mode, abort if we
-             * ever wait more than 3 minutes, that's forever.
+             * If we wait for more than a minute, log the event. In diagnostic mode, abort if we
+             * ever wait more than the configured timeout.
              */
             if (minutes == 0) {
                 minutes = 1;
@@ -165,16 +169,22 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
             } else {
                 __wt_epoch(session, &stop);
                 time_diff_ms = WT_TIMEDIFF_MS(stop, start);
-#define WT_GEN_DRAIN_TIMEOUT_MIN 4
+
                 if (time_diff_ms > minutes * WT_MINUTE * WT_THOUSAND) {
                     __wt_verbose_notice(session, WT_VERB_GENERATION,
                       "%s generation drain waited %" PRIu64 " minutes", __gen_name(which), minutes);
                     ++minutes;
-                    WT_ASSERT(session, minutes < WT_GEN_DRAIN_TIMEOUT_MIN);
                 }
-                /* Enable extra logs 20ms before timing out. */
-                else if (!verbose_timeout_flags &&
-                  time_diff_ms > (WT_GEN_DRAIN_TIMEOUT_MIN * WT_MINUTE * WT_THOUSAND - 20)) {
+
+                /* If there is no timeout, there is nothing else to do. */
+                if (conn->gen_drain_timeout_ms == 0)
+                    continue;
+
+#ifdef HAVE_DIAGNOSTIC
+                /* In diagnostic mode, enable extra logs 20ms before reaching the timeout. */
+                if (!verbose_timeout_flags &&
+                  (conn->gen_drain_timeout_ms < 20 ||
+                    time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
                     if (which == WT_GEN_EVICT) {
                         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
                         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
@@ -187,6 +197,14 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                           session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
                     }
                     verbose_timeout_flags = true;
+                    /* Now we have enabled more logs, spin another time to get some information. */
+                    continue;
+                }
+#endif
+                if (time_diff_ms >= conn->gen_drain_timeout_ms) {
+                    __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
+                      __gen_name(which));
+                    WT_ASSERT(session, false);
                 }
             }
         }
@@ -214,7 +232,14 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * the sessions that could have been active when we started our check.
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (oldest = conn->generations[which], s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
+    /*
+     * We need to order the read of the connection generation before the read of the session
+     * generation. If the session generation read is ordered before the connection generation read
+     * it could read an earlier session generation value. This would then violate the acquisition
+     * semantics and could result in us reading 0 for the session generation when it is non-zero.
+     */
+    WT_ORDERED_READ(oldest, conn->generations[which]);
+    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
@@ -259,9 +284,6 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
         if (v != 0 && generation >= v)
             return (true);
     }
-
-    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_GENERATION_CHECK,
-      generation < __gen_oldest(session, which), "Generation is older than gen_oldest");
     return (false);
 }
 
@@ -294,11 +316,16 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      * Assign the thread's resource generation and publish it, ensuring threads waiting on a
      * resource to drain see the new value. Check we haven't raced with a generation update after
      * publishing, we rely on the published value not being missed when scanning for the oldest
-     * generation.
+     * generation and for draining.
+     *
+     * This requires a full barrier as the second read of the connection generation needs to be
+     * ordered after the write of our session's generation. If it is reordered it could be read, for
+     * example before we do the first read. This would make re-checking redundant and in this case
+     * can result in the generation drain and generation oldest code not working correctly.
      */
     do {
         session->generations[which] = __wt_gen(session, which);
-        WT_WRITE_BARRIER();
+        WT_FULL_BARRIER();
     } while (session->generations[which] != __wt_gen(session, which));
 }
 

@@ -16,6 +16,22 @@ struct __wt_config {
     const int8_t *go;
 };
 
+/*
+ * We have jump tables that for each ASCII character, show the offset in a lookup table that keys
+ * starting with that character start at. All keys are 7 bit ASCII.
+ */
+#define WT_CONFIG_JUMP_TABLE_SIZE 128
+
+/*
+ * The expected types of a configuration value.
+ */
+#define WT_CONFIG_COMPILED_TYPE_INT 0
+#define WT_CONFIG_COMPILED_TYPE_BOOLEAN 1
+#define WT_CONFIG_COMPILED_TYPE_FORMAT 2
+#define WT_CONFIG_COMPILED_TYPE_STRING 3
+#define WT_CONFIG_COMPILED_TYPE_CATEGORY 4
+#define WT_CONFIG_COMPILED_TYPE_LIST 5
+
 struct __wt_config_check {
     const char *name;
     const char *type;
@@ -23,6 +39,11 @@ struct __wt_config_check {
     const char *checks;
     const WT_CONFIG_CHECK *subconfigs;
     u_int subconfigs_entries;
+    const uint8_t *subconfigs_jump;
+    u_int compiled_type;
+    int64_t min_value;
+    int64_t max_value;
+    const char **choices;
 };
 
 #define WT_CONFIG_REF(session, n) (S2C(session)->config_entries[WT_CONFIG_ENTRY_##n])
@@ -34,6 +55,7 @@ struct __wt_config_entry {
 
     const WT_CONFIG_CHECK *checks; /* check array */
     u_int checks_entries;
+    const uint8_t *checks_jump;
 };
 
 struct __wt_config_parser_impl {
@@ -92,38 +114,37 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_WT_SESSION_compact 23
 #define WT_CONFIG_ENTRY_WT_SESSION_create 24
 #define WT_CONFIG_ENTRY_WT_SESSION_drop 25
-#define WT_CONFIG_ENTRY_WT_SESSION_flush_tier 26
-#define WT_CONFIG_ENTRY_WT_SESSION_join 27
-#define WT_CONFIG_ENTRY_WT_SESSION_log_flush 28
-#define WT_CONFIG_ENTRY_WT_SESSION_log_printf 29
-#define WT_CONFIG_ENTRY_WT_SESSION_open_cursor 30
-#define WT_CONFIG_ENTRY_WT_SESSION_prepare_transaction 31
-#define WT_CONFIG_ENTRY_WT_SESSION_query_timestamp 32
-#define WT_CONFIG_ENTRY_WT_SESSION_reconfigure 33
-#define WT_CONFIG_ENTRY_WT_SESSION_rename 34
-#define WT_CONFIG_ENTRY_WT_SESSION_reset 35
-#define WT_CONFIG_ENTRY_WT_SESSION_reset_snapshot 36
-#define WT_CONFIG_ENTRY_WT_SESSION_rollback_transaction 37
-#define WT_CONFIG_ENTRY_WT_SESSION_salvage 38
-#define WT_CONFIG_ENTRY_WT_SESSION_strerror 39
-#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 40
-#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction_uint 41
-#define WT_CONFIG_ENTRY_WT_SESSION_truncate 42
-#define WT_CONFIG_ENTRY_WT_SESSION_upgrade 43
-#define WT_CONFIG_ENTRY_WT_SESSION_verify 44
-#define WT_CONFIG_ENTRY_colgroup_meta 45
-#define WT_CONFIG_ENTRY_file_config 46
-#define WT_CONFIG_ENTRY_file_meta 47
-#define WT_CONFIG_ENTRY_index_meta 48
-#define WT_CONFIG_ENTRY_lsm_meta 49
-#define WT_CONFIG_ENTRY_object_meta 50
-#define WT_CONFIG_ENTRY_table_meta 51
-#define WT_CONFIG_ENTRY_tier_meta 52
-#define WT_CONFIG_ENTRY_tiered_meta 53
-#define WT_CONFIG_ENTRY_wiredtiger_open 54
-#define WT_CONFIG_ENTRY_wiredtiger_open_all 55
-#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 56
-#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 57
+#define WT_CONFIG_ENTRY_WT_SESSION_join 26
+#define WT_CONFIG_ENTRY_WT_SESSION_log_flush 27
+#define WT_CONFIG_ENTRY_WT_SESSION_log_printf 28
+#define WT_CONFIG_ENTRY_WT_SESSION_open_cursor 29
+#define WT_CONFIG_ENTRY_WT_SESSION_prepare_transaction 30
+#define WT_CONFIG_ENTRY_WT_SESSION_query_timestamp 31
+#define WT_CONFIG_ENTRY_WT_SESSION_reconfigure 32
+#define WT_CONFIG_ENTRY_WT_SESSION_rename 33
+#define WT_CONFIG_ENTRY_WT_SESSION_reset 34
+#define WT_CONFIG_ENTRY_WT_SESSION_reset_snapshot 35
+#define WT_CONFIG_ENTRY_WT_SESSION_rollback_transaction 36
+#define WT_CONFIG_ENTRY_WT_SESSION_salvage 37
+#define WT_CONFIG_ENTRY_WT_SESSION_strerror 38
+#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 39
+#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction_uint 40
+#define WT_CONFIG_ENTRY_WT_SESSION_truncate 41
+#define WT_CONFIG_ENTRY_WT_SESSION_upgrade 42
+#define WT_CONFIG_ENTRY_WT_SESSION_verify 43
+#define WT_CONFIG_ENTRY_colgroup_meta 44
+#define WT_CONFIG_ENTRY_file_config 45
+#define WT_CONFIG_ENTRY_file_meta 46
+#define WT_CONFIG_ENTRY_index_meta 47
+#define WT_CONFIG_ENTRY_lsm_meta 48
+#define WT_CONFIG_ENTRY_object_meta 49
+#define WT_CONFIG_ENTRY_table_meta 50
+#define WT_CONFIG_ENTRY_tier_meta 51
+#define WT_CONFIG_ENTRY_tiered_meta 52
+#define WT_CONFIG_ENTRY_wiredtiger_open 53
+#define WT_CONFIG_ENTRY_wiredtiger_open_all 54
+#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 55
+#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 56
 /*
  * configuration section: END
  * DO NOT EDIT: automatically built by dist/flags.py.

@@ -6,15 +6,19 @@ if(HAVE_UNITTEST_ASSERTS)
     set(unittests tests/test_assertions.cpp)
 else()
     set(unittests
+        tests/test_binary_search_string.cpp
+        tests/test_bitmap.cpp
         tests/test_bounds_restore.cpp
         tests/test_crc32.cpp
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
         tests/test_pow.cpp
+        tests/test_prepare_mod_sort.cpp
         tests/test_reconciliation_tracking.cpp
         tests/test_tailq.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
+        tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
     )

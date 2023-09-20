@@ -267,7 +267,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    wt_thread_t alter_tid, backup_tid, checkpoint_tid, compact_tid, hs_tid, import_tid, random_tid;
+    wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid, hs_tid,
+      import_tid, random_tid;
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
@@ -281,6 +282,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     session = NULL; /* -Wconditional-uninitialized */
     memset(&alter_tid, 0, sizeof(alter_tid));
+    memset(&background_compact_tid, 0, sizeof(background_compact_tid));
     memset(&backup_tid, 0, sizeof(backup_tid));
     memset(&checkpoint_tid, 0, sizeof(checkpoint_tid));
     memset(&compact_tid, 0, sizeof(compact_tid));
@@ -346,6 +348,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     /* Start optional special-purpose threads. */
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL));
+    if (GV(BACKGROUND_COMPACT))
+        testutil_check(__wt_thread_create(NULL, &background_compact_tid, background_compact, NULL));
     if (GV(BACKUP))
         testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL));
     if (GV(OPS_COMPACTION))
@@ -443,6 +447,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     g.workers_finished = true;
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_join(NULL, &alter_tid));
+    if (GV(BACKGROUND_COMPACT))
+        testutil_check(__wt_thread_join(NULL, &background_compact_tid));
     if (GV(BACKUP))
         testutil_check(__wt_thread_join(NULL, &backup_tid));
     if (g.checkpoint_config == CHECKPOINT_ON)
@@ -1167,24 +1173,27 @@ rollback_retry:
                      * Edge case: There is a case where we cannot detect a proper mirror mismatch.
                      * Say we truncated the tail end key range of all the mirrors from N to
                      * max_rows. This truncate happened before any thread added another non-mirrored
-                     * append/insert to a VLCS table and the data in that truncated key range was
-                     * sufficient to delete the pages at the end of the VLCS table. Then when a VLCS
-                     * non-mirrored insert happened, it appended the new item at key N instead of at
-                     * max_rows + 1.
-                     *
-                     * Then the next mirror check will detect a mismatch if there is an FLCS table
-                     * because the appended value does not match the FLCS truncated value. The
-                     * mismatch does not trigger with row-store tables because the row-store code to
-                     * get the next mirror key in format returns WT_NOTFOUND because all those
-                     * mirror keys are gone. But FLCS maintains all record numbers.
+                     * append/insert to a column store table and the data in that truncated key
+                     * range was sufficient to delete the pages at the end of the column store
+                     * table. Then when a column store non-mirrored insert happened, it appended the
+                     * new item at key N instead of at max_rows + 1. Then the next mirror check will
+                     * detect a mismatch from the row-store table because the appended value does
+                     * not match the truncated value.
                      *
                      * We want to test truncate at the end of the range as much as possible, so
                      * adjust the end range to max_rows - 1 only in the case where we are mirroring
-                     * and have both a VLCS and FLCS table.
+                     * and have a column store table.
                      */
-                    if (g.base_mirror != NULL && g.mirror_fix_var &&
-                      (tinfo->last == 0 || tinfo->last == max_rows))
+                    if (g.base_mirror != NULL && g.mirror_col_store &&
+                      (tinfo->last == 0 || tinfo->last == max_rows)) {
                         tinfo->last = max_rows - 1;
+                        /*
+                         * It is possible that the key number was set to max rows so make sure we
+                         * don't send in poorly set truncate cursor keys.
+                         */
+                        if (tinfo->keyno > tinfo->last)
+                            tinfo->keyno = tinfo->last;
+                    }
                 }
             } else {
                 if (TV(BTREE_REVERSE)) {

@@ -1,8 +1,9 @@
 project(libtest C)
 
 set(sources
-    misc.c
+    file.c
     lazyfs.c
+    misc.c
     parse_opts.c
     thread.c
     tiered.c

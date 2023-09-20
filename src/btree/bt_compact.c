@@ -21,6 +21,8 @@ __compact_page_inmem_check_addrs(WT_SESSION_IMPL *session, WT_REF *ref, bool *sk
     WT_PAGE_MODIFY *mod;
     uint32_t i;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
+
     *skipp = true; /* Default skip. */
 
     bm = S2BT(session)->bm;
@@ -61,6 +63,8 @@ __compact_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     *skipp = true; /* Default skip. */
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
+
     /*
      * Ignore dirty pages, checkpoint will likely write them. There are cases where checkpoint can
      * skip dirty pages: to avoid that, we could alter the transactional information of the page,
@@ -98,6 +102,8 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ADDR *addr;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_RET;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
     /*
      * If there's no address at all (the page has never been written), allocate a new WT_ADDR
@@ -160,6 +166,8 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     uint8_t previous_state;
 
     *skipp = true; /* Default skip. */
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
     /* Lock the WT_REF. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -326,6 +334,9 @@ __wt_compact(WT_SESSION_IMPL *session)
         WT_STAT_CONN_INCR(session, session_table_compact_skipped);
         WT_STAT_DATA_INCR(session, btree_compact_skipped);
 
+        if (session == S2C(session)->background_compact.session)
+            WT_STAT_CONN_INCR(session, background_compact_skipped);
+
         /*
          * Print the "skipping compaction" message only if this is the first time we are working on
          * this table.
@@ -353,20 +364,13 @@ __wt_compact(WT_SESSION_IMPL *session)
           session, btree_compact_pages_rewritten_expected, stats_pages_rewritten_expected);
 
         /*
-         * Periodically check if we've timed out or eviction is stuck. Quit if eviction is stuck,
-         * we're making the problem worse.
+         * Periodically check if compaction has been interrupted or if eviction is stuck, quit if
+         * this is the case.
          */
         if (first || ++i > 100) {
             if (!first)
                 bm->compact_progress(bm, session, &msg_count);
-            WT_ERR(__wt_session_compact_check_timeout(session));
-            if (session->event_handler->handle_general != NULL) {
-                ret = session->event_handler->handle_general(session->event_handler,
-                  &(S2C(session))->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
-                /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
-                if (ret != 0)
-                    WT_ERR_MSG(session, WT_ERROR, "compact interrupted by application");
-            }
+            WT_ERR(__wt_session_compact_check_interrupted(session));
 
             if (__wt_cache_stuck(session))
                 WT_ERR(EBUSY);
