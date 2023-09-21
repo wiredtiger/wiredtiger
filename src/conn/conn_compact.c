@@ -115,10 +115,6 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
 
     conn = S2C(session);
 
-    /* The history store file should not be compacted. */
-    if (WT_STREQ(uri, WT_HS_URI))
-        return (false);
-
     /* If we haven't seen this file before we should try and compact it. */
     compact_stat = __background_compact_get_stat(session, uri, id);
     if (compact_stat == NULL)
@@ -138,6 +134,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
       compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
+        WT_STAT_CONN_INCR(session, background_compact_skipped);
         return (false);
     }
 
@@ -159,7 +156,7 @@ __wt_background_compact_start(WT_SESSION_IMPL *session)
 
     bm = S2BT(session)->bm;
     id = S2BT(session)->id;
-    uri = bm->block->name;
+    uri = session->dhandle->name;
 
     compact_stat = __background_compact_get_stat(session, uri, id);
 
@@ -200,7 +197,7 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
 
     bm = S2BT(session)->bm;
     id = S2BT(session)->id;
-    uri = bm->block->name;
+    uri = session->dhandle->name;
 
     compact_stat = __background_compact_get_stat(session, uri, id);
 
@@ -221,6 +218,7 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
         compact_stat->consecutive_unsuccessful_attempts++;
         compact_stat->prev_compact_success = false;
     } else {
+        WT_STAT_CONN_INCRV(session, background_compact_bytes_recovered, bytes_recovered);
         compact_stat->consecutive_unsuccessful_attempts = 0;
         conn->background_compact.files_compacted++;
         compact_stat->prev_compact_success = true;
@@ -233,6 +231,8 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
         conn->background_compact.bytes_rewritten_ema =
           (uint64_t)(0.1 * bm->block->compact_bytes_rewritten +
             0.9 * conn->background_compact.bytes_rewritten_ema);
+        WT_STAT_CONN_SET(
+          session, background_compact_ema, conn->background_compact.bytes_rewritten_ema);
     }
 
     return (0);
@@ -308,15 +308,19 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
             ret = WT_NOTFOUND;
             break;
         }
-        /*
-         * Check the list of files background compact has tracked statistics for. This avoids having
-         * to open a dhandle for the file if compaction is unlikely to work efficiently on this
-         * file.
-         */
-        WT_ERR(cursor->get_value(cursor, &value));
-        WT_ERR(__wt_config_getones(session, value, "id", &id));
-        if (__background_compact_should_run(session, key, id.val))
-            break;
+
+        /* Check the file is eligible for compaction. */
+        if (__wt_compact_check_eligibility(session, key)) {
+            /*
+             * Check the list of files background compact has tracked statistics for. This avoids
+             * having to open a dhandle for the file if compaction is unlikely to work efficiently
+             * on this file.
+             */
+            WT_ERR(cursor->get_value(cursor, &value));
+            WT_ERR(__wt_config_getones(session, value, "id", &id));
+            if (__background_compact_should_run(session, key, id.val))
+                break;
+        }
     } while ((ret = cursor->next(cursor)) == 0);
     WT_ERR(ret);
 
@@ -343,12 +347,12 @@ __compact_server(void *arg)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool full_iteration, running, signalled;
+    bool full_iteration, running;
 
     session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    full_iteration = running = signalled = false;
+    full_iteration = running = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
@@ -430,32 +434,33 @@ __compact_server(void *arg)
          * - ETIMEDOUT if the configured timer has elapsed.
          * - WT_ERROR if the background compaction has been interrupted.
          */
-        if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK) {
+        if (ret != 0) {
             WT_STAT_CONN_INCR(session, background_compact_fail);
-
-            if (ret == EBUSY && __wt_cache_stuck(session))
-                WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
-
-            if (ret == ETIMEDOUT)
-                WT_STAT_CONN_INCR(session, background_compact_timeout);
-
-            ret = 0;
-        }
-
-        /*
-         * WT_ERROR should indicate the server was interrupted, make sure it is no longer running.
-         */
-        if (ret == WT_ERROR) {
-            __wt_spin_lock(session, &conn->background_compact.lock);
-            running = conn->background_compact.running;
-            __wt_spin_unlock(session, &conn->background_compact.lock);
-            if (!running) {
-                WT_STAT_CONN_INCR(session, background_compact_interrupted);
+            /* The following errors are always silenced. */
+            if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK) {
+                if (ret == EBUSY && __wt_cache_stuck(session))
+                    WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
+                else if (ret == ETIMEDOUT)
+                    WT_STAT_CONN_INCR(session, background_compact_timeout);
                 ret = 0;
             }
-        }
 
-        WT_ERR(ret);
+            /*
+             * Verify WT_ERROR comes from an interruption by checking the server is no longer
+             * running.
+             */
+            else if (ret == WT_ERROR) {
+                __wt_spin_lock(session, &conn->background_compact.lock);
+                running = conn->background_compact.running;
+                __wt_spin_unlock(session, &conn->background_compact.lock);
+                if (!running) {
+                    WT_STAT_CONN_INCR(session, background_compact_interrupted);
+                    ret = 0;
+                }
+            }
+            WT_ERR(ret);
+        } else
+            WT_STAT_CONN_INCR(session, background_compact_success);
     }
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);
