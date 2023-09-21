@@ -846,7 +846,7 @@ connection_runtime_config = [
             'fileops',
             'generation',
             'handleops',
-            'history_store',
+            'hs',
             'history_store_activity',
             'log',
             'lsm',
