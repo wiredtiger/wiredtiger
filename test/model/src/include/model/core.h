@@ -34,7 +34,29 @@
 #include <string>
 #include <vector>
 
+/*
+ * WT_TS_MAX --
+ *     The maximum timestamp, typically used in reads where we would like to get the latest value.
+ */
+#ifndef WT_TS_MAX
+#define WT_TS_MAX UINT64_MAX
+#endif
+
+/*
+ * WT_TS_NONE --
+ *     No timestamp, e.g., when performing a non-timestamped update.
+ */
+#ifndef WT_TS_NONE
+#define WT_TS_NONE 0
+#endif
+
 namespace model {
+
+/*
+ * timestamp_t --
+ *     The timestamp.
+ */
+typedef uint64_t timestamp_t;
 
 /*
  * data_value --
@@ -64,7 +86,7 @@ public:
     inline data_value(const std::string &&data) noexcept : _data(std::move(data)), _none(false) {}
 
     /*
-     * data_value::tombstone --
+     * data_value::create_none --
      *     Create an instance of a "None" value.
      */
     inline static data_value
@@ -82,7 +104,7 @@ public:
     inline const std::string &
     as_string() const noexcept
     {
-        return (_data);
+        return _data;
     }
 
     /*
@@ -93,10 +115,10 @@ public:
     operator==(const data_value &other) const noexcept
     {
         if (_none && other._none)
-            return (true);
+            return true;
         if (_none != other._none)
-            return (false);
-        return (_data == other._data);
+            return false;
+        return _data == other._data;
     }
 
     /*
@@ -117,8 +139,8 @@ public:
     operator<(const data_value &other) const noexcept
     {
         if (_none != other._none)
-            return (_none);
-        return (_data < other._data);
+            return _none;
+        return _data < other._data;
     }
 
     /*
@@ -129,10 +151,10 @@ public:
     operator<=(const data_value &other) const noexcept
     {
         if (_none != other._none)
-            return (_none);
-        if (_none && other._none)
-            return (true);
-        return (_data <= other._data);
+            return _none;
+        if (_none)
+            return true;
+        return _data <= other._data;
     }
 
     /*
@@ -162,7 +184,7 @@ public:
     inline bool
     none() const noexcept
     {
-        return (_none);
+        return _none;
     }
 
 private:
@@ -197,7 +219,7 @@ public:
         bool
         operator()(const kv_update &left, const kv_update &right) const noexcept
         {
-            return (left._timestamp < right._timestamp);
+            return left._timestamp < right._timestamp;
         }
 
         /*
@@ -205,9 +227,9 @@ public:
          *     Compare the update to the given timestamp.
          */
         bool
-        operator()(const kv_update &left, uint64_t timestamp) const noexcept
+        operator()(const kv_update &left, timestamp_t timestamp) const noexcept
         {
-            return (left._timestamp < timestamp);
+            return left._timestamp < timestamp;
         }
 
         /*
@@ -215,9 +237,9 @@ public:
          *     Compare the update to the given timestamp.
          */
         bool
-        operator()(uint64_t timestamp, const kv_update &right) const noexcept
+        operator()(timestamp_t timestamp, const kv_update &right) const noexcept
         {
-            return (timestamp < right._timestamp);
+            return timestamp < right._timestamp;
         }
 
         /*
@@ -227,7 +249,7 @@ public:
         bool
         operator()(const kv_update *left, const kv_update *right) const noexcept
         {
-            return (left->_timestamp < right->_timestamp);
+            return left->_timestamp < right->_timestamp;
         }
 
         /*
@@ -235,9 +257,9 @@ public:
          *     Compare the update to the given timestamp.
          */
         bool
-        operator()(const kv_update *left, uint64_t timestamp) const noexcept
+        operator()(const kv_update *left, timestamp_t timestamp) const noexcept
         {
-            return (left->_timestamp < timestamp);
+            return left->_timestamp < timestamp;
         }
 
         /*
@@ -245,9 +267,9 @@ public:
          *     Compare the update to the given timestamp.
          */
         bool
-        operator()(uint64_t timestamp, const kv_update *right) const noexcept
+        operator()(timestamp_t timestamp, const kv_update *right) const noexcept
         {
-            return (timestamp < right->_timestamp);
+            return timestamp < right->_timestamp;
         }
     };
 
@@ -255,7 +277,7 @@ public:
      * kv_update::kv_update --
      *     Create a new instance.
      */
-    inline kv_update(const data_value &value, uint64_t timestamp) noexcept
+    inline kv_update(const data_value &value, timestamp_t timestamp) noexcept
         : _value(value), _timestamp(timestamp)
     {
     }
@@ -267,7 +289,7 @@ public:
     inline bool
     operator==(const kv_update &other) const noexcept
     {
-        return (_value == other._value && _timestamp == other._timestamp);
+        return _value == other._value && _timestamp == other._timestamp;
     }
 
     /*
@@ -288,10 +310,10 @@ public:
     operator<(const kv_update &other) const noexcept
     {
         if (_timestamp != other._timestamp)
-            return (_timestamp < other._timestamp);
+            return _timestamp < other._timestamp;
         if (_value != other._value)
-            return (_value < other._value);
-        return (true);
+            return _value < other._value;
+        return true;
     }
 
     /*
@@ -301,7 +323,7 @@ public:
     inline bool
     operator<=(const kv_update &other) const noexcept
     {
-        return (*this < other || *this == other);
+        return *this < other || *this == other;
     }
 
     /*
@@ -331,7 +353,7 @@ public:
     inline const data_value &
     value() const noexcept
     {
-        return (_value);
+        return _value;
     }
 
     /*
@@ -341,21 +363,21 @@ public:
     inline bool
     global() const noexcept
     {
-        return (_timestamp == 0);
+        return _timestamp == WT_TS_NONE;
     }
 
     /*
      * kv_update::value --
      *     Get the value.
      */
-    inline uint64_t
+    inline timestamp_t
     timestamp() const noexcept
     {
-        return (_timestamp);
+        return _timestamp;
     }
 
 private:
-    uint64_t _timestamp;
+    timestamp_t _timestamp;
     data_value _value;
 };
 
@@ -389,13 +411,13 @@ public:
      *     Check whether the table contains the given value. If there are multiple values associated
      *     with the given timestamp, return true if any of them match.
      */
-    bool contains_any(const data_value &value, uint64_t timestamp = UINT64_MAX);
+    bool contains_any(const data_value &value, timestamp_t timestamp = WT_TS_MAX);
 
     /*
      * kv_item::get --
      *     Get the corresponding value.
      */
-    const data_value &get(uint64_t timestamp = UINT64_MAX);
+    const data_value &get(timestamp_t timestamp = WT_TS_MAX);
 
 private:
     std::mutex _lock;

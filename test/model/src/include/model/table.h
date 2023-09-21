@@ -61,7 +61,7 @@ public:
     inline const char *
     name() const noexcept
     {
-        return (_name.c_str());
+        return _name.c_str();
     }
 
     /*
@@ -70,32 +70,32 @@ public:
      *     associated with the given timestamp, return true if any of them match.
      */
     bool contains_any(
-      const data_value &key, const data_value &value, uint64_t timestamp = UINT64_MAX);
+      const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_MAX);
 
     /*
      * kv_table::get --
      *     Get the value.
      */
-    const data_value &get(const data_value &key, uint64_t timestamp = UINT64_MAX);
+    const data_value &get(const data_value &key, timestamp_t timestamp = WT_TS_MAX);
 
     /*
      * kv_table::insert --
      *     Insert into the table.
      */
-    int insert(const data_value &key, const data_value &value, uint64_t timestamp = 0,
+    int insert(const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_NONE,
       bool overwrite = true);
 
     /*
      * kv_table::remove --
      *     Delete a value from the table.
      */
-    int remove(const data_value &key, uint64_t timestamp = 0);
+    int remove(const data_value &key, timestamp_t timestamp = WT_TS_NONE);
 
     /*
      * kv_table::update --
      *     Update a key in the table.
      */
-    int update(const data_value &key, const data_value &value, uint64_t timestamp = 0,
+    int update(const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_NONE,
       bool overwrite = true);
 
     /*
@@ -105,7 +105,7 @@ public:
     inline bool
     verify(WT_CONNECTION *connection)
     {
-        return (kv_table_verifier(*this).verify(connection));
+        return kv_table_verifier(*this).verify(connection);
     }
 
     /*
@@ -124,7 +124,7 @@ protected:
     item(const data_value &key)
     {
         std::lock_guard lock_guard(_lock);
-        return (_data[key]); /* this automatically instantiates the item if it does not exist */
+        return _data[key]; /* this automatically instantiates the item if it does not exist */
     }
 
     /*
@@ -137,8 +137,8 @@ protected:
         std::lock_guard lock_guard(_lock);
         auto i = _data.find(key);
         if (i == _data.end())
-            return (NULL);
-        return (&i->second);
+            return NULL;
+        return &i->second;
     }
 
 private:
@@ -146,7 +146,8 @@ private:
      * This data structure is designed so that the global lock is only necessary for the map
      * operations; it is okay to release the lock while the caller is still operating on the data
      * returned from the map. To keep this property going, do not remove the any elements from the
-     * map.
+     * map. We are keeping the map sorted, so that we can easily compare the model's state with
+     * WiredTiger's state. It would also help us in the future if we decide to model range scans.
      */
     std::map<data_value, kv_item> _data;
     std::mutex _lock;

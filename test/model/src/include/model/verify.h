@@ -48,7 +48,7 @@ public:
      *     Create a new instance of the verification cursor.
      */
     inline kv_table_verify_cursor(std::map<data_value, kv_item> &data) noexcept
-        : _count(0), _data(data), _iterator(_data.begin())
+        : _data(data), _iterator(_data.begin())
     {
     }
 
@@ -65,7 +65,6 @@ public:
     bool verify_next(const data_value &key, const data_value &value);
 
 private:
-    uint64_t _count;
     std::map<data_value, kv_item> &_data;
     std::map<data_value, kv_item>::iterator _iterator;
 };

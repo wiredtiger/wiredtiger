@@ -40,12 +40,12 @@ namespace model {
  *     associated with the given timestamp, return true if any of them match.
  */
 bool
-kv_table::contains_any(const data_value &key, const data_value &value, uint64_t timestamp)
+kv_table::contains_any(const data_value &key, const data_value &value, timestamp_t timestamp)
 {
     kv_item *item = item_if_exists(key);
     if (item == NULL)
-        return (false);
-    return (item->contains_any(value, timestamp));
+        return false;
+    return item->contains_any(value, timestamp);
 }
 
 /*
@@ -53,12 +53,12 @@ kv_table::contains_any(const data_value &key, const data_value &value, uint64_t 
  *     Get the value.
  */
 const data_value &
-kv_table::get(const data_value &key, uint64_t timestamp)
+kv_table::get(const data_value &key, timestamp_t timestamp)
 {
     kv_item *item = item_if_exists(key);
     if (item == NULL)
-        return (NONE);
-    return (item->get(timestamp));
+        return NONE;
+    return item->get(timestamp);
 }
 
 /*
@@ -66,9 +66,10 @@ kv_table::get(const data_value &key, uint64_t timestamp)
  *     Insert into the table.
  */
 int
-kv_table::insert(const data_value &key, const data_value &value, uint64_t timestamp, bool overwrite)
+kv_table::insert(
+  const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    return (item(key).add_update(std::move(kv_update(value, timestamp)), false, !overwrite));
+    return item(key).add_update(std::move(kv_update(value, timestamp)), false, !overwrite);
 }
 
 /*
@@ -76,12 +77,12 @@ kv_table::insert(const data_value &key, const data_value &value, uint64_t timest
  *     Delete a value from the table. Return true if the value was deleted.
  */
 int
-kv_table::remove(const data_value &key, uint64_t timestamp)
+kv_table::remove(const data_value &key, timestamp_t timestamp)
 {
     kv_item *item = item_if_exists(key);
     if (item == NULL)
-        return (WT_NOTFOUND);
-    return (item->add_update(std::move(kv_update(NONE, timestamp)), true, false));
+        return WT_NOTFOUND;
+    return item->add_update(std::move(kv_update(NONE, timestamp)), true, false);
 }
 
 /*
@@ -89,9 +90,10 @@ kv_table::remove(const data_value &key, uint64_t timestamp)
  *     Update a key in the table.
  */
 int
-kv_table::update(const data_value &key, const data_value &value, uint64_t timestamp, bool overwrite)
+kv_table::update(
+  const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    return (item(key).add_update(std::move(kv_update(value, timestamp)), !overwrite, false));
+    return item(key).add_update(std::move(kv_update(value, timestamp)), !overwrite, false);
 }
 
 /*
@@ -102,7 +104,7 @@ kv_table::update(const data_value &key, const data_value &value, uint64_t timest
 kv_table_verify_cursor
 kv_table::verify_cursor()
 {
-    return (std::move(kv_table_verify_cursor(_data)));
+    return std::move(kv_table_verify_cursor(_data));
 }
 
 } /* namespace model */

@@ -46,8 +46,8 @@ const data_value NONE = data_value::create_none();
  */
 kv_item::~kv_item()
 {
-    for (auto i = _updates.begin(); i != _updates.end(); i++)
-        delete *i;
+    for (auto i : _updates)
+        delete i;
 }
 
 /*
@@ -62,8 +62,8 @@ kv_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
 
     /* If this is a non-timestamped update, there cannot be existing timestamped updates. */
     if (update.global()) {
-        if (!_updates.empty() && !_updates[_updates.size() - 1]->global())
-            return (EINVAL);
+        if (!_updates.empty() && !_updates.back()->global())
+            return EINVAL;
     }
 
     /* Position the update. */
@@ -72,23 +72,23 @@ kv_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
     /* If need be, fail if the key does not exist. */
     if (must_exist) {
         if (_updates.empty())
-            return (WT_NOTFOUND);
+            return WT_NOTFOUND;
 
         auto j = i;
         if (j == _updates.begin() || (*(--j))->value() == NONE)
-            return (WT_NOTFOUND);
+            return WT_NOTFOUND;
     }
 
     /* If need be, fail if the key exists. */
     if (must_not_exist && !_updates.empty()) {
         auto j = i;
         if (j != _updates.begin() && (*(--j))->value() != NONE)
-            return (WT_DUPLICATE_KEY);
+            return WT_DUPLICATE_KEY;
     }
 
     /* Insert. */
     _updates.insert(i, new kv_update(std::move(update)));
-    return (0);
+    return 0;
 }
 
 /*
@@ -97,23 +97,33 @@ kv_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
  *     the given timestamp, return true if any of them match.
  */
 bool
-kv_item::contains_any(const data_value &value, uint64_t timestamp)
+kv_item::contains_any(const data_value &value, timestamp_t timestamp)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
 
+    /* Position the cursor on the update that is right after the provided timestamp. */
     auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
-    if (i == _updates.begin())
-        return (false);
 
-    uint64_t t = (*(--i))->timestamp();
+    /*
+     * If we are positioned at the beginning of the list, there are no visible updates given the
+     * provided timestamp (i.e., with timestamp that is smaller than or equal to the provided
+     * timestamp).
+     */
+    if (i == _updates.begin())
+        return false;
+
+    /* Read the timestamp of the latest visible update. */
+    timestamp_t t = (*(--i))->timestamp();
+
+    /* Check all updates with that timestamp. */
     for (; (*i)->timestamp() == t; i--) {
         if ((*i)->value() == value)
-            return (true);
+            return true;
         if (i == _updates.begin())
             break;
     }
-    return (false);
+    return false;
 }
 
 /*
@@ -121,18 +131,18 @@ kv_item::contains_any(const data_value &value, uint64_t timestamp)
  *     Get the corresponding value.
  */
 const data_value &
-kv_item::get(uint64_t timestamp)
+kv_item::get(timestamp_t timestamp)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
 
     if (_updates.empty())
-        return (NONE);
+        return NONE;
 
     auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
     if (i == _updates.begin())
-        return (NONE);
-    return ((*(--i))->value());
+        return NONE;
+    return (*(--i))->value();
 }
 
 } /* namespace model */

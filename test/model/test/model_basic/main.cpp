@@ -66,7 +66,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
  */
 static model::data_value
 wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
-  uint64_t timestamp = UINT64_MAX)
+  model::timestamp_t timestamp = UINT64_MAX)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -91,7 +91,7 @@ wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
 
     testutil_check(cursor->close(cursor));
     testutil_check(session->commit_transaction(session, NULL));
-    return (ret == 0 ? model::data_value(value) : model::NONE);
+    return ret == 0 ? model::data_value(value) : model::NONE;
 }
 
 /*
@@ -100,7 +100,7 @@ wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
  */
 static int
 wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
-  const model::data_value &value, uint64_t timestamp = 0, bool overwrite = true)
+  const model::data_value &value, model::timestamp_t timestamp = 0, bool overwrite = true)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -121,7 +121,7 @@ wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
         testutil_snprintf(cfg, sizeof(cfg), "commit_timestamp=%" PRIx64, timestamp);
     testutil_check(session->commit_transaction(session, cfg));
 
-    return (ret);
+    return ret;
 }
 
 /*
@@ -129,8 +129,8 @@ wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
  *     Delete from WiredTiger.
  */
 static int
-wt_remove(
-  WT_SESSION *session, const char *uri, const model::data_value &key, uint64_t timestamp = 0)
+wt_remove(WT_SESSION *session, const char *uri, const model::data_value &key,
+  model::timestamp_t timestamp = 0)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -149,7 +149,7 @@ wt_remove(
         testutil_snprintf(cfg, sizeof(cfg), "commit_timestamp=%" PRIx64, timestamp);
     testutil_check(session->commit_transaction(session, cfg));
 
-    return (ret);
+    return ret;
 }
 
 /*
@@ -158,7 +158,7 @@ wt_remove(
  */
 static int
 wt_update(WT_SESSION *session, const char *uri, const model::data_value &key,
-  const model::data_value &value, uint64_t timestamp = 0, bool overwrite = true)
+  const model::data_value &value, model::timestamp_t timestamp = 0, bool overwrite = true)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -179,7 +179,7 @@ wt_update(WT_SESSION *session, const char *uri, const model::data_value &key,
         testutil_snprintf(cfg, sizeof(cfg), "commit_timestamp=%" PRIx64, timestamp);
     testutil_check(session->commit_transaction(session, cfg));
 
-    return (ret);
+    return ret;
 }
 
 /*
@@ -518,5 +518,5 @@ main(int argc, char *argv[])
         testutil_remove(home);
 
     testutil_cleanup(opts);
-    return (EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }

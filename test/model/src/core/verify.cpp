@@ -43,14 +43,12 @@ bool
 kv_table_verify_cursor::has_next()
 {
     auto i = _iterator;
-    if (_count > 0)
-        i++;
 
     /* Skip over any deleted items. */
     while (i != _data.end() && i->second.get() == NONE)
         i++;
 
-    return (i != _data.end());
+    return i != _data.end();
 }
 
 /*
@@ -62,26 +60,24 @@ kv_table_verify_cursor::verify_next(const data_value &key, const data_value &val
 {
     /* If we have reached the end of the model's state, we failed. */
     if (_iterator == _data.end())
-        return (false);
-
-    /* Advance the cursor, if this is not the first instance - otherwise are already positioned. */
-    if (_count > 0)
-        _iterator++;
+        return false;
 
     /* Skip over any deleted items. */
     while (_iterator != _data.end() && _iterator->second.get() == NONE)
         _iterator++;
     if (_iterator == _data.end())
-        return (false);
+        return false;
 
-    _count++;
+    /* Advance the iterator, but keep the current position for the rest of this function. */
+    auto i = _iterator;
+    _iterator++;
 
     /* Check the key. */
-    if (key != _iterator->first)
-        return (false);
+    if (key != i->first)
+        return false;
 
     /* Check the value. */
-    return (_iterator->second.contains_any(value));
+    return i->second.contains_any(value);
 }
 
 /*
@@ -155,7 +151,7 @@ kv_table_verifier::verify(WT_CONNECTION *connection)
     if (session != NULL)
         (void)session->close(session, NULL);
 
-    return (success);
+    return success;
 }
 
 } /* namespace model */
