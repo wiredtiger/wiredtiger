@@ -307,9 +307,6 @@ __wt_rts_btree_walk_btree_apply(
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-          WT_RTS_VERB_TAG_HS_TRUNCATING "truncating history store entries for tree with id=%u",
-          btree_id);
         WT_ERR(__wt_rts_history_btree_hs_truncate(session, btree_id));
     }
 
