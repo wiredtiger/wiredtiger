@@ -88,8 +88,9 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     tmp_setup_session = NULL; /* a change */
 
     WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval)); /* a change */
-    if (cval.val != 0 && cval.val < WT_HS_FILE_MIN) /* a change */
-        WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val, /* a change */
+    if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)                          /* a change */
+        WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d",
+          cval.val,        /* a change */
           WT_HS_FILE_MIN); /* a change */
 
     /* in-memory or readonly configurations do not have a history store. */
