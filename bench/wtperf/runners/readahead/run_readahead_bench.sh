@@ -38,7 +38,6 @@ ls -lh WT_TEST > $RESULT_DIR/readahead_off_run/run_file_info.txt
 # Cleanup statistics file - the same database directory is used.
 rm WT_TEST/WiredTigerStat*
 
-
 echo "Clearing the file system caches"
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
