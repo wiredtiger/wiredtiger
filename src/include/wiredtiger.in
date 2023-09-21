@@ -2456,12 +2456,11 @@ struct __wt_connection {
      * \c "backup"\, \c "block"\, \c "block_cache"\, \c "checkpoint"\, \c "checkpoint_cleanup"\, \c
      * "checkpoint_progress"\, \c "chunkcache"\, \c "compact"\, \c "compact_progress"\, \c
      * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
-     * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "log"\,
-     * \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c
-     * "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\,
-     * \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c
-     * "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write";
-     * default \c [].}
+     * "generation"\, \c "handleops"\, \c "hs"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\,
+     * \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
+     * "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\,
+     * \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c
+     * "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
      * @configend
      * @errors
      */
@@ -3317,9 +3316,9 @@ struct __wt_connection {
  * "backup"\, \c "block"\, \c "block_cache"\, \c "checkpoint"\, \c "checkpoint_cleanup"\, \c
  * "checkpoint_progress"\, \c "chunkcache"\, \c "compact"\, \c "compact_progress"\, \c
  * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
- * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "log"\, \c
- * "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
- * "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
+ * "generation"\, \c "handleops"\, \c "hs"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c
+ * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "read"\, \c
+ * "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
  * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\,
  * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when

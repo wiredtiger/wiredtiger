@@ -396,7 +396,7 @@ static const char *confchk_timing_stress_for_test_choices[] = {"aggressive_stash
 static const char *confchk_verbose_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
+  "generation", "handleops", "hs", "history_store_activity", "log", "lsm", "lsm_manager",
   "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
@@ -514,7 +514,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -2389,7 +2389,7 @@ static const uint8_t
 static const char *confchk_verbose13_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
+  "generation", "handleops", "hs", "history_store_activity", "log", "lsm", "lsm_manager",
   "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
@@ -2561,7 +2561,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -2608,8 +2608,8 @@ static const char *confchk_timing_stress_for_test3_choices[] = {"aggressive_stas
 static const char *confchk_verbose14_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", 
-  "lsm_manager", "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
+  "generation", "handleops", "hs", "history_store_activity", "log", "lsm", "lsm_manager",
+  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
 
@@ -2780,7 +2780,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -2830,7 +2830,7 @@ static const char *confchk_timing_stress_for_test4_choices[] = {"aggressive_stas
 static const char *confchk_verbose15_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
+  "generation", "handleops", "hs", "history_store_activity", "log", "lsm", "lsm_manager",
   "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
@@ -2990,7 +2990,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
@@ -3040,8 +3040,8 @@ static const char *confchk_timing_stress_for_test5_choices[] = {"aggressive_stas
 static const char *confchk_verbose16_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
   "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "hs", "history_store", "history_store_activity", "log", "lsm", 
-  "lsm_manager", "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
+  "generation", "handleops", "hs", "history_store_activity", "log", "lsm", "lsm_manager",
+  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
   "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
   "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
 
@@ -3200,7 +3200,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"checkpoint\",\"checkpoint_cleanup\",\"checkpoint_progress\","
     "\"chunkcache\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
-    "\"fileops\",\"generation\",\"handleops\",\"hs\",\"history_store\","
+    "\"fileops\",\"generation\",\"handleops\",\"hs\","
     "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
     "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
     "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
