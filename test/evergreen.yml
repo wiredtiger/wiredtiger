@@ -3784,6 +3784,8 @@ tasks:
             
             echo "expansions: (for debugging this task)"
             echo ". is_patch      =  ${is_patch}"
+            
+            set extra_code_change_info_params = ""
              
             if [ ${is_patch|false} = true ]; then
               echo "This is a patch build"
@@ -3792,11 +3794,10 @@ tasks:
               sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
               ls -l coverage_report
               cat coverage_report/diff.txt
-              ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . -d coverage_report/diff.txt -o coverage_report/code_change_report.json
-            else
-              echo "This is a non-patch build"
-              ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . -o coverage_report/code_change_report.json
+              set extra_code_change_info_params = "-d coverage_report/diff.txt" 
             fi
+
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . ${extra_code_change_info_params} -o coverage_report/code_change_report.json
             
             cat coverage_report/code_change_report.json
       - func: "code coverage publish report"
