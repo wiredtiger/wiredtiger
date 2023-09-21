@@ -770,7 +770,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint32_t flags;
-    bool closing, is_eviction_thread, use_snapshot_for_app_thread;
+    bool closing, is_eviction_thread, is_application_thread;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -822,20 +822,20 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     /*
      * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered
-     * eviction through application threads and we have a transaction snapshot, we will use our
-     * existing snapshot to evict pages that are not globally visible based on the last_running
-     * transaction. Avoid using snapshots when application transactions are in the final stages of
-     * commit or rollback as they have already released the snapshot. Otherwise, it becomes harder
-     * in the later part of the code to detect updates that belonged to the last running application
-     * transaction.
+     * eviction through application threads then we take a backup of the existing snapshot and
+     * acquire a new snapshot, once the application threads are done with eviction then we switch
+     * back the snapshot to its original. Avoid using snapshots when application transactions are in
+     * the final stages of commit or rollback as they have already released the snapshot. Otherwise,
+     * it becomes harder in the later part of the code to detect updates that belonged to the last
+     * running application transaction.
      */
-    use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
+    is_application_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
-    WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
+    WT_ASSERT(session, !is_application_thread || !is_eviction_thread);
 
     /*
      * If checkpoint is running concurrently, set the checkpoint running flag and we will abort the
@@ -853,9 +853,15 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * outside world.
          */
         __wt_txn_bump_snapshot(session);
-    else if (use_snapshot_for_app_thread)
+    else if (is_application_thread) {
+        /*
+         * Application threads entering into eviction takes a backup of the existing snapshots and
+         * acquires a new snapshot to evict the latest data, once the application threads are done
+         * with eviction then the snapshots are switched back to its original snapshots.
+         */
+        __wt_txn_copy_and_bump_snapshot(session);
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
-    else if (!WT_SESSION_BTREE_SYNC(session))
+    } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
     WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -867,7 +873,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
      * eviction workers or application threads.
      */
-    if (is_eviction_thread || use_snapshot_for_app_thread)
+    if (is_eviction_thread || is_application_thread)
         WT_WITH_TXN_ISOLATION(
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
@@ -875,6 +881,9 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
+
+    if (is_application_thread)
+        __wt_txn_copy_back_snapshot(session);
 
     if (is_eviction_thread)
         __wt_txn_release_snapshot(session);

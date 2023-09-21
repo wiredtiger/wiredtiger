@@ -261,9 +261,9 @@ struct __wt_txn {
      *	ids < snap_min are visible,
      *	everything else is visible unless it is in the snapshot.
      */
-    uint64_t snap_min, snap_max;
-    uint64_t *snapshot;
-    uint32_t snapshot_count;
+    uint64_t snap_min, snap_max, bkp_snap_min, bkp_snap_max;
+    uint64_t *snapshot, *bkp_snapshot;
+    uint32_t snapshot_count, bkp_snapshot_count;
     uint32_t txn_logsync; /* Log sync configuration */
 
     /*

@@ -319,6 +319,63 @@ __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_copy_and_bump_snapshot --
+ *     Take backup of the existing snapshot and allocate a new snapshot.
+ */
+void
+__wt_txn_copy_and_bump_snapshot(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* Initialize the backup snapshot variables. */
+    txn->bkp_snap_min = WT_TXN_MAX;
+    txn->bkp_snap_max = WT_TXN_MAX;
+    txn->bkp_snapshot_count = 0;
+
+    /* Take the backup of the snapshot only if the snapshot count is greater than 0. */
+    if (txn->snapshot_count > 0) {
+        txn->bkp_snap_max = txn->snap_max;
+        txn->bkp_snap_min = txn->snap_min;
+        txn->bkp_snapshot_count = txn->snapshot_count;
+
+        WT_IGNORE_RET(
+          __wt_calloc(session, txn->snapshot_count, sizeof(uint64_t), &txn->bkp_snapshot));
+        memcpy(txn->bkp_snapshot, txn->snapshot, txn->snapshot_count * sizeof(uint64_t));
+
+        /*
+         * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
+         * already has a snapshot so clear the flag WT_TXN_HAS_SNAPSHOT.
+         */
+        F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
+
+        /* Get the snapshot without publishing the shared ids. */
+        __wt_txn_bump_snapshot(session);
+    }
+}
+
+/*
+ * __wt_txn_copy_back_snapshot --
+ *     Switch back to the original snapshot.
+ */
+void
+__wt_txn_copy_back_snapshot(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+    txn = session->txn;
+
+    if (txn->bkp_snapshot_count > 0) {
+        txn->snap_max = txn->bkp_snap_max;
+        txn->snap_min = txn->bkp_snap_min;
+        txn->snapshot_count = txn->bkp_snapshot_count;
+
+        memcpy(txn->snapshot, txn->bkp_snapshot, txn->bkp_snapshot_count * sizeof(uint64_t));
+        __wt_free(session, txn->bkp_snapshot);
+    }
+}
+
+/*
  * __txn_oldest_scan --
  *     Sweep the running transactions to calculate the oldest ID required.
  */
