@@ -3776,30 +3776,29 @@ tasks:
           script: |
             echo "Code Change Report (Step 2)"
             echo "==========================="
-            git status
 
             virtualenv -p ${python_binary|python3} venv
             source venv/bin/activate
             pip3 install pygit2==1.10.1
             
-            echo "expansions: (for debugging this task)"
-            echo ". is_patch      =  ${is_patch}"
-            
             set extra_code_change_info_params = ""
              
             if [ ${is_patch|false} = true ]; then
               echo "This is a patch build"
-              # Obtain the diff for this 
+              # Obtain the diff for the changes in this patch
               git diff --cached > coverage_report/diff.txt
+              set extra_code_change_info_params = "-d coverage_report/diff.txt" 
+              # Generate an HTML friendly version of the diff for 
               sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
+              # Logging for debugging
               ls -l coverage_report
               cat coverage_report/diff.txt
-              set extra_code_change_info_params = "-d coverage_report/diff.txt" 
             fi
 
-            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . ${extra_code_change_info_params} -o coverage_report/code_change_report.json
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . ${extra_code_change_info_params} -o coverage_report/code_change_info.json
             
-            cat coverage_report/code_change_report.json
+            # Log the contents of the change info file
+            cat coverage_report/code_change_info.json
       - func: "code coverage publish report"
 
   - name: s3-tiered-storage-extensions-test
