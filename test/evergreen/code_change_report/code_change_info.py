@@ -1,10 +1,8 @@
 import argparse
 import json
 from pygit2 import discover_repository, Repository, Diff
-from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
-
+from pygit2 import GIT_SORT_NONE
 from change_info import ChangeInfo
-from commit_info import CommitInfo
 
 
 # This function reads a gcovr json file into a dict and returns it
