@@ -225,7 +225,7 @@ functions:
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
           # Fetch the gperftools library if needed. This will also get tcmalloc.
-          if  [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ "ENABLE_TCMALLOC=1" ]] && [ ! -d "./automation-scripts" ]; then
+          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ "ENABLE_TCMALLOC=1" ]] && [ ! -d "./automation-scripts" ]; then
             is_cmake_build=true
             git clone git@github.com:wiredtiger/automation-scripts.git
             . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
@@ -6339,21 +6339,6 @@ buildvariants:
   - ubuntu2004-test
   tasks:
     - name: package
-
-- name: linux-no-ftruncate
-  display_name: Linux no ftruncate
-  batchtime: 1440 # 1 day
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
-    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compile-linux-no-ftruncate
-    - name: make-check-linux-no-ftruncate-test
-    - name: unit-linux-no-ftruncate-test
-    - name: format-linux-no-ftruncate
 
 - name: rhel80
   display_name: RHEL 8.0
