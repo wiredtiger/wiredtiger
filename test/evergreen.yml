@@ -546,8 +546,9 @@ functions:
       display_name: cppsuite-test
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
 
+  # FIXME-WT-8538 This task prevents us from saving the same artifacts to evergreen twice. It can be
+  # removed when we implement a generalised approach in WT-8538
   "cppsuite remove dir": &cppsuite_remove_dir
-    # We remove the wiredtiger directory here to avoid it getting archived again by post tasks.
     command: shell.exec
     params:
       shell: bash
