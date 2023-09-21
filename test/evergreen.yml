@@ -3781,13 +3781,13 @@ tasks:
             source venv/bin/activate
             pip3 install pygit2==1.10.1
             
-            set extra_code_change_info_params = ""
+            EXTRA_CODE_CHANGE_PARAMETERS=''
              
             if [ ${is_patch|false} = true ]; then
               echo "This is a patch build"
               # Obtain the diff for the changes in this patch
               git diff --cached > coverage_report/diff.txt
-              set extra_code_change_info_params = "-d coverage_report/diff.txt" 
+              EXTRA_CODE_CHANGE_PARAMETERS='-d coverage_report/diff.txt'
               # Generate an HTML friendly version of the diff for 
               sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
               # Logging for debugging
@@ -3795,7 +3795,7 @@ tasks:
               cat coverage_report/diff.txt
             fi
 
-            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . ${extra_code_change_info_params} -o coverage_report/code_change_info.json
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . $EXTRA_CODE_CHANGE_PARAMETERS -o coverage_report/code_change_info.json
             
             # Log the contents of the change info file
             cat coverage_report/code_change_info.json
