@@ -1400,7 +1400,7 @@ rollback:
             break;
         }
 
-        if (op == TRUNCATE && mirrored_truncate) {
+        if (mirrored_truncate) {
             /*
              * At the end of a mirrored truncate all tables must contain the same keys. It's ok if a
              * parallel insert has added keys back inside the truncated range as long as all mirror
