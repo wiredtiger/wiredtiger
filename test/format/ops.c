@@ -1292,7 +1292,7 @@ rollback_retry:
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
-            if(op == TRUNCATE)
+            if (op == TRUNCATE)
                 mirrored_truncate = true;
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
