@@ -75,7 +75,9 @@
     } while (0)
 
 /*
- * Read a shared location and guarantee that subsequent reads do not see any earlier state.
+ * Read a shared location and guarantee that subsequent reads do not see any earlier state. This
+ * macro will be gradually replaced by WT_READ_ONCE and WT_READ_ORDERED. If you are looking to use
+ * this macro please consider the above two first.
  */
 #define WT_ORDERED_READ(v, val) \
     do {                        \
