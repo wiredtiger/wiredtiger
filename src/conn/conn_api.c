@@ -2308,7 +2308,7 @@ verbos_assign:
         if (ft->flag == WT_VERB_CONFIG_ALL_VERBOS) {
             for (i = WT_VERB_CONFIG_ALL_VERBOS; i < WT_VERB_NUM_CATEGORIES; i++)
                 conn->verbose[i] = verbose_value;
-        } else { 
+        } else {
             conn->verbose[ft->flag] = verbose_value;
         }
     }
