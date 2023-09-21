@@ -31,6 +31,7 @@ exec_timeout_secs: 21600 # 6 hrs
 functions:
   "setup environment":
     - command: expansions.update
+      type: setup 
       params:
         updates:
         # The expansion is used for each task that runs a WiredTiger test. The expansions are
@@ -80,10 +81,12 @@ functions:
 
   "get project":
     command: git.get_project
+    type: setup 
     params:
       directory: wiredtiger
   "fetch artifacts": &fetch_artifacts
     command: s3.get
+    type: setup 
     params:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
@@ -92,6 +95,7 @@ functions:
       extract_to: ${destination|wiredtiger}
   "fetch endian format artifacts" :
     - command: s3.get
+      type: setup 
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
@@ -100,6 +104,7 @@ functions:
         extract_to: wiredtiger/cmake_build/test/format
   "fetch mongo-tests repo" :
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -108,6 +113,7 @@ functions:
         git clone https://github.com/wiredtiger/mongo-tests
   "fetch mongo repo" :
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -123,6 +129,7 @@ functions:
         git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -291,6 +298,7 @@ functions:
         ${python_binary|python3} ../test/evergreen/print_stack_trace.py
   "upload stacktraces": &upload_stacktraces
     command: s3.put
+    type: setup 
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
@@ -446,6 +454,7 @@ functions:
 
           done
     - command: shell.exec
+      type: setup 
       params:
         shell: bash
         silent: true
@@ -513,10 +522,12 @@ functions:
     - *dump_stacktraces
     - *upload_stacktraces
     - command: perf.send
+      type: setup 
       params:
         file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
     # Delete unnecessary data from the upload.
     - command: shell.exec
+      type: setup 
       params:
         shell: bash
         script: |
@@ -527,12 +538,14 @@ functions:
           mkdir wiredtiger/cmake_build/test/
           mv wiredtiger/cmake_build/cppsuite wiredtiger/cmake_build/test/cppsuite
     - command: archive.targz_pack
+      type: setup 
       params:
         target: archive.tgz
         source_dir: wiredtiger/cmake_build/
         include:
           - "./**"
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -544,6 +557,7 @@ functions:
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
     # We remove the wiredtiger directory here to avoid to getting archived again by post tasks.
     - command: shell.exec
+      type: setup 
       params:
         shell: bash
         script: |
@@ -618,6 +632,7 @@ functions:
 
   "code coverage publish report":
     command: s3.put
+    type: setup 
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
@@ -629,6 +644,7 @@ functions:
 
   "code coverage publish summary":
     command: s3.put
+    type: setup 
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
@@ -865,12 +881,14 @@ functions:
         done
   "upload artifact":
     - command: archive.targz_pack
+      type: setup 
       params:
         target: ${upload_filename|wiredtiger.tgz}
         source_dir: ${upload_source_dir|wiredtiger}
         include:
           - "./**"
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -882,6 +900,7 @@ functions:
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload endian format artifacts":
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -893,6 +912,7 @@ functions:
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
   "cleanup":
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -916,6 +936,7 @@ functions:
 
   "save wt hang analyzer core/debugger files":
     - command: archive.targz_pack
+      type: setup 
       params:
         target: "wt-hang-analyzer.tgz"
         source_dir: "wiredtiger/cmake_build"
@@ -923,6 +944,7 @@ functions:
           - "./*core*"
           - "./debugger*.*"
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -1081,6 +1103,7 @@ functions:
 
   "upload test stats":
     - command: perf.send
+      type: setup 
       params:
         file: ./wiredtiger/cmake_build/${test_path}.json
 
@@ -1113,11 +1136,13 @@ functions:
 
   "upload stats to evergreen":
     - command: perf.send
+      type: setup 
       params:
         file: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/evergreen_out_${test-name}.json
     # Push the json results to the 'Files' tab of the task in Evergreen
     # Parameterised using the 'test-name' variable
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -1151,6 +1176,7 @@ functions:
   
   "install gcp dependencies":
     - command: shell.exec
+      type: setup 
       params:
         working_dir: "wiredtiger"
         shell: bash
