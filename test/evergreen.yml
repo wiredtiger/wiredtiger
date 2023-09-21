@@ -78,7 +78,6 @@ functions:
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
             fi
 
-
   "get project":
     command: git.get_project
     params:
@@ -591,7 +590,7 @@ functions:
         ${PREPARE_TEST_ENV}
         cd cmake_build
         threads_command=""
-        if [[ -n ${num_jobs} ]]; then
+        if [[ -n "${num_jobs}" ]]; then
           echo "Using num_jobs '-j ${num_jobs}' for 'unit test'"
           threads_command="-j ${num_jobs}"
         fi
@@ -726,11 +725,13 @@ functions:
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
       shell: bash
+      add_expansions_to_env: true
       script: |
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-        ${format_test_setting|}
+        ${additional_asan_vars}
+        ${format_test_setting}
         for i in $(seq ${times|1}); do
           ./format.sh -j ${num_jobs} ${format_test_script_args|} 2>&1
         done
@@ -1245,6 +1246,7 @@ variables:
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
     <<: *configure_flags_with_builtins
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
 
 
@@ -1312,7 +1314,7 @@ variables:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
@@ -1324,9 +1326,9 @@ variables:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
       - func: "format test script"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
           format_test_script_args: -t 360
 
 
@@ -1339,7 +1341,7 @@ variables:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -R -t 360
 
   - &recovery-stress-test
@@ -4071,11 +4073,11 @@ tasks:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -S
       - func: "format test"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-wtperf-test
@@ -4405,7 +4407,7 @@ tasks:
           <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
       - func: "format test script"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           # Run for 30 mins, and explicitly set data_source to LSM with a large cache
           format_test_script_args: -t 30 data_source=lsm cache_minimum=5000
 
@@ -4656,7 +4658,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -t 360
 
   - name: race-condition-stress-sanitizer-test-no-barrier
@@ -4670,7 +4672,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+          additional_asan_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -R -t 360
 
   - name: recovery-stress-test-no-barrier
