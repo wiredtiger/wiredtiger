@@ -742,22 +742,57 @@ __wt_chunkcache_remove(
  * __wt_chunkcache_ingest --
  *     Read all the contents from a file and insert it into the chunkcache.
  */
-void
-__wt_chunkcache_ingest(const char *name, uint32_t objectid)
+int
+__wt_chunkcache_ingest(WT_SESSION_IMPL *session, const char *object_name, uint32_t object_id)
 {
-    printf("Inside ingest %s OBJECT: %u \n", name, objectid);
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_CHUNKCACHE_HASHID hash_id;
+    WT_DECL_RET;
+    size_t already_read, remains_to_write, size;
+    uint64_t bucket_id;
 
-    WT_UNUSED(objectid);
+    chunkcache = &S2C(session)->chunkcache;
     // handle = __wt_open(name);
     // size = __wt_size(handle);
     // remains_to_write = size;
 
-    // while (remains_to_write > 0) {
-    //     bucket_id = hash(name, objectid, size - remains_to_write);
-    //     __chunkcache_alloc_chunk(..., &chunk, ...);
-    //     memcpy(chunk->chunk_memory, buf, chunk_sz);
-    //     remains_to_write -= chunk_sz;
-    // }
+    /* Read the file. */
+
+    /* Get the size. */
+    already_read = 0;
+    remains_to_write = size;
+    /* Create Hash */
+
+    while (remains_to_write > 0) {
+        bucket_id = __chunkcache_tmp_hash(
+          chunkcache, &hash_id, object_name, object_id, (wt_off_t)already_read);
+
+        __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+        if ((ret = __chunkcache_alloc_chunk(
+               session, (wt_off_t)already_read, block, &hash_id, &chunk)) != 0) {
+            __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+            return (ret);
+        }
+
+        TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
+        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+
+        /* Read the new chunk. Only one thread would be caching the new chunk. */
+        if ((ret = __wt_read(session, block->fh, chunk->chunk_offset, chunk->chunk_size,
+               chunk->chunk_memory)) != 0) {
+            __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+            TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
+            __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+            __chunkcache_free_chunk(session, chunk);
+            WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
+            return (ret);
+        }
+
+        already_read += chunk->chunk_size;
+        remains_to_write -= chunk->chunk_size;
+    }
+    return (0);
 }
 
 /*
