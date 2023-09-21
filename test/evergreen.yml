@@ -3736,12 +3736,12 @@ tasks:
 
   - name: code-change-report
     depends_on:
-      - name: "coverage-report-catch2"
+      - name: "coverage-report"
     commands:
       - func: "get project"
       - command: shell.exec
         vars:
-          dependent_task: coverage-report-catch2
+          dependent_task: coverage-report
         params:
           working_dir: "wiredtiger"
           shell: bash
@@ -3769,7 +3769,7 @@ tasks:
           local_file: wiredtiger/coverage_report/full_coverage_report.json
       - command: shell.exec
         vars:
-          dependent_task: coverage-report-catch2
+          dependent_task: coverage-report
         params:
           working_dir: "wiredtiger"
           shell: bash
