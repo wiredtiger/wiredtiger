@@ -85,12 +85,12 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_SESSION_IMPL *tmp_setup_session;
 
     conn = S2C(session);
-    tmp_setup_session = NULL;
+    tmp_setup_session = NULL; /* a change */
 
-    WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
-    if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
-        WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val,
-          WT_HS_FILE_MIN);
+    WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval)); /* a change */
+    if (cval.val != 0 && cval.val < WT_HS_FILE_MIN) /* a change */
+        WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val, /* a change */
+          WT_HS_FILE_MIN); /* a change */
 
     /* in-memory or readonly configurations do not have a history store. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
