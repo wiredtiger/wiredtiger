@@ -173,6 +173,7 @@ position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
             ret = 0;
     }
 
+    key_gen_teardown(&key);
     return ret;
 }
 
