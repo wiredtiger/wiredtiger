@@ -291,8 +291,8 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
      * Use a barrier instead of marking the fields volatile because we don't want to slow down the
      * rest of the hazard pointer functions that don't need special treatment.
      */
-    WT_ORDERED_READ(*hazard_inusep, session->hazard_inuse);
-    WT_ORDERED_READ(*hazardp, session->hazard);
+    WT_READ_ORDERED(*hazard_inusep, session->hazard_inuse);
+    WT_READ_ORDERED(*hazardp, session->hazard);
 }
 
 /*

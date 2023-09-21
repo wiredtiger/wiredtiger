@@ -38,12 +38,41 @@
  *
  * FIXME-WT-11718 - Once Windows build machines that support C11 _Generics are available this macro
  * will be updated to use _Generic on all platforms.
+ *
+ * FIXME-WT-10946 - Add a link to the shared memory documentation once complete.
+ *
  */
 #if defined(__GNUC__) || defined(__clang__)
 #define WT_READ_ONCE(v, val) (v) = (*(volatile __typeof__(val) *)&(val));
 #else
 #define WT_READ_ONCE(v, val) WT_ORDERED_READ(v, val)
 #endif
+
+/*
+ * WT_READ_ORDERED --
+ *
+ * Ensure that this read from memory always takes place before subsequent reads in the source code.
+ *
+ * For optimization reasons both the compiler and CPU are allowed to reorganize instructions, and so
+ * the source code `READ a; READ b; READ c;` may become `READ c; READ a; READ b` when actually
+ * executed. In most cases we don't need to think about this, but in our lock-less algorithms
+ * multiple threads access memory without the protection of a lock and it becomes critical that we
+ * can carefully manage the order of execution.
+ *
+ * By placing a read barrier we ensure that any reads before the barrier take place before any
+ * reads after the barrier, and as a result can guarantee that this specific read happens before any
+ * reads that follow this instruction.
+ * Note that this makes no guarantees about:
+ *   - Ordering between this read and earlier reads in the source code.
+ *   - Ordering between this read subsequent non-read instructions, for example writes to memory.
+ *
+ * FIXME-WT-10946 - Add a link to the shared memory documentation once complete.
+ */
+#define WT_READ_ORDERED(v, val) \
+    do {                        \
+        (v) = (val);            \
+        WT_READ_BARRIER();      \
+    } while (0)
 
 /*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
