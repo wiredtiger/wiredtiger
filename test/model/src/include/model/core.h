@@ -29,11 +29,11 @@
 #ifndef MODEL_CORE_H
 #define MODEL_CORE_H
 
+#include <deque>
 #include <map>
 #include <mutex>
 #include <optional>
 #include <string>
-#include <vector>
 
 /*
  * WT_TS_MAX --
@@ -421,7 +421,7 @@ public:
 
 private:
     std::mutex _lock;
-    std::vector<kv_update *> _updates; /* sorted list of updates */
+    std::deque<kv_update *> _updates; /* sorted list of updates */
 };
 
 } /* namespace model */

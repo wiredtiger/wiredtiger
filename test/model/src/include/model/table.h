@@ -33,7 +33,6 @@
 #include <map>
 #include <mutex>
 #include <string>
-#include <vector>
 
 #include "model/core.h"
 #include "model/verify.h"
