@@ -2231,7 +2231,7 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
-    static const WT_NAME_FLAG verbtypes[] = {{"config_all_verbose", WT_VERB_CONFIG_ALL_VERBOS},
+    static const WT_NAME_FLAG verbtypes[] = {{"config_all_verbose", WT_VERB_CONFIG_ALL_VERBOSE},
       {"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
@@ -2258,6 +2258,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     const WT_NAME_FLAG *ft;
     int i;
     WT_VERBOSE_LEVEL verbose_value;
+    bool config_all_verbos_flag;
 
     conn = S2C(session);
 
@@ -2268,7 +2269,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "verbose", &cval)) == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
-
+    
+    config_all_verbos_flag = true;
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
     for (ft = verbtypes; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
@@ -2279,9 +2281,21 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * If the given event isn't specified in configuration string, default it to the
              * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
              * verbosity message.
+
+             * If verbose have config the "config_all_verbose=xx", There's no need to default this config 
+             * to the WT_VERBOSE_NOTICE verbosity level
              */
-            verbose_value = WT_VERBOSE_NOTICE;
-            goto verbos_assign;
+            if (ft->flag == WT_VERB_CONFIG_ALL_VERBOSE) {
+                config_all_verbos_flag = false;
+                continue;
+            } 
+            
+            if (config_all_verbos_flag == true) {
+                continue;
+            } else {
+                verbose_value = WT_VERBOSE_NOTICE;
+                goto verbos_assign;
+            }
         } else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0) {
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
@@ -2306,8 +2320,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         }
 
 verbos_assign:
-        if (ft->flag == WT_VERB_CONFIG_ALL_VERBOS) {
-            for (i = WT_VERB_CONFIG_ALL_VERBOS; i < WT_VERB_NUM_CATEGORIES; i++)
+        if (ft->flag == WT_VERB_CONFIG_ALL_VERBOSE) {
+            for (i = WT_VERB_CONFIG_ALL_VERBOSE; i < WT_VERB_NUM_CATEGORIES; i++)
                 conn->verbose[i] = verbose_value;
         } else {
             conn->verbose[ft->flag] = verbose_value;

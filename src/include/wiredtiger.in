@@ -7702,7 +7702,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 typedef enum {
 /* VERBOSE ENUM START */
-    WT_VERB_CONFIG_ALL_VERBOS,      /*!< ALL module messages. */
+    WT_VERB_CONFIG_ALL_VERBOSE,      /*!< ALL module messages. */
     WT_VERB_API,                  /*!< API messages. */
     WT_VERB_BACKUP,               /*!< Backup messages. */
     WT_VERB_BLKCACHE,
