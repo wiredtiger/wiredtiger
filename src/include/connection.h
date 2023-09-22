@@ -515,14 +515,14 @@ struct __wt_connection_impl {
     uint32_t evict_threads_max; /* Max eviction threads */
     uint32_t evict_threads_min; /* Min eviction threads */
 
-#define WT_MAX_READ_AHEAD_QUEUE 120
-#define WT_READ_AHEAD_QUEUE_PER_TRIGGER 30
-    WT_SPINLOCK read_ahead_lock;
-    WT_THREAD_GROUP read_ahead_threads;
-    uint64_t read_ahead_queue_count;
-    /* Queue of refs to read ahead from */
-    TAILQ_HEAD(__wt_ra_qh, __wt_read_ahead) raqh; /* Locked: read_ahead_lock */
-    bool read_ahead_auto_on;
+#define WT_MAX_PREFETCH_QUEUE 120
+#define WT_PREFETCH_QUEUE_PER_TRIGGER 30
+    WT_SPINLOCK prefetch_lock;
+    WT_THREAD_GROUP prefetch_threads;
+    uint64_t prefetch_queue_count;
+    /* Queue of refs to pre-fetch from */
+    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch) pfqh; /* Locked: prefetch_lock */
+    bool prefetch_auto_on;
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
@@ -780,9 +780,9 @@ struct __wt_connection_impl {
 #define WT_CONN_MINIMAL 0x00040000u
 #define WT_CONN_OPTRACK 0x00080000u
 #define WT_CONN_PANIC 0x00100000u
-#define WT_CONN_READONLY 0x00200000u
-#define WT_CONN_READY 0x00400000u
-#define WT_CONN_READ_AHEAD_RUN 0x00800000u
+#define WT_CONN_PREFETCH_RUN 0x00200000u
+#define WT_CONN_READONLY 0x00400000u
+#define WT_CONN_READY 0x00800000u
 #define WT_CONN_RECONFIGURING 0x01000000u
 #define WT_CONN_RECOVERING 0x02000000u
 #define WT_CONN_RECOVERY_COMPLETE 0x04000000u

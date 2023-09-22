@@ -252,8 +252,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_evict_list_clear_page(session, ref);
     }
 
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_READ_AHEAD))
-        WT_STAT_CONN_INCR(session, cache_eviction_consider_read_ahead);
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
+        WT_STAT_CONN_INCR(session, cache_eviction_consider_prefetch);
 
     /*
      * Review the page for conditions that would block its eviction. If the check fails (for
@@ -552,8 +552,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     bool busy, visible;
 
     busy = false;
-    /* Read ahead queue flags on a ref need to be checked while holding the read ahead lock. */
-    __wt_spin_lock(session, &S2C(session)->read_ahead_lock);
+    /* Pre-fetch queue flags on a ref need to be checked while holding the pre-fetch lock. */
+    __wt_spin_lock(session, &S2C(session)->prefetch_lock);
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -564,8 +564,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * opposite direction from our check.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
-        /* It isn't safe to evict if there is a child on the read ahead queue. */
-        if (F_ISSET(child, WT_REF_FLAG_READ_AHEAD)) {
+        /* It isn't safe to evict if there is a child on the pre-fetch queue. */
+        if (F_ISSET(child, WT_REF_FLAG_PREFETCH)) {
             busy = true;
             break;
         }
@@ -581,7 +581,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             break;
     }
     WT_INTL_FOREACH_END;
-    __wt_spin_unlock(session, &S2C(session)->read_ahead_lock);
+    __wt_spin_unlock(session, &S2C(session)->prefetch_lock);
     if (busy)
         return (__wt_set_return(session, EBUSY));
 

@@ -3231,8 +3231,8 @@ struct __wt_connection {
  * is not an absolute path\, the path is relative to the database home (see @ref absolute_path for
  * more information)., a string; default \c ".".}
  * @config{ ),,}
- * @config{read_ahead, Enable automatic detection of scans by applications\, and attempt to
- * pre-fetch future content into the cache., a boolean flag; default \c false.}
+ * @config{prefetch, Enable automatic detection of scans by applications\, and attempt to pre-fetch
+ * future content into the cache., a boolean flag; default \c false.}
  * @config{readonly, open connection in read-only mode.  The database must exist.  All methods that
  * may modify a database are disabled.  See @ref readonly for more information., a boolean flag;
  * default \c false.}
@@ -5402,18 +5402,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BLOCK_CACHE_MISSES			1032
 /*! block-cache: number of put bypasses on checkpoint I/O */
 #define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT		1033
-/*! block-cache: read ahead not triggered after single disk read */
-#define	WT_STAT_CONN_BLOCK_READ_AHEAD_DISK_ONE		1034
-/*! block-cache: read ahead not triggered by page read */
-#define	WT_STAT_CONN_BLOCK_READ_AHEAD_SKIPPED		1035
-/*! block-cache: read ahead page not on disk when reading */
-#define	WT_STAT_CONN_BLOCK_READ_AHEAD_PAGES_FAIL	1036
-/*! block-cache: read ahead page read in background */
-#define	WT_STAT_CONN_BLOCK_READ_AHEAD_PAGES_READ	1037
-/*! block-cache: read ahead pages queued */
-#define	WT_STAT_CONN_BLOCK_READ_AHEAD_PAGES_QUEUED	1038
-/*! block-cache: read ahead triggered by page read */
-#define	WT_STAT_CONN_BLOCK_READ_AHEAD_ATTEMPTS		1039
+/*! block-cache: pre-fetch not triggered after single disk read */
+#define	WT_STAT_CONN_BLOCK_PREFETCH_DISK_ONE		1034
+/*! block-cache: pre-fetch not triggered by page read */
+#define	WT_STAT_CONN_BLOCK_PREFETCH_SKIPPED		1035
+/*! block-cache: pre-fetch page not on disk when reading */
+#define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_FAIL		1036
+/*! block-cache: pre-fetch page read in background */
+#define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_READ		1037
+/*! block-cache: pre-fetch pages queued */
+#define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_QUEUED	1038
+/*! block-cache: pre-fetch triggered by page read */
+#define	WT_STAT_CONN_BLOCK_PREFETCH_ATTEMPTS		1039
 /*! block-cache: removed blocks */
 #define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED		1040
 /*! block-cache: time sleeping to remove block (usecs) */
@@ -5772,11 +5772,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_DEEPEN		1173
 /*! cache: page written requiring history store records */
 #define	WT_STAT_CONN_CACHE_WRITE_HS			1174
-/*!
- * cache: pages considered for eviction that were brought in by
- * read_ahead
- */
-#define	WT_STAT_CONN_CACHE_EVICTION_CONSIDER_READ_AHEAD	1175
+/*! cache: pages considered for eviction that were brought in by pre-fetch */
+#define	WT_STAT_CONN_CACHE_EVICTION_CONSIDER_PREFETCH	1175
 /*! cache: pages currently held in the cache */
 #define	WT_STAT_CONN_CACHE_PAGES_INUSE			1176
 /*! cache: pages evicted by application threads */
@@ -5809,8 +5806,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_CLEAR_ORDINARY	1187
 /*! cache: pages requested from the cache */
 #define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1188
-/*! cache: pages requested from the cache due to read_ahead */
-#define	WT_STAT_CONN_CACHE_PAGES_READ_AHEAD		1189
+/*! cache: pages requested from the cache due to pre-fetch */
+#define	WT_STAT_CONN_CACHE_PAGES_PREFETCH		1189
 /*! cache: pages seen by eviction walk */
 #define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN		1190
 /*! cache: pages seen by eviction walk that are already queued */
@@ -7145,8 +7142,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2106
 /*! cache: pages requested from the cache */
 #define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2107
-/*! cache: pages requested from the cache due to read_ahead */
-#define	WT_STAT_DSRC_CACHE_PAGES_READ_AHEAD		2108
+/*! cache: pages requested from the cache due to pre-fetch */
+#define	WT_STAT_DSRC_CACHE_PAGES_PREFETCH		2108
 /*! cache: pages seen by eviction walk */
 #define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN		2109
 /*! cache: pages written from cache */

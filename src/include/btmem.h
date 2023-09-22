@@ -696,7 +696,7 @@ struct __wt_page {
 #define WT_PAGE_EVICT_LRU_URGENT 0x020u   /* Page is in the urgent queue */
 #define WT_PAGE_EVICT_NO_PROGRESS 0x040u  /* Eviction doesn't count as progress */
 #define WT_PAGE_INTL_OVERFLOW_KEYS 0x080u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_READ_AHEAD 0x100u         /* The page is being pre fetched */
+#define WT_PAGE_PREFETCH 0x100u           /* The page is being pre-fetched */
 #define WT_PAGE_SPLIT_INSERT 0x200u       /* A leaf page was split for append */
 #define WT_PAGE_UPDATE_IGNORE 0x400u      /* Ignore updates on page discard */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
@@ -937,14 +937,14 @@ struct __wt_ref_hist {
 };
 
 /*
- * WT_READ_AHEAD --
- *	Queue entry for pages queued for read ahead.
+ * WT_PREFETCH --
+ *	Queue entry for pages queued for pre-fetch.
  */
-struct __wt_read_ahead {
+struct __wt_prefetch {
     WT_REF *ref;
     WT_PAGE *first_home;
     WT_DATA_HANDLE *dhandle;
-    TAILQ_ENTRY(__wt_read_ahead) q; /* List of pages queued for read ahead. */
+    TAILQ_ENTRY(__wt_prefetch) q; /* List of pages queued for pre-fetch. */
 };
 
 /*
@@ -970,11 +970,11 @@ struct __wt_ref {
  * depending on it to be "!leaf" instead.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_REF_FLAG_INTERNAL 0x1u   /* Page is an internal page */
-#define WT_REF_FLAG_LEAF 0x2u       /* Page is a leaf page */
-#define WT_REF_FLAG_READING 0x4u    /* Page is being read in */
-#define WT_REF_FLAG_READ_AHEAD 0x8u /* Page is on the read ahead queue */
-                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+#define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
+#define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
+#define WT_REF_FLAG_PREFETCH 0x4u /* Page is on the pre-fetch queue */
+#define WT_REF_FLAG_READING 0x8u  /* Page is being read in */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
 #define WT_REF_DISK 0       /* Page is on disk */

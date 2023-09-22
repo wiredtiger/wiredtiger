@@ -177,9 +177,9 @@ struct __wt_session_impl {
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
-    uint64_t read_ahead_disk_read_count; /* Sequential cache requests that caused a leaf read */
-    WT_REF *read_ahead_prev_ref;
-    uint64_t read_ahead_skipped_with_parent;
+    uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
+    WT_REF *prefetch_prev_ref;
+    uint64_t prefetch_skipped_with_parent;
 
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);

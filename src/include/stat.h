@@ -373,12 +373,12 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
-    int64_t block_read_ahead_disk_one;
-    int64_t block_read_ahead_skipped;
-    int64_t block_read_ahead_pages_fail;
-    int64_t block_read_ahead_pages_read;
-    int64_t block_read_ahead_pages_queued;
-    int64_t block_read_ahead_attempts;
+    int64_t block_prefetch_disk_one;
+    int64_t block_prefetch_skipped;
+    int64_t block_prefetch_pages_fail;
+    int64_t block_prefetch_pages_read;
+    int64_t block_prefetch_pages_queued;
+    int64_t block_prefetch_attempts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_blocks;
@@ -514,7 +514,7 @@ struct __wt_connection_stats {
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
-    int64_t cache_eviction_consider_read_ahead;
+    int64_t cache_eviction_consider_prefetch;
     int64_t cache_pages_inuse;
     int64_t cache_eviction_app;
     int64_t cache_eviction_pages_in_parallel_with_checkpoint;
@@ -528,7 +528,7 @@ struct __wt_connection_stats {
     int64_t cache_read_deleted_prepared;
     int64_t cache_eviction_clear_ordinary;
     int64_t cache_pages_requested;
-    int64_t cache_pages_read_ahead;
+    int64_t cache_pages_prefetch;
     int64_t cache_eviction_pages_seen;
     int64_t cache_eviction_pages_already_queued;
     int64_t cache_eviction_fail;
@@ -1073,7 +1073,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
     int64_t cache_pages_requested;
-    int64_t cache_pages_read_ahead;
+    int64_t cache_pages_prefetch;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;

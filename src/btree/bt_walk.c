@@ -403,9 +403,9 @@ restart:
                 *refp = ref;
                 WT_ASSERT(session, ref != ref_orig);
 
-                if (__wt_session_read_ahead_check(session, ref)) {
-                    WT_ERR(__wt_btree_read_ahead(session, ref));
-                }
+                if (__wt_session_prefetch_check(session, ref))
+                    WT_ERR(__wt_btree_prefetch(session, ref));
+
                 goto done;
             }
 
@@ -474,10 +474,9 @@ descend:
                 /* Success, so "couple" has been released. */
                 couple = NULL;
 
-                /* Check if read ahead would help. */
-                if (__wt_session_read_ahead_check(session, ref)) {
-                    WT_ERR(__wt_btree_read_ahead(session, ref));
-                }
+                /* Check if pre-fetch would help. */
+                if (__wt_session_prefetch_check(session, ref))
+                    WT_ERR(__wt_btree_prefetch(session, ref));
 
                 /* Return leaf pages to our caller. */
                 if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
