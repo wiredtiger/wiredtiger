@@ -31,6 +31,7 @@
 
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -59,6 +60,12 @@ namespace model {
 typedef uint64_t timestamp_t;
 
 /*
+ * NONE_STRING --
+ *     The "string" to print in place of NONE.
+ */
+extern const std::string NONE_STRING;
+
+/*
  * data_value --
  *     The data value stored in the model used for keys and values. We use a generic class, rather
  *     than a specific type such as std::string, to give us flexibility to change data types in the
@@ -71,19 +78,19 @@ public:
      * data_value::data_value --
      *     Create a new instance.
      */
-    inline data_value(const char *data) : _data(data), _none(false) {}
+    inline data_value(const char *data) : _data(data) {}
 
     /*
      * data_value::data_value --
      *     Create a new instance.
      */
-    inline data_value(const std::string &data) noexcept : _data(data), _none(false) {}
+    inline data_value(const std::string &data) noexcept : _data(data) {}
 
     /*
      * data_value::data_value --
      *     Create a new instance.
      */
-    inline data_value(const std::string &&data) noexcept : _data(std::move(data)), _none(false) {}
+    inline data_value(const std::string &&data) noexcept : _data(std::move(data)) {}
 
     /*
      * data_value::create_none --
@@ -92,19 +99,17 @@ public:
     inline static data_value
     create_none() noexcept
     {
-        data_value v(std::move(std::string("(none)")));
-        v._none = true;
-        return v;
+        return data_value();
     }
 
     /*
      * data_value::as_string --
-     *     Return the data value as a string.
+     *     Return the data value as a human-readable string (e.g., for printing).
      */
     inline const std::string &
     as_string() const noexcept
     {
-        return _data;
+        return _data.has_value() ? *_data : NONE_STRING;
     }
 
     /*
@@ -114,10 +119,6 @@ public:
     inline bool
     operator==(const data_value &other) const noexcept
     {
-        if (_none && other._none)
-            return true;
-        if (_none != other._none)
-            return false;
         return _data == other._data;
     }
 
@@ -138,8 +139,6 @@ public:
     inline bool
     operator<(const data_value &other) const noexcept
     {
-        if (_none != other._none)
-            return _none;
         return _data < other._data;
     }
 
@@ -150,10 +149,6 @@ public:
     inline bool
     operator<=(const data_value &other) const noexcept
     {
-        if (_none != other._none)
-            return _none;
-        if (_none)
-            return true;
         return _data <= other._data;
     }
 
@@ -184,12 +179,17 @@ public:
     inline bool
     none() const noexcept
     {
-        return _none;
+        return !_data.has_value();
     }
 
 private:
-    std::string _data;
-    bool _none;
+    /*
+     * data_value::data_value --
+     *     Create a new instance.
+     */
+    inline data_value() : _data(std::nullopt) {}
+
+    std::optional<std::string> _data;
 };
 
 /*

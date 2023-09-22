@@ -41,6 +41,12 @@ namespace model {
 const data_value NONE = data_value::create_none();
 
 /*
+ * NONE_STRING --
+ *     The "string" to print in place of NONE.
+ */
+extern const std::string NONE_STRING = {"(none)"};
+
+/*
  * kv_item::~kv_item --
  *     Delete the instance.
  */

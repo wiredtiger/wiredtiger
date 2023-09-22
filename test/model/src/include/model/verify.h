@@ -29,12 +29,29 @@
 #ifndef MODEL_VERIFY_H
 #define MODEL_VERIFY_H
 
+#include <stdexcept>
+#include <string>
+
 #include "model/core.h"
 #include "wiredtiger.h"
 
 namespace model {
 
 class kv_table;
+
+/*
+ * verify_exception --
+ *     The verification exception.
+ */
+class verify_exception : std::runtime_error {
+
+public:
+    /*
+     * verify_exception::verify_exception --
+     *     Create a new instance of the exception.
+     */
+    inline verify_exception(const std::string &what) : std::runtime_error(what) {}
+};
 
 /*
  * kv_table_verify_cursor --
@@ -84,9 +101,26 @@ public:
 
     /*
      * kv_table_verifier::verify --
-     *     Verify the table by comparing a WiredTiger table against the model.
+     *     Verify the table by comparing a WiredTiger table against the model. Throw an exception on
+     *     error.
      */
-    bool verify(WT_CONNECTION *connection);
+    void verify(WT_CONNECTION *connection);
+
+    /*
+     * kv_table_verifier::verify --
+     *     Verify the table by comparing a WiredTiger table against the model. Does not throw
+     *     exceptions, but simply returns a boolean. This is useful for model's own unit testing.
+     */
+    inline bool
+    verify_noexcept(WT_CONNECTION *connection) noexcept
+    {
+        try {
+            verify(connection);
+        } catch (...) {
+            return false;
+        }
+        return true;
+    }
 
 private:
     kv_table &_table;

@@ -100,12 +100,23 @@ public:
 
     /*
      * kv_table::verify --
+     *     Verify the table by comparing a WiredTiger table against the model. Throw an exception on
+     *     verification error.
+     */
+    inline void
+    verify(WT_CONNECTION *connection)
+    {
+        kv_table_verifier(*this).verify(connection);
+    }
+
+    /*
+     * kv_table::verify_noexcept --
      *     Verify the table by comparing a WiredTiger table against the model.
      */
     inline bool
-    verify(WT_CONNECTION *connection)
+    verify_noexcept(WT_CONNECTION *connection) noexcept
     {
-        return kv_table_verifier(*this).verify(connection);
+        return kv_table_verifier(*this).verify_noexcept(connection);
     }
 
     /*

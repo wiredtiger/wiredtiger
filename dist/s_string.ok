@@ -1010,6 +1010,7 @@ nlpo
 nocase
 noclear
 nocrypto
+noexcept
 nolock
 nonces
 nonliteral

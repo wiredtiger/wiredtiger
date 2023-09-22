@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 
 #include "wiredtiger.h"
 extern "C" {
@@ -399,7 +400,7 @@ test_model_basic_wt(void)
     wt_model_assert(table, uri, key1, 45);
     wt_model_assert(table, uri, key1);
 
-    testutil_assert(table.verify(conn));
+    testutil_assert(table.verify_noexcept(conn));
 
     /* Test globally visible (non-timestamped) updates. */
     wt_model_insert_both(table, uri, key2, value1);
@@ -433,7 +434,7 @@ test_model_basic_wt(void)
     wt_model_assert(table, uri, key1, 55);
     wt_model_assert(table, uri, key1);
 
-    testutil_assert(table.verify(conn));
+    testutil_assert(table.verify_noexcept(conn));
 
     /* Test insert without overwrite. */
     wt_model_insert_both(table, uri, key1, value1, 60, false);
@@ -450,11 +451,11 @@ test_model_basic_wt(void)
     wt_model_update_both(table, uri, key1, value1, 80, false);
     wt_model_update_both(table, uri, key1, value1, 85, false);
 
-    testutil_assert(table.verify(conn));
+    testutil_assert(table.verify_noexcept(conn));
 
     /* Now try to get the verification to fail. */
     testutil_check(table.remove(key2, 1000));
-    testutil_assert(!table.verify(conn));
+    testutil_assert(!table.verify_noexcept(conn));
 
     /* Clean up. */
     testutil_check(session->close(session, NULL));

@@ -28,8 +28,10 @@
 
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 #include "model/table.h"
+#include "model/util.h"
 #include "model/verify.h"
 #include "wiredtiger.h"
 
@@ -82,15 +84,15 @@ kv_table_verify_cursor::verify_next(const data_value &key, const data_value &val
 
 /*
  * kv_table_verifier::verify --
- *     Verify the table by comparing a WiredTiger table against the model.
+ *     Verify the table by comparing a WiredTiger table against the model. Throw an exception on
+ *     error.
  */
-bool
+void
 kv_table_verifier::verify(WT_CONNECTION *connection)
 {
     WT_SESSION *session = NULL;
     WT_CURSOR *wt_cursor = NULL;
     int ret;
-    bool success = true;
     const char *key, *value;
 
     if (_verbose)
@@ -103,55 +105,54 @@ kv_table_verifier::verify(WT_CONNECTION *connection)
         /* Get the database cursor. */
         ret = connection->open_session(connection, NULL, NULL, &session);
         if (ret != 0)
-            throw(ret);
+            throw wiredtiger_exception(ret);
+
+        /* Automatically close the session at the end of the block. */
+        wiredtiger_session_guard session_guard(session);
 
         std::string uri = std::string("table:") + _table.name();
         ret = session->open_cursor(session, uri.c_str(), NULL, NULL, &wt_cursor);
         if (ret != 0)
-            throw(ret);
+            throw wiredtiger_exception(session, ret);
+
+        /* Automatically close the cursor at the end of the block. */
+        wiredtiger_cursor_guard cursor_guard(wt_cursor);
 
         /* Verify each key-value pair. */
         while ((ret = wt_cursor->next(wt_cursor)) == 0) {
             ret = wt_cursor->get_key(wt_cursor, &key);
             if (ret != 0)
-                throw(ret);
+                throw wiredtiger_exception(session, ret);
             ret = wt_cursor->get_value(wt_cursor, &value);
             if (ret != 0)
-                throw(ret);
+                throw wiredtiger_exception(session, ret);
             if (_verbose)
                 std::cout << "Verification: key = " << key << ", value = " << value << std::endl;
-            if (!model_cursor.verify_next(data_value(key), data_value(value)))
-                throw(false);
+            if (!model_cursor.verify_next(data_value(key), data_value(value))) {
+                std::ostringstream ss;
+                ss << "\"" << key << "=" << value
+                   << "\" is not the next key-value pair in the model.";
+                throw verify_exception(ss.str());
+            }
         }
 
         /* Make sure that we reached the end at the same time. */
         if (_verbose)
             std::cout << "Verification: Reached the end." << std::endl;
         if (ret != WT_NOTFOUND)
-            throw(ret);
+            throw wiredtiger_exception(session, "Advancing the cursor failed", ret);
         if (model_cursor.has_next())
-            throw(false);
+            throw verify_exception("There are still more key-value pairs in the model.");
         if (_verbose)
             std::cout << "Verification: Finished." << std::endl;
 
-    } catch (int error) {
-        success = false;
+    } catch (std::exception &e) {
         if (_verbose)
-            std::cerr << "Verification: Failed with WiredTiger error " << error << std::endl;
-    } catch (...) {
-        success = false;
-        if (_verbose)
-            std::cerr << "Verification: Failed." << std::endl;
+            std::cerr << "Verification Failed: " << e.what() << std::endl;
+        throw;
     }
 
-    /* Clean up. */
-    if (wt_cursor != NULL)
-        (void)wt_cursor->close(wt_cursor);
-
-    if (session != NULL)
-        (void)session->close(session, NULL);
-
-    return success;
+    /* No need to clean up the session or the cursor due to the use of guards. */
 }
 
 } /* namespace model */
