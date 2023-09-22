@@ -7,6 +7,7 @@ run_time=120
 checkpoint_interval=10
 checkpoint_threads=1
 populate_threads=4
+reopen_connection=true
 threads=((count=10,reads=1))
 tiered="dir_store"
 tiered_bucket="bucket2"
