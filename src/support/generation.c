@@ -97,6 +97,110 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
     __wt_gen_drain(session, which, v);
 }
 
+
+static int
+__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...) {
+    WT_SESSION_IMPL *original_session;
+    uint64_t v, generation, minutes, time_diff_ms,
+    struct timespec start, stop;
+    int which, pause_count;
+    va_list ap;
+    bool verbose_timeout_flags;
+    uint64_t *oldest = (uint64_t *)ret_arg;
+
+    va_start(ap, ret_arg);
+    which = va_arg(ap, int);
+    generation = va_arg(ap, uint64_t);
+    start = va_arg(ap, struct timespec);
+    minutes = va_arg(ap, uint64_t);
+    pause_count = va_arg(ap, int);
+    original_session = va_arg(ap, WT_SESSION_IMPL *);
+
+#ifdef HAVE_DIAGNOSTIC
+    verbose_timeout_flags = false;
+#else
+    WT_UNUSED(verbose_timeout_flags);
+#endif
+
+    for (;;) {
+        /* Ensure we only read the value once. */
+        WT_ORDERED_READ(v, session->generations[which]);
+
+        /*
+            * The generation argument is newer than the limit. Wait for threads in generations
+            * older than the argument generation, threads in argument generations are OK.
+            *
+            * The thread's generation may be 0 (that is, not set).
+            */
+        if (v == 0 || v >= generation)
+            break;
+
+        /* If we're waiting on ourselves, we're deadlocked. */
+        if (session == s) {
+            WT_IGNORE_RET(__wt_panic(session, WT_PANIC, "self-deadlock"));
+            *exit_walk = true;
+            return (0);
+        }
+
+        /*
+         * The pause count is cumulative, quit spinning if it's not doing us any good, that can
+         * happen in generations that don't move quickly.
+         */
+        if (++pause_cnt < WT_THOUSAND)
+            WT_PAUSE();
+        else
+            __wt_sleep(0, 10);
+
+        /*
+         * If we wait for more than a minute, log the event. In diagnostic mode, abort if we
+         * ever wait more than the configured timeout.
+         */
+        if (minutes == 0) {
+            minutes = 1;
+            __wt_epoch(original_session, &start);
+        } else {
+            __wt_epoch(original_session, &stop);
+            time_diff_ms = WT_TIMEDIFF_MS(stop, start);
+
+            if (time_diff_ms > minutes * WT_MINUTE * WT_THOUSAND) {
+                __wt_verbose_notice(original_session, WT_VERB_GENERATION,
+                    "%s generation drain waited %" PRIu64 " minutes", __gen_name(which), minutes);
+                ++minutes;
+            }
+
+            /* If there is no timeout, there is nothing else to do. */
+            if (conn->gen_drain_timeout_ms == 0)
+                continue;
+
+#ifdef HAVE_DIAGNOSTIC
+            /* In diagnostic mode, enable extra logs 20ms before reaching the timeout. */
+            if (!verbose_timeout_flags &&
+                (conn->gen_drain_timeout_ms < 20 ||
+                time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
+                if (which == WT_GEN_EVICT) {
+                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
+                } else if (which == WT_GEN_CHECKPOINT) {
+                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
+                    WT_SET_VERBOSE_LEVEL(
+                        original_session, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1);
+                    WT_SET_VERBOSE_LEVEL(
+                        original_session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
+                }
+                verbose_timeout_flags = true;
+                /* Now we have enabled more logs, spin another time to get some information. */
+                continue;
+            }
+    #endif
+        if (time_diff_ms >= conn->gen_drain_timeout_ms) {
+            __wt_verbose_error(original_session, WT_VERB_GENERATION, "%s generation drain timed out",
+                __gen_name(which));
+            WT_ASSERT(original_session, false);
+        }
+    }
+}
+
 /*
  * __wt_gen_drain --
  *     Wait for the resource to drain.
@@ -107,17 +211,13 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     struct timespec start, stop;
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
-    uint64_t minutes, time_diff_ms, v;
+    uint64_t  v;
     uint32_t i, session_cnt;
     int pause_cnt;
     bool verbose_timeout_flags;
 
     conn = S2C(session);
-#ifdef HAVE_DIAGNOSTIC
-    verbose_timeout_flags = false;
-#else
-    WT_UNUSED(verbose_timeout_flags);
-#endif
+
     __wt_epoch(NULL, &start);
 
     /*
@@ -131,84 +231,29 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
         if (!s->active)
             continue;
 
-        for (;;) {
-            /* Ensure we only read the value once. */
-            WT_ORDERED_READ(v, s->generations[which]);
 
-            /*
-             * The generation argument is newer than the limit. Wait for threads in generations
-             * older than the argument generation, threads in argument generations are OK.
-             *
-             * The thread's generation may be 0 (that is, not set).
-             */
-            if (v == 0 || v >= generation)
-                break;
-
-            /* If we're waiting on ourselves, we're deadlocked. */
-            if (session == s) {
-                WT_IGNORE_RET(__wt_panic(session, WT_PANIC, "self-deadlock"));
-                return;
-            }
-
-            /*
-             * The pause count is cumulative, quit spinning if it's not doing us any good, that can
-             * happen in generations that don't move quickly.
-             */
-            if (++pause_cnt < WT_THOUSAND)
-                WT_PAUSE();
-            else
-                __wt_sleep(0, 10);
-
-            /*
-             * If we wait for more than a minute, log the event. In diagnostic mode, abort if we
-             * ever wait more than the configured timeout.
-             */
-            if (minutes == 0) {
-                minutes = 1;
-                __wt_epoch(session, &start);
-            } else {
-                __wt_epoch(session, &stop);
-                time_diff_ms = WT_TIMEDIFF_MS(stop, start);
-
-                if (time_diff_ms > minutes * WT_MINUTE * WT_THOUSAND) {
-                    __wt_verbose_notice(session, WT_VERB_GENERATION,
-                      "%s generation drain waited %" PRIu64 " minutes", __gen_name(which), minutes);
-                    ++minutes;
-                }
-
-                /* If there is no timeout, there is nothing else to do. */
-                if (conn->gen_drain_timeout_ms == 0)
-                    continue;
-
-#ifdef HAVE_DIAGNOSTIC
-                /* In diagnostic mode, enable extra logs 20ms before reaching the timeout. */
-                if (!verbose_timeout_flags &&
-                  (conn->gen_drain_timeout_ms < 20 ||
-                    time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
-                    if (which == WT_GEN_EVICT) {
-                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-                    } else if (which == WT_GEN_CHECKPOINT) {
-                        WT_SET_VERBOSE_LEVEL(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
-                        WT_SET_VERBOSE_LEVEL(
-                          session, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1);
-                        WT_SET_VERBOSE_LEVEL(
-                          session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
-                    }
-                    verbose_timeout_flags = true;
-                    /* Now we have enabled more logs, spin another time to get some information. */
-                    continue;
-                }
-#endif
-                if (time_diff_ms >= conn->gen_drain_timeout_ms) {
-                    __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
-                      __gen_name(which));
-                    WT_ASSERT(session, false);
-                }
-            }
         }
     }
+}
+
+static int
+__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...)
+{
+    uint64_t v;
+    int which;
+    va_list ap;
+    uint64_t *oldest = (uint64_t *)ret_arg;
+    va_start(ap, ret_arg);
+    which = va_arg(ap, int);
+    WT_UNUSED(exit_walk);
+
+    WT_ORDERED_READ(v, session->generations[which]);
+    if (v != 0 && v < *oldest) {
+        *oldest = v;
+    }
+
+    va_end(ap);
+    return (0);
 }
 
 /*
@@ -218,39 +263,41 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 static uint64_t
 __gen_oldest(WT_SESSION_IMPL *session, int which)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *s;
-    uint64_t oldest, v;
-    uint32_t i, session_cnt;
+    uint64_t oldest;
 
-    conn = S2C(session);
-
-    /*
-     * No lock is required because the session array is fixed size, but it may contain inactive
-     * entries. We must review any active session, so insert a read barrier after reading the active
-     * session count. That way, no matter what sessions come or go, we'll check the slots for all of
-     * the sessions that could have been active when we started our check.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
     /*
      * We need to order the read of the connection generation before the read of the session
      * generation. If the session generation read is ordered before the connection generation read
      * it could read an earlier session generation value. This would then violate the acquisition
      * semantics and could result in us reading 0 for the session generation when it is non-zero.
      */
-    WT_ORDERED_READ(oldest, conn->generations[which]);
-    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-        if (!s->active)
-            continue;
+    WT_ORDERED_READ(oldest, S2C(session)->generations[which]);
 
-        /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, s->generations[which]);
-
-        if (v != 0 && v < oldest)
-            oldest = v;
-    }
+    WT_IGNORE_RET(__wt_walk_sessions(session, __gen_oldest_func, &oldest, which));
 
     return (oldest);
+}
+
+static int
+__gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...)
+{
+    uint64_t generation;
+    uint64_t v;
+    int which;
+    va_list ap;
+    bool *ret = (bool *)ret_arg;
+    va_start(ap, ret_arg);
+    which = va_arg(ap, int);
+    generation = va_arg(ap, uint64_t);
+
+    WT_ORDERED_READ(v, session->generations[which]);
+    if (v != 0 && generation >= v) {
+        *ret = true;
+        *exit_walk = true;
+    }
+
+    va_end(ap);
+    return (0);
 }
 
 /*
@@ -260,31 +307,11 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
 bool
 __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *s;
-    uint64_t v;
-    uint32_t i, session_cnt;
-
-    conn = S2C(session);
-
-    /*
-     * No lock is required because the session array is fixed size, but it may contain inactive
-     * entries. We must review any active session, so insert a read barrier after reading the active
-     * session count. That way, no matter what sessions come or go, we'll check the slots for all of
-     * the sessions that could have been active when we started our check.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-        if (!s->active)
-            continue;
-
-        /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, s->generations[which]);
-
-        if (v != 0 && generation >= v)
-            return (true);
-    }
-    return (false);
+    bool active;
+    active = false;
+    WT_IGNORE_RET(__wt_walk_sessions(session, __gen_active, &active, which, generation));
+    /* We can't early exit the walk yet, unless we capture a non zero return as an "exit" signal. */
+    return (active);
 }
 
 /*

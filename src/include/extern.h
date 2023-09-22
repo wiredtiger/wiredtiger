@@ -1756,6 +1756,9 @@ extern int __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *b
 extern int __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag,
   const WT_PAGE_HEADER *dsk, size_t size, WT_ADDR *addr, uint32_t verify_flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_walk_sessions(WT_SESSION_IMPL *session,
+  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *ret_arg, ...), void *ret_arg, ...)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int64_t __wt_log_slot_release(WT_MYSLOT *myslot, int64_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern size_t __wt_json_unpack_char(u_char ch, u_char *buf, size_t bufsz, bool force_unicode)

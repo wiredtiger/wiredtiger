@@ -2426,6 +2426,38 @@ __wt_session_breakpoint(WT_SESSION *wt_session)
     return (0);
 }
 
+int
+__wt_walk_sessions(WT_SESSION_IMPL *session,
+  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *ret_arg, ...), void *ret_arg, ...)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *array_session;
+    uint32_t session_cnt, i;
+    u_int active;
+    bool exit_walk;
+    va_list ap;
+
+    exit_walk = false;
+    conn = S2C(session);
+    session_cnt = *(volatile uint32_t *)&((conn)->session_cnt);
+    va_start(ap, ret_arg);
+
+
+    for (i = 0, array_session = conn->sessions; i < session_cnt; i++, array_session++) {
+        WT_ORDERED_READ(active, array_session->active);
+        if (!active)
+            continue;
+
+        WT_ERR(walk_func(array_session, ret_arg, &exit_walk, ap));
+        if (exit_walk)
+            break;
+    }
+err:
+    va_end(ap);
+    return (ret);
+}
+
 /*
  * __open_session --
  *     Allocate a session handle.
