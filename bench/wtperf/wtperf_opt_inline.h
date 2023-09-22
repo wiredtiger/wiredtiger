@@ -201,8 +201,7 @@ DEF_OPT_AS_STRING(threads, "",
  */
 DEF_OPT_AS_STRING(
   tiered, "none", "tiered extension.  Allowed configuration values are: 'none', 'dir_store', 's3'")
-DEF_OPT_AS_STRING(
-  tiered_bucket, "none", "Create this bucket directory before beginning the test.")
+DEF_OPT_AS_STRING(tiered_bucket, "none", "Create this bucket directory before beginning the test.")
 DEF_OPT_AS_UINT32(tiered_flush_interval, 0,
   "Call flush_tier every interval seconds during the workload phase. "
   "We recommend this value be larger than the checkpoint_interval. 0 to disable. The "

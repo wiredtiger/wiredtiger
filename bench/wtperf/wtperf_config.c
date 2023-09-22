@@ -1082,8 +1082,7 @@ config_reopen(CONFIG_OPTS *opts)
 
     ret = dmalloc(req_len);
     if (opts->readonly)
-        testutil_snprintf(
-          ret, req_len, "%s%s", opts->conn_config, READONLY_CONFIG);
+        testutil_snprintf(ret, req_len, "%s%s", opts->conn_config, READONLY_CONFIG);
     else
         testutil_snprintf(ret, req_len, "%s", opts->conn_config);
 
