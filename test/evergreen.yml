@@ -254,6 +254,7 @@ functions:
         fi
   "python config check":
     command: shell.exec
+    type: setup
     params:
       working_dir: "wiredtiger/cmake_build"
       shell: bash
@@ -414,6 +415,7 @@ functions:
 
   "update wiredtiger docs":
     - command: shell.exec
+      type: setup
       params:
         shell: bash
         script: |
@@ -1200,6 +1202,7 @@ functions:
 
   "build and push antithesis container":
     command: subprocess.exec
+    type: setup
     params:
       working_dir: wiredtiger/tools/antithesis
       binary: bash
