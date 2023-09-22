@@ -187,33 +187,32 @@ wt_update(WT_SESSION *session, const char *uri, const model::data_value &key,
  * wt_model_assert --
  *     Check that the key has the same value in the model as in the database.
  */
-#define wt_model_assert(table, uri, key, ...)                    \
-    testutil_assert(table.get(key __VA_OPT__(, ) __VA_ARGS__) == \
-      wt_get(session, uri, key __VA_OPT__(, ) __VA_ARGS__));
+#define wt_model_assert(table, uri, key, ...) \
+    testutil_assert(table.get(key, ##__VA_ARGS__) == wt_get(session, uri, key, ##__VA_ARGS__));
 
 /*
  * wt_model_insert_both --
  *     Insert both into the model and the database.
  */
-#define wt_model_insert_both(table, uri, key, value, ...)                  \
-    testutil_assert(table.insert(key, value __VA_OPT__(, ) __VA_ARGS__) == \
-      wt_insert(session, uri, key, value __VA_OPT__(, ) __VA_ARGS__));
+#define wt_model_insert_both(table, uri, key, value, ...)      \
+    testutil_assert(table.insert(key, value, ##__VA_ARGS__) == \
+      wt_insert(session, uri, key, value, ##__VA_ARGS__));
 
 /*
  * wt_model_remove_both --
  *     Remove both from the model and from the database.
  */
-#define wt_model_remove_both(table, uri, key, ...)                  \
-    testutil_assert(table.remove(key __VA_OPT__(, ) __VA_ARGS__) == \
-      wt_remove(session, uri, key __VA_OPT__(, ) __VA_ARGS__));
+#define wt_model_remove_both(table, uri, key, ...) \
+    testutil_assert(                               \
+      table.remove(key, ##__VA_ARGS__) == wt_remove(session, uri, key, ##__VA_ARGS__));
 
 /*
  * wt_model_update_both --
  *     Update both in the model and in the database.
  */
-#define wt_model_update_both(table, uri, key, value, ...)                  \
-    testutil_assert(table.update(key, value __VA_OPT__(, ) __VA_ARGS__) == \
-      wt_update(session, uri, key, value __VA_OPT__(, ) __VA_ARGS__));
+#define wt_model_update_both(table, uri, key, value, ...)      \
+    testutil_assert(table.update(key, value, ##__VA_ARGS__) == \
+      wt_update(session, uri, key, value, ##__VA_ARGS__));
 
 /*
  * test_data_value --
