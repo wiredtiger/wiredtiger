@@ -171,5 +171,5 @@ class PerfStatCollection:
                                    output_label='Latency update(in micro sec) Max',
                                    input_offset=11),
             PerfStatDBSize(short_label="database_size",
-                           output_label='Database Size (in bytes)'),
+                           output_label='Database Size (in bytes)')
         ]
