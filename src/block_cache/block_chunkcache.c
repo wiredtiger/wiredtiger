@@ -412,8 +412,8 @@ __chunkcache_eviction_thread(void *arg)
                     WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
                       "evicted chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
-                      chunk->hash_id.objectname, chunk->hash_id.objectid,
-                      chunk->chunk_offset, (uint64_t)chunk->chunk_size);
+                      chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->chunk_offset,
+                      (uint64_t)chunk->chunk_size);
                 }
             }
             __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
@@ -885,6 +885,10 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
           WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
           &chunkcache->free_bitmap));
     }
+
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.flushed_data_cache_insertion", &cval));
+    if (cval.val != 0)
+        F_SET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION);
 
     WT_ERR(__wt_rwlock_init(session, &chunkcache->pinned_objects.array_lock));
     WT_ERR(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
