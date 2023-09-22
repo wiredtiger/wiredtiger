@@ -1140,7 +1140,7 @@ __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, ui
         r->space_avail = primary_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
         r->aux_space_avail = auxiliary_size - WT_COL_FIX_AUXHEADER_RESERVATION;
 
-        //WT_PAGE_COL_FIX, the fields are always zero for FLCS?
+        //WT_PAGE_COL_FIX, the fields must always zero for FLCS?
         r->min_split_size = 0;
         r->min_space_avail = 0;
     } else if (r->salvage != NULL) {
