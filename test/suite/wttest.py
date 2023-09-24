@@ -830,6 +830,21 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         """
         return i
 
+@contextmanager
+def open_cursor(session, uri: str):
+    """
+    Open a cursor instance that supports 'with' statements.
+    """
+    assert session is not None
+    assert uri is not None
+
+    cursor = session.open_cursor(uri, None, None)
+    try:
+        yield cursor
+    finally:
+        cursor.close()
+
+
 def zstdtest(description):
     """
     Used as a function decorator, for example, @wttest.zstdtest("description").
