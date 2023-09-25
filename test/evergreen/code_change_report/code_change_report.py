@@ -55,7 +55,6 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
             report.append("    <th></th>\n")
             report.append("  </tr>\n")
             for line in lines:
-                print("line: " + str(line))
                 new_lineno = line['new_lineno']
                 old_lineno = line['old_lineno']
                 content = line['content']
