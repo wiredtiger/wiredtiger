@@ -142,7 +142,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
                 cursor1.set_value(self.valueb + str(i))
             self.assertEqual(cursor1.update(), 0)
         
-        # Commit the transaction during a checkpoint.
+        # Commit the transaction concurrently with the checkpoint.
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done, checkpoint_count_max=1)
         try:
@@ -153,9 +153,16 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
             while not ckpt_snapshot:
                 with open_cursor(self.session, 'statistics:') as stat_cursor:
                     ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
-                time.sleep(0.5)
+                
+                # We want the checkpoint thread to advance without actually completing.
+                # Hence the configuration: timing_stress_for_test=[checkpoint_slow].
+                # Though the appropriate poll interval is really a guess, favor aggression
+                # as this test is run in isolation.
+                time.sleep(0.1)
 
             session1.commit_transaction()
+
+            # Create an inconsistent checkpoint.
             self.evict(self.uri, ds, self.nrows)
         finally:
             done.set()
@@ -167,7 +174,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
             assert stat_cursor[stat.conn.checkpoints][2] == 1
             assert stat_cursor[stat.conn.checkpoint_skipped][2] == 0
 
-        # Take a backup and restore it.
+        # The restoration of the backup is expected to fix the inconsistent checkpoint.
         self.take_full_backup(".", self.backup_dir)
         self.reopen_conn(self.backup_dir)
 
@@ -175,11 +182,8 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
         self.check(self.valuea, self.uri, self.nrows)
 
         with open_cursor(self.session, 'statistics:') as stat_cursor:
-            inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-            keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-
-        self.assertGreater(inconsistent_ckpt, 0)
-        self.assertEqual(keys_removed, 0)
+            self.assertGreater(stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2], 0)
+            self.assertEqual(stat_cursor[stat.conn.txn_rts_keys_removed][2], 0)
 
 if __name__ == '__main__':
     wttest.run()
