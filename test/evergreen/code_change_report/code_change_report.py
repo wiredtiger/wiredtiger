@@ -85,10 +85,13 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                         report.append("      <details>\n")
                         report.append("      <summary>\n")
                         report.append("      {} of {}\n".format(non_zero_count, num_branches))
+                        #  Use the same value for the low and high values so that anything less than 100% branch
+                        #  coverage results in a red scale.
                         meter_high = len(branch_info) * 0.999
+                        meter_low = meter_high
                         report.append(
                             "      <meter value=\"{}\" optimum=\"{}\" max=\"{}\" high=\"{}\" low=\"{}\"></meter>".
-                            format(non_zero_count, num_branches, num_branches, meter_high, meter_high))
+                            format(non_zero_count, num_branches, num_branches, meter_high, meter_low))
                         report.append("      </summary>\n")
                         report.append("        <div class=\"branchDetails\">\n")
                         for branch_index in range(len(branch_info)):
