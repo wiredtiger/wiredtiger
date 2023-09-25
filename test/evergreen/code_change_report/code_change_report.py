@@ -93,7 +93,8 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 report.append("    <td>\n")
                 if strikethrough:
                     report.append("    <s>\n")
-                report.append("      <p style=\"background-color:{};font-family:\'Courier New\'\">{}</p>\n".format(
+                report.append("      <p style=\"background-color:{};font-family:\'Courier New\';"
+                              "white-space:pre\">{}</p>\n".format(
                     code_colour, html.escape(line['content'], quote=True)))
                 if strikethrough:
                     report.append("    </s>\n")
