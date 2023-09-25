@@ -445,7 +445,7 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
 void
 wts_verify_mirrored_truncate(TINFO *tinfo, TABLE *table)
 {
-    int range_begin, range_end;
+    uint64_t range_begin, range_end;
 
     testutil_assert(tinfo != NULL);
 
