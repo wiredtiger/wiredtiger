@@ -89,7 +89,7 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                         meter_high = len(branch_info) * 0.999
                         report.append(
                             "      <meter value=\"{}\" optimum=\"{}\" max=\"{}\" high=\"{}\" low=\"{}\"></meter>".
-                            format(non_zero_count, num_branches,  num_branches, meter_high, meter_high))
+                            format(non_zero_count, num_branches, num_branches, meter_high, meter_high))
                         report.append("      </summary>\n")
                         report.append("        <div class=\"branchDetails\">\n")
                         for branch_index in range(len(branch_info)):
@@ -114,7 +114,7 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                     report.append("    <del>\n")
                 report.append("      <p style=\"background-color:{};font-family:\'Courier New\',sans-serif;"
                               "white-space:pre\">{}</p>\n".format(
-                    code_colour, html.escape(line['content'], quote=True)))
+                        code_colour, html.escape(line['content'], quote=True)))
                 if strikethrough:
                     report.append("    </del>\n")
                 report.append("    <td>\n")
