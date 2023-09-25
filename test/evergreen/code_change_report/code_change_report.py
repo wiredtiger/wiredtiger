@@ -88,19 +88,19 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                         report.append("      {} of {}\n".format(non_zero_count, num_branches))
                         meter_high = len(branch_info) * 0.999
                         report.append(
-                            "      <meter value=\"{}\" optimum=\"{}\" max=\"{}\" high=\"{}\" low=\"{}\"></meter>".format(
-                            non_zero_count, num_branches,  num_branches, meter_high, meter_high))
+                            "      <meter value=\"{}\" optimum=\"{}\" max=\"{}\" high=\"{}\" low=\"{}\"></meter>".
+                            format(non_zero_count, num_branches,  num_branches, meter_high, meter_high))
                         report.append("      </summary>\n")
                         report.append("        <div class=\"branchDetails\">\n")
                         for branch_index in range(len(branch_info)):
                             branch_count = branch_info[branch_index]
-                            report.append("        <div>\n")
+                            report.append("        <div>")
                             if branch_count > 0:
                                 report.append("&check; ")
                             else:
                                 report.append("&cross; ")
                             report.append("Branch {} taken {} time(s)".format(branch_index, branch_count))
-                            report.append("        </div>\n")
+                            report.append("</div>\n")
                         report.append("      </div>\n")
                         report.append("      </details>\n")
                         report.append("    </td>\n")
@@ -111,17 +111,15 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 report.append("    <td>{}</td>\n".format(plus_minus))
                 report.append("    <td>\n")
                 if strikethrough:
-                    report.append("    <s>\n")
-                report.append("      <p style=\"background-color:{};font-family:\'Courier New\';"
+                    report.append("    <del>\n")
+                report.append("      <p style=\"background-color:{};font-family:\'Courier New\',sans-serif;"
                               "white-space:pre\">{}</p>\n".format(
                     code_colour, html.escape(line['content'], quote=True)))
                 if strikethrough:
-                    report.append("    </s>\n")
+                    report.append("    </del>\n")
                 report.append("    <td>\n")
                 report.append("  </tr>\n")
             report.append("</table>\n")
-    # else:
-    #     report.append("Not relevant as it's not in the src directory</p>\n")
 
     return report
 
@@ -137,12 +135,6 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("<head>\n")
     report.append("<title>Code Change Report</title>\n")
     report.append("<style>\n")
-    # report.append("  table, th, td\n")
-    # report.append("  {\n")
-    # report.append("    border: 1px solid black;\n")
-    # report.append("    border - collapse: collapse;\n")
-    # report.append("  }\n")
-
     report.append("  .branchDetails\n")
     report.append("  {\n")
     report.append("    font-family: sans-serif;\n")
@@ -155,9 +147,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("    border: solid gray 1px;;\n")
     report.append("    box-shadow: 5px 5px 10px gray;\n")
     report.append("    z-index: 1;\n")  # pop up in front of the main text
-
     report.append("  }\n")
-
     report.append("</style>\n")
     report.append("</head>\n")
 
@@ -175,11 +165,10 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
         report.append("  </tr>\n")
     report.append("</table>\n")
 
-    report.append("</p></p>")
+    report.append("<p><p>")
 
     report.append("<h2>Code Change Details</h2>\n")
-
-    report.append("Only files in the 'src' directory are shown below</p>\n")
+    report.append("Only files in the 'src' directory are shown below<p>\n")
 
     # Create per-file info
     for file in code_change_info:
@@ -197,7 +186,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--code_change_info', required=True, help='Path to the code change info file')
-    parser.add_argument('-o', '--html_output', help='Path of the html file to write output to')
+    parser.add_argument('-o', '--html_output', required=True, help='Path of the html file to write output to')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
@@ -211,15 +200,10 @@ def main():
         print('  Html output file:  {}'.format(args.html_output))
 
     code_change_info = read_code_change_info(code_change_info_path=args.code_change_info)
-
     html_report_as_text = generate_html_report_as_text(code_change_info=code_change_info, verbose=verbose)
 
-    if args.html_output is not None:
-        with open(args.html_output, "w") as output_file:
-            output_file.writelines(html_report_as_text)
-
-    if verbose:
-        print("Completed")
+    with open(args.html_output, "w") as output_file:
+        output_file.writelines(html_report_as_text)
 
 
 if __name__ == '__main__':
