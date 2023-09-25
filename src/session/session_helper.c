@@ -10,8 +10,7 @@
 
 int
 __wt_session_array_walk(WT_SESSION_IMPL *session,
-  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *ret_arg, void *cookiep), void *ret_arg,
-  void *cookiep)
+  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *cookiep), void *cookiep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *array_session;
@@ -29,7 +28,7 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
         if (!active)
             continue;
 
-        WT_RET(walk_func(array_session, ret_arg, &exit_walk, cookiep));
+        WT_RET(walk_func(array_session, &exit_walk, cookiep));
         if (exit_walk)
             break;
     }

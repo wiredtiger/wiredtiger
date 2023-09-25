@@ -1473,8 +1473,8 @@ extern int __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **
 extern int __wt_search_insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_array_walk(WT_SESSION_IMPL *session,
-  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *ret_arg, void *cookiep), void *ret_arg,
-  void *cookiep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *cookiep), void *cookiep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_breakpoint(WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_close_internal(WT_SESSION_IMPL *session)

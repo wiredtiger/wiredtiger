@@ -99,6 +99,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 }
 
 struct __generation_cookie {
+    void *ret_arg;
     int which;
     uint64_t target_generation;
 };
@@ -118,14 +119,13 @@ struct __generation_drain_cookie {
 typedef struct __generation_drain_cookie GENERATION_DRAIN_COOKIE;
 
 static int
-__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void *cookiep)
+__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 {
     WT_CONNECTION_IMPL *conn;
     GENERATION_DRAIN_COOKIE *cookie;
     struct timespec stop;
     uint64_t time_diff_ms, v;
 
-    WT_UNUSED(ret_arg);
     cookie = (GENERATION_DRAIN_COOKIE *)cookiep;
     conn = S2C(session);
 
@@ -222,27 +222,27 @@ __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void 
 void
 __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
-    GENERATION_DRAIN_COOKIE cookie = {.base = {.which = which,
-                                        .target_generation = generation},
+    GENERATION_DRAIN_COOKIE cookie = {
+      .base = {.which = which, .target_generation = generation, .ret_arg = NULL},
       .original_session = session,
       .pause_cnt = 0,
       .minutes = 0,
       .verbose_timeout_flags = false};
 
-    __wt_epoch(NULL, &cookie.start);
-    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_drain_func, NULL, &cookie));
+    __wt_epoch(session, &cookie.start);
+    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_drain_func, &cookie));
 }
 
 static int
-__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void *cookiep)
+__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 {
     GENERATION_COOKIE *cookie;
     uint64_t *oldest;
     uint64_t v;
 
     WT_UNUSED(exit_walk);
-    oldest = (uint64_t *)ret_arg;
     cookie = (GENERATION_COOKIE *)cookiep;
+    oldest = (uint64_t *)cookie->ret_arg;
 
     WT_ORDERED_READ(v, session->generations[cookie->which]);
     if (v != 0 && v < *oldest) {
@@ -259,8 +259,8 @@ __gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void
 static uint64_t
 __gen_oldest(WT_SESSION_IMPL *session, int which)
 {
-    GENERATION_COOKIE cookie = {.which = which, .target_generation = 0};
     uint64_t oldest;
+    GENERATION_COOKIE cookie = {.which = which, .target_generation = 0, .ret_arg = &oldest};
 
     /*
      * We need to order the read of the connection generation before the read of the session
@@ -270,19 +270,20 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      */
     WT_ORDERED_READ(oldest, S2C(session)->generations[which]);
 
-    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_oldest_func, &oldest, &cookie));
-
+    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_oldest_func, &cookie));
+    WT_ASSERT(session, oldest > 0);
     return (oldest);
 }
 
 static int
-__gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void *cookiep)
+__gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 {
     GENERATION_COOKIE *cookie;
     uint64_t v;
-    bool *ret = (bool *)ret_arg;
+    bool *ret;
 
     cookie = (GENERATION_COOKIE *)cookiep;
+    ret = (bool *)cookie->ret_arg;
 
     WT_ORDERED_READ(v, session->generations[cookie->which]);
     if (v != 0 && cookie->target_generation >= v) {
@@ -300,10 +301,13 @@ __gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void *coo
 bool
 __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
-    GENERATION_COOKIE cookie = {.which = which, .target_generation = generation};
-    bool active = false;
+    bool active;
+    GENERATION_COOKIE cookie = {
+      .which = which, .target_generation = generation, .ret_arg = &active};
 
-    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_active, &active, &cookie));
+    active = false;
+
+    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_active, &cookie));
 
     return (active);
 }
