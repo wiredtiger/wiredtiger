@@ -95,48 +95,55 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
     v = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
 
     __wt_gen_drain(session, which, v);
+    WT_UNUSED(__gen_name);
 }
 
+struct __generation_cookie {
+    int which;
+    uint64_t target_generation;
+};
+
+typedef struct __generation_cookie GENERATION_COOKIE;
+
+struct __generation_drain_cookie {
+    GENERATION_COOKIE base;
+
+    WT_SESSION_IMPL *original_session;
+    struct timespec start;
+    uint64_t minutes;
+    int pause_cnt;
+    bool verbose_timeout_flags;
+};
+
+typedef struct __generation_drain_cookie GENERATION_DRAIN_COOKIE;
 
 static int
-__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...) {
-    WT_SESSION_IMPL *original_session;
-    uint64_t v, generation, minutes, time_diff_ms,
-    struct timespec start, stop;
-    int which, pause_count;
-    va_list ap;
-    bool verbose_timeout_flags;
-    uint64_t *oldest = (uint64_t *)ret_arg;
+__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void *cookiep)
+{
+    WT_CONNECTION_IMPL *conn;
+    GENERATION_DRAIN_COOKIE *cookie;
+    struct timespec stop;
+    uint64_t time_diff_ms, v;
 
-    va_start(ap, ret_arg);
-    which = va_arg(ap, int);
-    generation = va_arg(ap, uint64_t);
-    start = va_arg(ap, struct timespec);
-    minutes = va_arg(ap, uint64_t);
-    pause_count = va_arg(ap, int);
-    original_session = va_arg(ap, WT_SESSION_IMPL *);
-
-#ifdef HAVE_DIAGNOSTIC
-    verbose_timeout_flags = false;
-#else
-    WT_UNUSED(verbose_timeout_flags);
-#endif
+    WT_UNUSED(ret_arg);
+    cookie = (GENERATION_DRAIN_COOKIE *)cookiep;
+    conn = S2C(session);
 
     for (;;) {
         /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, session->generations[which]);
+        WT_ORDERED_READ(v, session->generations[cookie->base.which]);
 
         /*
-            * The generation argument is newer than the limit. Wait for threads in generations
-            * older than the argument generation, threads in argument generations are OK.
-            *
-            * The thread's generation may be 0 (that is, not set).
-            */
-        if (v == 0 || v >= generation)
+         * The generation argument is newer than the limit. Wait for threads in generations older
+         * than the argument generation, threads in argument generations are OK.
+         *
+         * The thread's generation may be 0 (that is, not set).
+         */
+        if (v == 0 || v >= cookie->base.target_generation)
             break;
 
         /* If we're waiting on ourselves, we're deadlocked. */
-        if (session == s) {
+        if (session == cookie->original_session) {
             WT_IGNORE_RET(__wt_panic(session, WT_PANIC, "self-deadlock"));
             *exit_walk = true;
             return (0);
@@ -146,26 +153,27 @@ __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...) 
          * The pause count is cumulative, quit spinning if it's not doing us any good, that can
          * happen in generations that don't move quickly.
          */
-        if (++pause_cnt < WT_THOUSAND)
+        if (++cookie->pause_cnt < WT_THOUSAND)
             WT_PAUSE();
         else
             __wt_sleep(0, 10);
 
         /*
-         * If we wait for more than a minute, log the event. In diagnostic mode, abort if we
-         * ever wait more than the configured timeout.
+         * If we wait for more than a minute, log the event. In diagnostic mode, abort if we ever
+         * wait more than the configured timeout.
          */
-        if (minutes == 0) {
-            minutes = 1;
-            __wt_epoch(original_session, &start);
+        if (cookie->minutes == 0) {
+            cookie->minutes = 1;
+            __wt_epoch(cookie->original_session, &cookie->start);
         } else {
-            __wt_epoch(original_session, &stop);
-            time_diff_ms = WT_TIMEDIFF_MS(stop, start);
+            __wt_epoch(cookie->original_session, &stop);
+            time_diff_ms = WT_TIMEDIFF_MS(stop, cookie->start);
 
-            if (time_diff_ms > minutes * WT_MINUTE * WT_THOUSAND) {
-                __wt_verbose_notice(original_session, WT_VERB_GENERATION,
-                    "%s generation drain waited %" PRIu64 " minutes", __gen_name(which), minutes);
-                ++minutes;
+            if (time_diff_ms > cookie->minutes * WT_MINUTE * WT_THOUSAND) {
+                __wt_verbose_notice(cookie->original_session, WT_VERB_GENERATION,
+                  "%s generation drain waited %" PRIu64 " minutes", __gen_name(cookie->base.which),
+                  cookie->minutes);
+                ++cookie->minutes;
             }
 
             /* If there is no timeout, there is nothing else to do. */
@@ -174,31 +182,37 @@ __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...) 
 
 #ifdef HAVE_DIAGNOSTIC
             /* In diagnostic mode, enable extra logs 20ms before reaching the timeout. */
-            if (!verbose_timeout_flags &&
-                (conn->gen_drain_timeout_ms < 20 ||
+            if (!cookie->verbose_timeout_flags &&
+              (conn->gen_drain_timeout_ms < 20 ||
                 time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
-                if (which == WT_GEN_EVICT) {
-                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-                } else if (which == WT_GEN_CHECKPOINT) {
-                    WT_SET_VERBOSE_LEVEL(original_session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
+                if (cookie->base.which == WT_GEN_EVICT) {
                     WT_SET_VERBOSE_LEVEL(
-                        original_session, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1);
+                      cookie->original_session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
                     WT_SET_VERBOSE_LEVEL(
-                        original_session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
+                      cookie->original_session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+                    WT_SET_VERBOSE_LEVEL(
+                      cookie->original_session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
+                } else if (cookie->base.which == WT_GEN_CHECKPOINT) {
+                    WT_SET_VERBOSE_LEVEL(
+                      cookie->original_session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
+                    WT_SET_VERBOSE_LEVEL(
+                      cookie->original_session, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1);
+                    WT_SET_VERBOSE_LEVEL(
+                      cookie->original_session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
                 }
-                verbose_timeout_flags = true;
+                cookie->verbose_timeout_flags = true;
                 /* Now we have enabled more logs, spin another time to get some information. */
                 continue;
             }
-    #endif
-        if (time_diff_ms >= conn->gen_drain_timeout_ms) {
-            __wt_verbose_error(original_session, WT_VERB_GENERATION, "%s generation drain timed out",
-                __gen_name(which));
-            WT_ASSERT(original_session, false);
+#endif
+            if (time_diff_ms >= conn->gen_drain_timeout_ms) {
+                __wt_verbose_error(cookie->original_session, WT_VERB_GENERATION,
+                  "%s generation drain timed out", __gen_name(cookie->base.which));
+                WT_ASSERT(cookie->original_session, false);
+            }
         }
     }
+    return (0);
 }
 
 /*
@@ -208,51 +222,33 @@ __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...) 
 void
 __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
-    struct timespec start, stop;
-    WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *s;
-    uint64_t  v;
-    uint32_t i, session_cnt;
-    int pause_cnt;
-    bool verbose_timeout_flags;
+    GENERATION_DRAIN_COOKIE cookie = {.base = {.which = which,
+                                        .target_generation = generation},
+      .original_session = session,
+      .pause_cnt = 0,
+      .minutes = 0,
+      .verbose_timeout_flags = false};
 
-    conn = S2C(session);
-
-    __wt_epoch(NULL, &start);
-
-    /*
-     * No lock is required because the session array is fixed size, but it may contain inactive
-     * entries. We must review any active session, so insert a read barrier after reading the active
-     * session count. That way, no matter what sessions come or go, we'll check the slots for all of
-     * the sessions that could have been active when we started our check.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (minutes = 0, pause_cnt = 0, s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-        if (!s->active)
-            continue;
-
-
-        }
-    }
+    __wt_epoch(NULL, &cookie.start);
+    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_drain_func, NULL, &cookie));
 }
 
 static int
-__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...)
+__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void *cookiep)
 {
+    GENERATION_COOKIE *cookie;
+    uint64_t *oldest;
     uint64_t v;
-    int which;
-    va_list ap;
-    uint64_t *oldest = (uint64_t *)ret_arg;
-    va_start(ap, ret_arg);
-    which = va_arg(ap, int);
-    WT_UNUSED(exit_walk);
 
-    WT_ORDERED_READ(v, session->generations[which]);
+    WT_UNUSED(exit_walk);
+    oldest = (uint64_t *)ret_arg;
+    cookie = (GENERATION_COOKIE *)cookiep;
+
+    WT_ORDERED_READ(v, session->generations[cookie->which]);
     if (v != 0 && v < *oldest) {
         *oldest = v;
     }
 
-    va_end(ap);
     return (0);
 }
 
@@ -263,6 +259,7 @@ __gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...)
 static uint64_t
 __gen_oldest(WT_SESSION_IMPL *session, int which)
 {
+    GENERATION_COOKIE cookie = {.which = which, .target_generation = 0};
     uint64_t oldest;
 
     /*
@@ -273,30 +270,26 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      */
     WT_ORDERED_READ(oldest, S2C(session)->generations[which]);
 
-    WT_IGNORE_RET(__wt_walk_sessions(session, __gen_oldest_func, &oldest, which));
+    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_oldest_func, &oldest, &cookie));
 
     return (oldest);
 }
 
 static int
-__gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...)
+__gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, void *cookiep)
 {
-    uint64_t generation;
+    GENERATION_COOKIE *cookie;
     uint64_t v;
-    int which;
-    va_list ap;
     bool *ret = (bool *)ret_arg;
-    va_start(ap, ret_arg);
-    which = va_arg(ap, int);
-    generation = va_arg(ap, uint64_t);
 
-    WT_ORDERED_READ(v, session->generations[which]);
-    if (v != 0 && generation >= v) {
+    cookie = (GENERATION_COOKIE *)cookiep;
+
+    WT_ORDERED_READ(v, session->generations[cookie->which]);
+    if (v != 0 && cookie->target_generation >= v) {
         *ret = true;
         *exit_walk = true;
     }
 
-    va_end(ap);
     return (0);
 }
 
@@ -307,10 +300,11 @@ __gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *ret_arg, ...)
 bool
 __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
-    bool active;
-    active = false;
-    WT_IGNORE_RET(__wt_walk_sessions(session, __gen_active, &active, which, generation));
-    /* We can't early exit the walk yet, unless we capture a non zero return as an "exit" signal. */
+    GENERATION_COOKIE cookie = {.which = which, .target_generation = generation};
+    bool active = false;
+
+    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_active, &active, &cookie));
+
     return (active);
 }
 
