@@ -976,6 +976,7 @@ ops(void *arg)
         testutil_random_from_seed(&tinfo->data_rnd, GV(RANDOM_DATA_SEED));
         testutil_random_from_seed(&tinfo->extra_rnd, GV(RANDOM_EXTRA_SEED));
     }
+    testutil_random_from_seed(&tinfo->thread_rnd, GV(RANDOM_THREAD_SEED) + (u_int)tinfo->id);
 
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
     tinfo->replay_again = false;
@@ -992,6 +993,13 @@ ops(void *arg)
     truncate_op = mmrand(&tinfo->data_rnd, 100, 10 * WT_THOUSAND);
 
     for (intxn = false; !tinfo->quit;) {
+        if (GV(OPS_THROTTLE)) {
+            /* Sleep first to avoid the burst when all threads start. */
+            /* Calculate max delay so that per-table ops/sec is as set. */
+            u_int throttle_delay = 2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
+            uint64_t delay = mmrand(&tinfo->thread_rnd, 0, throttle_delay);
+            __wt_sleep(delay / WT_MILLION, delay % WT_MILLION);
+        }
 rollback_retry:
         if (tinfo->quit)
             break;

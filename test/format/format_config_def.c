@@ -279,6 +279,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"ops.salvage", "configure salvage", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_SALVAGE},
 
+  {"ops.throttle", "enable delay between ops", C_BOOL, 10, 0, 0, V_GLOBAL_OPS_THROTTLE},
+
+  {"ops.throttle.sleep_us", "average duration of sleep between ops per table, us", 0x0, 0, M(1),
+    M(60), V_GLOBAL_OPS_THROTTLE_SLEEP_US},
+
   {"ops.truncate", "configure truncation", C_BOOL | C_TABLE, 100, 0, 0, V_TABLE_OPS_TRUNCATE},
 
   {"ops.verify", "configure verify", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_VERIFY},
@@ -290,6 +295,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX,
     V_GLOBAL_RANDOM_EXTRA_SEED},
+
+  {"random.thread_seed", "set thread-local random seed", 0x0, 0, 0, UINT_MAX,
+    V_GLOBAL_RANDOM_THREAD_SEED},
 
   {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_IN_MEMORY},
 
