@@ -2318,7 +2318,8 @@ __wt_cbt_evict_pages_with_deleted_items(
       (newpage && cbt->page_obsolete_deleted_count > 0)) {
         WT_RET(__wt_page_dirty_and_evict_soon(session, cbt->ref));
         WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
-    } else if (page->type != WT_PAGE_COL_FIX && newpage && total_skipped != 0 &&
+    } else if (F_ISSET(S2BT(session), WT_BTREE_EVICT_ALL_DELETED_PAGES) &&
+      page->type != WT_PAGE_COL_FIX && newpage && total_skipped != 0 &&
       F_ISSET(cbt, WT_CBT_ALL_DELETED_ITEMS) &&
       session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
         /*

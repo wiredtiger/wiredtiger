@@ -383,6 +383,9 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         when a Btree page is split, it will be split into smaller pages, where each page is
         the specified percentage of the maximum Btree page size''',
         min='50', max='100'),
+    Config('evict_all_deleted_pages', 'false', r'''
+        the config to evict pages that are with all deleted keys''',
+        type='boolean'),
 ]
 
 # File metadata, including both configurable and non-configurable (internal)

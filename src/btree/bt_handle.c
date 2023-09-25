@@ -512,6 +512,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (cval.val)
         F_SET(btree, WT_BTREE_READONLY);
 
+    WT_RET(__wt_config_gets(session, cfg, "evict_all_deleted_pages", &cval));
+    if (cval.val)
+        F_SET(btree, WT_BTREE_EVICT_ALL_DELETED_PAGES);
+    else
+        F_CLR(btree, WT_BTREE_EVICT_ALL_DELETED_PAGES);
+
     /* Initialize locks. */
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
     WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
