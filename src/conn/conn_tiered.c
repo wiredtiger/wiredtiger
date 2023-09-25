@@ -168,7 +168,7 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     WT_STORAGE_SOURCE *storage_source;
     size_t len;
     char *tmp;
-    const char *cfg[2], *local_name, *obj_name, *object_name;
+    const char *cfg[2], *local_name, *obj_name, *sp_obj_name;
 
     WT_ASSERT(session, (op == WT_TIERED_WORK_FLUSH || op == WT_TIERED_WORK_FLUSH_FINISH));
     tmp = NULL;
@@ -205,14 +205,6 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
         /* This call make take a while, and may fail due to network timeout. */
         ret = storage_source->ss_flush(
           storage_source, &session->iface, bucket_fs, local_name, tmp, NULL);
-
-        /* Cache the flushed content into chunkcache. */
-        if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION)) {
-            WT_ERR(__wt_tiered_name(
-              session, &tiered->iface, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
-            WT_ERR(__wt_chunkcache_ingest(session, object_name, id));
-        }
-
         if (ret == 0)
             WT_WITH_CHECKPOINT_LOCK(session,
               WT_WITH_SCHEMA_LOCK(
@@ -224,6 +216,12 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
         if (ret == ENOENT)
             ret = 0;
         else if (ret == 0) {
+            /* Cache the flushed content into chunkcache. */
+            if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION)) {
+                WT_ERR(__wt_tiered_name(
+                  session, &tiered->iface, 0, WT_TIERED_NAME_SKIP_PREFIX, &sp_obj_name));
+                WT_ERR(__wt_chunkcache_ingest(session, local_name, sp_obj_name, id));
+            }
             /*
              * After successful flushing, push a work unit to perform whatever post-processing the
              * shared storage wants to do for this object. Note that this work unit is unrelated to
