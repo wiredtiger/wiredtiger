@@ -157,8 +157,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--coverage', required=True, help='Path to the gcovr json code coverage data file')
     parser.add_argument('-g', '--git_root', required=True, help='path of the Git working directory')
-    parser.add_argument('-d', '--git_diff', required=True, help='Path to the git diff file')
-    parser.add_argument('-o', '--outfile', help='Path of the file to write output to')
+    parser.add_argument('-d', '--git_diff', help='Path to the git diff file')
+    parser.add_argument('-o', '--outfile', required=True, help='Path of the file to write output to')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
