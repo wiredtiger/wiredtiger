@@ -3856,7 +3856,7 @@ tasks:
           script: |
             echo "Code Change Report (Step 1)"
             echo "==========================="
-            echo "expansions: (for debugging this task)"
+            echo "expansions:"
             echo ". is_patch      =  ${is_patch}"
             echo ". task_id       =  ${task_id}"
             echo ". task_name     =  ${task_name}"
@@ -3885,6 +3885,10 @@ tasks:
             echo "Code Change Report (Step 2)"
             echo "==========================="
 
+            set -o errexit
+            set -o verbose
+
+            ${PREPARE_PATH}
             virtualenv -p ${python_binary|python3} venv
             source venv/bin/activate
             pip3 install pygit2==1.10.1
