@@ -30,10 +30,13 @@
 #define MODEL_CORE_H
 
 #include <deque>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <optional>
 #include <string>
+
+/* Redefine important WiredTiger internal constants, if they are not already available. */
 
 /*
  * WT_TS_MAX --
@@ -55,9 +58,13 @@ namespace model {
 
 /*
  * timestamp_t --
- *     The timestamp.
+ *     The timestamp. This is the model's equivalent of wt_timestamp_t.
  */
-typedef uint64_t timestamp_t;
+using timestamp_t = uint64_t;
+
+/* Verify that WiredTiger constants match our expectations for the model's timestamp type. */
+static_assert(WT_TS_MAX == std::numeric_limits<timestamp_t>::max());
+static_assert(WT_TS_NONE == std::numeric_limits<timestamp_t>::min());
 
 /*
  * NONE_STRING --
@@ -69,7 +76,9 @@ extern const std::string NONE_STRING;
  * data_value --
  *     The data value stored in the model used for keys and values. We use a generic class, rather
  *     than a specific type such as std::string, to give us flexibility to change data types in the
- *     future, e.g., if this becomes necessary to explore additional code paths.
+ *     future, e.g., if this becomes necessary to explore additional code paths. This class is
+ *     intended to parallel WiredTiger's WT_ITEM, which supports multiple data types, plus the
+ *     ability to specify a NONE value to simplify modeling deleted data.
  */
 class data_value {
 

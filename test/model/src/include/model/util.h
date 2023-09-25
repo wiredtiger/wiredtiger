@@ -103,7 +103,7 @@ public:
      */
     inline ~wiredtiger_cursor_guard()
     {
-        if (_cursor != NULL)
+        if (_cursor != nullptr)
             (void)_cursor->close(_cursor);
     }
 
@@ -130,8 +130,8 @@ public:
      */
     inline ~wiredtiger_session_guard()
     {
-        if (_session != NULL)
-            (void)_session->close(_session, NULL);
+        if (_session != nullptr)
+            (void)_session->close(_session, nullptr);
     }
 
 private:

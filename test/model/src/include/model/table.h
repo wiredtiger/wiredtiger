@@ -147,7 +147,7 @@ protected:
         std::lock_guard lock_guard(_lock);
         auto i = _data.find(key);
         if (i == _data.end())
-            return NULL;
+            return nullptr;
         return &i->second;
     }
 

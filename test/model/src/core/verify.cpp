@@ -90,8 +90,8 @@ kv_table_verify_cursor::verify_next(const data_value &key, const data_value &val
 void
 kv_table_verifier::verify(WT_CONNECTION *connection)
 {
-    WT_SESSION *session = NULL;
-    WT_CURSOR *wt_cursor = NULL;
+    WT_SESSION *session = nullptr;
+    WT_CURSOR *wt_cursor = nullptr;
     int ret;
     const char *key, *value;
 
@@ -103,7 +103,7 @@ kv_table_verifier::verify(WT_CONNECTION *connection)
 
     try {
         /* Get the database cursor. */
-        ret = connection->open_session(connection, NULL, NULL, &session);
+        ret = connection->open_session(connection, nullptr, nullptr, &session);
         if (ret != 0)
             throw wiredtiger_exception(ret);
 
@@ -111,7 +111,7 @@ kv_table_verifier::verify(WT_CONNECTION *connection)
         wiredtiger_session_guard session_guard(session);
 
         std::string uri = std::string("table:") + _table.name();
-        ret = session->open_cursor(session, uri.c_str(), NULL, NULL, &wt_cursor);
+        ret = session->open_cursor(session, uri.c_str(), nullptr, nullptr, &wt_cursor);
         if (ret != 0)
             throw wiredtiger_exception(session, ret);
 

@@ -75,15 +75,15 @@ wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
     char cfg[64];
 
     needle = key.as_string().c_str();
-    value = NULL;
+    value = nullptr;
 
     if (timestamp == 0)
-        testutil_check(session->begin_transaction(session, NULL));
+        testutil_check(session->begin_transaction(session, nullptr));
     else {
         testutil_snprintf(cfg, sizeof(cfg), "read_timestamp=%" PRIx64, timestamp);
         testutil_check(session->begin_transaction(session, cfg));
     }
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
     cursor->set_key(cursor, needle);
     testutil_check_error_ok(ret = cursor->search(cursor), WT_NOTFOUND);
@@ -91,7 +91,7 @@ wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
         testutil_check(cursor->get_value(cursor, &value));
 
     testutil_check(cursor->close(cursor));
-    testutil_check(session->commit_transaction(session, NULL));
+    testutil_check(session->commit_transaction(session, nullptr));
     return ret == 0 ? model::data_value(value) : model::NONE;
 }
 
@@ -107,9 +107,9 @@ wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
     WT_DECL_RET;
     char cfg[64];
 
-    testutil_check(session->begin_transaction(session, NULL));
-    testutil_check(
-      session->open_cursor(session, uri, NULL, overwrite ? NULL : "overwrite=false", &cursor));
+    testutil_check(session->begin_transaction(session, nullptr));
+    testutil_check(session->open_cursor(
+      session, uri, nullptr, overwrite ? nullptr : "overwrite=false", &cursor));
 
     cursor->set_key(cursor, key.as_string().c_str());
     cursor->set_value(cursor, value.as_string().c_str());
@@ -137,8 +137,8 @@ wt_remove(WT_SESSION *session, const char *uri, const model::data_value &key,
     WT_DECL_RET;
     char cfg[64];
 
-    testutil_check(session->begin_transaction(session, NULL));
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    testutil_check(session->begin_transaction(session, nullptr));
+    testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
     cursor->set_key(cursor, key.as_string().c_str());
     testutil_check_error_ok(ret = cursor->remove(cursor), WT_NOTFOUND);
@@ -165,9 +165,9 @@ wt_update(WT_SESSION *session, const char *uri, const model::data_value &key,
     WT_DECL_RET;
     char cfg[64];
 
-    testutil_check(session->begin_transaction(session, NULL));
-    testutil_check(
-      session->open_cursor(session, uri, NULL, overwrite ? NULL : "overwrite=false", &cursor));
+    testutil_check(session->begin_transaction(session, nullptr));
+    testutil_check(session->open_cursor(
+      session, uri, nullptr, overwrite ? nullptr : "overwrite=false", &cursor));
 
     cursor->set_key(cursor, key.as_string().c_str());
     cursor->set_value(cursor, value.as_string().c_str());
@@ -376,8 +376,8 @@ test_model_basic_wt(void)
     const char *uri = "table:table";
 
     testutil_recreate_dir(home);
-    testutil_wiredtiger_open(opts, home, ENV_CONFIG, NULL, &conn, false, false);
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_wiredtiger_open(opts, home, ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
     testutil_check(
       session->create(session, uri, "key_format=S,value_format=S,log=(enabled=false)"));
 
@@ -457,8 +457,8 @@ test_model_basic_wt(void)
     testutil_assert(!table.verify_noexcept(conn));
 
     /* Clean up. */
-    testutil_check(session->close(session, NULL));
-    testutil_check(conn->close(conn, NULL));
+    testutil_check(session->close(session, nullptr));
+    testutil_check(conn->close(conn, nullptr));
 }
 
 /*
