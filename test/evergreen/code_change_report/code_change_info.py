@@ -179,13 +179,12 @@ def main():
 
     if git_diff is None:
         diff = get_git_diff(git_working_tree_dir=git_working_tree_dir, verbose=verbose)
-        change_list = diff_to_change_list(diff=diff, verbose=verbose)
     else:
         file = open(git_diff, mode="r")
         data = file.read()
         diff = Diff.parse_diff(data)
-        change_list = diff_to_change_list(diff, verbose)
 
+    change_list = diff_to_change_list(diff=diff, verbose=verbose)
     report_info = create_report_info(change_list=change_list, coverage_data=coverage_data)
 
     report_as_json_object = json.dumps(report_info, indent=2)
