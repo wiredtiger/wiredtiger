@@ -843,8 +843,6 @@ def open_cursor(session, uri: str, **kwargs):
     Keyword Args:
         config (str): Configuration.
     """
-    assert session is not None
-    assert uri is not None
 
     config = None if "config" not in kwargs else str(kwargs["config"])
 
