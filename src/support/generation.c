@@ -118,7 +118,7 @@ struct __generation_drain_cookie {
 
 typedef struct __generation_drain_cookie GENERATION_DRAIN_COOKIE;
 
-static int
+static void
 __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 {
     WT_CONNECTION_IMPL *conn;
@@ -146,7 +146,7 @@ __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
         if (session == cookie->original_session) {
             WT_IGNORE_RET(__wt_panic(session, WT_PANIC, "self-deadlock"));
             *exit_walk = true;
-            return (0);
+            return;
         }
 
         /*
@@ -212,7 +212,6 @@ __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
             }
         }
     }
-    return (0);
 }
 
 /*
@@ -230,10 +229,10 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
       .verbose_timeout_flags = false};
 
     __wt_epoch(session, &cookie.start);
-    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_drain_func, &cookie));
+    __wt_session_array_walk(session, __gen_drain_func, &cookie);
 }
 
-static int
+static void
 __gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 {
     GENERATION_COOKIE *cookie;
@@ -248,8 +247,6 @@ __gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
     if (v != 0 && v < *oldest) {
         *oldest = v;
     }
-
-    return (0);
 }
 
 /*
@@ -270,12 +267,12 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      */
     WT_ORDERED_READ(oldest, S2C(session)->generations[which]);
 
-    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_oldest_func, &cookie));
-    WT_ASSERT(session, oldest > 0);
+    __wt_session_array_walk(session, __gen_oldest_func, &cookie);
+
     return (oldest);
 }
 
-static int
+static void
 __gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 {
     GENERATION_COOKIE *cookie;
@@ -290,8 +287,6 @@ __gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
         *ret = true;
         *exit_walk = true;
     }
-
-    return (0);
 }
 
 /*
@@ -307,7 +302,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
     active = false;
 
-    WT_IGNORE_RET(__wt_session_array_walk(session, __gen_active, &cookie));
+    __wt_session_array_walk(session, __gen_active, &cookie);
 
     return (active);
 }

@@ -1472,9 +1472,6 @@ extern int __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_search_insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_array_walk(WT_SESSION_IMPL *session,
-  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *cookiep), void *cookiep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_breakpoint(WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_close_internal(WT_SESSION_IMPL *session)
@@ -1953,6 +1950,8 @@ extern void __wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_s
 extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_schema_destroy_colgroup(WT_SESSION_IMPL *session, WT_COLGROUP **colgroupp);
 extern void __wt_scr_discard(WT_SESSION_IMPL *session);
+extern void __wt_session_array_walk(WT_SESSION_IMPL *session,
+  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *cookiep), void *cookiep);
 extern void __wt_session_close_cache(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_readlock(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_readunlock(WT_SESSION_IMPL *session);

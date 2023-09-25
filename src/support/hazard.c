@@ -295,6 +295,46 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
     WT_ORDERED_READ(*hazardp, session->hazard);
 }
 
+struct __hazard_cookie {
+    WT_HAZARD *hp;
+    WT_SESSION_IMPL *original_session;
+    uint32_t walk_cnt;
+    uint32_t max;
+    WT_SESSION_IMPL **session_ret;
+    WT_REF *ref;
+};
+
+typedef struct __hazard_cookie HAZARD_COOKIE;
+
+static void
+__hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+{
+    HAZARD_COOKIE *cookie;
+    uint32_t i, hazard_inuse;
+
+    cookie = (HAZARD_COOKIE *)cookiep;
+    hazard_get_reference(session, &cookie->hp, &hazard_inuse);
+
+    if (hazard_inuse > cookie->max) {
+        cookie->max = hazard_inuse;
+        WT_STAT_CONN_SET(cookie->original_session, cache_hazard_max, cookie->max);
+    }
+
+    for (i = 0; i < hazard_inuse; ++cookie->hp, ++i) {
+        ++cookie->walk_cnt;
+        if (cookie->hp->ref == cookie->ref) {
+            WT_STAT_CONN_INCRV(cookie->original_session, cache_hazard_walks, cookie->walk_cnt);
+            if (cookie->session_ret != NULL)
+                *cookie->session_ret = session;
+            *exit_walk = true;
+            break;
+        }
+    }
+
+    if (!exit_walk)
+        cookie->hp = NULL;
+}
+
 /*
  * __wt_hazard_check --
  *     Return if there's a hazard pointer to the page in the system.
@@ -302,16 +342,19 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
 WT_HAZARD *
 __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessionp)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_HAZARD *hp;
-    WT_SESSION_IMPL *s;
-    uint32_t i, j, hazard_inuse, max, session_cnt, walk_cnt;
+    HAZARD_COOKIE cookie = {
+        .hp = NULL,
+        .original_session = session,
+        .walk_cnt = 0,
+        .max = 0,
+        .session_ret = sessionp,
+        .ref = ref
+    };
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
         return (NULL);
 
-    conn = S2C(session);
 
     WT_STAT_CONN_INCR(session, cache_hazard_checks);
 
@@ -321,43 +364,13 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
 
-    /*
-     * No lock is required because the session array is fixed size, but it may contain inactive
-     * entries. We must review any active session that might contain a hazard pointer, so insert a
-     * read barrier after reading the active session count. That way, no matter what sessions come
-     * or go, we'll check the slots for all of the sessions that could have been active when we
-     * started our check.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (s = conn->sessions, i = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
-        if (!s->active)
-            continue;
+    __wt_session_array_walk(session, __hazard_check_func, &cookie);
 
-        hazard_get_reference(s, &hp, &hazard_inuse);
-
-        if (hazard_inuse > max) {
-            max = hazard_inuse;
-            WT_STAT_CONN_SET(session, cache_hazard_max, max);
-        }
-
-        for (j = 0; j < hazard_inuse; ++hp, ++j) {
-            ++walk_cnt;
-            if (hp->ref == ref) {
-                WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
-                if (sessionp != NULL)
-                    *sessionp = s;
-                goto done;
-            }
-        }
-    }
-    WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
-    hp = NULL;
-
-done:
+    WT_STAT_CONN_INCRV(session, cache_hazard_walks, cookie.walk_cnt);
     /* Leave the current resource generation. */
     __wt_session_gen_leave(session, WT_GEN_HAZARD);
 
-    return (hp);
+    return (cookie.hp);
 }
 
 /*
