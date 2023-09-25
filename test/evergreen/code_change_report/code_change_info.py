@@ -12,16 +12,6 @@ def read_coverage_data(coverage_data_path: str):
         return data
 
 
-def find_function(function_list, file_path: str, line_number: int):
-    for function in function_list:
-        if function['file'] == file_path:
-            function_start_line: int = int(function['line start'])
-            function_end_line: int = int(function['line end'])
-            if function_start_line <= line_number < function_end_line:
-                return function
-    return None
-
-
 def diff_to_change_list(diff: Diff, verbose: bool):
     change_list = dict()
     for patch in diff:
@@ -53,7 +43,7 @@ def diff_to_change_list(diff: Diff, verbose: bool):
     return change_list
 
 
-def get_git_info(git_working_tree_dir: str, verbose: bool):
+def get_git_diff(git_working_tree_dir: str, verbose: bool):
     repository_path = discover_repository(git_working_tree_dir)
     assert repository_path is not None
 
@@ -79,9 +69,8 @@ def get_git_info(git_working_tree_dir: str, verbose: bool):
 
     prev_commit = commit.parents[0]
     diff = prev_commit.tree.diff_to_tree(commit.tree)
-    change_list = diff_to_change_list(diff=diff, verbose=verbose)
 
-    return change_list
+    return diff
 
 
 def find_file_in_coverage_data(coverage_data: dict, file_path: str):
@@ -106,6 +95,7 @@ def find_line_data(coverage_data: dict, file_path: str, line_number: int):
 
     return line_data
 
+
 def find_covered_branches(coverage_data: dict, file_path: str, line_number: int):
     branches = list()
 
@@ -128,11 +118,11 @@ def find_line_coverage(coverage_data: dict, file_path: str, line_number: int):
     return line_coverage
 
 
-def create_report_info(patch_info: dict, coverage_data: dict):
+def create_report_info(change_list: dict, coverage_data: dict):
     report = dict()
 
-    for new_file in patch_info:
-        this_patch = patch_info[new_file]
+    for new_file in change_list:
+        this_patch = change_list[new_file]
         change_info_list = list()
         for hunk in this_patch:
             change_info = dict()
@@ -167,7 +157,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--coverage', required=True, help='Path to the gcovr json code coverage data file')
     parser.add_argument('-g', '--git_root', required=True, help='path of the Git working directory')
-    parser.add_argument('-d', '--git_diff', help='Path to the git diff file')
+    parser.add_argument('-d', '--git_diff', required=True, help='Path to the git diff file')
     parser.add_argument('-o', '--outfile', help='Path of the file to write output to')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
@@ -188,19 +178,19 @@ def main():
     coverage_data = read_coverage_data(args.coverage)
 
     if git_diff is None:
-        patch_info = get_git_info(git_working_tree_dir=git_working_tree_dir, verbose=verbose)
+        diff = get_git_diff(git_working_tree_dir=git_working_tree_dir, verbose=verbose)
+        change_list = diff_to_change_list(diff=diff, verbose=verbose)
     else:
         file = open(git_diff, mode="r")
         data = file.read()
         diff = Diff.parse_diff(data)
-        patch_info = diff_to_change_list(diff, verbose)
+        change_list = diff_to_change_list(diff, verbose)
 
-    report_info = create_report_info(patch_info=patch_info, coverage_data=coverage_data)
+    report_info = create_report_info(change_list=change_list, coverage_data=coverage_data)
 
-    if args.outfile is not None:
-        report_as_json_object = json.dumps(report_info, indent=2)
-        with open(args.outfile, "w") as output_file:
-            output_file.write(report_as_json_object)
+    report_as_json_object = json.dumps(report_info, indent=2)
+    with open(args.outfile, "w") as output_file:
+        output_file.write(report_as_json_object)
 
 
 if __name__ == '__main__':
