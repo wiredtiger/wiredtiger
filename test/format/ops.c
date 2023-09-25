@@ -1400,22 +1400,8 @@ rollback:
             break;
         }
 
-        if (mirrored_truncate) {
-            /*
-             * At the end of a mirrored truncate all tables must contain the same keys. It's ok if a
-             * parallel insert has added keys back inside the truncated range as long as all mirror
-             * tables have that same key.
-             *
-             * Verifies can be expensive so we limit them to smaller ranges and only infrequently
-             * check larger ranges.
-             */
-            if (tinfo->last != 0 && tinfo->keyno != 0) {
-                if ((tinfo->last - tinfo->keyno) < 10000)
-                    wts_verify_mirrors(g.wts_conn, NULL, tinfo);
-                else if (mmrand(&tinfo->data_rnd, 0, 10) == 1)
-                    wts_verify_mirrors(g.wts_conn, NULL, tinfo);
-            }
-        }
+        if (mirrored_truncate)
+            wts_verify_mirrored_truncate(tinfo, table);
 
         intxn = false;
     }

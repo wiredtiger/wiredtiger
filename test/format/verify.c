@@ -145,12 +145,11 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
 static int
 position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
 {
+    WT_DECL_RET;
     WT_ITEM key;
     int exact;
-    int ret;
 
     key_gen_init(&key);
-    ret = 0;
 
     switch (table->type) {
     case FIX:
@@ -174,7 +173,7 @@ position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
     }
 
     key_gen_teardown(&key);
-    return ret;
+    return (ret);
 }
 
 /*
@@ -434,6 +433,30 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->mirror && tables[i] != g.base_mirror)
             table_verify_mirror(conn, g.base_mirror, tables[i], NULL, NULL);
+}
+
+/*
+ * wts_verify_mirrored_truncate --
+ *     At the end of a mirrored truncate all tables must contain the same keys. It's ok if a
+ *     parallel insert has added keys back inside the truncated range as long as all mirror tables
+ *     have that same key. Verifies can be expensive so we limit them to smaller ranges and only
+ *     infrequently check larger ranges.
+ */
+void
+wts_verify_mirrored_truncate(TINFO *tinfo, TABLE *table)
+{
+    int range_begin, range_end;
+
+    testutil_assert(tinfo != NULL);
+
+    range_begin = tinfo->keyno != 0 ? tinfo->keyno : 1;
+    range_end = tinfo->last != 0 ? tinfo->last : TV(RUNS_ROWS);
+
+    if ((range_end - range_begin) < 10000)
+        wts_verify_mirrors(g.wts_conn, NULL, tinfo);
+    else if (mmrand(&tinfo->data_rnd, 0, 10) == 1)
+        /* 10% of the time verify large ranges. */
+        wts_verify_mirrors(g.wts_conn, NULL, tinfo);
 }
 
 /*

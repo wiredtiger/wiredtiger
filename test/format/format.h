@@ -509,6 +509,7 @@ void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, bool);
+void wts_verify_mirrored_truncate(TINFO *tinfo, TABLE *table);
 void wts_verify_mirrors(WT_CONNECTION *, const char *, TINFO *);
 
 /* Backward compatibility to older versions of the WiredTiger library. */
