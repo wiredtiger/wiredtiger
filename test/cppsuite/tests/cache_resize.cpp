@@ -167,8 +167,8 @@ public:
     }
 
     void
-    validate(
-      const std::string &operation_table_name, const std::string &, database &) override final
+    validate(bool tracking_enabled, const std::string &operation_table_name, const std::string &,
+      database &) override final
     {
         bool first_record = true;
         int ret;
@@ -180,6 +180,7 @@ public:
         (void)cache_size_500mb;
 
         /* Open a cursor on the tracking table to read it. */
+        testutil_assert(tracking_enabled);
         scoped_session session = connection_manager::instance().create_session();
         scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
 
