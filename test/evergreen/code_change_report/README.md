@@ -57,12 +57,14 @@ The format of the `code_change_info.json` file is:
         * `throw`: from gcovr - ignored by `code_change_info.json`
 
 Note: 
-* According to the gcovr documentation, is possible for gcov to negative code coverage count values 
+* According to the gcovr documentation, is possible for gcov to report negative code coverage count values 
   (see https://gcovr.com/en/master/guide/gcov_parser.html#negative-hit-counts for example). 
 * If any unexpected results are seen in the code change info, view the results in the gcov output 
   to determine if the issue is in gcov amd/or gcovr, or in the code change info processing.
 
 ## Phase 2: The report
 
-To come.
 
+To come (in WT-11659).
+
+FIXME: WT-11659
