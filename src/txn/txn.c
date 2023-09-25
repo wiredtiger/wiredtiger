@@ -752,6 +752,7 @@ __txn_prepare_rollback_restore_hs_update(
     __wt_hs_upd_time_window(hs_cursor, &hs_tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
     upd->txnid = hs_tw->start_txn;
+    // FIXME-WT-11469
     upd->durable_ts = hs_tw->durable_start_ts;
     upd->start_ts = hs_tw->start_ts;
 

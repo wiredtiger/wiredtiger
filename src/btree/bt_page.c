@@ -141,7 +141,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     upd_durable_ts = WT_TS_NONE;
     tombstone_durable_ts = WT_TS_NONE;
 
-    WT_ASSERT(session, __wt_txn_upd_get_durable(upd, upd_durable_ts) == 0);
+    WT_RET(__wt_txn_upd_get_durable(session, upd, upd_durable_ts));
 
     WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
     total_size += size;
@@ -159,7 +159,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
         total_size += size;
 
-        WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, upd_durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(session, tombstone, upd_durable_ts) == 0);
         WT_ASSERT(session, __wt_txn_upd_set_durable(upd_durable_ts, WT_TS_NONE) == 0);
         tombstone->start_ts = unpack->tw.stop_ts;
         tombstone->txnid = unpack->tw.stop_txn;
@@ -174,7 +174,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         if (unpack->tw.start_ts == unpack->tw.stop_ts &&
           unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
           unpack->tw.start_txn == unpack->tw.stop_txn) {
-            WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, tombstone_durable_ts) == 0);
+            WT_ASSERT(
+              session, __wt_txn_upd_get_durable(session, tombstone, tombstone_durable_ts) == 0);
             tombstone_durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
         }

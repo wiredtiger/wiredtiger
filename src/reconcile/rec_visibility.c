@@ -163,8 +163,10 @@ __rec_append_orig_value(
             total_size += size;
             tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
-            WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, durable_ts) == 0);
-            WT_ASSERT(session, __wt_txn_upd_set_durable(durable_ts, (wt_timestamp_t *) unpack->tw.durable_stop_ts) == 0);
+            WT_ASSERT(session, __wt_txn_upd_get_durable(session, tombstone, durable_ts) == 0);
+            WT_ASSERT(session,
+              __wt_txn_upd_set_durable(durable_ts, (wt_timestamp_t *)unpack->tw.durable_stop_ts) ==
+                0);
             // tombstone->__durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
         } else {
@@ -195,8 +197,9 @@ __rec_append_orig_value(
         total_size += size;
         append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
-        WT_ASSERT(session, __wt_txn_upd_get_durable(tombstone, durable_ts) == 0);
-        WT_ASSERT(session, __wt_txn_upd_set_durable(durable_ts, (wt_timestamp_t *) unpack->tw.durable_stop_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(session, tombstone, durable_ts) == 0);
+        WT_ASSERT(session,
+          __wt_txn_upd_set_durable(durable_ts, (wt_timestamp_t *)unpack->tw.durable_stop_ts) == 0);
         // append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
     }
@@ -427,8 +430,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        WT_ASSERT(session, __wt_txn_upd_get_durable(prev_upd, prev_upd_durable_ts) == 0);
-        WT_ASSERT(session, __wt_txn_upd_get_durable(upd, upd_durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(session, prev_upd, prev_upd_durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, upd_durable_ts) == 0);
 
         WT_ASSERT_ALWAYS(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
@@ -671,7 +674,7 @@ __rec_fill_tw_from_upd_select(
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *upd, *tombstone;
-    wt_timestamp_t *durable_ts;
+    wt_timestamp_t durable_ts;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -699,8 +702,8 @@ __rec_fill_tw_from_upd_select(
      * that the value is visible to any timestamp/transaction id ahead of it.
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
-        WT_TIME_WINDOW_SET_STOP(select_tw, upd, durable_ts);
+        WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
+        WT_TIME_WINDOW_SET_STOP(select_tw, upd, &durable_ts);
         tombstone = upd_select->tombstone = upd;
 
         /* Find the update this tombstone applies to. */
@@ -718,7 +721,7 @@ __rec_fill_tw_from_upd_select(
 
     if (upd != NULL)
         /* The beginning of the validity window is the selected update's time point. */
-        WT_TIME_WINDOW_SET_START(select_tw, upd);
+        WT_TIME_WINDOW_SET_START(select_tw, upd, &durable_ts);
     else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");

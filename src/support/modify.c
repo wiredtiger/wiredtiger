@@ -455,14 +455,14 @@ __wt_modify_reconstruct_from_upd_list(
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
-    wt_timestamp_t *durable_ts;
+    wt_timestamp_t durable_ts;
     bool onpage_retry;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
 
     cursor = &cbt->iface;
     /* While we have a pointer to our original modify, grab this information. */
-    WT_ASSERT(session, __wt_txn_upd_get_durable(modify, durable_ts) == 0);
+    WT_ASSERT(session, __wt_txn_upd_get_durable(session, modify, durable_ts) == 0);
     upd_value->tw.durable_start_ts = durable_ts;
     upd_value->tw.start_txn = modify->txnid;
     onpage_retry = true;

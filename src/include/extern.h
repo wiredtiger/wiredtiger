@@ -2334,8 +2334,8 @@ static inline int __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_C
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_upd_get_durable(WT_UPDATE *upd, wt_timestamp_t *durable_ts)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_txn_upd_get_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd,
+  wt_timestamp_t *durable_ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_upd_set_durable(wt_timestamp_t *durable_ts,
   wt_timestamp_t *new_durable_ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type,

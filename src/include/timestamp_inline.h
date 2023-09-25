@@ -50,9 +50,10 @@
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
  */
-#define WT_TIME_WINDOW_SET_START(tw, upd)                          \
+#define WT_TIME_WINDOW_SET_START(tw, upd, durable_ts)                          \
     do {                                                           \
         (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts; \
+        __wt_txn_upd_get_durable(session, upd, durable_ts);        \
         if ((upd)->durable_ts != WT_TS_NONE)                       \
             (tw)->durable_start_ts = (upd)->durable_ts;            \
         (tw)->start_txn = (upd)->txnid;                            \
@@ -62,12 +63,12 @@
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
  */
-#define WT_TIME_WINDOW_SET_STOP(tw, upd, durable_ts)            \
-    do {                                                        \
+#define WT_TIME_WINDOW_SET_STOP(tw, upd, durable_ts)             \
+    do {                                                         \
         (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts; \
-        __wt_txn_upd_get_durable(upd, durable_ts);            \
-        if (durable_ts != WT_TS_NONE)                     \
-            (tw)->durable_stop_ts = *durable_ts;           \
+        __wt_txn_upd_get_durable(session, upd, durable_ts);      \
+        if (durable_ts != WT_TS_NONE)                            \
+            (tw)->durable_stop_ts = *durable_ts;                 \
         (tw)->stop_txn = (upd)->txnid;                           \
     } while (0)
 

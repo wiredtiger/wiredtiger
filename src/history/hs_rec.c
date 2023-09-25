@@ -527,7 +527,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * all the following updates' timestamps in the chain.
              */
             if (no_ts_upd == NULL && upd->start_ts == WT_TS_NONE) {
-                WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+                WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
                 WT_ASSERT(session, durable_ts == WT_TS_NONE);
                 no_ts_upd = upd;
             }
@@ -596,7 +596,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 tw.durable_start_ts = WT_TS_NONE;
                 tw.start_ts = WT_TS_NONE;
             } else {
-                WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+                WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
                 tw.durable_start_ts = *durable_ts;
                 tw.start_ts = upd->start_ts;
             }
@@ -607,8 +607,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * update moved into the history store should be with max visibility to protect its
              * removal by checkpoint garbage collection until the data store update is committed.
              */
-            WT_ASSERT(session, __wt_txn_upd_get_durable(prev_upd, prev_upd_durable_ts) == 0);
-            
+            WT_ASSERT(
+              session, __wt_txn_upd_get_durable(session, prev_upd, prev_upd_durable_ts) == 0);
+
             if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
                 WT_ASSERT(session,
                   list->onpage_upd->txnid == prev_upd->txnid &&
@@ -627,7 +628,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                     tw.durable_stop_ts = WT_TS_NONE;
                     tw.stop_ts = WT_TS_NONE;
                 } else {
-                    tw.durable_stop_ts = durable_ts;
+                    tw.durable_stop_ts = *durable_ts;
                     tw.stop_ts = prev_upd->start_ts;
                 }
                 tw.stop_txn = prev_upd->txnid;
@@ -1135,16 +1136,17 @@ __hs_delete_record(
             WT_ASSERT_ALWAYS(session,
               hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts,
               "Retrieved wrong update from history store: start timestamp mismatch");
-            WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+            WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
             WT_ASSERT_ALWAYS(session,
-              hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == durable_ts,
+              hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == *durable_ts,
               "Retrieved wrong update from history store: durable start timestamp mismatch");
             if (tombstone != NULL) {
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_txn == tombstone->txnid,
                   "Retrieved wrong update from history store: stop txn id mismatch");
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_ts == tombstone->start_ts,
                   "Retrieved wrong update from history store: stop timestamp mismatch");
-                WT_ASSERT(session, __wt_txn_upd_get_durable(upd, tombstone_durable_ts) == 0);
+                WT_ASSERT(
+                  session, __wt_txn_upd_get_durable(session, upd, tombstone_durable_ts) == 0);
                 WT_ASSERT_ALWAYS(session, hs_tw->durable_stop_ts == tombstone_durable_ts,
                   "Retrieved wrong update from history store: durable stop timestamp mismatch");
             } else

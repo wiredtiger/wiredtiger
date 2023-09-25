@@ -341,7 +341,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = txn->commit_timestamp;
-                WT_ASSERT(session, __wt_txn_upd_get_durable(*updp, durable_ts) == 0);
+                WT_ASSERT(session, __wt_txn_upd_get_durable(session, *updp, durable_ts) == 0);
                 WT_ASSERT(
                   session, __wt_txn_upd_set_durable(durable_ts, &txn->durable_timestamp) == 0);
                 // *durable_ts = txn->durable_timestamp;
@@ -407,7 +407,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
             upd = op->u.op_upd;
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = txn->commit_timestamp;
-                WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+                WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
                 *durable_ts = txn->durable_timestamp;
             }
         }
@@ -679,14 +679,14 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
  *     Safely retrieve a durable timestamp from an update.
  */
 static inline int
-__wt_txn_upd_get_durable(WT_UPDATE *upd, wt_timestamp_t *durable_ts)
+__wt_txn_upd_get_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd, wt_timestamp_t *durable_ts)
 {
     uint8_t prepare_state;
 
     WT_ORDERED_READ(prepare_state, upd->prepare_state);
 
-    if (prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS)
-        return (EBUSY);
+    WT_ASSERT(
+      session, prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS);
 
     *durable_ts = upd->__durable_ts;
     return (0);
@@ -721,7 +721,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
      * This function is used to determine when an update is obsolete: that should take into account
      * the durable timestamp which is greater than or equal to the start timestamp.
      */
-    WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+    WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
     return (__wt_txn_visible_all(session, upd->txnid, *durable_ts));
 }
 
@@ -959,7 +959,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
               upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
 
-        WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts, *durable_ts);
 
         /*
@@ -1121,7 +1121,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          */
         if (upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-            WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+            WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
             cbt->upd_value->tw.durable_stop_ts = *durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
             cbt->upd_value->tw.stop_txn = upd->txnid;
@@ -1660,7 +1660,7 @@ __wt_txn_modify_block(
              * The durable timestamp must be greater than or equal to the commit timestamp unless it
              * is an in-progress prepared update.
              */
-            WT_ASSERT(session, __wt_txn_upd_get_durable(upd, durable_ts) == 0);
+            WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
             WT_ASSERT(
               session, *durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
             *prev_tsp = *durable_ts;
@@ -1819,26 +1819,29 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
-    wt_timestamp_t *durable_ts;
-    int ret;
+    // wt_timestamp_t *durable_ts;
+    // int ret;
 
-    durable_ts = WT_TS_NONE;
+    // durable_ts = WT_TS_NONE;
 
     if (!upd_value->skip_buf) {
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
     }
-    ret = __wt_txn_upd_get_durable(upd, durable_ts);
-    WT_UNUSED(ret);
+    // ret = __wt_txn_upd_get_durable(session, upd, durable_ts);
+    // WT_UNUSED(ret);
+    //FIXME-WT-11469
 
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        upd_value->tw.durable_stop_ts = *durable_ts;
+        //FIXME-WT-11469
+        upd_value->tw.durable_stop_ts = upd->__durable_ts;
         upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
         upd_value->tw.prepare =
           upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
     } else {
-        upd_value->tw.durable_start_ts = *durable_ts;
+        //FIXME-WT-11469
+        upd_value->tw.durable_start_ts = upd->__durable_ts;
         upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
         upd_value->tw.prepare =
