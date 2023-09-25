@@ -78,13 +78,32 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 if 'branches' in line:
                     branches = line['branches']
                     branch_info = get_branch_info(branches=branches)
-                    if len(branches) > 0:
-                        code_colour = get_html_colour(get_non_zero_count(branch_info), len(branch_info))
-                        report.append("    <td>{} of {}\n".format(get_non_zero_count(branch_info), len(branch_info)))
+                    num_branches = len(branches)
+                    if num_branches > 0:
+                        non_zero_count = get_non_zero_count(branch_info)
+                        code_colour = get_html_colour(non_zero_count, num_branches)
+                        report.append("    <td>\n")
+                        report.append("      <details>\n")
+                        report.append("      <summary>\n")
+                        report.append("      {} of {}\n".format(non_zero_count, num_branches))
                         meter_high = len(branch_info) * 0.999
                         report.append(
-                            "    <meter value=\"{}\" optimum=\"{}\" max=\"{}\" high=\"{}\" low=\"{}\"></meter></td>".format(
-                            get_non_zero_count(branch_info), len(branch_info),  len(branch_info), meter_high, meter_high))
+                            "      <meter value=\"{}\" optimum=\"{}\" max=\"{}\" high=\"{}\" low=\"{}\"></meter>".format(
+                            non_zero_count, num_branches,  num_branches, meter_high, meter_high))
+                        report.append("      </summary>\n")
+                        report.append("        <div class=\"branchDetails\">\n")
+                        for branch_index in range(len(branch_info)):
+                            branch_count = branch_info[branch_index]
+                            report.append("        <div>\n")
+                            if branch_count > 0:
+                                report.append("&check; ")
+                            else:
+                                report.append("&cross; ")
+                            report.append("Branch {} taken {} time(s)".format(branch_index, branch_count))
+                            report.append("        </div>\n")
+                        report.append("      </div>\n")
+                        report.append("      </details>\n")
+                        report.append("    </td>\n")
                     else:
                         report.append("    <td></td>\n")
                 else:
@@ -117,13 +136,29 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("<html lang=\"\">\n")
     report.append("<head>\n")
     report.append("<title>Code Change Report</title>\n")
-    # report.append("<style>\n")
+    report.append("<style>\n")
     # report.append("  table, th, td\n")
     # report.append("  {\n")
     # report.append("    border: 1px solid black;\n")
     # report.append("    border - collapse: collapse;\n")
     # report.append("  }\n")
-    # report.append("</style>\n")
+
+    report.append("  .branchDetails\n")
+    report.append("  {\n")
+    report.append("    font-family: sans-serif;\n")
+    report.append("    font-size: small;\n")
+    report.append("    text-align: left;\n")
+    report.append("    position: absolute;\n")
+    report.append("    width: 20em;\n")
+    report.append("    padding: 1em;\n")
+    report.append("    background: white;\n")
+    report.append("    border: solid gray 1px;;\n")
+    report.append("    box-shadow: 5px 5px 10px gray;\n")
+    report.append("    z-index: 1;\n")  # pop up in front of the main text
+
+    report.append("  }\n")
+
+    report.append("</style>\n")
     report.append("</head>\n")
 
     report.append("<body>\n")
@@ -141,6 +176,9 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("</table>\n")
 
     report.append("</p></p>")
+
+    report.append("<h2>Code Change Details</h2>\n")
+
     report.append("Only files in the 'src' directory are shown below</p>\n")
 
     # Create per-file info
