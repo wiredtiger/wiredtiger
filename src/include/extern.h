@@ -2166,6 +2166,9 @@ static inline int __wt_buf_setstr(WT_SESSION_IMPL *session, WT_ITEM *buf, const 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly,
   bool *didworkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_cbt_evict_pages_with_deleted_items(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool newpage, size_t total_skipped)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cell_pack_value_match(WT_CELL *page_cell, WT_CELL *val_cell,
   const uint8_t *val_data, bool *matchp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
@@ -2464,6 +2467,8 @@ static inline void __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE 
 static inline void __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_read_gen_incr(WT_SESSION_IMPL *session);
 static inline void __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
+static inline void __wt_cbt_clear_all_deleted_items_flag(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *first_upd);
 static inline void __wt_cell_get_ta(WT_CELL_UNPACK_ADDR *unpack_addr, WT_TIME_AGGREGATE **tap);
 static inline void __wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp);
 static inline void __wt_cell_type_reset(

@@ -466,6 +466,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_force_dirty_time;
     int64_t cache_eviction_force_long_update_list;
     int64_t cache_eviction_force_delete;
+    int64_t cache_eviction_force_obsolete_delete;
     int64_t cache_eviction_force;
     int64_t cache_eviction_force_fail;
     int64_t cache_eviction_force_fail_time;
@@ -629,6 +630,7 @@ struct __wt_connection_stats {
     int64_t fsync_io;
     int64_t read_io;
     int64_t write_io;
+    int64_t cursor_tree_walk_del_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
@@ -1121,6 +1123,7 @@ struct __wt_dsrc_stats {
     int64_t compress_hist_ratio_8;
     int64_t compress_write_fail;
     int64_t compress_write_too_small;
+    int64_t cursor_tree_walk_del_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
