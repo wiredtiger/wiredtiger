@@ -1449,7 +1449,6 @@ scan_worker(void *arg)
     char *key_buf;
     uint32_t i, ntables, pct, table_start;
     uint64_t cur_id, end_id, incr, items, start_id, tot_items;
-    uint64_t start, stop;
     int ret;
 
     thread = (WTPERF_THREAD *)arg;
@@ -1460,7 +1459,6 @@ scan_worker(void *arg)
     session = NULL;
     cursors = NULL;
     items = 0;
-    start = stop = 0;
 
     /*
      * Figure out how many items we should scan. We base the percentage on the icount.
@@ -1507,7 +1505,6 @@ scan_worker(void *arg)
 
         wtperf->scan = true;
         items = 0;
-        start = __wt_clock(NULL);
         while (items < tot_items && !wtperf->stop) {
             cursor = cursors[map_key_to_table(opts, cur_id) - table_start];
             generate_key(opts, key_buf, cur_id);
@@ -1528,19 +1525,8 @@ scan_worker(void *arg)
                     cur_id = start_id = 1;
             }
         }
-        /* Don't include statistics about the final scan that might have been interrupted */
-        if (!wtperf->stop) {
-            stop = __wt_clock(NULL);
-            thread->scan_total_ms += WT_CLOCKDIFF_MS(stop, start);
-            wtperf->scan = false;
-            ++thread->scan.ops;
-        }
-        /* Break the sleep up, so we notice interrupts faster. */
-        for (i = 0; i < opts->scan_interval; i++) {
-            sleep(1);
-            if (wtperf->stop)
-                break;
-        }
+        wtperf->scan = false;
+        ++thread->scan.ops;
     }
 
     if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
@@ -1817,7 +1803,6 @@ execute_workload(WTPERF *wtperf)
         wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
         wtperf->flush_ops = sum_flush_ops(wtperf);
         wtperf->scan_ops = sum_scan_ops(wtperf);
-        wtperf->scan_time = sum_scan_time(wtperf);
         wtperf->insert_ops = sum_insert_ops(wtperf);
         wtperf->modify_ops = sum_modify_ops(wtperf);
         wtperf->read_ops = sum_read_ops(wtperf);
@@ -2395,7 +2380,6 @@ start_run(WTPERF *wtperf)
         wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
         wtperf->flush_ops = sum_flush_ops(wtperf);
         wtperf->scan_ops = sum_scan_ops(wtperf);
-        wtperf->scan_time = sum_scan_time(wtperf);
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
         lprintf(wtperf, 0, 1,
@@ -2422,7 +2406,6 @@ start_run(WTPERF *wtperf)
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " scan operations", wtperf->scan_ops);
-        lprintf(wtperf, 0, 1, "Executed %" PRIu64 " scan time (ms)", wtperf->scan_time);
 
         latency_print(wtperf);
     }

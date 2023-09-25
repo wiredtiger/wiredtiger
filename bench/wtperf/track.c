@@ -123,24 +123,6 @@ sum_scan_ops(WTPERF *wtperf)
 }
 
 /*
- * Return total scan time.
- */
-uint64_t
-sum_scan_time(WTPERF *wtperf)
-{
-    CONFIG_OPTS *opts;
-    uint64_t total;
-
-    opts = wtperf->opts;
-
-    if (opts->scan_interval == 0)
-        return (0);
-
-    total = wtperf->scanthreads->scan_total_ms;
-    return (total);
-}
-
-/*
  * Return total operations count for the worker threads.
  */
 static uint64_t

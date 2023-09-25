@@ -167,11 +167,6 @@ DEF_OPT_AS_UINT32(
 DEF_OPT_AS_UINT32(scan_table_count, 0,
   "number of separate tables to be used for scanning. Zero indicates that tables are shared with "
   "other operations")
-DEF_OPT_AS_STRING(scan_type, "lookup",
-  "The type of scan to simulate. Supported options are: "
-  "'lookup' and 'forward'. Sequential steps a cursor forward. Lookup simulates searching "
-  "for a set of values from a table (similar to lookups in a primary table during an index "
-  "scan.")
 DEF_OPT_AS_BOOL(select_latest, 0,
   "in workloads that involve inserts and another type of operation,"
   "select the recently inserted records with higher probability")
