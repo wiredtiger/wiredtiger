@@ -31,6 +31,7 @@ exec_timeout_secs: 21600 # 6 hrs
 functions:
   "setup environment":
     - command: expansions.update
+      type: setup 
       params:
         updates:
         # The expansion is used for each task that runs a WiredTiger test. The expansions are
@@ -80,10 +81,12 @@ functions:
 
   "get project":
     command: git.get_project
+    type: setup 
     params:
       directory: wiredtiger
   "fetch artifacts": &fetch_artifacts
     command: s3.get
+    type: setup 
     params:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
@@ -92,6 +95,7 @@ functions:
       extract_to: ${destination|wiredtiger}
   "fetch endian format artifacts" :
     - command: s3.get
+      type: setup 
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
@@ -100,6 +104,7 @@ functions:
         extract_to: wiredtiger/cmake_build/test/format
   "fetch mongo-tests repo" :
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -108,6 +113,7 @@ functions:
         git clone https://github.com/wiredtiger/mongo-tests
   "fetch mongo repo" :
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -123,6 +129,7 @@ functions:
         git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -247,6 +254,7 @@ functions:
         fi
   "python config check":
     command: shell.exec
+    type: setup
     params:
       working_dir: "wiredtiger/cmake_build"
       shell: bash
@@ -291,6 +299,7 @@ functions:
         ${python_binary|python3} ../test/evergreen/print_stack_trace.py
   "upload stacktraces": &upload_stacktraces
     command: s3.put
+    type: setup 
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
@@ -406,6 +415,7 @@ functions:
 
   "update wiredtiger docs":
     - command: shell.exec
+      type: setup
       params:
         shell: bash
         script: |
@@ -446,6 +456,7 @@ functions:
 
           done
     - command: shell.exec
+      type: setup 
       params:
         shell: bash
         silent: true
@@ -514,6 +525,7 @@ functions:
   # Delete unnecessary data from the upload.
   "cppsuite test remove files": &cppsuite_remove_files
     command: shell.exec
+    type: setup
     params:
       shell: bash
       script: |
@@ -527,6 +539,7 @@ functions:
   # Custom cppsuite archive tasks.
   "cppsuite archive": &cppsuite_archive
     command: archive.targz_pack
+    type: setup
     params:
       target: archive.tgz
       source_dir: wiredtiger/cmake_build/
@@ -536,6 +549,7 @@ functions:
   # Custom cppsuite s3 artifact upload task.
   "cppsuite s3 put": &cppsuite_s3_put
     command: s3.put
+    type: setup
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
@@ -581,6 +595,7 @@ functions:
     - *dump_stacktraces
     - *upload_stacktraces
     - command: perf.send
+      type: setup 
       params:
         file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
     # Cleanup tasks.
@@ -651,6 +666,7 @@ functions:
 
   "code coverage publish report":
     command: s3.put
+    type: setup 
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
@@ -658,10 +674,11 @@ functions:
       bucket: build_external
       permissions: public-read
       content_type: text/html
-      remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/
+      remote_file: wiredtiger/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/
 
-  "code coverage publish summary":
+  "code coverage publish main page":
     command: s3.put
+    type: setup 
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
@@ -669,11 +686,8 @@ functions:
       bucket: build_external
       permissions: public-read
       content_type: text/html
-      # Ensure that the first character of the display_name is a space
-      # This will ensure that it sorts before the per-file report pages which also get a space
-      # at the start of their display name (why this happens is not yet clear).
-      display_name: " 1 Coverage report main page"
-      remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
+      display_name: "Coverage report main page"
+      remote_file: wiredtiger/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/1_coverage_report_main.html
 
   "format test":
     command: shell.exec
@@ -898,12 +912,14 @@ functions:
         done
   "upload artifact":
     - command: archive.targz_pack
+      type: setup 
       params:
         target: ${upload_filename|wiredtiger.tgz}
         source_dir: ${upload_source_dir|wiredtiger}
         include:
           - "./**"
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -915,6 +931,7 @@ functions:
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload endian format artifacts":
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -926,6 +943,7 @@ functions:
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
   "cleanup":
     command: shell.exec
+    type: setup 
     params:
       shell: bash
       script: |
@@ -949,6 +967,7 @@ functions:
 
   "save wt hang analyzer core/debugger files":
     - command: archive.targz_pack
+      type: setup 
       params:
         target: "wt-hang-analyzer.tgz"
         source_dir: "wiredtiger/cmake_build"
@@ -956,6 +975,7 @@ functions:
           - "./*core*"
           - "./debugger*.*"
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -1114,6 +1134,7 @@ functions:
 
   "upload test stats":
     - command: perf.send
+      type: setup 
       params:
         file: ./wiredtiger/cmake_build/${test_path}.json
 
@@ -1146,11 +1167,13 @@ functions:
 
   "upload stats to evergreen":
     - command: perf.send
+      type: setup 
       params:
         file: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/evergreen_out_${test-name}.json
     # Push the json results to the 'Files' tab of the task in Evergreen
     # Parameterised using the 'test-name' variable
     - command: s3.put
+      type: setup 
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -1184,6 +1207,7 @@ functions:
   
   "install gcp dependencies":
     - command: shell.exec
+      type: setup 
       params:
         working_dir: "wiredtiger"
         shell: bash
@@ -1207,6 +1231,7 @@ functions:
 
   "build and push antithesis container":
     command: subprocess.exec
+    type: setup
     params:
       working_dir: wiredtiger/tools/antithesis
       binary: bash
@@ -3785,8 +3810,9 @@ tasks:
           stats_dir: ./wiredtiger/coverage_report
           test-name: code_coverage
           collection: CodeCoverage
+        # Publish the main page before the report so that it appears top of the list of files in the patch build.
+      - func: "code coverage publish main page"
       - func: "code coverage publish report"
-      - func: "code coverage publish summary"
 
   - name: coverage-report-catch2
     # This task measures code coverage achieved by only the Catch2-based unit tests.
@@ -3812,8 +3838,80 @@ tasks:
             # Record the end time, in seconds
             date +%s >> ../time.txt
       - func: "code coverage analysis"
+        # Publish the main page before the report so that it appears top of the list of files in the patch build.
+      - func: "code coverage publish main page"
       - func: "code coverage publish report"
-      - func: "code coverage publish summary"
+
+  - name: code-change-report
+    depends_on:
+      - name: "coverage-report"
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        vars:
+          dependent_task: coverage-report
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            echo "Code Change Report (Step 1)"
+            echo "==========================="
+            echo "expansions:"
+            echo ". is_patch      =  ${is_patch}"
+            echo ". task_id       =  ${task_id}"
+            echo ". task_name     =  ${task_name}"
+            echo ". build_id      =  ${build_id}"
+            echo ". version_id    =  ${version_id}"
+            echo ". revision      =  ${revision}"
+            echo ". github_commit =  ${github_commit}"
+            echo ". project       =  ${project}"
+            echo ". execution     =  ${execution}"
+            echo ". remote path   =  wiredtiger/${build_variant}/${revision}/${dependent_task}_${build_id}-${execution}/full_coverage_report.json"
+            mkdir -p coverage_report
+      - command: s3.get
+        params:
+          aws_key: ${aws_key}
+          aws_secret: ${aws_secret}
+          remote_file: wiredtiger/${build_variant}/${revision}/${dependent_task}_${build_id}-${execution}/full_coverage_report.json
+          bucket: build_external
+          local_file: wiredtiger/coverage_report/full_coverage_report.json
+      - command: shell.exec
+        vars:
+          dependent_task: coverage-report
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            echo "Code Change Report (Step 2)"
+            echo "==========================="
+
+            set -o errexit
+            set -o verbose
+
+            ${PREPARE_PATH}
+            virtualenv -p ${python_binary|python3} venv
+            source venv/bin/activate
+            pip3 install pygit2==1.10.1
+            
+            EXTRA_CODE_CHANGE_PARAMETERS=''
+             
+            if [ ${is_patch|false} = true ]; then
+              echo "This is a patch build"
+              # Obtain the diff for the changes in this patch
+              git diff `git merge-base develop HEAD` > coverage_report/diff.txt
+              EXTRA_CODE_CHANGE_PARAMETERS='-d coverage_report/diff.txt'
+              # Generate an HTML friendly version of the diff for 
+              sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
+              # Logging for debugging
+              ls -l coverage_report
+              cat coverage_report/diff.txt
+            fi
+
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . $EXTRA_CODE_CHANGE_PARAMETERS -o coverage_report/code_change_info.json
+            
+            # Log the contents of the change info file
+            cat coverage_report/code_change_info.json
+      - func: "code coverage publish report"
 
   - name: s3-tiered-storage-extensions-test
     tags: ["python"]
