@@ -109,6 +109,10 @@ validate(bool tracking_enabled, const std::string &operation_table_name, const s
     const int64_t ten_mb = 10 * 1024 * 1024;
     const int64_t one_kb = 1024;
 
+    /*
+     * This validate logic uses data from operation tracking, it must have been enabled during
+     * the test.
+     */
     testutil_assert(tracking_enabled);
     scoped_session session = connection_manager::instance().create_session();
 

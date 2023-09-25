@@ -179,8 +179,13 @@ public:
         (void)cache_size;
         (void)cache_size_500mb;
 
-        /* Open a cursor on the tracking table to read it. */
+        /*
+         * This validate logic uses data from operation tracking, it must have been enabled during
+         * the test.
+         */
         testutil_assert(tracking_enabled);
+
+        /* Open a cursor on the tracking table to read it. */
         scoped_session session = connection_manager::instance().create_session();
         scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
 
