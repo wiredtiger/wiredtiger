@@ -166,7 +166,8 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
         with open_cursor(self.session, 'statistics:') as stat_cursor:
             started = stat_cursor[stat.conn.checkpoints][2]
             skipped = stat_cursor[stat.conn.checkpoint_skipped][2]
-        assert (started - skipped) == 1
+        assert stat_cursor[stat.conn.checkpoints][2] == 1
+        assert stat_cursor[stat.conn.checkpoint_skipped][2] == 0
 
         # Take a backup and restore it.
         self.take_full_backup(".", self.backup_dir)
