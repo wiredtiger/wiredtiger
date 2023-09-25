@@ -45,9 +45,9 @@ class test_evict01(wttest.WiredTigerTestCase):
     #    ('column-fix', dict(key_format='r', value_format='8t',
     #        extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('column', dict(key_format='r', value_format='S',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
+            extraconfig=',allocation_size=512,leaf_page_max=512,evict_all_deleted_pages=true')),
         ('string_row', dict(key_format='S', value_format='S',
-             extraconfig=',allocation_size=512,leaf_page_max=512')),
+             extraconfig=',allocation_size=512,leaf_page_max=512,evict_all_deleted_pages=true')),
     ]
 
     timestamp_values = [
