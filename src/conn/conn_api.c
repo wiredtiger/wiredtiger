@@ -2248,7 +2248,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"tiered", WT_VERB_TIERED},
-      {"timestamp", WT_VERB_TIMESTAMP}, {"transaction", WT_VERB_TRANSACTION}, 
+      {"timestamp", WT_VERB_TIMESTAMP}, {"transaction", WT_VERB_TRANSACTION},
       {"verify", WT_VERB_VERIFY}, {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE},
       {"config_all_verbose", WT_VERB_CONFIG_ALL_VERBOSE}, {NULL, 0}};
 
@@ -2286,12 +2286,14 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
              * verbosity message.
              *
-             * If verbose have config the "config_all_verbose=xx", There's no need to default 
+             * If verbose have config the "config_all_verbose=xx", There's no need to default
              * this config to the WT_VERBOSE_NOTICE verbosity level
              *
-             * for examples: 
-             *  1. If we config "verbose=[all:1, checkpoint:3]", the result is "all other config=1, checkpoint:3"
-             *  2. If we config "verbose=[checkpoint:3, all:1]", the result is alse "all other config=1, checkpoint:3"
+             * for examples:
+             *  1. If we config "verbose=[all:1, checkpoint:3]", the result is "all other config=1,
+             * checkpoint:3"
+             *  2. If we config "verbose=[checkpoint:3, all:1]", the result is alse "all other
+             * config=1, checkpoint:3"
              */
             if (ft->flag == WT_VERB_CONFIG_ALL_VERBOSE) {
                 config_all_verbos_flag = false;
