@@ -2231,8 +2231,7 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
-    static const WT_NAME_FLAG verbtypes[] = {{"config_all_verbose", WT_VERB_CONFIG_ALL_VERBOSE},
-      {"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
+    static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
@@ -2240,23 +2239,24 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
       {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
       {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
-      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
+      {"handleops", WT_VERB_HANDLEOPS}, {"history_store", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"log", WT_VERB_LOG}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
       {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
       {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
       {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
-      {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
-      {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
-      {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE}, {NULL, 0}};
+      {"thread_group", WT_VERB_THREAD_GROUP}, {"tiered", WT_VERB_TIERED},
+      {"timestamp", WT_VERB_TIMESTAMP}, {"transaction", WT_VERB_TRANSACTION}, 
+      {"verify", WT_VERB_VERIFY}, {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE},
+      {"config_all_verbose", WT_VERB_CONFIG_ALL_VERBOSE}, {NULL, 0}};
 
     WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
-    int i;
+    int i, j;
     WT_VERBOSE_LEVEL verbose_value;
     bool config_all_verbos_flag;
 
@@ -2269,10 +2269,14 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (reconfig && (ret = __wt_config_gets(session, cfg + 1, "verbose", &cval)) == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
-    
+
     config_all_verbos_flag = true;
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
-    for (ft = verbtypes; ft->name != NULL; ft++) {
+    for (i = WT_VERB_CONFIG_ALL_VERBOSE; i >= WT_VERB_API; i--) {
+        ft = &verbtypes[i];
+        if (ft->name == NULL)
+            continue;
+
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
 
@@ -2281,15 +2285,19 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * If the given event isn't specified in configuration string, default it to the
              * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
              * verbosity message.
-
-             * If verbose have config the "config_all_verbose=xx", There's no need to default this config 
-             * to the WT_VERBOSE_NOTICE verbosity level
+             *
+             * If verbose have config the "config_all_verbose=xx", There's no need to default 
+             * this config to the WT_VERBOSE_NOTICE verbosity level
+             *
+             * for examples: 
+             *  1. If we config "verbose=[all:1, checkpoint:3]", the result is "all other config=1, checkpoint:3"
+             *  2. If we config "verbose=[checkpoint:3, all:1]", the result is alse "all other config=1, checkpoint:3"
              */
             if (ft->flag == WT_VERB_CONFIG_ALL_VERBOSE) {
                 config_all_verbos_flag = false;
                 continue;
-            } 
-            
+            }
+
             if (config_all_verbos_flag == true) {
                 continue;
             } else {
@@ -2321,8 +2329,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
 verbos_assign:
         if (ft->flag == WT_VERB_CONFIG_ALL_VERBOSE) {
-            for (i = WT_VERB_CONFIG_ALL_VERBOSE; i < WT_VERB_NUM_CATEGORIES; i++)
-                conn->verbose[i] = verbose_value;
+            for (j = WT_VERB_API; j <= WT_VERB_CONFIG_ALL_VERBOSE; j++)
+                conn->verbose[j] = verbose_value;
         } else {
             conn->verbose[ft->flag] = verbose_value;
         }
