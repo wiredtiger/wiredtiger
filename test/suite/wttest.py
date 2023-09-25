@@ -831,14 +831,24 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return i
 
 @contextmanager
-def open_cursor(session, uri: str):
+def open_cursor(session, uri: str, **kwargs):
     """
-    Open a cursor instance that supports 'with' statements.
+    Open a cursor instance on a session.
+
+    Supports 'with' statements.
+
+    Args:
+        uri (str): URI.
+
+    Keyword Args:
+        config (str): Configuration.
     """
     assert session is not None
     assert uri is not None
 
-    cursor = session.open_cursor(uri, None, None)
+    config = None if "config" not in kwargs else str(kwargs["config"])
+
+    cursor = session.open_cursor(uri, None, config)
     try:
         yield cursor
     finally:
