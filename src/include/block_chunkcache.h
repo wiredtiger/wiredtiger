@@ -8,6 +8,9 @@
 
 /* WiredTiger's chunk cache. Locally caches chunks of remote objects. */
 
+#define WT_CC_KEY_FORMAT WT_UNCHECKED_STRING(SLq)
+#define WT_CC_VALUE_FORMAT WT_UNCHECKED_STRING(QQ)
+
 struct __wt_chunkcache_hashid {
     const char *objectname;
     uint32_t objectid;

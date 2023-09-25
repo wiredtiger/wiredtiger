@@ -21,6 +21,24 @@
     (wt_off_t)(((size_t)offset / (chunkcache)->chunk_size) * (chunkcache)->chunk_size)
 
 /*
+ * __chunkcache_create_metadata_file --
+ *     Create the table that will persistently track what chunk cache content is on disk.
+ */
+static int
+__chunkcache_create_metadata_file(
+  WT_SESSION_IMPL *session, uint64_t capacity, unsigned int hashtable_size, size_t chunk_size)
+{
+    char cfg[128];
+    WT_RET(
+      __wt_snprintf(cfg, sizeof(cfg),
+        "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\","
+        "key_format=" WT_CC_KEY_FORMAT ",value_format=" WT_CC_VALUE_FORMAT,
+        capacity, hashtable_size, chunk_size));
+
+    return (__wt_session_create(session, WT_CC_URI, cfg));
+}
+
+/*
  * __chunkcache_bitmap_find_free --
  *     Iterate through the bitmap to find a free chunk in the cache.
  */
@@ -883,6 +901,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_calloc(session,
           WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
           &chunkcache->free_bitmap));
+
+        WT_RET(__chunkcache_create_metadata_file(
+          session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
     }
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.flushed_data_cache_insertion", &cval));
