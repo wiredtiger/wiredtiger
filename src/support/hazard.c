@@ -341,14 +341,12 @@ __hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 WT_HAZARD *
 __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessionp)
 {
-    HAZARD_COOKIE cookie = {
-        .hp = NULL,
-        .original_session = session,
-        .walk_cnt = 0,
-        .max = 0,
-        .session_ret = sessionp,
-        .search_ref = ref
-    };
+    HAZARD_COOKIE cookie = {.hp = NULL,
+      .original_session = session,
+      .walk_cnt = 0,
+      .max = 0,
+      .session_ret = sessionp,
+      .search_ref = ref};
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))

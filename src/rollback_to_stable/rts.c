@@ -16,7 +16,8 @@ struct __rts_cookie {
 typedef struct __rts_cookie RTS_COOKIE;
 
 static void
-__rts_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep) {
+__rts_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+{
     RTS_COOKIE *cookie;
 
     cookie = (RTS_COOKIE *)cookiep;
@@ -34,7 +35,6 @@ __rts_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep) {
         *exit_walk = true;
     }
 }
-
 
 /*
  * __wt_rts_check --

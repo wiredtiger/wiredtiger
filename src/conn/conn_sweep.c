@@ -279,7 +279,8 @@ struct __sweep_cookie {
 typedef struct __sweep_cookie SWEEP_COOKIE;
 
 static void
-__sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep) {
+__sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+{
     SWEEP_COOKIE *cookie = (SWEEP_COOKIE *)cookiep;
     WT_UNUSED(exit_walk);
     /*
@@ -322,8 +323,8 @@ __sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walk, void
             session->sweep_warning_60min = 1;
             WT_STAT_CONN_INCR(cookie->original_session, no_session_sweep_60min);
             __wt_verbose_warning(cookie->original_session, WT_VERB_DEFAULT,
-                "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.", session->id,
-                (void *)session, session->name == NULL ? "EMPTY" : session->name);
+              "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
+              session->id, (void *)session, session->name == NULL ? "EMPTY" : session->name);
         }
     } else {
         session->sweep_warning_60min = 0;
@@ -337,7 +338,11 @@ __sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walk, void
 static void
 __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
 {
-    SWEEP_COOKIE cookie = {.last  = 0, .last_cursor_big_sweep = 0, .last_sweep = 0, .now = now, .original_session = session};
+    SWEEP_COOKIE cookie = {.last = 0,
+      .last_cursor_big_sweep = 0,
+      .last_sweep = 0,
+      .now = now,
+      .original_session = session};
     __wt_session_array_walk(session, __sweep_check_session_sweep_func, &cookie);
 }
 
