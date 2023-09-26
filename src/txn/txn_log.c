@@ -207,11 +207,9 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     size_t header_size;
     uint32_t rectype;
-    const char *fmt;
 
     txn = session->txn;
     rectype = WT_LOGREC_COMMIT;
-    fmt = WT_UNCHECKED_STRING(Iq);
 
     if (txn->logrec != NULL) {
         WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_ID));
@@ -227,11 +225,11 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
     else
         WT_ASSERT(session, txn->id != WT_TXN_NONE);
 
-    WT_RET(__wt_struct_size(session, &header_size, fmt, rectype, txn->id));
+    __wt_struct_size_IQ(session, &header_size, rectype, txn->id);
     WT_RET(__wt_logrec_alloc(session, header_size, &logrec));
 
-    WT_ERR(__wt_struct_pack(
-      session, (uint8_t *)logrec->data + logrec->size, header_size, fmt, rectype, txn->id));
+    WT_ERR(__wt_struct_pack_IQ(session, (uint8_t *)logrec->data + logrec->size,
+      (uint8_t *)logrec->data + logrec->size + header_size, rectype, txn->id));
     logrec->size += (uint32_t)header_size;
     txn->logrec = logrec;
 
@@ -333,20 +331,18 @@ __txn_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
     WT_DECL_RET;
     size_t header_size;
     uint32_t rectype, start;
-    const char *fmt;
     bool need_sync;
 
     btree = S2BT(session);
     rectype = WT_LOGREC_FILE_SYNC;
     start = LF_ISSET(WT_TXN_LOG_CKPT_START) ? 1 : 0;
-    fmt = WT_UNCHECKED_STRING(III);
     need_sync = LF_ISSET(WT_TXN_LOG_CKPT_SYNC);
 
-    WT_RET(__wt_struct_size(session, &header_size, fmt, rectype, btree->id, start));
+    __wt_struct_size_III(session, &header_size, rectype, btree->id, start);
     WT_RET(__wt_logrec_alloc(session, header_size, &logrec));
 
-    WT_ERR(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, header_size, fmt,
-      rectype, btree->id, start));
+    WT_ERR(__wt_struct_pack_III(session, (uint8_t *)logrec->data + logrec->size,
+      (uint8_t *)logrec->data + logrec->size + header_size, rectype, btree->id, start));
     logrec->size += (uint32_t)header_size;
 
     WT_ERR(__wt_log_write(session, logrec, lsnp, need_sync ? WT_LOG_FSYNC : 0));
@@ -442,7 +438,6 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
     size_t recsize;
     uint32_t i, rectype;
     uint8_t *end, *p;
-    const char *fmt;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -470,12 +465,11 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
              * Write the system log record containing a checkpoint start operation.
              */
             rectype = WT_LOGREC_SYSTEM;
-            fmt = WT_UNCHECKED_STRING(I);
-            WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
+            __wt_struct_size_I(session, &recsize, rectype);
             WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
-            WT_ERR(__wt_struct_pack(
-              session, (uint8_t *)logrec->data + logrec->size, recsize, fmt, rectype));
+            WT_ERR(__wt_struct_pack_I(session, (uint8_t *)logrec->data + logrec->size,
+              (uint8_t *)logrec->data + logrec->size + recsize, rectype));
             logrec->size += (uint32_t)recsize;
             WT_ERR(__wt_logop_checkpoint_start_pack(session, logrec));
             WT_ERR(__wt_log_write(session, logrec, ckpt_lsn, 0));
@@ -526,13 +520,13 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
 
         /* Write the checkpoint log record. */
         rectype = WT_LOGREC_CHECKPOINT;
-        fmt = WT_UNCHECKED_STRING(IIIIu);
-        WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype, ckpt_lsn->l.file,
-          ckpt_lsn->l.offset, txn->ckpt_nsnapshot, ckpt_snapshot));
+        __wt_struct_size_IIIIu(session, &recsize, rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset,
+          txn->ckpt_nsnapshot, ckpt_snapshot);
         WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
-        WT_ERR(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt,
-          rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset, txn->ckpt_nsnapshot, ckpt_snapshot));
+        WT_ERR(__wt_struct_pack_IIIIu(session, (uint8_t *)logrec->data + logrec->size,
+          (uint8_t *)logrec->data + logrec->size + recsize, rectype, ckpt_lsn->l.file,
+          ckpt_lsn->l.offset, txn->ckpt_nsnapshot, ckpt_snapshot));
         logrec->size += (uint32_t)recsize;
         WT_ERR(__wt_log_write(
           session, logrec, lsnp, F_ISSET(conn, WT_CONN_CKPT_SYNC) ? WT_LOG_FSYNC : 0));

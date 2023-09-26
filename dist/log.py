@@ -246,19 +246,17 @@ __wt_logop_%(name)s_pack(
     WT_SESSION_IMPL *session, WT_ITEM *logrec%(comma)s
     %(arg_decls)s)
 {
-\tconst char *fmt = WT_UNCHECKED_STRING(%(fmt)s);
 \tsize_t size;
 \tuint32_t optype, recsize;
 
 \toptype = %(macro)s;
-\tWT_RET(__wt_struct_size(session, &size, fmt,
-\t    optype, 0%(pack_args)s));
+\t__wt_struct_size_%(fmt)s(session, &size, optype, 0%(pack_args)s);
 
 \t__wt_struct_size_adjust(session, &size);
 \tWT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
 \trecsize = (uint32_t)size;
-\tWT_RET(__wt_struct_pack(session,
-\t    (uint8_t *)logrec->data + logrec->size, size, fmt,
+\tWT_RET(__wt_struct_pack_%(fmt)s(session,
+\t    (uint8_t *)logrec->data + logrec->size, (uint8_t *)logrec->data + logrec->size + size,
 \t    optype, recsize%(pack_args)s));
 
 \tlogrec->size += (uint32_t)size;

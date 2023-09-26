@@ -2298,6 +2298,42 @@ static inline int __wt_strcat(char *dest, size_t size, const char *src)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_strdup(WT_SESSION_IMPL *session, const char *str, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_I(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_II(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_III(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIII(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, uint32_t fourth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIIIu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, uint32_t fourth, WT_ITEM *fifth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIIr(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, uint64_t fourth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIIrr(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, uint64_t fourth, uint64_t fifth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIIru(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, uint64_t fourth, WT_ITEM *fifth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIIu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, WT_ITEM *fourth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIIuu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIIuuI(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth, uint32_t sixth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IIQQQQQQQ(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint32_t second, uint64_t third, uint64_t fourth, uint64_t fifth, uint64_t sixth,
+  uint64_t seventh, uint64_t eighth, uint64_t ninth)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_struct_pack_IQ(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
+  uint32_t first, uint64_t second) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_struct_packv(WT_SESSION_IMPL *session, void *buffer, size_t size,
   const char *fmt, va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_struct_sizev(WT_SESSION_IMPL *session, size_t *sizep, const char *fmt,
@@ -2514,6 +2550,32 @@ static inline void __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
+static inline void __wt_struct_size_I(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first);
+static inline void __wt_struct_size_II(
+  WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second);
+static inline void __wt_struct_size_III(
+  WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second, uint32_t third);
+static inline void __wt_struct_size_IIII(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, uint32_t fourth);
+static inline void __wt_struct_size_IIIIu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, uint32_t fourth, WT_ITEM *fifth);
+static inline void __wt_struct_size_IIIr(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, uint64_t fourth);
+static inline void __wt_struct_size_IIIrr(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, uint64_t fourth, uint64_t fifth);
+static inline void __wt_struct_size_IIIru(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, uint64_t fourth, WT_ITEM *fifth);
+static inline void __wt_struct_size_IIIu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, WT_ITEM *fourth);
+static inline void __wt_struct_size_IIIuu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth);
+static inline void __wt_struct_size_IIIuuI(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first,
+  uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth, uint32_t sixth);
+static inline void __wt_struct_size_IIQQQQQQQ(WT_SESSION_IMPL *session, size_t *sizep,
+  uint32_t first, uint32_t second, uint64_t third, uint64_t fourth, uint64_t fifth, uint64_t sixth,
+  uint64_t seventh, uint64_t eighth, uint64_t ninth);
+static inline void __wt_struct_size_IQ(
+  WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint64_t second);
 static inline void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep);
 static inline void __wt_timer_evaluate(
   WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff);
