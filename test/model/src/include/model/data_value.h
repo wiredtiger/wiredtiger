@@ -26,51 +26,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_CORE_H
-#define MODEL_CORE_H
+#ifndef MODEL_DATA_VALUE_H
+#define MODEL_DATA_VALUE_H
 
-#include <deque>
-#include <limits>
-#include <map>
-#include <mutex>
 #include <optional>
 #include <string>
 
-/* Redefine important WiredTiger internal constants, if they are not already available. */
-
-/*
- * WT_TS_MAX --
- *     The maximum timestamp, typically used in reads where we would like to get the latest value.
- */
-#ifndef WT_TS_MAX
-#define WT_TS_MAX UINT64_MAX
-#endif
-
-/*
- * WT_TS_LATEST --
- *     A convenience alias for WT_TS_MAX, typically used to get the latest value.
- */
-#define WT_TS_LATEST WT_TS_MAX
-
-/*
- * WT_TS_NONE --
- *     No timestamp, e.g., when performing a non-timestamped update.
- */
-#ifndef WT_TS_NONE
-#define WT_TS_NONE 0
-#endif
+#include "model/core.h"
 
 namespace model {
-
-/*
- * timestamp_t --
- *     The timestamp. This is the model's equivalent of wt_timestamp_t.
- */
-using timestamp_t = uint64_t;
-
-/* Verify that WiredTiger constants match our expectations for the model's timestamp type. */
-static_assert(WT_TS_MAX == std::numeric_limits<timestamp_t>::max());
-static_assert(WT_TS_NONE == std::numeric_limits<timestamp_t>::min());
 
 /*
  * NONE_STRING --
