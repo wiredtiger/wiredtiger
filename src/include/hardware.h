@@ -22,9 +22,9 @@
  * Ensure a single read from memory in the source code produces a single read from memory in the
  * compiled output.
  *
- * The compiler is allowed to optimize loads from memory in multiple ways such as "load fusing",
- * where the compiler takes multiple reads from a memory location and merges them into a single read
- * instruction, and "invented loads" where the compiler takes a single load from memory and converts
+ * The compiler is allowed to optimize loads from memory in multiple ways such as Load fusing, where
+ * the compiler takes multiple reads from a memory location and merges them into a single read
+ * instruction, and Invented loads where the compiler takes a single load from memory and converts
  * it into multiple read instructions.
  *
  * WiredTiger has many algorithms where threads are allowed to concurrently access and modify the
