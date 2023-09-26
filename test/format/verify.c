@@ -139,10 +139,9 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
 
 /*
  * position_cursor_before --
- *     Place a cursor on the key directly preceding the target key. It's ok to return WT_NOTFOUND
- *     from this function as any subsequent cursor next calls will begin at the start of the table.
+ *     Place a cursor on the key directly preceding the target key.
  */
-static int
+static void
 position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
 {
     WT_DECL_RET;
@@ -167,13 +166,14 @@ position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
     /* If we're on or past the target key then move backwards one key. */
     if (exact >= 0) {
         ret = read_op(cursor, PREV, NULL);
-        testutil_assert(ret == 0 || WT_NOTFOUND);
-        if (ret == WT_NOTFOUND)
-            ret = 0;
+        /*
+         * WT_NOTFOUND is ok here since any subsequent cursor->next calls will start from the
+         * beginning of the table.
+         */
+        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
     }
 
     key_gen_teardown(&key);
-    return (ret);
 }
 
 /*
@@ -244,8 +244,8 @@ table_verify_mirror(
     if (tinfo != NULL) {
         if (tinfo->keyno != 0) {
             range_begin = tinfo->keyno;
-            testutil_check(position_cursor_before(base, base_cursor, range_begin));
-            testutil_check(position_cursor_before(table, table_cursor, range_begin));
+            position_cursor_before(base, base_cursor, range_begin);
+            position_cursor_before(table, table_cursor, range_begin);
         }
 
         if (tinfo->last != 0)
