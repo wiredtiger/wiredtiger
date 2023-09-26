@@ -512,7 +512,7 @@ err:
  *     Insert chunks it into the chunkcache.
  */
 int
-__wt_chunkcache_insert(WT_SESSION_IMPL *session, size_t already_read, wt_off_t size,
+__wt_chunkcache_insert(WT_SESSION_IMPL *session, wt_off_t already_read, wt_off_t size,
   WT_CHUNKCACHE_HASHID *hash_id, uint32_t objectid, const char *local_name, uint64_t bucket_id,
   WT_FH *fh)
 {
@@ -522,8 +522,8 @@ __wt_chunkcache_insert(WT_SESSION_IMPL *session, size_t already_read, wt_off_t s
 
     chunkcache = &S2C(session)->chunkcache;
 
-    if ((ret = __chunkcache_alloc_chunk(
-           session, (wt_off_t)already_read, (wt_off_t)size, hash_id, &chunk)) != 0) {
+    if ((ret = __chunkcache_alloc_chunk(session, already_read, (wt_off_t)size, hash_id, &chunk)) !=
+      0) {
         __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
         return (ret);
     }
@@ -583,7 +583,6 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
-    WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
     const char *object_name;
@@ -665,14 +664,14 @@ retry:
         /* The chunk is not cached. Allocate space for it. Prepare for reading it from storage. */
         if (!chunk_cached) {
             WT_STAT_CONN_INCR(session, chunk_cache_misses);
-            WT_RET(__wt_chunkcache_insert(session, (size_t)offset + already_read, block->size,
+            WT_RET(__wt_chunkcache_insert(session, offset + (wt_off_t)already_read, block->size,
               &hash_id, objectid, block->name, bucket_id, block->fh));
             goto retry;
         }
     }
 
     *cache_hit = true;
-    return (ret);
+    return (0);
 }
 
 /*
@@ -769,26 +768,26 @@ __wt_chunkcache_ingest(
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
     WT_FH *fh;
-    size_t already_read, size;
+    wt_off_t already_read, size;
     uint64_t bucket_id;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
 
-    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED) &&
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED) ||
       !F_ISSET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION))
         return (0);
 
     WT_RET(__wt_open(session, local_name, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_READONLY, &fh));
-    WT_ERR(__wt_filesize(session, fh, (wt_off_t *)&size));
+    WT_ERR(__wt_filesize(session, fh, &size));
 
     while (already_read < size) {
-        bucket_id = __chunkcache_tmp_hash(
-          chunkcache, &hash_id, sp_obj_name, object_id, (wt_off_t)already_read);
+        bucket_id =
+          __chunkcache_tmp_hash(chunkcache, &hash_id, sp_obj_name, object_id, already_read);
 
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        WT_RET(__wt_chunkcache_insert(
-          session, already_read, (wt_off_t)size, &hash_id, object_id, local_name, bucket_id, fh));
+        WT_ERR(__wt_chunkcache_insert(
+          session, already_read, size, &hash_id, object_id, local_name, bucket_id, fh));
     }
 err:
     WT_TRET(__wt_close(session, &fh));

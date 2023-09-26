@@ -219,8 +219,7 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
             /* Cache the flushed content into chunkcache. */
             WT_ERR(__wt_tiered_name(
               session, &tiered->iface, 0, WT_TIERED_NAME_SKIP_PREFIX, &sp_obj_name));
-            WT_ERR(__wt_chunkcache_ingest(session, local_name, sp_obj_name, id));
-
+            WT_RET_ERROR_OK(__wt_chunkcache_ingest(session, local_name, sp_obj_name, id), ENOSPC);
             /*
              * After successful flushing, push a work unit to perform whatever post-processing the
              * shared storage wants to do for this object. Note that this work unit is unrelated to

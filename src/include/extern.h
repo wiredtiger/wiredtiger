@@ -407,7 +407,7 @@ extern int __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_chunkcache_ingest(WT_SESSION_IMPL *session, const char *local_name,
   const char *sp_obj_name, uint32_t object_id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_chunkcache_insert(WT_SESSION_IMPL *session, size_t already_read, wt_off_t size,
+extern int __wt_chunkcache_insert(WT_SESSION_IMPL *session, wt_off_t already_read, wt_off_t size,
   WT_CHUNKCACHE_HASHID *hash_id, uint32_t objectid, const char *local_name, uint64_t bucket_id,
   WT_FH *fh) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
