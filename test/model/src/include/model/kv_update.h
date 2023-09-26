@@ -84,6 +84,12 @@ public:
         bool
         operator()(const kv_update *left, const kv_update *right) const noexcept
         {
+            if (left == right)
+                return true;
+            if (left == nullptr)
+                return true;
+            if (right == nullptr)
+                return false;
             return left->_timestamp < right->_timestamp;
         }
 
@@ -94,6 +100,8 @@ public:
         bool
         operator()(const kv_update *left, timestamp_t timestamp) const noexcept
         {
+            if (left == nullptr)
+                return true;
             return left->_timestamp < timestamp;
         }
 
@@ -104,6 +112,8 @@ public:
         bool
         operator()(timestamp_t timestamp, const kv_update *right) const noexcept
         {
+            if (right == nullptr)
+                return false;
             return timestamp < right->_timestamp;
         }
     };
