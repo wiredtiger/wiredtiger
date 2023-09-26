@@ -278,16 +278,12 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
     uint64_t last, last_cursor_big_sweep, last_sweep;
-    uint32_t i;
 
     conn = S2C(session);
 
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
-        /*
-         * Ignore inactive and internal sessions.
-         */
-        if (!s->active)
-            continue;
+    WT_SESSION_FOREACH_BEGIN(s, conn)
+    {
+        /* Skip internal sessions. */
         if (F_ISSET(s, WT_SESSION_INTERNAL))
             continue;
 
@@ -325,13 +321,14 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
                 s->sweep_warning_60min = 1;
                 WT_STAT_CONN_INCR(session, no_session_sweep_60min);
                 __wt_verbose_warning(session, WT_VERB_DEFAULT,
-                  "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.", i,
-                  (void *)s, s->name == NULL ? "EMPTY" : s->name);
+                  "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
+                  s->id, (void *)s, s->name == NULL ? "EMPTY" : s->name);
             }
         } else {
             s->sweep_warning_60min = 0;
         }
     }
+    WT_SESSION_FOREACH_END;
 }
 
 /*
