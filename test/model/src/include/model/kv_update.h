@@ -85,7 +85,7 @@ public:
         operator()(const kv_update *left, const kv_update *right) const noexcept
         {
             if (left == right)
-                return true;
+                return false;
             if (left == nullptr)
                 return true;
             if (right == nullptr)
