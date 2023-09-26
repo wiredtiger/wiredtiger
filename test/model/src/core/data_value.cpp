@@ -68,7 +68,7 @@ std::ostream &
 operator<<(std::ostream &out, const data_value &value)
 {
     if (std::holds_alternative<std::monostate>(value) || value.valueless_by_exception())
-        out << std::get<int64_t>(value);
+        out << "(none)";
     else if (std::holds_alternative<int64_t>(value))
         out << std::get<int64_t>(value);
     else if (std::holds_alternative<uint64_t>(value))
