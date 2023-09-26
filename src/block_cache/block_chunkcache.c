@@ -508,6 +508,58 @@ err:
 }
 
 /*
+ * __wt_chunkcache_insert --
+ *     Insert chunks it into the chunkcache.
+ */
+int
+__wt_chunkcache_insert(WT_SESSION_IMPL *session, size_t already_read, wt_off_t size,
+  WT_CHUNKCACHE_HASHID *hash_id, uint32_t objectid, const char *local_name, uint64_t bucket_id,
+  WT_FH *fh)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_DECL_RET;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    if ((ret = __chunkcache_alloc_chunk(
+           session, (wt_off_t)already_read, (wt_off_t)size, hash_id, &chunk)) != 0) {
+        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+        return (ret);
+    }
+    /*
+     * Insert the invalid chunk into the bucket before releasing the lock and doing I/O. This way we
+     * avoid two threads trying to cache the same chunk.
+     */
+    TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
+    __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+
+    /* Read the new chunk. Only one thread would be caching the new chunk. */
+    if ((ret = __wt_read(
+           session, fh, chunk->chunk_offset, chunk->chunk_size, chunk->chunk_memory)) != 0) {
+        __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+        TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
+        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+        __chunkcache_free_chunk(session, chunk);
+        WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
+        return (ret);
+    }
+
+    /*
+     * Mark chunk as valid. The only thread that could be executing this code is the thread that won
+     * the race and inserted this (invalid) chunk into the hash table. This thread has now read the
+     * chunk, while any other threads that were looking for the same chunk would be spin-waiting for
+     * this chunk to become valid. The current thread will mark the chunk as valid, and any waiters
+     * will unblock and proceed reading it.
+     */
+    WT_PUBLISH(chunk->valid, true);
+
+    __wt_verbose(session, WT_VERB_CHUNKCACHE, "insert: %s(%u), offset=%" PRId64 ", size=%lu",
+      (char *)local_name, objectid, chunk->chunk_offset, chunk->chunk_size);
+    return (0);
+}
+
+/*
  * __wt_chunkcache_get --
  *     Return the data to the caller if we have it. Otherwise read it from storage and cache it.
  *
@@ -613,47 +665,14 @@ retry:
         /* The chunk is not cached. Allocate space for it. Prepare for reading it from storage. */
         if (!chunk_cached) {
             WT_STAT_CONN_INCR(session, chunk_cache_misses);
-            if ((ret = __chunkcache_alloc_chunk(
-                   session, offset + (wt_off_t)already_read, block->size, &hash_id, &chunk)) != 0) {
-                __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-                return (ret);
-            }
-            /*
-             * Insert the invalid chunk into the bucket before releasing the lock and doing I/O.
-             * This way we avoid two threads trying to cache the same chunk.
-             */
-            TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-            __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-
-            /* Read the new chunk. Only one thread would be caching the new chunk. */
-            if ((ret = __wt_read(session, block->fh, chunk->chunk_offset, chunk->chunk_size,
-                   chunk->chunk_memory)) != 0) {
-                __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-                TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-                __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-                __chunkcache_free_chunk(session, chunk);
-                WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
-                return (ret);
-            }
-
-            /*
-             * Mark chunk as valid. The only thread that could be executing this code is the thread
-             * that won the race and inserted this (invalid) chunk into the hash table. This thread
-             * has now read the chunk, while any other threads that were looking for the same chunk
-             * would be spin-waiting for this chunk to become valid. The current thread will mark
-             * the chunk as valid, and any waiters will unblock and proceed reading it.
-             */
-            WT_PUBLISH(chunk->valid, true);
-
-            __wt_verbose(session, WT_VERB_CHUNKCACHE,
-              "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
-              chunk->chunk_offset, chunk->chunk_size);
+            ret = __wt_chunkcache_insert(session, (size_t)offset + already_read, block->size,
+              &hash_id, objectid, block->name, bucket_id, block->fh);
             goto retry;
         }
     }
 
     *cache_hit = true;
-    return (0);
+    return (ret);
 }
 
 /*
@@ -747,7 +766,6 @@ __wt_chunkcache_ingest(
   WT_SESSION_IMPL *session, const char *local_name, const char *sp_obj_name, uint32_t object_id)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
     WT_FH *fh;
@@ -757,6 +775,10 @@ __wt_chunkcache_ingest(
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
 
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED) &&
+      !F_ISSET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION))
+        return (0);
+
     WT_RET(__wt_open(session, local_name, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_READONLY, &fh));
     WT_ERR(__wt_filesize(session, fh, (wt_off_t *)&size));
 
@@ -765,46 +787,9 @@ __wt_chunkcache_ingest(
           chunkcache, &hash_id, sp_obj_name, object_id, (wt_off_t)already_read);
 
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-
-        if ((ret = __chunkcache_alloc_chunk(
-               session, (wt_off_t)already_read, (wt_off_t)size, &hash_id, &chunk)) != 0) {
-            __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-            WT_ERR(ret);
-        }
-
-        /*
-         * Insert the invalid chunk into the bucket before releasing the lock and doing I/O. This
-         * way we avoid two threads trying to cache the same chunk.
-         */
-        TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-
-        /* Read the new chunk. Only one thread would be caching the new chunk. */
-        if ((ret = __wt_read(
-               session, fh, chunk->chunk_offset, chunk->chunk_size, chunk->chunk_memory)) != 0) {
-            __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-            TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-            __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-            __chunkcache_free_chunk(session, chunk);
-            WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
-            return (ret);
-        }
-
-        /*
-         * Mark chunk as valid. The only thread that could be executing this code is the thread that
-         * won the race and inserted this (invalid) chunk into the hash table. This thread has now
-         * read the chunk, while any other threads that were looking for the same chunk would be
-         * spin-waiting for this chunk to become valid. The current thread will mark the chunk as
-         * valid, and any waiters will unblock and proceed reading it.
-         */
-        WT_PUBLISH(chunk->valid, true);
-
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "insert: %s(%u), offset=%" PRId64 ", size=%lu",
-          (char *)local_name, object_id, chunk->chunk_offset, chunk->chunk_size);
-
-        already_read += chunk->chunk_size;
+        ret = __wt_chunkcache_insert(
+          session, already_read, (wt_off_t)size, &hash_id, object_id, local_name, bucket_id, fh);
     }
-
 err:
     WT_RET(__wt_close(session, &fh));
     return (ret);
