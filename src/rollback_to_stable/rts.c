@@ -34,7 +34,7 @@ __rts_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         cookie->txn_active = true;
         *exit_walkp = true;
-    } else if (!session->ncursors != 0) {
+    } else if (session->ncursors != 0) {
         /* Check if a user session has an active file cursor. */
         cookie->cursor_active = true;
         *exit_walkp = true;
