@@ -770,7 +770,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint32_t flags;
-    bool closing, is_eviction_thread, is_application_thread;
+    bool closing, is_eviction_thread, is_application_thread_with_snapshot;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -829,13 +829,13 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * it becomes harder in the later part of the code to detect updates that belonged to the last
      * running application transaction.
      */
-    is_application_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
+    is_application_thread_with_snapshot = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
-    WT_ASSERT(session, !is_application_thread || !is_eviction_thread);
+    WT_ASSERT(session, !is_application_thread_with_snapshot || !is_eviction_thread);
 
     /*
      * If checkpoint is running concurrently, set the checkpoint running flag and we will abort the
@@ -853,7 +853,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * outside world.
          */
         __wt_txn_bump_snapshot(session);
-    else if (is_application_thread) {
+    else if (is_application_thread_with_snapshot) {
         /*
          * Application threads entering into eviction takes a backup of the existing snapshots and
          * acquires a new snapshot to evict the latest data, once the application threads are done
@@ -873,7 +873,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
      * eviction workers or application threads.
      */
-    if (is_eviction_thread || is_application_thread)
+    if (is_eviction_thread || is_application_thread_with_snapshot)
         WT_WITH_TXN_ISOLATION(
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
@@ -882,7 +882,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (is_application_thread)
+    if (is_application_thread_with_snapshot)
         __wt_txn_copy_back_snapshot(session);
 
     if (is_eviction_thread)
