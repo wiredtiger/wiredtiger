@@ -119,7 +119,7 @@ struct __generation_drain_cookie {
 typedef struct __generation_drain_cookie GENERATION_DRAIN_COOKIE;
 
 static void
-__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_CONNECTION_IMPL *conn;
     GENERATION_DRAIN_COOKIE *cookie;
@@ -145,7 +145,7 @@ __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
         /* If we're waiting on ourselves, we're deadlocked. */
         if (session == cookie->original_session) {
             WT_IGNORE_RET(__wt_panic(session, WT_PANIC, "self-deadlock"));
-            *exit_walk = true;
+            *exit_walkp = true;
             return;
         }
 
@@ -233,13 +233,13 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 }
 
 static void
-__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     GENERATION_COOKIE *cookie;
     uint64_t *oldest;
     uint64_t v;
 
-    WT_UNUSED(exit_walk);
+    WT_UNUSED(exit_walkp);
     cookie = (GENERATION_COOKIE *)cookiep;
     oldest = (uint64_t *)cookie->ret_arg;
 
@@ -273,7 +273,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
 }
 
 static void
-__gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+__gen_active(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     GENERATION_COOKIE *cookie;
     uint64_t v;
@@ -285,7 +285,7 @@ __gen_active(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
     WT_ORDERED_READ(v, session->generations[cookie->which]);
     if (v != 0 && cookie->target_generation >= v) {
         *ret = true;
-        *exit_walk = true;
+        *exit_walkp = true;
     }
 }
 

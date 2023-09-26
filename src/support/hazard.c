@@ -307,7 +307,7 @@ struct __hazard_cookie {
 typedef struct __hazard_cookie HAZARD_COOKIE;
 
 static void
-__hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+__hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     HAZARD_COOKIE *cookie;
     uint32_t i, hazard_inuse;
@@ -326,7 +326,7 @@ __hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
             WT_STAT_CONN_INCRV(cookie->original_session, cache_hazard_walks, cookie->walk_cnt);
             if (cookie->session_ret != NULL)
                 *cookie->session_ret = session;
-            *exit_walk = true;
+            *exit_walkp = true;
             return;
         }
     }

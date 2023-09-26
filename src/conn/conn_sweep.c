@@ -279,10 +279,10 @@ struct __sweep_cookie {
 typedef struct __sweep_cookie SWEEP_COOKIE;
 
 static void
-__sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+__sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     SWEEP_COOKIE *cookie = (SWEEP_COOKIE *)cookiep;
-    WT_UNUSED(exit_walk);
+    WT_UNUSED(exit_walkp);
     /*
      * Ignore internal sessions.
      */

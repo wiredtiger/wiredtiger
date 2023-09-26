@@ -8,9 +8,15 @@
 
 #include "wt_internal.h"
 
+/*
+ * __wt_session_array_walk --
+ *     Walk the connection sessions array, calling a function for every session in the array.
+ *     Callers can exit the walk early if desired. Arguments to the function are provided by a
+ *     customizable cookie.
+ */
 void
 __wt_session_array_walk(WT_SESSION_IMPL *session,
-  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walk, void *cookiep), void *cookiep)
+  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), void *cookiep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *array_session;
@@ -25,10 +31,12 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
 
     for (i = 0, array_session = conn->sessions; i < session_cnt; i++, array_session++) {
         WT_ORDERED_READ(active, array_session->active);
+        /* Skip inactive sessions. */
         if (!active)
             continue;
 
         walk_func(array_session, &exit_walk, cookiep);
+        /* Early exit the walk if possible. */
         if (exit_walk)
             break;
     }

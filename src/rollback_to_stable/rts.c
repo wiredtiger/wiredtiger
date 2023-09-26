@@ -16,7 +16,7 @@ struct __rts_cookie {
 typedef struct __rts_cookie RTS_COOKIE;
 
 static void
-__rts_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
+__rts_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     RTS_COOKIE *cookie;
 
@@ -28,11 +28,11 @@ __rts_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
     /* Check if a user session has a running transaction. */
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         cookie->txn_active = true;
-        *exit_walk = true;
+        *exit_walkp = true;
     } else if (!session->ncursors != 0) {
         /* Check if a user session has an active file cursor. */
         cookie->cursor_active = true;
-        *exit_walk = true;
+        *exit_walkp = true;
     }
 }
 
