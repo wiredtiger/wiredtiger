@@ -301,7 +301,7 @@ struct __hazard_cookie {
     uint32_t walk_cnt;
     uint32_t max;
     WT_SESSION_IMPL **session_ret;
-    WT_REF *ref;
+    WT_REF *search_ref;
 };
 
 typedef struct __hazard_cookie HAZARD_COOKIE;
@@ -322,17 +322,16 @@ __hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep)
 
     for (i = 0; i < hazard_inuse; ++cookie->hp, ++i) {
         ++cookie->walk_cnt;
-        if (cookie->hp->ref == cookie->ref) {
+        if (cookie->hp->ref == cookie->search_ref) {
             WT_STAT_CONN_INCRV(cookie->original_session, cache_hazard_walks, cookie->walk_cnt);
             if (cookie->session_ret != NULL)
                 *cookie->session_ret = session;
             *exit_walk = true;
-            break;
+            return;
         }
     }
 
-    if (!exit_walk)
-        cookie->hp = NULL;
+    cookie->hp = NULL;
 }
 
 /*
@@ -348,7 +347,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
         .walk_cnt = 0,
         .max = 0,
         .session_ret = sessionp,
-        .ref = ref
+        .search_ref = ref
     };
 
     /* If a file can never be evicted, hazard pointers aren't required. */
@@ -363,12 +362,11 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * resource generation for the duration of the walk to ensure that doesn't happen.
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
-
     __wt_session_array_walk(session, __hazard_check_func, &cookie);
-
-    WT_STAT_CONN_INCRV(session, cache_hazard_walks, cookie.walk_cnt);
     /* Leave the current resource generation. */
     __wt_session_gen_leave(session, WT_GEN_HAZARD);
+
+    WT_STAT_CONN_INCRV(session, cache_hazard_walks, cookie.walk_cnt);
 
     return (cookie.hp);
 }
