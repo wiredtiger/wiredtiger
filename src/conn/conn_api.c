@@ -3155,6 +3155,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         wt_session = &session->iface;
         WT_ERR(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
+
+        /* Now that the metadata is usable, see if we need to erase the chunk cache. */
+        WT_ERR(__wt_chunkcache_salvage(session));
     }
 
     /* Initialize connection values from stored metadata. */

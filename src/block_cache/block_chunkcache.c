@@ -38,6 +38,10 @@ __chunkcache_create_metadata_file(
     return (__wt_session_create(session, WT_CC_URI, cfg));
 }
 
+/*
+ * __chunkcache_metadata_file_exists --
+ *     Check whether the chunk cache metadata file has already been created.
+ */
 static int
 __chunkcache_metadata_file_exists(WT_SESSION_IMPL *session, bool *found)
 {
@@ -63,6 +67,10 @@ err:
     return (ret);
 }
 
+/*
+ * __chunkcache_verify_metadata_file --
+ *     Check that the existing metadata file is compatible with our current chunk cache config.
+ */
 static int
 __chunkcache_verify_metadata_file(
   WT_SESSION_IMPL *session, uint64_t capacity, unsigned int hashtable_size, size_t chunk_size)
@@ -77,23 +85,25 @@ __chunkcache_verify_metadata_file(
     found = false;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
+    /* TODO use a search */
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
         if (strcmp(WT_CC_URI, uri) == 0) {
             found = true;
             WT_ERR(cursor->get_value(cursor, &config));
+            break;
         }
     }
-    WT_ASSERT_ALWAYS(session, found, "uh oh");
+    WT_ASSERT_ALWAYS(session, found, "uh oh 1");
 
-    WT_ERR(
-      __wt_snprintf(tmp, sizeof(tmp),
-        "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\"",
-        capacity, hashtable_size, chunk_size));
+    WT_ERR(__wt_snprintf(tmp, sizeof(tmp),
+      "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\"",
+      capacity, hashtable_size, chunk_size));
 
     /* TODO would be polite to say which bit failed. */
     if (strstr(config, tmp) == NULL) {
-        __wt_verbose_error(session, WT_VERB_CHUNKCACHE, "%s", "uh oh");
+        __wt_verbose_error(
+          session, WT_VERB_CHUNKCACHE, "%s %s BOUNDARY %s", "uh oh 2", config, tmp);
         ret = -1;
     }
 
@@ -1036,6 +1046,23 @@ __wt_chunkcache_teardown(WT_SESSION_IMPL *session)
         __wt_free(session, chunkcache->free_bitmap);
     }
 
+    return (ret);
+}
+
+/*
+ * __wt_chunkcache_salvage --
+ *     Remove any knowledge of any extant chunk cache metadata. We can always rebuild the cache
+ *     later, so make no attempt at a "real" salvage.
+ */
+int
+__wt_chunkcache_salvage(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    ret = __wt_schema_drop(session, WT_CC_URI, NULL);
+
+    if (ret == WT_NOTFOUND)
+        return (0);
     return (ret);
 }
 
