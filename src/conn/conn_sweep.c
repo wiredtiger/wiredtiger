@@ -268,6 +268,68 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_SWEEP));
 }
 
+struct __sweep_cookie {
+    uint64_t now;
+    uint64_t last;
+    uint64_t last_cursor_big_sweep;
+    uint64_t last_sweep;
+    WT_SESSION_IMPL *original_session;
+};
+
+typedef struct __sweep_cookie SWEEP_COOKIE;
+
+static void
+__sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walk, void *cookiep) {
+    SWEEP_COOKIE *cookie = (SWEEP_COOKIE *)cookiep;
+    WT_UNUSED(exit_walk);
+    /*
+     * Ignore internal sessions.
+     */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        return;
+
+    cookie->last_cursor_big_sweep = session->last_cursor_big_sweep;
+    cookie->last_sweep = session->last_sweep;
+
+    /*
+     * Get the earlier of the two timestamps, as they refer to sweeps of two different data
+     * structures that reference data handles
+     */
+    cookie->last = cookie->last_cursor_big_sweep;
+    if (cookie->last_sweep != 0 && (cookie->last == 0 || cookie->last_sweep < cookie->last))
+        cookie->last = cookie->last_sweep;
+    if (cookie->last == 0)
+        return;
+
+    /*
+     * Check if the session did not run a sweep in 5 minutes. Handle the issue only once per
+     * violation.
+     */
+    if (cookie->last + 5 * 60 < cookie->now) {
+        if (!session->sweep_warning_5min) {
+            session->sweep_warning_5min = 1;
+            WT_STAT_CONN_INCR(cookie->original_session, no_session_sweep_5min);
+        }
+    } else {
+        session->sweep_warning_5min = 0;
+    }
+
+    /*
+     * The same for 60 minutes.
+     */
+    if (cookie->last + 60 * 60 < cookie->now) {
+        if (!session->sweep_warning_60min) {
+            session->sweep_warning_60min = 1;
+            WT_STAT_CONN_INCR(cookie->original_session, no_session_sweep_60min);
+            __wt_verbose_warning(cookie->original_session, WT_VERB_DEFAULT,
+                "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.", session->id,
+                (void *)session, session->name == NULL ? "EMPTY" : session->name);
+        }
+    } else {
+        session->sweep_warning_60min = 0;
+    }
+}
+
 /*
  * __sweep_check_session_sweep --
  *     Check for any "rogue" sessions, which did not run a session sweep in a long time.
@@ -275,63 +337,8 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
 static void
 __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *s;
-    uint64_t last, last_cursor_big_sweep, last_sweep;
-    uint32_t i;
-
-    conn = S2C(session);
-
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
-        /*
-         * Ignore inactive and internal sessions.
-         */
-        if (!s->active)
-            continue;
-        if (F_ISSET(s, WT_SESSION_INTERNAL))
-            continue;
-
-        last_cursor_big_sweep = s->last_cursor_big_sweep;
-        last_sweep = s->last_sweep;
-
-        /*
-         * Get the earlier of the two timestamps, as they refer to sweeps of two different data
-         * structures that reference data handles
-         */
-        last = last_cursor_big_sweep;
-        if (last_sweep != 0 && (last == 0 || last_sweep < last))
-            last = last_sweep;
-        if (last == 0)
-            continue;
-
-        /*
-         * Check if the session did not run a sweep in 5 minutes. Handle the issue only once per
-         * violation.
-         */
-        if (last + 5 * 60 < now) {
-            if (!s->sweep_warning_5min) {
-                s->sweep_warning_5min = 1;
-                WT_STAT_CONN_INCR(session, no_session_sweep_5min);
-            }
-        } else {
-            s->sweep_warning_5min = 0;
-        }
-
-        /*
-         * The same for 60 minutes.
-         */
-        if (last + 60 * 60 < now) {
-            if (!s->sweep_warning_60min) {
-                s->sweep_warning_60min = 1;
-                WT_STAT_CONN_INCR(session, no_session_sweep_60min);
-                __wt_verbose_warning(session, WT_VERB_DEFAULT,
-                  "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.", i,
-                  (void *)s, s->name == NULL ? "EMPTY" : s->name);
-            }
-        } else {
-            s->sweep_warning_60min = 0;
-        }
-    }
+    SWEEP_COOKIE cookie = {.last  = 0, .last_cursor_big_sweep = 0, .last_sweep = 0, .now = now, .original_session = session};
+    __wt_session_array_walk(session, __sweep_check_session_sweep_func, &cookie);
 }
 
 /*
