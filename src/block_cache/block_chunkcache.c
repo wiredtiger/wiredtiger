@@ -107,6 +107,8 @@ __chunkcache_verify_metadata_file(
         ret = -1;
     }
 
+    /* TODO open the "real" table just to verify it exists. */
+
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
