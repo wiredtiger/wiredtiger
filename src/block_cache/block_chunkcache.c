@@ -508,39 +508,55 @@ err:
 }
 
 /*
- * __wt_chunkcache_insert --
- *     Insert chunks it into the chunkcache.
+ * __chunkcache_insert --
+ *     Insert chunk into the chunkcache.
  */
-int
-__wt_chunkcache_insert(WT_SESSION_IMPL *session, wt_off_t already_read, wt_off_t size,
-  WT_CHUNKCACHE_HASHID *hash_id, uint32_t objectid, const char *local_name, uint64_t bucket_id,
-  WT_FH *fh)
+static int
+__chunkcache_insert(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t size,
+  WT_CHUNKCACHE_HASHID *hash_id, uint64_t bucket_id, WT_CHUNKCACHE_CHUNK **new_chunk)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk;
-    WT_DECL_RET;
 
     chunkcache = &S2C(session)->chunkcache;
 
-    if ((ret = __chunkcache_alloc_chunk(session, already_read, (wt_off_t)size, hash_id, &chunk)) !=
-      0) {
-        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        return (ret);
-    }
+    /*
+     * !!! (Don't format the comment.)
+     * Caller function should take a bucket lock before inserting the chunk.
+     */
+    WT_RET(__chunkcache_alloc_chunk(session, offset, (wt_off_t)size, hash_id, new_chunk));
+
     /*
      * Insert the invalid chunk into the bucket before releasing the lock and doing I/O. This way we
      * avoid two threads trying to cache the same chunk.
      */
-    TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-    __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+    TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), *new_chunk, next_chunk);
+
+    return (0);
+}
+
+/*
+ * __chunkcache_read_into_chunk --
+ *     Read data into the chunk memory.
+ */
+static int
+__chunkcache_read_into_chunk(
+  WT_SESSION_IMPL *session, uint64_t bucket_id, WT_FH *fh, WT_CHUNKCACHE_CHUNK *new_chunk)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_DECL_RET;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    /* Make sure the chunk is considered invalid when reading data into it. */
+    WT_ASSERT(session, !new_chunk->valid);
 
     /* Read the new chunk. Only one thread would be caching the new chunk. */
-    if ((ret = __wt_read(
-           session, fh, chunk->chunk_offset, chunk->chunk_size, chunk->chunk_memory)) != 0) {
+    if ((ret = __wt_read(session, fh, new_chunk->chunk_offset, new_chunk->chunk_size,
+           new_chunk->chunk_memory)) != 0) {
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
+        TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), new_chunk, next_chunk);
         __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        __chunkcache_free_chunk(session, chunk);
+        __chunkcache_free_chunk(session, new_chunk);
         WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
         return (ret);
     }
@@ -552,10 +568,8 @@ __wt_chunkcache_insert(WT_SESSION_IMPL *session, wt_off_t already_read, wt_off_t
      * this chunk to become valid. The current thread will mark the chunk as valid, and any waiters
      * will unblock and proceed reading it.
      */
-    WT_PUBLISH(chunk->valid, true);
+    WT_PUBLISH(new_chunk->valid, true);
 
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "insert: %s(%u), offset=%" PRId64 ", size=%lu",
-      (char *)local_name, objectid, chunk->chunk_offset, chunk->chunk_size);
     return (0);
 }
 
@@ -583,6 +597,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
+    WT_DECL_RET;
     size_t already_read, remains_to_read, readable_in_chunk, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
     const char *object_name;
@@ -665,8 +680,16 @@ retry:
         /* The chunk is not cached. Allocate space for it. Prepare for reading it from storage. */
         if (!chunk_cached) {
             WT_STAT_CONN_INCR(session, chunk_cache_misses);
-            WT_RET(__wt_chunkcache_insert(session, offset + (wt_off_t)already_read, block->size,
-              &hash_id, objectid, block->name, bucket_id, block->fh));
+            ret = __chunkcache_insert(
+              session, offset + (wt_off_t)already_read, block->size, &hash_id, bucket_id, &chunk);
+            __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+            WT_RET(ret);
+
+            WT_RET(__chunkcache_read_into_chunk(session, bucket_id, block->fh, chunk));
+
+            __wt_verbose(session, WT_VERB_CHUNKCACHE,
+              "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
+              chunk->chunk_offset, chunk->chunk_size);
             goto retry;
         }
     }
@@ -763,9 +786,10 @@ __wt_chunkcache_remove(
  */
 int
 __wt_chunkcache_ingest(
-  WT_SESSION_IMPL *session, const char *local_name, const char *sp_obj_name, uint32_t object_id)
+  WT_SESSION_IMPL *session, const char *local_name, const char *sp_obj_name, uint32_t objectid)
 {
     WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
     WT_FH *fh;
@@ -784,12 +808,22 @@ __wt_chunkcache_ingest(
 
     while (already_read < size) {
         bucket_id =
-          __chunkcache_tmp_hash(chunkcache, &hash_id, sp_obj_name, object_id, already_read);
+          __chunkcache_tmp_hash(chunkcache, &hash_id, sp_obj_name, objectid, already_read);
 
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        WT_ERR(__wt_chunkcache_insert(
-          session, already_read, size, &hash_id, object_id, local_name, bucket_id, fh));
+        ret =
+          __chunkcache_insert(session, (wt_off_t)already_read, size, &hash_id, bucket_id, &chunk);
+        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+        WT_ERR(ret);
+
+        WT_ERR(__chunkcache_read_into_chunk(session, bucket_id, fh, chunk));
+
+        __wt_verbose(session, WT_VERB_CHUNKCACHE, "ingest: %s(%u), offset=%" PRId64 ", size=%lu",
+          (char *)local_name, objectid, chunk->chunk_offset, chunk->chunk_size);
+
+        already_read += (wt_off_t)chunk->chunk_size;
     }
+
 err:
     WT_TRET(__wt_close(session, &fh));
     return (ret);
