@@ -29,18 +29,21 @@
 #ifndef MODEL_DATA_VALUE_H
 #define MODEL_DATA_VALUE_H
 
-#include <optional>
+#include <ostream>
 #include <string>
+#include <variant>
 
 #include "model/core.h"
+#include "wiredtiger.h"
 
 namespace model {
 
 /*
- * NONE_STRING --
- *     The "string" to print in place of NONE.
+ * base_data_value --
+ *     The base type for data values, which is an std::variant of all the relevant types that we
+ *     support.
  */
-extern const std::string NONE_STRING;
+using base_data_value = std::variant<std::monostate, int64_t, uint64_t, std::string>;
 
 /*
  * data_value --
@@ -50,26 +53,14 @@ extern const std::string NONE_STRING;
  *     intended to parallel WiredTiger's WT_ITEM, which supports multiple data types, plus the
  *     ability to specify a NONE value to simplify modeling deleted data.
  */
-class data_value {
+class data_value : public base_data_value {
 
 public:
     /*
      * data_value::data_value --
      *     Create a new instance.
      */
-    inline data_value(const char *data) : _data(data) {}
-
-    /*
-     * data_value::data_value --
-     *     Create a new instance.
-     */
-    inline data_value(const std::string &data) noexcept : _data(data) {}
-
-    /*
-     * data_value::data_value --
-     *     Create a new instance.
-     */
-    inline data_value(const std::string &&data) noexcept : _data(std::move(data)) {}
+    inline data_value(const base_data_value& data) : base_data_value(data) {}
 
     /*
      * data_value::create_none --
@@ -82,93 +73,27 @@ public:
     }
 
     /*
-     * data_value::as_string --
-     *     Return the data value as a human-readable string (e.g., for printing).
-     */
-    inline const std::string &
-    as_string() const noexcept
-    {
-        return _data.has_value() ? *_data : NONE_STRING;
-    }
-
-    /*
-     * data_value::operator== --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator==(const data_value &other) const noexcept
-    {
-        return _data == other._data;
-    }
-
-    /*
-     * data_value::operator!= --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator!=(const data_value &other) const noexcept
-    {
-        return !(*this == other);
-    }
-
-    /*
-     * data_value::operator< --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator<(const data_value &other) const noexcept
-    {
-        return _data < other._data;
-    }
-
-    /*
-     * data_value::operator<= --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator<=(const data_value &other) const noexcept
-    {
-        return _data <= other._data;
-    }
-
-    /*
-     * data_value::operator> --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator>(const data_value &other) const noexcept
-    {
-        return !(*this <= other);
-    }
-
-    /*
-     * data_value::operator> --
-     *     Compare to another data value.
-     */
-    inline bool
-    operator>=(const data_value &other) const noexcept
-    {
-        return !(*this < other);
-    }
-
-    /*
-     * data_value::tombstone --
+     * data_value::none --
      *     Check if this is a None value.
      */
     inline bool
     none() const noexcept
     {
-        return !_data.has_value();
+        return std::holds_alternative<std::monostate>(*this);
     }
+
+    /*
+     * data_value::wt_type --
+     *     Get the WiredTiger type.
+     */
+    const char *wt_type() const;
 
 private:
     /*
      * data_value::data_value --
      *     Create a new instance.
      */
-    inline data_value() : _data(std::nullopt) {}
-
-    std::optional<std::string> _data;
+    inline data_value() : base_data_value(std::monostate{}) {}
 };
 
 /*
@@ -176,6 +101,24 @@ private:
  *     The "None" value.
  */
 extern const data_value NONE;
+
+/*
+ * operator<< --
+ *     Add human-readable output to the stream.
+ */
+std::ostream &operator<<(std::ostream &out, const data_value &value);
+
+/*
+ * set_wt_cursor_key --
+ *     Set the value as WiredTiger cursor key.
+ */
+void set_wt_cursor_key(WT_CURSOR *cursor, const data_value &value);
+
+/*
+ * set_wt_cursor_value --
+ *     Set the value as WiredTiger cursor value.
+ */
+void set_wt_cursor_value(WT_CURSOR *cursor, const data_value &value);
 
 } /* namespace model */
 #endif

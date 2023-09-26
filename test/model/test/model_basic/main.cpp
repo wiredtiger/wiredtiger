@@ -29,7 +29,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <sstream>
 
 #include "wiredtiger.h"
 extern "C" {
@@ -71,10 +73,9 @@ wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    const char *needle, *value;
+    const char *value;
     char cfg[64];
 
-    needle = key.as_string().c_str();
     value = nullptr;
 
     if (timestamp == 0)
@@ -85,7 +86,7 @@ wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
     }
     testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
-    cursor->set_key(cursor, needle);
+    model::set_wt_cursor_key(cursor, key);
     testutil_check_error_ok(ret = cursor->search(cursor), WT_NOTFOUND);
     if (ret == 0)
         testutil_check(cursor->get_value(cursor, &value));
@@ -111,8 +112,8 @@ wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
     testutil_check(session->open_cursor(
       session, uri, nullptr, overwrite ? nullptr : "overwrite=false", &cursor));
 
-    cursor->set_key(cursor, key.as_string().c_str());
-    cursor->set_value(cursor, value.as_string().c_str());
+    model::set_wt_cursor_key(cursor, key);
+    model::set_wt_cursor_value(cursor, value);
     testutil_check_error_ok(ret = cursor->insert(cursor), WT_DUPLICATE_KEY);
 
     testutil_check(cursor->close(cursor));
@@ -140,7 +141,7 @@ wt_remove(WT_SESSION *session, const char *uri, const model::data_value &key,
     testutil_check(session->begin_transaction(session, nullptr));
     testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
-    cursor->set_key(cursor, key.as_string().c_str());
+    model::set_wt_cursor_key(cursor, key);
     testutil_check_error_ok(ret = cursor->remove(cursor), WT_NOTFOUND);
 
     testutil_check(cursor->close(cursor));
@@ -169,8 +170,8 @@ wt_update(WT_SESSION *session, const char *uri, const model::data_value &key,
     testutil_check(session->open_cursor(
       session, uri, nullptr, overwrite ? nullptr : "overwrite=false", &cursor));
 
-    cursor->set_key(cursor, key.as_string().c_str());
-    cursor->set_value(cursor, value.as_string().c_str());
+    model::set_wt_cursor_key(cursor, key);
+    model::set_wt_cursor_value(cursor, value);
     testutil_check_error_ok(ret = cursor->update(cursor), WT_NOTFOUND);
 
     testutil_check(cursor->close(cursor));
@@ -224,8 +225,13 @@ test_data_value(void)
     const model::data_value key1("Key 1");
     const model::data_value key2("Key 2");
 
-    testutil_assert(key1 == model::data_value(key1.as_string()));
+    testutil_assert(strcmp(key1.wt_type(), "S") == 0);
+    testutil_assert(key1 == model::data_value("Key 1"));
     testutil_assert(key2 == model::data_value("Key 2"));
+
+    std::ostringstream ss_key1;
+    ss_key1 << key1;
+    testutil_assert(ss_key1.str() == "Key 1");
 
     testutil_assert(key1 < key2);
     testutil_assert(key2 > key1);
@@ -239,10 +245,46 @@ test_data_value(void)
     testutil_assert(!(key2 <= key1));
     testutil_assert(!(key1 != key1));
 
+    /* NONE. */
+
+    testutil_assert(model::NONE.none());
+    testutil_assert(!key1.none());
+
     testutil_assert(model::NONE == model::data_value::create_none());
     testutil_assert(key1 != model::NONE);
     testutil_assert(model::NONE < key1);
     testutil_assert(model::NONE <= key1);
+
+    /* Non-string keys, WiredTiger types "q" and "Q". */
+
+    const model::data_value key1_q(static_cast<int64_t>(10));
+    const model::data_value key2_q(static_cast<int64_t>(20));
+
+    const model::data_value key1_Q(static_cast<uint64_t>(10));
+    const model::data_value key2_Q(static_cast<uint64_t>(20));
+
+    testutil_assert(strcmp(key1_q.wt_type(), "q") == 0);
+    testutil_assert(key1_q == model::data_value(static_cast<int64_t>(10)));
+
+    testutil_assert(strcmp(key1_Q.wt_type(), "Q") == 0);
+    testutil_assert(key1_Q == model::data_value(static_cast<uint64_t>(10)));
+
+    std::ostringstream ss_key1_q;
+    ss_key1_q << key1_q;
+    testutil_assert(ss_key1_q.str() == "10");
+
+    std::ostringstream ss_key1_Q;
+    ss_key1_Q << key1_Q;
+    testutil_assert(ss_key1_Q.str() == "10");
+
+    testutil_assert(key1_q != key1_Q);
+    testutil_assert(key2_q != key2_Q);
+
+    testutil_assert(key1_q < key2_q);
+    testutil_assert(key2_q > key1_q);
+
+    testutil_assert(key1_Q < key2_Q);
+    testutil_assert(key2_Q > key1_Q);
 }
 
 /*

@@ -27,6 +27,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 
 #include "model/data_value.h"
@@ -41,9 +42,83 @@ namespace model {
 const data_value NONE = data_value::create_none();
 
 /*
- * NONE_STRING --
- *     The "string" to print in place of NONE.
+ * data_value::wt_type --
+ *     Get the WiredTiger type.
  */
-extern const std::string NONE_STRING = {"(none)"};
+const char *
+data_value::wt_type() const
+{
+    if (std::holds_alternative<std::monostate>(*this) || this->valueless_by_exception())
+        return "";
+    else if (std::holds_alternative<int64_t>(*this))
+        return "q";
+    else if (std::holds_alternative<uint64_t>(*this))
+        return "Q";
+    else if (std::holds_alternative<std::string>(*this))
+        return "S";
+    else
+        assert(0 /* This should not happen. */);
+}
+
+/*
+ * operator<< --
+ *     Add human-readable output to the stream.
+ */
+std::ostream &
+operator<<(std::ostream &out, const data_value &value)
+{
+    if (std::holds_alternative<std::monostate>(value) || value.valueless_by_exception())
+        out << std::get<int64_t>(value);
+    else if (std::holds_alternative<int64_t>(value))
+        out << std::get<int64_t>(value);
+    else if (std::holds_alternative<uint64_t>(value))
+        out << std::get<uint64_t>(value);
+    else if (std::holds_alternative<std::string>(value))
+        out << std::get<std::string>(value);
+    else
+        assert(0 /* This should not happen. */);
+
+    return out;
+}
+
+/*
+ * set_wt_cursor_key_or_value --
+ *     Set the value as WiredTiger cursor key or value.
+ */
+inline static void
+set_wt_cursor_key_or_value(
+  WT_CURSOR *cursor, void set_fn(WT_CURSOR *cursor, ...), const data_value &value)
+{
+    if (std::holds_alternative<std::monostate>(value) || value.valueless_by_exception())
+        set_fn(cursor);
+    else if (std::holds_alternative<int64_t>(value))
+        set_fn(cursor, std::get<int64_t>(value));
+    else if (std::holds_alternative<uint64_t>(value))
+        set_fn(cursor, std::get<uint64_t>(value));
+    else if (std::holds_alternative<std::string>(value))
+        set_fn(cursor, std::get<std::string>(value).c_str());
+    else
+        assert(0 /* This should not happen. */);
+}
+
+/*
+ * set_wt_cursor_key --
+ *     Set the value as WiredTiger cursor key.
+ */
+void
+set_wt_cursor_key(WT_CURSOR *cursor, const data_value &value)
+{
+    set_wt_cursor_key_or_value(cursor, cursor->set_key, value);
+}
+
+/*
+ * set_wt_cursor_value --
+ *     Set the value as WiredTiger cursor value.
+ */
+void
+set_wt_cursor_value(WT_CURSOR *cursor, const data_value &value)
+{
+    set_wt_cursor_key_or_value(cursor, cursor->set_value, value);
+}
 
 } /* namespace model */
