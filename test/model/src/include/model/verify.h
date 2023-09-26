@@ -32,7 +32,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "model/core.h"
+#include "model/data_value.h"
 #include "wiredtiger.h"
 
 namespace model {
@@ -64,7 +64,7 @@ public:
      * kv_table_verify_cursor::kv_table_verify_cursor --
      *     Create a new instance of the verification cursor.
      */
-    inline kv_table_verify_cursor(std::map<data_value, kv_item> &data) noexcept
+    inline kv_table_verify_cursor(std::map<data_value, kv_table_item> &data) noexcept
         : _data(data), _iterator(_data.begin())
     {
     }
@@ -82,8 +82,8 @@ public:
     bool verify_next(const data_value &key, const data_value &value);
 
 private:
-    std::map<data_value, kv_item> &_data;
-    std::map<data_value, kv_item>::iterator _iterator;
+    std::map<data_value, kv_table_item> &_data;
+    std::map<data_value, kv_table_item>::iterator _iterator;
 };
 
 /*

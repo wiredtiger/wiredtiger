@@ -30,7 +30,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "model/table.h"
+#include "model/kv_table.h"
 #include "model/util.h"
 #include "model/verify.h"
 #include "wiredtiger.h"

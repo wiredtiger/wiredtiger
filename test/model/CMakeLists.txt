@@ -2,8 +2,9 @@ project(wiredtiger_model CXX)
 
 # Create a model library.
 add_library(wiredtiger_model SHARED
-    src/core/core.cpp
-    src/core/table.cpp
+    src/core/data_value.cpp
+    src/core/kv_table_item.cpp
+    src/core/kv_table.cpp
     src/core/verify.cpp
 )
 target_include_directories(wiredtiger_model PUBLIC src/include)

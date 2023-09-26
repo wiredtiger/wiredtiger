@@ -29,7 +29,7 @@
 #include <algorithm>
 #include <iostream>
 
-#include "model/table.h"
+#include "model/kv_table.h"
 #include "wiredtiger.h"
 
 namespace model {
@@ -42,7 +42,7 @@ namespace model {
 bool
 kv_table::contains_any(const data_value &key, const data_value &value, timestamp_t timestamp)
 {
-    kv_item *item = item_if_exists(key);
+    kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return false;
     return item->contains_any(value, timestamp);
@@ -55,7 +55,7 @@ kv_table::contains_any(const data_value &key, const data_value &value, timestamp
 const data_value &
 kv_table::get(const data_value &key, timestamp_t timestamp)
 {
-    kv_item *item = item_if_exists(key);
+    kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
     return item->get(timestamp);
@@ -79,7 +79,7 @@ kv_table::insert(
 int
 kv_table::remove(const data_value &key, timestamp_t timestamp)
 {
-    kv_item *item = item_if_exists(key);
+    kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return WT_NOTFOUND;
     return item->add_update(std::move(kv_update(NONE, timestamp)), true, false);

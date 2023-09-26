@@ -29,39 +29,27 @@
 #include <algorithm>
 #include <iostream>
 
-#include "model/core.h"
+#include "model/kv_table_item.h"
 #include "wiredtiger.h"
 
 namespace model {
 
 /*
- * NONE --
- *     The "None" value.
- */
-const data_value NONE = data_value::create_none();
-
-/*
- * NONE_STRING --
- *     The "string" to print in place of NONE.
- */
-extern const std::string NONE_STRING = {"(none)"};
-
-/*
- * kv_item::~kv_item --
+ * kv_table_item::~kv_table_item --
  *     Delete the instance.
  */
-kv_item::~kv_item()
+kv_table_item::~kv_table_item()
 {
     for (auto i : _updates)
         delete i;
 }
 
 /*
- * kv_item::add_update --
+ * kv_table_item::add_update --
  *     Add an update.
  */
 int
-kv_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
+kv_table_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -98,12 +86,12 @@ kv_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
 }
 
 /*
- * kv_item::contains_any --
+ * kv_table_item::contains_any --
  *     Check whether the table contains the given value. If there are multiple value associated with
  *     the given timestamp, return true if any of them match.
  */
 bool
-kv_item::contains_any(const data_value &value, timestamp_t timestamp)
+kv_table_item::contains_any(const data_value &value, timestamp_t timestamp)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -133,11 +121,11 @@ kv_item::contains_any(const data_value &value, timestamp_t timestamp)
 }
 
 /*
- * kv_item::get --
+ * kv_table_item::get --
  *     Get the corresponding value.
  */
 const data_value &
-kv_item::get(timestamp_t timestamp)
+kv_table_item::get(timestamp_t timestamp)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;

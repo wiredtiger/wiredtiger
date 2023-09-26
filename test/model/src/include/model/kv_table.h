@@ -26,15 +26,17 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_TABLE_H
-#define MODEL_TABLE_H
+#ifndef MODEL_KV_TABLE_H
+#define MODEL_KV_TABLE_H
 
 #include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
 
-#include "model/core.h"
+#include "model/data_value.h"
+#include "model/kv_table_item.h"
+#include "model/kv_update.h"
 #include "model/verify.h"
 #include "wiredtiger.h"
 
@@ -69,13 +71,13 @@ public:
      *     associated with the given timestamp, return true if any of them match.
      */
     bool contains_any(
-      const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_MAX);
+      const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_LATEST);
 
     /*
      * kv_table::get --
      *     Get the value.
      */
-    const data_value &get(const data_value &key, timestamp_t timestamp = WT_TS_MAX);
+    const data_value &get(const data_value &key, timestamp_t timestamp = WT_TS_LATEST);
 
     /*
      * kv_table::insert --
@@ -130,7 +132,7 @@ protected:
      * kv_table::item --
      *     Get the item that corresponds to the given key, creating one if need be.
      */
-    inline kv_item &
+    inline kv_table_item &
     item(const data_value &key)
     {
         std::lock_guard lock_guard(_lock);
@@ -141,7 +143,7 @@ protected:
      * kv_table::item_if_exists --
      *     Get the item that corresponds to the given key, if it exists.
      */
-    inline kv_item *
+    inline kv_table_item *
     item_if_exists(const data_value &key)
     {
         std::lock_guard lock_guard(_lock);
@@ -159,7 +161,7 @@ private:
      * map. We are keeping the map sorted, so that we can easily compare the model's state with
      * WiredTiger's state. It would also help us in the future if we decide to model range scans.
      */
-    std::map<data_value, kv_item> _data;
+    std::map<data_value, kv_table_item> _data;
     std::mutex _lock;
     std::string _name;
 };

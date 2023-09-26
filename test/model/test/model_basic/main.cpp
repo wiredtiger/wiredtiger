@@ -36,7 +36,7 @@ extern "C" {
 #include "test_util.h"
 }
 
-#include "model/table.h"
+#include "model/kv_table.h"
 
 /*
  * Command-line arguments.
