@@ -754,3 +754,493 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 
     *sizep = curr_size;
 }
+
+/*
+ * __wt_struct_size_I --
+ *     Calculate the size of a packed byte string of format I.
+ */
+static inline void
+__wt_struct_size_I(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_I --
+ *     Pack a byte string of format I.
+ */
+static inline int
+__wt_struct_pack_I(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first)
+{
+    WT_UNUSED(session);
+    return (__wt_vpack_uint(&p, (size_t)(end - p), first));
+}
+
+/*
+ * __wt_struct_size_II --
+ *     Calculate the size of a packed byte string of format II.
+ */
+static inline void
+__wt_struct_size_II(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_II --
+ *     Pack a byte string of format II.
+ */
+static inline int
+__wt_struct_pack_II(
+  WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first, uint32_t second)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), second));
+}
+
+/*
+ * __wt_struct_size_IQ --
+ *     Calculate the size of a packed byte string of format IQ.
+ */
+static inline void
+__wt_struct_size_IQ(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint64_t second)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IQ --
+ *     Pack a byte string of format IQ.
+ */
+static inline int
+__wt_struct_pack_IQ(
+  WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first, uint64_t second)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), second));
+}
+
+/*
+ * __wt_struct_size_III --
+ *     Calculate the size of a packed byte string of format III.
+ */
+static inline void
+__wt_struct_size_III(
+  WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second, uint32_t third)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_III --
+ *     Pack a byte string of format III.
+ */
+static inline int
+__wt_struct_pack_III(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), third));
+}
+
+/*
+ * __wt_struct_size_IIII --
+ *     Calculate the size of a packed byte string of format IIII.
+ */
+static inline void
+__wt_struct_size_IIII(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, uint32_t fourth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIII --
+ *     Pack a byte string of format IIII.
+ */
+static inline int
+__wt_struct_pack_IIII(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, uint32_t fourth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+}
+
+/*
+ * __wt_struct_size_IIIr --
+ *     Calculate the size of a packed byte string of format IIIr.
+ */
+static inline void
+__wt_struct_size_IIIr(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, uint64_t fourth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIIr --
+ *     Pack a byte string of format IIIr.
+ */
+static inline int
+__wt_struct_pack_IIIr(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, uint64_t fourth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+}
+
+/*
+ * __wt_struct_size_IIIu --
+ *     Calculate the size of a packed byte string of format IIIu.
+ */
+static inline void
+__wt_struct_size_IIIu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, WT_ITEM *fourth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += fourth->size;
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIIu --
+ *     Pack a byte string of format IIIu.
+ */
+static inline int
+__wt_struct_pack_IIIu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, WT_ITEM *fourth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+
+    memcpy(p, fourth->data, fourth->size);
+    p += fourth->size;
+
+    return (0);
+}
+
+/*
+ * __wt_struct_size_IIIIu --
+ *     Calculate the size of a packed byte string of format IIIIu.
+ */
+static inline void
+__wt_struct_size_IIIIu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, uint32_t fourth, WT_ITEM *fifth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth);
+    size += fifth->size;
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIIIu --
+ *     Pack a byte string of format IIIIu.
+ */
+static inline int
+__wt_struct_pack_IIIIu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, uint32_t fourth, WT_ITEM *fifth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+
+    memcpy(p, fifth->data, fifth->size);
+    p += fifth->size;
+
+    return (0);
+}
+
+/*
+ * __wt_struct_size_IIIrr --
+ *     Calculate the size of a packed byte string of format IIIrr.
+ */
+static inline void
+__wt_struct_size_IIIrr(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, uint64_t fourth, uint64_t fifth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth);
+    size += __wt_vsize_uint(fifth);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIIrr --
+ *     Pack a byte string of format IIIrr.
+ */
+static inline int
+__wt_struct_pack_IIIrr(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, uint64_t fourth, uint64_t fifth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), fifth));
+}
+
+/*
+ * __wt_struct_size_IIIru --
+ *     Calculate the size of a packed byte string of format IIIru.
+ */
+static inline void
+__wt_struct_size_IIIru(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, uint64_t fourth, WT_ITEM *fifth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth);
+    size += fifth->size;
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIIru --
+ *     Pack a byte string of format IIIru.
+ */
+static inline int
+__wt_struct_pack_IIIru(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, uint64_t fourth, WT_ITEM *fifth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+
+    memcpy(p, fifth->data, fifth->size);
+    p += fifth->size;
+
+    return (0);
+}
+
+/*
+ * __wt_struct_size_IIIuu --
+ *     Calculate the size of a packed byte string of format IIIuu.
+ */
+static inline void
+__wt_struct_size_IIIuu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth->size);
+    size += fourth->size;
+    size += fifth->size;
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIIuu --
+ *     Pack a byte string of format IIIuu. The formats IIIuu and IIIUu provide the same packing.
+ *     Internally the `u` gets transformed into `U` in the original packing logic.
+ */
+static inline int
+__wt_struct_pack_IIIuu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth->size));
+    memcpy(p, fourth->data, fourth->size);
+    p += fourth->size;
+
+    memcpy(p, fifth->data, fifth->size);
+    p += fifth->size;
+
+    return (0);
+}
+
+/*
+ * __wt_struct_size_IIIuuI --
+ *     Calculate the size of a packed byte string of format IIIuuI.
+ */
+static inline void
+__wt_struct_size_IIIuuI(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth, uint32_t sixth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth->size);
+    size += fourth->size;
+    size += __wt_vsize_uint(fifth->size);
+    size += fifth->size;
+    size += __wt_vsize_uint(sixth);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIIuuI --
+ *     Pack a byte string of format IIIuuI. The formats IIIuuI and IIIUUI provide the same packing.
+ *     Internally the `u` gets transformed into `U` in the original packing logic.
+ */
+static inline int
+__wt_struct_pack_IIIuuI(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth, uint32_t sixth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth->size));
+    memcpy(p, fourth->data, fourth->size);
+    p += fourth->size;
+
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fifth->size));
+    memcpy(p, fifth->data, fifth->size);
+    p += fifth->size;
+
+    return (__wt_vpack_uint(&p, (size_t)(end - p), sixth));
+}
+
+/*
+ * __wt_struct_size_IIQQQQQQQ --
+ *     Calculate the size of a packed byte string of format IIQQQQQQQ.
+ */
+static inline void
+__wt_struct_size_IIQQQQQQQ(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
+  uint64_t third, uint64_t fourth, uint64_t fifth, uint64_t sixth, uint64_t seventh,
+  uint64_t eighth, uint64_t ninth)
+{
+    size_t size;
+
+    WT_UNUSED(session);
+    size = __wt_vsize_uint(first);
+    size += __wt_vsize_uint(second);
+    size += __wt_vsize_uint(third);
+    size += __wt_vsize_uint(fourth);
+    size = __wt_vsize_uint(fifth);
+    size += __wt_vsize_uint(sixth);
+    size += __wt_vsize_uint(seventh);
+    size += __wt_vsize_uint(eighth);
+    size = __wt_vsize_uint(ninth);
+
+    *sizep = size;
+    return;
+}
+
+/*
+ * __wt_struct_pack_IIQQQQQQQ --
+ *     Pack a byte string of format IIQQQQQQQ.
+ */
+static inline int
+__wt_struct_pack_IIQQQQQQQ(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
+  uint32_t second, uint64_t third, uint64_t fourth, uint64_t fifth, uint64_t sixth,
+  uint64_t seventh, uint64_t eighth, uint64_t ninth)
+{
+    WT_UNUSED(session);
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fifth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), sixth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), seventh));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), eighth));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), ninth));
+}
