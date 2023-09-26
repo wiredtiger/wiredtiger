@@ -665,8 +665,8 @@ retry:
         /* The chunk is not cached. Allocate space for it. Prepare for reading it from storage. */
         if (!chunk_cached) {
             WT_STAT_CONN_INCR(session, chunk_cache_misses);
-            ret = __wt_chunkcache_insert(session, (size_t)offset + already_read, block->size,
-              &hash_id, objectid, block->name, bucket_id, block->fh);
+            WT_RET(__wt_chunkcache_insert(session, (size_t)offset + already_read, block->size,
+              &hash_id, objectid, block->name, bucket_id, block->fh));
             goto retry;
         }
     }
@@ -787,11 +787,11 @@ __wt_chunkcache_ingest(
           chunkcache, &hash_id, sp_obj_name, object_id, (wt_off_t)already_read);
 
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        ret = __wt_chunkcache_insert(
-          session, already_read, (wt_off_t)size, &hash_id, object_id, local_name, bucket_id, fh);
+        WT_RET(__wt_chunkcache_insert(
+          session, already_read, (wt_off_t)size, &hash_id, object_id, local_name, bucket_id, fh));
     }
 err:
-    WT_RET(__wt_close(session, &fh));
+    WT_TRET(__wt_close(session, &fh));
     return (ret);
 }
 
