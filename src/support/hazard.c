@@ -354,9 +354,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
         return (NULL);
 
-
     WT_STAT_CONN_INCR(session, cache_hazard_checks);
-
     /*
      * Hazard pointer arrays might grow and be freed underneath us; enter the current hazard
      * resource generation for the duration of the walk to ensure that doesn't happen.
