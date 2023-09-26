@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+/* A cookie for the session array walk. */
 struct __rts_cookie {
     bool txn_active;
     bool cursor_active;
@@ -15,6 +16,10 @@ struct __rts_cookie {
 
 typedef struct __rts_cookie RTS_COOKIE;
 
+/*
+ * __rts_check_func --
+ *     Callback function for individual session active state checking.
+ */
 static void
 __rts_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {

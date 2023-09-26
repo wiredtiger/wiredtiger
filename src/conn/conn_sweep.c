@@ -268,6 +268,7 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_SWEEP));
 }
 
+/* A cookie for the session walk. */
 struct __sweep_cookie {
     uint64_t now;
     uint64_t last;
@@ -278,6 +279,10 @@ struct __sweep_cookie {
 
 typedef struct __sweep_cookie SWEEP_COOKIE;
 
+/*
+ * __sweep_check_session_sweep_func --
+ *     Callback function for the session walk when searching for sessions that haven't swept.
+ */
 static void
 __sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {

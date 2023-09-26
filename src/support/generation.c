@@ -98,6 +98,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
     WT_UNUSED(__gen_name);
 }
 
+/* A cookie for the session array walk. */
 struct __generation_cookie {
     void *ret_arg;
     int which;
@@ -106,6 +107,10 @@ struct __generation_cookie {
 
 typedef struct __generation_cookie GENERATION_COOKIE;
 
+/*
+ * A cookie for the session array walk. Generation drain requires more information than active and
+ * oldest.
+ */
 struct __generation_drain_cookie {
     GENERATION_COOKIE base;
 
@@ -118,6 +123,10 @@ struct __generation_drain_cookie {
 
 typedef struct __generation_drain_cookie GENERATION_DRAIN_COOKIE;
 
+/*
+ * __gen_drain_func --
+ *     Callback function for generation drain per session logic.
+ */
 static void
 __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
@@ -232,6 +241,10 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     __wt_session_array_walk(session, __gen_drain_func, &cookie);
 }
 
+/*
+ * __gen_oldest_func --
+ *     Callback function for generation oldest per session logic.
+ */
 static void
 __gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
@@ -272,8 +285,12 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
     return (oldest);
 }
 
+/*
+ * __gen_active_func --
+ *     Callback function for generation active per session logic.
+ */
 static void
-__gen_active(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__gen_active_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     GENERATION_COOKIE *cookie;
     uint64_t v;
@@ -302,7 +319,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
     active = false;
 
-    __wt_session_array_walk(session, __gen_active, &cookie);
+    __wt_session_array_walk(session, __gen_active_func, &cookie);
 
     return (active);
 }

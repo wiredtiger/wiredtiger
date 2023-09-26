@@ -295,6 +295,7 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
     WT_ORDERED_READ(*hazardp, session->hazard);
 }
 
+/* A cookie for the session array walk. */
 struct __hazard_cookie {
     WT_HAZARD *hp;
     WT_SESSION_IMPL *original_session;
@@ -306,6 +307,10 @@ struct __hazard_cookie {
 
 typedef struct __hazard_cookie HAZARD_COOKIE;
 
+/*
+ * __hazard_check_func --
+ *     Callback function for individual session hazard pointer checking.
+ */
 static void
 __hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
