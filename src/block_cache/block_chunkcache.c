@@ -38,6 +38,70 @@ __chunkcache_create_metadata_file(
     return (__wt_session_create(session, WT_CC_URI, cfg));
 }
 
+static int
+__chunkcache_metadata_file_exists(WT_SESSION_IMPL *session, bool *found)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *uri;
+
+    *found = false;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+        if (strcmp(WT_CC_URI, uri) == 0) {
+            *found = true;
+            break;
+        }
+    }
+
+err:
+    WT_TRET_NOTFOUND_OK(__wt_metadata_cursor_release(session, &cursor));
+    if (ret == WT_NOTFOUND)
+        return (0);
+    return (ret);
+}
+
+static int
+__chunkcache_verify_metadata_file(
+  WT_SESSION_IMPL *session, uint64_t capacity, unsigned int hashtable_size, size_t chunk_size)
+{
+    /* TODO reduce copy-pasted code */
+    bool found;
+    char tmp[128];
+    const char *config, *uri;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+
+    found = false;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+        if (strcmp(WT_CC_URI, uri) == 0) {
+            found = true;
+            WT_ERR(cursor->get_value(cursor, &config));
+        }
+    }
+    WT_ASSERT_ALWAYS(session, found, "uh oh");
+
+    WT_ERR(
+      __wt_snprintf(tmp, sizeof(tmp),
+        "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\"",
+        capacity, hashtable_size, chunk_size));
+
+    /* TODO would be polite to say which bit failed. */
+    if (strstr(config, tmp) == NULL) {
+        __wt_verbose_error(session, WT_VERB_CHUNKCACHE, "%s", "uh oh");
+        ret = -1;
+    }
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
 /*
  * __chunkcache_bitmap_find_free --
  *     Iterate through the bitmap to find a free chunk in the cache.
@@ -837,6 +901,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     unsigned int cnt, i;
     char **pinned_objects;
     size_t mapped_size;
+    bool metadata_exists;
 
     chunkcache = &S2C(session)->chunkcache;
     pinned_objects = NULL;
@@ -902,8 +967,15 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
           WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
           &chunkcache->free_bitmap));
 
-        WT_RET(__chunkcache_create_metadata_file(
-          session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
+        WT_RET(__chunkcache_metadata_file_exists(session, &metadata_exists));
+        if (!metadata_exists) {
+            __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "created chunkcache metadata file");
+            WT_RET(__chunkcache_create_metadata_file(
+              session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
+        } else {
+            WT_RET(__chunkcache_verify_metadata_file(
+              session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
+        }
     }
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.flushed_data_cache_insertion", &cval));
