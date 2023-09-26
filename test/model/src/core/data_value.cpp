@@ -56,8 +56,10 @@ data_value::wt_type() const
         return "Q";
     else if (std::holds_alternative<std::string>(*this))
         return "S";
-    else
+    else {
         assert(0 /* This should not happen. */);
+        return ""; /* Make gcc happy. */
+    }
 }
 
 /*
