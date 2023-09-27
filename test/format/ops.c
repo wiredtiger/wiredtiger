@@ -955,9 +955,9 @@ ops(void *arg)
     WT_SESSION *session;
     iso_level_t iso_level;
     thread_op op;
-    uint64_t reset_op, session_op, truncate_op;
+    uint64_t reset_op, session_op, truncate_op, throttle_delay;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i;
+    u_int i, throttle_delay_max;
     const char *iso_config;
     bool greater_than, intxn, prepared;
 
@@ -982,6 +982,13 @@ ops(void *arg)
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
 
+    /*
+     * Calculate max delay so that per-table ops/sec is as set.
+     * We use 2* here as our random operation uses a flat distribution and
+     * the average delay will come out to OPS_THROTTLE_SLEEP_US.
+     */
+    throttle_delay_max = 2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
+
     /* Set the first operation where we'll create a new session and cursors. */
     session = NULL;
     session_op = 0;
@@ -994,11 +1001,9 @@ ops(void *arg)
 
     for (intxn = false; !tinfo->quit;) {
         if (GV(OPS_THROTTLE)) {
-            /* Sleep first to avoid the burst when all threads start. */
-            /* Calculate max delay so that per-table ops/sec is as set. */
-            u_int throttle_delay = 2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
-            uint64_t delay = mmrand(&tinfo->thread_rnd, 0, throttle_delay);
-            __wt_sleep(delay / WT_MILLION, delay % WT_MILLION);
+            /* Sleep first to avoid burst when all threads start. */
+            throttle_delay = mmrand(&tinfo->thread_rnd, 0, throttle_delay_max);
+            __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
         }
 rollback_retry:
         if (tinfo->quit)
