@@ -238,7 +238,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     cookie.original_session = session;
 
     __wt_epoch(session, &cookie.start);
-    __wt_session_array_walk(session, __gen_drain_func, &cookie);
+    __wt_session_array_walk(session, __gen_drain_func, false, &cookie);
 }
 
 /*
@@ -284,7 +284,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      */
     WT_ORDERED_READ(oldest, S2C(session)->generations[which]);
 
-    __wt_session_array_walk(session, __gen_oldest_func, &cookie);
+    __wt_session_array_walk(session, __gen_oldest_func, false, &cookie);
 
     return (oldest);
 }
@@ -326,7 +326,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
     cookie.ret_arg = &active;
     active = false;
 
-    __wt_session_array_walk(session, __gen_active_func, &cookie);
+    __wt_session_array_walk(session, __gen_active_func, false, &cookie);
 
     return (active);
 }

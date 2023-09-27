@@ -16,7 +16,8 @@
  */
 void
 __wt_session_array_walk(WT_SESSION_IMPL *session,
-  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), void *cookiep)
+  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), bool skip_internal,
+  void *cookiep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *array_session;
@@ -33,6 +34,10 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
         WT_ORDERED_READ(active, array_session->active);
         /* Skip inactive sessions. */
         if (!active)
+            continue;
+
+        /* If configured skip internal sessions. */
+        if (skip_internal && F_ISSET(array_session, WT_SESSION_INTERNAL))
             continue;
 
         walk_func(array_session, &exit_walk, cookiep);

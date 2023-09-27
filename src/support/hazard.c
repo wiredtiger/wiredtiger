@@ -363,7 +363,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * resource generation for the duration of the walk to ensure that doesn't happen.
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
-    __wt_session_array_walk(session, __hazard_check_func, &cookie);
+    __wt_session_array_walk(session, __hazard_check_func, false, &cookie);
     /* Leave the current resource generation. */
     __wt_session_gen_leave(session, WT_GEN_HAZARD);
 

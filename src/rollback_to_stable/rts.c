@@ -27,9 +27,6 @@ __rts_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 
     cookie = (WT_RTS_COOKIE *)cookiep;
 
-    if (F_ISSET(session, WT_SESSION_INTERNAL))
-        return;
-
     /* Check if a user session has a running transaction. */
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         cookie->txn_active = true;
@@ -66,7 +63,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      * acquiring the lock shouldn't be an issue.
      */
     __wt_spin_lock(session, &conn->api_lock);
-    __wt_session_array_walk(session, __rts_check_func, &cookie);
+    __wt_session_array_walk(session, __rts_check_func, true, &cookie);
     __wt_spin_unlock(session, &conn->api_lock);
 
     /*

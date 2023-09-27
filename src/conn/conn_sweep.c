@@ -288,11 +288,6 @@ __sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walkp, voi
 {
     WT_SWEEP_COOKIE *cookie = (WT_SWEEP_COOKIE *)cookiep;
     WT_UNUSED(exit_walkp);
-    /*
-     * Ignore internal sessions.
-     */
-    if (F_ISSET(session, WT_SESSION_INTERNAL))
-        return;
 
     cookie->last_cursor_big_sweep = session->last_cursor_big_sweep;
     cookie->last_sweep = session->last_sweep;
@@ -349,7 +344,7 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
     cookie.now = now;
     cookie.original_session = session;
 
-    __wt_session_array_walk(session, __sweep_check_session_sweep_func, &cookie);
+    __wt_session_array_walk(session, __sweep_check_session_sweep_func, true, &cookie);
 }
 
 /*

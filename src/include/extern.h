@@ -1951,7 +1951,8 @@ extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_schema_destroy_colgroup(WT_SESSION_IMPL *session, WT_COLGROUP **colgroupp);
 extern void __wt_scr_discard(WT_SESSION_IMPL *session);
 extern void __wt_session_array_walk(WT_SESSION_IMPL *session,
-  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), void *cookiep);
+  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), bool skip_internal,
+  void *cookiep);
 extern void __wt_session_close_cache(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_readlock(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_readunlock(WT_SESSION_IMPL *session);
