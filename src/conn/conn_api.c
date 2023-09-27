@@ -2231,32 +2231,30 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
-    static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
-      {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
+    static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
+      {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
       {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
       {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
       {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"history_store", WT_VERB_HS},
-      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"log", WT_VERB_LOG}, {"lsm", WT_VERB_LSM},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
       {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
       {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
       {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
-      {"thread_group", WT_VERB_THREAD_GROUP}, {"tiered", WT_VERB_TIERED},
-      {"timestamp", WT_VERB_TIMESTAMP}, {"transaction", WT_VERB_TRANSACTION},
-      {"verify", WT_VERB_VERIFY}, {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE},
-      {"config_all_verbose", WT_VERB_CONFIG_ALL_VERBOSE}, {NULL, 0}};
+      {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
+      {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
+      {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE}, {NULL, 0}};
 
     WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
-    int i, j;
     WT_VERBOSE_LEVEL verbose_value;
     bool config_all_verbos_flag;
 
@@ -2270,15 +2268,39 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         return (0);
     WT_RET(ret);
 
+    /* check if config "all" verbose */
     config_all_verbos_flag = true;
+    ft = &verbtypes[WT_VERB_ALL];
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
-    for (i = WT_VERB_CONFIG_ALL_VERBOSE; i >= WT_VERB_API; i--) {
-        ft = &verbtypes[i];
-        if (ft->name == NULL)
-            continue;
+    ret = __wt_config_subgets(session, &cval, ft->name, &sval);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret == WT_NOTFOUND) {
+        verbose_value = WT_VERBOSE_NOTICE;
+        config_all_verbos_flag = false;
+        goto all_verbose_assign;
+    } else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0) {
+        verbose_value = WT_VERBOSE_DEBUG_1;
+        goto all_verbose_assign;
+    } else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
+      sval.val <= WT_VERBOSE_DEBUG_5) {
+        verbose_value = (WT_VERBOSE_LEVEL)sval.val;
+        goto all_verbose_assign;
+    } else {
+        WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s'", ft->name);
+    }
 
+all_verbose_assign:
+    for (ft = verbtypes; ft->name != NULL; ft++) {
+        conn->verbose[ft->flag] = verbose_value;
+    }
+
+    /* check if config other verbose, here shoud skip "all" */
+    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+    for (ft = verbtypes; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
+        if (ft->flag == WT_VERB_ALL)
+            continue;
 
         if (ret == WT_NOTFOUND) {
             /*
@@ -2295,17 +2317,10 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              *  2. If we config "verbose=[checkpoint:3, all:1]", the result is alse "all other
              * config=1, checkpoint:3"
              */
-            if (ft->flag == WT_VERB_CONFIG_ALL_VERBOSE) {
-                config_all_verbos_flag = false;
+            if (config_all_verbos_flag == true)
                 continue;
-            }
 
-            if (config_all_verbos_flag == true) {
-                continue;
-            } else {
-                verbose_value = WT_VERBOSE_NOTICE;
-                goto verbos_assign;
-            }
+            conn->verbose[ft->flag] = WT_VERBOSE_NOTICE;
         } else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0) {
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
@@ -2313,12 +2328,10 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * being messages without an explicit verbosity level, will default to
              * 'WT_VERBOSE_DEBUG_1'.
              */
-            verbose_value = WT_VERBOSE_DEBUG_1;
-            goto verbos_assign;
+            conn->verbose[ft->flag] = WT_VERBOSE_DEBUG_1;
         } else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
           sval.val <= WT_VERBOSE_DEBUG_5) {
-            verbose_value = (WT_VERBOSE_LEVEL)sval.val;
-            goto verbos_assign;
+            conn->verbose[ft->flag] = (WT_VERBOSE_LEVEL)sval.val;
         } else {
             /*
              * We only support verbosity values in the form of positive numbers (representing
@@ -2327,14 +2340,6 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * negative numbers and strings.
              */
             WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s'", ft->name);
-        }
-
-verbos_assign:
-        if (ft->flag == WT_VERB_CONFIG_ALL_VERBOSE) {
-            for (j = WT_VERB_API; j <= WT_VERB_CONFIG_ALL_VERBOSE; j++)
-                conn->verbose[j] = verbose_value;
-        } else {
-            conn->verbose[ft->flag] = verbose_value;
         }
     }
 

@@ -829,6 +829,7 @@ connection_runtime_config = [
         include <code>0</code> (INFO) and <code>1</code> through <code>5</code>, corresponding to
         (DEBUG_1) to (DEBUG_5).''',
         type='list', choices=[
+            'all',
             'api',
             'backup',
             'block',
@@ -870,8 +871,7 @@ connection_runtime_config = [
             'transaction',
             'verify',
             'version',
-            'write',
-            'config_all_verbose']),
+            'write']),
 ]
 
 # wiredtiger_open and WT_CONNECTION.reconfigure compatibility configurations.
