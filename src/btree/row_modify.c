@@ -372,8 +372,6 @@ __wt_update_obsolete_check(
             first = NULL;
     }
 
-    __wt_cache_update_hs_score(session, upd_seen, upd_unstable);
-
     /*
      * We cannot discard this WT_UPDATE structure, we can only discard WT_UPDATE structures
      * subsequent to it, other threads of control will terminate their walk in this element. Save a
