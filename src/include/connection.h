@@ -407,8 +407,8 @@ struct __wt_connection_impl {
      */
     struct {
         WT_SESSION_IMPL *__array; /* Session reference */
-        uint32_t size; /* Session array size */
-        uint32_t cnt; /* Session count */
+        uint32_t size;            /* Session array size */
+        uint32_t cnt;             /* Session count */
     } session_array;
 
     size_t session_scratch_max; /* Max scratch memory per session */

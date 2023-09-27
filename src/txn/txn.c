@@ -2173,7 +2173,8 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 
     /* Allocate the WT_TXN structure, including a variable length array of snapshot information. */
     WT_RET(__wt_calloc(session, 1,
-      sizeof(WT_TXN) + sizeof(txn->snapshot[0]) * S2C(session)->session_array.size, &session_ret->txn));
+      sizeof(WT_TXN) + sizeof(txn->snapshot[0]) * S2C(session)->session_array.size,
+      &session_ret->txn));
     txn = session_ret->txn;
     txn->snapshot = txn->__snapshot;
     txn->id = WT_TXN_NONE;

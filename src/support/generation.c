@@ -130,9 +130,9 @@ typedef struct __wt_generation_drain_cookie WT_GENERATION_DRAIN_COOKIE;
 static void
 __gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
+    struct timespec stop;
     WT_CONNECTION_IMPL *conn;
     WT_GENERATION_DRAIN_COOKIE *cookie;
-    struct timespec stop;
     uint64_t time_diff_ms, v;
 
     cookie = (WT_GENERATION_DRAIN_COOKIE *)cookiep;
@@ -269,8 +269,8 @@ __gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 static uint64_t
 __gen_oldest(WT_SESSION_IMPL *session, int which)
 {
-    uint64_t oldest;
     WT_GENERATION_COOKIE cookie;
+    uint64_t oldest;
 
     WT_CLEAR(cookie);
     cookie.which = which;
@@ -317,8 +317,8 @@ __gen_active_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 bool
 __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
-    bool active;
     WT_GENERATION_COOKIE cookie;
+    bool active;
 
     WT_CLEAR(cookie);
     cookie.which = which;

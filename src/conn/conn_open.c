@@ -22,7 +22,8 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     WT_ASSERT(session, session->iface.connection == &conn->iface);
 
     /* WT_SESSION_IMPL array. */
-    WT_RET(__wt_calloc(session, conn->session_array.size, sizeof(WT_SESSION_IMPL), &WT_CONN_SESSIONS_GET(conn)));
+    WT_RET(__wt_calloc(
+      session, conn->session_array.size, sizeof(WT_SESSION_IMPL), &WT_CONN_SESSIONS_GET(conn)));
 
     /*
      * Open the default session. We open this before starting service threads because those may
