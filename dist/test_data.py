@@ -132,7 +132,9 @@ background_compact_thread_config = [
            operation.''',
         min=0, max=1),
     Config('free_space_target_mb', '20', r'''
-        Minimum amount of space in MB recoverable for compaction to proceed.''')
+        Minimum amount of space in MB recoverable for compaction to proceed.'''),
+    Config('op_rate', '60s', r'''
+        The rate at which background compact is toggled.''')
 ]
 custom_operation_thread_config = thread_count + transaction_config + throttle_config + record_config
 read_thread_config = thread_count + throttle_config + transaction_config + record_config
@@ -276,4 +278,5 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
+    'background_compact' : Method(test_config),
 }

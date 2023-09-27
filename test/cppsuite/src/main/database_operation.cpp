@@ -130,10 +130,27 @@ database_operation::background_compact_operation(thread_worker *tc)
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-    /* This needs to be executed only once in the workload. */
-    const std::string compact_cfg(
-      "background=true,free_space_target=" + std::to_string(tc->free_space_target_mb) + "MB");
-    testutil_check(tc->session->compact(tc->session.get(), nullptr, compact_cfg.c_str()));
+    bool enabled = false;
+
+    while (tc->running()) {
+        enabled = !enabled;
+
+        std::string compact_cfg = enabled ?
+          "background=true,free_space_target=" + std::to_string(tc->free_space_target_mb) + "MB" :
+          "background=false";
+
+        auto ret = tc->session->compact(tc->session.get(), nullptr, compact_cfg.c_str());
+        if (ret == EBUSY) {
+            logger::log_msg(LOG_WARN,
+              type_string(tc->type) + " thread {" + std::to_string(tc->id) +
+                "}: background compact returned EBUSY.");
+            /* Toggle back to the original state if we failed to call background compact. */
+            enabled = !enabled;
+        } else
+            testutil_check(ret);
+
+        tc->sleep();
+    }
 }
 
 void
