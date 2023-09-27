@@ -132,6 +132,8 @@ thread_runner_main(void *arg)
         runner->_errno = runner->run();
     } catch (WorkgenException &wge) {
         runner->_exception = wge;
+        std::cerr << "Exception in runner->run(): " << wge._str << std::endl;
+        ASSERT(false);
     }
     return (nullptr);
 }
@@ -148,6 +150,7 @@ thread_workload(void *arg)
         runner->increment_timestamp(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while incrementing timestamp: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -164,6 +167,7 @@ thread_idle_table_cycle_workload(void *arg)
         runner->start_table_idle_cycle(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while create/drop tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -180,6 +184,7 @@ thread_tables_create_workload(void *arg)
         runner->start_tables_create(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while creating tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -196,6 +201,7 @@ thread_tables_drop_workload(void *arg)
         runner->start_tables_drop(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while dropping tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -382,7 +388,7 @@ WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, con
         icontext->_dyn_tint[uri] = tint;
         icontext->_dyn_table_names[tint] = uri;
         icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
-        ++icontext->_dyn_tint_last;
+        (void)workgen_atomic_add32(&icontext->_dyn_tint_last, 1);
         VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
     }
 
@@ -709,6 +715,8 @@ monitor_main(void *arg)
         monitor->_errno = monitor->run();
     } catch (WorkgenException &wge) {
         monitor->_exception = wge;
+        std::cerr << "Exception in monitor->run(): " << wge._str << std::endl;
+        ASSERT(false);
     }
     return (nullptr);
 }
@@ -1478,7 +1486,7 @@ ThreadRunner::op_get_table(Operation *op) const
 
     std::string uri = op->_tables[_number];
     tint_t tint = 0;
-    if (uri != std::string()) {
+    if (!uri.empty()) {
         const std::shared_lock lock(*_icontext->_dyn_mutex);
         tint = _icontext->_dyn_tint[uri];
     }
@@ -1613,10 +1621,23 @@ ThreadRunner::op_run_setup(Operation *op)
 
             if (_icontext->_dyn_table_runtime[itr->second]._is_base &&
               !_icontext->_dyn_table_runtime[itr->second]._pending_delete) {
+
+                // In case the selected table has a mirror, we need to check it is ready for use.
+                if(_icontext->_dyn_table_runtime[itr->second].has_mirror()) {
+                    const std::string mirror_op_uri(_icontext->_dyn_table_runtime[itr->second]._mirror);
+                    // When a table is created, its mirror is fully created when a valid URI and
+                    // unique identifier have been allocated.
+                    if(mirror_op_uri.empty())
+                        continue;
+                    tint_t mirror_op_tint = _icontext->_dyn_tint[mirror_op_uri];
+                    if (mirror_op_tint == 0)
+                        continue;
+                }
                 break;
             }
         }
-        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES) { // Try again next time.
+        // Try again next time.
+        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES) {
             return 0;
         }
 
