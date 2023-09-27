@@ -269,7 +269,7 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
 }
 
 /* A cookie for the session walk. */
-struct __sweep_cookie {
+struct __wt_sweep_cookie {
     uint64_t now;
     uint64_t last;
     uint64_t last_cursor_big_sweep;
@@ -277,7 +277,7 @@ struct __sweep_cookie {
     WT_SESSION_IMPL *original_session;
 };
 
-typedef struct __sweep_cookie SWEEP_COOKIE;
+typedef struct __wt_sweep_cookie WT_SWEEP_COOKIE;
 
 /*
  * __sweep_check_session_sweep_func --
@@ -286,7 +286,7 @@ typedef struct __sweep_cookie SWEEP_COOKIE;
 static void
 __sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
-    SWEEP_COOKIE *cookie = (SWEEP_COOKIE *)cookiep;
+    WT_SWEEP_COOKIE *cookie = (WT_SWEEP_COOKIE *)cookiep;
     WT_UNUSED(exit_walkp);
     /*
      * Ignore internal sessions.
@@ -343,11 +343,12 @@ __sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walkp, voi
 static void
 __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
 {
-    SWEEP_COOKIE cookie = {.last = 0,
-      .last_cursor_big_sweep = 0,
-      .last_sweep = 0,
-      .now = now,
-      .original_session = session};
+    WT_SWEEP_COOKIE cookie;
+
+    WT_CLEAR(cookie);
+    cookie.now = now;
+    cookie.original_session = session;
+
     __wt_session_array_walk(session, __sweep_check_session_sweep_func, &cookie);
 }
 

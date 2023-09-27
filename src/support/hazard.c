@@ -296,7 +296,7 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
 }
 
 /* A cookie for the session array walk. */
-struct __hazard_cookie {
+struct __wt_hazard_cookie {
     WT_HAZARD *hp;
     WT_SESSION_IMPL *original_session;
     uint32_t walk_cnt;
@@ -305,7 +305,7 @@ struct __hazard_cookie {
     WT_REF *search_ref;
 };
 
-typedef struct __hazard_cookie HAZARD_COOKIE;
+typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
 
 /*
  * __hazard_check_func --
@@ -314,10 +314,10 @@ typedef struct __hazard_cookie HAZARD_COOKIE;
 static void
 __hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
-    HAZARD_COOKIE *cookie;
+    WT_HAZARD_COOKIE *cookie;
     uint32_t i, hazard_inuse;
 
-    cookie = (HAZARD_COOKIE *)cookiep;
+    cookie = (WT_HAZARD_COOKIE *)cookiep;
     hazard_get_reference(session, &cookie->hp, &hazard_inuse);
 
     if (hazard_inuse > cookie->max) {
@@ -346,12 +346,12 @@ __hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 WT_HAZARD *
 __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessionp)
 {
-    HAZARD_COOKIE cookie = {.hp = NULL,
-      .original_session = session,
-      .walk_cnt = 0,
-      .max = 0,
-      .session_ret = sessionp,
-      .search_ref = ref};
+    WT_HAZARD_COOKIE cookie;
+
+    WT_CLEAR(cookie);
+    cookie.original_session = session;
+    cookie.session_ret = sessionp;
+    cookie.search_ref = ref;
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))

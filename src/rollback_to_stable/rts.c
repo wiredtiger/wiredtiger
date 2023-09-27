@@ -9,12 +9,12 @@
 #include "wt_internal.h"
 
 /* A cookie for the session array walk. */
-struct __rts_cookie {
+struct __wt_rts_cookie {
     bool txn_active;
     bool cursor_active;
 };
 
-typedef struct __rts_cookie RTS_COOKIE;
+typedef struct __wt_rts_cookie WT_RTS_COOKIE;
 
 /*
  * __rts_check_func --
@@ -23,9 +23,9 @@ typedef struct __rts_cookie RTS_COOKIE;
 static void
 __rts_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
-    RTS_COOKIE *cookie;
+    WT_RTS_COOKIE *cookie;
 
-    cookie = (RTS_COOKIE *)cookiep;
+    cookie = (WT_RTS_COOKIE *)cookiep;
 
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return;
@@ -50,8 +50,9 @@ __wt_rts_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    RTS_COOKIE cookie = {.txn_active = false, .cursor_active = false};
+    WT_RTS_COOKIE cookie;
 
+    WT_CLEAR(cookie);
     conn = S2C(session);
 
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
