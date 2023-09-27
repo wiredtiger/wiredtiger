@@ -2325,13 +2325,13 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * [checkpoint,rts]). Return error for all other unsupported verbosity values e.g
              * negative numbers and strings.
              */
-            WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s'", ft->name);
+            WT_RET_MSG(session, EINVAL,
+              "Failed to parse verbose option '%s' with value '%" PRId64 "'", ft->name, sval.val);
         }
     }
 
     return (0);
 }
-
 
 /*
  * __wt_verbose_dump_sessions --
