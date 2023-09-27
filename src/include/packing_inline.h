@@ -1214,11 +1214,11 @@ __wt_struct_size_IIQQQQQQQ(WT_SESSION_IMPL *session, size_t *sizep, uint32_t fir
     size += __wt_vsize_uint(second);
     size += __wt_vsize_uint(third);
     size += __wt_vsize_uint(fourth);
-    size = __wt_vsize_uint(fifth);
+    size += __wt_vsize_uint(fifth);
     size += __wt_vsize_uint(sixth);
     size += __wt_vsize_uint(seventh);
     size += __wt_vsize_uint(eighth);
-    size = __wt_vsize_uint(ninth);
+    size += __wt_vsize_uint(ninth);
 
     *sizep = size;
     return;
