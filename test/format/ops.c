@@ -955,11 +955,13 @@ ops(void *arg)
     WT_SESSION *session;
     iso_level_t iso_level;
     thread_op op;
-    uint64_t reset_op, session_op, truncate_op, throttle_delay;
+    uint64_t reset_op, session_op, truncate_op;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i, throttle_delay_max;
+    u_int i;
     const char *iso_config;
     bool greater_than, intxn, prepared;
+    u_int throttle_delay_max;
+    uint64_t throttle_delay;
 
     tinfo = arg;
 
@@ -983,11 +985,12 @@ ops(void *arg)
     tinfo->lane = LANE_NONE;
 
     /*
-     * Calculate max delay so that per-table ops/sec is as set.
-     * We use 2* here as our random operation uses a flat distribution and
-     * the average delay will come out to OPS_THROTTLE_SLEEP_US.
+     * Calculate max delay so that per-table ops/sec is as set. We use 2* here as our random
+     * operation uses a flat distribution and the average delay will come out to
+     * OPS_THROTTLE_SLEEP_US.
      */
-    throttle_delay_max = 2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
+    throttle_delay_max =
+      2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
 
     /* Set the first operation where we'll create a new session and cursors. */
     session = NULL;
