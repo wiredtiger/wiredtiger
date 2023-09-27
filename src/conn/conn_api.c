@@ -1095,6 +1095,53 @@ __conn_is_new(WT_CONNECTION *wt_conn)
     return (((WT_CONNECTION_IMPL *)wt_conn)->is_new);
 }
 
+struct __wt_conn_cookie {
+    int ret;
+};
+
+typedef struct __wt_conn_cookie WT_CONN_COOKIE;
+
+static void
+__conn_rollback_transactions(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep) {
+    WT_DECL_RET;
+    WT_CONN_COOKIE *cookie;
+    WT_SESSION *wt_session;
+
+    WT_UNUSED(exit_walkp);
+    cookie = (WT_CONN_COOKIE *)cookiep;
+
+    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
+        wt_session = &session->iface;
+        ret = wt_session->rollback_transaction(wt_session, NULL);
+        if (cookie->ret == 0)
+            cookie->ret = ret;
+    }
+
+}
+
+static void
+__conn_close_sessions(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep) {
+    WT_DECL_RET;
+    WT_CONN_COOKIE *cookie;
+    WT_SESSION *wt_session;
+
+    WT_UNUSED(exit_walkp);
+    cookie = (WT_CONN_COOKIE *)cookiep;
+    wt_session = &session->iface;
+    /*
+     * Notify the user that we are closing the session handle via the registered close
+     * callback.
+     */
+    if (session->event_handler->handle_close != NULL)
+        ret = session->event_handler->handle_close(session->event_handler, wt_session, NULL);
+    if (cookie->ret == 0)
+        cookie->ret = ret;
+
+    ret = __wt_session_close_internal(session);
+    if (cookie->ret == 0)
+        cookie->ret = ret;
+}
+
 /*
  * __conn_close --
  *     WT_CONNECTION->close method.
@@ -1104,13 +1151,14 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_CONN_COOKIE cookie;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
-    WT_SESSION_IMPL *s, *session;
+    WT_SESSION_IMPL *session;
     WT_TIMER timer;
-    uint32_t i;
 
+    WT_CLEAR(cookie);
     conn = (WT_CONNECTION_IMPL *)wt_conn;
+
 
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
@@ -1135,24 +1183,13 @@ err:
      * transaction in one session could cause trouble when closing a file, even if that session
      * never referenced that file.
      */
-    for (s = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.cnt; ++s, ++i)
-        if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL) && F_ISSET(s->txn, WT_TXN_RUNNING)) {
-            wt_session = &s->iface;
-            WT_TRET(wt_session->rollback_transaction(wt_session, NULL));
-        }
+    __wt_session_array_walk(session, __conn_rollback_transactions, true, &cookie);
+    WT_TRET(cookie.ret);
+    cookie.ret = 0;
 
     /* Close open, external sessions. */
-    for (s = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.cnt; ++s, ++i)
-        if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL)) {
-            wt_session = &s->iface;
-            /*
-             * Notify the user that we are closing the session handle via the registered close
-             * callback.
-             */
-            if (s->event_handler->handle_close != NULL)
-                WT_TRET(s->event_handler->handle_close(s->event_handler, wt_session, NULL));
-            WT_TRET(__wt_session_close_internal(s));
-        }
+    __wt_session_array_walk(session, __conn_close_sessions, true, &cookie);
+    WT_TRET(cookie.ret);
 
     /*
      * Set MINIMAL again and call the event handler so that statistics can monitor any end of
