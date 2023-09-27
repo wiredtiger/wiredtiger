@@ -347,7 +347,7 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      */
     WT_ASSERT(session, session->generations[which] == 0);
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+    WT_ASSERT(session, session->id < S2C(session)->session_array.cnt);
 
     /*
      * Assign the thread's resource generation and publish it, ensuring threads waiting on a
@@ -374,7 +374,7 @@ void
 __wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
 {
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+    WT_ASSERT(session, session->id < S2C(session)->session_array.cnt);
 
     /* Ensure writes made by this thread are visible. */
     WT_PUBLISH(session->generations[which], 0);

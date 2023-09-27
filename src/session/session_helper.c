@@ -27,9 +27,9 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
     exit_walk = false;
     conn = S2C(session);
     /* Ensure we read the value once. */
-    session_cnt = *(volatile uint32_t *)&(conn->session_cnt);
+    session_cnt = *(volatile uint32_t *)&(conn->session_array.cnt);
 
-    for (i = 0, array_session = conn->sessions; i < session_cnt; i++, array_session++) {
+    for (i = 0, array_session = WT_CONN_SESSIONS_GET(conn); i < session_cnt; i++, array_session++) {
         WT_ORDERED_READ(active, array_session->active);
         /* Skip inactive sessions. */
         if (!active)

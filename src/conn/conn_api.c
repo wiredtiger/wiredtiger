@@ -1135,14 +1135,14 @@ err:
      * transaction in one session could cause trouble when closing a file, even if that session
      * never referenced that file.
      */
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i)
+    for (s = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.cnt; ++s, ++i)
         if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL) && F_ISSET(s->txn, WT_TXN_RUNNING)) {
             wt_session = &s->iface;
             WT_TRET(wt_session->rollback_transaction(wt_session, NULL));
         }
 
     /* Close open, external sessions. */
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i)
+    for (s = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.cnt; ++s, ++i)
         if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL)) {
             wt_session = &s->iface;
             /*
@@ -2318,11 +2318,11 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 
     conn = S2C(session);
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-    WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32, conn->session_cnt,
-      conn->session_size));
+    WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32, conn->session_array.cnt,
+      conn->session_array.size));
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     internal = 0;
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
+    for (s = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.cnt; ++s, ++i) {
         /*
          * If it is not active or it is an internal session it is not interesting.
          */
@@ -2949,7 +2949,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
-    WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
+    WT_ERR(__conn_session_size(session, cfg, &conn->session_array.size));
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
     conn->session_scratch_max = (size_t)cval.val;
 

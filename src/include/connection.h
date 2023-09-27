@@ -287,6 +287,8 @@ typedef TAILQ_HEAD(__wt_backuphash, __wt_backup_target) WT_BACKUPHASH;
 
 extern const WT_NAME_FLAG __wt_stress_types[];
 
+#define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
+
 /*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
@@ -403,9 +405,11 @@ struct __wt_connection_impl {
      * that way because we want an easy way for the server thread code to avoid walking the entire
      * array when only a few threads are running.
      */
-    WT_SESSION_IMPL *sessions; /* Session reference */
-    uint32_t session_size;     /* Session array size */
-    uint32_t session_cnt;      /* Session count */
+    struct {
+        WT_SESSION_IMPL *__array; /* Session reference */
+        uint32_t size; /* Session array size */
+        uint32_t cnt; /* Session count */
+    } session_array;
 
     size_t session_scratch_max; /* Max scratch memory per session */
 
