@@ -1887,6 +1887,17 @@ tasks:
           test_config_filename: configs/reverse_split_default.txt
           test_name: reverse_split
 
+  - name: cppsuite-background-long
+    tags: ["cppsuite-stress-test"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/background_compact_long_running.txt
+          test_name: background_compact
+
   - name: cppsuite-operations-test-stress
     depends_on:
       - name: compile
