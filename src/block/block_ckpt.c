@@ -684,8 +684,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             continue;
 
         /*
-         * Set the "from" checkpoint structure. If it applies to a previous object,
-         * there's nothing more to do.
+         * Set the "from" checkpoint structure. If it applies to a previous object, there's nothing
+         * more to do.
          */
         a = ckpt->bpriv;
         if (a->root_objectid != block->objectid)
