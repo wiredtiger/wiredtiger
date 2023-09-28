@@ -1096,7 +1096,7 @@ __conn_is_new(WT_CONNECTION *wt_conn)
 }
 
 struct __wt_conn_cookie {
-    WT_DECL_RET;
+    int ret_arg;
 };
 
 typedef struct __wt_conn_cookie WT_CONN_COOKIE;
@@ -1118,8 +1118,8 @@ __conn_rollback_transaction_callback(WT_SESSION_IMPL *session, bool *exit_walkp,
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         wt_session = &session->iface;
         ret = wt_session->rollback_transaction(wt_session, NULL);
-        if (cookie->ret == 0)
-            cookie->ret = ret;
+        if (cookie->ret_arg == 0)
+            cookie->ret_arg = ret;
     }
 }
 
@@ -1142,12 +1142,12 @@ __conn_close_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *
      */
     if (session->event_handler->handle_close != NULL)
         ret = session->event_handler->handle_close(session->event_handler, wt_session, NULL);
-    if (cookie->ret == 0)
-        cookie->ret = ret;
+    if (cookie->ret_arg == 0)
+        cookie->ret_arg = ret;
 
     ret = __wt_session_close_internal(session);
-    if (cookie->ret == 0)
-        cookie->ret = ret;
+    if (cookie->ret_arg == 0)
+        cookie->ret_arg = ret;
 }
 
 /*
@@ -1191,12 +1191,12 @@ err:
      * never referenced that file.
      */
     __wt_session_array_walk(session, __conn_rollback_transaction_callback, true, &cookie);
-    WT_TRET(cookie.ret);
-    cookie.ret = 0;
+    WT_TRET(cookie.ret_arg);
+    cookie.ret_arg = 0;
 
     /* Close open, external sessions. */
     __wt_session_array_walk(session, __conn_close_session_callback, true, &cookie);
-    WT_TRET(cookie.ret);
+    WT_TRET(cookie.ret_arg);
 
     /*
      * Set MINIMAL again and call the event handler so that statistics can monitor any end of
@@ -2348,7 +2348,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
 struct __wt_verbose_dump_cookie {
     WT_SESSION_IMPL *caller_session;
-    WT_DECL_RET;
+    int ret_arg;
     uint32_t internal_count;
     bool show_cursors;
 };
@@ -2432,7 +2432,7 @@ __verbose_dump_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void
 err:
     __wt_scr_free(cookie->caller_session, &buf);
     if (ret != 0) {
-        cookie->ret = ret;
+        cookie->ret_arg = ret;
         *exit_walkp = true;
     }
 }
@@ -2459,7 +2459,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
      * instruct the walk to skip them.
      */
     __wt_session_array_walk(session, __verbose_dump_session_callback, false, &cookie);
-    WT_RET(cookie.ret);
+    WT_RET(cookie.ret_arg);
 
     if (!show_cursors)
         WT_RET(__wt_msg(session, "Internal sessions: %" PRIu32, cookie.internal_count));
