@@ -523,7 +523,7 @@ __chunkcache_insert(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t size,
      * !!! (Don't format the comment.)
      * Caller function should take a bucket lock before inserting the chunk.
      */
-    WT_RET(__chunkcache_alloc_chunk(session, offset, (wt_off_t)size, hash_id, new_chunk));
+    WT_RET(__chunkcache_alloc_chunk(session, offset, size, hash_id, new_chunk));
 
     /*
      * Insert the invalid chunk into the bucket before releasing the lock and doing I/O. This way we
@@ -811,8 +811,7 @@ __wt_chunkcache_ingest(
           __chunkcache_tmp_hash(chunkcache, &hash_id, sp_obj_name, objectid, already_read);
 
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        ret =
-          __chunkcache_insert(session, (wt_off_t)already_read, size, &hash_id, bucket_id, &chunk);
+        ret = __chunkcache_insert(session, already_read, size, &hash_id, bucket_id, &chunk);
         __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
         WT_ERR(ret);
 
