@@ -296,9 +296,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX,
     V_GLOBAL_RANDOM_EXTRA_SEED},
 
-  {"random.thread_seed", "set thread-local random seed", 0x0, 0, 0, UINT_MAX,
-    V_GLOBAL_RANDOM_THREAD_SEED},
-
   {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_IN_MEMORY},
 
   {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},

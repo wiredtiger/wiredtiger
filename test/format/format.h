@@ -359,7 +359,6 @@ typedef struct {
 
     WT_RAND_STATE data_rnd;   /* thread RNG state for data operations */
     WT_RAND_STATE extra_rnd;  /* thread RNG state for extra operations */
-    WT_RAND_STATE thread_rnd; /* thread RNG state independent of format.independent_thread_rng */
 
     uint32_t lane;     /* Current lane for replay */
     thread_op op;      /* Operation */

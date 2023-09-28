@@ -955,13 +955,11 @@ ops(void *arg)
     WT_SESSION *session;
     iso_level_t iso_level;
     thread_op op;
-    uint64_t reset_op, session_op, truncate_op;
+    uint64_t reset_op, session_op, throttle_delay, truncate_op;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i;
+    u_int i, throttle_delay_max;
     const char *iso_config;
     bool greater_than, intxn, prepared;
-    u_int throttle_delay_max;
-    uint64_t throttle_delay;
 
     tinfo = arg;
 
@@ -978,7 +976,6 @@ ops(void *arg)
         testutil_random_from_seed(&tinfo->data_rnd, GV(RANDOM_DATA_SEED));
         testutil_random_from_seed(&tinfo->extra_rnd, GV(RANDOM_EXTRA_SEED));
     }
-    testutil_random_from_seed(&tinfo->thread_rnd, GV(RANDOM_THREAD_SEED) + (u_int)tinfo->id);
 
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
     tinfo->replay_again = false;
@@ -1005,7 +1002,7 @@ ops(void *arg)
     for (intxn = false; !tinfo->quit;) {
         if (GV(OPS_THROTTLE)) {
             /* Sleep first to avoid burst when all threads start. */
-            throttle_delay = mmrand(&tinfo->thread_rnd, 0, throttle_delay_max);
+            throttle_delay = mmrand(&tinfo->extra_rnd, 0, throttle_delay_max);
             __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
         }
 rollback_retry:
