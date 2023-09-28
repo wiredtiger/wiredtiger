@@ -328,12 +328,16 @@ __wt_update_obsolete_check(
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
-    u_int count;
+    uint64_t oldest, stable;
+    u_int count, upd_seen, upd_unstable;
 
     next = NULL;
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
+    upd_seen = upd_unstable = 0;
+    oldest = txn_global->has_oldest_timestamp ? txn_global->oldest_timestamp : WT_TS_NONE;
+    stable = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : WT_TS_NONE;
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
      * because this routine is called from inside a serialization function, the caller has
@@ -347,6 +351,7 @@ __wt_update_obsolete_check(
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
+        ++upd_seen;
         /*
          * WiredTiger internal operations such as Rollback to stable and prepare transaction
          * rollback adds a globally visible tombstone to the update chain to remove the entire key.
@@ -364,13 +369,21 @@ __wt_update_obsolete_check(
         if (__wt_txn_upd_visible_all(session, upd)) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
-        } else
+        } else {
             first = NULL;
-
+            /*
+             * While we're here, also check for the update being kept only for timestamp history to
+             * gauge updates being kept due to history.
+             */
+            if (upd->start_ts != WT_TS_NONE && upd->start_ts >= oldest && upd->start_ts < stable)
+                ++upd_unstable;
+        }
         /* Cannot truncate the updates if we need to remove the updates from the history store. */
         if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS))
             first = NULL;
     }
+
+     __wt_cache_update_hs_score(session, upd_seen, upd_unstable);
 
     /*
      * We cannot discard this WT_UPDATE structure, we can only discard WT_UPDATE structures

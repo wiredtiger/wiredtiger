@@ -195,7 +195,7 @@ table4.ops.pct.write=3
 table4.ops.truncate=0
 table4.runs.mirror=0
 table4.runs.source=file
-table4.runs.type=variable-length column-store
+table4.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 5
 ############################################
