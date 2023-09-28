@@ -1401,7 +1401,7 @@ rollback:
         }
 
         if (mirrored_truncate)
-            wts_verify_mirrored_truncate(tinfo, table);
+            wts_verify_mirrored_truncate(tinfo);
 
         intxn = false;
     }

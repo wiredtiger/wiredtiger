@@ -443,14 +443,15 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
  *     infrequently check larger ranges.
  */
 void
-wts_verify_mirrored_truncate(TINFO *tinfo, TABLE *table)
+wts_verify_mirrored_truncate(TINFO *tinfo)
 {
     uint64_t range_begin, range_end;
 
     testutil_assert(tinfo != NULL);
+    testutil_assert(g.base_mirror != NULL);
 
     range_begin = tinfo->keyno != 0 ? tinfo->keyno : 1;
-    range_end = tinfo->last != 0 ? tinfo->last : TV(RUNS_ROWS);
+    range_end = tinfo->last != 0 ? tinfo->last : NTV(g.base_mirror, RUNS_ROWS);
 
     if ((range_end - range_begin) < 10000)
         wts_verify_mirrors(g.wts_conn, NULL, tinfo);
