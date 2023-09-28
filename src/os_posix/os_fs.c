@@ -440,8 +440,6 @@ __posix_file_read(
             WT_RET_MSG(session, nr == 0 ? WT_ERROR : ret,
               "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
-        /* Pretend I/O is slow
-        __wt_sleep(0, 5000);*/
     }
     WT_STAT_CONN_INCRV(session, block_byte_read_syscall, len);
     return (0);
