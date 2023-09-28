@@ -2270,8 +2270,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
 
     /*
-     * Special handling for "all". This determines the verbosity for any categories not
-     * explicitly set in the config string.
+     * Special handling for "all". This determines the verbosity for any categories not explicitly
+     * set in the config string.
      */
     ft = &verbtypes[WT_VERB_ALL];
     ret = __wt_config_subgets(session, &cval, ft->name, &sval);
