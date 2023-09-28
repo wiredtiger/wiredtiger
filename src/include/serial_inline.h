@@ -38,7 +38,7 @@ __insert_simple_func(
          *
          * Place a read barrier here to avoid this issue.
          */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
+        WT_READ_ONCE(old_ins, *ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
     }
@@ -81,7 +81,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
          *
          * Place a read barrier here to avoid this issue.
          */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
+        WT_READ_ONCE(old_ins, *ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
