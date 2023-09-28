@@ -1,14 +1,6 @@
 # Configuration for background_compact.
-# ~2 hour run time.
 duration_seconds=7200,
 cache_size_mb=10000,
-timestamp_manager=
-(
-    enabled=true,
-    oldest_lag=5,
-    stable_lag=5,
-    op_rate=1s
-),
 workload_manager=
 (
     populate_config=

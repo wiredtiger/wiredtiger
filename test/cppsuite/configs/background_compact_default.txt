@@ -2,14 +2,6 @@
 duration_seconds=60,
 cache_size_mb=10000,
 
-timestamp_manager=
-(
-    enabled=true,
-    oldest_lag=5,
-    stable_lag=5,
-    op_rate=1s
-),
-
 workload_manager=
 (
     populate_config=
@@ -20,7 +12,6 @@ workload_manager=
         key_size=10,
         value_size=1000
     ),
-
     insert_config=
     (
         thread_count=3,
@@ -29,27 +20,24 @@ workload_manager=
         key_size=10,
         value_size=1000
     ),
-
     remove_config=
     (
         op_rate=2s,
-        ops_per_transaction=( max=1,min=0),
+        ops_per_transaction=(max=1,min=0),
         thread_count=1
     ),
-
+    # Set the length of the maintenance window period.
     custom_config=
     (
         op_rate=10s,
         thread_count=1
     ),
-
     background_compact_config=
     (
         thread_count=1,
         free_space_target_mb=1,
         op_rate=60s
     ),
-
     checkpoint_config=
     (
         op_rate=5s,
