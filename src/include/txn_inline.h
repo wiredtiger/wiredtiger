@@ -931,7 +931,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
     for (;; __wt_yield()) {
         /* Prepare state change is in progress, yield and try again. */
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
+        WT_READ_ONCE(prepare_state, upd->prepare_state);
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
@@ -947,7 +947,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
          * change, recheck visibility.
          */
         previous_state = prepare_state;
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
+        WT_READ_ONCE(prepare_state, upd->prepare_state);
         if (previous_state == prepare_state)
             break;
 
@@ -1060,7 +1060,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         if (upd->type == WT_UPDATE_RESERVE)
             continue;
 
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
+        WT_READ_ONCE(prepare_state, upd->prepare_state);
 
         /*
          * We previously found a prepared update, check if the update has the same transaction id,
