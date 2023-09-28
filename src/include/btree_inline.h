@@ -1542,7 +1542,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * WT_ADDRs and swapped into place. The content of the two WT_ADDRs are identical, and we don't
      * care which version we get as long as we don't mix-and-match the two.
      */
-    WT_ORDERED_READ(addr, (WT_ADDR *)ref->addr);
+    WT_READ_ONCE(addr, (WT_ADDR *)ref->addr);
 
     /* If NULL, there is no information. */
     if (addr == NULL)
