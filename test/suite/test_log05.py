@@ -60,7 +60,14 @@ class test_log05(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.begin_transaction()
         else:
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
-        self.assertEqual(cursor[key], value)
+        if value == None:
+            if self.value_format == '8t':
+                self.assertEqual(cursor[key], 0)
+            else:
+                cursor.set_key(key)
+                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        else:
+            self.assertEqual(cursor[key], value)
         self.session.rollback_transaction()
 
     def test_logts(self):
@@ -83,13 +90,19 @@ class test_log05(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(c, 0 if self.log else 10, key, value10)
 
         # Truncate a range of data.
+        self.session.begin_transaction()
         start = ds.open_cursor(uri, None)
         start.set_key(ds.key(10))
         end = ds.open_cursor(uri, None)
         end.set_key(ds.key(90))
         self.assertEqual(self.session.truncate(None, start, end, None), 0)
+        if self.log:
+            self.session.commit_transaction()
+        else:
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
         start.close()
         end.close()
+        self.check(c, 0 if self.log else 20, key, None)
 
         # Insert, Update, modify and then remove.
         key = ds.key(110)
@@ -140,7 +153,8 @@ class test_log05(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.commit_transaction()
         else:
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
-        
+        self.check(c, 0 if self.log else 50, key, None)
+
         # Move the stable timestamp to 50. Checkpoint.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.session.checkpoint()
