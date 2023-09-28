@@ -256,6 +256,7 @@ test_config = [
 # Test and their respective configuration sorted alphabetically.
 #
 methods = {
+    'background_compact' : Method(test_config),
     'bounded_cursor_perf' : Method(test_config),
     'bounded_cursor_prefix_indices' : Method(test_config),
     'bounded_cursor_prefix_search_near' : Method(test_config),
@@ -276,5 +277,4 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
-    'background_compact' : Method(test_config),
 }
