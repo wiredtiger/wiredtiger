@@ -33,7 +33,7 @@
  *
  * GCC and Clang have a __typeof__ compiler builtin which allows us to temporarily cast the value
  * being read as a volatile and achieve volatile semantics. For other compilers we'll fall back on
- * inserted a read barrier after the read (our pre-existing implementation) which prevents invented
+ * inserting a read barrier after the read (our pre-existing implementation) which prevents invented
  * and fused loads for this variable in the code following the expression.
  *
  * FIXME-WT-11718 - Once Windows build machines that support C11 _Generics are available this macro
