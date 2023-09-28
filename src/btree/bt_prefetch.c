@@ -88,7 +88,8 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH *pf)
     if (__wt_ref_addr_copy(session, pf->ref, &addr)) {
         WT_RET(__wt_page_in(session, pf->ref, WT_READ_PREFETCH));
         WT_RET(__wt_page_release(session, pf->ref, 0));
-    }
+    } else
+        return (WT_ERROR);
 
     return (0);
 }

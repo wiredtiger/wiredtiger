@@ -5415,10 +5415,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BLOCK_PREFETCH_SKIPPED		1037
 /*! block-cache: pre-fetch page not on disk when reading */
 #define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_FAIL		1038
-/*! block-cache: pre-fetch page read in background */
-#define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_READ		1039
 /*! block-cache: pre-fetch pages queued */
-#define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_QUEUED	1040
+#define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_QUEUED	1039
+/*! block-cache: pre-fetch pages read in background */
+#define	WT_STAT_CONN_BLOCK_PREFETCH_PAGES_READ		1040
 /*! block-cache: pre-fetch triggered by page read */
 #define	WT_STAT_CONN_BLOCK_PREFETCH_ATTEMPTS		1041
 /*! block-cache: removed blocks */

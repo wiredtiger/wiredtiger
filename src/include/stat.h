@@ -378,8 +378,8 @@ struct __wt_connection_stats {
     int64_t block_prefetch_disk_one;
     int64_t block_prefetch_skipped;
     int64_t block_prefetch_pages_fail;
-    int64_t block_prefetch_pages_read;
     int64_t block_prefetch_pages_queued;
+    int64_t block_prefetch_pages_read;
     int64_t block_prefetch_attempts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;
