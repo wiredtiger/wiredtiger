@@ -280,11 +280,11 @@ struct __wt_sweep_cookie {
 typedef struct __wt_sweep_cookie WT_SWEEP_COOKIE;
 
 /*
- * __sweep_check_session_sweep_func --
- *     Callback function for the session walk when searching for sessions that haven't swept.
+ * __sweep_check_session_callback --
+ *     Check if a given session hasn't swept. Callback from the session array walk.
  */
 static void
-__sweep_check_session_sweep_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_SWEEP_COOKIE *cookie = (WT_SWEEP_COOKIE *)cookiep;
     WT_UNUSED(exit_walkp);
@@ -344,7 +344,7 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
     cookie.now = now;
     cookie.original_session = session;
 
-    __wt_session_array_walk(session, __sweep_check_session_sweep_func, true, &cookie);
+    __wt_session_array_walk(session, __sweep_check_session_callback, true, &cookie);
 }
 
 /*

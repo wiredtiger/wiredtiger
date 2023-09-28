@@ -124,11 +124,11 @@ struct __wt_generation_drain_cookie {
 typedef struct __wt_generation_drain_cookie WT_GENERATION_DRAIN_COOKIE;
 
 /*
- * __gen_drain_func --
- *     Callback function for generation drain per session logic.
+ * __gen_drain_callback --
+ *     Wait for single session's generation to drain, callback from the session array walk.
  */
 static void
-__gen_drain_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__gen_drain_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     struct timespec stop;
     WT_CONNECTION_IMPL *conn;
@@ -238,15 +238,15 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     cookie.original_session = session;
 
     __wt_epoch(session, &cookie.start);
-    __wt_session_array_walk(session, __gen_drain_func, false, &cookie);
+    __wt_session_array_walk(session, __gen_drain_callback, false, &cookie);
 }
 
 /*
- * __gen_oldest_func --
- *     Callback function for generation oldest per session logic.
+ * __gen_oldest_callback --
+ *     Check a single session's generation to find the oldest, callback from the session array walk.
  */
 static void
-__gen_oldest_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__gen_oldest_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_GENERATION_COOKIE *cookie;
     uint64_t *oldest;
@@ -284,17 +284,18 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      */
     WT_ORDERED_READ(oldest, S2C(session)->generations[which]);
 
-    __wt_session_array_walk(session, __gen_oldest_func, false, &cookie);
+    __wt_session_array_walk(session, __gen_oldest_callback, false, &cookie);
 
     return (oldest);
 }
 
 /*
- * __gen_active_func --
- *     Callback function for generation active per session logic.
+ * __gen_active_callback --
+ *     Check if a session's generation is relevant given a specific generation. Callback from the
+ *     session array walk.
  */
 static void
-__gen_active_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__gen_active_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_GENERATION_COOKIE *cookie;
     uint64_t v;
@@ -326,7 +327,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
     cookie.ret_arg = &active;
     active = false;
 
-    __wt_session_array_walk(session, __gen_active_func, false, &cookie);
+    __wt_session_array_walk(session, __gen_active_callback, false, &cookie);
 
     return (active);
 }

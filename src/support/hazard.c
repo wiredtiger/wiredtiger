@@ -308,11 +308,11 @@ struct __wt_hazard_cookie {
 typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
 
 /*
- * __hazard_check_func --
- *     Callback function for individual session hazard pointer checking.
+ * __hazard_check_callback --
+ *     Check and individual session's hazard pointers, callback from the session array walk.
  */
 static void
-__hazard_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_HAZARD_COOKIE *cookie;
     uint32_t i, hazard_inuse;
@@ -363,7 +363,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * resource generation for the duration of the walk to ensure that doesn't happen.
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
-    __wt_session_array_walk(session, __hazard_check_func, false, &cookie);
+    __wt_session_array_walk(session, __hazard_check_callback, false, &cookie);
     /* Leave the current resource generation. */
     __wt_session_gen_leave(session, WT_GEN_HAZARD);
 

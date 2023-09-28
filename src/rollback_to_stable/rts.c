@@ -17,11 +17,12 @@ struct __wt_rts_cookie {
 typedef struct __wt_rts_cookie WT_RTS_COOKIE;
 
 /*
- * __rts_check_func --
- *     Callback function for individual session active state checking.
+ * __rts_check_callback --
+ *     Check if a single session has an active transaction or open cursors. Callback from the
+ *     session array walk.
  */
 static void
-__rts_check_func(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__rts_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_RTS_COOKIE *cookie;
 
@@ -63,7 +64,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      * acquiring the lock shouldn't be an issue.
      */
     __wt_spin_lock(session, &conn->api_lock);
-    __wt_session_array_walk(session, __rts_check_func, true, &cookie);
+    __wt_session_array_walk(session, __rts_check_callback, true, &cookie);
     __wt_spin_unlock(session, &conn->api_lock);
 
     /*

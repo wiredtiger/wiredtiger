@@ -1102,11 +1102,11 @@ struct __wt_conn_cookie {
 typedef struct __wt_conn_cookie WT_CONN_COOKIE;
 
 /*
- * __conn_rollback_transaction --
+ * __conn_rollback_transaction_callback --
  *     Rollback a single transaction, callback from the session array walk.
  */
 static void
-__conn_rollback_transaction(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__conn_rollback_transaction_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_CONN_COOKIE *cookie;
     WT_DECL_RET;
@@ -1124,11 +1124,11 @@ __conn_rollback_transaction(WT_SESSION_IMPL *session, bool *exit_walkp, void *co
 }
 
 /*
- * __conn_close_session --
+ * __conn_close_session_callback --
  *     Close a single session, callback from the session array walk.
  */
 static void
-__conn_close_session(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__conn_close_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_CONN_COOKIE *cookie;
     WT_DECL_RET;
@@ -1190,12 +1190,12 @@ err:
      * transaction in one session could cause trouble when closing a file, even if that session
      * never referenced that file.
      */
-    __wt_session_array_walk(session, __conn_rollback_transaction, true, &cookie);
+    __wt_session_array_walk(session, __conn_rollback_transaction_callback, true, &cookie);
     WT_TRET(cookie.ret);
     cookie.ret = 0;
 
     /* Close open, external sessions. */
-    __wt_session_array_walk(session, __conn_close_session, true, &cookie);
+    __wt_session_array_walk(session, __conn_close_session_callback, true, &cookie);
     WT_TRET(cookie.ret);
 
     /*
@@ -2356,11 +2356,11 @@ struct __wt_verbose_dump_cookie {
 typedef struct __wt_verbose_dump_cookie WT_VERBOSE_DUMP_COOKIE;
 
 /*
- * __verbose_dump_session --
+ * __verbose_dump_session_callback --
  *     Dump a single session, callback from the session walk.
  */
 static void
-__verbose_dump_session(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__verbose_dump_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_CURSOR *cursor;
     WT_DECL_ITEM(buf);
@@ -2458,7 +2458,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
      * While the verbose dump doesn't dump internal sessions it returns a count of them so we don't
      * instruct the walk to skip them.
      */
-    __wt_session_array_walk(session, __verbose_dump_session, false, &cookie);
+    __wt_session_array_walk(session, __verbose_dump_session_callback, false, &cookie);
     WT_RET(cookie.ret);
 
     if (!show_cursors)
