@@ -2255,7 +2255,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
-    WT_VERBOSE_LEVEL value_all;
+    WT_VERBOSE_LEVEL verbosity_all;
 
     conn = S2C(session);
 
@@ -2267,58 +2267,56 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         return (0);
     WT_RET(ret);
 
-    /* check if config "all" verbose */
-    ft = &verbtypes[WT_VERB_ALL];
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+
+    /*
+     * Special handling for "all". This determines the verbosity for any categories not
+     * explicitly set in the config string.
+     */
+    ft = &verbtypes[WT_VERB_ALL];
     ret = __wt_config_subgets(session, &cval, ft->name, &sval);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret == WT_NOTFOUND) {
-        value_all = WT_VERBOSE_NOTICE;
-    } else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0) {
-        value_all = WT_VERBOSE_DEBUG_1;
-    } else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
-      sval.val <= WT_VERBOSE_DEBUG_5) {
-        value_all = (WT_VERBOSE_LEVEL)sval.val;
-    } else {
-        WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s'", ft->name);
-    }
+    if (ret == WT_NOTFOUND)
+        /*
+         * If "all" isn't specified in the configuration string use the default WT_VERBOSE_NOTICE
+         * verbosity level. WT_VERBOSE_NOTICE is an always-on informational verbosity message.
+         */
+        verbosity_all = WT_VERBOSE_NOTICE;
+    else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
+        verbosity_all = WT_VERBOSE_LEVEL_DEFAULT;
+    else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
+      sval.val <= WT_VERBOSE_DEBUG_5)
+        verbosity_all = (WT_VERBOSE_LEVEL)sval.val;
+    else
+        WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s' with value '%" PRId64 "'",
+          ft->name, sval.val);
 
-    /* check if config other verbose, here shoud skip "all" */
-    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
     for (ft = verbtypes; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
+
+        /* "all" is a special case we've already handled above. */
         if (ft->flag == WT_VERB_ALL)
             continue;
 
-        if (ret == WT_NOTFOUND) {
+        if (ret == WT_NOTFOUND)
             /*
-             * If the given event isn't specified in configuration string, default it to the
-             * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
-             * verbosity message.
-             *
-             * If verbose have config the "config_all_verbose=xx", There's no need to default
-             * this config to the WT_VERBOSE_NOTICE verbosity level
-             *
-             * for examples:
-             *  1. If we config "verbose=[all:1, checkpoint:3]", the result is "all other config=1,
-             * checkpoint:3"
-             *  2. If we config "verbose=[checkpoint:3, all:1]", the result is alse "all other
-             * config=1, checkpoint:3"
+             * If the given event isn't specified in configuration string, set it to the default
+             * verbosity level.
              */
-            conn->verbose[ft->flag] = value_all;
-        } else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0) {
+            conn->verbose[ft->flag] = verbosity_all;
+        else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
-             * the event to WT_VERBOSE_DEBUG_1. Correspondingly, all legacy uses of '__wt_verbose',
-             * being messages without an explicit verbosity level, will default to
-             * 'WT_VERBOSE_DEBUG_1'.
+             * the event to WT_VERBOSE_LEVEL_DEFAULT. Correspondingly, all legacy uses of
+             * '__wt_verbose', being messages without an explicit verbosity level, will default to
+             * 'WT_VERBOSE_LEVEL_DEFAULT'.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_DEBUG_1;
-        } else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
-          sval.val <= WT_VERBOSE_DEBUG_5) {
+            conn->verbose[ft->flag] = WT_VERBOSE_LEVEL_DEFAULT;
+        else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
+          sval.val <= WT_VERBOSE_DEBUG_5)
             conn->verbose[ft->flag] = (WT_VERBOSE_LEVEL)sval.val;
-        } else {
+        else
             /*
              * We only support verbosity values in the form of positive numbers (representing
              * verbosity levels e.g. [checkpoint:1,rts:0]) and boolean expressions (e.g.
@@ -2327,7 +2325,6 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              */
             WT_RET_MSG(session, EINVAL,
               "Failed to parse verbose option '%s' with value '%" PRId64 "'", ft->name, sval.val);
-        }
     }
 
     return (0);
