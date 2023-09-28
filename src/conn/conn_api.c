@@ -2430,6 +2430,7 @@ __verbose_dump_session(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep
     }
 
 err:
+    __wt_scr_free(cookie->caller_session, &buf);
     if (ret != 0) {
         cookie->ret = ret;
         *exit_walkp = true;
