@@ -15,10 +15,7 @@
 bool
 __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    /*
-     * TODO: Should internal threads do pre-fetch? Possibly if pre-fetch is configured to be
-     * aggressive? Or possibly more selectively?
-     */
+    /* Internal threads should not be configured to do pre-fetching. */
     if (!S2C(session)->prefetch_auto_on || F_ISSET(session, WT_SESSION_INTERNAL))
         return (false);
 
