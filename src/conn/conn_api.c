@@ -2369,12 +2369,12 @@ __verbose_dump_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void
 
     cookie = (WT_VERBOSE_DUMP_COOKIE *)cookiep;
 
-    WT_ERR(__wt_scr_alloc(cookie->caller_session, 0, &buf));
-
     if (F_ISSET(session, WT_SESSION_INTERNAL)) {
         ++cookie->internal_count;
         return;
     }
+
+    WT_ERR(__wt_scr_alloc(cookie->caller_session, 0, &buf));
 
     WT_ERR(__wt_msg(
       cookie->caller_session, "Session: ID: %" PRIu32 " @: 0x%p", session->id, (void *)session));
