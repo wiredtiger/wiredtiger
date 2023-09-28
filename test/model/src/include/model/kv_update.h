@@ -208,7 +208,7 @@ public:
     inline bool
     global() const noexcept
     {
-        return _timestamp == WT_TS_NONE;
+        return _timestamp == k_timestamp_none;
     }
 
     /*

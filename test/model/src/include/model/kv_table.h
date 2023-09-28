@@ -71,33 +71,33 @@ public:
      *     associated with the given timestamp, return true if any of them match.
      */
     bool contains_any(
-      const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_LATEST);
+      const data_value &key, const data_value &value, timestamp_t timestamp = k_timestamp_latest);
 
     /*
      * kv_table::get --
      *     Get the value.
      */
-    const data_value &get(const data_value &key, timestamp_t timestamp = WT_TS_LATEST);
+    const data_value &get(const data_value &key, timestamp_t timestamp = k_timestamp_latest);
 
     /*
      * kv_table::insert --
      *     Insert into the table.
      */
-    int insert(const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_NONE,
-      bool overwrite = true);
+    int insert(const data_value &key, const data_value &value,
+      timestamp_t timestamp = k_timestamp_none, bool overwrite = true);
 
     /*
      * kv_table::remove --
      *     Delete a value from the table.
      */
-    int remove(const data_value &key, timestamp_t timestamp = WT_TS_NONE);
+    int remove(const data_value &key, timestamp_t timestamp = k_timestamp_none);
 
     /*
      * kv_table::update --
      *     Update a key in the table.
      */
-    int update(const data_value &key, const data_value &value, timestamp_t timestamp = WT_TS_NONE,
-      bool overwrite = true);
+    int update(const data_value &key, const data_value &value,
+      timestamp_t timestamp = k_timestamp_none, bool overwrite = true);
 
     /*
      * kv_table::verify --

@@ -67,13 +67,13 @@ public:
      *     Check whether the table contains the given value. If there are multiple values associated
      *     with the given timestamp, return true if any of them match.
      */
-    bool contains_any(const data_value &value, timestamp_t timestamp = WT_TS_LATEST);
+    bool contains_any(const data_value &value, timestamp_t timestamp = k_timestamp_latest);
 
     /*
      * kv_table_item::get --
      *     Get the corresponding value.
      */
-    const data_value &get(timestamp_t timestamp = WT_TS_LATEST);
+    const data_value &get(timestamp_t timestamp = k_timestamp_latest);
 
 private:
     std::mutex _lock;

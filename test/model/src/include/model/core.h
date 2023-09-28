@@ -42,12 +42,6 @@
 #endif
 
 /*
- * WT_TS_LATEST --
- *     A convenience alias for WT_TS_MAX, typically used to get the latest value.
- */
-#define WT_TS_LATEST WT_TS_MAX
-
-/*
  * WT_TS_NONE --
  *     No timestamp, e.g., when performing a non-timestamped update.
  */
@@ -63,9 +57,28 @@ namespace model {
  */
 using timestamp_t = uint64_t;
 
-/* Verify that WiredTiger constants match our expectations for the model's timestamp type. */
-static_assert(WT_TS_MAX == std::numeric_limits<timestamp_t>::max());
-static_assert(WT_TS_NONE == std::numeric_limits<timestamp_t>::min());
+/*
+ * k_timestamp_none --
+ *     No timestamp, e.g., when performing a non-timestamped update.
+ */
+constexpr timestamp_t k_timestamp_none = std::numeric_limits<timestamp_t>::min();
+
+/*
+ * k_timestamp_max --
+ *     The maximum timestamp, typically used in reads where we would like to get the latest value.
+ */
+constexpr timestamp_t k_timestamp_max = std::numeric_limits<timestamp_t>::max();
+
+/*
+ * k_timestamp_latest --
+ *     A convenience alias for k_timestamp_max, typically used to get the latest value.
+ */
+constexpr timestamp_t k_timestamp_latest = k_timestamp_max;
+
+/* Verify that model's constants are numerically equal to WiredTiger's constants. */
+static_assert(k_timestamp_latest == WT_TS_MAX);
+static_assert(k_timestamp_max == WT_TS_MAX);
+static_assert(k_timestamp_none == WT_TS_NONE);
 
 } /* namespace model */
 #endif

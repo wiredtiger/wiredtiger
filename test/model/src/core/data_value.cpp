@@ -57,7 +57,7 @@ data_value::wt_type() const
     else if (std::holds_alternative<std::string>(*this))
         return "S";
     else {
-        assert(0 /* This should not happen. */);
+        assert(!"Invalid code path unexpected data_value type");
         return ""; /* Make gcc happy. */
     }
 }
@@ -78,7 +78,7 @@ operator<<(std::ostream &out, const data_value &value)
     else if (std::holds_alternative<std::string>(value))
         out << std::get<std::string>(value);
     else
-        assert(0 /* This should not happen. */);
+        assert(!"Invalid code path unexpected data_value type");
 
     return out;
 }
@@ -100,7 +100,7 @@ set_wt_cursor_key_or_value(
     else if (std::holds_alternative<std::string>(value))
         set_fn(cursor, std::get<std::string>(value).c_str());
     else
-        assert(0 /* This should not happen. */);
+        assert(!"Invalid code path unexpected data_value type");
 }
 
 /*
