@@ -40,7 +40,7 @@
  * will be updated to use _Generic on all platforms.
  */
 #if defined(__GNUC__) || defined(__clang__)
-#define WT_READ_ONCE(v, val) (v) = (*(volatile __typeof__(val) *)&(val));
+#define WT_READ_ONCE(v, val) (v) = (*(volatile __typeof__(val) *)&(val))
 #else
 #define WT_READ_ONCE(v, val) WT_ORDERED_READ(v, val)
 #endif
