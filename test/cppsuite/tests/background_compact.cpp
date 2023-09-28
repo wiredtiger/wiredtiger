@@ -133,7 +133,7 @@ public:
              * the entries in the table.
              */
             int64_t n_keys_to_truncate = (entries / 100) * 20;
-            int64_t keys_truncated, retries = 0;
+            int64_t keys_truncated = 0, retries = 0;
             const uint64_t MAX_RETRIES = 100;
             while (keys_truncated < n_keys_to_truncate && tw->running() && retries < MAX_RETRIES) {
                 /* Start a transaction if possible. */
