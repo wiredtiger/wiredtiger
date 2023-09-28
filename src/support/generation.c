@@ -133,7 +133,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
         for (;;) {
             /* Ensure we only read the value once. */
-            WT_ORDERED_READ(v, s->generations[which]);
+            WT_READ_ONCE(v, s->generations[which]);
 
             /*
              * The generation argument is newer than the limit. Wait for threads in generations
@@ -244,7 +244,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
             continue;
 
         /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, s->generations[which]);
+        WT_READ_ONCE(v, s->generations[which]);
 
         if (v != 0 && v < oldest)
             oldest = v;
@@ -279,7 +279,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
             continue;
 
         /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, s->generations[which]);
+        WT_READ_ONCE(v, s->generations[which]);
 
         if (v != 0 && generation >= v)
             return (true);

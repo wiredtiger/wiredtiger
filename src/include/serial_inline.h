@@ -129,7 +129,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
     *recnop = recno;
     do {
         /* Ensure we only read the value once. */
-        last_recno = *((volatile uint64_t *)(&btree->last_recno));
+        WT_READ_ONCE(last_recno, btree->last_recno);
     } while ((recno > last_recno) && !__wt_atomic_cas64(&btree->last_recno, last_recno, recno));
 
     return (0);

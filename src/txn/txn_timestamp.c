@@ -74,7 +74,7 @@ __wt_txn_parse_timestamp(
 static void
 __txn_get_read_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *read_timestampp)
 {
-    WT_ORDERED_READ(*read_timestampp, txn_shared->read_timestamp);
+    WT_READ_ONCE(*read_timestampp, txn_shared->read_timestamp);
 }
 
 /*
@@ -139,7 +139,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
 static void
 __txn_get_durable_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *durable_timestampp)
 {
-    WT_ORDERED_READ(*durable_timestampp, txn_shared->pinned_durable_timestamp);
+    WT_READ_ONCE(*durable_timestampp, txn_shared->pinned_durable_timestamp);
 }
 
 /*
