@@ -28,6 +28,7 @@
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
+#include "src/common/random_generator.h"
 #include "src/main/test.h"
 #include "src/main/validator.h"
 
@@ -80,7 +81,7 @@ public:
         while (tw->running()) {
             /* Make sure we're not doing any work during the maintenance window. */
             if (maintenance_window) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                std::this_thread::sleep_for(std::chrono::seconds(1));
                 continue;
             }
 
@@ -121,8 +122,8 @@ public:
             int64_t pct_free_space = (bytes_avail_reuse * 100 / file_size);
             if (pct_free_space > 10) {
                 logger::log_msg(LOG_INFO,
-                  log_prefix + "Skip truncating coll " + std::to_string(coll.id) +
-                    " free space available = " + std::to_string(pct_free_space));
+                  log_prefix + "Skip truncating collection {" + std::to_string(coll.id) +
+                    "}, free space available = " + std::to_string(pct_free_space));
                 testutil_check(stat_cursor->reset(stat_cursor.get()));
                 continue;
             }
@@ -132,8 +133,9 @@ public:
              * the entries in the table.
              */
             int64_t n_keys_to_truncate = (entries / 100) * 20;
-            int64_t keys_truncated = 0;
-            while (keys_truncated < n_keys_to_truncate) {
+            int64_t keys_truncated, retries = 0;
+            const uint64_t MAX_RETRIES = 100;
+            while (keys_truncated < n_keys_to_truncate && tw->running() && retries < MAX_RETRIES) {
                 /* Start a transaction if possible. */
                 tw->txn.try_begin();
 
@@ -172,6 +174,7 @@ public:
                 if (end_key == first_key || !tw->truncate(coll.id, first_key, end_key, "")) {
                     tw->txn.rollback();
                     logger::log_msg(LOG_TRACE, log_prefix + "truncate failed");
+                    retries++;
                     continue;
                 }
 
@@ -180,10 +183,12 @@ public:
                       log_prefix + " committed truncation of " + std::to_string(truncate_range) +
                         " records.");
                     keys_truncated += truncate_range;
-                } else
+                } else {
                     logger::log_msg(LOG_TRACE,
                       log_prefix + "failed to commit truncation of " +
                         std::to_string(truncate_range) + " records.");
+                    retries++;
+                }
 
                 /* Reset our cursor to avoid pinning content. */
                 testutil_check(rnd_cursor->reset(rnd_cursor.get()));
@@ -286,8 +291,37 @@ public:
     }
 
     void
-    validate(bool tracking_enabled, const std::string &operation_table_name, const std::string &,
-      database &db) override final
+    background_compact_operation(thread_worker *tw) override final
+    {
+        logger::log_msg(
+          LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
+
+        bool enabled = false;
+
+        while (tw->running()) {
+            enabled = !enabled;
+
+            std::string compact_cfg = enabled ?
+              "background=true,free_space_target=" + std::to_string(tw->free_space_target_mb) +
+                "MB" :
+              "background=false";
+
+            auto ret = tw->session->compact(tw->session.get(), nullptr, compact_cfg.c_str());
+            if (ret == EBUSY) {
+                logger::log_msg(LOG_WARN,
+                  type_string(tw->type) + " thread {" + std::to_string(tw->id) +
+                    "}: background compact returned EBUSY.");
+                /* Toggle back to the original state if we failed to call background compact. */
+                enabled = !enabled;
+            } else
+                testutil_check(ret);
+
+            tw->sleep();
+        }
+    }
+
+    void
+    validate(bool, const std::string &, const std::string &, database &) override final
     {
         logger::log_msg(LOG_INFO, "Starting validation.");
         scoped_session session = connection_manager::instance().create_session();
