@@ -68,7 +68,7 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
     M_W(rnd) = DEFAULT_SEED_W;
     M_Z(rnd) = DEFAULT_SEED_Z;
 
-    *rnd_state = rnd;
+    WT_WRITE_ONCE(rnd_state, rnd);
 }
 
 /*
