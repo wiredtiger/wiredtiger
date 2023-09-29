@@ -406,3 +406,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt11669_backup_corruption
+    SOURCES wt11669_backup_corruption/main.c
+    DIR_NAME wt11669_backup_corruption
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
