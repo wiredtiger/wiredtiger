@@ -76,7 +76,9 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH *pf)
 {
     WT_ADDR_COPY addr;
 
-    __wt_verbose(session, WT_VERB_PREFETCH, "The home changed while queued for pre-fetch %s", "");
+    if (pf->ref->home != pf->first_home)
+        __wt_verbose(
+          session, WT_VERB_PREFETCH, "The home changed while queued for pre-fetch %s", "");
 
     /*
      * FIXME-WT-11759 Consider whether we should have these asserts here or swallow up the errors
