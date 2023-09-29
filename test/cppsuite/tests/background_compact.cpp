@@ -262,7 +262,7 @@ public:
                     tw->txn.rollback();
                 } else {
                     added_count++;
-                    if (tw->txn.can_commit())
+                    if (tw->txn.can_commit()) {
                         if (tw->txn.commit())
                             /*
                              * We need to inform the database model that we've added these keys as
@@ -272,6 +272,7 @@ public:
                             cc.coll.increase_key_count(added_count);
                         else
                             added_count = 0;
+                    }
                 }
 
                 /* Sleep the duration defined by the op_rate. */
