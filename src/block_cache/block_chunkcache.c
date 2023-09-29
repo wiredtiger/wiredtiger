@@ -1139,7 +1139,9 @@ __wt_chunkcache_salvage(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
+    __wt_spin_lock(session, &S2C(session)->schema_lock);
     ret = __wt_schema_drop(session, WT_CC_URI, NULL);
+    __wt_spin_unlock(session, &S2C(session)->schema_lock);
 
     if (ret == WT_NOTFOUND)
         return (0);
