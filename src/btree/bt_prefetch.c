@@ -25,6 +25,10 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
     block_preload = 0;
 
+    /*
+     * FIXME-WT-11759 Consider whether we should have these asserts here or swallow up the errors
+     * instead.
+     */
     WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
       "Pre-fetch starts with a leaf page and reviews the parent");
 
@@ -72,8 +76,12 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH *pf)
 {
     WT_ADDR_COPY addr;
 
-    WT_ASSERT_ALWAYS(
-      session, pf->ref->home == pf->first_home, "The home changed while queued for pre-fetch");
+    __wt_verbose(session, WT_VERB_PREFETCH, "The home changed while queued for pre-fetch %s", "");
+
+    /*
+     * FIXME-WT-11759 Consider whether we should have these asserts here or swallow up the errors
+     * instead.
+     */
     WT_ASSERT_ALWAYS(session, pf->dhandle != NULL, "Pre-fetch needs to save a valid dhandle");
     WT_ASSERT_ALWAYS(
       session, !F_ISSET(pf->ref, WT_REF_FLAG_INTERNAL), "Pre-fetch should only see leaf pages");

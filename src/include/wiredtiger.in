@@ -7763,6 +7763,7 @@ typedef enum {
     WT_VERB_METADATA,             /*!< Metadata messages. */
     WT_VERB_OUT_OF_ORDER,
     WT_VERB_OVERFLOW,
+    WT_VERB_PREFETCH,
     WT_VERB_READ,
     WT_VERB_RECONCILE,            /*!< Reconcile messages. */
     WT_VERB_RECOVERY,             /*!< Recovery messages. */

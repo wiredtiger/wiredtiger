@@ -11,6 +11,10 @@
 /*
  * __wt_session_prefetch_check --
  *     Check to see whether cursors owned by this session might benefit from doing pre-fetch
+ *
+ * FIXME-WT-11758 Change this function so that when pre-fetching is enabled on the session level,
+ *     all cursors associated with that session with automatically perform pre-fetching. Use the
+ *     session-level configuration once it is introduced.
  */
 bool
 __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
