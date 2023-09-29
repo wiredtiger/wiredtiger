@@ -1559,6 +1559,10 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
          * page with rec_result == 0 we will free the addr being copied - possibly after the null
          * check above - and this function will attempt to copy from freed memory.
          */
+        /*
+         * FIXME-WT-11718 We can't use the WT_READ_ONCE macro here as it this is an r-value. Try and
+         * fix this when we have a proper macro on windows.
+         */
         WT_ASSERT(session, *(void *volatile *)&ref->addr != NULL);
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
