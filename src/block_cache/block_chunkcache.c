@@ -39,16 +39,18 @@ __chunkcache_create_metadata_file(
 }
 
 /*
- * __chunkcache_metadata_file_exists --
- *     Check whether the chunk cache metadata file has already been created.
+ * __chunkcache_get_metadata_config --
+ *     If present, retrieve the on-disk configuration for the chunk cache metadata file. The caller
+ *     must only use *config if *found is true. The caller is responsible for freeing the memory
+ *     allocated into *config.
  */
 static int
 __chunkcache_get_metadata_config(WT_SESSION_IMPL *session, bool *found, char **config)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    char *tmp;
     size_t len;
+    char *tmp;
 
     *found = false;
     *config = NULL;
@@ -74,8 +76,9 @@ err:
 }
 
 /*
- * __chunkcache_verify_metadata_file --
- *     Check that the existing metadata file is compatible with our current chunk cache config.
+ * __chunkcache_verify_metadata_config --
+ *     Check that the existing chunk cache configuration is compatible with our current
+ *     configuration (and ergo, whether we can reuse the chunk cache contents).
  */
 static int
 __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, uint64_t capacity,
