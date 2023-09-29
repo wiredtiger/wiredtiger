@@ -359,37 +359,78 @@ gen_random_table_name(char *name, workgen_random_state volatile *rand_state)
  * fails.
  */
 int
-WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, const std::string &uri,
-  const std::string &mirror_uri, const bool is_base)
+WorkloadRunner::create_table(
+  WT_SESSION *session, const std::string &config, const std::string &uri, bool mirror_enabled)
 {
-    // Check if a table with this name already exists. Return if it does. Use a shared lock to
-    // read the dynamic table structure.
+    const std::string mirror_uri(mirror_enabled ? uri + _workload->options.mirror_suffix : "");
+
+    // Return if a table with the same name already exists. If mirror is enabled, make sure it does
+    // not exist either.
     ContextInternal *icontext = _workload->_context->_internal;
     {
+        // Use a shared lock to read the dynamic table structure.
         const std::shared_lock lock(*icontext->_dyn_mutex);
         if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
             return EEXIST;
+        if (mirror_enabled &&
+          (icontext->_tint.count(mirror_uri) > 0 || icontext->_dyn_tint.count(mirror_uri) > 0))
+            return EEXIST;
     }
 
-    // Create the table.
-    WT_DECL_RET;
-    if ((ret = session->create(session, uri.c_str(), config.c_str())) != 0) {
-        if (ret != EBUSY)
-            THROW("Failed to create table '" << uri << "'.");
+    /*
+     * The config has to be updated with the following information:
+     *  - The name of the table's mirror if mirroring is enabled.
+     *  - If this table is a base table or a mirror.
+     */
+    std::string base_config(config);
+    if (mirror_enabled)
+        base_config += "," + MIRROR_TABLE_APP_METADATA;
+    else
+        base_config += "," + BASE_TABLE_APP_METADATA + "true\"";
+
+    // When mirror is enabled, create the mirror first and the base. If we create the base first,
+    // threads may start working on the base while the mirror is not fully created.
+    if (mirror_enabled) {
+        const std::string config_tmp(base_config + uri + "," + BASE_TABLE_APP_METADATA + "false\"");
+        int ret = session->create(session, mirror_uri.c_str(), config_tmp.c_str());
+        if (ret != 0) {
+            VERBOSE(*_workload, "Failed to create mirror table '" << mirror_uri << "'");
+            return ret;
+        }
+    }
+
+    // Create the base table.
+    std::string config_tmp(base_config);
+    if (mirror_enabled)
+        config_tmp += mirror_uri + "," + BASE_TABLE_APP_METADATA + "true\"";
+
+    int ret = session->create(session, uri.c_str(), config_tmp.c_str());
+    if (ret != 0) {
+        std::string err_msg("Failed to create table '" + uri + "'");
+        VERBOSE(*_workload, err_msg);
+        // If mirror is enabled, we cannot fail here.
+        if (mirror_enabled)
+            THROW_ERRNO(ret, err_msg);
         return ret;
     }
 
-    // The data structures for the dynamic table set are protected by a mutex.
-    {
-        const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
+    // All the required tables have been created, update the data structures for the dynamic tables
+    // which are protected by a mutex.
+    const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
+    tint_t tint = icontext->_dyn_tint_last;
+    icontext->_dyn_tint[uri] = tint;
+    icontext->_dyn_table_names[tint] = uri;
+    icontext->_dyn_table_runtime[tint] = TableRuntime(true, mirror_uri);
+    (void)workgen_atomic_add32(&icontext->_dyn_tint_last, 1);
+    VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
 
-        // Add the table into the list of dynamic set.
+    if (mirror_enabled) {
         tint_t tint = icontext->_dyn_tint_last;
-        icontext->_dyn_tint[uri] = tint;
-        icontext->_dyn_table_names[tint] = uri;
-        icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
+        icontext->_dyn_tint[mirror_uri] = tint;
+        icontext->_dyn_table_names[tint] = mirror_uri;
+        icontext->_dyn_table_runtime[tint] = TableRuntime(false, uri);
         (void)workgen_atomic_add32(&icontext->_dyn_tint_last, 1);
-        VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+        VERBOSE(*_workload, "Created table and added to the dynamic set: " << mirror_uri);
     }
 
     return 0;
@@ -420,25 +461,6 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
         // Initially we start creating tables if the database size is less than the create target.
         creating = db_size < _workload->options.create_target;
     }
-
-    std::string uri;
-    std::string mirror_uri = std::string();
-    int creates, retries, status;
-    char rand_chars[DYNAMIC_TABLE_LEN];
-
-    /*
-     * Add app_metadata to the config to indicate the table was created dynamically (can be selected
-     * for random deletion), the name of the table's mirror if mirroring is enabled, and if this
-     * table is a base table or a mirror. We want these settings to persist over restarts.
-     */
-    std::string base_config =
-      "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA;
-    if (_workload->options.mirror_tables) {
-        base_config += "," + MIRROR_TABLE_APP_METADATA;
-    } else {
-        base_config += "," + BASE_TABLE_APP_METADATA + "true\"";
-    }
-    std::string config = base_config;
 
     while (!stopping) {
         /*
@@ -471,40 +493,29 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             continue;
         }
 
-        retries = 0;
-        creates = 0;
-        while (creates < _workload->options.create_count) {
+        // Add app_metadata to the config to indicate the table was created dynamically which means
+        // it can be selected for random deletion. We want this information to persist over restart.
+        const std::string config(
+          "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA);
 
+        int creates = 0, retries = 0;
+        while (
+          !stopping && creates < _workload->options.create_count && retries < TABLE_MAX_RETRIES) {
             // Generate a table name from the user specified prefix and a random alphanumeric
             // sequence.
+            char rand_chars[DYNAMIC_TABLE_LEN];
             gen_random_table_name(rand_chars, _rand_state);
-            uri = "table:";
+            std::string uri("table:");
             uri += _workload->options.create_prefix;
             uri += rand_chars;
 
-            if (_workload->options.mirror_tables) {
-                // The mirror table name is the table name with the user specified suffix.
-                mirror_uri = uri + _workload->options.mirror_suffix;
-                config = base_config + mirror_uri + "," + BASE_TABLE_APP_METADATA + "true\"";
-            }
-
-            // Create the table. Simply continue on failure.
-            if (create_table(session, config, uri, mirror_uri, true) == 0) {
-                VERBOSE(*_workload, "Created base table '" << uri << "'");
-                if (_workload->options.mirror_tables) {
-                    // Create the mirror. Retry on failure and throw an exception after
-                    // making too many retry attempts.
-                    config = base_config + uri + "," + BASE_TABLE_APP_METADATA + "false\"";
-                    do
-                        status = create_table(session, config, mirror_uri, uri, false);
-                    while (status == EBUSY && ++retries < TABLE_MAX_RETRIES);
-                    if (status != 0)
-                        THROW_ERRNO(
-                          status, "Failed to create mirror table '" << mirror_uri << "'.");
-                    VERBOSE(*_workload, "Created mirror table '" << mirror_uri << "'");
-                }
+            // Create the table and its mirror if enabled.
+            int ret = create_table(session, config, uri, _workload->options.mirror_tables);
+            ASSERT(ret == 0 || ret == EBUSY || ret == EEXIST);
+            if (ret == 0)
                 ++creates;
-            }
+            else
+                ++retries;
         }
         sleep(_workload->options.create_interval);
     }

@@ -341,8 +341,8 @@ struct WorkloadRunner {
 private:
     int close_all();
     int create_all(WT_CONNECTION *conn, Context *context);
-    int create_table(WT_SESSION *session, const std::string &config, const std::string &uri,
-      const std::string &mirror_uri, const bool is_base);
+    int create_table(
+      WT_SESSION *session, const std::string &config, const std::string &uri, bool mirror_enabled);
     void final_report(timespec &);
     void schedule_table_for_drop(const std::map<std::string, tint_t>::iterator &itr,
       std::vector<std::string> &pending_delete);
