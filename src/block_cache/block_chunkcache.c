@@ -47,8 +47,11 @@ __chunkcache_get_metadata_config(WT_SESSION_IMPL *session, bool *found, char **c
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    char *tmp;
+    size_t len;
 
     *found = false;
+    *config = NULL;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, WT_CC_URI);
@@ -56,7 +59,12 @@ __chunkcache_get_metadata_config(WT_SESSION_IMPL *session, bool *found, char **c
 
     if (ret == 0) {
         *found = true;
-        WT_ERR(cursor->get_value(cursor, config));
+
+        WT_ERR(cursor->get_value(cursor, &tmp));
+
+        len = strlen(tmp);
+        WT_ERR(__wt_calloc(session, 1, len + 1, config));
+        strncpy(*config, tmp, len);
     } else
         ret = 0;
 
@@ -86,7 +94,7 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
         ret = -1;
     }
 
-    /* TODO open the "real" table just to verify it exists. */
+    /* FIXME-WT-11723 Open the underlying table just to verify it exists. */
 
     return (ret);
 }
@@ -893,8 +901,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     bool metadata_exists;
 
     chunkcache = &S2C(session)->chunkcache;
-    pinned_objects = NULL;
     cnt = 0;
+    metadata_config = NULL;
+    pinned_objects = NULL;
 
     if (F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
@@ -956,6 +965,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
           WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
           &chunkcache->free_bitmap));
 
+        /* Retrieve the chunk cache metadata config, and ensure it matches our startup config. */
         WT_RET(__chunkcache_get_metadata_config(session, &metadata_exists, &metadata_config));
         if (!metadata_exists) {
             WT_RET(__chunkcache_create_metadata_file(
@@ -965,8 +975,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
             WT_RET(__chunkcache_verify_metadata_config(session, metadata_config,
               chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
             __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "reused chunkcache metadata file");
-            /* TODO free metadata_config? */
         }
+        __wt_free(session, metadata_config);
     }
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.flushed_data_cache_insertion", &cval));
