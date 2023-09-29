@@ -965,7 +965,7 @@ __txn_checkpoint_establish_time(WT_SESSION_IMPL *session)
     ckpt_sec = WT_MAX(ckpt_sec, conn->flush_most_recent);
 
     for (;;) {
-        WT_ORDERED_READ(most_recent, conn->ckpt_most_recent);
+        WT_READ_ONCE(most_recent, conn->ckpt_most_recent);
         if (ckpt_sec <= most_recent)
             ckpt_sec = most_recent + 1;
         if (__wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt_sec))
