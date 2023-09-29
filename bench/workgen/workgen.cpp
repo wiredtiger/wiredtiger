@@ -1620,27 +1620,12 @@ ThreadRunner::op_run_setup(Operation *op)
             std::advance(itr, random_value() % num_tables);
 
             if (_icontext->_dyn_table_runtime[itr->second]._is_base &&
-              !_icontext->_dyn_table_runtime[itr->second]._pending_delete) {
-
-                // In case the selected table has a mirror, we need to check it is ready for use.
-                if (_icontext->_dyn_table_runtime[itr->second].has_mirror()) {
-                    const std::string mirror_op_uri(
-                      _icontext->_dyn_table_runtime[itr->second]._mirror);
-                    // When a table is created, its mirror is fully created when a valid URI and
-                    // unique identifier have been allocated.
-                    if (mirror_op_uri.empty())
-                        continue;
-                    tint_t mirror_op_tint = _icontext->_dyn_tint[mirror_op_uri];
-                    if (mirror_op_tint == 0)
-                        continue;
-                }
+              !_icontext->_dyn_table_runtime[itr->second]._pending_delete)
                 break;
-            }
         }
         // Try again next time.
-        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES) {
+        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES)
             return 0;
-        }
 
         std::string op_uri = itr->first; // Get the table name.
         tint_t op_tint = itr->second;    // Get the tint.
