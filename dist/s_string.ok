@@ -240,7 +240,6 @@ MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
-McIlroy
 Mellor
 Mewhort
 Mitzenmacher
@@ -328,7 +327,6 @@ RXB
 ReadFile
 Readonly
 Realloc
-Recurse
 RedHat
 Redistributions
 Rogerio
@@ -427,6 +425,7 @@ WinNT
 WiredTiger
 WiredTiger's
 WiredTigerCheckpoint
+WiredTigerChunkCache
 WiredTigerHS
 WiredTigerLAS
 WiredTigerLog
@@ -1109,7 +1108,6 @@ qrrSS
 qsort
 quartile
 queueable
-quicksort
 quiesce
 qup
 rN
@@ -1289,6 +1287,7 @@ txnid
 txp
 txt
 typedef
+typeof
 uS
 ui
 uint

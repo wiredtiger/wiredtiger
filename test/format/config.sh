@@ -145,6 +145,16 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
+{"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0}
+
+{"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 10, 1024, 100 * 1024}
+
+{"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 100, 100 * 1024}
+
+{"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE, 0, 0, 0}
+
+{"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0}
+
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
@@ -252,6 +262,10 @@ CONFIG configuration_list[] = {
 {"ops.random_cursor", "configure random cursor reads", C_BOOL, 10, 0, 0}
 
 {"ops.salvage", "configure salvage", C_BOOL, 100, 1, 0}
+
+{"ops.throttle", "enable delay between ops", C_BOOL, 10, 0, 0}
+
+{"ops.throttle.sleep_us", "average duration of sleep between ops per table, us", 0x0, 0, M(1), M(60)}
 
 {"ops.truncate", "configure truncation", C_BOOL | C_TABLE, 100, 0, 0}
 

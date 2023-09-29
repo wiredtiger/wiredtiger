@@ -42,6 +42,31 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
+typedef enum __wt_bg_compact_cleanup_type {
+    BACKGROUND_CLEANUP_ALL_STAT,
+    BACKGROUND_CLEANUP_STALE_STAT
+} WT_BACKGROUND_COMPACT_CLEANUP_TYPE;
+
+/*
+ * WT_BACKGROUND_COMPACT_STAT --
+ *  List of tracking information for each file compact has worked on.
+ */
+struct __wt_background_compact_stat {
+    const char *uri;
+    uint32_t id;                                /* File ID */
+    bool prev_compact_success;                  /* Last compact successfully reclaimed space */
+    uint64_t prev_compact_time;                 /* Start time for last compact attempt */
+    uint64_t skip_count;                        /* Number of times we've skipped this file */
+    uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
+    uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
+
+    wt_off_t start_size; /* File size before compact last started */
+    wt_off_t end_size;   /* File size after compact last ended */
+
+    /* Hash of files background compact has worked on */
+    TAILQ_ENTRY(__wt_background_compact_stat) hashq;
+};
+
 /*
  * WT_BACKGROUND_COMPACT --
  *	Structure dedicated to the background compaction server
@@ -55,6 +80,18 @@ struct __wt_background_compact {
     WT_CONDVAR *cond;         /* Wait mutex */
     WT_SPINLOCK lock;         /* Compact lock */
     WT_SESSION_IMPL *session; /* Thread session */
+
+    uint64_t files_skipped;       /* Number of times background server has skipped a file */
+    uint64_t files_compacted;     /* Number of times background server has compacted a file */
+    uint64_t file_count;          /* Number of files in the tracking list */
+    uint64_t bytes_rewritten_ema; /* Exponential moving average for the bytes rewritten */
+
+    uint64_t max_file_idle_time;       /* File compact idle time */
+    uint64_t max_file_skip_time;       /* File compact skip time */
+    uint64_t full_iteration_wait_time; /* Time in seconds to wait after a full iteration */
+
+    /* List of files to track compaction statistics across background server iterations. */
+    TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
 };
 
 /*
@@ -423,6 +460,20 @@ struct __wt_connection_impl {
     uint64_t ckpt_write_bytes;
     uint64_t ckpt_write_pages;
 
+    /* Record the important timestamps of each stage in recovery. */
+    struct __wt_recovery_timeline {
+        uint64_t log_replay_ms;
+        uint64_t rts_ms;
+        uint64_t checkpoint_ms;
+        uint64_t recovery_ms;
+    } recovery_timeline;
+
+    /* Record the important timestamps of each stage in shutdown. */
+    struct __wt_shutdown_timeline {
+        uint64_t rts_ms;
+        uint64_t checkpoint_ms;
+        uint64_t shutdown_ms;
+    } shutdown_timeline;
     /* Checkpoint and incremental backup data */
     uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
@@ -452,6 +503,7 @@ struct __wt_connection_impl {
 
     WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
 
+#define WT_CONN_TIERED_STORAGE_ENABLED(conn) ((conn)->bstorage != NULL)
     WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
     WT_BUCKET_STORAGE bstorage_none; /* Bucket storage for "none" */
 

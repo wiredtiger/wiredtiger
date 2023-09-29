@@ -1045,8 +1045,12 @@ __txn_search_prepared_op(
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
-    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL, WT_NOTFOUND,
-      "unable to locate update associated with a prepared operation");
+    /*
+     * We cannot guarantee that we find an update when collators are being used as we cannot sort
+     * modifications on collated b-trees.
+     */
+    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL || op->btree->collator != NULL,
+      WT_NOTFOUND, "unable to locate update associated with a prepared operation");
 
     return (0);
 }
@@ -1469,7 +1473,7 @@ err:
  *     Given an operation return a boolean indicating if it has a sortable key.
  */
 static inline bool
-__txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
+__txn_mod_sortable_key(WT_TXN_OP *opt)
 {
     switch (opt->type) {
     case (WT_TXN_OP_NONE):
@@ -1483,27 +1487,23 @@ __txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
     }
-    WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered");
+    __wt_abort(NULL);
     return (false);
 }
 
 /*
  * __txn_mod_compare --
- *     Qsort comparison routine for transaction modify list. Takes a session as a context argument.
- *     This allows for the use of comparators.
+ *     Qsort comparison routine for transaction modify list.
  */
 static int WT_CDECL
-__txn_mod_compare(const void *a, const void *b, void *context)
+__txn_mod_compare(const void *a, const void *b)
 {
-    WT_SESSION_IMPL *session;
     WT_TXN_OP *aopt, *bopt;
-    int cmp;
     bool a_has_sortable_key;
     bool b_has_sortable_key;
 
     aopt = (WT_TXN_OP *)a;
     bopt = (WT_TXN_OP *)b;
-    session = (WT_SESSION_IMPL *)context;
 
     /*
      * We want to sort on two things:
@@ -1531,8 +1531,8 @@ __txn_mod_compare(const void *a, const void *b, void *context)
      * Order by whether the given operation has a key. We don't want to call key compare incorrectly
      * especially given that u is a union which would create undefined behavior.
      */
-    a_has_sortable_key = __txn_mod_sortable_key(session, aopt);
-    b_has_sortable_key = __txn_mod_sortable_key(session, bopt);
+    a_has_sortable_key = __txn_mod_sortable_key(aopt);
+    b_has_sortable_key = __txn_mod_sortable_key(bopt);
     if (a_has_sortable_key && !b_has_sortable_key)
         return (-1);
     if (!a_has_sortable_key && b_has_sortable_key)
@@ -1544,13 +1544,11 @@ __txn_mod_compare(const void *a, const void *b, void *context)
     if (!a_has_sortable_key && !b_has_sortable_key)
         return (0);
 
-    /* Finally, order by key. Row-store requires a call to __wt_compare. */
+    /* Finally, order by key. We cannot sort if there is a collator as we need a session pointer. */
     if (aopt->btree->type == BTREE_ROW) {
-        WT_ASSERT_ALWAYS(session,
-          __wt_compare(
-            session, aopt->btree->collator, &aopt->u.op_row.key, &bopt->u.op_row.key, &cmp) == 0,
-          "Failed to sort transaction modifications during prepare commit/rollback");
-        return (cmp);
+        return (aopt->btree->collator == NULL ?
+            __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
+            0);
     }
     if (aopt->u.op_col.recno < bopt->u.op_col.recno)
         return (-1);
@@ -1646,8 +1644,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * page within each file are done at the same time.
      */
     if (prepare)
-        __wt_qsort_r(
-          txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare, (void *)session);
+        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* If we are logging, write a commit log record. */
     if (txn->logrec != NULL) {
@@ -2073,8 +2070,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
      * page within each file are done at the same time.
      */
     if (prepare)
-        __wt_qsort_r(
-          txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare, (void *)session);
+        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -2469,6 +2465,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *s;
+    WT_TIMER timer;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
     bool use_timestamp;
@@ -2496,16 +2493,24 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * clean shutdown.
          */
         if (use_timestamp) {
+            __wt_timer_start(session, &timer);
             __wt_verbose(session, WT_VERB_RTS,
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
 
+            /* Time since the shutdown RTS has started. */
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.rts_ms);
             if (ret != 0)
                 __wt_verbose_notice(session, WT_VERB_RTS,
                   WT_RTS_VERB_TAG_SHUTDOWN_RTS
                   "performing shutdown rollback to stable failed with code %s",
                   __wt_strerror(session, ret, NULL, 0));
+            else
+                __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+                  "shutdown rollback to stable has successfully finished and ran for %" PRIu64
+                  " milliseconds",
+                  conn->shutdown_timeline.rts_ms);
         }
 
         s = NULL;
@@ -2513,6 +2518,9 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
         if (s != NULL) {
             const char *checkpoint_cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
+
+            __wt_timer_start(session, &timer);
+
             WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
             /*
@@ -2521,6 +2529,12 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
 
             WT_TRET(__wt_session_close_internal(s));
+
+            /* Time since the shutdown checkpoint has started. */
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
+            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+              "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
+              conn->shutdown_timeline.checkpoint_ms);
         }
     }
 
@@ -2727,8 +2741,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_UNITTEST
 int WT_CDECL
-__ut_txn_mod_compare(const void *a, const void *b, void *context)
+__ut_txn_mod_compare(const void *a, const void *b)
 {
-    return (__txn_mod_compare(a, b, context));
+    return (__txn_mod_compare(a, b));
 }
 #endif

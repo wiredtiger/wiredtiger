@@ -557,6 +557,10 @@ connection_runtime_config = [
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
+        Config('background_compact', 'false', r'''
+               if true, background compact aggressively removes compact statistics for a file and
+               decreases the max amount of time a file can be skipped for.''', 
+               type='boolean'),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
             type='boolean'),
@@ -1068,13 +1072,18 @@ wiredtiger_open_chunk_cache_configuration = [
             size of cached chunks''',
             min='512KB', max='100GB'),
         Config('storage_path', '', r'''
-            the absolute path to the file used as cache location'''),
+            the path (absolute or relative) to the file used as cache location. This should be on a
+            filesystem that supports file truncation. All filesystems in common use
+            meet this criteria.'''),
         Config('enabled', 'false', r'''
             enable chunk cache''',
             type='boolean'),
         Config('hashsize', '1024', r'''
             number of buckets in the hashtable that keeps track of objects''',
             min='64', max='1048576'),
+        Config('flushed_data_cache_insertion', 'true', r'''
+            enable caching of freshly-flushed data, before it is removed locally.''',
+            type='boolean', undoc=True),
         Config('type', 'FILE', r'''
             cache location, defaults to the file system.''',
             choices=['FILE', 'DRAM'], undoc=True),

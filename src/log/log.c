@@ -636,8 +636,11 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
      * If the user configured zero filling, pre-allocate the log file manually. Otherwise use the
      * file extension method to create and zero the log file based on what is available.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL))
-        return (__wt_file_zero(session, fh, log->first_record, conn->log_file_max));
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL)) {
+        WT_STAT_CONN_INCR(session, log_zero_fills);
+        return (
+          __wt_file_zero(session, fh, log->first_record, conn->log_file_max, WT_THROTTLE_LOG));
+    }
 
     /* If configured to not extend the file, we're done. */
     if (conn->log_extend_len == 0)
@@ -1408,7 +1411,8 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
         }
     }
 
-    return (__wt_file_zero(session, log_fh, offset, conn->log_file_max));
+    WT_STAT_CONN_INCR(session, log_zero_fills);
+    return (__wt_file_zero(session, log_fh, offset, conn->log_file_max, WT_THROTTLE_LOG));
 }
 
 /*
@@ -2826,8 +2830,8 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
         WT_RET(__wt_log_flush_lsn(session, &lsn, false));
     }
 
-    __wt_verbose(session, WT_VERB_LOG, "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,
-      flags, lsn.l.file, lsn.l.offset);
+    __wt_verbose_debug2(session, WT_VERB_LOG,
+      "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32, flags, lsn.l.file, lsn.l.offset);
     /*
      * If the user wants write-no-sync, there is nothing more to do. If the user wants background
      * sync, set the LSN and we're done. If the user wants sync, force it now.

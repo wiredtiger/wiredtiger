@@ -1107,12 +1107,15 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *s, *session;
+    WT_TIMER timer;
     uint32_t i;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
+
+    __wt_timer_start(session, &timer);
 
     /*
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
@@ -1218,6 +1221,14 @@ err:
     WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
     if (cval.val != 0)
         F_SET(conn, WT_CONN_LEAK_MEMORY);
+
+    /* Time since the shutdown has started. */
+    __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.shutdown_ms);
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "shutdown was completed successfully and took %" PRIu64 "ms, including %" PRIu64
+      "ms for the rollback to stable, and %" PRIu64 "ms for the checkpoint.",
+      conn->shutdown_timeline.shutdown_ms, conn->shutdown_timeline.rts_ms,
+      conn->shutdown_timeline.checkpoint_ms);
 
     WT_TRET(__wt_connection_close(conn));
 
@@ -2054,6 +2065,39 @@ err:
 }
 
 /*
+ * __debug_mode_background_compact_config --
+ *     Set the debug configurations for the background compact server.
+ */
+static int
+__debug_mode_background_compact_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+#define WT_BACKGROUND_COMPACT_MAX_IDLE_TIME_DEBUG 10
+#define WT_BACKGROUND_COMPACT_MAX_SKIP_TIME_DEBUG 5
+#define WT_BACKGROUND_COMPACT_WAIT_TIME_DEBUG 2
+#define WT_BACKGROUND_COMPACT_MAX_IDLE_TIME WT_DAY
+#define WT_BACKGROUND_COMPACT_MAX_SKIP_TIME 60 * WT_MINUTE
+#define WT_BACKGROUND_COMPACT_WAIT_TIME 10
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.background_compact", &cval));
+    if (cval.val) {
+        conn->background_compact.max_file_idle_time = WT_BACKGROUND_COMPACT_MAX_IDLE_TIME_DEBUG;
+        conn->background_compact.max_file_skip_time = WT_BACKGROUND_COMPACT_MAX_SKIP_TIME_DEBUG;
+        conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME_DEBUG;
+    } else {
+        conn->background_compact.max_file_idle_time = WT_BACKGROUND_COMPACT_MAX_IDLE_TIME;
+        conn->background_compact.max_file_skip_time = 60 * WT_BACKGROUND_COMPACT_MAX_SKIP_TIME;
+        conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME;
+    }
+
+    return (0);
+}
+
+/*
  * __wt_debug_mode_config --
  *     Set debugging configuration.
  */
@@ -2068,6 +2112,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
 
     WT_RET(__debug_mode_log_retention_config(session, cfg));
+    WT_RET(__debug_mode_background_compact_config(session, cfg));
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)
@@ -2194,7 +2239,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
       {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
       {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
       {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},

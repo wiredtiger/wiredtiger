@@ -354,10 +354,13 @@ struct __wt_connection_stats {
     int64_t background_compact_fail;
     int64_t background_compact_fail_cache_pressure;
     int64_t background_compact_interrupted;
+    int64_t background_compact_ema;
+    int64_t background_compact_bytes_recovered;
     int64_t background_compact_running;
     int64_t background_compact_skipped;
     int64_t background_compact_success;
     int64_t background_compact_timeout;
+    int64_t background_compact_files_tracked;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
     int64_t block_cache_blocks_evicted;
@@ -387,6 +390,7 @@ struct __wt_connection_stats {
     int64_t block_byte_read_mmap;
     int64_t block_byte_read_syscall;
     int64_t block_byte_write;
+    int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
     int64_t block_byte_write_mmap;
     int64_t block_byte_write_syscall;
@@ -571,6 +575,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
     int64_t checkpoints;
+    int64_t checkpoints_compact;
     int64_t checkpoint_sync;
     int64_t checkpoint_presync;
     int64_t checkpoint_hs_pages_reconciled;
@@ -852,6 +857,7 @@ struct __wt_connection_stats {
     int64_t session_table_alter_success;
     int64_t session_table_alter_trigger_checkpoint;
     int64_t session_table_alter_skip;
+    int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
     int64_t session_table_compact_running;
