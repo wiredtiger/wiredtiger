@@ -2090,7 +2090,7 @@ __debug_mode_background_compact_config(WT_SESSION_IMPL *session, const char *cfg
         conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME_DEBUG;
     } else {
         conn->background_compact.max_file_idle_time = WT_BACKGROUND_COMPACT_MAX_IDLE_TIME;
-        conn->background_compact.max_file_skip_time = 60 * WT_BACKGROUND_COMPACT_MAX_SKIP_TIME;
+        conn->background_compact.max_file_skip_time = WT_BACKGROUND_COMPACT_MAX_SKIP_TIME;
         conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME;
     }
 
@@ -2239,7 +2239,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
       {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
       {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
       {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
