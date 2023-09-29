@@ -35,7 +35,7 @@
 namespace test_harness {
 
 /* This test produces a workload that encourages the background compaction server to do work by:
- *      1. Performing random truncations that remove 20% of keys on randomly selected tables.
+ *      1. Performing truncations that remove 20% of keys on randomly selected tables.
  *      2. Providing a "maintenance window" which allows compact to continue running while all other
  *         operations are paused. The period of the maintenance window is set by the custom
  *         operations op_rate.
@@ -148,13 +148,13 @@ public:
                      * finish the current transaction as we might be able to see new records after
                      * starting a new one.
                      */
-                    if (ret == WT_NOTFOUND) {
+                    if (ret == WT_NOTFOUND)
                         WT_IGNORE_RET_BOOL(tw->txn.commit());
-                    } else if (ret == WT_ROLLBACK) {
+                    else if (ret == WT_ROLLBACK)
                         tw->txn.rollback();
-                    } else {
+                    else
                         testutil_die(ret, "Unexpected error returned from cursor->next()");
-                    }
+
                     testutil_check(rnd_cursor->reset(rnd_cursor.get()));
                     break;
                 }
@@ -262,18 +262,16 @@ public:
                     tw->txn.rollback();
                 } else {
                     added_count++;
-                    if (tw->txn.can_commit()) {
-                        if (tw->txn.commit()) {
+                    if (tw->txn.can_commit())
+                        if (tw->txn.commit())
                             /*
                              * We need to inform the database model that we've added these keys as
                              * some other thread may rely on the key_count data. Only do so if we
                              * successfully committed.
                              */
                             cc.coll.increase_key_count(added_count);
-                        } else {
+                        else
                             added_count = 0;
-                        }
-                    }
                 }
 
                 /* Sleep the duration defined by the op_rate. */
