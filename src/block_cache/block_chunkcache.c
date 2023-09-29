@@ -66,13 +66,13 @@ __chunkcache_get_metadata_config(WT_SESSION_IMPL *session, bool *found, char **c
 
         len = strlen(tmp);
         WT_ERR(__wt_calloc(session, 1, len + 1, config));
-        strncpy(*config, tmp, len);
+        strcpy(*config, tmp);
     } else
         ret = 0;
 
 err:
-    WT_RET(__wt_metadata_cursor_release(session, &cursor));
-    return (0);
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
 }
 
 /*
