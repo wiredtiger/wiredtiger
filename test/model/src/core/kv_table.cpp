@@ -50,9 +50,9 @@ kv_table::contains_any(const data_value &key, const data_value &value, timestamp
 
 /*
  * kv_table::get --
- *     Get the value.
+ *     Get the value. Note that this returns a copy of the object.
  */
-const data_value &
+data_value
 kv_table::get(const data_value &key, timestamp_t timestamp)
 {
     kv_table_item *item = item_if_exists(key);

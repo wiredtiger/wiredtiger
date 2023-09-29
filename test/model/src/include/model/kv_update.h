@@ -82,14 +82,10 @@ public:
          *     Compare two updates.
          */
         bool
-        operator()(const kv_update *left, const kv_update *right) const noexcept
+        operator()(const kv_update *left, const std::shared_ptr<kv_update> &right) const noexcept
         {
-            if (left == right)
-                return false;
-            if (left == nullptr)
-                return true;
-            if (right == nullptr)
-                return false;
+            if (!left) /* handle nullptr */
+                return !right ? false : true;
             return left->_timestamp < right->_timestamp;
         }
 
@@ -98,9 +94,9 @@ public:
          *     Compare the update to the given timestamp.
          */
         bool
-        operator()(const kv_update *left, timestamp_t timestamp) const noexcept
+        operator()(const std::shared_ptr<kv_update> &left, timestamp_t timestamp) const noexcept
         {
-            if (left == nullptr)
+            if (!left) /* handle nullptr */
                 return true;
             return left->_timestamp < timestamp;
         }
@@ -110,9 +106,9 @@ public:
          *     Compare the update to the given timestamp.
          */
         bool
-        operator()(timestamp_t timestamp, const kv_update *right) const noexcept
+        operator()(timestamp_t timestamp, const std::shared_ptr<kv_update> &right) const noexcept
         {
-            if (right == nullptr)
+            if (!right) /* handle nullptr */
                 return false;
             return timestamp < right->_timestamp;
         }
@@ -193,9 +189,9 @@ public:
 
     /*
      * kv_update::value --
-     *     Get the value.
+     *     Get the value. Note that this returns a copy of the object.
      */
-    inline const data_value &
+    inline data_value
     value() const noexcept
     {
         return _value;

@@ -30,6 +30,7 @@
 #define MODEL_KV_TABLE_ITEM_H
 
 #include <deque>
+#include <memory>
 #include <mutex>
 
 #include "model/data_value.h"
@@ -51,12 +52,6 @@ public:
     inline kv_table_item() noexcept {}
 
     /*
-     * kv_table_item::~kv_table_item --
-     *     Delete the instance.
-     */
-    ~kv_table_item();
-
-    /*
      * kv_table_item::add_update --
      *     Add an update.
      */
@@ -71,13 +66,13 @@ public:
 
     /*
      * kv_table_item::get --
-     *     Get the corresponding value.
+     *     Get the corresponding value. Note that this returns a copy of the object.
      */
-    const data_value &get(timestamp_t timestamp = k_timestamp_latest);
+    data_value get(timestamp_t timestamp = k_timestamp_latest);
 
 private:
     std::mutex _lock;
-    std::deque<kv_update *> _updates; /* sorted list of updates */
+    std::deque<std::shared_ptr<kv_update>> _updates; /* sorted list of updates */
 };
 
 } /* namespace model */

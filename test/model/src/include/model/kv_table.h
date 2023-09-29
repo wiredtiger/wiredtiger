@@ -57,7 +57,9 @@ public:
 
     /*
      * kv_table::name --
-     *     Get the name of the table.
+     *     Get the name of the table. The lifetime of the returned pointer follows the lifetime of
+     *     this object (given that this is a pointer to a read-only field in this class). We return
+     *     this as a regular C pointer so that it can be easily used in C APIs.
      */
     inline const char *
     name() const noexcept
@@ -75,9 +77,9 @@ public:
 
     /*
      * kv_table::get --
-     *     Get the value.
+     *     Get the value. Note that this returns a copy of the object.
      */
-    const data_value &get(const data_value &key, timestamp_t timestamp = k_timestamp_latest);
+    data_value get(const data_value &key, timestamp_t timestamp = k_timestamp_latest);
 
     /*
      * kv_table::insert --

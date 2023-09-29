@@ -35,16 +35,6 @@
 namespace model {
 
 /*
- * kv_table_item::~kv_table_item --
- *     Delete the instance.
- */
-kv_table_item::~kv_table_item()
-{
-    for (auto i : _updates)
-        delete i;
-}
-
-/*
  * kv_table_item::add_update --
  *     Add an update.
  */
@@ -81,7 +71,7 @@ kv_table_item::add_update(kv_update &&update, bool must_exist, bool must_not_exi
     }
 
     /* Insert. */
-    _updates.insert(i, new kv_update(std::move(update)));
+    _updates.insert(i, std::shared_ptr<kv_update>(new kv_update(std::move(update))));
     return 0;
 }
 
@@ -122,9 +112,9 @@ kv_table_item::contains_any(const data_value &value, timestamp_t timestamp)
 
 /*
  * kv_table_item::get --
- *     Get the corresponding value.
+ *     Get the corresponding value. Note that this returns a copy of the object.
  */
-const data_value &
+data_value
 kv_table_item::get(timestamp_t timestamp)
 {
     std::lock_guard lock_guard(_lock);
