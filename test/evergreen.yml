@@ -1753,7 +1753,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_config: debug_mode=(background_compact)
+          test_config: debug_mode=(background_compact,cursor_copy=true)
           test_config_filename: configs/background_compact_default.txt
           test_name: background_compact
 
