@@ -417,7 +417,7 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
         /*
          * Take care to read the dirty-byte count only once in case we're racing with updates.
          */
-        WT_ORDERED_READ(orig, page->modify->bytes_dirty);
+        WT_READ_ONCE(orig, page->modify->bytes_dirty);
         decr = WT_MIN(size, orig);
         if (__wt_atomic_cassize(&page->modify->bytes_dirty, orig, orig - decr))
             break;
@@ -459,7 +459,7 @@ __wt_cache_page_byte_updates_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_
 
     /* See above for why this can race. */
     for (i = 0; i < 5; ++i) {
-        WT_ORDERED_READ(orig, page->modify->bytes_updates);
+        WT_READ_ONCE(orig, page->modify->bytes_updates);
         decr = WT_MIN(size, orig);
         if (__wt_atomic_cassize(&page->modify->bytes_updates, orig, orig - decr))
             break;
