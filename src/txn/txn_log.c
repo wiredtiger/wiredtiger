@@ -225,10 +225,10 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
     else
         WT_ASSERT(session, txn->id != WT_TXN_NONE);
 
-    __wt_struct_size_IQ(session, &header_size, rectype, txn->id);
+    __wt_struct_size_commit(session, &header_size, rectype, txn->id);
     WT_RET(__wt_logrec_alloc(session, header_size, &logrec));
 
-    WT_ERR(__wt_struct_pack_IQ(session, (uint8_t *)logrec->data + logrec->size,
+    WT_ERR(__wt_struct_pack_commit(session, (uint8_t *)logrec->data + logrec->size,
       (uint8_t *)logrec->data + logrec->size + header_size, rectype, txn->id));
     logrec->size += (uint32_t)header_size;
     txn->logrec = logrec;
@@ -338,10 +338,10 @@ __txn_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
     start = LF_ISSET(WT_TXN_LOG_CKPT_START) ? 1 : 0;
     need_sync = LF_ISSET(WT_TXN_LOG_CKPT_SYNC);
 
-    __wt_struct_size_III(session, &header_size, rectype, btree->id, start);
+    __wt_struct_size_file_sync(session, &header_size, rectype, btree->id, start);
     WT_RET(__wt_logrec_alloc(session, header_size, &logrec));
 
-    WT_ERR(__wt_struct_pack_III(session, (uint8_t *)logrec->data + logrec->size,
+    WT_ERR(__wt_struct_pack_file_sync(session, (uint8_t *)logrec->data + logrec->size,
       (uint8_t *)logrec->data + logrec->size + header_size, rectype, btree->id, start));
     logrec->size += (uint32_t)header_size;
 
@@ -520,11 +520,11 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
 
         /* Write the checkpoint log record. */
         rectype = WT_LOGREC_CHECKPOINT;
-        __wt_struct_size_IIIIu(session, &recsize, rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset,
-          txn->ckpt_nsnapshot, ckpt_snapshot);
+        __wt_struct_size_checkpoint(session, &recsize, rectype, ckpt_lsn->l.file,
+          ckpt_lsn->l.offset, txn->ckpt_nsnapshot, ckpt_snapshot);
         WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
-        WT_ERR(__wt_struct_pack_IIIIu(session, (uint8_t *)logrec->data + logrec->size,
+        WT_ERR(__wt_struct_pack_checkpoint(session, (uint8_t *)logrec->data + logrec->size,
           (uint8_t *)logrec->data + logrec->size + recsize, rectype, ckpt_lsn->l.file,
           ckpt_lsn->l.offset, txn->ckpt_nsnapshot, ckpt_snapshot));
         logrec->size += (uint32_t)recsize;

@@ -783,464 +783,468 @@ __wt_struct_pack_I(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t 
 }
 
 /*
- * __wt_struct_size_II --
- *     Calculate the size of a packed byte string of format II.
+ * __wt_struct_size_checkpoint_start --
+ *     Determine the checkpoint start log rectype size of a packed byte string in format II.
  */
 static inline void
-__wt_struct_size_II(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second)
+__wt_struct_size_checkpoint_start(
+  WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype, uint32_t recsize)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
+    size = __wt_vsize_uint(rectype);
+    size += __wt_vsize_uint(recsize);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_II --
- *     Pack a byte string of format II.
+ * __wt_struct_pack_checkpoint_start --
+ *     Pack the checkpoint start log rectype byte string of format II.
  */
 static inline int
-__wt_struct_pack_II(
-  WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first, uint32_t second)
+__wt_struct_pack_checkpoint_start(
+  WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t rectype, uint32_t recsize)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    return (__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), rectype));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), recsize));
 }
 
 /*
- * __wt_struct_size_IQ --
- *     Calculate the size of a packed byte string of format IQ.
+ * __wt_struct_size_commit --
+ *     Determine the commit log rectype size of a packed byte string of format IQ.
  */
 static inline void
-__wt_struct_size_IQ(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint64_t second)
+__wt_struct_size_commit(WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype, uint64_t txnid)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
+    size = __wt_vsize_uint(rectype);
+    size += __wt_vsize_uint(txnid);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IQ --
- *     Pack a byte string of format IQ.
+ * __wt_struct_pack_commit --
+ *     Pack the commit log rectype byte string of format IQ.
  */
 static inline int
-__wt_struct_pack_IQ(
-  WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first, uint64_t second)
+__wt_struct_pack_commit(
+  WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t rectype, uint64_t txnid)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    return (__wt_vpack_uint(&p, (size_t)(end - p), second));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), rectype));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), txnid));
 }
 
 /*
- * __wt_struct_size_III --
- *     Calculate the size of a packed byte string of format III.
+ * __wt_struct_size_file_sync --
+ *     Determine the file sync log rectype size of a packed byte string of format III.
  */
 static inline void
-__wt_struct_size_III(
-  WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second, uint32_t third)
+__wt_struct_size_file_sync(WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype,
+  uint32_t btree_id, uint32_t checkpoint_start)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
+    size = __wt_vsize_uint(rectype);
+    size += __wt_vsize_uint(btree_id);
+    size += __wt_vsize_uint(checkpoint_start);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_III --
- *     Pack a byte string of format III.
+ * __wt_struct_pack_file_sync --
+ *     Pack the file sync log rectype byte string of format III.
  */
 static inline int
-__wt_struct_pack_III(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third)
+__wt_struct_pack_file_sync(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t rectype,
+  uint32_t btree_id, uint32_t checkpoint_start)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    return (__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), rectype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), btree_id));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), checkpoint_start));
 }
 
 /*
- * __wt_struct_size_IIII --
- *     Calculate the size of a packed byte string of format IIII.
+ * __wt_struct_size_prev_lsn --
+ *     Determine the prev lsn log rectype size of a packed byte string of format IIII.
  */
 static inline void
-__wt_struct_size_IIII(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, uint32_t fourth)
+__wt_struct_size_prev_lsn(WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype,
+  uint32_t recsize, uint32_t file, uint32_t offset)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth);
+    size = __wt_vsize_uint(rectype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(file);
+    size += __wt_vsize_uint(offset);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIII --
- *     Pack a byte string of format IIII.
+ * __wt_struct_pack_prev_lsn --
+ *     Pack the prev lsn log rectype byte string of format IIII.
  */
 static inline int
-__wt_struct_pack_IIII(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, uint32_t fourth)
+__wt_struct_pack_prev_lsn(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t rectype,
+  uint32_t recsize, uint32_t file, uint32_t offset)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
-    return (__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), rectype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), file));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), offset));
 }
 
 /*
- * __wt_struct_size_IIIr --
- *     Calculate the size of a packed byte string of format IIIr.
+ * __wt_struct_size_col_remove --
+ *     Determine the column remove log optype size of a packed byte string of format IIIr.
  */
 static inline void
-__wt_struct_size_IIIr(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, uint64_t fourth)
+__wt_struct_size_col_remove(WT_SESSION_IMPL *session, size_t *sizep, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, uint64_t recno)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth);
+    size = __wt_vsize_uint(optype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(fileid);
+    size += __wt_vsize_uint(recno);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIIr --
- *     Pack a byte string of format IIIr.
+ * __wt_struct_pack_col_remove --
+ *     Pack the column remove log optype byte string of format IIIr.
  */
 static inline int
-__wt_struct_pack_IIIr(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, uint64_t fourth)
+__wt_struct_pack_col_remove(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, uint64_t recno)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
-    return (__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), optype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fileid));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), recno));
 }
 
 /*
- * __wt_struct_size_IIIu --
- *     Calculate the size of a packed byte string of format IIIu.
+ * __wt_struct_size_row_remove --
+ *     Determine the row remove log optype size of a packed byte string of format IIIu.
  */
 static inline void
-__wt_struct_size_IIIu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, WT_ITEM *fourth)
+__wt_struct_size_row_remove(WT_SESSION_IMPL *session, size_t *sizep, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, WT_ITEM *key)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += fourth->size;
+    size = __wt_vsize_uint(optype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(fileid);
+    size += key->size;
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIIu --
- *     Pack a byte string of format IIIu.
+ * __wt_struct_pack_row_remove --
+ *     Pack the row remove log optype byte string of format IIIu.
  */
 static inline int
-__wt_struct_pack_IIIu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, WT_ITEM *fourth)
+__wt_struct_pack_row_remove(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, WT_ITEM *key)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), optype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fileid));
 
-    memcpy(p, fourth->data, fourth->size);
-    p += fourth->size;
+    memcpy(p, key->data, key->size);
+    p += key->size;
 
     return (0);
 }
 
 /*
- * __wt_struct_size_IIIIu --
- *     Calculate the size of a packed byte string of format IIIIu.
+ * __wt_struct_size_checkpoint --
+ *     Determine the checkpoint log rectype size of a packed byte string of format IIIIu.
  */
 static inline void
-__wt_struct_size_IIIIu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, uint32_t fourth, WT_ITEM *fifth)
+__wt_struct_size_checkpoint(WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype,
+  uint32_t file, uint32_t offset, uint32_t nsnapshot, WT_ITEM *snapshot)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth);
-    size += fifth->size;
+    size = __wt_vsize_uint(rectype);
+    size += __wt_vsize_uint(file);
+    size += __wt_vsize_uint(offset);
+    size += __wt_vsize_uint(nsnapshot);
+    size += snapshot->size;
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIIIu --
- *     Pack a byte string of format IIIIu.
+ * __wt_struct_pack_checkpoint --
+ *     Pack the checkpoint log rectype byte string of format IIIIu.
  */
 static inline int
-__wt_struct_pack_IIIIu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, uint32_t fourth, WT_ITEM *fifth)
+__wt_struct_pack_checkpoint(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t rectype,
+  uint32_t file, uint32_t offset, uint32_t nsnapshot, WT_ITEM *snapshot)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), rectype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), file));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), offset));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), nsnapshot));
 
-    memcpy(p, fifth->data, fifth->size);
-    p += fifth->size;
+    memcpy(p, snapshot->data, snapshot->size);
+    p += snapshot->size;
 
     return (0);
 }
 
 /*
- * __wt_struct_size_IIIrr --
- *     Calculate the size of a packed byte string of format IIIrr.
+ * __wt_struct_size_col_truncate --
+ *     Determine the column truncate log optype size of a packed byte string of format IIIrr.
  */
 static inline void
-__wt_struct_size_IIIrr(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, uint64_t fourth, uint64_t fifth)
+__wt_struct_size_col_truncate(WT_SESSION_IMPL *session, size_t *sizep, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, uint64_t start, uint64_t stop)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth);
-    size += __wt_vsize_uint(fifth);
+    size = __wt_vsize_uint(optype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(fileid);
+    size += __wt_vsize_uint(start);
+    size += __wt_vsize_uint(stop);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIIrr --
- *     Pack a byte string of format IIIrr.
+ * __wt_struct_pack_col_truncate --
+ *     Pack the column truncate log optype byte string of format IIIrr.
  */
 static inline int
-__wt_struct_pack_IIIrr(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, uint64_t fourth, uint64_t fifth)
+__wt_struct_pack_col_truncate(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, uint64_t start, uint64_t stop)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
-    return (__wt_vpack_uint(&p, (size_t)(end - p), fifth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), optype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fileid));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), start));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), stop));
 }
 
 /*
- * __wt_struct_size_IIIru --
- *     Calculate the size of a packed byte string of format IIIru.
+ * __wt_struct_size_col_put --
+ *     Determine the column put/modify log optype size of a packed byte string of format IIIru.
  */
 static inline void
-__wt_struct_size_IIIru(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, uint64_t fourth, WT_ITEM *fifth)
+__wt_struct_size_col_put(WT_SESSION_IMPL *session, size_t *sizep, uint32_t optype, uint32_t recsize,
+  uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth);
-    size += fifth->size;
+    size = __wt_vsize_uint(optype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(fileid);
+    size += __wt_vsize_uint(recno);
+    size += value->size;
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIIru --
- *     Pack a byte string of format IIIru.
+ * __wt_struct_pack_col_put --
+ *     Pack the column put/modify log optype byte string of format IIIru.
  */
 static inline int
-__wt_struct_pack_IIIru(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, uint64_t fourth, WT_ITEM *fifth)
+__wt_struct_pack_col_put(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), optype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fileid));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recno));
 
-    memcpy(p, fifth->data, fifth->size);
-    p += fifth->size;
+    memcpy(p, value->data, value->size);
+    p += value->size;
 
     return (0);
 }
 
 /*
- * __wt_struct_size_IIIuu --
- *     Calculate the size of a packed byte string of format IIIuu.
+ * __wt_struct_size_row_put --
+ *     Determine the row put/modify log optype size of a packed byte string of format IIIuu.
  */
 static inline void
-__wt_struct_size_IIIuu(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth)
+__wt_struct_size_row_put(WT_SESSION_IMPL *session, size_t *sizep, uint32_t optype, uint32_t recsize,
+  uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth->size);
-    size += fourth->size;
-    size += fifth->size;
+    size = __wt_vsize_uint(optype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(fileid);
+    size += __wt_vsize_uint(key->size);
+    size += key->size;
+    size += value->size;
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIIuu --
- *     Pack a byte string of format IIIuu. The formats IIIuu and IIIUu provide the same packing.
- *     Internally the `u` gets transformed into `U` in the original packing logic.
+ * __wt_struct_pack_row_put --
+ *     Pack the row put/modify log optype byte string of format IIIuu. The formats IIIuu and IIIUu
+ *     provide the same packing. Internally the `u` gets transformed into `U` in the original
+ *     packing logic.
  */
 static inline int
-__wt_struct_pack_IIIuu(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth)
+__wt_struct_pack_row_put(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), optype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fileid));
 
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth->size));
-    memcpy(p, fourth->data, fourth->size);
-    p += fourth->size;
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), key->size));
+    memcpy(p, key->data, key->size);
+    p += key->size;
 
-    memcpy(p, fifth->data, fifth->size);
-    p += fifth->size;
+    memcpy(p, value->data, value->size);
+    p += value->size;
 
     return (0);
 }
 
 /*
- * __wt_struct_size_IIIuuI --
- *     Calculate the size of a packed byte string of format IIIuuI.
+ * __wt_struct_size_row_truncate --
+ *     Determine the row truncate log optype size of a packed byte string of format IIIuuI.
  */
 static inline void
-__wt_struct_size_IIIuuI(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth, uint32_t sixth)
+__wt_struct_size_row_truncate(WT_SESSION_IMPL *session, size_t *sizep, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth->size);
-    size += fourth->size;
-    size += __wt_vsize_uint(fifth->size);
-    size += fifth->size;
-    size += __wt_vsize_uint(sixth);
+    size = __wt_vsize_uint(optype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(fileid);
+    size += __wt_vsize_uint(start->size);
+    size += start->size;
+    size += __wt_vsize_uint(stop->size);
+    size += stop->size;
+    size += __wt_vsize_uint(mode);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIIuuI --
- *     Pack a byte string of format IIIuuI. The formats IIIuuI and IIIUUI provide the same packing.
- *     Internally the `u` gets transformed into `U` in the original packing logic.
+ * __wt_struct_pack_row_truncate --
+ *     Pack the row truncate log optype byte string of format IIIuuI. The formats IIIuuI and IIIUUI
+ *     provide the same packing. Internally the `u` gets transformed into `U` in the original
+ *     packing logic.
  */
 static inline int
-__wt_struct_pack_IIIuuI(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint32_t third, WT_ITEM *fourth, WT_ITEM *fifth, uint32_t sixth)
+__wt_struct_pack_row_truncate(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t optype,
+  uint32_t recsize, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), optype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fileid));
 
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth->size));
-    memcpy(p, fourth->data, fourth->size);
-    p += fourth->size;
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), start->size));
+    memcpy(p, start->data, start->size);
+    p += start->size;
 
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fifth->size));
-    memcpy(p, fifth->data, fifth->size);
-    p += fifth->size;
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), stop->size));
+    memcpy(p, stop->data, stop->size);
+    p += stop->size;
 
-    return (__wt_vpack_uint(&p, (size_t)(end - p), sixth));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), mode));
 }
 
 /*
- * __wt_struct_size_IIQQQQQQQ --
- *     Calculate the size of a packed byte string of format IIQQQQQQQ.
+ * __wt_struct_size_txn_timestamp --
+ *     Determine the transaction timestamp log optype size of a packed byte string of format
+ *     IIQQQQQQQ.
  */
 static inline void
-__wt_struct_size_IIQQQQQQQ(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first, uint32_t second,
-  uint64_t third, uint64_t fourth, uint64_t fifth, uint64_t sixth, uint64_t seventh,
-  uint64_t eighth, uint64_t ninth)
+__wt_struct_size_txn_timestamp(WT_SESSION_IMPL *session, size_t *sizep, uint32_t optype,
+  uint32_t recsize, uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts,
+  uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
-    size += __wt_vsize_uint(second);
-    size += __wt_vsize_uint(third);
-    size += __wt_vsize_uint(fourth);
-    size += __wt_vsize_uint(fifth);
-    size += __wt_vsize_uint(sixth);
-    size += __wt_vsize_uint(seventh);
-    size += __wt_vsize_uint(eighth);
-    size += __wt_vsize_uint(ninth);
+    size = __wt_vsize_uint(optype);
+    size += __wt_vsize_uint(recsize);
+    size += __wt_vsize_uint(time_sec);
+    size += __wt_vsize_uint(time_nsec);
+    size += __wt_vsize_uint(commit_ts);
+    size += __wt_vsize_uint(durable_ts);
+    size += __wt_vsize_uint(first_commit_ts);
+    size += __wt_vsize_uint(prepare_ts);
+    size += __wt_vsize_uint(read_ts);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_IIQQQQQQQ --
- *     Pack a byte string of format IIQQQQQQQ.
+ * __wt_struct_pack_txn_timestamp --
+ *     Pack the transaction timestamp log optype byte string of format IIQQQQQQQ.
  */
 static inline int
-__wt_struct_pack_IIQQQQQQQ(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first,
-  uint32_t second, uint64_t third, uint64_t fourth, uint64_t fifth, uint64_t sixth,
-  uint64_t seventh, uint64_t eighth, uint64_t ninth)
+__wt_struct_pack_txn_timestamp(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t optype,
+  uint32_t recsize, uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts,
+  uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
 {
     WT_UNUSED(session);
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), second));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), third));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fourth));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), fifth));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), sixth));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), seventh));
-    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), eighth));
-    return (__wt_vpack_uint(&p, (size_t)(end - p), ninth));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), optype));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), recsize));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), time_sec));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), time_nsec));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), commit_ts));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), durable_ts));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), first_commit_ts));
+    WT_RET(__wt_vpack_uint(&p, (size_t)(end - p), prepare_ts));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), read_ts));
 }
