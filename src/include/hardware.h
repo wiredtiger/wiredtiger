@@ -51,10 +51,11 @@
  * Ensure a single write to memory in the source code produces a single write to memory in the
  * compiled output.
  *
- * We can describe a scenario with a memory location 'a' which is read from into a local variable
- * 'b', 'b' is then updated repeatedly within the function and written back out to 'a'. Without a
- * WT_WRITE_ONCE wrapping the final write to 'a' the compiler could convert every update to 'b' into
- * a separate store to 'a'. This is defined as 'invented stores' in WiredTiger.
+ * We can describe a scenario where a variable in memory is read to a local register, and then the
+ * register value is repeatedly updated before the final value is written back to memory. Without a
+ * WT_WRITE_ONCE wrapping the final write back to memory, the compiler is allowed to convert these
+ * register writes into writes to memory (see "register spilling") which can leak interim, invalid,
+ * state to other threads. We call these 'invented stores' in WiredTiger.
  *
  * See the read once macro description for more details.
  *
