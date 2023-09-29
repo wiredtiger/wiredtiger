@@ -250,12 +250,12 @@ __wt_logop_%(name)s_pack(
 \tuint32_t optype, recsize;
 
 \toptype = %(macro)s;
-\t__wt_struct_size_%(fmt)s(session, &size, optype, 0%(pack_args)s);
+\t__wt_struct_size_%(func_name)s(session, &size, optype, 0%(pack_args)s);
 
 \t__wt_struct_size_adjust(session, &size);
 \tWT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
 \trecsize = (uint32_t)size;
-\tWT_RET(__wt_struct_pack_%(fmt)s(session,
+\tWT_RET(__wt_struct_pack_%(func_name)s(session,
 \t    (uint8_t *)logrec->data + logrec->size, (uint8_t *)logrec->data + logrec->size + size,
 \t    optype, recsize%(pack_args)s));
 
@@ -264,6 +264,7 @@ __wt_logop_%(name)s_pack(
 }
 ''' % {
     'name' : optype.name,
+    'func_name' : optype.func_name,
     'macro' : optype.macro_name(),
     'comma' : ',' if optype.fields else '',
     'arg_decls' : ', '.join(
@@ -297,6 +298,7 @@ __wt_logop_%(name)s_unpack(
 }
 ''' % {
     'name' : optype.name,
+    'func_name' : optype.func_name,
     'macro' : optype.macro_name(),
     'comma' : ',' if optype.fields else '',
     'arg_decls' : ', '.join(
