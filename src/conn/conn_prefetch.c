@@ -13,7 +13,7 @@
  *     Start the pre-fetch server.
  *
  * FIXME-WT-11691 The pre-fetch server currently starts up when pre-fetch is enabled on the
- *     connection level but thi needs to be modified when we add the session level configuration.
+ *     connection level but this needs to be modified when we add the session level configuration.
  *     Perhaps we could delay starting the utility threads until the first session enables
  *     pre-fetching.
  */
