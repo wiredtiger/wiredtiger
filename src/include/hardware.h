@@ -51,6 +51,11 @@
  * Ensure a single write to memory in the source code produces a single write to memory in the
  * compiled output.
  *
+ * We can describe a scenario with a memory location 'a' which is read from into a local variable
+ * 'b', 'b' is then updated repeatedly within the function and written back out to 'a'. Without a
+ * WT_WRITE_ONCE wrapping the final write to 'a' the compiler could convert every update to 'b' into
+ * a separate store to 'a'. This is defined as 'invented stores' in WiredTiger.
+ *
  * See the read once macro description for more details.
  *
  * FIXME-WT-11718 - Once Windows build machines that support C11 _Generics are available this macro
