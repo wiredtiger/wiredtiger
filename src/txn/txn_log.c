@@ -465,10 +465,10 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
              * Write the system log record containing a checkpoint start operation.
              */
             rectype = WT_LOGREC_SYSTEM;
-            __wt_struct_size_I(session, &recsize, rectype);
+            __wt_struct_size_system_record(session, &recsize, rectype);
             WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
-            WT_ERR(__wt_struct_pack_I(session, (uint8_t *)logrec->data + logrec->size,
+            WT_ERR(__wt_struct_pack_system_record(session, (uint8_t *)logrec->data + logrec->size,
               (uint8_t *)logrec->data + logrec->size + recsize, rectype));
             logrec->size += (uint32_t)recsize;
             WT_ERR(__wt_logop_checkpoint_start_pack(session, logrec));

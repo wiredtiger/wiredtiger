@@ -30,8 +30,8 @@ __wt_log_system_record(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
     WT_RET(__wt_logrec_alloc(session, log->allocsize, &logrec_buf));
     memset((uint8_t *)logrec_buf->mem, 0, log->allocsize);
 
-    __wt_struct_size_I(session, &recsize, rectype);
-    WT_ERR(__wt_struct_pack_I(session, (uint8_t *)logrec_buf->data + logrec_buf->size,
+    __wt_struct_size_system_record(session, &recsize, rectype);
+    WT_ERR(__wt_struct_pack_system_record(session, (uint8_t *)logrec_buf->data + logrec_buf->size,
       (uint8_t *)logrec_buf->data + logrec_buf->size + recsize, rectype));
     logrec_buf->size += recsize;
     WT_ERR(__wt_logop_prev_lsn_pack(session, logrec_buf, lsn));

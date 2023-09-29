@@ -756,30 +756,30 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 }
 
 /*
- * __wt_struct_size_I --
- *     Calculate the size of a packed byte string of format I.
+ * __wt_struct_size_system_record --
+ *     Calculate the system log rectype size of a packed byte string of format I.
  */
 static inline void
-__wt_struct_size_I(WT_SESSION_IMPL *session, size_t *sizep, uint32_t first)
+__wt_struct_size_system_record(WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype)
 {
     size_t size;
 
     WT_UNUSED(session);
-    size = __wt_vsize_uint(first);
+    size = __wt_vsize_uint(rectype);
 
     *sizep = size;
     return;
 }
 
 /*
- * __wt_struct_pack_I --
- *     Pack a byte string of format I.
+ * __wt_struct_pack_system_record --
+ *     Pack the system log rectype byte string of format I.
  */
 static inline int
-__wt_struct_pack_I(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t first)
+__wt_struct_pack_system_record(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t rectype)
 {
     WT_UNUSED(session);
-    return (__wt_vpack_uint(&p, (size_t)(end - p), first));
+    return (__wt_vpack_uint(&p, (size_t)(end - p), rectype));
 }
 
 /*
