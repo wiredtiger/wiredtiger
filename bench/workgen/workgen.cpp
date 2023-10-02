@@ -416,24 +416,32 @@ WorkloadRunner::create_table(
 
     // All the required tables have been created, update the data structures for the dynamic tables
     // which are protected by a mutex.
-    const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
-    tint_t tint = icontext->_dyn_tint_last;
-    icontext->_dyn_tint[uri] = tint;
-    icontext->_dyn_table_names[tint] = uri;
-    icontext->_dyn_table_runtime[tint] = TableRuntime(true, mirror_uri);
-    (void)workgen_atomic_add32(&icontext->_dyn_tint_last, 1);
-    VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
-
-    if (mirror_enabled) {
-        tint_t tint = icontext->_dyn_tint_last;
-        icontext->_dyn_tint[mirror_uri] = tint;
-        icontext->_dyn_table_names[tint] = mirror_uri;
-        icontext->_dyn_table_runtime[tint] = TableRuntime(false, uri);
-        (void)workgen_atomic_add32(&icontext->_dyn_tint_last, 1);
-        VERBOSE(*_workload, "Created table and added to the dynamic set: " << mirror_uri);
+    {
+        const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
+        update_dyn_struct(uri, true, mirror_uri);
+        if (mirror_enabled)
+            update_dyn_struct(mirror_uri, false, uri);
     }
 
     return 0;
+}
+
+/*
+ * Update the structures dedicated to tables that can be created or removed during the workload. The
+ * caller should hold the mutex that protects those structures.
+ */
+void
+WorkloadRunner::update_dyn_struct(
+  const std::string &uri, bool is_base, const std::string &mirror_uri)
+{
+    ContextInternal *icontext = _workload->_context->_internal;
+
+    tint_t tint = icontext->_dyn_tint_last;
+    icontext->_dyn_tint[uri] = tint;
+    icontext->_dyn_table_names[tint] = uri;
+    icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
+    (void)workgen_atomic_add32(&icontext->_dyn_tint_last, 1);
+    VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
 }
 
 /*
