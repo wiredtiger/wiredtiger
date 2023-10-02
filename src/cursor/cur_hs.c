@@ -990,7 +990,7 @@ __curhs_insert(WT_CURSOR *cursor)
         WT_RET(__wt_txn_upd_get_durable(session, hs_tombstone, &tombstone_durable_ts));
         WT_ASSERT(session,
           __wt_txn_upd_set_durable(
-            tombstone_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_stop_ts) == 0);
+            &tombstone_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_stop_ts) == 0);
         // hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
         hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
 
@@ -1045,7 +1045,7 @@ __curhs_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone;
-    wt_timestamp_t *durable_ts;
+    wt_timestamp_t durable_ts;
 
     WT_UNUSED(value);
     WT_UNUSED(modify_type);
@@ -1061,8 +1061,8 @@ __curhs_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
     hs_tombstone->txnid = WT_TXN_NONE;
 
-    WT_ASSERT(session, __wt_txn_upd_get_durable(session, hs_tombstone, durable_ts) == 0);
-    WT_ASSERT(session, __wt_txn_upd_set_durable(durable_ts, WT_TS_NONE) == 0);
+    WT_RET(__wt_txn_upd_get_durable(session, hs_tombstone, &durable_ts));
+    WT_RET(__wt_txn_upd_set_durable(&durable_ts, WT_TS_NONE));
 
     hs_tombstone->start_ts = WT_TS_NONE;
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {

@@ -53,9 +53,9 @@
 #define WT_TIME_WINDOW_SET_START(tw, upd, durable_ts)                          \
     do {                                                           \
         (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts; \
-        __wt_txn_upd_get_durable(session, upd, durable_ts);        \
-        if ((upd)->durable_ts != WT_TS_NONE)                       \
-            (tw)->durable_start_ts = (upd)->durable_ts;            \
+        __wt_txn_upd_get_durable(session, upd, &durable_ts);        \
+        if (durable_ts != WT_TS_NONE)                       \
+            (tw)->durable_start_ts = durable_ts;            \
         (tw)->start_txn = (upd)->txnid;                            \
     } while (0)
 

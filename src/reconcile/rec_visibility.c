@@ -680,6 +680,8 @@ __rec_fill_tw_from_upd_select(
     last_upd = tombstone = NULL;
     select_tw = &upd_select->tw;
 
+    WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
+
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
      * last updated). The end timestamp is set when a key/value pair becomes invalid, either because
@@ -702,7 +704,6 @@ __rec_fill_tw_from_upd_select(
      * that the value is visible to any timestamp/transaction id ahead of it.
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
         WT_TIME_WINDOW_SET_STOP(select_tw, upd, &durable_ts);
         tombstone = upd_select->tombstone = upd;
 
@@ -721,7 +722,7 @@ __rec_fill_tw_from_upd_select(
 
     if (upd != NULL)
         /* The beginning of the validity window is the selected update's time point. */
-        WT_TIME_WINDOW_SET_START(select_tw, upd, &durable_ts);
+        WT_TIME_WINDOW_SET_START(select_tw, upd, durable_ts);
     else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
@@ -778,7 +779,7 @@ __rec_fill_tw_from_upd_select(
               "Tombstone is globally visible, but the tombstoned update is on the update "
               "chain");
             upd_select->upd = last_upd->next;
-            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
+            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next, durable_ts);
         } else {
             /*
              * It's possible that onpage value is not appended if the tombstone becomes globally

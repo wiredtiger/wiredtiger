@@ -462,7 +462,7 @@ __wt_modify_reconstruct_from_upd_list(
 
     cursor = &cbt->iface;
     /* While we have a pointer to our original modify, grab this information. */
-    WT_ASSERT(session, __wt_txn_upd_get_durable(session, modify, durable_ts) == 0);
+    WT_RET(__wt_txn_upd_get_durable(session, modify, &durable_ts));
     upd_value->tw.durable_start_ts = durable_ts;
     upd_value->tw.start_txn = modify->txnid;
     onpage_retry = true;

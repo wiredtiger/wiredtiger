@@ -47,7 +47,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          */
         WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
         txn_id_visible = __wt_rts_visibility_txn_visible_id(session, upd->txnid);
-        if (!txn_id_visible || rollback_timestamp < *durable_ts ||
+        if (!txn_id_visible || rollback_timestamp < durable_ts ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_UPDATE_ABORT
@@ -56,8 +56,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               ", stable_timestamp=%s < durable_timestamp=%s: %s, prepare_state=%s, flags 0x%" PRIx8,
               upd->txnid, !txn_id_visible ? "true" : "false",
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
-              __wt_timestamp_to_string(*durable_ts, ts_string[0]),
-              rollback_timestamp < *durable_ts ? "true" : "false",
+              __wt_timestamp_to_string(durable_ts, ts_string[0]),
+              rollback_timestamp < durable_ts ? "true" : "false",
               __wt_prepare_state_str(upd->prepare_state), upd->flags);
 
             if (!dryrun)
@@ -71,7 +71,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               "stable update found with txnid=%" PRIu64
               ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx8,
               upd->txnid, __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
-              __wt_timestamp_to_string(*durable_ts, ts_string[0]), upd->flags);
+              __wt_timestamp_to_string(durable_ts, ts_string[0]), upd->flags);
             break;
         }
     }
@@ -149,7 +149,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
     WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_INSERT *ins;
-    wt_timestamp_t *durable_ts;
+    wt_timestamp_t durable_ts;
     uint64_t recno;
     uint8_t *memp;
     char ts_string[WT_TS_INT_STRING_SIZE];
@@ -170,7 +170,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                 WT_ERR(__wt_vpack_uint(&memp, 0, recno));
                 key->size = WT_PTRDIFF(memp, key->data);
             }
-            WT_ASSERT(session, __wt_txn_upd_get_durable(session, ins->upd, durable_ts) == 0);
+            WT_RET(__wt_txn_upd_get_durable(session, ins->upd, &durable_ts));
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
               "attempting to abort update on the insert list with durable_timestamp=%s, key=%s",
@@ -269,8 +269,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     WT_PAGE *page;
     WT_TIME_WINDOW *hs_tw;
     WT_UPDATE *tombstone, *upd;
-    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts, pinned_ts,
-      *durable_ts;
+    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts, pinned_ts, durable_ts, tombstone_durable_ts;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id;
     uint8_t *memp;
@@ -506,10 +505,9 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             upd->txnid = WT_TXN_NONE;
         else
             upd->txnid = hs_tw->start_txn;
-        WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
-        WT_ASSERT(session, __wt_txn_upd_set_durable(durable_ts, hs_tw->durable_start_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, &durable_ts) == 0);
+        WT_ASSERT(session, __wt_txn_upd_set_durable(&durable_ts, &hs_tw->durable_start_ts) == 0);
 
-        // upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_UPDATE_RESTORED "history store update restored txnid=%" PRIu64
@@ -549,13 +547,16 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
                 tombstone->txnid = WT_TXN_NONE;
             else
                 tombstone->txnid = hs_tw->stop_txn;
-            tombstone->durable_ts = hs_tw->durable_stop_ts;
+
+            WT_RET(__wt_txn_upd_get_durable(session, tombstone, &tombstone_durable_ts));
+            WT_RET(__wt_txn_upd_set_durable(&tombstone_durable_ts, &hs_tw->durable_stop_ts));
+
             tombstone->start_ts = hs_tw->stop_ts;
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_HS_RESTORE_TOMBSTONE
               "history store tombstone restored, txnid=%" PRIu64 ", start_ts=%s and durable_ts=%s",
               tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
-              __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
+              __wt_timestamp_to_string(tombstone_durable_ts, ts_string[1]));
 
             /*
              * Set the flag to indicate that this update has been restored from history store for
