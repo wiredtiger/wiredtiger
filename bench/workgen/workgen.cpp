@@ -513,9 +513,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             // sequence.
             char rand_chars[DYNAMIC_TABLE_LEN];
             gen_random_table_name(rand_chars, _rand_state);
-            std::string uri("table:");
-            uri += _workload->options.create_prefix;
-            uri += rand_chars;
+            const std::string uri("table:" + _workload->options.create_prefix + rand_chars);
 
             // Create the table and its mirror if enabled.
             int ret = create_table(session, config, uri, _workload->options.mirror_tables);
