@@ -475,7 +475,8 @@ void testutil_backup_create_full(
   WT_CONNECTION *, const char *, const char *, const char *, bool, uint32_t, int *);
 void testutil_backup_create_incremental(WT_CONNECTION *, const char *, const char *, const char *,
   const char *, const char *, bool, int *, int *, int *);
-void testutil_backup_force_stop(WT_CONNECTION *);
+void testutil_backup_force_stop(WT_SESSION *);
+void testutil_backup_force_stop_conn(WT_CONNECTION *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_clean_test_artifacts(const char *);
 void testutil_cleanup(TEST_OPTS *);

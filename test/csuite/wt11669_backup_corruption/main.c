@@ -151,73 +151,51 @@ verify_backup(const char *backup_home)
 }
 
 /*
- * run_test --
- *     Run the test.
+ * do_work_before_failure --
+ *     Do a bunch of work, including taking backups and checkpoints, before we inject the failure.
  */
 static void
-run_test(void)
+do_work_before_failure(WT_CONNECTION *conn, WT_SESSION *session)
+{
+    int i;
+    char backup_home[64], backup_id[32], src_backup_home[64], src_backup_id[32];
+
+    for (i = 0; i < NUM_BACKUPS; i++) {
+        populate_table(session, TABLE_URI, (uint32_t)i, 100 * WT_THOUSAND);
+        testutil_check(session->checkpoint(session, NULL));
+        populate_table(session, TABLE_URI, (uint32_t)i + 1, 100 * WT_THOUSAND);
+        testutil_check(session->checkpoint(session, NULL));
+        populate_table(session, TABLE_URI, (uint32_t)i + 2, 100 * WT_THOUSAND);
+
+        testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%d", i);
+        testutil_snprintf(backup_id, sizeof(backup_id), "ID%d", i);
+        if (i == 0) {
+            printf("Create full backup %d\n", i);
+            testutil_backup_create_full(conn, WT_HOME_DIR, backup_home, backup_id, true, 32, NULL);
+        } else {
+            printf("Create incremental backup %d from %d\n", i, i - 1);
+            testutil_snprintf(src_backup_home, sizeof(src_backup_home), BACKUP_BASE "%d", i - 1);
+            testutil_snprintf(src_backup_id, sizeof(src_backup_id), "ID%d", i - 1);
+            testutil_backup_create_incremental(conn, WT_HOME_DIR, backup_home, backup_id,
+              src_backup_home, src_backup_id, false /* verbose */, NULL, NULL, NULL);
+        }
+    }
+}
+
+/*
+ * do_work_after_failure --
+ *     Do work after an injected failure: Reopen the database, do more work, create another
+ *     incremental backup, and verify it.
+ */
+static void
+do_work_after_failure(bool backup_from_min)
 {
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    pid_t parent_pid, pid;
-    int i, id, status;
+    int i, id;
     char backup_home[64], backup_id[32], src_backup_home[64], src_backup_id[32], *str;
-
-    parent_pid = getpid();
-    testutil_assert_errno((pid = fork()) >= 0);
-
-    if (pid == 0) { /* Child. */
-        testutil_recreate_dir(WT_HOME_DIR);
-        testutil_wiredtiger_open(opts, WT_HOME_DIR, ENV_CONFIG, NULL, &conn, false, false);
-        testutil_check(conn->open_session(conn, NULL, NULL, &session));
-        testutil_check(session->create(session, TABLE_URI, TABLE_CONFIG));
-
-        /* Do some work, while creating checkpoints and doing backups. */
-        for (i = 0; i < NUM_BACKUPS; i++) {
-            populate_table(session, TABLE_URI, (uint32_t)i, 100 * WT_THOUSAND);
-            testutil_check(session->checkpoint(session, NULL));
-            populate_table(session, TABLE_URI, (uint32_t)i + 1, 100 * WT_THOUSAND);
-            testutil_check(session->checkpoint(session, NULL));
-            populate_table(session, TABLE_URI, (uint32_t)i + 2, 100 * WT_THOUSAND);
-
-            testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%d", i);
-            testutil_snprintf(backup_id, sizeof(backup_id), "ID%d", i);
-            if (i == 0) {
-                printf("Create full backup %d\n", i);
-                testutil_backup_create_full(
-                  conn, WT_HOME_DIR, backup_home, backup_id, true, 32, NULL);
-            } else {
-                printf("Create incremental backup %d from %d\n", i, i - 1);
-                testutil_snprintf(
-                  src_backup_home, sizeof(src_backup_home), BACKUP_BASE "%d", i - 1);
-                testutil_snprintf(src_backup_id, sizeof(src_backup_id), "ID%d", i - 1);
-                testutil_backup_create_incremental(conn, WT_HOME_DIR, backup_home, backup_id,
-                  src_backup_home, src_backup_id, false /* verbose */, NULL, NULL, NULL);
-            }
-        }
-
-        /* Die before finishing the next checkpoint. */
-        printf("Setting the failpoint...\n");
-        testutil_check(
-          session->reconfigure(session, "debug=(checkpoint_fail_before_turtle_update=true)"));
-        testutil_sentinel(NULL, EXPECT_ABORT);
-        testutil_check(session->checkpoint(session, NULL));
-        testutil_remove(EXPECT_ABORT);
-
-        /* We should die before we get here. */
-        testutil_die(ENOTRECOVERABLE, "The child process was supposed be dead by now!");
-    }
-
-    /* Parent. */
-
-    /* Wait for the child to die. */
-    testutil_assert(waitpid(pid, &status, 0) > 0);
-    printf("-- crash --\n");
-
-    /* Save the database directory. */
-    testutil_copy(WT_HOME_DIR, "save");
 
     /* Reopen the database and find available backup IDs. */
     testutil_wiredtiger_open(opts, WT_HOME_DIR, ENV_CONFIG, NULL, &conn, false, false);
@@ -230,7 +208,12 @@ run_test(void)
         testutil_check(cursor->get_key(cursor, &str));
         testutil_assert(strncmp(str, "ID", 2) == 0);
         i = atoi(str + 2);
-        id = id < 0 ? i : WT_MIN(id, i);
+        if (id < 0)
+            id = i;
+        else if (backup_from_min)
+            id = WT_MIN(id, i);
+        else
+            id = WT_MAX(id, i);
         printf("Found backup %d\n", i);
     }
     testutil_assert(ret == WT_NOTFOUND);
@@ -257,6 +240,110 @@ run_test(void)
     /* Verify the backup. */
     printf("Verify backup %d\n", NUM_BACKUPS);
     verify_backup(backup_home);
+}
+
+/*
+ * run_test1 --
+ *     Run a test with incremental backup.
+ */
+static void
+run_test1(void)
+{
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    pid_t parent_pid, pid;
+    int status;
+
+    printf("\n%s: Test crashing during checkpoint after incremental backup\n", __func__);
+
+    parent_pid = getpid();
+    testutil_remove(EXPECT_ABORT);
+    testutil_assert_errno((pid = fork()) >= 0);
+
+    if (pid == 0) { /* Child. */
+        testutil_recreate_dir(WT_HOME_DIR);
+        testutil_wiredtiger_open(opts, WT_HOME_DIR, ENV_CONFIG, NULL, &conn, false, false);
+        testutil_check(conn->open_session(conn, NULL, NULL, &session));
+        testutil_check(session->create(session, TABLE_URI, TABLE_CONFIG));
+
+        /* Do some work, while creating checkpoints and doing backups. */
+        do_work_before_failure(conn, session);
+
+        /* Die before finishing the next checkpoint. */
+        printf("Setting the failpoint...\n");
+        testutil_check(
+          session->reconfigure(session, "debug=(checkpoint_fail_before_turtle_update=true)"));
+        testutil_sentinel(NULL, EXPECT_ABORT);
+        testutil_check(session->checkpoint(session, NULL));
+        testutil_remove(EXPECT_ABORT);
+
+        /* We should die before we get here. */
+        testutil_die(ENOTRECOVERABLE, "The child process was supposed be dead by now!");
+    }
+
+    /* Parent. */
+
+    /* Wait for the child to die. */
+    testutil_assert(waitpid(pid, &status, 0) > 0);
+    printf("-- crash --\n");
+
+    /* Save the database directory. */
+    testutil_copy(WT_HOME_DIR, "save");
+
+    /* Do more work, create another backup, and verify it. */
+    do_work_after_failure(true);
+}
+
+/*
+ * run_test2 --
+ *     Run a test with force stop.
+ */
+static void
+run_test2(void)
+{
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    pid_t parent_pid, pid;
+    int status;
+
+    printf("\n%s: Test crashing during force-stop after incremental backup\n", __func__);
+
+    parent_pid = getpid();
+    testutil_remove(EXPECT_ABORT);
+    testutil_assert_errno((pid = fork()) >= 0);
+
+    if (pid == 0) { /* Child. */
+        testutil_recreate_dir(WT_HOME_DIR);
+        testutil_wiredtiger_open(opts, WT_HOME_DIR, ENV_CONFIG, NULL, &conn, false, false);
+        testutil_check(conn->open_session(conn, NULL, NULL, &session));
+        testutil_check(session->create(session, TABLE_URI, TABLE_CONFIG));
+
+        /* Do some work, while creating checkpoints and doing backups. */
+        do_work_before_failure(conn, session);
+
+        /* Die before finishing the next checkpoint. */
+        printf("Setting the failpoint...\n");
+        testutil_check(
+          session->reconfigure(session, "debug=(checkpoint_fail_before_turtle_update=true)"));
+        testutil_sentinel(NULL, EXPECT_ABORT);
+        testutil_backup_force_stop(session);
+        testutil_remove(EXPECT_ABORT);
+
+        /* We should die before we get here. */
+        testutil_die(ENOTRECOVERABLE, "The child process was supposed be dead by now!");
+    }
+
+    /* Parent. */
+
+    /* Wait for the child to die. */
+    testutil_assert(waitpid(pid, &status, 0) > 0);
+    printf("-- crash --\n");
+
+    /* Save the database directory. */
+    testutil_copy(WT_HOME_DIR, "save");
+
+    /* Do more work, create another backup, and verify it. */
+    do_work_after_failure(false);
 }
 
 /*
@@ -315,8 +402,9 @@ main(int argc, char *argv[])
     sa.sa_handler = handler_sigchld;
     testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
-    /* Run the test. */
-    run_test();
+    /* Run the tests. */
+    run_test1();
+    run_test2();
 
     /*
      * Clean up.

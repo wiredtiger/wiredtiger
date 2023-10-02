@@ -214,14 +214,10 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
  *     Force-stop incremental backups.
  */
 void
-testutil_backup_force_stop(WT_CONNECTION *conn)
+testutil_backup_force_stop(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_SESSION *session;
-
-    /* Open the session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Force-stop incremental backups. */
     testutil_check(
@@ -231,7 +227,18 @@ testutil_backup_force_stop(WT_CONNECTION *conn)
     /* Check that we don't have any backup info. */
     ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
     testutil_assert(ret == EINVAL);
+}
 
-    /* Clean up. */
+/*
+ * testutil_backup_force_stop_conn --
+ *     Force-stop incremental backups.
+ */
+void
+testutil_backup_force_stop_conn(WT_CONNECTION *conn)
+{
+    WT_SESSION *session;
+
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_backup_force_stop(session);
     testutil_check(session->close(session, NULL));
 }

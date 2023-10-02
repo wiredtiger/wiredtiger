@@ -680,7 +680,7 @@ create:
         if (backup_force_stop_interval > 0 &&
           (i + force_stop_offset) % backup_force_stop_interval == 0) {
             printf("Force-stop incremental backups\n");
-            testutil_backup_force_stop(td->conn);
+            testutil_backup_force_stop_conn(td->conn);
             last_backup = 0; /* Force creation of a new full backup. */
         }
 
