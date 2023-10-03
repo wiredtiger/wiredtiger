@@ -64,7 +64,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      * acquiring the lock shouldn't be an issue.
      */
     __wt_spin_lock(session, &conn->api_lock);
-    __wt_session_array_walk(session, __rts_check_callback, true, &cookie);
+    __wt_session_array_walk(conn, __rts_check_callback, true, &cookie);
     __wt_spin_unlock(session, &conn->api_lock);
 
     /*

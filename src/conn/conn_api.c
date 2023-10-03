@@ -1190,12 +1190,12 @@ err:
      * transaction in one session could cause trouble when closing a file, even if that session
      * never referenced that file.
      */
-    __wt_session_array_walk(session, __conn_rollback_transaction_callback, true, &cookie);
+    __wt_session_array_walk(conn, __conn_rollback_transaction_callback, true, &cookie);
     WT_TRET(cookie.ret_arg);
     cookie.ret_arg = 0;
 
     /* Close open, external sessions. */
-    __wt_session_array_walk(session, __conn_close_session_callback, true, &cookie);
+    __wt_session_array_walk(conn, __conn_close_session_callback, true, &cookie);
     WT_TRET(cookie.ret_arg);
 
     /*
@@ -2458,7 +2458,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
      * While the verbose dump doesn't dump internal sessions it returns a count of them so we don't
      * instruct the walk to skip them.
      */
-    __wt_session_array_walk(session, __verbose_dump_session_callback, false, &cookie);
+    __wt_session_array_walk(S2C(session), __verbose_dump_session_callback, false, &cookie);
     WT_RET(cookie.ret_arg);
 
     if (!show_cursors)

@@ -15,18 +15,16 @@
  *     customizable cookie.
  */
 void
-__wt_session_array_walk(WT_SESSION_IMPL *session,
+__wt_session_array_walk(WT_CONNECTION_IMPL *conn,
   void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), bool skip_internal,
   void *cookiep)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *array_session;
     uint32_t session_cnt, i;
     u_int active;
     bool exit_walk;
 
     exit_walk = false;
-    conn = S2C(session);
 
     /*
      * Ensure we read the session count only once. We want to iterate over all sessions that were

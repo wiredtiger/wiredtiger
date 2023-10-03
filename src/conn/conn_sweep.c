@@ -344,7 +344,7 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
     cookie.now = now;
     cookie.original_session = session;
 
-    __wt_session_array_walk(session, __sweep_check_session_callback, true, &cookie);
+    __wt_session_array_walk(S2C(session), __sweep_check_session_callback, true, &cookie);
 }
 
 /*
