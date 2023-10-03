@@ -36,12 +36,17 @@ namespace test_harness {
 test::test(const test_args &args) : _args(args)
 {
     _config = new configuration(args.test_name, args.test_config);
-    _metrics_monitor =
-      new metrics_monitor(args.test_name, _config->get_subconfig(METRICS_MONITOR), _database);
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
     _workload_manager = new workload_manager(
       _config->get_subconfig(WORKLOAD_MANAGER), this, _timestamp_manager, _database);
     _thread_manager = new thread_manager();
+
+    /* Only create the metrics monitor if enabled. */
+    auto metrics_monitor_cfg = _config->get_subconfig(METRICS_MONITOR);
+    if (metrics_monitor_cfg->get_optional_bool(ENABLED, false))
+        _metrics_monitor = new metrics_monitor(args.test_name, metrics_monitor_cfg, _database);
+    else
+        delete metrics_monitor_cfg;
 
     _database.set_timestamp_manager(_timestamp_manager);
     _database.set_create_config(
@@ -51,7 +56,9 @@ test::test(const test_args &args) : _args(args)
      * Ordering is not important here, any dependencies between components should be resolved
      * internally by the components.
      */
-    _components = {_workload_manager, _timestamp_manager, _metrics_monitor};
+    _components = {_workload_manager, _timestamp_manager};
+    if(_metrics_monitor != nullptr)
+      _components.push_back(_metrics_monitor);
 }
 
 void
