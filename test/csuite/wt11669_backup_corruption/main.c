@@ -353,7 +353,7 @@ run_test2(void)
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s%s\n", progname, opts->usage);
+    fprintf(stderr, "usage: %s%s [-s SCENARIO_NUM]\n", progname, opts->usage);
     exit(EXIT_FAILURE);
 }
 
@@ -365,7 +365,7 @@ int
 main(int argc, char *argv[])
 {
     struct sigaction sa;
-    int ch;
+    int ch, scenario;
     char start_cwd[PATH_MAX];
 
     (void)testutil_set_progname(argv);
@@ -376,11 +376,15 @@ main(int argc, char *argv[])
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
+    scenario = 0;
 
     /* Parse the command-line arguments. */
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
-    while ((ch = __wt_getopt(progname, argc, argv, SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "s:" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
+        case 's':
+            scenario = atoi(__wt_optarg);
+            break;
         default:
             if (testutil_parse_single_opt(opts, ch) != 0)
                 usage();
@@ -403,8 +407,10 @@ main(int argc, char *argv[])
     testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
     /* Run the tests. */
-    run_test1();
-    run_test2();
+    if (scenario == 0 || scenario == 1)
+        run_test1();
+    if (scenario == 0 || scenario == 2)
+        run_test2();
 
     /*
      * Clean up.
