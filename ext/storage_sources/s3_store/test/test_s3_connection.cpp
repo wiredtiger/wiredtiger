@@ -128,7 +128,7 @@ TEST_CASE("Testing class S3Connection", "s3-connection")
         REQUIRE(conn.DeleteObject(objectName) == 0);
     }
 
-    SECTION("Gets an object from an S3 Bucket", "[s3-connection]")
+    SECTION("Gets an object from an S3 Bucket", "[s3-connection1]")
     {
         REQUIRE(conn.PutObject(objectName, fileName) == 0);
         REQUIRE(std::remove(path.c_str()) == 0);        // Delete the local copy of the file.
@@ -137,6 +137,10 @@ TEST_CASE("Testing class S3Connection", "s3-connection")
         // The file should now be in the current directory.
         std::ifstream f(path);
         REQUIRE(f.good());
+
+        char tmp[8];
+        REQUIRE(conn.GetObjectWithRange(objectName, 2, 8, tmp) == 0);
+        REQUIRE(strncmp(tmp, payload.substr(2, 8).c_str(), 8) == 0);
 
         // Clean up test artifacts.
         REQUIRE(std::remove(path.c_str()) == 0);

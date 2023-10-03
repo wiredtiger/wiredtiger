@@ -71,6 +71,8 @@ public:
     int DeleteObject(const std::string &objectKey) const;
     int ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const;
     int GetObject(const std::string &objectKey, const std::string &path) const;
+    int GetObjectWithRange(
+      const std::string &objectKey, size_t offset, size_t len, void *buf) const;
 
     ~S3Connection() = default;
 

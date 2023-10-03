@@ -120,6 +120,10 @@ class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, RecStat.prefix, desc, flags)
+class S3Stat(Stat):
+    prefix = 's3_storage_source'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, S3Stat.prefix, desc, flags)
 class SessionOpStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
@@ -654,6 +658,19 @@ conn_stats = [
     StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
     StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
     StorageStat('tiered_work_units_removed', 'tiered operations removed without processing'),
+
+    ##########################################
+    # S3 storage source statistics
+    ##########################################
+    StorageStat('s3_list_objects', 'list objects calls'),
+    StorageStat('s3_put_object', 'put objects calls'),
+    StorageStat('s3_get_object', 'get objects calls'),
+    StorageStat('s3_object_exists_and_size', 'object exists and get size calls'),
+    StorageStat('s3_fh_close', 'file handle close calls'),
+    StorageStat('s3_fh_open', 'file handle open calls'),
+    StorageStat('s3_fh_read', 'file handle read calls'),
+    StorageStat('s3_fh_size_ops', 'file handle get file size calls'),
+    StorageStat('s3_fh_size_read', 'file handle bytes read'),
 
     ##########################################
     # Thread Count statistics

@@ -33,6 +33,7 @@
 #include <aws/s3-crt/model/GetObjectRequest.h>
 #include <aws/s3-crt/model/HeadObjectRequest.h>
 #include <aws/s3-crt/model/HeadBucketRequest.h>
+#include <aws/core/utils/stream/PreallocatedStreamBuf.h>
 
 #include <fstream>
 #include <iostream>
@@ -182,6 +183,50 @@ S3Connection::GetObject(const std::string &objectKey, const std::string &path) c
     // succeed.
     if (outcome.IsSuccess())
         return (0);
+
+    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
+    if (toErrno.find(resCode) != toErrno.end())
+        return (toErrno.at(resCode));
+
+    return (-1);
+}
+
+// Retrieves a partial object from S3. The bytes are copied into a provided buffer.
+int
+S3Connection::GetObjectWithRange(
+  const std::string &objectKey, size_t offset, size_t len, void *buf) const
+{
+    Aws::S3Crt::Model::GetObjectRequest request;
+    request.SetBucket(_bucketName);
+    request.SetKey(_objectPrefix + objectKey);
+
+    std::string range("bytes=");
+    range += std::to_string(offset);
+    range += "-";
+    range += std::to_string(offset + len - 1);
+    request.SetRange(range);
+
+    // The requested S3 object's range should be extracted into the given buffer. We create a
+    // IOstream using the givem buffer, so that the object can directly be downloaded into the
+    // buffer without making unnecessary intermediate copies.
+    Aws::Utils::Stream::PreallocatedStreamBuf streambuf(
+      reinterpret_cast<unsigned char *>(buf), len);
+    request.SetResponseStreamFactory(
+      [&streambuf]() { return (Aws::New<Aws::IOStream>("", &streambuf)); });
+
+    Aws::S3Crt::Model::GetObjectOutcome outcome = _s3CrtClient.GetObject(request);
+
+    // Return an errno value given an HTTP response code if the aws request does not
+    // succeed.
+    if (outcome.IsSuccess()) {
+        /*
+        auto rdSize = outcome.GetResult().GetContentLength();
+        assert(rdSize <= len);
+        std::streambuf* sbuf = outcome.GetResult().GetBody().rdbuf();
+        sbuf->sgetn(static_cast<char *>(buf), rdSize);
+        */
+        return (0);
+    }
 
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
     if (toErrno.find(resCode) != toErrno.end())
