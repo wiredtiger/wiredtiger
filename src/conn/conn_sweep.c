@@ -271,9 +271,6 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
 /* A cookie for the session walk. */
 struct __wt_sweep_cookie {
     uint64_t now;
-    uint64_t last;
-    uint64_t last_cursor_big_sweep;
-    uint64_t last_sweep;
     WT_SESSION_IMPL *original_session;
 };
 
@@ -286,27 +283,30 @@ typedef struct __wt_sweep_cookie WT_SWEEP_COOKIE;
 static void
 __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
-    WT_SWEEP_COOKIE *cookie = (WT_SWEEP_COOKIE *)cookiep;
+    WT_SWEEP_COOKIE *cookie;
+    uint64_t last;
+    uint64_t last_sweep;
+
+    cookie = (WT_SWEEP_COOKIE *)cookiep;
     WT_UNUSED(exit_walkp);
 
-    cookie->last_cursor_big_sweep = session->last_cursor_big_sweep;
-    cookie->last_sweep = session->last_sweep;
+    last = session->last_cursor_big_sweep;
+    last_sweep = session->last_sweep;
 
     /*
      * Get the earlier of the two timestamps, as they refer to sweeps of two different data
      * structures that reference data handles
      */
-    cookie->last = cookie->last_cursor_big_sweep;
-    if (cookie->last_sweep != 0 && (cookie->last == 0 || cookie->last_sweep < cookie->last))
-        cookie->last = cookie->last_sweep;
-    if (cookie->last == 0)
+    if (last_sweep != 0 && (last == 0 || last_sweep < last))
+        last = last_sweep;
+    if (last == 0)
         return;
 
     /*
      * Check if the session did not run a sweep in 5 minutes. Handle the issue only once per
      * violation.
      */
-    if (cookie->last + 5 * 60 < cookie->now) {
+    if (last + 5 * 60 < cookie->now) {
         if (!session->sweep_warning_5min) {
             session->sweep_warning_5min = 1;
             WT_STAT_CONN_INCR(cookie->original_session, no_session_sweep_5min);
@@ -318,7 +318,7 @@ __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void 
     /*
      * The same for 60 minutes.
      */
-    if (cookie->last + 60 * 60 < cookie->now) {
+    if (last + 60 * 60 < cookie->now) {
         if (!session->sweep_warning_60min) {
             session->sweep_warning_60min = 1;
             WT_STAT_CONN_INCR(cookie->original_session, no_session_sweep_60min);
