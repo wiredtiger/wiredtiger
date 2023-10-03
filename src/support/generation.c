@@ -99,7 +99,8 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 
 /* A cookie for the session array walk. */
 struct __wt_generation_cookie {
-    void *ret_arg;
+    bool active;
+    uint64_t oldest_gen;
     int which;
     uint64_t target_generation;
 };
@@ -248,17 +249,14 @@ static void
 __gen_oldest_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_GENERATION_COOKIE *cookie;
-    uint64_t *oldest;
     uint64_t v;
 
     WT_UNUSED(exit_walkp);
     cookie = (WT_GENERATION_COOKIE *)cookiep;
-    oldest = (uint64_t *)cookie->ret_arg;
 
     WT_ORDERED_READ(v, session->generations[cookie->which]);
-    if (v != 0 && v < *oldest) {
-        *oldest = v;
-    }
+    if (v != 0 && v < cookie->oldest_gen)
+        cookie->oldest_gen = v;
 }
 
 /*
@@ -270,12 +268,10 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
 {
     WT_CONNECTION_IMPL *conn;
     WT_GENERATION_COOKIE cookie;
-    uint64_t oldest;
 
     conn = S2C(session);
     WT_CLEAR(cookie);
     cookie.which = which;
-    cookie.ret_arg = &oldest;
 
     /*
      * We need to order the read of the connection generation before the read of the session
@@ -283,11 +279,11 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * it could read an earlier session generation value. This would then violate the acquisition
      * semantics and could result in us reading 0 for the session generation when it is non-zero.
      */
-    WT_ORDERED_READ(oldest, conn->generations[which]);
+    WT_ORDERED_READ(cookie.oldest_gen, conn->generations[which]);
 
     __wt_session_array_walk(conn, __gen_oldest_callback, false, &cookie);
 
-    return (oldest);
+    return (cookie.oldest_gen);
 }
 
 /*
@@ -300,14 +296,12 @@ __gen_active_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_GENERATION_COOKIE *cookie;
     uint64_t v;
-    bool *ret;
 
     cookie = (WT_GENERATION_COOKIE *)cookiep;
-    ret = (bool *)cookie->ret_arg;
 
     WT_ORDERED_READ(v, session->generations[cookie->which]);
     if (v != 0 && cookie->target_generation >= v) {
-        *ret = true;
+        cookie->active = true;
         *exit_walkp = true;
     }
 }
@@ -320,17 +314,15 @@ bool
 __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
     WT_GENERATION_COOKIE cookie;
-    bool active;
 
     WT_CLEAR(cookie);
     cookie.which = which;
     cookie.target_generation = generation;
-    cookie.ret_arg = &active;
-    active = false;
+    cookie.active = false;
 
     __wt_session_array_walk(S2C(session), __gen_active_callback, false, &cookie);
 
-    return (active);
+    return (cookie.active);
 }
 
 /*
