@@ -309,7 +309,8 @@ typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
 
 /*
  * __hazard_check_callback --
- *     Check and individual session's hazard pointers, callback from the session array walk.
+ *     Check if a session holds a hazard pointer on a given ref. If it does return both the session
+ *     and the hazard pointer. Callback from the session array walk.
  */
 static void
 __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
@@ -336,6 +337,10 @@ __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookie
         }
     }
 
+    /*
+     * We didn't find a hazard pointer. Clear this field so we don't accidentally report the last
+     * iterated hazard pointer
+     */
     cookie->hp = NULL;
 }
 

@@ -10,8 +10,8 @@
 
 /*
  * __wt_session_array_walk --
- *     Walk the connection sessions array, calling a function for every session in the array.
- *     Callers can exit the walk early if desired. Arguments to the function are provided by a
+ *     Walk the connections session array, calling a function for every active session in the array.
+ *     Callers can exit the walk early if desired. Arguments to the walk function are provided by a
  *     customizable cookie.
  */
 void
@@ -27,11 +27,24 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
 
     exit_walk = false;
     conn = S2C(session);
-    /* Ensure we read the value once. */
+
+    /*
+     * Ensure we read the session count only once. We want to iterate over all sessions that were
+     * active at this point in time. Sessions in the array may open, close, or be have their
+     * contents change during traversal. We expect the calling code to handle this. See the slotted
+     * sessions docs for further details. FIXME-WT-10946 Add link to docs once they're added.
+     */
     session_cnt = *(volatile uint32_t *)&(conn->session_array.cnt);
 
     for (i = 0, array_session = WT_CONN_SESSIONS_GET(conn); i < session_cnt; i++, array_session++) {
+        /*
+         * This ordered read is paired with a WT_PUBLISH from the session create logic, and
+         * guarantees that by the time this thread sees active == 1 all other fields in the session
+         * have been initialized properly. Any other ordering constraints, such as ensure this loop
+         * occurs in-order, are not intentional.
+         */
         WT_ORDERED_READ(active, array_session->active);
+
         /* Skip inactive sessions. */
         if (!active)
             continue;

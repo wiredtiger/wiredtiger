@@ -287,6 +287,11 @@ typedef TAILQ_HEAD(__wt_backuphash, __wt_backup_target) WT_BACKUPHASH;
 
 extern const WT_NAME_FLAG __wt_stress_types[];
 
+/*
+ * Access the array of all sessions. This field uses the Slotted Array pattern to managed shared
+ * accesses, if you are looking to walk all sessions please consider using the existing session walk
+ * logic. FIXME-WT-10946 - Add link to Slotted Array docs.
+ */
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
 
 /*

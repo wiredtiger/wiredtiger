@@ -95,7 +95,6 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
     v = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
 
     __wt_gen_drain(session, which, v);
-    WT_UNUSED(__gen_name);
 }
 
 /* A cookie for the session array walk. */
