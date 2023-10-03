@@ -369,10 +369,16 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
     __wt_session_array_walk(S2C(session), __hazard_check_callback, false, &cookie);
+
+    if (cookie.hp == NULL)
+        /*
+         * We increment this stat inside the walk logic when we find a hazard pointer. Since we
+         * didn't find one increment here instead.
+         */
+        WT_STAT_CONN_INCRV(session, cache_hazard_walks, cookie.walk_cnt);
+
     /* Leave the current resource generation. */
     __wt_session_gen_leave(session, WT_GEN_HAZARD);
-
-    WT_STAT_CONN_INCRV(session, cache_hazard_walks, cookie.walk_cnt);
 
     return (cookie.hp);
 }
