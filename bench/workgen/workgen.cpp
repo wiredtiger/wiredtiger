@@ -388,8 +388,8 @@ WorkloadRunner::create_table(
     else
         base_config += "," + BASE_TABLE_APP_METADATA + "true\"";
 
-    // When mirror is enabled, create the mirror first and the base. If we create the base first,
-    // threads may start working on the base while the mirror is not fully created.
+    // When mirror is enabled, create the mirror first and then the base. If we create the base
+    // first, threads may start working on the base while the mirror is not fully created.
     if (mirror_enabled) {
         const std::string config_tmp(base_config + uri + "," + BASE_TABLE_APP_METADATA + "false\"");
         int ret = session->create(session, mirror_uri.c_str(), config_tmp.c_str());
