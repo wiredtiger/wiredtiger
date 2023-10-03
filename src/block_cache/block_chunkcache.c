@@ -1128,6 +1128,7 @@ __wt_chunkcache_salvage(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), NULL};
 
+    /* Check that we're holding the schema lock (or take it) before doing a schema operation. */
     if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA))
         ret = __wt_schema_drop(session, WT_CC_URI, drop_cfg);
     else
