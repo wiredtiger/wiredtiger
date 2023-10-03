@@ -823,7 +823,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     /*
      * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered
-     * eviction through application threads then we take a backup of the existing snapshot and
+     * eviction through application threads then we save the existing snapshot and refresh to
      * acquire a new snapshot, once the application threads are done with eviction then we switch
      * back the snapshot to its original. Avoid using snapshots when application transactions are in
      * the final stages of commit or rollback as they have already released the snapshot. Otherwise,
@@ -856,8 +856,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         __wt_txn_bump_snapshot(session);
     else if (use_snapshot_for_app_thread) {
         /*
-         * Application threads entering into eviction takes a backup of the existing snapshots and
-         * acquires a new snapshot to evict the latest data, once the application threads are done
+         * Application threads entering into eviction saves the existing snapshots and refresh to
+         * acquire a new snapshot to evict the latest data, once the application threads are done
          * with eviction then the snapshots are switched back to its original snapshots.
          */
         is_application_thread_snapshot_refreshed = __wt_txn_snapshot_save_and_refresh(session);

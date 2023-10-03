@@ -242,6 +242,18 @@ struct __wt_txn_op {
     uint32_t flags;
 };
 
+/*
+ * WT_TXN_SNAP_BACKUP --
+ *	A backup snapshot structure to store the transactions snapshot details. This
+ *  will be used to store the application threads snapshots when the application
+ *  threads are triggered to perform eviction.
+ */
+struct __wt_txn_snap_backup {
+    uint64_t snap_max, snap_min;
+    uint64_t *snapshot;
+    uint32_t snapshot_count;
+};
+
 #define WT_TS_VERBOSE_PREFIX "unexpected timestamp usage: "
 
 /*
@@ -261,11 +273,13 @@ struct __wt_txn {
      *	ids < snap_min are visible,
      *	everything else is visible unless it is in the snapshot.
      */
-    uint64_t bkp_snap_max, bkp_snap_min, snap_max, snap_min;
-    uint64_t *snapshot, *bkp_snapshot;
-    uint32_t snapshot_count, bkp_snapshot_count;
+    uint64_t snap_max, snap_min;
+    uint64_t *snapshot;
+    uint32_t snapshot_count;
     uint32_t txn_logsync; /* Log sync configuration */
 
+    /* Save the snapshot backup. */
+    WT_TXN_SNAP_BACKUP snap_backup;
     /*
      * Timestamp copied into updates created by this transaction.
      *

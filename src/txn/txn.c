@@ -345,17 +345,17 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
 
     txn = session->txn;
 
-    txn->bkp_snap_max = txn->snap_max;
-    txn->bkp_snap_min = txn->snap_min;
-    txn->bkp_snapshot_count = txn->snapshot_count;
+    txn->snap_backup.snap_max = txn->snap_max;
+    txn->snap_backup.snap_min = txn->snap_min;
+    txn->snap_backup.snapshot_count = txn->snapshot_count;
 
     /* Take the backup of the snapshot only if the snapshot count is greater than 0. */
     if (txn->snapshot_count > 0) {
         WT_ERR(__wt_calloc_def(
-          session, sizeof(uint64_t) * S2C(session)->session_size, &txn->bkp_snapshot));
+          session, sizeof(uint64_t) * S2C(session)->session_size, &txn->snap_backup.snapshot));
 
         /* Swap the snapshot pointers. */
-        __wt_swap_snapshot(&txn->snapshot, &txn->bkp_snapshot);
+        __wt_swap_snapshot(&txn->snapshot, &txn->snap_backup.snapshot);
 
         /*
          * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
@@ -379,15 +379,18 @@ void
 __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
-    txn = session->txn;
+    WT_TXN_SNAP_BACKUP snapshot_backup;
 
-    txn->snap_max = txn->bkp_snap_max;
-    txn->snap_min = txn->bkp_snap_min;
-    txn->snapshot_count = txn->bkp_snapshot_count;
-    if (txn->bkp_snapshot_count > 0) {
+    txn = session->txn;
+    snapshot_backup = txn->snap_backup;
+
+    txn->snap_max = snapshot_backup.snap_max;
+    txn->snap_min = snapshot_backup.snap_min;
+    txn->snapshot_count = snapshot_backup.snapshot_count;
+    if (snapshot_backup.snapshot_count > 0) {
         /* Swap the snapshot pointers. */
-        __wt_swap_snapshot(&txn->bkp_snapshot, &txn->snapshot);
-        __wt_free(session, txn->bkp_snapshot);
+        __wt_swap_snapshot(&snapshot_backup.snapshot, &txn->snapshot);
+        __wt_free(session, snapshot_backup.snapshot);
     }
 }
 
