@@ -29,11 +29,9 @@ __chunkcache_create_metadata_file(
   WT_SESSION_IMPL *session, uint64_t capacity, unsigned int hashtable_size, size_t chunk_size)
 {
     char cfg[128];
-    WT_RET(
-      __wt_snprintf(cfg, sizeof(cfg),
-        "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\","
-        "key_format=" WT_CC_KEY_FORMAT ",value_format=" WT_CC_VALUE_FORMAT,
-        capacity, hashtable_size, chunk_size));
+    WT_RET(__wt_snprintf(cfg, sizeof(cfg),
+      WT_CC_APP_META_FORMAT ",key_format=" WT_CC_KEY_FORMAT ",value_format=" WT_CC_VALUE_FORMAT,
+      capacity, hashtable_size, chunk_size));
 
     return (__wt_session_create(session, WT_CC_URI, cfg));
 }
@@ -45,30 +43,20 @@ __chunkcache_create_metadata_file(
  *     allocated into *config.
  */
 static int
-__chunkcache_get_metadata_config(WT_SESSION_IMPL *session, bool *found, char **config)
+__chunkcache_get_metadata_config(WT_SESSION_IMPL *session, char **config)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    size_t len;
     char *tmp;
 
-    *found = false;
     *config = NULL;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, WT_CC_URI);
-    WT_ERR_NOTFOUND_OK(cursor->search(cursor), true);
+    WT_ERR(cursor->search(cursor));
 
-    if (ret == 0) {
-        *found = true;
-
-        WT_ERR(cursor->get_value(cursor, &tmp));
-
-        len = strlen(tmp);
-        WT_ERR(__wt_calloc(session, 1, len + 1, config));
-        strcpy(*config, tmp);
-    } else
-        ret = 0;
+    WT_ERR(cursor->get_value(cursor, &tmp));
+    WT_ERR(__wt_strdup(session, tmp, config));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
@@ -87,9 +75,8 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
     WT_DECL_RET;
     char tmp[128];
 
-    WT_RET(__wt_snprintf(tmp, sizeof(tmp),
-      "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\"",
-      capacity, hashtable_size, chunk_size));
+    WT_RET(
+      __wt_snprintf(tmp, sizeof(tmp), WT_CC_APP_META_FORMAT, capacity, hashtable_size, chunk_size));
 
     if (strstr(md_config, tmp) == NULL) {
         __wt_verbose_error(session, WT_VERB_CHUNKCACHE,
@@ -987,7 +974,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     unsigned int cnt, i;
     char *metadata_config, **pinned_objects;
     size_t mapped_size;
-    bool metadata_exists;
 
     chunkcache = &S2C(session)->chunkcache;
     cnt = 0;
@@ -1055,15 +1041,17 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
           &chunkcache->free_bitmap));
 
         /* Retrieve the chunk cache metadata config, and ensure it matches our startup config. */
-        WT_RET(__chunkcache_get_metadata_config(session, &metadata_exists, &metadata_config));
-        if (!metadata_exists) {
+        ret = __chunkcache_get_metadata_config(session, &metadata_config);
+        if (ret == WT_NOTFOUND) {
             WT_RET(__chunkcache_create_metadata_file(
               session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
             __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "created chunkcache metadata file");
-        } else {
+        } else if (ret == 0) {
             WT_RET(__chunkcache_verify_metadata_config(session, metadata_config,
               chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
             __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "reused chunkcache metadata file");
+        } else {
+            WT_RET(ret);
         }
         __wt_free(session, metadata_config);
     }
@@ -1138,9 +1126,10 @@ int
 __wt_chunkcache_salvage(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), NULL};
 
     __wt_spin_lock(session, &S2C(session)->schema_lock);
-    ret = __wt_schema_drop(session, WT_CC_URI, NULL);
+    ret = __wt_schema_drop(session, WT_CC_URI, drop_cfg);
     __wt_spin_unlock(session, &S2C(session)->schema_lock);
 
     if (ret == WT_NOTFOUND)
