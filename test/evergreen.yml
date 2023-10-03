@@ -1895,7 +1895,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_config_filename: configs/background_compact_long_running.txt
+          test_config_filename: configs/background_compact_long.txt
           test_name: background_compact
 
   - name: cppsuite-operations-test-stress

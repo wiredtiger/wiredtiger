@@ -39,6 +39,7 @@ const std::string WORKLOAD_MANAGER = "workload_manager";
 
 /* Configuration API consts. */
 const std::string BACKGROUND_COMPACT_OP_CONFIG = "background_compact_config";
+const std::string BACKGROUND_COMPACT_DEBUG_MODE = "background_compact_debug_mode";
 const std::string CACHE_HS_INSERT = "cache_hs_insert";
 const std::string CACHE_MAX_WAIT_MS = "cache_max_wait_ms";
 const std::string CACHE_SIZE_MB = "cache_size_mb";

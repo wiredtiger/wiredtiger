@@ -1,6 +1,7 @@
 # Configuration for background_compact.
 duration_seconds=60,
 cache_size_mb=10000,
+background_compact_debug_mode=true,
 
 workload_manager=
 (

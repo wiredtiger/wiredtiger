@@ -228,6 +228,9 @@ test_config = [
         type='category', subconfig=operation_tracker),
 
 # Non component top level configuration.
+    Config('background_compact_debug_mode', 'true', r'''
+        If true, background compact aggressively removes compact statistics for a file and decreases 
+        the max amount of time a file can be skipped for.''', type='boolean'),
     Config('cache_max_wait_ms', 0, r'''
         The strict equivalent of cache_max_wait_ms defined in wiredtiger.''', min=0),
     Config('cache_size_mb', 0, r'''

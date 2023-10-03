@@ -42,6 +42,7 @@ extern const std::string WORKLOAD_MANAGER;
 
 /* Configuration API consts. */
 extern const std::string BACKGROUND_COMPACT_OP_CONFIG;
+extern const std::string BACKGROUND_COMPACT_DEBUG_MODE;
 extern const std::string CACHE_HS_INSERT;
 extern const std::string CACHE_MAX_WAIT_MS;
 extern const std::string CACHE_SIZE_MB;
