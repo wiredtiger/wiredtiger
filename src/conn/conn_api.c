@@ -1109,7 +1109,6 @@ static void
 __conn_rollback_transaction_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_CONN_COOKIE *cookie;
-    WT_DECL_RET;
     WT_SESSION *wt_session;
 
     WT_UNUSED(exit_walkp);
@@ -1117,9 +1116,7 @@ __conn_rollback_transaction_callback(WT_SESSION_IMPL *session, bool *exit_walkp,
 
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         wt_session = &session->iface;
-        ret = wt_session->rollback_transaction(wt_session, NULL);
-        if (cookie->ret_arg == 0)
-            cookie->ret_arg = ret;
+        WT_TRET_FUNC(cookie->ret_arg, wt_session->rollback_transaction(wt_session, NULL));
     }
 }
 
@@ -1131,7 +1128,6 @@ static void
 __conn_close_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_CONN_COOKIE *cookie;
-    WT_DECL_RET;
     WT_SESSION *wt_session;
 
     WT_UNUSED(exit_walkp);
@@ -1141,13 +1137,10 @@ __conn_close_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *
      * Notify the user that we are closing the session handle via the registered close callback.
      */
     if (session->event_handler->handle_close != NULL)
-        ret = session->event_handler->handle_close(session->event_handler, wt_session, NULL);
-    if (cookie->ret_arg == 0)
-        cookie->ret_arg = ret;
+        WT_TRET_FUNC(cookie->ret_arg,
+          session->event_handler->handle_close(session->event_handler, wt_session, NULL));
 
-    ret = __wt_session_close_internal(session);
-    if (cookie->ret_arg == 0)
-        cookie->ret_arg = ret;
+    WT_TRET_FUNC(cookie->ret_arg, __wt_session_close_internal(session));
 }
 
 /*
@@ -1192,7 +1185,6 @@ err:
      */
     __wt_session_array_walk(conn, __conn_rollback_transaction_callback, true, &cookie);
     WT_TRET(cookie.ret_arg);
-    cookie.ret_arg = 0;
 
     /* Close open, external sessions. */
     __wt_session_array_walk(conn, __conn_close_session_callback, true, &cookie);
