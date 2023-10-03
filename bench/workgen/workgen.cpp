@@ -378,35 +378,41 @@ WorkloadRunner::create_table(
     }
 
     /*
+     * When mirror is enabled, create the mirror first and then the base. If we create the base
+     * first, threads may start working on the base while the mirror is not fully created.
+     *
      * The config has to be updated with the following information:
      *  - The name of the table's mirror if mirroring is enabled.
      *  - If this table is a base table or a mirror.
+     *
+     * See below an example when creating the table 'a' with mirror enabled:
+     *  - Configuration expected for the mirror:
+     * app_metadata="workgen_dynamic_table=true,workgen_table_mirror=table:a,workgen_base_table=false"
+     *  - Configuration expected for the base:
+     * app_metadata="workgen_dynamic_table=true,workgen_table_mirror=table:a_mirror,workgen_base_table=true"
+     *
+     * Without mirror enabled:
+     * app_metadata="workgen_dynamic_table=true,workgen_base_table=true"
+     *
      */
-    std::string base_config(config);
-    if (mirror_enabled)
-        base_config += "," + MIRROR_TABLE_APP_METADATA;
-    else
-        base_config += "," + BASE_TABLE_APP_METADATA + "true\"";
-
-    // When mirror is enabled, create the mirror first and then the base. If we create the base
-    // first, threads may start working on the base while the mirror is not fully created.
+    std::string mirror_config;
     if (mirror_enabled) {
-        const std::string config_tmp(base_config + uri + "," + BASE_TABLE_APP_METADATA + "false\"");
-        int ret = session->create(session, mirror_uri.c_str(), config_tmp.c_str());
+        mirror_config = config + "," + MIRROR_TABLE_APP_METADATA + uri + "," +
+          BASE_TABLE_APP_METADATA + "false\"";
+        int ret = session->create(session, mirror_uri.c_str(), mirror_config.c_str());
         if (ret != 0) {
             VERBOSE(*_workload, "Failed to create mirror table '" << mirror_uri << "'");
             return ret;
         }
+        // This will be used when creating the base table.
+        mirror_config = MIRROR_TABLE_APP_METADATA + mirror_uri + ",";
     }
 
-    // Create the base table.
-    std::string config_tmp(base_config);
-    if (mirror_enabled)
-        config_tmp += mirror_uri + "," + BASE_TABLE_APP_METADATA + "true\"";
-
-    int ret = session->create(session, uri.c_str(), config_tmp.c_str());
+    const std::string base_config(
+      config + "," + mirror_config + BASE_TABLE_APP_METADATA + "true\"");
+    int ret = session->create(session, uri.c_str(), base_config.c_str());
     if (ret != 0) {
-        std::string err_msg("Failed to create table '" + uri + "'");
+        const std::string err_msg("Failed to create table '" + uri + "'");
         VERBOSE(*_workload, err_msg);
         // If mirror is enabled, we cannot fail here.
         if (mirror_enabled)
