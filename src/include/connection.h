@@ -791,3 +791,32 @@ struct __wt_connection_impl {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
+
+/*
+ * WT_CONN_COOKIE --
+ *   State passed through to callbacks during the session walk logic.
+ */
+struct __wt_conn_cookie {
+    int ret_arg;
+};
+
+/*
+ * WT_VERBOSE_DUMP_COOKIE --
+ *   State passed through to callbacks during the session walk logic when dumping all sessions.
+ */
+struct __wt_verbose_dump_cookie {
+    WT_SESSION_IMPL *caller_session;
+    int ret_arg;
+    uint32_t internal_count;
+    bool show_cursors;
+};
+
+/*
+ * WT_SWEEP_COOKIE --
+ *   State passed through to callbacks during the session walk logic when checking for sessions that
+ *   haven't performed a sweep in a long time.
+ */
+struct __wt_sweep_cookie {
+    uint64_t now;
+    WT_SESSION_IMPL *original_session;
+};

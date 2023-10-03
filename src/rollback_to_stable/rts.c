@@ -8,14 +8,6 @@
 
 #include "wt_internal.h"
 
-/* A cookie for the session array walk. */
-struct __wt_rts_cookie {
-    bool txn_active;
-    bool cursor_active;
-};
-
-typedef struct __wt_rts_cookie WT_RTS_COOKIE;
-
 /*
  * __rts_check_callback --
  *     Check if a single session has an active transaction or open cursors. Callback from the

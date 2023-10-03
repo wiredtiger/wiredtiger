@@ -295,18 +295,6 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
     WT_ORDERED_READ(*hazardp, session->hazard);
 }
 
-/* A cookie for the session array walk. */
-struct __wt_hazard_cookie {
-    WT_HAZARD *hp;
-    WT_SESSION_IMPL *original_session;
-    uint32_t walk_cnt;
-    uint32_t max;
-    WT_SESSION_IMPL **session_ret;
-    WT_REF *search_ref;
-};
-
-typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
-
 /*
  * __hazard_check_callback --
  *     Check if a session holds a hazard pointer on a given ref. If it does return both the session

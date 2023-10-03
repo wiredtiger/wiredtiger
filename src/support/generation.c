@@ -97,32 +97,6 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
     __wt_gen_drain(session, which, v);
 }
 
-/* A cookie for the session array walk. */
-struct __wt_generation_cookie {
-    bool active;
-    uint64_t oldest_gen;
-    int which;
-    uint64_t target_generation;
-};
-
-typedef struct __wt_generation_cookie WT_GENERATION_COOKIE;
-
-/*
- * A cookie for the session array walk. Generation drain requires more information than active and
- * oldest.
- */
-struct __wt_generation_drain_cookie {
-    WT_GENERATION_COOKIE base;
-
-    WT_SESSION_IMPL *original_session;
-    struct timespec start;
-    uint64_t minutes;
-    int pause_cnt;
-    bool verbose_timeout_flags;
-};
-
-typedef struct __wt_generation_drain_cookie WT_GENERATION_DRAIN_COOKIE;
-
 /*
  * __gen_drain_callback --
  *     Wait for single session's generation to drain, callback from the session array walk.

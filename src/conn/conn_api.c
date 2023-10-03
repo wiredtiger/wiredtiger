@@ -1095,12 +1095,6 @@ __conn_is_new(WT_CONNECTION *wt_conn)
     return (((WT_CONNECTION_IMPL *)wt_conn)->is_new);
 }
 
-struct __wt_conn_cookie {
-    int ret_arg;
-};
-
-typedef struct __wt_conn_cookie WT_CONN_COOKIE;
-
 /*
  * __conn_rollback_transaction_callback --
  *     Rollback a single transaction, callback from the session array walk.
@@ -2337,15 +2331,6 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     return (0);
 }
-
-struct __wt_verbose_dump_cookie {
-    WT_SESSION_IMPL *caller_session;
-    int ret_arg;
-    uint32_t internal_count;
-    bool show_cursors;
-};
-
-typedef struct __wt_verbose_dump_cookie WT_VERBOSE_DUMP_COOKIE;
 
 /*
  * __verbose_dump_session_callback --
