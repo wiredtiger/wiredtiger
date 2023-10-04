@@ -442,11 +442,11 @@ WorkloadRunner::update_dyn_struct(
 {
     ContextInternal *icontext = _workload->_context->_internal;
 
-    tint_t tint = icontext->_dyn_tint_last;
+    // This should be safe as we are supposed to be under a lock.
+    tint_t tint = icontext->_dyn_tint_last++;
     icontext->_dyn_tint[uri] = tint;
     icontext->_dyn_table_names[tint] = uri;
     icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
-    (void)workgen_atomic_add32(&icontext->_dyn_tint_last, 1);
     VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
 }
 
