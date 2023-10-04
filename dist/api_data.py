@@ -1365,6 +1365,11 @@ methods = {
     Config('background', '', r'''
         enable/disabled the background compaction server.''',
         type='boolean'),
+    Config('exclude', '', r'''
+        If non-empty and used when enabling background compaction, exclude the table object targets
+        listed from being compacted in the background. The target list must include URIs of type \c
+        table:''',
+        type='list'),
     Config('free_space_target', '20MB', r'''
         minimum amount of space recoverable for compaction to proceed''',
         min='1MB'),
