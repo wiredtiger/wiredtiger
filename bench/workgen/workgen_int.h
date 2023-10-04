@@ -352,7 +352,7 @@ private:
     void report(time_t, time_t, Stats *stats);
     int run_all(WT_CONNECTION *conn);
     int select_table_for_drop(std::vector<std::string> &pending_delete);
-    void update_dyn_struct(const std::string &uri, bool is_base, const std::string &mirror_uri);
+    void update_dyn_struct_locked(const std::string &uri, bool is_base, const std::string &mirror_uri);
 
     WorkloadRunner(const WorkloadRunner &);                 // disallowed
     WorkloadRunner& operator=(const WorkloadRunner &other); // disallowed

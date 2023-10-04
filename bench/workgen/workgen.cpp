@@ -424,9 +424,9 @@ WorkloadRunner::create_table(
     // which are protected by a mutex.
     {
         const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
-        update_dyn_struct(uri, true, mirror_uri);
+        update_dyn_struct_locked(uri, true, mirror_uri);
         if (mirror_enabled)
-            update_dyn_struct(mirror_uri, false, uri);
+            update_dyn_struct_locked(mirror_uri, false, uri);
     }
 
     return 0;
@@ -437,7 +437,7 @@ WorkloadRunner::create_table(
  * caller should hold the mutex that protects those structures.
  */
 void
-WorkloadRunner::update_dyn_struct(
+WorkloadRunner::update_dyn_struct_locked(
   const std::string &uri, bool is_base, const std::string &mirror_uri)
 {
     ContextInternal *icontext = _workload->_context->_internal;
