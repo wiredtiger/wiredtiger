@@ -63,6 +63,9 @@ workload_manager::run()
     std::vector<operation_configuration> operation_configs;
     uint64_t thread_id = 0;
 
+    logger::log_msg(LOG_INFO, "Running component: " + _name);
+    _running = true;
+
     /* Retrieve useful parameters from the test configuration. */
     operation_configs.push_back(operation_configuration(
       _config->get_subconfig(BACKGROUND_COMPACT_OP_CONFIG), thread_type::BACKGROUND_COMPACT));

@@ -36,6 +36,7 @@
 namespace test_harness {
 component::component(const std::string &name, configuration *config) : _config(config), _name(name)
 {
+    _enabled = _config->get_optional_bool(ENABLED, false);
     _sleep_time_ms = _config->get_throttle_ms();
 }
 
@@ -48,19 +49,14 @@ void
 component::load()
 {
     logger::log_msg(LOG_INFO, "Loading component: " + _name);
-    _enabled = _config->get_optional_bool(ENABLED, true);
-    /* If we're not enabled we shouldn't be running. */
-    _running = _enabled;
-
-    if (!_enabled)
-        return;
 }
 
 void
 component::run()
 {
     logger::log_msg(LOG_INFO, "Running component: " + _name);
-    while (_enabled && _running) {
+    _running = true;
+    while (_running) {
         do_work();
         std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
     }

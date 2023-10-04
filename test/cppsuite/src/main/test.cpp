@@ -57,8 +57,8 @@ test::test(const test_args &args) : _args(args)
      * internally by the components.
      */
     _components = {_workload_manager, _timestamp_manager};
-    if(_metrics_monitor != nullptr)
-      _components.push_back(_metrics_monitor);
+    if (_metrics_monitor != nullptr)
+        _components.push_back(_metrics_monitor);
 }
 
 void
@@ -142,12 +142,16 @@ test::run()
       db_create_config, _args.home.empty() ? DEFAULT_DIR : _args.home);
 
     /* Initiate the load stage of each component. */
-    for (const auto &it : _components)
-        it->load();
+    for (const auto &it : _components) {
+        if (it->enabled())
+            it->load();
+    }
 
     /* Spawn threads for all component::run() functions. */
-    for (const auto &it : _components)
-        _thread_manager->add_thread(&component::run, it);
+    for (const auto &it : _components) {
+        if (it->enabled())
+            _thread_manager->add_thread(&component::run, it);
+    }
 
     /* The initial population phase needs to be finished before starting the actual test. */
     while (_workload_manager->enabled() && !_workload_manager->db_populated())
@@ -171,8 +175,10 @@ test::run()
     _thread_manager->join();
 
     /* End the test by calling finish on all known components. */
-    for (const auto &it : _components)
-        it->finish();
+    for (const auto &it : _components) {
+        if (it->enabled())
+            it->finish();
+    }
 
     /* Validation stage. */
     this->validate(_operation_tracker->enabled(), _operation_tracker->get_operation_table_name(),

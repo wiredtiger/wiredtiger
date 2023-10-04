@@ -86,8 +86,6 @@ protected:
     volatile bool _running = false;
     uint64_t _sleep_time_ms = 1000;
     configuration *_config;
-
-private:
     std::string _name;
 };
 } // namespace test_harness
