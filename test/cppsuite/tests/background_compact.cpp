@@ -120,11 +120,12 @@ public:
             metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &file_size);
 
             /* Don't truncate if we already have enough free space for compact to do work. */
+            const int64_t pct_free_space_threshold = 10;
             int64_t pct_free_space = (bytes_avail_reuse * 100 / file_size);
-            if (pct_free_space > 10) {
+            if (pct_free_space > pct_free_space_threshold) {
                 logger::log_msg(LOG_INFO,
-                  log_prefix + "Skip truncating collection {" + std::to_string(coll.id) +
-                    "}, free space available = " + std::to_string(pct_free_space));
+                  log_prefix + "Skip truncating collection {" + coll.name +
+                    "}, enough free space available (" + std::to_string(pct_free_space) + "%)");
                 testutil_check(stat_cursor->reset(stat_cursor.get()));
                 continue;
             }
