@@ -228,7 +228,7 @@ test_config = [
         type='category', subconfig=operation_tracker),
 
 # Non component top level configuration.
-    Config('background_compact_debug_mode', 'true', r'''
+    Config('background_compact_debug_mode', 'false', r'''
         If true, background compact aggressively removes compact statistics for a file and decreases
         the max amount of time a file can be skipped for.''', type='boolean'),
     Config('cache_max_wait_ms', 0, r'''
