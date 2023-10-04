@@ -112,6 +112,67 @@ __chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
 }
 
 /*
+ * __chunkcache_metadata_queue_internal --
+ *     Allocate an entry, populate it, and insert it into the queue of chunks to write to
+ *     chunkcache metadata.
+ */
+static int
+__chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, char *name,
+  uint32_t objectid, wt_off_t file_offset, uint64_t cache_offset, size_t data_sz)
+{
+    WT_CHUNKCACHE_METADATA_WORK_UNIT *entry;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    /* TODO pop objects off if queue len > 1000. */
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    entry->type = type;
+    WT_RET(__wt_strdup(session, name, &entry->name));
+    entry->id = objectid;
+    entry->file_offset = file_offset;
+    entry->cache_offset = cache_offset;
+    entry->data_sz = data_sz;
+
+    __wt_spin_lock(session, &conn->chunkcache_metadata_lock);
+    TAILQ_INSERT_TAIL(&conn->chunkcache_metadataqh, entry, q);
+    __wt_spin_unlock(session, &conn->chunkcache_metadata_lock);
+    __wt_cond_signal(session, conn->chunkcache_metadata_cond);
+
+    WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_created);
+
+    return (0);
+}
+
+/*
+ * __chunkcache_metadata_queue_insert --
+ *     Enqueue a metadata insertion, corresponding to when a chunk is added to the chunk cache.
+ */
+static int
+__chunkcache_metadata_queue_insert(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    WT_CHUNKCACHE *cache;
+
+    cache = S2C(session)->chunkcache;
+
+    return (__chunkcache_metadata_queue_internal(session, WT_CHUNKCACHE_METADATA_WORK_INS,
+      chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->hash_id.offset,
+      (uint64_t)(chunk->chunk_memory - chunkcache->memory), chunk->chunk_size);
+}
+
+/*
+ * __chunkcache_metadata_queue_delete --
+ *     Enqueue a metadata deletion, corresponding to when a chunk is removed from the chunk cache.
+ */
+static int
+__chunkcache_metadata_queue_delete(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    return (__chunkcache_metadata_queue_internal(session, WT_CHUNKCACHE_METADATA_WORK_DEL,
+      chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->hash_id.offset, 0, 0);
+}
+
+/*
  * __chunkcache_should_pin_chunk --
  *     Return true if the chunk belongs to the object in pinned object array.
  */
@@ -286,6 +347,9 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         __chunkcache_bitmap_free(session, index);
     }
     __wt_free(session, chunk);
+
+    /* Push the removal into the work queue so it can get removed from the chunkcache metadata. */
+    WT_IGNORE_RET(__chunkcache_metadata_queue_delete(session, new_chunk));
 }
 
 /*
@@ -565,6 +629,9 @@ __chunkcache_read_into_chunk(
      * will unblock and proceed reading it.
      */
     WT_PUBLISH(new_chunk->valid, true);
+
+    /* Push the chunk into the work queue so it can get written to the chunkcache metadata. */
+    WT_RET(__chunkcache_metadata_queue_insert(session, new_chunk));
 
     return (0);
 }
