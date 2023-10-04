@@ -250,6 +250,8 @@ test_config = [
             Configuration enabling or disabling statistics logging in the form of json logging.''',
             type='boolean')
         ]),
+    Config('validate', 'true', r'''
+        Enables the validation stage.''', type='boolean'),
 ]
 
 #
