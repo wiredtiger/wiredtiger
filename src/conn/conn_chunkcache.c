@@ -159,7 +159,8 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    WT_RET(session->iface.open_cursor(&session->iface, WT_CC_URI, NULL, WT_CC_META_CONFIG, &cursor));
+    WT_RET(
+      session->iface.open_cursor(&session->iface, WT_CC_URI, NULL, WT_CC_META_CONFIG, &cursor));
 
     entry = NULL;
     for (int i = 0; i < WT_CHUNKCACHE_METADATA_MAX_WORK; i++) {
