@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef THREAD_WORKER_H
-#define THREAD_WORKER_H
+#pragma once
 
 #include <optional>
 #include <memory>
@@ -126,5 +125,3 @@ private:
     uint64_t _sleep_time_ms = 1000;
 };
 } // namespace test_harness
-
-#endif

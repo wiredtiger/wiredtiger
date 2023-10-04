@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef WORKLOAD_MANAGER_H
-#define WORKLOAD_MANAGER_H
+#pragma once
 
 #include <functional>
 
@@ -71,5 +70,3 @@ private:
     bool _db_populated = false;
 };
 } // namespace test_harness
-
-#endif

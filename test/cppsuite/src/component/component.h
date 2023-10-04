@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef COMPONENT_H
-#define COMPONENT_H
+#pragma once
 
 #include <string>
 
@@ -89,4 +88,3 @@ protected:
     std::string _name;
 };
 } // namespace test_harness
-#endif

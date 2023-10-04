@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef TRANSACTION_H
-#define TRANSACTION_H
+#pragma once
 
 #include <string>
 
@@ -92,5 +91,3 @@ private:
 };
 
 } // namespace test_harness
-
-#endif

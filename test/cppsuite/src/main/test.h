@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef TEST_H
-#define TEST_H
+#pragma once
 
 #include <string>
 
@@ -78,5 +77,3 @@ private:
     database _database;
 };
 } // namespace test_harness
-
-#endif
