@@ -162,48 +162,16 @@ S3Connection::DeleteObject(const std::string &objectKey) const
     return (-1);
 }
 
-// Retrieves an object from S3. The object is downloaded to disk at the specified location.
-int
-S3Connection::GetObject(const std::string &objectKey, const std::string &path) const
-{
-    Aws::S3Crt::Model::GetObjectRequest request;
-    request.SetBucket(_bucketName);
-    request.SetKey(_objectPrefix + objectKey);
-
-    // The S3 Object should be downloaded to disk rather than into an in-memory buffer. Use a custom
-    // response stream factory to specify how the response should be downloaded.
-    request.SetResponseStreamFactory([=]() {
-        return (Aws::New<Aws::FStream>(
-          s3AllocationTag, path, std::ios_base::out | std::ios_base::binary));
-    });
-
-    Aws::S3Crt::Model::GetObjectOutcome outcome = _s3CrtClient.GetObject(request);
-
-    // Return an errno value given an HTTP response code if the aws request does not
-    // succeed.
-    if (outcome.IsSuccess())
-        return (0);
-
-    Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
-    if (toErrno.find(resCode) != toErrno.end())
-        return (toErrno.at(resCode));
-
-    return (-1);
-}
 
 // Retrieves a partial object from S3. The bytes are copied into a provided buffer.
 int
-S3Connection::GetObjectWithRange(
+S3Connection::ReadObjectWithRange(
   const std::string &objectKey, size_t offset, size_t len, void *buf) const
 {
     Aws::S3Crt::Model::GetObjectRequest request;
     request.SetBucket(_bucketName);
     request.SetKey(_objectPrefix + objectKey);
-
-    std::string range("bytes=");
-    range += std::to_string(offset);
-    range += "-";
-    range += std::to_string(offset + len - 1);
+    std::string range = "bytes=" +  std::to_string(offset) + "-" + std::to_string(offset + len - 1);
     request.SetRange(range);
 
     // The requested S3 object's range should be extracted into the given buffer. We create a
@@ -218,15 +186,8 @@ S3Connection::GetObjectWithRange(
 
     // Return an errno value given an HTTP response code if the aws request does not
     // succeed.
-    if (outcome.IsSuccess()) {
-        /*
-        auto rdSize = outcome.GetResult().GetContentLength();
-        assert(rdSize <= len);
-        std::streambuf* sbuf = outcome.GetResult().GetBody().rdbuf();
-        sbuf->sgetn(static_cast<char *>(buf), rdSize);
-        */
+    if (outcome.IsSuccess())
         return (0);
-    }
 
     Aws::Http::HttpResponseCode resCode = outcome.GetError().GetResponseCode();
     if (toErrno.find(resCode) != toErrno.end())

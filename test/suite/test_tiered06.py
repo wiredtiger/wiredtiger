@@ -161,8 +161,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
         cachedir = self.bucket + '_cache'
-        if (self.has_cache):
-            os.mkdir(cachedir)
 
         # Directory store needs the bucket created as a directory on the filesystem.
         if self.ss_name == 'dir_store':
@@ -233,8 +231,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
                 else:
                     self.assertEquals(in_block, a_block)
             fh.close(session)
-            if (self.has_cache):
-                os.remove(os.path.join(cachedir, 'abc'))
 
         ss.terminate(session)
 
@@ -315,11 +311,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # Create file system objects. First try some error cases.
         errmsg = '/No such|Invalid bucket name/'
-        if self.has_cache:
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: ss.ss_customize_file_system(session, self.bucket, self.auth_token,
-                    self.get_fs_config(prefix, bad_cachedir)), errmsg)
-
         # S3 store expects a region with the bucket
         if self.ss_name == 's3_store':
             bad_bucket += ';us-east-2'
@@ -355,8 +346,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', [])
         self.check_dirlist(fs2, '', [])
-        if (self.has_cache):
-            self.check_caches([], [])
         self.check_local_objects([], [])
 
         # A flush copies to the cloud, nothing is removed.
@@ -364,8 +353,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
-        if (self.has_cache):
-            self.check_caches([], [])
         self.check_local_objects(['beagle'], [])
 
         # Bad file to flush.
@@ -387,8 +374,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
-        if (self.has_cache):
-            self.check_caches([], [])
         self.check_local_objects(['beagle'], [])
 
         # When we flush_finish, the local file will be in both the local and cache directory.
@@ -396,8 +381,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
-        if (self.has_cache):
-            self.check_caches(['beagle'], [])
         self.check_local_objects(['beagle'], [])
 
         # Do a some more in each file system.
@@ -411,8 +394,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle', 'bat', 'bison'])
         self.check_dirlist(fs2, '', ['cat', 'cub'])
-        if (self.has_cache):
-            self.check_caches(['beagle', 'bat'], ['cat'])
         self.check_local_objects(['beagle', 'bat', 'bison'], ['cat', 'cub'])
 
         # Test directory listing prefixes.
