@@ -33,7 +33,7 @@ __chunkcache_create_metadata_file(
       WT_CC_APP_META_FORMAT ",key_format=" WT_CC_KEY_FORMAT ",value_format=" WT_CC_VALUE_FORMAT,
       capacity, hashtable_size, chunk_size));
 
-    return (__wt_session_create(session, WT_CC_URI, cfg));
+    return (__wt_session_create(session, WT_CC_METAFILE_URI, cfg));
 }
 
 /*
@@ -52,7 +52,7 @@ __chunkcache_get_metadata_config(WT_SESSION_IMPL *session, char **config)
     *config = NULL;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
-    cursor->set_key(cursor, WT_CC_URI);
+    cursor->set_key(cursor, WT_CC_METAFILE_URI);
     WT_ERR(cursor->search(cursor));
 
     WT_ERR(cursor->get_value(cursor, &tmp));
@@ -1130,9 +1130,9 @@ __wt_chunkcache_salvage(WT_SESSION_IMPL *session)
 
     /* Check that we're holding the schema lock (or take it) before doing a schema operation. */
     if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA))
-        ret = __wt_schema_drop(session, WT_CC_URI, drop_cfg);
+        ret = __wt_schema_drop(session, WT_CC_METAFILE_URI, drop_cfg);
     else
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, WT_CC_URI, drop_cfg));
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, WT_CC_METAFILE_URI, drop_cfg));
 
     if (ret == ENOENT)
         return (0);
