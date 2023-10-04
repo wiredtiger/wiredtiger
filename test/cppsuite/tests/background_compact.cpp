@@ -136,7 +136,7 @@ public:
             int64_t n_keys_to_truncate = (entries / 100) * 20;
             int64_t keys_truncated = 0, retries = 0;
             const uint64_t MAX_RETRIES = 100;
-            while (keys_truncated < n_keys_to_truncate && tw->running() && retries < MAX_RETRIES) {
+            while (tw->running() && keys_truncated < n_keys_to_truncate && retries < MAX_RETRIES) {
                 /* Start a transaction if possible. */
                 tw->txn.try_begin();
 
