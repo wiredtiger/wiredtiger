@@ -42,7 +42,7 @@ namespace test_harness {
  *      3. Performing inserts to ensure the files continue to grow.
  */
 class background_compact : public test {
-    bool maintenance_window = false;
+    volatile bool maintenance_window = false;
 
 public:
     background_compact(const test_args &args) : test(args)
