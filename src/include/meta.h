@@ -34,6 +34,9 @@
 #define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
 #define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
 
+#define WT_CC_FILE "WiredTigerCC.wt"     /* Chunk cache table */
+#define WT_CC_URI "file:WiredTigerCC.wt" /* Chunk cache table URI */
+
 #define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
 #define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */
 #define WT_SYSTEM_CKPT_URI "system:checkpoint"                   /* Checkpoint timestamp URI */
