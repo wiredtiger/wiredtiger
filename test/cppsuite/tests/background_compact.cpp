@@ -65,7 +65,6 @@ public:
             maintenance_window = !maintenance_window;
             std::string state = maintenance_window ? "On" : "Off";
             logger::log_msg(LOG_TRACE, log_prefix + " toggle maintenance window " + state);
-
         }
     }
 
@@ -175,11 +174,11 @@ public:
                  */
                 if (end_key == first_key || !tw->truncate(coll.id, first_key, end_key, "")) {
                     tw->txn.rollback();
-                    if(end_key == first_key)
+                    if (end_key == first_key)
                         logger::log_msg(
                           LOG_TRACE, log_prefix + "truncate failed because of an invalid range");
                     else
-                      logger::log_msg(LOG_TRACE, log_prefix + "truncate call failed");
+                        logger::log_msg(LOG_TRACE, log_prefix + "truncate call failed");
                     retries++;
                     continue;
                 }
