@@ -917,7 +917,7 @@ static const uint8_t confchk_test_template_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0,
 
 static const WT_CONFIG_ENTRY config_entries[] = {
   {"background_compact",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -945,7 +945,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_background_compact, 12, confchk_background_compact_jump},
   {"bounded_cursor_perf",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -973,7 +973,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_perf, 12, confchk_bounded_cursor_perf_jump},
   {"bounded_cursor_prefix_indices",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1001,7 +1001,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_prefix_indices, 12, confchk_bounded_cursor_prefix_indices_jump},
   {"bounded_cursor_prefix_search_near",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1029,7 +1029,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_prefix_search_near, 12, confchk_bounded_cursor_prefix_search_near_jump},
   {"bounded_cursor_prefix_stat",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1058,7 +1058,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_prefix_stat, 13, confchk_bounded_cursor_prefix_stat_jump},
   {"bounded_cursor_stress",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1086,7 +1086,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_bounded_cursor_stress, 12, confchk_bounded_cursor_stress_jump},
   {"burst_inserts",
-    "background_compact_debug_mode=true,burst_duration=90,"
+    "background_compact_debug_mode=false,burst_duration=90,"
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
     "duration_seconds=0,enable_logging=false,"
     "metrics_monitor=(cache_hs_insert=(max=1,min=0,postrun=false,"
@@ -1114,7 +1114,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_burst_inserts, 13, confchk_burst_inserts_jump},
   {"cache_resize",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1142,7 +1142,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_cache_resize, 12, confchk_cache_resize_jump},
   {"hs_cleanup",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1170,7 +1170,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_hs_cleanup, 12, confchk_hs_cleanup_jump},
   {"operations_test",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1198,7 +1198,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_operations_test, 12, confchk_operations_test_jump},
   {"reverse_split",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1226,7 +1226,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_reverse_split, 12, confchk_reverse_split_jump},
   {"search_near_01",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1255,7 +1255,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_search_near_01, 13, confchk_search_near_01_jump},
   {"search_near_02",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1283,7 +1283,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_search_near_02, 12, confchk_search_near_02_jump},
   {"search_near_03",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
@@ -1311,7 +1311,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_search_near_03, 12, confchk_search_near_03_jump},
   {"test_template",
-    "background_compact_debug_mode=true,cache_max_wait_ms=0,"
+    "background_compact_debug_mode=false,cache_max_wait_ms=0,"
     "cache_size_mb=0,compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,metrics_monitor=(cache_hs_insert=(max=1,"
     "min=0,postrun=false,runtime=false,save=false),"
