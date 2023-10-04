@@ -43,7 +43,7 @@ test::test(const test_args &args) : _args(args)
 
     /* Only create the metrics monitor if enabled. */
     auto metrics_monitor_cfg = _config->get_subconfig(METRICS_MONITOR);
-    if (metrics_monitor_cfg->get_optional_bool(ENABLED, false))
+    if (metrics_monitor_cfg->get_bool(ENABLED))
         _metrics_monitor = new metrics_monitor(args.test_name, metrics_monitor_cfg, _database);
     else
         delete metrics_monitor_cfg;
