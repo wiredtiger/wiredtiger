@@ -59,11 +59,13 @@ public:
         logger::log_msg(LOG_INFO, log_prefix + "commencing.");
 
         while (tw->running()) {
+            /* Sleep first to let threads do some work. */
+            tw->sleep();
+
             maintenance_window = !maintenance_window;
             std::string state = maintenance_window ? "On" : "Off";
             logger::log_msg(LOG_TRACE, log_prefix + " toggle maintenance window " + state);
 
-            tw->sleep();
         }
     }
 
