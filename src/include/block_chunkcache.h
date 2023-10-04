@@ -12,6 +12,10 @@
 #define WT_CC_VALUE_FORMAT WT_UNCHECKED_STRING(QQ)
 #define WT_CC_APP_META_FORMAT \
     "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\""
+#define WT_CC_META_CONFIG "key_format=" WT_CC_KEY_FORMAT ",value_format=" WT_CC_VALUE_FORMAT"
+
+/* The maximum number of metadata entries to write out per server wakeup. */
+#define WT_CHUNKCACHE_METADATA_MAX_WORK 1000
 
 struct __wt_chunkcache_hashid {
     const char *objectname;
