@@ -137,7 +137,7 @@ def get_make_check_dirs():
 
     # Find the build folder. It can be identified by the presence of the `CMakeFiles` file.
     p = subprocess.Popen("find . -maxdepth 2 -name CMakeFiles", stdout=subprocess.PIPE, shell=True,
-         universal_newlines=True)
+        universal_newlines=True)
     build_folder = os.path.dirname(p.stdout.read().strip())
 
     # Search keyword in CMakeLists.txt to identify directories that involve test configuration.
