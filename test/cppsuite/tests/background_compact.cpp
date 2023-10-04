@@ -310,15 +310,8 @@ public:
                 "MB" :
               "background=false";
 
-            auto ret = tw->session->compact(tw->session.get(), nullptr, compact_cfg.c_str());
-            if (ret == EBUSY) {
-                logger::log_msg(LOG_WARN,
-                  type_string(tw->type) + " thread {" + std::to_string(tw->id) +
-                    "}: background compact returned EBUSY.");
-                /* Toggle back to the original state if we failed to call background compact. */
-                enabled = !enabled;
-            } else
-                testutil_check(ret);
+            /* We never expect the background compaction to fail when being enabled/disabled. */
+            testutil_check(tw->session->compact(tw->session.get(), nullptr, compact_cfg.c_str()));
 
             tw->sleep();
         }
