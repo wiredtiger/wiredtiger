@@ -120,16 +120,16 @@ class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, RecStat.prefix, desc, flags)
-class S3Stat(Stat):
-    prefix = 's3_storage_source'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, S3Stat.prefix, desc, flags)
 class SessionOpStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
+class StorageSourceStat(Stat):
+    prefix = 'storage-source'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class StorageStat(Stat):
-    prefix = 'session'
+    prefix = 'tiered-storage'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class ThreadStat(Stat):
@@ -660,17 +660,15 @@ conn_stats = [
     StorageStat('tiered_work_units_removed', 'tiered operations removed without processing'),
 
     ##########################################
-    # S3 storage source statistics
+    # Storage source statistics
     ##########################################
-    StorageStat('s3_list_objects', 'list objects calls'),
-    StorageStat('s3_put_object', 'put objects calls'),
-    StorageStat('s3_get_object', 'get objects calls'),
-    StorageStat('s3_object_exists_and_size', 'object exists and get size calls'),
-    StorageStat('s3_fh_close', 'file handle close calls'),
-    StorageStat('s3_fh_open', 'file handle open calls'),
-    StorageStat('s3_fh_read', 'file handle read calls'),
-    StorageStat('s3_fh_size_ops', 'file handle get file size calls'),
-    StorageStat('s3_fh_size_read', 'file handle bytes read'),
+    StorageSourceStat('ss_list_objects', 'list objects calls'),
+    StorageSourceStat('ss_put_object', 'put objects calls'),
+    StorageSourceStat('ss_object_exists_and_size', 'object exists and get size calls'),
+    StorageSourceStat('ss_fh_close', 'file handle close calls'),
+    StorageSourceStat('ss_fh_open', 'file handle open calls'),
+    StorageSourceStat('ss_fh_read', 'file handle read calls'),
+    StorageSourceStat('ss_fh_size_read', 'file handle bytes read'),
 
     ##########################################
     # Thread Count statistics

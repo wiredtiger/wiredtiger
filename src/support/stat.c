@@ -1823,14 +1823,12 @@ static const char *const __stats_connection_desc[] = {
   "session: attempts to remove a local object and the object is in use",
   "session: file handle bytes read",
   "session: file handle close calls",
-  "session: file handle get file size calls",
   "session: file handle open calls",
   "session: file handle read calls",
   "session: flush_tier failed calls",
   "session: flush_tier operation calls",
   "session: flush_tier tables skipped due to no checkpoint",
   "session: flush_tier tables switched",
-  "session: get objects calls",
   "session: list objects calls",
   "session: local objects removed",
   "session: object exists and get size calls",
@@ -2502,21 +2500,19 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     stats->local_objects_inuse = 0;
-    stats->s3_fh_size_read = 0;
-    stats->s3_fh_close = 0;
-    stats->s3_fh_size_ops = 0;
-    stats->s3_fh_open = 0;
-    stats->s3_fh_read = 0;
+    stats->ss_fh_size_read = 0;
+    stats->ss_fh_close = 0;
+    stats->ss_fh_open = 0;
+    stats->ss_fh_read = 0;
     stats->flush_tier_fail = 0;
     stats->flush_tier = 0;
     stats->flush_tier_skipped = 0;
     stats->flush_tier_switched = 0;
-    stats->s3_get_object = 0;
-    stats->s3_list_objects = 0;
+    stats->ss_list_objects = 0;
     stats->local_objects_removed = 0;
-    stats->s3_object_exists_and_size = 0;
+    stats->ss_object_exists_and_size = 0;
     /* not clearing session_open */
-    stats->s3_put_object = 0;
+    stats->ss_put_object = 0;
     stats->session_query_ts = 0;
     /* not clearing session_table_alter_fail */
     /* not clearing session_table_alter_success */
@@ -3210,21 +3206,19 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_split_stashed_bytes += WT_STAT_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
     to->local_objects_inuse += WT_STAT_READ(from, local_objects_inuse);
-    to->s3_fh_size_read += WT_STAT_READ(from, s3_fh_size_read);
-    to->s3_fh_close += WT_STAT_READ(from, s3_fh_close);
-    to->s3_fh_size_ops += WT_STAT_READ(from, s3_fh_size_ops);
-    to->s3_fh_open += WT_STAT_READ(from, s3_fh_open);
-    to->s3_fh_read += WT_STAT_READ(from, s3_fh_read);
+    to->ss_fh_size_read += WT_STAT_READ(from, ss_fh_size_read);
+    to->ss_fh_close += WT_STAT_READ(from, ss_fh_close);
+    to->ss_fh_open += WT_STAT_READ(from, ss_fh_open);
+    to->ss_fh_read += WT_STAT_READ(from, ss_fh_read);
     to->flush_tier_fail += WT_STAT_READ(from, flush_tier_fail);
     to->flush_tier += WT_STAT_READ(from, flush_tier);
     to->flush_tier_skipped += WT_STAT_READ(from, flush_tier_skipped);
     to->flush_tier_switched += WT_STAT_READ(from, flush_tier_switched);
-    to->s3_get_object += WT_STAT_READ(from, s3_get_object);
-    to->s3_list_objects += WT_STAT_READ(from, s3_list_objects);
+    to->ss_list_objects += WT_STAT_READ(from, ss_list_objects);
     to->local_objects_removed += WT_STAT_READ(from, local_objects_removed);
-    to->s3_object_exists_and_size += WT_STAT_READ(from, s3_object_exists_and_size);
+    to->ss_object_exists_and_size += WT_STAT_READ(from, ss_object_exists_and_size);
     to->session_open += WT_STAT_READ(from, session_open);
-    to->s3_put_object += WT_STAT_READ(from, s3_put_object);
+    to->ss_put_object += WT_STAT_READ(from, ss_put_object);
     to->session_query_ts += WT_STAT_READ(from, session_query_ts);
     to->session_table_alter_fail += WT_STAT_READ(from, session_table_alter_fail);
     to->session_table_alter_success += WT_STAT_READ(from, session_table_alter_success);

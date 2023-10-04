@@ -704,15 +704,15 @@ S3GetStats(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, int64_t *stats
 {
     S3Storage *s3 = (S3Storage *)storageSource;
 
-    assert(count == 9);
+    assert(count == 7);
 
     stats[0] = s3->statistics.listObjectsCount;
     stats[1] = s3->statistics.putObjectCount;
-    stats[3] = s3->statistics.objectExistsAndSizeCount;
-    stats[4] = s3->statistics.fhCloseOps;
-    stats[5] = s3->statistics.fhOpenOps;
-    stats[6] = s3->statistics.fhReadOps;
-    stats[8] = s3->statistics.fhReadSize;
+    stats[2] = s3->statistics.objectExistsAndSizeCount;
+    stats[3] = s3->statistics.fhCloseOps;
+    stats[4] = s3->statistics.fhOpenOps;
+    stats[5] = s3->statistics.fhReadOps;
+    stats[6] = s3->statistics.fhReadSize;
 }
 
 // Log collected statistics.

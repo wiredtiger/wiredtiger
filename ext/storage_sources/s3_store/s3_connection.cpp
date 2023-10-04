@@ -162,7 +162,6 @@ S3Connection::DeleteObject(const std::string &objectKey) const
     return (-1);
 }
 
-
 // Retrieves a partial object from S3. The bytes are copied into a provided buffer.
 int
 S3Connection::ReadObjectWithRange(
@@ -171,7 +170,7 @@ S3Connection::ReadObjectWithRange(
     Aws::S3Crt::Model::GetObjectRequest request;
     request.SetBucket(_bucketName);
     request.SetKey(_objectPrefix + objectKey);
-    std::string range = "bytes=" +  std::to_string(offset) + "-" + std::to_string(offset + len - 1);
+    std::string range = "bytes=" + std::to_string(offset) + "-" + std::to_string(offset + len - 1);
     request.SetRange(range);
 
     // The requested S3 object's range should be extracted into the given buffer. We create a
