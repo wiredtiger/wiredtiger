@@ -408,13 +408,20 @@ WorkloadRunner::create_table(
         mirror_config = MIRROR_TABLE_APP_METADATA + mirror_uri + ",";
     }
 
+    // If mirror is enabled, we don't want to fail when creating the base. Getting spurious EBUSY
+    // errors is ok though, retry in that case.
     const std::string base_config(
       config + "," + mirror_config + BASE_TABLE_APP_METADATA + "true\"");
-    int ret = session->create(session, uri.c_str(), base_config.c_str());
+    int ret, retries = 0;
+
+    do {
+        ret = session->create(session, uri.c_str(), base_config.c_str());
+    } while (ret != 0 && ret == EBUSY && mirror_enabled && ++retries < TABLE_MAX_RETRIES);
+
     if (ret != 0) {
         const std::string err_msg("Failed to create table '" + uri + "'");
         VERBOSE(*_workload, err_msg);
-        // If mirror is enabled, we cannot fail here.
+        // Fail if we have failed at creating the base of a mirror.
         if (mirror_enabled)
             THROW_ERRNO(ret, err_msg);
         return ret;
