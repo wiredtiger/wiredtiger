@@ -54,10 +54,9 @@ public:
     void
     custom_operation(thread_worker *tw) override final
     {
-        std::string log_prefix =
+        const std::string log_prefix =
           type_string(tw->type) + " thread {" + std::to_string(tw->id) + "}: ";
-        logger::log_msg(
-          LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
+        logger::log_msg(LOG_INFO, log_prefix + "commencing.");
 
         while (tw->running()) {
             maintenance_window = !maintenance_window;
@@ -71,7 +70,7 @@ public:
     void
     remove_operation(thread_worker *tw) override final
     {
-        std::string log_prefix =
+        const std::string log_prefix =
           type_string(tw->type) + " thread {" + std::to_string(tw->id) + "}: ";
         logger::log_msg(LOG_INFO, log_prefix + "commencing.");
 
@@ -162,10 +161,10 @@ public:
                 const char *key_str;
                 testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key_str));
 
-                std::string first_key = key_str;
+                const std::string first_key(key_str);
                 uint64_t truncate_range =
                   random_generator::instance().generate_integer<uint64_t>(0, 100);
-                std::string end_key = tw->pad_string(
+                const std::string end_key = tw->pad_string(
                   std::to_string(std::stoi(first_key) + truncate_range), first_key.size());
 
                 /*
@@ -173,7 +172,11 @@ public:
                  */
                 if (end_key == first_key || !tw->truncate(coll.id, first_key, end_key, "")) {
                     tw->txn.rollback();
-                    logger::log_msg(LOG_TRACE, log_prefix + "truncate failed");
+                    if(end_key == first_key)
+                        logger::log_msg(
+                          LOG_TRACE, log_prefix + "truncate failed because of an invalid range");
+                    else
+                      logger::log_msg(LOG_TRACE, log_prefix + "truncate call failed");
                     retries++;
                     continue;
                 }
