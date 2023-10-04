@@ -113,11 +113,11 @@ __chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
 
 /*
  * __chunkcache_metadata_queue_internal --
- *     Allocate an entry, populate it, and insert it into the queue of chunks to write to
- *     chunkcache metadata.
+ *     Allocate an entry, populate it, and insert it into the queue of chunks to write to chunkcache
+ *     metadata.
  */
 static int
-__chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, char *name,
+__chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, const char *name,
   uint32_t objectid, wt_off_t file_offset, uint64_t cache_offset, size_t data_sz)
 {
     WT_CHUNKCACHE_METADATA_WORK_UNIT *entry;
@@ -154,11 +154,11 @@ __chunkcache_metadata_queue_insert(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK
 {
     WT_CHUNKCACHE *cache;
 
-    cache = S2C(session)->chunkcache;
+    cache = &S2C(session)->chunkcache;
 
     return (__chunkcache_metadata_queue_internal(session, WT_CHUNKCACHE_METADATA_WORK_INS,
       chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->hash_id.offset,
-      (uint64_t)(chunk->chunk_memory - chunkcache->memory), chunk->chunk_size);
+      (uint64_t)(chunk->chunk_memory - cache->memory), chunk->chunk_size));
 }
 
 /*
@@ -169,7 +169,7 @@ static int
 __chunkcache_metadata_queue_delete(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     return (__chunkcache_metadata_queue_internal(session, WT_CHUNKCACHE_METADATA_WORK_DEL,
-      chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->hash_id.offset, 0, 0);
+      chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->hash_id.offset, 0, 0));
 }
 
 /*
@@ -217,12 +217,12 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
     /* Increment chunk's disk usage and update statistics. */
     __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
-    WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
-    WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+    WT_STAT_CONN_INCR(session, chunkcache_chunks_inuse);
+    WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse, chunk->chunk_size);
     if (__chunkcache_should_pin_chunk(session, chunk)) {
         F_SET(chunk, WT_CHUNK_PINNED);
-        WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
-        WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+        WT_STAT_CONN_INCR(session, chunkcache_chunks_pinned);
+        WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse_pinned, chunk->chunk_size);
     }
 
     return (0);
@@ -242,7 +242,7 @@ __chunkcache_admit_size(WT_SESSION_IMPL *session)
     if ((chunkcache->bytes_used + chunkcache->chunk_size) < chunkcache->capacity)
         return (chunkcache->chunk_size);
 
-    WT_STAT_CONN_INCR(session, chunk_cache_exceeded_capacity);
+    WT_STAT_CONN_INCR(session, chunkcache_exceeded_capacity);
     __wt_verbose(session, WT_VERB_CHUNKCACHE,
       "chunkcache exceeded capacity of %" PRIu64
       " bytes "
@@ -332,24 +332,26 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
     /* Decrement chunk's disk usage and update statistics. */
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
-    WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
-    WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+    WT_STAT_CONN_DECR(session, chunkcache_chunks_inuse);
+    WT_STAT_CONN_DECRV(session, chunkcache_bytes_inuse, chunk->chunk_size);
     if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
-        WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
-        WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+        WT_STAT_CONN_DECR(session, chunkcache_chunks_pinned);
+        WT_STAT_CONN_DECRV(session, chunkcache_bytes_inuse_pinned, chunk->chunk_size);
     }
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         __wt_free(session, chunk->chunk_memory);
     else {
+        /* Push the removal into the work queue so it can get removed from the chunkcache metadata.
+         */
+        WT_IGNORE_RET(__chunkcache_metadata_queue_delete(session, chunk));
+
         /* Update the bitmap, then free the chunk memory. */
         index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
         __chunkcache_bitmap_free(session, index);
     }
-    __wt_free(session, chunk);
 
-    /* Push the removal into the work queue so it can get removed from the chunkcache metadata. */
-    WT_IGNORE_RET(__chunkcache_metadata_queue_delete(session, new_chunk));
+    __wt_free(session, chunk);
 }
 
 /*
@@ -469,7 +471,7 @@ __chunkcache_eviction_thread(void *arg)
                 if (__chunkcache_should_evict(chunk)) {
                     TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, i), chunk, next_chunk);
                     __chunkcache_free_chunk(session, chunk);
-                    WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
+                    WT_STAT_CONN_INCR(session, chunkcache_chunks_evicted);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
                       "evicted chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
                       chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->chunk_offset,
@@ -617,7 +619,7 @@ __chunkcache_read_into_chunk(
         TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), new_chunk, next_chunk);
         __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
         __chunkcache_free_chunk(session, new_chunk);
-        WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
+        WT_STAT_CONN_INCR(session, chunkcache_io_failed);
         return (ret);
     }
 
@@ -683,7 +685,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
-    WT_STAT_CONN_INCR(session, chunk_cache_lookups);
+    WT_STAT_CONN_INCR(session, chunkcache_lookups);
 
     WT_RET(
       __wt_tiered_name(session, session->dhandle, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
@@ -703,9 +705,9 @@ retry:
                 if (!valid) {
                     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
                     __wt_spin_backoff(&retries, &sleep_usec);
-                    WT_STAT_CONN_INCR(session, chunk_cache_retries);
+                    WT_STAT_CONN_INCR(session, chunkcache_retries);
                     if (retries > WT_CHUNKCACHE_MAX_RETRIES)
-                        WT_STAT_CONN_INCR(session, chunk_cache_toomany_retries);
+                        WT_STAT_CONN_INCR(session, chunkcache_toomany_retries);
                     goto retry;
                 }
                 /* Found the needed chunk. */
@@ -733,7 +735,7 @@ retry:
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
                 if (already_read > 0)
-                    WT_STAT_CONN_INCR(session, chunk_cache_spans_chunks_read);
+                    WT_STAT_CONN_INCR(session, chunkcache_spans_chunks_read);
                 already_read += size_copied;
                 remains_to_read -= size_copied;
 
@@ -742,7 +744,7 @@ retry:
         }
         /* The chunk is not cached. Allocate space for it. Prepare for reading it from storage. */
         if (!chunk_cached) {
-            WT_STAT_CONN_INCR(session, chunk_cache_misses);
+            WT_STAT_CONN_INCR(session, chunkcache_misses);
             ret = __chunkcache_insert(
               session, offset + (wt_off_t)already_read, block->size, &hash_id, bucket_id, &chunk);
             __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
@@ -837,7 +839,7 @@ __wt_chunkcache_remove(
         remains_to_remove -= size_removed;
 
         if (remains_to_remove > 0)
-            WT_STAT_CONN_INCR(session, chunk_cache_spans_chunks_remove);
+            WT_STAT_CONN_INCR(session, chunkcache_spans_chunks_remove);
     }
 
     return (0);
@@ -940,15 +942,15 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
             if (__chunkcache_should_pin_chunk(session, chunk)) {
                 /* Increment the stat when a chunk that was initially unpinned becomes pinned. */
                 if (!F_ISSET(chunk, WT_CHUNK_PINNED)) {
-                    WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
-                    WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+                    WT_STAT_CONN_INCR(session, chunkcache_chunks_pinned);
+                    WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse_pinned, chunk->chunk_size);
                 }
                 F_SET(chunk, WT_CHUNK_PINNED);
             } else {
                 /* Decrement the stat when a chunk that was initially pinned becomes unpinned. */
                 if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
-                    WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
-                    WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+                    WT_STAT_CONN_DECR(session, chunkcache_chunks_pinned);
+                    WT_STAT_CONN_DECRV(session, chunkcache_bytes_inuse_pinned, chunk->chunk_size);
                 }
                 F_CLR(chunk, WT_CHUNK_PINNED);
             }
@@ -975,7 +977,6 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 
     chunkcache = &S2C(session)->chunkcache;
     cnt = 0;
-    metadata_config = NULL;
     pinned_objects = NULL;
 
     if (F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))

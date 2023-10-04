@@ -407,6 +407,10 @@ extern int __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_chunkcache_ingest(WT_SESSION_IMPL *session, const char *local_name,
   const char *sp_obj_name, uint32_t objectid) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_chunkcache_metadata_destroy(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid,
