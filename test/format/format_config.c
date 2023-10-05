@@ -437,14 +437,16 @@ config_table(TABLE *table, void *arg)
 
         /*
          * Predictable replays can get extremely slow with throttling.
+         *
          * TODO: Investigate reasons for that.
          */
-         if (GV(OPS_THROTTLE)) {
+        if (GV(OPS_THROTTLE)) {
             if (config_explicit(NULL, "ops.throttle"))
-                WARN("turning off ops.throttle for table%" PRIu32 " to work with predictable replay",
+                WARN("turning off ops.throttle for table%" PRIu32
+                     " to work with predictable replay",
                   table->id);
             config_single(NULL, "ops.throttle=0", false);
-         }
+        }
     }
 
     /*
