@@ -5240,7 +5240,8 @@ struct __wt_storage_source {
      */
     int (*terminate)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session);
 
-    void (*get_stats)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, int64_t *stats, uint count);
+    void (*get_stats)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, int64_t *stats,
+        uint count);
 };
 #endif
 
