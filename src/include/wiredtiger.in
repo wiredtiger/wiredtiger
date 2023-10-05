@@ -5250,7 +5250,7 @@ struct __wt_storage_source {
      * @param count the statistics buffer length
      */
     void (*get_stats)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, int64_t *stats,
-        uint count);
+        uint16_t count);
 };
 #endif
 
