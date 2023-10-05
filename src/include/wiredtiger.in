@@ -5210,7 +5210,7 @@ struct __wt_storage_source {
 
     /*!
      * After a flush, rename the source file from the default file system to be cached in
-         * the shared object storage.
+     * the shared object storage.
      *
      * @errors
      *
@@ -5240,6 +5240,15 @@ struct __wt_storage_source {
      */
     int (*terminate)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session);
 
+    /*!
+     * Grab the generated statistics from the storage source and initialize the WiredTiger
+     * statistics from the generated stats.
+     *
+     * @param storage_source the WT_STORAGE_SOURCE
+     * @param session the current WiredTiger session
+     * @param stats the statistics buffer
+     * @param stats the statistics buffer length
+     */
     void (*get_stats)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, int64_t *stats,
         uint count);
 };

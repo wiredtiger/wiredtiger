@@ -131,14 +131,12 @@ TEST_CASE("Testing class S3Connection", "s3-connection")
     SECTION("Read an object from an S3 Bucket", "[s3-connection]")
     {
         REQUIRE(conn.PutObject(objectName, fileName) == 0);
-        REQUIRE(std::remove(path.c_str()) == 0); // Delete the local copy of the file.
 
         char tmp[8];
         REQUIRE(conn.ReadObjectWithRange(objectName, 2, 8, tmp) == 0);
         REQUIRE(strncmp(tmp, payload.substr(2, 8).c_str(), 8) == 0);
 
         // Clean up test artifacts.
-        REQUIRE(std::remove(path.c_str()) == 0);
         REQUIRE(conn.DeleteObject(objectName) == 0);
     }
 
