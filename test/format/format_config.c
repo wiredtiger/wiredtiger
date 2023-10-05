@@ -500,7 +500,8 @@ config_run(void)
         /*
          * Predictable replays can get extremely slow with throttling.
          *
-         * TODO: Investigate reasons for that.
+         * FIXME-WT-11782: Investigate why predictable replays get stuck with ops.throttling
+         * enabled. It can indicate a bug in predictable replay or in WiredTiger.
          */
         if (GV(OPS_THROTTLE)) {
             if (config_explicit(NULL, "ops.throttle"))
