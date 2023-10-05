@@ -168,11 +168,10 @@ test::run()
         it->finish();
 
     /* Validation stage. */
-    if (_operation_tracker->enabled()) {
-        std::unique_ptr<configuration> tracking_config(_config->get_subconfig(OPERATION_TRACKER));
-        this->validate(_operation_tracker->get_operation_table_name(),
+    if (_config->get_bool(VALIDATE))
+        this->validate(_operation_tracker->enabled(),
+          _operation_tracker->get_operation_table_name(),
           _operation_tracker->get_schema_table_name(), _workload_manager->get_database());
-    }
 
     /* Log perf stats. */
     metrics_writer::instance().output_perf_file(_args.test_name);
