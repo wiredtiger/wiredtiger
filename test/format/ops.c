@@ -955,13 +955,14 @@ ops(void *arg)
     WT_SESSION *session;
     iso_level_t iso_level;
     thread_op op;
-    uint64_t reset_op, session_op, truncate_op;
+    uint64_t reset_op, session_op, throttle_delay, truncate_op;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i;
+    u_int i, throttle_delay_max;
     const char *iso_config;
-    bool greater_than, intxn, prepared;
+    bool greater_than, intxn, prepared, mirrored_truncate;
 
     tinfo = arg;
+    mirrored_truncate = false;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -981,6 +982,14 @@ ops(void *arg)
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
 
+    /*
+     * Calculate max delay so that per-table ops/sec is as set. We use 2* here as our random
+     * operation uses a flat distribution and the average delay will come out to
+     * OPS_THROTTLE_SLEEP_US.
+     */
+    throttle_delay_max =
+      2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
+
     /* Set the first operation where we'll create a new session and cursors. */
     session = NULL;
     session_op = 0;
@@ -992,7 +1001,13 @@ ops(void *arg)
     truncate_op = mmrand(&tinfo->data_rnd, 100, 10 * WT_THOUSAND);
 
     for (intxn = false; !tinfo->quit;) {
+        if (GV(OPS_THROTTLE)) {
+            /* Sleep first to avoid burst when all threads start. */
+            throttle_delay = mmrand(&tinfo->extra_rnd, 0, throttle_delay_max);
+            __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
+        }
 rollback_retry:
+        mirrored_truncate = false;
         if (tinfo->quit)
             break;
 
@@ -1289,7 +1304,9 @@ rollback_retry:
                 goto rollback;
             skip2 = table;
         }
-        if (ret == 0 && table->mirror)
+        if (ret == 0 && table->mirror) {
+            if (op == TRUNCATE)
+                mirrored_truncate = true;
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
@@ -1300,6 +1317,7 @@ rollback_retry:
                     if (ret == WT_ROLLBACK)
                         break;
                 }
+        }
 skip_operation:
         table = tinfo->table = NULL;
 
@@ -1394,6 +1412,9 @@ rollback:
             snap_repeat_update(tinfo, false);
             break;
         }
+
+        if (mirrored_truncate)
+            wts_verify_mirrored_truncate(tinfo);
 
         intxn = false;
     }
