@@ -2,8 +2,6 @@
 **/tags
 **/*.sw?
 .vscode/
-**/__wt_s_style.*
-WT_TEST/
 .cache/
 .ccls-cache/
 compile_commands.json
