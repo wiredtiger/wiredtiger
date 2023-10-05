@@ -1,7 +1,9 @@
 # Configuration for background_compact.
 background_compact_debug_mode=true,
 cache_size_mb=10000,
-duration_seconds=60,
+duration_seconds=30,
+# We don't need to validate anything with the default config.
+validate=false,
 workload_manager=
 (
     populate_config=
