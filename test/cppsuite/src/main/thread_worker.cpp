@@ -268,7 +268,19 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
 void
 thread_worker::sleep()
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
+    if (_sleep_time_ms <= 1000) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
+        return;
+    }
+    /*
+     * When the sleeping time is more than a second, check periodically to know whether the thread
+     * is still supposed to be running.
+     */
+    uint64_t elapsed_time_ms = 0, step_ms = 1000;
+    while (_running && elapsed_time_ms < _sleep_time_ms) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(step_ms));
+        elapsed_time_ms += step_ms;
+    }
 }
 
 void
