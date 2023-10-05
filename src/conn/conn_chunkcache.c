@@ -20,7 +20,7 @@ __chunkcache_create_metadata_file(
     WT_RET(__wt_snprintf(cfg, sizeof(cfg), WT_CC_APP_META_FORMAT "," WT_CC_META_CONFIG, capacity,
       hashtable_size, chunk_size));
 
-    return (__wt_session_create(session, WT_CC_URI, cfg));
+    return (__wt_session_create(session, WT_CC_METAFILE_URI, cfg));
 }
 
 /*
@@ -39,7 +39,7 @@ __chunkcache_get_metadata_config(WT_SESSION_IMPL *session, char **config)
     *config = NULL;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
-    cursor->set_key(cursor, WT_CC_URI);
+    cursor->set_key(cursor, WT_CC_METAFILE_URI);
     WT_ERR(cursor->search(cursor));
 
     WT_ERR(cursor->get_value(cursor, &tmp));
@@ -75,7 +75,7 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
     /* Open the underlying table just to verify it exists. */
     cursor = NULL;
     WT_ERR(
-      session->iface.open_cursor(&session->iface, WT_CC_URI, NULL, WT_CC_META_CONFIG, &cursor));
+      session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
 
 err:
     if (cursor != NULL)
@@ -160,7 +160,7 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     WT_RET(
-      session->iface.open_cursor(&session->iface, WT_CC_URI, NULL, WT_CC_META_CONFIG, &cursor));
+      session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
 
     entry = NULL;
     for (int i = 0; i < WT_CHUNKCACHE_METADATA_MAX_WORK; i++) {
