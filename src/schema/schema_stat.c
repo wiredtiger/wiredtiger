@@ -159,6 +159,11 @@ __wt_curstat_table_init(
     if (table->is_simple) {
         WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->cgroups[0]->name));
         ret = __wt_curstat_init(session, buf->data, NULL, cfg, cst);
+        /*
+         * Proceed to the cleanup flow after initializing the statistics. Ignore the name of the
+         * label, this shouldn't necessarily be interpreted as an error unless the return value
+         * corresponds to one.
+         */
         goto err;
     }
 
