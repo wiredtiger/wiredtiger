@@ -56,10 +56,10 @@ struct S3Statistics {
     std::atomic<int64_t> objectExistsAndSizeCount; // Number of S3 object exists requests
 
     // Operations using WiredTiger's native file handle operations.
-    std::atomic<int64_t> fhCloseOps; // Number of non read/write file handle operations
-    std::atomic<int64_t> fhOpenOps;  // Number of non read/write file handle operations
+    std::atomic<int64_t> fhCloseOps; // Number of close file handle operations
+    std::atomic<int64_t> fhOpenOps;  // Number of open file handle operations
     std::atomic<int64_t> fhReadOps;  // Number of file handle read operations
-    std::atomic<int64_t> fhReadSize; // Number of file handle read operations
+    std::atomic<int64_t> fhReadSize; // Number of file handle read bytes read
 };
 
 // S3 storage source structure.
@@ -93,6 +93,7 @@ struct S3FileHandle {
     S3FileSystem *fs;
     wt_off_t objSize;
     std::string objName;
+    uint32_t referenceCount;
 };
 
 // Configuration variables for connecting to S3CrtClient.
@@ -145,7 +146,7 @@ S3SourcePath(const std::string &dir, const std::string &name)
     return (dir + "/" + strippedName);
 }
 
-// Return if the file exists. Looks at the S3 Bucket. Also gets the size
+// Return if the file exists, via looking into the S3 Bucket. Also fetches the file size if exists.
 static int
 S3FileExistsAndGetSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
   bool *fileExists, wt_off_t *size)
@@ -185,6 +186,10 @@ S3FileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 {
     S3FileHandle *s3FileHandle = (S3FileHandle *)fileHandle;
     S3Storage *s3 = s3FileHandle->storage;
+
+    // If there are other active instances of the file being open, do not close file handle.
+    if (--s3FileHandle->referenceCount != 0)
+        return 0;
 
     // We require exclusive access to the list of file handles when removing file handles. The
     // lock_guard will be unlocked automatically once the scope is exited.
@@ -235,6 +240,17 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
         return (ENOENT);
     }
 
+    // Check if there is already an existing file handle open.
+    auto fh_iterator = std::find_if(s3->fhList.begin(), s3->fhList.end(),
+      [name](S3FileHandle *fh) { return fh->objName.compare(name) == 0; });
+
+    // Active file handle for file exists, increment reference count.
+    if (fh_iterator != s3->fhList.end()) {
+        (*fh_iterator)->referenceCount++;
+        *fileHandlePtr = reinterpret_cast<WT_FILE_HANDLE *>(*fh_iterator);
+        return 0;
+    }
+
     S3FileHandle *s3FileHandle;
     if ((s3FileHandle = (S3FileHandle *)calloc(1, sizeof(S3FileHandle))) == nullptr) {
         s3->log->LogErrorMessage("S3FileOpen: unable to allocate memory for file handle.");
@@ -244,6 +260,7 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     s3FileHandle->objSize = objSize;
     s3FileHandle->storage = s3;
     s3FileHandle->fs = fs;
+    s3FileHandle->referenceCount = 1;
 
     // We only define the functions we need since S3 is read-only.
     WT_FILE_HANDLE *fileHandle = (WT_FILE_HANDLE *)s3FileHandle;
@@ -328,7 +345,7 @@ S3FileLock(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, bool lock)
     return (0);
 }
 
-// Read a file from S3
+// Read a file from the S3 buckets, and store the contents into an user provided buffer.
 static int
 S3FileRead(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
@@ -761,9 +778,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         delete (s3);
         return (ret != 0 ? ret : EINVAL);
     }
-
-    // Set up statistics. Atomic always initialized to 0, so not needed.
-    // s3->statistics = {};
 
     // Initialize the AWS SDK and logging.
     AwsManager::Init();

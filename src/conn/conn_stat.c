@@ -70,7 +70,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
     WT_STORAGE_SOURCE *ss;
-    int64_t ss_stats[9];
+    int64_t ss_stats[7];
 
     conn = S2C(session);
     stats = conn->stats;

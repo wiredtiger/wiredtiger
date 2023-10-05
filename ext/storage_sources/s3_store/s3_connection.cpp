@@ -162,7 +162,8 @@ S3Connection::DeleteObject(const std::string &objectKey) const
     return (-1);
 }
 
-// Retrieves a partial object from S3. The bytes are copied into a provided buffer.
+// Read a given range of bytes from an object in the S3 bucket. The bytes are copied into a
+// user provided buffer.
 int
 S3Connection::ReadObjectWithRange(
   const std::string &objectKey, size_t offset, size_t len, void *buf) const
