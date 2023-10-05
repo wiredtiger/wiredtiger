@@ -15,7 +15,7 @@ case "$1" in
             echo "Usage: $0 [-F]"
             echo "-F only run validation commands if evergreen yml files have been modified"
         fi
-        break;;
+        ;;
 esac
 
 if [ $(command -v evergreen) ] && [ -f ~/.evergreen.yml ]; then
