@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/bash
 
 # Check various WiredTiger function behaviors.
 t=__wt.$$
