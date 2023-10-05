@@ -173,9 +173,11 @@ S3Connection::ReadObjectWithRange(
     std::string range = "bytes=" + std::to_string(offset) + "-" + std::to_string(offset + len - 1);
     request.SetRange(range);
 
-    // The requested S3 object's range should be extracted into the given buffer. We create a
-    // IOstream using the givem buffer, so that the object can directly be downloaded into the
-    // buffer without making unnecessary intermediate copies.
+    /*
+     * The requested S3 object's range should be extracted into the given buffer. We create a
+     * IOstream using the givem buffer, so that the object can directly be downloaded into the
+     * buffer without making unnecessary intermediate copies.
+     */
     Aws::Utils::Stream::PreallocatedStreamBuf streambuf(
       reinterpret_cast<unsigned char *>(buf), len);
     request.SetResponseStreamFactory(

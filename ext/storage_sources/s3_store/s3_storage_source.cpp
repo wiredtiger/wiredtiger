@@ -227,9 +227,11 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     wt_off_t objSize;
     if ((ret = S3FileExistsAndGetSize(fileSystem, session, name, &objExists, &objSize)) != 0) {
         s3->log->LogErrorMessage("S3FileOpen: error checking if the file exists. Ret code:" + ret);
-        return (ENOENT);
+        return (EINVAL);
     }
     if (!objExists) {
+        s3->log->LogErrorMessage(
+          "S3FileOpen: object named " + std::string(name) + " does not exist in the bucket.");
         return (ENOENT);
     }
 
