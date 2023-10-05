@@ -52,12 +52,11 @@ test::test(const test_args &args) : _args(args)
     _database.set_create_config(
       _config->get_bool(COMPRESSION_ENABLED), _config->get_bool(REVERSE_COLLATOR));
 
-    /*
-     * Ordering is not important here, any dependencies between components should be resolved
-     * internally by the components.
-     */
-    _components = {_workload_manager, _timestamp_manager};
-    if (_metrics_monitor != nullptr)
+    /* Update the component list with the enabled ones. */
+    _components.push_back(_workload_manager);
+    if (_timestamp_manager->enabled())
+        _components.push_back(_timestamp_manager);
+    if (_metrics_monitor != nullptr && _metrics_monitor->enabled())
         _components.push_back(_metrics_monitor);
 }
 
@@ -141,20 +140,16 @@ test::run()
     connection_manager::instance().create(
       db_create_config, _args.home.empty() ? DEFAULT_DIR : _args.home);
 
-    /* Initiate the load stage of each component. */
-    for (const auto &it : _components) {
-        if (it->enabled())
-            it->load();
-    }
+    /* Load each component. They have to be all loaded first before being able to run. */
+    for (const auto &it : _components)
+        it->load();
 
-    /* Spawn threads for all component::run() functions. */
-    for (const auto &it : _components) {
-        if (it->enabled())
-            _thread_manager->add_thread(&component::run, it);
-    }
+    /* Run each component. */
+    for (const auto &it : _components)
+        _thread_manager->add_thread(&component::run, it);
 
     /* The initial population phase needs to be finished before starting the actual test. */
-    while (_workload_manager->enabled() && !_workload_manager->db_populated())
+    while (!_workload_manager->db_populated())
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     /* The test will run for the duration as defined in the config. */
@@ -164,7 +159,7 @@ test::run()
       "Waiting {" + std::to_string(duration_seconds) + "} seconds for testing to complete.");
     std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
-    /* Notify components that they should complete their last iteration. */
+    /* Notify components that they should stop. */
     for (const auto &it : _components)
         it->end_run();
 
@@ -175,10 +170,8 @@ test::run()
     _thread_manager->join();
 
     /* End the test by calling finish on all known components. */
-    for (const auto &it : _components) {
-        if (it->enabled())
-            it->finish();
-    }
+    for (const auto &it : _components)
+        it->finish();
 
     /* Validation stage. */
     this->validate(_operation_tracker->enabled(), _operation_tracker->get_operation_table_name(),

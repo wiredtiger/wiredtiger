@@ -70,6 +70,7 @@ protected:
     operation_tracker *_operation_tracker = nullptr;
 
 private:
+    /* All the components enabled for the test. */
     std::vector<component *> _components;
     metrics_monitor *_metrics_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;

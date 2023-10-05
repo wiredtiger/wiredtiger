@@ -28,6 +28,7 @@
 
 #include "component.h"
 
+#include <cassert>
 #include <thread>
 
 #include "src/common/constants.h"
@@ -48,6 +49,7 @@ component::~component()
 void
 component::load()
 {
+    assert(_enabled);
     logger::log_msg(LOG_INFO, "Loading component: " + _name);
 }
 
@@ -77,12 +79,15 @@ component::enabled() const
 void
 component::end_run()
 {
+    assert(_running);
     _running = false;
 }
 
 void
 component::finish()
 {
+    assert(!_running);
     logger::log_msg(LOG_INFO, "Running finish stage of component: " + _name);
 }
+
 } // namespace test_harness
