@@ -434,19 +434,6 @@ config_table(TABLE *table, void *arg)
                   table->id);
             config_single(NULL, "stress.hs_search=0", false);
         }
-
-        /*
-         * Predictable replays can get extremely slow with throttling.
-         *
-         * TODO: Investigate reasons for that.
-         */
-        if (GV(OPS_THROTTLE)) {
-            if (config_explicit(NULL, "ops.throttle"))
-                WARN("turning off ops.throttle for table%" PRIu32
-                     " to work with predictable replay",
-                  table->id);
-            config_single(NULL, "ops.throttle=0", false);
-        }
     }
 
     /*
@@ -507,6 +494,19 @@ config_run(void)
           "limiting runs.tables to %d if realloc_exact or realloc_malloc has been automatically "
           "set",
           REALLOC_MAX_TABLES);
+    }
+
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        /*
+         * Predictable replays can get extremely slow with throttling.
+         *
+         * TODO: Investigate reasons for that.
+         */
+        if (GV(OPS_THROTTLE)) {
+            if (config_explicit(NULL, "ops.throttle"))
+                WARN("%s", "turning off ops.throttle to work with predictable replay");
+            config_single(NULL, "ops.throttle=0", false);
+        }
     }
 
     config_in_memory(); /* Periodically run in-memory. */
