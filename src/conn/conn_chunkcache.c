@@ -74,8 +74,8 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
 
     /* Open the underlying table just to verify it exists. */
     cursor = NULL;
-    WT_ERR(
-      session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
+    WT_ERR(session->iface.open_cursor(
+      &session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
 
 err:
     if (cursor != NULL)
@@ -100,30 +100,23 @@ __chunkcache_metadata_run_chk(WT_SESSION_IMPL *session)
 static int
 __chunkcache_metadata_insert(WT_CURSOR *cursor, WT_CHUNKCACHE_METADATA_WORK_UNIT *entry)
 {
-    WT_DECL_RET;
-
     cursor->set_key(cursor, entry->name, entry->id, entry->file_offset);
     cursor->set_value(cursor, entry->cache_offset, entry->data_sz);
-    WT_RET(cursor->insert(cursor));
 
-    return (ret);
+    return (cursor->insert(cursor));
 }
 
 /*
  * __chunkcache_metadata_delete --
- *     Remove a specific work queue entry into the chunk cache metadata file. Ignores errors when
- *     the entry doesn't already exist.
+ *     Remove a specific work queue entry into the chunk cache metadata file.
  */
 static int
 __chunkcache_metadata_delete(WT_CURSOR *cursor, WT_CHUNKCACHE_METADATA_WORK_UNIT *entry)
 {
-    WT_DECL_RET;
-
     cursor->set_key(cursor, entry->name, entry->id, entry->file_offset);
     cursor->set_value(cursor, entry->cache_offset, entry->data_sz);
-    WT_RET_NOTFOUND_OK(cursor->remove(cursor));
 
-    return (ret);
+    return (cursor->remove(cursor));
 }
 
 /*
@@ -159,8 +152,8 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    WT_RET(
-      session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
+    WT_RET(session->iface.open_cursor(
+      &session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
 
     entry = NULL;
     for (int i = 0; i < WT_CHUNKCACHE_METADATA_MAX_WORK; i++) {
@@ -173,9 +166,9 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
 
         /* TODO where to check TAILQ_EMPTY? */
         if (entry->type == WT_CHUNKCACHE_METADATA_WORK_INS)
-            __chunkcache_metadata_insert(cursor, entry);
+            WT_ERR(__chunkcache_metadata_insert(cursor, entry));
         else if (entry->type == WT_CHUNKCACHE_METADATA_WORK_DEL)
-            __chunkcache_metadata_delete(cursor, entry);
+            WT_ERR_NOTFOUND_OK(__chunkcache_metadata_delete(cursor, entry), false);
         else {
             __wt_verbose_error(
               session, WT_VERB_CHUNKCACHE, "got messed up event type %d\n", entry->type);
