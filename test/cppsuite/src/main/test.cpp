@@ -96,7 +96,9 @@ test::~test()
 void
 test::run()
 {
-    int64_t cache_max_wait_ms, cache_size_mb, duration_seconds;
+    int64_t cache_size_mb;
+    std::chrono::milliseconds cache_max_wait_ms;
+    std::chrono::seconds duration_seconds;
     bool enable_logging, statistics_logging;
     configuration *statistics_config;
     std::string statistics_type;
@@ -130,8 +132,8 @@ test::run()
     db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
 
     /* Maximum waiting time for the cache to get unstuck. */
-    cache_max_wait_ms = _config->get_int(CACHE_MAX_WAIT_MS);
-    db_create_config += ",cache_max_wait_ms=" + std::to_string(cache_max_wait_ms);
+    cache_max_wait_ms = std::chrono::milliseconds(_config->get_int(CACHE_MAX_WAIT_MS));
+    db_create_config += ",cache_max_wait_ms=" + std::to_string(cache_max_wait_ms.count());
 
     /* Add the user supplied wiredtiger open config. */
     db_create_config += "," + _args.wt_open_config;
@@ -153,11 +155,12 @@ test::run()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     /* The test will run for the duration as defined in the config. */
-    duration_seconds = _config->get_int(DURATION_SECONDS);
-    testutil_assert(duration_seconds >= 0);
+    duration_seconds = std::chrono::seconds(_config->get_int(DURATION_SECONDS));
+    testutil_assert(duration_seconds.count() >= 0);
     logger::log_msg(LOG_INFO,
-      "Waiting {" + std::to_string(duration_seconds) + "} seconds for testing to complete.");
-    std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
+      "Waiting {" + std::to_string(duration_seconds.count()) +
+        "} seconds for testing to complete.");
+    std::this_thread::sleep_for(duration_seconds);
 
     /* Notify components that they should stop. */
     for (const auto &it : _components)

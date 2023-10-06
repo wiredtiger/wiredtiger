@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <string>
 
 #include "src/main/configuration.h"
@@ -83,7 +84,7 @@ public:
 protected:
     bool _enabled = false;
     volatile bool _running = false;
-    uint64_t _sleep_time_ms = 1000;
+    std::chrono::milliseconds _sleep_time_ms;
     configuration *_config;
     std::string _name;
 };

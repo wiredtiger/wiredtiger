@@ -38,7 +38,7 @@ namespace test_harness {
 component::component(const std::string &name, configuration *config) : _config(config), _name(name)
 {
     _enabled = _config->get_bool(ENABLED);
-    _sleep_time_ms = _config->get_throttle_ms();
+    _sleep_time_ms = std::chrono::milliseconds(_config->get_throttle_ms());
 }
 
 component::~component()
@@ -61,7 +61,7 @@ component::run()
     _running = true;
     while (_running) {
         do_work();
-        std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
+        std::this_thread::sleep_for(_sleep_time_ms);
     }
 }
 

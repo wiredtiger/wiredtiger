@@ -122,6 +122,6 @@ public:
 private:
     std::shared_ptr<barrier> _barrier = nullptr;
     bool _running = true;
-    uint64_t _sleep_time_ms = 1000;
+    std::chrono::milliseconds _sleep_time_ms;
 };
 } // namespace test_harness
