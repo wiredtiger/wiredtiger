@@ -49,8 +49,8 @@ component::~component()
 void
 component::load()
 {
-    assert(_enabled);
     logger::log_msg(LOG_INFO, "Loading component: " + _name);
+    assert(_enabled);
 }
 
 void
