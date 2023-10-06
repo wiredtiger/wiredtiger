@@ -56,6 +56,13 @@ workload_manager::set_operation_tracker(operation_tracker *op_tracker)
     _operation_tracker = op_tracker;
 }
 
+/* The workload manager should never execute this function. */
+void
+workload_manager::do_work()
+{
+    testutil_assert(false);
+}
+
 void
 workload_manager::run()
 {

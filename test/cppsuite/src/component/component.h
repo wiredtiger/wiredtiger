@@ -68,7 +68,7 @@ public:
      * do_work is called every X seconds as defined by the sleep time. Generally most components
      * should do their "operation" in the do_work function.
      */
-    virtual void do_work();
+    virtual void do_work() = 0;
 
     /* Gets the value of the _enabled variable. */
     bool enabled() const;

@@ -64,12 +64,6 @@ component::run()
     }
 }
 
-void
-component::do_work()
-{
-    /* Not implemented. */
-}
-
 bool
 component::enabled() const
 {
