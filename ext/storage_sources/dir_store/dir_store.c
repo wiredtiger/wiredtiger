@@ -40,6 +40,11 @@
 #include <wiredtiger_ext.h>
 #include "queue.h"
 
+#ifndef WT_THOUSAND
+#define WT_THOUSAND 1000
+#define WT_MILLION 1000000
+#endif
+
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
  * as local files in a designated directory.
@@ -61,6 +66,9 @@ typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
 
     WT_EXTENSION_API *wt_api; /* Extension API */
+
+    /* We use random for artificial delays */
+    uint32_t rand_w, rand_z;
 
     /*
      * Locks are used to protect the file handle queue and flush queue.
@@ -243,18 +251,43 @@ dir_store_configure_int(
 }
 
 /*
- * sleep_ms --
- *     Sleep for the specified milliseconds.
+ * sleep_us --
+ *     Sleep for the specified microseconds.
  */
 static void
-sleep_ms(uint32_t ms)
+sleep_us(uint64_t us)
 {
     struct timeval tv;
 
     /* Cast needed for some compilers that suspect the calculation can overflow (it can't). */
-    tv.tv_sec = ms / 1000;
-    tv.tv_usec = (suseconds_t)(ms % 1000) * 1000;
+    tv.tv_sec = us / WT_MILLION;
+    tv.tv_usec = (suseconds_t)(us % WT_MILLION);
     (void)select(0, NULL, NULL, NULL, &tv);
+}
+
+/*
+ * dir_store_compute_delay_us --
+ *     Compute a random delay around a given average. Use a uniform random distribution from 0.5 of
+ *     the given delay to 1.5 of the given delay.
+ */
+static uint64_t
+dir_store_compute_delay_us(DIR_STORE *dir_store, uint64_t avg_delay_us)
+{
+    uint32_t w, z, r;
+    if (avg_delay_us == 0)
+        return (0);
+
+    w = dir_store->rand_w;
+    z = dir_store->rand_z;
+    if (w == 0 || z == 0) {
+        dir_store->rand_w = w = 521288629;
+        dir_store->rand_z = z = 362436069;
+    }
+    dir_store->rand_z = (36969 * (z & 65535) + (z >> 16)) & 0xffffffff;
+    dir_store->rand_w = (18000 * (w & 65535) + (w >> 16)) & 0xffffffff;
+    r = ((z << 16) + (w & 65535)) & 0xffffffff;
+
+    return (avg_delay_us / 2 + r % avg_delay_us);
 }
 
 /*
@@ -265,24 +298,26 @@ static int
 dir_store_delay(DIR_STORE *dir_store)
 {
     int ret;
+    uint64_t us;
 
     ret = 0;
     if (dir_store->force_delay != 0 &&
       (dir_store->object_reads + dir_store->object_writes) % dir_store->force_delay == 0) {
+        us = dir_store_compute_delay_us(dir_store, (uint64_t)dir_store->delay_ms * WT_THOUSAND);
         VERBOSE_LS(dir_store,
-          "Artificial delay %" PRIu32 " milliseconds after %" PRIu64 " object reads, %" PRIu64
+          "Artificial delay %" PRIu64 " microseconds after %" PRIu64 " object reads, %" PRIu64
           " object writes\n",
-          dir_store->delay_ms, dir_store->object_reads, dir_store->object_writes);
-        sleep_ms(dir_store->delay_ms);
+          us, dir_store->object_reads, dir_store->object_writes);
+        sleep_us(us);
     }
     if (dir_store->force_error != 0 &&
       (dir_store->object_reads + dir_store->object_writes) % dir_store->force_error == 0) {
+        us = dir_store_compute_delay_us(dir_store, (uint64_t)dir_store->error_ms * WT_THOUSAND);
         VERBOSE_LS(dir_store,
-          "Artificial error returned after %" PRIu32 " milliseconds sleep, %" PRIu64
+          "Artificial error returned after %" PRIu64 " microseconds sleep, %" PRIu64
           " object reads, %" PRIu64 " object writes\n",
-          dir_store->error_ms, dir_store->object_reads, dir_store->object_writes);
-
-        sleep_ms(dir_store->error_ms);
+          us, dir_store->object_reads, dir_store->object_writes);
+        sleep_us(us);
         ret = ENETUNREACH;
     }
 
@@ -1090,8 +1125,8 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
             goto err;
         }
     }
-
     dir_store->object_reads++;
+
     dir_store_fh->fh = wt_fh;
     dir_store_fh->dir_store = dir_store;
 
