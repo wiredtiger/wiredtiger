@@ -719,7 +719,7 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
 }
 
 static void
-S3GetStats(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, int64_t *stats, uint count)
+S3GetStats(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, int64_t *stats, uint16_t count)
 {
     S3Storage *s3 = (S3Storage *)storageSource;
 
