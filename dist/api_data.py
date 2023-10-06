@@ -1218,10 +1218,17 @@ wiredtiger_open_common =\
         permit sharing between processes (will automatically start an RPC server for primary
         processes and use RPC for secondary processes). <b>Not yet supported in WiredTiger</b>''',
         type='boolean'),
-    Config('prefetch', 'false', r'''
+    Config('prefetch', '', r'''
         Enable automatic detection of scans by applications, and attempt to pre-fetch future
         content into the cache''',
-        type='boolean'),
+        type='category', subconfig=[
+        Config('available', 'false', r'''
+            whether the thread pool for the pre-fetch functionality is started''',
+            type='boolean'),
+        Config('enabled', 'false', r'''
+            whether pre-fetch is enabled for all sessions by default''',
+            type='boolean'),
+        ]),
     Config('readonly', 'false', r'''
         open connection in read-only mode. The database must exist. All methods that may
         modify a database are disabled. See @ref readonly for more information''',
