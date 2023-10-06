@@ -31,7 +31,7 @@ from test_verbose01 import test_verbose_base
 from wtscenario import make_scenarios
 import wiredtiger, wttest
 
-# test_verbose02.py
+# test_verbose04.py
 # Verify basic uses of the verbose configuration API when categories and valid/invalid verbosity
 # levels are specified.
 class test_verbose04(test_verbose_base):
@@ -47,7 +47,7 @@ class test_verbose04(test_verbose_base):
     # Test use cases passing single verbose categories, ensuring we only produce verbose output for
     # the single category.
     def test_verbose_single(self):
-        #all_verb contain all verb flag
+        #all_verb contain all verbose flag
         all_verb = ['WT_VERB_API', 'WT_VERB_BACKUP', 'WT_VERB_BLOCK', 'WT_VERB_BLKCACHE', 'WT_VERB_CHECKPOINT'
           , 'WT_VERB_CHECKPOINT_CLEANUP', 'WT_VERB_CHECKPOINT_PROGRESS', 'WT_VERB_CHUNKCACHE', 'WT_VERB_COMPACT'
           , 'WT_VERB_COMPACT_PROGRESS', 'WT_VERB_ERROR_RETURNS', 'WT_VERB_EVICT', 'WT_VERB_EVICT_STUCK'
@@ -125,11 +125,12 @@ class test_verbose04(test_verbose_base):
                 # Perform a set of simple API operations (table creations and cursor operations) to
                 # generate verbose API messages. Beyond opening the connection resource, we
                 # shouldn't need to do anything special for the version category.
-                uri = 'table:test_verbose02_multiple'
+                uri = 'table:test_verbose04_all'
                 session = conn.open_session()
                 session.create(uri, self.collection_cfg)
                 c = session.open_cursor(uri)
                 c['multiple'] = 'multiple'
                 c.close()
+                
 if __name__ == '__main__':
     wttest.run()
