@@ -110,7 +110,7 @@ class test_verbose04(test_verbose_base):
         # to those two categories.
         cfgs = ['api:0,all:1,version:0', 'version:0,all,api:0']
         
-        #all_verb_except_api_and_version contain all verb flag(except WT_VERB_API & WT_VERB_VERSION)
+        #all_verb_except_api_and_version contains all verb flag(except WT_VERB_API & WT_VERB_VERSION)
         all_verb_except_api_and_version = ['WT_VERB_BACKUP', 'WT_VERB_BLOCK', 'WT_VERB_BLKCACHE', 'WT_VERB_CHECKPOINT'
           , 'WT_VERB_CHECKPOINT_CLEANUP', 'WT_VERB_CHECKPOINT_PROGRESS', 'WT_VERB_CHUNKCACHE', 'WT_VERB_COMPACT'
           , 'WT_VERB_COMPACT_PROGRESS', 'WT_VERB_ERROR_RETURNS', 'WT_VERB_EVICT', 'WT_VERB_EVICT_STUCK'
