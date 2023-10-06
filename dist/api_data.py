@@ -1118,6 +1118,14 @@ session_config = [
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
+    Config('prefetch', '', r'''
+        Enable automatic detection of scans by applications, and attempt to pre-fetch future
+        content into the cache''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            whether pre-fetch is enabled for this session''',
+            type='boolean'),
+        ]),
 ]
 
 wiredtiger_open_common =\

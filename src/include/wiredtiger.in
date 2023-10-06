@@ -881,6 +881,12 @@ struct __wt_session {
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
+     * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
+     * pre-fetch future content into the cache., a set of related configuration options defined as
+     * follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether pre-fetch is enabled for this
+     * session., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @configend
      * @errors
      */
@@ -2543,6 +2549,12 @@ struct __wt_connection {
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
+     * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
+     * pre-fetch future content into the cache., a set of related configuration options defined as
+     * follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether pre-fetch is enabled for this
+     * session., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @configend
      * @param[out] sessionp the new session handle
      * @errors
