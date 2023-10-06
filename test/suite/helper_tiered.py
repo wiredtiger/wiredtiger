@@ -57,7 +57,7 @@ buckets = {
     # S3 buckets requires a region.
     "s3_store": ['s3testext-us;us-east-2', 's3testext;ap-southeast-2'],
     "dir_store": ['bucket1', 'bucket2'],
-    "gcp_store": ["gcptestext-us-jie", "gcptestext-ap-jie"],
+    "gcp_store": ["gcptestext-us", "gcptestext-ap"],
     "azure_store": ["azuretestext-us", "azuretestext-ap"]
 }
 
