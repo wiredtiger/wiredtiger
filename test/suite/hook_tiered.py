@@ -55,7 +55,7 @@
 #
 from __future__ import print_function
 
-import os, re, shlex, unittest, wthooks
+import os, re, unittest, wthooks
 from wttest import WiredTigerTestCase
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 

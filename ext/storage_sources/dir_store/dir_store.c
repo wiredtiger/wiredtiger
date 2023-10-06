@@ -1125,8 +1125,8 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
             goto err;
         }
     }
-    dir_store->object_reads++;
 
+    dir_store->object_reads++;
     dir_store_fh->fh = wt_fh;
     dir_store_fh->dir_store = dir_store;
 
