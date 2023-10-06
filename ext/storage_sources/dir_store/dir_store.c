@@ -260,7 +260,7 @@ sleep_us(uint64_t us)
     struct timeval tv;
 
     /* Cast needed for some compilers that suspect the calculation can overflow (it can't). */
-    tv.tv_sec = us / WT_MILLION;
+    tv.tv_sec = (time_t)(us / WT_MILLION);
     tv.tv_usec = (suseconds_t)(us % WT_MILLION);
     (void)select(0, NULL, NULL, NULL, &tv);
 }
