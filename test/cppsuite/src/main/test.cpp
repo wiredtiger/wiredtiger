@@ -64,15 +64,25 @@ void
 test::init_operation_tracker(operation_tracker *op_tracker)
 {
     delete _operation_tracker;
+    std::unique_ptr<configuration> operation_tracker_cfg(_config->get_subconfig(OPERATION_TRACKER));
+    bool tracking_enabled = operation_tracker_cfg->get_bool(ENABLED);
     if (op_tracker == nullptr) {
         /* Fallback to default behavior. */
         op_tracker = new operation_tracker(_config->get_subconfig(OPERATION_TRACKER),
           _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager);
+    } else {
+        /*
+         * If a custom tracker has been given, make sure it has been enabled in the test
+         * configuration.
+         */
+        testutil_assert(tracking_enabled);
     }
     _operation_tracker = op_tracker;
     _workload_manager->set_operation_tracker(_operation_tracker);
     _database.set_operation_tracker(_operation_tracker);
-    _components.push_back(_operation_tracker);
+
+    if (tracking_enabled)
+        _components.push_back(_operation_tracker);
 }
 
 test::~test()
