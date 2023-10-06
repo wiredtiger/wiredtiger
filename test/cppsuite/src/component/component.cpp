@@ -56,6 +56,7 @@ component::load()
 void
 component::run()
 {
+    assert(_enabled);
     logger::log_msg(LOG_INFO, "Running component: " + _name);
     _running = true;
     while (_running) {
