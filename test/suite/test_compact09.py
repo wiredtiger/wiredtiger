@@ -65,12 +65,6 @@ class test_compact09(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return files
     
-    def get_bg_compaction_files_tracked(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        files = stat_cursor[stat.conn.background_compact_files_tracked][2]
-        stat_cursor.close()
-        return files
-
     def get_files_compacted(self):
         files_compacted = 0
         for i in range(self.n_tables):
@@ -79,23 +73,11 @@ class test_compact09(wttest.WiredTigerTestCase):
                 files_compacted += 1
         return files_compacted
 
-    def get_free_space(self, uri):
-        stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
-        bytes = stat_cursor[stat.dsrc.block_reuse_bytes][2]
-        stat_cursor.close()
-        return bytes // megabyte
-        
     def get_pages_rewritten(self, uri):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
         pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
         stat_cursor.close()
         return pages_rewritten
-
-    def get_size(self, uri):
-        stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
-        size = stat_cursor[stat.dsrc.block_size][2]
-        stat_cursor.close()
-        return size
 
     def populate(self, uri, num_keys, value_size):
         c = self.session.open_cursor(uri, None)
