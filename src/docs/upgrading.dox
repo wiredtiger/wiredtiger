@@ -1,5 +1,34 @@
 /*! @page upgrading Upgrading WiredTiger applications
 
+@section version_1120 Upgrading to Version 11.2.0
+<dl>
+
+<dt>Connection config "operation_timeout_ms"</dt>
+<dd>
+The connection config "operation_timeout_ms" is now deprecated. The option is still
+accepted in this version but will have no effect when set.
+</dd>
+
+<dt>Connection config "failpoint_eviction_fail_after_reconciliation"</dt>
+<dd>
+The connection config "failpoint_eviction_fail_after_reconciliation" has been replaced by
+"failpoint_eviction_split".
+</dd>
+
+<dt>Cursor configuration "prefix_search"</dt>
+<dd>
+The cursor configuration "prefix_search" is now deprecated. The option is still accepted
+in this version but will have no effect when set. Users should look into the new bound
+cursor interface.
+</dd>
+
+<dt>Session API "flush_tier" function</dt>
+<dd>
+The session API "flush_tier" function is removed. Users of this function should move to
+calling "checkpoint" with the "flush_tier" configuration specified.
+</dd>
+
+</dl> <hr>
 @section version_1100 Upgrading to Version 11.0.0
 
 The WiredTiger 11.0 release is a complete refresh of the WiredTiger storage engine.
