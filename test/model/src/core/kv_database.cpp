@@ -48,7 +48,7 @@ kv_database::create_table(const char *name)
     if (i != _tables.end())
         throw model_exception(std::string("Table already exists: ") + s);
 
-    kv_table_ptr table = std::shared_ptr<kv_table>(new kv_table(name));
+    kv_table_ptr table = std::make_shared<kv_table>(name);
     _tables[s] = table;
     return table;
 }
@@ -70,8 +70,8 @@ kv_database::begin_transaction(timestamp_t read_timestamp)
     }
 
     txn_id_t id = ++_last_transaction_id;
-    std::shared_ptr<kv_transaction> txn{
-      new kv_transaction(*this, id, std::move(txn_snapshot_nolock()), read_timestamp)};
+    kv_transaction_ptr txn =
+      std::make_shared<kv_transaction>(*this, id, std::move(txn_snapshot_nolock()), read_timestamp);
 
     _active_transactions[id] = txn;
     return txn;

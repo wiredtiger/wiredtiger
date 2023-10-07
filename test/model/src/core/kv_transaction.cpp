@@ -44,8 +44,8 @@ kv_transaction::add_update(
   kv_table &table, const data_value &key, std::shared_ptr<kv_update> update)
 {
     std::lock_guard lock_guard(_lock);
-    std::shared_ptr<kv_transaction_update> txn_update{
-      new kv_transaction_update(table.name(), key, update)};
+    std::shared_ptr<kv_transaction_update> txn_update =
+      std::make_shared<kv_transaction_update>(table.name(), key, update);
 
     _updates.push_back(txn_update);
     if (_commit_timestamp == k_initial_commit_timestamp)

@@ -93,7 +93,7 @@ int
 kv_table::insert(
   kv_transaction_ptr txn, const data_value &key, const data_value &value, bool overwrite)
 {
-    std::shared_ptr<kv_update> update{new kv_update(value, txn)};
+    std::shared_ptr<kv_update> update = std::make_shared<kv_update>(value, txn);
     int ret = item(key).add_update(update, false, !overwrite);
     if (ret == 0)
         txn->add_update(*this, key, update);
@@ -124,7 +124,7 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
     if (item == nullptr)
         return WT_NOTFOUND;
 
-    std::shared_ptr<kv_update> update{new kv_update(NONE, txn)};
+    std::shared_ptr<kv_update> update = std::make_shared<kv_update>(NONE, txn);
     int ret = item->add_update(update, true, false);
     if (ret == 0)
         txn->add_update(*this, key, update);
@@ -150,7 +150,7 @@ int
 kv_table::update(
   kv_transaction_ptr txn, const data_value &key, const data_value &value, bool overwrite)
 {
-    std::shared_ptr<kv_update> update{new kv_update(value, txn)};
+    std::shared_ptr<kv_update> update = std::make_shared<kv_update>(value, txn);
     int ret = item(key).add_update(update, !overwrite, false);
     if (ret == 0)
         txn->add_update(*this, key, update);

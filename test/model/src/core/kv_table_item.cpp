@@ -43,7 +43,7 @@ namespace model {
 int
 kv_table_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
 {
-    std::shared_ptr<kv_update> update_ptr{new kv_update(std::move(update))};
+    std::shared_ptr<kv_update> update_ptr = std::make_shared<kv_update>(std::move(update));
     return add_update(update_ptr, must_exist, must_not_exist);
 }
 
@@ -276,9 +276,11 @@ kv_table_item::rollback_updates(txn_id_t txn_id)
 {
     std::lock_guard lock_guard(_lock);
     for (auto i = _updates.begin(); i != _updates.end();)
-        if ((*i)->txn_id() == txn_id)
+        if ((*i)->txn_id() == txn_id) {
+            /* Need to remove the transaction object, so that we don't leak memory. */
+            (*i)->remove_txn();
             i = _updates.erase(i);
-        else
+        } else
             i++;
 }
 
