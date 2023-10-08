@@ -371,7 +371,6 @@ __chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
     uint64_t hash_final;
 
     WT_CLEAR(intermediate);
-    intermediate.name_hash = __wt_hash_city64(object_name, strlen(object_name));
     intermediate.objectid = objectid;
     intermediate.offset = WT_CHUNK_OFFSET(chunkcache, offset);
 

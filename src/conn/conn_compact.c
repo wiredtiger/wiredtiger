@@ -40,7 +40,6 @@ __background_compact_add_exclude_entry(WT_SESSION_IMPL *session, const char *nam
 
     hash = __wt_hash_city64(name, len);
     bucket = hash & (conn->hash_size - 1);
-    new_entry->name_hash = hash;
     /* Insert target uri entry into hashtable. */
     TAILQ_INSERT_HEAD(&conn->background_compact.compactexcludeentryhash[bucket], new_entry, hashq);
 

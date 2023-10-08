@@ -74,7 +74,6 @@ struct __wt_background_compact_stat {
 struct __wt_background_compact_exclude_entry {
     const char *name; /* File name */
 
-    uint64_t name_hash;                                       /* hash of name */
     TAILQ_ENTRY(__wt_background_compact_exclude_entry) hashq; /* internal hash queue */
 };
 
