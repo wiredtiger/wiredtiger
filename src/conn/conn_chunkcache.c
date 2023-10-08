@@ -75,7 +75,7 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
     /* Open the underlying table just to verify it exists. */
     cursor = NULL;
     WT_ERR(session->iface.open_cursor(
-      &session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
+      &session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
 
 err:
     if (cursor != NULL)
@@ -131,11 +131,9 @@ __chunkcache_metadata_pop_work(WT_SESSION_IMPL *session, WT_CHUNKCACHE_METADATA_
 
     conn = S2C(session);
 
-    if (TAILQ_EMPTY(&conn->chunkcache_metadataqh))
-        return;
-
     __wt_spin_lock(session, &conn->chunkcache_metadata_lock);
-    TAILQ_REMOVE(&conn->chunkcache_metadataqh, *entryp, q);
+    if ((*entryp = TAILQ_FIRST(&conn->chunkcache_metadataqh)) != NULL)
+        TAILQ_REMOVE(&conn->chunkcache_metadataqh, *entryp, q);
     __wt_spin_unlock(session, &conn->chunkcache_metadata_lock);
 
     WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_dequeued);
@@ -153,7 +151,7 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     WT_RET(session->iface.open_cursor(
-      &session->iface, WT_CC_METAFILE_URI, NULL, WT_CC_META_CONFIG, &cursor));
+      &session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
 
     entry = NULL;
     for (int i = 0; i < WT_CHUNKCACHE_METADATA_MAX_WORK; i++) {
@@ -195,17 +193,19 @@ err:
 static WT_THREAD_RET
 __chunkcache_metadata_server(void *arg)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t cond_time_us;
     bool signalled;
 
     session = arg;
+    conn = S2C(session);
     cond_time_us = 1 * WT_MILLION;
 
     for (;;) {
         /* Wait until the next event. */
-        __wt_cond_wait_signal(session, S2C(session)->chunkcache_metadata_cond, cond_time_us,
+        __wt_cond_wait_signal(session, conn->chunkcache_metadata_cond, cond_time_us,
           __chunkcache_metadata_run_chk, &signalled);
 
         if (!__chunkcache_metadata_run_chk(session))
