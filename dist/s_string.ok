@@ -1011,6 +1011,7 @@ nlpo
 nocase
 noclear
 nocrypto
+noexcept
 nolock
 nonces
 nonliteral
@@ -1028,6 +1029,7 @@ nrecs
 nsec
 nset
 nul
+nullptr
 num
 numSymbols
 numbare
@@ -1289,6 +1291,7 @@ txnid
 txp
 txt
 typedef
+typeof
 uS
 ui
 uint
@@ -1349,6 +1352,7 @@ vd
 vdata
 vec
 vectorized
+verifier
 vfprintf
 vh
 vm
