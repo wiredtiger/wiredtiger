@@ -938,7 +938,7 @@ struct __wt_ref_hist {
 
 /*
  * WT_PREFETCH --
- *	Prefetch structure containing useful information for prefetch.
+ *	Pre-fetch structure containing useful information for pre-fetch.
  */
 struct __wt_prefetch {
     WT_REF *prefetch_prev_ref;
