@@ -41,11 +41,9 @@ insert_sample_values(WT_CURSOR *cursor1, WT_CURSOR *cursor2, int first_value, in
     for (int loop = 0; loop <= num_values; loop++) {
         int i = first_value + loop;
         std::stringstream key;
-        key << "key";
-        key << i;
+        key << "key" << i;
         std::stringstream value;
-        value << "value";
-        value << i;
+        value << "value" << i;
         insert_key_value(cursor1, cursor2, key.str(), value.str());
     }
 }
@@ -174,7 +172,7 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
     }
 
     /*
-     * If any bits that were 0 in the original blkmod changed, we have an issue. Each of these two
+     * If any bits that were 1 in the original blkmod changed, we have an issue. Each of these two
      * check vectors should contain only false values. Any true values indicate a problem.
      */
     std::vector<bool> check_table1 = (orig_blkmod_table1 ^ new_blkmod_table1) & orig_blkmod_table1;
