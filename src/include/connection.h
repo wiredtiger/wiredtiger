@@ -101,7 +101,7 @@ struct __wt_background_compact {
     uint64_t full_iteration_wait_time; /* Time in seconds to wait after a full iteration */
 
     /* List of files to track compaction statistics across background server iterations. */
-    TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
+    TAILQ_HEAD(__wt_background_compactstathash, __wt_background_compact_stat) * stat_hash;
     /* List of files excluded from background compaction. */
     TAILQ_HEAD(__wt_background_compactexcludelisthash, __wt_background_compact_exclude) *
       exclude_list_hash;
