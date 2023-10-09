@@ -1327,9 +1327,9 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_ite
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
 
-        printf(".   in ckpt_blkmod_to_item() at A, i = %u, blk->id_str = %s\n", i, blk->id_str);
+        /* printf(".   in ckpt_blkmod_to_item() at A, i = %u, blk->id_str = %s\n", i, blk->id_str); */
         WT_RET(__wt_buf_set(session, output_item, blk->bitstring.data, blk->bitstring.size));
-        print_item(output_item, ".        output_item");
+        /* print_item(output_item, ".        output_item"); */
     }
 
     return (0);
@@ -1371,14 +1371,14 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *output_item)
     WT_RET(__wt_config_getones(session, file_config, "checkpoint_backup_info", &value));
 
     if ((value.len > 0) && (value.type == WT_CONFIG_ITEM_STRUCT)) {
-        printf(".   get_blkmods(): uri %s, ret = %d, checkpoint_backup_info = '%.*s'\n", uri, ret, (int)value.len, value.str);
+        /* printf(".   get_blkmods(): uri %s, ret = %d, checkpoint_backup_info = '%.*s'\n", uri, ret, (int)value.len, value.str); */
 
         __wt_config_subinit(session, &blkconf, &value);
         searching_for_blocks = true;
         while (searching_for_blocks && ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0)) {
-            printf(".   blocks_value = %.*s\n", (int)blocks_value.len, blocks_value.str);
+            /* printf(".   blocks_value = %.*s\n", (int)blocks_value.len, blocks_value.str); */
             if ((ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks)) == 0) {
-                printf(".   blocks = %.*s\n", (int)blocks.len, blocks.str);
+                /* printf(".   blocks = %.*s\n", (int)blocks.len, blocks.str); */
                 WT_RET(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
 //                searching_for_blocks = false;
             }
