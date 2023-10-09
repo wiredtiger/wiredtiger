@@ -72,7 +72,7 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
  *     reading it in is the useful side effect here. Must be called while holding a dhandle.
  */
 int
-__wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH *pf)
+__wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pf)
 {
     WT_ADDR_COPY addr;
 

@@ -938,13 +938,23 @@ struct __wt_ref_hist {
 
 /*
  * WT_PREFETCH --
- *	Queue entry for pages queued for pre-fetch.
+ *	Prefetch structure containing useful information for prefetch.
  */
 struct __wt_prefetch {
+    WT_REF *prefetch_prev_ref;
+    uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
+    uint64_t prefetch_skipped_with_parent;
+};
+
+/*
+ * WT_PREFETCH_QUEUE_ENTRY --
+ *	Queue entry for pages queued for pre-fetch.
+ */
+struct __wt_prefetch_queue_entry {
     WT_REF *ref;
     WT_PAGE *first_home;
     WT_DATA_HANDLE *dhandle;
-    TAILQ_ENTRY(__wt_prefetch) q; /* List of pages queued for pre-fetch. */
+    TAILQ_ENTRY(__wt_prefetch_queue_entry) q; /* List of pages queued for pre-fetch. */
 };
 
 /*
