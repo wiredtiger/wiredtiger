@@ -1107,12 +1107,15 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *s, *session;
+    WT_TIMER timer;
     uint32_t i;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
+
+    __wt_timer_start(session, &timer);
 
     /*
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
@@ -1180,11 +1183,12 @@ err:
     WT_TRET(__wt_sweep_destroy(session));
 
     /*
-     * Shut down the checkpoint and capacity server threads: we don't want to throttle writes and
-     * we're about to do a final checkpoint separately from the checkpoint server.
+     * Shut down the checkpoint, compact and capacity server threads: we don't want to throttle
+     * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
     WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
+    WT_TRET(__wt_compact_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
@@ -1201,6 +1205,7 @@ err:
      */
     WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
     WT_TRET(__wt_tiered_storage_destroy(session, cval.val));
+    WT_TRET(__wt_chunkcache_teardown(session));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
@@ -1216,6 +1221,14 @@ err:
     WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
     if (cval.val != 0)
         F_SET(conn, WT_CONN_LEAK_MEMORY);
+
+    /* Time since the shutdown has started. */
+    __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.shutdown_ms);
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "shutdown was completed successfully and took %" PRIu64 "ms, including %" PRIu64
+      "ms for the rollback to stable, and %" PRIu64 "ms for the checkpoint.",
+      conn->shutdown_timeline.shutdown_ms, conn->shutdown_timeline.rts_ms,
+      conn->shutdown_timeline.checkpoint_ms);
 
     WT_TRET(__wt_connection_close(conn));
 
@@ -1972,9 +1985,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     static const WT_NAME_FLAG extra_diagnostics_types[] = {{"all", WT_DIAGNOSTIC_ALL},
       {"checkpoint_validate", WT_DIAGNOSTIC_CHECKPOINT_VALIDATE},
       {"cursor_check", WT_DIAGNOSTIC_CURSOR_CHECK}, {"disk_validate", WT_DIAGNOSTIC_DISK_VALIDATE},
-      {"eviction_check", WT_DIAGNOSTIC_EVICTION_CHECK},
-      {"generation_check", WT_DIAGNOSTIC_GENERATION_CHECK},
-      {"hs_validate", WT_DIAGNOSTIC_HS_VALIDATE},
+      {"eviction_check", WT_DIAGNOSTIC_EVICTION_CHECK}, {"hs_validate", WT_DIAGNOSTIC_HS_VALIDATE},
       {"key_out_of_order", WT_DIAGNOSTIC_KEY_OUT_OF_ORDER},
       {"log_validate", WT_DIAGNOSTIC_LOG_VALIDATE}, {"prepared", WT_DIAGNOSTIC_PREPARED},
       {"slow_operation", WT_DIAGNOSTIC_SLOW_OPERATION},
@@ -2013,6 +2024,80 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __debug_mode_log_retention_config --
+ *     Set the log retention fields of the debugging configuration. These fields are protected by
+ *     the debug log retention lock.
+ */
+static int
+__debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    __wt_writelock(session, &conn->debug_log_retention_lock);
+
+    WT_ERR(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
+
+    /*
+     * Checkpoint retention has some rules to simplify usage. You can turn it on to some value. You
+     * can turn it off. You can reconfigure to the same value again. You cannot change the non-zero
+     * value. Once it was on in the past and then turned off, you cannot turn it back on again.
+     */
+    if (cval.val != 0) {
+        if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
+            WT_ERR_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
+        WT_ERR(
+          __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
+    } else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
+    conn->debug_ckpt_cnt = (uint32_t)cval.val;
+
+    WT_ERR(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
+    conn->debug_log_cnt = (uint32_t)cval.val;
+
+err:
+    __wt_writeunlock(session, &conn->debug_log_retention_lock);
+    return (ret);
+}
+
+/*
+ * __debug_mode_background_compact_config --
+ *     Set the debug configurations for the background compact server.
+ */
+static int
+__debug_mode_background_compact_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+#define WT_BACKGROUND_COMPACT_MAX_IDLE_TIME_DEBUG 10
+#define WT_BACKGROUND_COMPACT_MAX_SKIP_TIME_DEBUG 5
+#define WT_BACKGROUND_COMPACT_WAIT_TIME_DEBUG 2
+#define WT_BACKGROUND_COMPACT_MAX_IDLE_TIME WT_DAY
+#define WT_BACKGROUND_COMPACT_MAX_SKIP_TIME 60 * WT_MINUTE
+#define WT_BACKGROUND_COMPACT_WAIT_TIME 10
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.background_compact", &cval));
+    if (cval.val) {
+        conn->background_compact.max_file_idle_time = WT_BACKGROUND_COMPACT_MAX_IDLE_TIME_DEBUG;
+        conn->background_compact.max_file_skip_time = WT_BACKGROUND_COMPACT_MAX_SKIP_TIME_DEBUG;
+        conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME_DEBUG;
+    } else {
+        conn->background_compact.max_file_idle_time = WT_BACKGROUND_COMPACT_MAX_IDLE_TIME;
+        conn->background_compact.max_file_skip_time = WT_BACKGROUND_COMPACT_MAX_SKIP_TIME;
+        conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME;
+    }
+
+    return (0);
+}
+
+/*
  * __wt_debug_mode_config --
  *     Set debugging configuration.
  */
@@ -2026,27 +2111,8 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
-
-    /*
-     * Checkpoint retention has some rules to avoid needing a lock to coordinate with the log
-     * removal thread and avoid memory issues. You can turn it on to some value. You can turn it
-     * off. You can reconfigure to the same value again. You cannot change the non-zero value. Once
-     * it was on in the past and then turned off, you cannot turn it back on again.
-     */
-    if (cval.val != 0) {
-        if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
-            WT_RET_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
-        WT_RET(
-          __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
-    } else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
-    /*
-     * We need to make sure all writes to other fields are visible before setting the count because
-     * the log removal thread may walk the array using this value.
-     */
-    WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
+    WT_RET(__debug_mode_log_retention_config(session, cfg));
+    WT_RET(__debug_mode_background_compact_config(session, cfg));
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)
@@ -2071,9 +2137,6 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
-
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
-    conn->debug_log_cnt = (uint32_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_exact", &cval));
     if (cval.val)
@@ -2176,13 +2239,14 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
       {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
       {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
       {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
-      {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
-      {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
-      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
+      {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
+      {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
+      {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
+      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
@@ -2518,10 +2582,10 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     int64_t v;
 
 /*
- * Start with 20 internal sessions to cover threads the application can't configure (for example,
+ * Start with 25 internal sessions to cover threads the application can't configure (for example,
  * checkpoint or statistics log server threads).
  */
-#define WT_EXTRA_INTERNAL_SESSIONS 20
+#define WT_EXTRA_INTERNAL_SESSIONS 25
     v = WT_EXTRA_INTERNAL_SESSIONS;
 
     /* Then, add in the thread counts applications can configure. */
@@ -2883,7 +2947,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
-    WT_ERR(__wt_chunkcache_setup(session, cfg, false));
+    WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
@@ -2980,6 +3044,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (conn->direct_io && conn->mmap_all)
         WT_ERR_MSG(
           session, EINVAL, "direct I/O configuration is incompatible with mmap_all configuration");
+
+    WT_ERR(__wt_config_gets(session, cfg, "prefetch", &cval));
+    conn->prefetch_auto_on = cval.val != 0;
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {

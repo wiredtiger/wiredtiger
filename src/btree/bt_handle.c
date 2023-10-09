@@ -854,12 +854,12 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     }
 
     /*
-     * The endpoint for append is global; read the last page with global visibility to make sure
-     * that if the end of the tree is truncated we don't start appending in the truncated space
-     * unless the truncation has become globally visible. (Note that this path does not examine the
-     * visibility of individual data items; it only checks whether whole pages are deleted.)
+     * The endpoint for append is global; read the last page with global visibility (even if it's
+     * deleted) to make sure that if the end of the tree is truncated, the tree walk finds the
+     * correct page. (Note that this path does not examine the visibility of individual data items;
+     * it only checks whether whole pages are deleted.)
      */
-    flags = WT_READ_PREV | WT_READ_VISIBLE_ALL;
+    flags = WT_READ_PREV | WT_READ_VISIBLE_ALL | WT_READ_SEE_DELETED;
 
     next_walk = NULL;
     WT_RET(__wt_tree_walk(session, &next_walk, flags));
@@ -951,9 +951,11 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      */
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
     btree->maxmempage = (uint64_t)cval.val;
+
+#define WT_MIN_PAGES 10
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
-        btree->maxmempage = (uint64_t)WT_MIN(
-          btree->maxmempage, (conn->cache->eviction_dirty_trigger * cache_size) / WT_THOUSAND);
+        btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
+          ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
 
     /* Enforce a lower bound of a single disk leaf page */
     btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);

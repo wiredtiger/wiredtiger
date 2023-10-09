@@ -716,7 +716,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 goto done;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-              !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL || WT_IS_METADATA(dhandle))
+              !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
+              WT_IS_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
@@ -725,12 +726,12 @@ done:
             F_CLR(conn, WT_CONN_CKPT_GATHER);
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_applied, conn->ckpt_apply);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_skipped, conn->ckpt_skip);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_walked, conn->dhandle_count);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration, time_diff);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_apply, conn->ckpt_apply_time);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_skip, conn->ckpt_skip_time);
+            WT_STAT_CONN_SET(session, checkpoint_handle_applied, conn->ckpt_apply);
+            WT_STAT_CONN_SET(session, checkpoint_handle_skipped, conn->ckpt_skip);
+            WT_STAT_CONN_SET(session, checkpoint_handle_walked, conn->dhandle_count);
+            WT_STAT_CONN_SET(session, checkpoint_handle_duration, time_diff);
+            WT_STAT_CONN_SET(session, checkpoint_handle_duration_apply, conn->ckpt_apply_time);
+            WT_STAT_CONN_SET(session, checkpoint_handle_duration_skip, conn->ckpt_skip_time);
         }
         return (0);
     }

@@ -35,6 +35,12 @@ class AutoCommitStat(Stat):
     prefix = 'autocommit'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, AutoCommitStat.prefix, desc, flags)
+
+class BackgroundCompactStat(Stat):
+    prefix = 'background-compact'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags)
+
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
@@ -60,10 +66,10 @@ class CapacityStat(Stat):
     prefix = 'capacity'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
-class CheckpointCleanupStat(Stat):
-    prefix = 'checkpoint-cleanup'
+class CheckpointStat(Stat):
+    prefix = 'checkpoint'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
+        Stat.__init__(self, name, CheckpointStat.prefix, desc, flags)
 class ChunkCacheStat(Stat):
     prefix = 'chunk-cache'
     def __init__(self, name, desc, flags=''):
@@ -189,6 +195,20 @@ conn_stats = [
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
     ConnStat('time_travel', 'detected system time went backwards'),
     ConnStat('write_io', 'total write I/Os'),
+    
+    ##########################################
+    # Background compaction statistics
+    ##########################################
+    BackgroundCompactStat('background_compact_bytes_recovered', 'background compact recovered bytes', 'no_scale'),
+    BackgroundCompactStat('background_compact_ema', 'background compact moving average of bytes rewritten', 'no_scale'),
+    BackgroundCompactStat('background_compact_fail', 'background compact failed calls', 'no_scale'),
+    BackgroundCompactStat('background_compact_fail_cache_pressure', 'background compact failed calls due to cache pressure', 'no_scale'),
+    BackgroundCompactStat('background_compact_files_tracked', 'number of files tracked by background compaction', 'no_scale'),
+    BackgroundCompactStat('background_compact_interrupted', 'background compact interrupted', 'no_scale'),
+    BackgroundCompactStat('background_compact_running', 'background compact running', 'no_scale'),
+    BackgroundCompactStat('background_compact_skipped', 'background compact skipped file as not meeting requirements for compaction', 'no_scale'),
+    BackgroundCompactStat('background_compact_success', 'background compact successful calls', 'no_scale'),
+    BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
 
     ##########################################
     # Block cache statistics
@@ -216,6 +236,13 @@ conn_stats = [
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
 
+    BlockCacheStat('block_prefetch_attempts', 'pre-fetch triggered by page read'),
+    BlockCacheStat('block_prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
+    BlockCacheStat('block_prefetch_pages_queued', 'pre-fetch pages queued'),
+    BlockCacheStat('block_prefetch_pages_read', 'pre-fetch pages read in background'),
+    BlockCacheStat('block_prefetch_skipped', 'pre-fetch not triggered by page read'),
+    BlockCacheStat('block_prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
+
     ##########################################
     # Block manager statistics
     ##########################################
@@ -225,6 +252,7 @@ conn_stats = [
     BlockStat('block_byte_read_syscall', 'bytes read via system call API', 'size'),
     BlockStat('block_byte_write', 'bytes written', 'size'),
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
+    BlockStat('block_byte_write_compact', 'bytes written by compaction', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
@@ -249,6 +277,7 @@ conn_stats = [
     CacheStat('cache_eviction_app', 'pages evicted by application threads'),
     CacheStat('cache_eviction_app_dirty', 'modified pages evicted by application threads'),
     CacheStat('cache_eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
+    CacheStat('cache_eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
@@ -336,11 +365,49 @@ conn_stats = [
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
     ##########################################
+    # Checkpoint statistics
+    ##########################################
+    CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
+    CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_generation', 'generation', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_applied', 'most recent handles applied'),
+    CheckpointStat('checkpoint_handle_duration', 'most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_duration_apply', 'most recent duration for gathering applied handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_duration_skip', 'most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_skipped', 'most recent handles skipped'),
+    CheckpointStat('checkpoint_handle_walked', 'most recent handles walked'),
+    CheckpointStat('checkpoint_hs_pages_reconciled', 'number of history store pages caused to be reconciled'),
+    CheckpointStat('checkpoint_pages_reconciled', 'number of pages caused to be reconciled'),
+    CheckpointStat('checkpoint_pages_visited_internal', 'number of internal pages visited'),
+    CheckpointStat('checkpoint_pages_visited_leaf', 'number of leaf pages visited'),
+    CheckpointStat('checkpoint_prep_max', 'prepare max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_min', 'prepare min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_recent', 'prepare most recent time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_running', 'prepare currently running', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_total', 'prepare total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_presync', 'number of handles visited after writes complete'),
+    CheckpointStat('checkpoint_scrub_target', 'scrub dirty target', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_scrub_time', 'scrub time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_skipped', 'checkpoints skipped because database was clean'),
+    CheckpointStat('checkpoint_state', 'progress state', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_stop_stress_active', 'stop timing stress active', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_sync', 'number of files synced'),
+    CheckpointStat('checkpoint_time_max', 'max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_min', 'min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_total', 'total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
+    CheckpointStat('checkpoints', 'number of checkpoints started'),
+    CheckpointStat('checkpoints_compact', 'number of checkpoints started by compaction'),
+
+    ##########################################
     # Chunk cache statistics
     ##########################################
     ChunkCacheStat('chunk_cache_bytes_inuse', 'total bytes used by the cache'),
-    ChunkCacheStat('chunk_cache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunk_cache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
     ChunkCacheStat('chunk_cache_chunks_evicted', 'chunks evicted'),
+    ChunkCacheStat('chunk_cache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunk_cache_chunks_pinned', 'total pinned chunks held by the chunk cache'),
     ChunkCacheStat('chunk_cache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
     ChunkCacheStat('chunk_cache_io_failed', 'number of times a read from storage failed'),
     ChunkCacheStat('chunk_cache_lookups', 'lookups'),
@@ -547,6 +614,7 @@ conn_stats = [
     SessionOpStat('session_table_alter_skip', 'table alter unchanged and skipped', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_success', 'table alter successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_trigger_checkpoint', 'table alter triggering checkpoint calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_compact_dhandle_success', 'table compact dhandle successful calls', 'no_scale'),
     SessionOpStat('session_table_compact_fail', 'table compact failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_fail_cache_pressure', 'table compact failed calls due to cache pressure', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_running', 'table compact running', 'no_clear,no_scale'),
@@ -593,31 +661,6 @@ conn_stats = [
     # Transaction statistics
     ##########################################
     TxnStat('txn_begin', 'transaction begins'),
-    TxnStat('txn_checkpoint', 'transaction checkpoints'),
-    TxnStat('txn_checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
-    TxnStat('txn_checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_applied', 'transaction checkpoint most recent handles applied'),
-    TxnStat('txn_checkpoint_handle_duration', 'transaction checkpoint most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_duration_apply', 'transaction checkpoint most recent duration for gathering applied handles (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_duration_skip', 'transaction checkpoint most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_skipped', 'transaction checkpoint most recent handles skipped'),
-    TxnStat('txn_checkpoint_handle_walked', 'transaction checkpoint most recent handles walked'),
-    TxnStat('txn_checkpoint_prep_max', 'transaction checkpoint prepare max time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_min', 'transaction checkpoint prepare min time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_running_hs', 'transaction checkpoint currently running for history store file', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
-    TxnStat('txn_checkpoint_time_max', 'transaction checkpoint max time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_time_min', 'transaction checkpoint min time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_stop_stress_active', 'transaction checkpoint stop timing stress active', 'no_clear,no_scale'),
     TxnStat('txn_commit', 'transactions committed'),
     TxnStat('txn_hs_ckpt_duration', 'transaction checkpoint history store file duration (usecs)'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
@@ -905,6 +948,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
+    CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
@@ -917,13 +961,23 @@ conn_dsrc_stats = [
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
 
     ##########################################
+    # Checkpoint statistics
+    ##########################################
+    CheckpointStat('checkpoint_cleanup_pages_evict', 'pages added for eviction during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),
+    CheckpointStat('checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
+    CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
+
+    ##########################################
     # Cursor operations
     ##########################################
     CursorStat('cursor_bounds_comparisons', 'cursor bounds comparisons performed'),
     CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
     CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
     CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
-    CursorStat('cursor_bounds_search_early_exit', 'cursor bounds search early exit'),    
+    CursorStat('cursor_bounds_search_early_exit', 'cursor bounds search early exit'),
     CursorStat('cursor_bounds_search_near_repositioned_cursor', 'cursor bounds search near call repositioned cursor'),
     CursorStat('cursor_bounds_next_unpositioned', 'cursor bounds next called on an unpositioned cursor'),
     CursorStat('cursor_bounds_prev_unpositioned', 'cursor bounds prev called on an unpositioned cursor'),
@@ -968,14 +1022,6 @@ conn_dsrc_stats = [
     CursorStat('cursor_update_error', 'cursor update calls that return an error'),
 
     ##########################################
-    # Checkpoint cleanup statistics
-    ##########################################
-    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
-    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
-    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
-    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
-
-    ##########################################
     # LSM statistics
     ##########################################
     LSMStat('lsm_checkpoint_throttle', 'sleep for LSM checkpoint throttle'),
@@ -1013,8 +1059,6 @@ conn_dsrc_stats = [
     ##########################################
     # Transaction statistics
     ##########################################
-    TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
-    TxnStat('txn_checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
     TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_read_race_prepare_commit', 'a reader raced with a prepared transaction commit and skipped an update or updates'),

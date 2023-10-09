@@ -107,7 +107,7 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
      * can be generated in the library when we don't have a session. There's a global session we can
      * use, but that requires locking.
      */
-    if ((sap = session->app_private) != NULL && sap->trace != NULL) {
+    if (g.trace_conn != NULL && (sap = session->app_private) != NULL && sap->trace != NULL) {
         testutil_check(sap->trace->log_printf(sap->trace, "%s", message));
         if (!printf_msg)
             return (0);
@@ -177,6 +177,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_evict_page");
     if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
+    if (GV(STRESS_COMPACT_SLOW))
+        CONFIG_APPEND(*p, ",compact_slow");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
     if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
@@ -311,6 +313,30 @@ configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 }
 
 /*
+ * configure_chunkcache --
+ *     Configure chunkcache settings for opening a connection.
+ */
+static void
+configure_chunkcache(char **p, size_t max)
+{
+    char chunkcache_ext_cfg[512];
+
+    if (GV(CHUNK_CACHE)) {
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0)
+            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
+              strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0 ? GVS(CHUNK_CACHE_STORAGE_PATH) :
+                                                                  "WiredTigerChunkCache");
+        else
+            chunkcache_ext_cfg[0] = '\0';
+
+        CONFIG_APPEND(*p,
+          ",chunk_cache=(enabled=true,capacity=%" PRIu32 "MB,chunk_size=%" PRIu32 "MB,type=%s,%s)",
+          GV(CHUNK_CACHE_CAPACITY), GV(CHUNK_CACHE_CHUNK_SIZE), GVS(CHUNK_CACHE_TYPE),
+          chunkcache_ext_cfg);
+    }
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
@@ -413,6 +439,9 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     /* Optional tiered storage. */
     configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
+    /* Optional chunkcache. */
+    configure_chunkcache(&p, max);
 
 #define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
 
@@ -749,15 +778,9 @@ wts_stats(void)
     wt_wrap_open_session(conn, &sap, NULL, &session);
     stats_data_print(session, "statistics:", fp);
 
-    /*
-     * Data source statistics.
-     *     FIXME-WT-9785: Statistics cursors on tiered storage objects are not yet supported.
-     */
-    if (!g.tiered_storage_config) {
-        args.fp = fp;
-        args.session = session;
-        tables_apply(stats_data_source, &args);
-    }
+    args.fp = fp;
+    args.session = session;
+    tables_apply(stats_data_source, &args);
 
     wt_wrap_close_session(session);
 

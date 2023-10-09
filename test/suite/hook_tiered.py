@@ -195,11 +195,8 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
         skip_test('named checkpoints do not work in tiered storage')
     # We cannot call flush_tier on a readonly connection.
     if not testcase_is_readonly():
-        # FIXME-WT-11047 enable flush_tier on checkpoint.
-        # There is some fallout when this is enabled, several tests fail,
-        # and those must be resolved first.
-        if False:
-            config += ',flush_tier=(enabled,force=true)'
+        # Enable flush_tier on checkpoint.
+        config += ',flush_tier=(enabled,force=true)'
     return orig_session_checkpoint(session_self, config)
 
 # Called to replace Session.compact
@@ -208,9 +205,12 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
     # Compact isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # Background compaction can be enabled or disabled, each compact call it issues should circle
+    # back here.
     # We want readonly connections to do the real call, see comment in testcase_is_readonly.
     ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
+    background_compaction = not uri and config and "background=" in config
+    if background_compaction or not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_compact(session_self, uri, config)
     return ret
 
@@ -233,12 +233,10 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     ret = orig_session_create(session_self, uri, new_config)
     return ret
 
-# FIXME-WT-9785
+# FIXME-PM-2532
 # Called to replace Session.open_cursor. This is needed to skip tests that
-# do statistics on (tiered) table data sources, as that is not yet supported.
+# do backup on (tiered) table data sources, as that is not yet supported.
 def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
-    if uri != None and (uri.startswith("statistics:table:") or uri.startswith("statistics:file:")):
-        skip_test("statistics on tiered tables not yet implemented")
     if uri != None and uri.startswith("backup:"):
         skip_test("backup on tiered tables not yet implemented")
     return orig_session_open_cursor(session_self, uri, dupcursor, config)
