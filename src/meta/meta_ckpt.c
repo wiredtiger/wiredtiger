@@ -1304,7 +1304,7 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_ite
     u_int i;
     bool valid;
 
-    printf("Starting ckpt_blkmod_to_item(): checkpoint name = %s\n", ckpt->name);
+    /* printf("Starting ckpt_blkmod_to_item(): checkpoint name = %s\n", ckpt->name); */
 
     valid = false;
     WT_CLEAR(*output_item);
