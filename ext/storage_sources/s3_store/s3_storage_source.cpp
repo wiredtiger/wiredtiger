@@ -53,7 +53,7 @@ struct S3Statistics {
     // Operations using AWS SDK.
     std::atomic<int64_t> listObjectsCount;         // Number of S3 list objects requests
     std::atomic<int64_t> putObjectCount;           // Number of S3 put object requests
-    std::atomic<int64_t> objectExistsAndSizeCount; // Number of S3 object exists requests
+    std::atomic<int64_t> objectExistsCount; // Number of S3 object exists requests
 
     // Operations using WiredTiger's native file handle operations.
     std::atomic<int64_t> fhCloseOps; // Number of close file handle operations
@@ -146,7 +146,8 @@ S3SourcePath(const std::string &dir, const std::string &name)
     return (dir + "/" + strippedName);
 }
 
-// Return if the file exists, via looking into the S3 Bucket. Also fetches the file size if exists.
+// Return if the file exists, via looking into the S3 Bucket. Also, if the file exists, fetch the
+// file size.
 static int
 S3FileExistsAndGetSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
   bool *fileExists, wt_off_t *size)
@@ -158,7 +159,7 @@ S3FileExistsAndGetSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const ch
 
     *fileExists = false;
 
-    s3->statistics.objectExistsAndSizeCount++;
+    s3->statistics.objectExistsCount++;
     if ((ret = fs->connection->ObjectExists(name, *fileExists, objectSize)) != 0)
         s3->log->LogErrorMessage("S3FileExistsAndGetSize: ObjectExists request to S3 failed.");
     else {
@@ -727,7 +728,7 @@ S3GetStats(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, int64_t *stats
 
     stats[0] = s3->statistics.listObjectsCount;
     stats[1] = s3->statistics.putObjectCount;
-    stats[2] = s3->statistics.objectExistsAndSizeCount;
+    stats[2] = s3->statistics.objectExistsCount;
     stats[3] = s3->statistics.fhCloseOps;
     stats[4] = s3->statistics.fhOpenOps;
     stats[5] = s3->statistics.fhReadOps;
@@ -742,7 +743,7 @@ S3LogStatistics(const S3Storage &s3)
       "S3 list objects count: " + std::to_string(s3.statistics.listObjectsCount));
     s3.log->LogDebugMessage("S3 put object count: " + std::to_string(s3.statistics.putObjectCount));
     s3.log->LogDebugMessage("S3 object exists and size request count: " +
-      std::to_string(s3.statistics.objectExistsAndSizeCount));
+      std::to_string(s3.statistics.objectExistsCount));
 
     s3.log->LogDebugMessage(
       "File handle close operations: " + std::to_string(s3.statistics.fhCloseOps));
