@@ -282,6 +282,7 @@ PID
 POS
 POSIX
 PPC
+PREFETCH
 PRId
 PRIu
 PRNG
@@ -1082,6 +1083,7 @@ pre
 pread
 prealloc
 precomp
+prefetch
 preload
 prepend
 prepended
