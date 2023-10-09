@@ -640,7 +640,7 @@ __chunkcache_read_into_chunk(
 }
 
 /*
- * __wt_chunkcache_unpin_old_versions --
+ * __chunkcache_unpin_old_versions --
  *     Unpin the old versions of newly added chunks so eviction can remove them.
  */
 static void
