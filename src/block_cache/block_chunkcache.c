@@ -343,6 +343,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
     WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+    /* We can fail when reading chunks, and some are pinned. Unset the pinned stats here. */
     if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
         WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
         WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
