@@ -445,6 +445,7 @@ class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         self.tier_share_percent = 0
         self.tier_cache_percent = 0
         self.tier_storage_source = 'dir_store'
+        self.tier_storage_source_config = ''
         params = []
 
         # We want to split args something like arg.split(','), except that we need
