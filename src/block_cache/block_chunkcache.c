@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include <assert.h>
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_BLOCK_OVERLAPS_CHUNK(chunk_off, block_off, chunk_size, block_size) \
@@ -185,7 +186,7 @@ __chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
  *     Return true if the chunk belongs to the object in pinned object array.
  */
 static inline bool
-__chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+__chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, const char *name)
 {
     WT_CHUNKCACHE *chunkcache;
     bool found;
@@ -194,8 +195,8 @@ __chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
     found = false;
 
     __wt_readlock(session, &chunkcache->pinned_objects.array_lock);
-    WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects.array,
-      chunkcache->pinned_objects.entries, found);
+    WT_BINARY_SEARCH_STRING(
+      name, chunkcache->pinned_objects.array, chunkcache->pinned_objects.entries, found);
     __wt_readunlock(session, &chunkcache->pinned_objects.array_lock);
 
     return (found);
@@ -227,7 +228,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
     WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
-    if (__chunkcache_should_pin_chunk(session, chunk)) {
+    if (__chunkcache_should_pin_chunk(session, chunk->hash_id.objectname)) {
         F_SET(chunk, WT_CHUNK_PINNED);
         WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
         WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
@@ -846,6 +847,43 @@ __wt_chunkcache_remove(
 }
 
 /*
+ * __wt_chunkcache_unpin_old_versions --
+ *     Unpin the old versions of newly added chunks so eviction can remove them.
+ */
+void
+__wt_chunkcache_unpin_old_versions(WT_SESSION_IMPL *session, const char *sp_obj_name)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
+    int i;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    /* Optimization: check if the file contains objects in the pinned list, otherwise skip. */
+    if (__chunkcache_should_pin_chunk(session, sp_obj_name)) {
+        /* Loop through the entire chunkcache and search for matching objects from the file and
+         * clear the pinned flag. */
+        for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
+            __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
+            TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+            {
+                if (strcmp(chunk->hash_id.objectname, sp_obj_name) == 0) {
+                    if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
+                        /* Decrement the stat when a chunk that was initially pinned becomes
+                         * unpinned.*/
+                        WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
+                        WT_STAT_CONN_DECRV(
+                          session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+                    }
+                    F_CLR(chunk, WT_CHUNK_PINNED);
+                }
+            }
+            __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
+        }
+    }
+}
+
+/*
  * __wt_chunkcache_ingest --
  *     Read all the contents from a file and insert it into the chunkcache.
  */
@@ -854,13 +892,12 @@ __wt_chunkcache_ingest(
   WT_SESSION_IMPL *session, const char *local_name, const char *sp_obj_name, uint32_t objectid)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
+    WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
     WT_FH *fh;
     wt_off_t already_read, size;
     uint64_t bucket_id;
-    int i;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
@@ -869,24 +906,7 @@ __wt_chunkcache_ingest(
       !F_ISSET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION))
         return (0);
 
-    // Check if the new file is in the pinned list then skip
-
-    for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
-        __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
-        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
-        {
-            if (strcmp(chunk->hash_id.objectname, sp_obj_name) == 0) {
-                TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, i), chunk, next_chunk);
-                if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
-                    /* Decrement the stat when a chunk that was initially pinned becomes unpinned.*/
-                    WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
-                    WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
-                }
-                F_CLR(chunk, WT_CHUNK_PINNED);
-            }
-        }
-        __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
-    }
+    __wt_chunkcache_unpin_old_versions(session, sp_obj_name);
 
     WT_RET(__wt_open(session, local_name, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_READONLY, &fh));
     WT_ERR(__wt_filesize(session, fh, &size));
@@ -959,7 +979,7 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
         __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
         {
-            if (__chunkcache_should_pin_chunk(session, chunk)) {
+            if (__chunkcache_should_pin_chunk(session, chunk->hash_id.objectname)) {
                 /* Increment the stat when a chunk that was initially unpinned becomes pinned. */
                 if (!F_ISSET(chunk, WT_CHUNK_PINNED)) {
                     WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
