@@ -124,10 +124,6 @@ class SessionOpStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
-class StorageSourceStat(Stat):
-    prefix = 'storage-source'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class StorageStat(Stat):
     prefix = 'tiered-storage'
     def __init__(self, name, desc, flags=''):
@@ -658,17 +654,6 @@ conn_stats = [
     StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
     StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
     StorageStat('tiered_work_units_removed', 'tiered operations removed without processing'),
-
-    ##########################################
-    # Storage source statistics
-    ##########################################
-    StorageSourceStat('ss_list_objects', 'list objects calls'),
-    StorageSourceStat('ss_put_object', 'put objects calls'),
-    StorageSourceStat('ss_object_exists_and_size', 'object exists and get size calls'),
-    StorageSourceStat('ss_fh_close', 'file handle close calls'),
-    StorageSourceStat('ss_fh_open', 'file handle open calls'),
-    StorageSourceStat('ss_fh_read', 'file handle read calls'),
-    StorageSourceStat('ss_fh_size_read', 'file handle bytes read'),
 
     ##########################################
     # Thread Count statistics

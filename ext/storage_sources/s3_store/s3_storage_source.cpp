@@ -51,8 +51,8 @@ struct S3FileSystem;
 // Statistics to be collected for the S3 storage.
 struct S3Statistics {
     // Operations using AWS SDK.
-    std::atomic<int64_t> listObjectsCount;         // Number of S3 list objects requests
-    std::atomic<int64_t> putObjectCount;           // Number of S3 put object requests
+    std::atomic<int64_t> listObjectsCount;  // Number of S3 list objects requests
+    std::atomic<int64_t> putObjectCount;    // Number of S3 put object requests
     std::atomic<int64_t> objectExistsCount; // Number of S3 object exists requests
 
     // Operations using WiredTiger's native file handle operations.
@@ -719,22 +719,6 @@ S3FlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *f
     return (0);
 }
 
-static void
-S3GetStats(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, int64_t *stats, uint16_t count)
-{
-    S3Storage *s3 = (S3Storage *)storageSource;
-
-    assert(count == 7);
-
-    stats[0] = s3->statistics.listObjectsCount;
-    stats[1] = s3->statistics.putObjectCount;
-    stats[2] = s3->statistics.objectExistsCount;
-    stats[3] = s3->statistics.fhCloseOps;
-    stats[4] = s3->statistics.fhOpenOps;
-    stats[5] = s3->statistics.fhReadOps;
-    stats[6] = s3->statistics.fhReadSize;
-}
-
 // Log collected statistics.
 static void
 S3LogStatistics(const S3Storage &s3)
@@ -792,7 +776,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     s3->storageSource.terminate = S3Terminate;
     s3->storageSource.ss_flush = S3Flush;
     s3->storageSource.ss_flush_finish = S3FlushFinish;
-    s3->storageSource.get_stats = S3GetStats;
 
     // The first reference is implied by the call to add_storage_source.
     s3->referenceCount = 1;

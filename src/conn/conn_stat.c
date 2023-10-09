@@ -83,22 +83,6 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
     WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
     WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
-
-    /* If there is a storage source, fetch stats. */
-    if (conn->bstorage != NULL) {
-        ss = conn->bstorage->storage_source;
-        if (ss->get_stats == NULL)
-            return;
-        ss->get_stats(ss, &session->iface, ss_stats, 7);
-
-        WT_STAT_SET(session, stats, ss_list_objects, ss_stats[0]);
-        WT_STAT_SET(session, stats, ss_put_object, ss_stats[1]);
-        WT_STAT_SET(session, stats, ss_object_exists_and_size, ss_stats[2]);
-        WT_STAT_SET(session, stats, ss_fh_close, ss_stats[3]);
-        WT_STAT_SET(session, stats, ss_fh_open, ss_stats[4]);
-        WT_STAT_SET(session, stats, ss_fh_read, ss_stats[5]);
-        WT_STAT_SET(session, stats, ss_fh_size_read, ss_stats[6]);
-    }
 }
 
 /*

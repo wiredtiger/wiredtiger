@@ -712,7 +712,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     gcp->storage_source.terminate = gcp_terminate;
     gcp->storage_source.ss_flush = gcp_flush;
     gcp->storage_source.ss_flush_finish = gcp_flush_finish;
-    gcp->storage_source.get_stats = NULL;
 
     // The first reference is implied by the call to add_storage_source.
     gcp->reference_count = 1;
