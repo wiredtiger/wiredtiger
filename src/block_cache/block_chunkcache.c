@@ -854,12 +854,13 @@ __wt_chunkcache_ingest(
   WT_SESSION_IMPL *session, const char *local_name, const char *sp_obj_name, uint32_t objectid)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
     WT_FH *fh;
     wt_off_t already_read, size;
     uint64_t bucket_id;
+    int i;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
@@ -867,6 +868,25 @@ __wt_chunkcache_ingest(
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED) ||
       !F_ISSET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION))
         return (0);
+
+    // Check if the new file is in the pinned list then skip
+
+    for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
+        __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
+        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+        {
+            if (strcmp(chunk->hash_id.objectname, sp_obj_name) == 0) {
+                TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, i), chunk, next_chunk);
+                if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
+                    /* Decrement the stat when a chunk that was initially pinned becomes unpinned.*/
+                    WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
+                    WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+                }
+                F_CLR(chunk, WT_CHUNK_PINNED);
+            }
+        }
+        __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
+    }
 
     WT_RET(__wt_open(session, local_name, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_READONLY, &fh));
     WT_ERR(__wt_filesize(session, fh, &size));
