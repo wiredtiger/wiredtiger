@@ -104,6 +104,7 @@ kv_table_item::add_update_nolock(
                 if (!txn->visible_txn(u->txn_id()))
                     return WT_ROLLBACK;
                 break;
+            case kv_transaction_state::rolled_back:
             default:
                 break;
             }

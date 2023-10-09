@@ -228,12 +228,10 @@ test_transaction_basic_wt(void)
 
     /* Create the test's home directory and database. */
     WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
     WT_SESSION *session;
     WT_SESSION *session1;
     WT_SESSION *session2;
     const char *uri = "table:table";
-    char cfg[64];
 
     testutil_recreate_dir(home);
     testutil_wiredtiger_open(opts, home, ENV_CONFIG, nullptr, &conn, false, false);

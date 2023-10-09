@@ -13,7 +13,7 @@ target_include_directories(wiredtiger_model_test_common
         ${CMAKE_SOURCE_DIR}/test/utility
         ${CMAKE_BINARY_DIR}/config
 )
-target_link_libraries(wiredtiger_model_test_common wiredtiger_model wt::wiredtiger)
+target_link_libraries(wiredtiger_model_test_common wiredtiger_model wt::wiredtiger test_util)
 
 # Build tests.
 create_test_executable(test_model_basic
