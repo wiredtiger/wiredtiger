@@ -62,6 +62,8 @@ parse_blkmods(WT_SESSION *session, std::string const &file_uri)
     char *file_config;
     REQUIRE(metadata_cursor->get_value(metadata_cursor, &file_config) == 0);
 
+    printf("file_config = %s\n", file_config);
+
     std::cmatch match_results;
     REQUIRE(std::regex_search(file_config, match_results, std::regex(",blocks=(\\w+)")));
     std::string hex_blkmod = match_results[1];
@@ -150,6 +152,12 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 
         WT_CURSOR *cursor2 = nullptr;
         REQUIRE(session->open_cursor(session, table2_uri.c_str(), nullptr, nullptr, &cursor2) == 0);
+
+        REQUIRE(insert_key_value(cursor1, "key5000", "value5000") == 0);
+        REQUIRE(session->checkpoint(session, nullptr) == 0);
+
+        REQUIRE(insert_key_value(cursor2, "key5000", "value5000") == 0);
+        REQUIRE(session->checkpoint(session, nullptr) == 0);
 
         REQUIRE(insert_key_value(cursor1, "key5000", "value5000") == 0);
         REQUIRE(session->checkpoint(session, nullptr) == 0);
