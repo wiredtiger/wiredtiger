@@ -94,6 +94,7 @@ operator&(std::vector<bool> const &a, std::vector<bool> const &b)
     const unsigned larger = std::max(a.size(), b.size());
 
     std::vector<bool> result;
+    result.reserve(larger);
 
     for (unsigned i = 0; i < smaller; i++)
         result.push_back(a[i] & b[i]);
