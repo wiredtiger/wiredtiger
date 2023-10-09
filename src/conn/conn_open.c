@@ -96,6 +96,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_tiered_storage_destroy(session, false));
     WT_TRET(__wt_sweep_destroy(session));
     WT_TRET(__wt_chunkcache_teardown(session));
+    WT_TRET(__wt_prefetch_destroy(session));
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
@@ -227,9 +228,6 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));
 
-    /* Can create a table, so must be done after metadata tracking. */
-    WT_RET(__wt_chunkcache_setup(session, cfg));
-
     /*
      * Create the history store file. This will only actually create it on a clean upgrade or when
      * creating a new database.
@@ -260,6 +258,9 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));
+
+    /* Start pre-fetch utilities. */
+    WT_RET(__wt_prefetch_create(session, cfg));
 
     return (0);
 }
