@@ -72,14 +72,6 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
         return (-1);
     }
 
-    /* Open the underlying table just to verify it exists. */
-    cursor = NULL;
-    WT_ERR(session->iface.open_cursor(
-      &session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
-
-err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
     return (ret);
 }
 

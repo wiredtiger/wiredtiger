@@ -126,9 +126,6 @@ __chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, con
 
     conn = S2C(session);
 
-    if (conn != NULL)
-        return (0);
-
     /* TODO pop objects off if queue len > 1000. */
 
     WT_RET(__wt_calloc_one(session, &entry));
