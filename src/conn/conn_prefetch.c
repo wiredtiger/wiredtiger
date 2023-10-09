@@ -70,7 +70,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_PREFETCH *pf;
+    WT_PREFETCH_QUEUE_ENTRY *pf;
     bool locked;
 
     WT_UNUSED(thread);
@@ -134,7 +134,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_PREFETCH *pf;
+    WT_PREFETCH_QUEUE_ENTRY *pf;
 
     conn = S2C(session);
 
