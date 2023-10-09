@@ -22,13 +22,13 @@ __compact_server_run_chk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __background_compact_add_exclude_entry --
+ * __background_compact_exclude_list_add --
  *     Add the entry to the exclude hash table.
  */
 static int
-__background_compact_add_exclude_entry(WT_SESSION_IMPL *session, const char *name, size_t len)
+__background_compact_exclude_list_add(WT_SESSION_IMPL *session, const char *name, size_t len)
 {
-    WT_BACKGROUND_COMPACT_EXCLUDE_ENTRY *new_entry;
+    WT_BACKGROUND_COMPACT_EXCLUDE *new_entry;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
@@ -41,7 +41,7 @@ __background_compact_add_exclude_entry(WT_SESSION_IMPL *session, const char *nam
     hash = __wt_hash_city64(name, len);
     bucket = hash & (conn->hash_size - 1);
     /* Insert target uri entry into hashtable. */
-    TAILQ_INSERT_HEAD(&conn->background_compact.compactexcludeentryhash[bucket], new_entry, hashq);
+    TAILQ_INSERT_HEAD(&conn->background_compact.exclude_list_hash[bucket], new_entry, hashq);
 
     return (0);
 err:
@@ -53,40 +53,40 @@ err:
 }
 
 /*
- * __background_compact_clear_exclude_entry --
+ * __background_compact_exclude_list_clear --
  *     Clear the list of entries excluded from compaction.
  */
 static void
-__background_compact_clear_exclude_entry(WT_SESSION_IMPL *session, bool closing)
+__background_compact_exclude_list_clear(WT_SESSION_IMPL *session, bool closing)
 {
-    WT_BACKGROUND_COMPACT_EXCLUDE_ENTRY *entry;
+    WT_BACKGROUND_COMPACT_EXCLUDE *entry;
     WT_CONNECTION_IMPL *conn;
     uint64_t i;
 
     conn = S2C(session);
 
     for (i = 0; i < conn->hash_size; ++i) {
-        while (!TAILQ_EMPTY(&conn->background_compact.compactexcludeentryhash[i])) {
-            entry = TAILQ_FIRST(&conn->background_compact.compactexcludeentryhash[i]);
+        while (!TAILQ_EMPTY(&conn->background_compact.exclude_list_hash[i])) {
+            entry = TAILQ_FIRST(&conn->background_compact.exclude_list_hash[i]);
             /* Remove target uri entry from the hashtable. */
-            TAILQ_REMOVE(&conn->background_compact.compactexcludeentryhash[i], entry, hashq);
+            TAILQ_REMOVE(&conn->background_compact.exclude_list_hash[i], entry, hashq);
             __wt_free(session, entry->name);
             __wt_free(session, entry);
         }
     }
 
     if (closing)
-        __wt_free(session, conn->background_compact.compactexcludeentryhash);
+        __wt_free(session, conn->background_compact.exclude_list_hash);
 }
 
 /*
- * __background_compact_find_exclude_entry --
+ * __background_compact_exclude --
  *     Search if the given URI is part of the excluded entries.
  */
 static bool
-__background_compact_find_exclude_entry(WT_SESSION_IMPL *session, const char *uri)
+__background_compact_exclude(WT_SESSION_IMPL *session, const char *uri)
 {
-    WT_BACKGROUND_COMPACT_EXCLUDE_ENTRY *entry;
+    WT_BACKGROUND_COMPACT_EXCLUDE *entry;
     WT_CONNECTION_IMPL *conn;
     uint64_t bucket, hash;
     bool found;
@@ -98,7 +98,7 @@ __background_compact_find_exclude_entry(WT_SESSION_IMPL *session, const char *ur
     hash = __wt_hash_city64(uri, strlen(uri));
     bucket = hash & (conn->hash_size - 1);
 
-    TAILQ_FOREACH (entry, &conn->background_compact.compactexcludeentryhash[bucket], hashq) {
+    TAILQ_FOREACH (entry, &conn->background_compact.exclude_list_hash[bucket], hashq) {
         if (strcmp(uri, entry->name) == 0) {
             found = true;
             break;
@@ -202,7 +202,7 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     conn = S2C(session);
 
     /* Check if the file is excluded. */
-    if (__background_compact_find_exclude_entry(session, uri)) {
+    if (__background_compact_exclude(session, uri)) {
         WT_STAT_CONN_INCR(session, background_compact_exclude);
         return (false);
     }
@@ -558,7 +558,7 @@ __compact_server(void *arg)
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
 err:
-    __background_compact_clear_exclude_entry(session, true);
+    __background_compact_exclude_list_clear(session, true);
     __background_compact_list_cleanup(session, BACKGROUND_CLEANUP_ALL_STAT);
 
     __wt_free(session, conn->background_compact.config);
@@ -591,11 +591,10 @@ __wt_compact_server_create(WT_SESSION_IMPL *session)
     FLD_SET(conn->server_flags, WT_CONN_SERVER_COMPACT);
 
     WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->background_compact.compacthash));
-    WT_RET(
-      __wt_calloc_def(session, conn->hash_size, &conn->background_compact.compactexcludeentryhash));
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->background_compact.exclude_list_hash));
     for (i = 0; i < conn->hash_size; i++) {
         TAILQ_INIT(&conn->background_compact.compacthash[i]);
-        TAILQ_INIT(&conn->background_compact.compactexcludeentryhash[i]);
+        TAILQ_INIT(&conn->background_compact.exclude_list_hash[i]);
     }
 
     /*
@@ -692,7 +691,7 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
 
     /* Update the excluded tables when the server is turned on. */
     if (cval.val) {
-        __background_compact_clear_exclude_entry(session, false);
+        __background_compact_exclude_list_clear(session, false);
         WT_ERR_NOTFOUND_OK(__wt_config_gets(session, cfg, "exclude", &cval), false);
         if (cval.len != 0) {
             /*
@@ -708,7 +707,7 @@ __wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
                       (int)k.len, k.str);
 
                 WT_PREFIX_SKIP_REQUIRED(session, k.str, "table:");
-                WT_ERR(__background_compact_add_exclude_entry(
+                WT_ERR(__background_compact_exclude_list_add(
                   session, (char *)k.str, k.len - strlen("table:")));
             }
             WT_ERR_NOTFOUND_OK(ret, false);
