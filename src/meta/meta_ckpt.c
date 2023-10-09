@@ -1223,7 +1223,7 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
         /* The hex string length should match the appropriate number of bits. */
         WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
 
-        printf(".   in __wt_ckpt_blkmod_to_meta(), bitstring.data (i = %d) for %s of size %d = '%.*s'\n", i, blk->id_str, (int)bitstring.size, (int)bitstring.size, (char *)bitstring.data);
+        printf(".   in __wt_ckpt_blkmod_to_meta(), bitstring.data (i = %u) for %s of size %d = '%.*s'\n", i, blk->id_str, (int)bitstring.size, (int)bitstring.size, (char *)bitstring.data);
 
         __wt_buf_free(session, &bitstring);
     }
@@ -1327,7 +1327,7 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *output_ite
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
 
-        printf(".   in ckpt_blkmod_to_item() at A, i = %d, blk->id_str = %s\n", i, blk->id_str);
+        printf(".   in ckpt_blkmod_to_item() at A, i = %u, blk->id_str = %s\n", i, blk->id_str);
         WT_RET(__wt_buf_set(session, output_item, blk->bitstring.data, blk->bitstring.size));
         print_item(output_item, ".        output_item");
     }
