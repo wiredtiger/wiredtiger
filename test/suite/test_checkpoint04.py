@@ -34,6 +34,7 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
 class test_checkpoint04(wttest.WiredTigerTestCase):
+    # We don't want stats from earlier runs to interfere with later runs.
     conn_config = 'cache_size=50MB,statistics=(all,clear)'
 
     def create_tables(self, ntables):
