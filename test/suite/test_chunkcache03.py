@@ -99,20 +99,20 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         # Read from the unpinned URIs and capture chunks in use.
         self.read_and_verify(uris[2], ds[2])
         self.read_and_verify(uris[3], ds[3])
-        chunks_inuse_excluding_pinned = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse)
+        chunks_inuse_excluding_pinned = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse)
         self.assertGreater(chunks_inuse_excluding_pinned, 0)
 
         # Assert none of the chunks are pinned.
-        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned), 0)
+        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned), 0)
 
         # Read from the pinned URIs.
         self.read_and_verify(uris[0], ds[0])
         self.read_and_verify(uris[1], ds[1])
-        chunks_inuse_including_pinned = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse)
+        chunks_inuse_including_pinned = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse)
         self.assertGreater(chunks_inuse_including_pinned, chunks_inuse_excluding_pinned)
 
         # Assert that chunks are pinned.
-        pinned_chunks_inuse = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned)
+        pinned_chunks_inuse = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned)
         self.assertGreater(pinned_chunks_inuse, 0)
 
         # Assert that the difference b/w the total chunks present and the unpinned chunks equal pinned chunks.
@@ -124,5 +124,5 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
         # After this point all the unpinned chunks should be pinned and vice-versa.
         # Check the following stats.
-        new_pinned_chunks_inuse = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned)
+        new_pinned_chunks_inuse = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned)
         self.assertEqual(chunks_inuse_excluding_pinned, new_pinned_chunks_inuse)

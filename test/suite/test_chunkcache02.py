@@ -119,5 +119,5 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             thread.join()
 
         # Check relevant chunkcache stats.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse), 0)
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_evicted), 0)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse), 0)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_evicted), 0)

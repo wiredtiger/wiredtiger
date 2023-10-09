@@ -59,7 +59,6 @@ static int
 __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, uint64_t capacity,
   unsigned int hashtable_size, size_t chunk_size)
 {
-    WT_CURSOR *cursor;
     WT_DECL_RET;
     char tmp[128];
 
