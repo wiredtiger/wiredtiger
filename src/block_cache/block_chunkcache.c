@@ -963,6 +963,37 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
+ * __wt_chunkcache_create_and_link_chunk --
+ *     Create a new chunk and link it to the relevant chunk data (on disk).
+ */
+int
+__wt_chunkcache_create_and_link_chunk(WT_SESSION_IMPL *session, const char *name, uint32_t id,
+  wt_off_t file_offset, uint64_t cache_offset, size_t data_sz)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_CHUNKCACHE_HASHID hash_id;
+    WT_DECL_RET;
+    uint64_t bucket_id;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
+        return (0);
+
+    WT_UNUSED(cache_offset);
+    bucket_id = __chunkcache_tmp_hash(chunkcache, &hash_id, name, id, file_offset);
+
+    __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+    ret = __chunkcache_insert(session, file_offset, (wt_off_t) data_sz, &hash_id, bucket_id, &chunk);
+    __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+
+    WT_RET(ret);
+
+    return (0);
+}
+
+/*
  * __wt_chunkcache_setup --
  *     Set up the chunk cache.
  */

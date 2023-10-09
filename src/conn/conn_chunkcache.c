@@ -75,6 +75,37 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
 }
 
 /*
+ * __chunkcache_apply_metadata_content --
+ *     Extract key/value pairs from a metadata file to allocate chunks in the chunk cache.
+ */
+static int
+__chunkcache_apply_metadata_content(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    wt_off_t file_offset;
+    size_t data_sz;
+    uint64_t cache_offset;
+    uint32_t id;
+    const char *name;
+    WT_RET(session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &name, &id, &file_offset));
+        WT_ERR(cursor->get_value(cursor, &cache_offset, &data_sz));
+        WT_ERR(__wt_chunkcache_create_and_link_chunk(
+          session, name, id, file_offset, cache_offset, data_sz));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+
+    return (ret);
+}
+
+/*
  * __chunkcache_metadata_run_chk --
  *     Check to decide if the chunk cache metadata server should continue running.
  */
@@ -252,6 +283,8 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
     WT_ERR(__wt_open_internal_session(
       conn, "chunkcache-metadata-server", true, 0, 0, &conn->chunkcache_metadata_session));
     session = conn->chunkcache_metadata_session;
+
+    WT_ERR(__chunkcache_apply_metadata_content(session));
 
     /* Start the thread. */
     WT_ERR(__wt_thread_create(
