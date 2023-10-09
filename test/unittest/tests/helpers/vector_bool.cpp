@@ -90,16 +90,16 @@ vector_bool_to_binary_string(std::vector<bool> const &vector_bool)
 std::vector<bool>
 operator&(std::vector<bool> const &a, std::vector<bool> const &b)
 {
-    const unsigned smaller = std::min(a.size(), b.size());
-    const unsigned larger = std::max(a.size(), b.size());
+    const size_t smaller = std::min(a.size(), b.size());
+    const size_t larger = std::max(a.size(), b.size());
 
     std::vector<bool> result;
     result.reserve(larger);
 
-    for (unsigned i = 0; i < smaller; i++)
+    for (size_t i = 0; i < smaller; i++)
         result.push_back(a[i] & b[i]);
 
-    for (unsigned i = smaller; i < larger; i++)
+    for (size_t i = smaller; i < larger; i++)
         result.push_back(false);
 
     return result;
@@ -108,18 +108,18 @@ operator&(std::vector<bool> const &a, std::vector<bool> const &b)
 std::vector<bool>
 operator^(std::vector<bool> const &a, std::vector<bool> const &b)
 {
-    const unsigned smaller = std::min(a.size(), b.size());
-    const unsigned larger = std::max(a.size(), b.size());
+    const size_t smaller = std::min(a.size(), b.size());
+    const size_t larger = std::max(a.size(), b.size());
 
     std::vector<bool> result;
     result.reserve(larger);
 
-    for (unsigned i = 0; i < smaller; i++)
+    for (size_t i = 0; i < smaller; i++)
         result.push_back(a[i] != b[i]);
 
     std::vector<bool> const &source = a.size() > b.size() ? a : b;
 
-    for (unsigned i = smaller; i < larger; i++) {
+    for (size_t i = smaller; i < larger; i++) {
         result.push_back(source[i]);
     }
 
