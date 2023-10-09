@@ -727,6 +727,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     azure_storage->store.terminate = azure_terminate;
     azure_storage->store.ss_flush = azure_flush;
     azure_storage->store.ss_flush_finish = azure_flush_finish;
+    azure_storage->store.get_stats = NULL;
 
     // The first reference is implied by the call to add_storage_source.
     azure_storage->reference_count = 1;
