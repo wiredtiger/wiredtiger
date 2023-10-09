@@ -308,6 +308,8 @@ conn_stats = [
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
+    CacheStat('cache_eviction_skip_pages_retry', 'skip pages  to avoid retry that has been tried to evict before'),
+    CacheStat('cache_eviction_skip_pages_not_globally_visible', 'skip pages that are not globally visible'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
     CacheStat('cache_eviction_stable_state_workers', 'eviction worker thread stable number', 'no_clear'),
     CacheStat('cache_eviction_state', 'eviction state', 'no_clear,no_scale'),

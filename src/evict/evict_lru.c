@@ -2058,9 +2058,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * not yet globally visible, eviction will fail. This heuristic avoids repeated attempts to
          * evict the same page.
          */
-        if (!__wt_page_evict_retry(session, page) ||
-          (modified && page->modify->update_txn >= conn->txn_global.last_running))
+        if (!__wt_page_evict_retry(session, page)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_skip_pages_retry);
             continue;
+        } else if (modified && page->modify->update_txn >= conn->txn_global.last_running) {
+            WT_STAT_CONN_INCR(session, cache_eviction_skip_pages_not_globally_visible);
+            continue;
+        }
 
 fast:
         /* If the page can't be evicted, give up. */

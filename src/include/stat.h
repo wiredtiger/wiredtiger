@@ -537,6 +537,8 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_skip_pages_retry;
+    int64_t cache_eviction_skip_pages_not_globally_visible;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_reentry_hs_eviction_milliseconds;
