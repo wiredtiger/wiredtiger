@@ -7,7 +7,6 @@
  */
 
 #include "wt_internal.h"
-#include <assert.h>
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_BLOCK_OVERLAPS_CHUNK(chunk_off, block_off, chunk_size, block_size) \
@@ -907,6 +906,7 @@ __wt_chunkcache_ingest(
       !F_ISSET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION))
         return (0);
 
+    /* Check and unpin any old versions of newly added objects. */
     __wt_chunkcache_unpin_old_versions(session, sp_obj_name);
 
     WT_RET(__wt_open(session, local_name, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_READONLY, &fh));
