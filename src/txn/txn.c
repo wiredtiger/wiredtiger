@@ -309,6 +309,21 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_swap_snapshot --
+ *     Swap the snapshot pointers.
+ */
+void
+__wt_swap_snapshot(uint64_t **snap_a, uint64_t **snap_b)
+{
+    uint64_t *temp;
+
+    WT_UNUSED(temp);
+
+    temp = *snap_a;
+    *snap_a = *snap_b;
+    *snap_b = temp;
+}
+/*
  * __wt_txn_bump_snapshot --
  *     Uncommon case, allocate a snapshot but skip updating our shared ids.
  */
@@ -316,6 +331,74 @@ void
 __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 {
     __txn_get_snapshot_int(session, false);
+}
+
+/*
+ * __wt_txn_snapshot_save_and_refresh --
+ *     Save the existing snapshot and allocate a new snapshot.
+ */
+bool
+__wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    WT_ERR(__wt_calloc_def(session, sizeof(WT_TXN_SNAP_BACKUP), &txn->snap_backup));
+
+    txn->snap_backup->snap_max = txn->snap_max;
+    txn->snap_backup->snap_min = txn->snap_min;
+    txn->snap_backup->snapshot_count = txn->snapshot_count;
+
+    /* Take the backup of the snapshot only if the snapshot count is greater than 0. */
+    if (txn->snapshot_count > 0) {
+        WT_ERR(__wt_calloc_def(
+          session, sizeof(uint64_t) * S2C(session)->session_size, &txn->snap_backup->snapshot));
+
+        /* Swap the snapshot pointers. */
+        __wt_swap_snapshot(&txn->snapshot, &txn->snap_backup->snapshot);
+
+        /*
+         * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
+         * already has a snapshot so clear the flag WT_TXN_HAS_SNAPSHOT.
+         */
+        F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
+
+        /* Get the snapshot without publishing the shared ids. */
+        __wt_txn_bump_snapshot(session);
+    }
+
+err:
+    /* Free the snap_backup if the memory allocation of the underlying snapshot has failed. */
+    if (ret != 0 && txn->snap_backup != NULL)
+        __wt_free(session, txn->snap_backup);
+
+    return (ret != 0 ? false : true);
+}
+
+/*
+ * __wt_txn_snapshot_release_and_restore --
+ *     Switch back to the original snapshot.
+ */
+void
+__wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+    WT_TXN_SNAP_BACKUP *snapshot_backup;
+
+    txn = session->txn;
+    snapshot_backup = txn->snap_backup;
+
+    txn->snap_max = snapshot_backup->snap_max;
+    txn->snap_min = snapshot_backup->snap_min;
+    txn->snapshot_count = snapshot_backup->snapshot_count;
+    if (snapshot_backup->snapshot_count > 0) {
+        /* Swap the snapshot pointers. */
+        __wt_swap_snapshot(&snapshot_backup->snapshot, &txn->snapshot);
+        __wt_free(session, snapshot_backup->snapshot);
+        __wt_free(session, snapshot_backup);
+    }
 }
 
 /*
