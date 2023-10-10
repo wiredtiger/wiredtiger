@@ -277,6 +277,10 @@ dir_store_compute_delay_us(DIR_STORE *dir_store, uint64_t avg_delay_us)
     if (avg_delay_us == 0)
         return (0);
 
+    /*
+     * Note: this is WiredTiger's RNG algorithm. Since this module is packaged independent of
+     * WiredTiger's internals, it's not feasible to call directly into its implementation.
+     */
     w = dir_store->rand_w;
     z = dir_store->rand_z;
     if (w == 0 || z == 0) {
