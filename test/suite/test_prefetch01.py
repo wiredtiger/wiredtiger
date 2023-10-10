@@ -28,30 +28,58 @@
 
 import os
 import helper, wiredtiger, wttest
+from wtscenario import make_scenarios
 
 # test_prefetch01.py
 #    Test basic functionality of the prefetch configuration.
+
 class test_prefetch01(wttest.WiredTigerTestCase):
-    conn_config = 'prefetch=(available=true,default=false)'
-
-    def test_prefetch_config(self):
-        s = self.conn.open_session('prefetch=(enabled=true)')
-        self.assertEqual(s.close(), 0)
-        self.close_conn()
-
-# Test that pre-fetching cannot be enabled for sessions when the pre-fetching
-# functionality is not available.
-class test_prefetch_incompatible_config(wttest.WiredTigerTestCase):
     new_dir = 'new.dir'
 
-    # Open a new connection as WiredTiger does not support re-configuring
-    # pre-fetch during runtime.
-    def test_incompatible_config(self):
+    conn_avail = [
+        ('available', dict(available=True)),
+        ('not-available', dict(available=False))
+    ]
+
+    conn_default = [
+        ('default-off', dict(default=True)),
+        ('default-on', dict(default=False)),
+    ]
+
+    session_cfg = [
+        ('no-config', dict(scenario='no-config', enabled=False, has_config=False)),
+        ('enabled', dict(scenario='enabled', enabled=True, has_config=True)),
+        ('not-enabled', dict(scenario='not-enabled', enabled=False, has_config=True)),
+    ]
+
+    scenarios = make_scenarios(conn_avail, conn_default, session_cfg)
+
+    def test_prefetch_config(self):
+        conn_cfg = 'prefetch=(available=%s,default=%s)' % (str(self.available).lower(), str(self.default).lower())
+        session_cfg = ''
+        msg = '/pre-fetching cannot be enabled/'
+
+        if self.has_config:
+            session_cfg = 'prefetch=(enabled=%s)' % (str(self.enabled).lower())
+
         os.mkdir(self.new_dir)
         helper.copy_wiredtiger_home(self, '.', self.new_dir)
-        msg = '/pre-fetching cannot be enabled/'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, 
-            lambda: self.wiredtiger_open(self.new_dir, 'prefetch=(available=false,default=true)'), msg)
+
+        if not self.available and self.default:
+            # Test that we can't enable a connection's sessions to have pre-fetching when
+            # pre-fetching is configured as unavailable.
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.wiredtiger_open(self.new_dir, conn_cfg), msg)
+        elif not self.available and self.enabled:
+            # Test that we can't enable a specific session to have pre-fetching turned on
+            # if pre-fetching is configured as unavailable.
+            new_conn = self.wiredtiger_open(self.new_dir, conn_cfg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: new_conn.open_session(session_cfg), msg)
+        else:
+            new_conn = self.wiredtiger_open(self.new_dir, conn_cfg)
+            new_session = new_conn.open_session(session_cfg)
+            self.assertEqual(new_session.close(), 0)
 
 if __name__ == '__main__':
     wttest.run()
