@@ -32,8 +32,7 @@ from wtscenario import make_scenarios
 import wiredtiger, wttest
 
 # test_verbose04.py
-# Verify basic uses of the verbose configuration API when categories and valid/invalid verbosity
-# levels are specified.
+# Verify the use of the `all` field to set verbose categories.
 class test_verbose04(test_verbose_base):
 
     format = [
@@ -44,40 +43,77 @@ class test_verbose04(test_verbose_base):
 
     collection_cfg = 'key_format=S,value_format=S'
     
-    # Test use cases passing single verbose categories, ensuring we only produce verbose output for
-    # the single category.
-    def test_verbose_single(self):
-        #all_verb contain all verbose flag
-        all_verb = ['WT_VERB_API', 'WT_VERB_BACKUP', 'WT_VERB_BLOCK', 'WT_VERB_BLKCACHE', 'WT_VERB_CHECKPOINT'
-          , 'WT_VERB_CHECKPOINT_CLEANUP', 'WT_VERB_CHECKPOINT_PROGRESS', 'WT_VERB_CHUNKCACHE', 'WT_VERB_COMPACT'
-          , 'WT_VERB_COMPACT_PROGRESS', 'WT_VERB_ERROR_RETURNS', 'WT_VERB_EVICT', 'WT_VERB_EVICT_STUCK'
-          , 'WT_VERB_EVICTSERVER', 'WT_VERB_FILEOPS', 'WT_VERB_GENERATION', 'WT_VERB_HANDLEOPS', 'WT_VERB_LOG', 'WT_VERB_HS'
-          , 'WT_VERB_HS_ACTIVITY', 'WT_VERB_LSM', 'WT_VERB_LSM_MANAGER', 'WT_VERB_METADATA', 'WT_VERB_MUTEX', 'WT_VERB_PREFETCH'
-          , 'WT_VERB_OUT_OF_ORDER', 'WT_VERB_OVERFLOW', 'WT_VERB_READ', 'WT_VERB_RECONCILE', 'WT_VERB_RECOVERY'
-          , 'WT_VERB_RECOVERY_PROGRESS', 'WT_VERB_RTS', 'WT_VERB_SALVAGE', 'WT_VERB_SHARED_CACHE', 'WT_VERB_SPLIT'
-          , 'WT_VERB_TEMPORARY', 'WT_VERB_THREAD_GROUP', 'WT_VERB_TIMESTAMP', 'WT_VERB_TIERED', 'WT_VERB_TRANSACTION'
-          , 'WT_VERB_VERIFY', 'WT_VERB_VERSION', 'WT_VERB_WRITE']
-          
+    # Define all the verbose flags.
+    all_verbose_categories = [
+      'WT_VERB_API', 
+      'WT_VERB_BACKUP', 
+      'WT_VERB_BLOCK', 
+      'WT_VERB_BLKCACHE', 
+      'WT_VERB_CHECKPOINT', 
+      'WT_VERB_CHECKPOINT_CLEANUP', 
+      'WT_VERB_CHECKPOINT_PROGRESS', 
+      'WT_VERB_CHUNKCACHE', 
+      'WT_VERB_COMPACT', 
+      'WT_VERB_COMPACT_PROGRESS', 
+      'WT_VERB_ERROR_RETURNS', 
+      'WT_VERB_EVICT', 
+      'WT_VERB_EVICT_STUCK', 
+      'WT_VERB_EVICTSERVER', 
+      'WT_VERB_FILEOPS', 
+      'WT_VERB_GENERATION', 
+      'WT_VERB_HANDLEOPS', 
+      'WT_VERB_LOG', 
+      'WT_VERB_HS', 
+      'WT_VERB_HS_ACTIVITY', 
+      'WT_VERB_LSM', 
+      'WT_VERB_LSM_MANAGER', 
+      'WT_VERB_METADATA', 
+      'WT_VERB_MUTEX', 
+      'WT_VERB_PREFETCH', 
+      'WT_VERB_OUT_OF_ORDER', 
+      'WT_VERB_OVERFLOW', 
+      'WT_VERB_READ', 
+      'WT_VERB_RECONCILE', 
+      'WT_VERB_RECOVERY', 
+      'WT_VERB_RECOVERY_PROGRESS', 
+      'WT_VERB_RTS', 
+      'WT_VERB_SALVAGE', 
+      'WT_VERB_SHARED_CACHE', 
+      'WT_VERB_SPLIT', 
+      'WT_VERB_TEMPORARY', 
+      'WT_VERB_THREAD_GROUP', 
+      'WT_VERB_TIMESTAMP', 
+      'WT_VERB_TIERED', 
+      'WT_VERB_TRANSACTION', 
+      'WT_VERB_VERIFY', 
+      'WT_VERB_VERSION', 
+      'WT_VERB_WRITE'
+    ]
+
+    # Enable all categories at once.
+    def test_verbose_all(self):
         # Close the initial connection. We will be opening new connections with different verbosity
         # settings throughout this test.
         self.close_conn()
-
+  
         # Test passing a single verbose category, 'all' along with the verbosity level
-        # WT_VERBOSE_DEBUG_1 (1). Ensuring the only verbose output generated is related to the
+        # WT_VERBOSE_DEBUG_1 (1). Ensuring the verbose output generated matches any of the existing verbose categories.
         # 'all' category.
-        with self.expect_verbose(['all:1'], all_verb, self.is_json) as conn:
-            # Perform a set of simple ALL operations to generate verbose ALL messages.
+        with self.expect_verbose(['all:1'], self.all_verbose_categories, self.is_json) as conn:
+            # Perform a set of simple operations to generate verbose messages from different categories.
             uri = 'table:test_verbose04_all'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
             c['all'] = 'all'
             c.close()
+            session.create(uri, self.collection_cfg)
+            session.compact(uri)
             session.close()
             
-        # At this time, there is no verbose messages with the category WT_VERB_ALL and the verbosity
-        # level WT_VERBOSE_INFO (0), hence we don't expect any output.
-        with self.expect_verbose(['all:0'], all_verb, self.is_json, False) as conn:
+        # At this time, no verbose messages should be generated with the following set of operations and the verbosity level 
+        # WT_VERBOSE_INFO (0), hence we don't expect any output.
+        with self.expect_verbose(['all:0'], self.all_verbose_categories, self.is_json, False) as conn:
             uri = 'table:test_verbose04_all'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
@@ -91,7 +127,7 @@ class test_verbose04(test_verbose_base):
         # levels WT_VERBOSE_INFO (0) through WT_VERBOSE_DEBUG_5 (5), we can test them all.
         cfgs = ['all:0', 'all:1', 'all:2', 'all:3', 'all:4', 'all:5']
         for cfg in cfgs:
-            with self.expect_verbose([cfg], all_verb, self.is_json) as conn:
+            with self.expect_verbose([cfg], self.all_verbose_categories, self.is_json) as conn:
                 # Create a simple table to invoke compaction on. We aren't doing anything
                 # interesting with the table, we want to simply invoke a compaction pass to generate
                 # verbose messages.
@@ -110,18 +146,15 @@ class test_verbose04(test_verbose_base):
         # to those two categories.
         cfgs = ['api:0,all:1,version:0', 'version:0,all,api:0']
         
-        #all_verb_except_api_and_version contains all verb flag(except WT_VERB_API & WT_VERB_VERSION)
-        all_verb_except_api_and_version = ['WT_VERB_BACKUP', 'WT_VERB_BLOCK', 'WT_VERB_BLKCACHE', 'WT_VERB_CHECKPOINT'
-          , 'WT_VERB_CHECKPOINT_CLEANUP', 'WT_VERB_CHECKPOINT_PROGRESS', 'WT_VERB_CHUNKCACHE', 'WT_VERB_COMPACT'
-          , 'WT_VERB_COMPACT_PROGRESS', 'WT_VERB_ERROR_RETURNS', 'WT_VERB_EVICT', 'WT_VERB_EVICT_STUCK'
-          , 'WT_VERB_EVICTSERVER', 'WT_VERB_FILEOPS', 'WT_VERB_GENERATION', 'WT_VERB_HANDLEOPS', 'WT_VERB_LOG', 'WT_VERB_HS'
-          , 'WT_VERB_HS_ACTIVITY', 'WT_VERB_LSM', 'WT_VERB_LSM_MANAGER', 'WT_VERB_METADATA', 'WT_VERB_MUTEX', 'WT_VERB_PREFETCH'
-          , 'WT_VERB_OUT_OF_ORDER', 'WT_VERB_OVERFLOW', 'WT_VERB_READ', 'WT_VERB_RECONCILE', 'WT_VERB_RECOVERY'
-          , 'WT_VERB_RECOVERY_PROGRESS', 'WT_VERB_RTS', 'WT_VERB_SALVAGE', 'WT_VERB_SHARED_CACHE', 'WT_VERB_SPLIT'
-          , 'WT_VERB_TEMPORARY', 'WT_VERB_THREAD_GROUP', 'WT_VERB_TIMESTAMP', 'WT_VERB_TIERED', 'WT_VERB_TRANSACTION'
-          , 'WT_VERB_VERIFY', 'WT_VERB_WRITE']
+        #all_verbose_categories_except_api_and_version contains all verb flag(except WT_VERB_API & WT_VERB_VERSION)
+        all_verbose_categories_except_api_and_version = self.all_verbose_categories
+        if 'WT_VERB_API' in all_verbose_categories_except_api_and_version:
+            all_verbose_categories_except_api_and_version.remove('WT_VERB_API')
+        if 'WT_VERB_VERSION' in all_verbose_categories_except_api_and_version:
+            all_verbose_categories_except_api_and_version.remove('WT_VERB_VERSION')
+            
         for cfg in cfgs:
-            with self.expect_verbose([cfg], all_verb_except_api_and_version, self.is_json) as conn:
+            with self.expect_verbose([cfg], all_verbose_categories_except_api_and_version, self.is_json) as conn:
                 # Perform a set of simple API operations (table creations and cursor operations) to
                 # generate verbose API messages. Beyond opening the connection resource, we
                 # shouldn't need to do anything special for the version category.
@@ -131,6 +164,6 @@ class test_verbose04(test_verbose_base):
                 c = session.open_cursor(uri)
                 c['multiple'] = 'multiple'
                 c.close()
-                
+
 if __name__ == '__main__':
     wttest.run()
