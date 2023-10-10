@@ -45,48 +45,48 @@ class test_verbose04(test_verbose_base):
     
     # Define all the verbose flags.
     all_verbose_categories = [
-      'WT_VERB_API', 
-      'WT_VERB_BACKUP', 
-      'WT_VERB_BLOCK', 
+      'WT_VERB_API',
+      'WT_VERB_BACKUP',
+      'WT_VERB_BLOCK',
       'WT_VERB_BLKCACHE', 
-      'WT_VERB_CHECKPOINT', 
-      'WT_VERB_CHECKPOINT_CLEANUP', 
-      'WT_VERB_CHECKPOINT_PROGRESS', 
-      'WT_VERB_CHUNKCACHE', 
-      'WT_VERB_COMPACT', 
-      'WT_VERB_COMPACT_PROGRESS', 
-      'WT_VERB_ERROR_RETURNS', 
-      'WT_VERB_EVICT', 
-      'WT_VERB_EVICT_STUCK', 
-      'WT_VERB_EVICTSERVER', 
-      'WT_VERB_FILEOPS', 
-      'WT_VERB_GENERATION', 
-      'WT_VERB_HANDLEOPS', 
-      'WT_VERB_LOG', 
-      'WT_VERB_HS', 
-      'WT_VERB_HS_ACTIVITY', 
-      'WT_VERB_LSM', 
-      'WT_VERB_LSM_MANAGER', 
-      'WT_VERB_METADATA', 
-      'WT_VERB_MUTEX', 
-      'WT_VERB_PREFETCH', 
-      'WT_VERB_OUT_OF_ORDER', 
-      'WT_VERB_OVERFLOW', 
-      'WT_VERB_READ', 
-      'WT_VERB_RECONCILE', 
-      'WT_VERB_RECOVERY', 
-      'WT_VERB_RECOVERY_PROGRESS', 
-      'WT_VERB_RTS', 
-      'WT_VERB_SALVAGE', 
-      'WT_VERB_SHARED_CACHE', 
-      'WT_VERB_SPLIT', 
-      'WT_VERB_TEMPORARY', 
-      'WT_VERB_THREAD_GROUP', 
-      'WT_VERB_TIMESTAMP', 
-      'WT_VERB_TIERED', 
-      'WT_VERB_TRANSACTION', 
-      'WT_VERB_VERIFY', 
-      'WT_VERB_VERSION', 
+      'WT_VERB_CHECKPOINT',
+      'WT_VERB_CHECKPOINT_CLEANUP',
+      'WT_VERB_CHECKPOINT_PROGRESS',
+      'WT_VERB_CHUNKCACHE',
+      'WT_VERB_COMPACT',
+      'WT_VERB_COMPACT_PROGRESS',
+      'WT_VERB_ERROR_RETURNS',
+      'WT_VERB_EVICT',
+      'WT_VERB_EVICT_STUCK',
+      'WT_VERB_EVICTSERVER',
+      'WT_VERB_FILEOPS',
+      'WT_VERB_GENERATION',
+      'WT_VERB_HANDLEOPS',
+      'WT_VERB_LOG',
+      'WT_VERB_HS',
+      'WT_VERB_HS_ACTIVITY',
+      'WT_VERB_LSM',
+      'WT_VERB_LSM_MANAGER',
+      'WT_VERB_METADATA',
+      'WT_VERB_MUTEX',
+      'WT_VERB_PREFETCH',
+      'WT_VERB_OUT_OF_ORDER',
+      'WT_VERB_OVERFLOW',
+      'WT_VERB_READ',
+      'WT_VERB_RECONCILE',
+      'WT_VERB_RECOVERY',
+      'WT_VERB_RECOVERY_PROGRESS',
+      'WT_VERB_RTS',
+      'WT_VERB_SALVAGE',
+      'WT_VERB_SHARED_CACHE',
+      'WT_VERB_SPLIT',
+      'WT_VERB_TEMPORARY',
+      'WT_VERB_THREAD_GROUP',
+      'WT_VERB_TIMESTAMP',
+      'WT_VERB_TIERED',
+      'WT_VERB_TRANSACTION',
+      'WT_VERB_VERIFY',
+      'WT_VERB_VERSION',
       'WT_VERB_WRITE'
     ]
 
@@ -146,12 +146,10 @@ class test_verbose04(test_verbose_base):
         # to those two categories.
         cfgs = ['api:0,all:1,version:0', 'version:0,all,api:0']
         
-        #all_verbose_categories_except_api_and_version contains all verb flag(except WT_VERB_API & WT_VERB_VERSION)
-        all_verbose_categories_except_api_and_version = self.all_verbose_categories
-        if 'WT_VERB_API' in all_verbose_categories_except_api_and_version:
-            all_verbose_categories_except_api_and_version.remove('WT_VERB_API')
-        if 'WT_VERB_VERSION' in all_verbose_categories_except_api_and_version:
-            all_verbose_categories_except_api_and_version.remove('WT_VERB_VERSION')
+        #all_verbose_categories_except_api_and_version contains all verbose flags except WT_VERB_API and WT_VERB_VERSION.
+        all_verbose_categories_except_api_and_version = self.all_verbose_categories.copy()
+        all_verbose_categories_except_api_and_version.remove('WT_VERB_API')
+        all_verbose_categories_except_api_and_version.remove('WT_VERB_VERSION')
             
         for cfg in cfgs:
             with self.expect_verbose([cfg], all_verbose_categories_except_api_and_version, self.is_json) as conn:
