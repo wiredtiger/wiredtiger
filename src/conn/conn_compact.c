@@ -479,11 +479,11 @@ err:
 }
 
 /*
- * __wt_compact_server_create --
+ * __wt_background_compact_server_create --
  *     Start the compact thread.
  */
 int
-__wt_compact_server_create(WT_SESSION_IMPL *session)
+__wt_background_compact_server_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t i;
@@ -520,11 +520,11 @@ __wt_compact_server_create(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_compact_server_destroy --
+ * __wt_background_compact_server_destroy --
  *     Destroy the background compaction server thread.
  */
 int
-__wt_compact_server_destroy(WT_SESSION_IMPL *session)
+__wt_background_compact_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -550,12 +550,12 @@ __wt_compact_server_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_compact_signal --
+ * __wt_background_compact_signal --
  *     Signal the compact thread. Return an error if the background compaction server has not
  *     processed a previous signal yet or because of an invalid configuration.
  */
 int
-__wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
+__wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
