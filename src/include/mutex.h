@@ -18,14 +18,14 @@ struct __wt_condvar {
     wt_mutex_t mtx; /* Mutex */
     wt_cond_t cond; /* Condition variable */
 
-    int waiters; /* Numbers of waiters, or
+    wt_shared int waiters; /* Numbers of waiters, or
                     -1 if signalled with no waiters. */
     /*
      * The following fields are used for automatically adjusting condition variable wait times.
      */
-    uint64_t min_wait;  /* Minimum wait duration */
-    uint64_t max_wait;  /* Maximum wait duration */
-    uint64_t prev_wait; /* Wait duration used last time */
+    uint64_t min_wait;            /* Minimum wait duration */
+    uint64_t max_wait;            /* Maximum wait duration */
+    wt_shared uint64_t prev_wait; /* Wait duration used last time */
 };
 
 /*
