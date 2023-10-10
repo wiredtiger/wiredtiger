@@ -5855,13 +5855,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * restrictions
  */
 #define	WT_STAT_CONN_CACHE_REVERSE_SPLITS_SKIPPED_VLCS	1205
-/*! cache: skip pages  to avoid retry that has been tried to evict before */
-#define	WT_STAT_CONN_CACHE_EVICTION_SKIP_PAGES_RETRY	1206
 /*!
- * cache: skip pages that are written with transaction greater than last
- * running
+ * cache: skip pages that are written with transactions greater than the
+ * last running
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_SKIP_PAGES_LAST_RUNNING	1207
+#define	WT_STAT_CONN_CACHE_EVICTION_SKIP_PAGES_LAST_RUNNING	1206
+/*! cache: skip pages to avoid retry that have been tried to evict before */
+#define	WT_STAT_CONN_CACHE_EVICTION_SKIP_PAGES_RETRY	1207
 /*! cache: skip queuing dirty pages during checkpoint */
 #define	WT_STAT_CONN_CACHE_EVICTION_SKIP_QUEUING_DIRTY_PAGES_DURING_CHECKPOINT	1208
 /*! cache: the number of times full update inserted to history store */

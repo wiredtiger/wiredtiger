@@ -1505,8 +1505,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: recent modification of a page blocked its eviction",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
-  "cache: skip pages  to avoid retry that has been tried to evict before",
-  "cache: skip pages that are written with transaction greater than last running",
+  "cache: skip pages that are written with transactions greater than the last running",
+  "cache: skip pages to avoid retry that have been tried to evict before",
   "cache: skip queuing dirty pages during checkpoint",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
@@ -2180,8 +2180,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
-    stats->cache_eviction_skip_pages_retry = 0;
     stats->cache_eviction_skip_pages_last_running = 0;
+    stats->cache_eviction_skip_pages_retry = 0;
     stats->cache_eviction_skip_queuing_dirty_pages_during_checkpoint = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
@@ -2860,9 +2860,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_reverse_splits += WT_STAT_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs += WT_STAT_READ(from, cache_reverse_splits_skipped_vlcs);
-    to->cache_eviction_skip_pages_retry += WT_STAT_READ(from, cache_eviction_skip_pages_retry);
     to->cache_eviction_skip_pages_last_running +=
       WT_STAT_READ(from, cache_eviction_skip_pages_last_running);
+    to->cache_eviction_skip_pages_retry += WT_STAT_READ(from, cache_eviction_skip_pages_retry);
     to->cache_eviction_skip_queuing_dirty_pages_during_checkpoint +=
       WT_STAT_READ(from, cache_eviction_skip_queuing_dirty_pages_during_checkpoint);
     to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
