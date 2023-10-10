@@ -883,11 +883,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (is_application_thread_snapshot_refreshed)
-        __wt_txn_snapshot_release_and_restore(session);
-
     if (is_eviction_thread)
         __wt_txn_release_snapshot(session);
+    else if (is_application_thread_snapshot_refreshed)
+        __wt_txn_snapshot_release_and_restore(session);
 
     WT_RET(ret);
 
