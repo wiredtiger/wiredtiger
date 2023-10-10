@@ -38,12 +38,12 @@ struct __wt_evict_entry {
  *	Encapsulation of an eviction candidate queue.
  */
 struct __wt_evict_queue {
-    WT_SPINLOCK evict_lock;        /* Eviction LRU queue */
-    WT_EVICT_ENTRY *evict_queue;   /* LRU pages being tracked */
-    WT_EVICT_ENTRY *evict_current; /* LRU current page to be evicted */
-    uint32_t evict_candidates;     /* LRU list pages to evict */
-    uint32_t evict_entries;        /* LRU entries in the queue */
-    volatile uint32_t evict_max;   /* LRU maximum eviction slot used */
+    WT_SPINLOCK evict_lock;                /* Eviction LRU queue */
+    WT_EVICT_ENTRY *evict_queue;           /* LRU pages being tracked */
+    WT_EVICT_ENTRY *evict_current;         /* LRU current page to be evicted */
+    uint32_t evict_candidates;             /* LRU list pages to evict */
+    uint32_t evict_entries;                /* LRU entries in the queue */
+    wt_shared volatile uint32_t evict_max; /* LRU maximum eviction slot used */
 };
 
 /* Cache operations. */

@@ -1503,7 +1503,7 @@ struct __wt_insert {
 #define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->u.key.offset))
 #define WT_INSERT_RECNO(ins) (((WT_INSERT *)(ins))->u.recno)
 
-    WT_INSERT *next[0]; /* forward-linked skip list */
+    wt_shared WT_INSERT *next[0]; /* forward-linked skip list */
 };
 
 /*
