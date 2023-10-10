@@ -3,16 +3,16 @@
 @section version_1120 Upgrading to Version 11.2.0
 <dl>
 
-<dt>Connection config "operation_timeout_ms"</dt>
+<dt>Connection configuration "operation_timeout_ms"</dt>
 <dd>
-The connection config "operation_timeout_ms" is now deprecated. The option is still
-accepted in this version but will have no effect when set.
+The connection configuration "operation_timeout_ms" is now deprecated. The option is
+still accepted in this version but will have no effect when set.
 </dd>
 
-<dt>Connection config "failpoint_eviction_fail_after_reconciliation"</dt>
+<dt>Connection configuration "failpoint_eviction_fail_after_reconciliation"</dt>
 <dd>
-The connection config "failpoint_eviction_fail_after_reconciliation" has been replaced by
-"failpoint_eviction_split".
+The connection configuration "failpoint_eviction_fail_after_reconciliation" has been
+replaced by "failpoint_eviction_split".
 </dd>
 
 <dt>Cursor configuration "prefix_search"</dt>
