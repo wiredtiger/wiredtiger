@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Auto-generate statistics #defines, with initialization, clear and aggregate
 # functions.
 #
@@ -317,7 +319,8 @@ conn_stats = [
     CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
     CacheStat('cache_eviction_skip_pages_retry', 'skip pages  to avoid retry that has been tried to evict before'),
-    CacheStat('cache_eviction_skip_pages_not_globally_visible', 'skip pages that are not globally visible'),
+    CacheStat('cache_eviction_skip_pages_last_running', 'skip pages that are written with transaction greater than last running'),
+    CacheStat('cache_eviction_skip_queuing_dirty_pages_during_checkpoint', 'skip queuing dirty pages during checkpoint'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
     CacheStat('cache_eviction_stable_state_workers', 'eviction worker thread stable number', 'no_clear'),
     CacheStat('cache_eviction_state', 'eviction state', 'no_clear,no_scale'),
@@ -416,7 +419,6 @@ conn_stats = [
     ChunkCacheStat('chunk_cache_misses', 'number of misses'),
     ChunkCacheStat('chunk_cache_retries', 'retried accessing a chunk while I/O was in progress'),
     ChunkCacheStat('chunk_cache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
-    ChunkCacheStat('chunk_cache_spans_chunks_remove', 'aggregate number of spanned chunks on remove'),
     ChunkCacheStat('chunk_cache_toomany_retries', 'timed out due to too many retries'),
 
     ##########################################
