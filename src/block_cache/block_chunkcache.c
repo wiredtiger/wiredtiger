@@ -194,6 +194,20 @@ __chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
     return (found);
 }
 
+/* Increment chunk's disk usage and update statistics. */
+static void
+__insert_update_stats(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
+    WT_STAT_CONN_INCR(session, chunkcache_chunks_inuse);
+    WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse, chunk->chunk_size);
+    if (__chunkcache_should_pin_chunk(session, chunk)) {
+        F_SET(chunk, WT_CHUNK_PINNED);
+        WT_STAT_CONN_INCR(session, chunkcache_chunks_pinned);
+        WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse_pinned, chunk->chunk_size);
+    }
+}
+
 /*
  * __chunkcache_alloc --
  *     Allocate memory for the chunk in the cache.
@@ -216,15 +230,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
     }
 
-    /* Increment chunk's disk usage and update statistics. */
-    __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
-    WT_STAT_CONN_INCR(session, chunkcache_chunks_inuse);
-    WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse, chunk->chunk_size);
-    if (__chunkcache_should_pin_chunk(session, chunk)) {
-        F_SET(chunk, WT_CHUNK_PINNED);
-        WT_STAT_CONN_INCR(session, chunkcache_chunks_pinned);
-        WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse_pinned, chunk->chunk_size);
-    }
+    __insert_update_stats(session, chunk);
 
     return (0);
 }
@@ -992,6 +998,8 @@ __wt_chunkcache_create_and_link_chunk(WT_SESSION_IMPL *session, const char *name
     WT_DECL_RET;
     uint64_t bucket_id;
 
+    /* TODO check if in-memory - where? */
+
     chunkcache = &S2C(session)->chunkcache;
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
@@ -1008,13 +1016,15 @@ __wt_chunkcache_create_and_link_chunk(WT_SESSION_IMPL *session, const char *name
     ret = __populate_chunk(session, chunk, (wt_off_t)cache_offset, chunk_size, &hash_id, bucket_id);
 
     /* TODO bitmap */
-    if ((ret = __chunkcache_alloc(session, chunk)) != 0) {
-        __wt_free(session, chunk);
-        return (ret);
+    size_t bit_index = __get_bit_index(chunkcache->chunk_size, cache_offset);
+    ret = __set_bit_index(bit_index);
+    if (ret == 0) {
+        chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
+        __insert_update_stats(session, chunk);
     }
 
     TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-    /* TODO chunk->valid */
+    WT_PUBLISH(chunk->valid, true);
 
     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
