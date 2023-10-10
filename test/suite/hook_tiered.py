@@ -470,6 +470,8 @@ class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
                 self.tier_storage_source = param_value
             elif param_key == 'tier_storage_source_config':
                 self.tier_storage_source_config = param_value
+            else:
+                raise Exception('hook_tiered: unknown parameter {}'.format(param_key))
 
     def tableExists(self, name):
         for i in range(1, 9):
