@@ -279,7 +279,7 @@ struct __wt_txn {
     uint32_t txn_logsync; /* Log sync configuration */
 
     /* Save the snapshot backup. */
-    WT_TXN_SNAP_BACKUP snap_backup;
+    WT_TXN_SNAP_BACKUP *snap_backup;
     /*
      * Timestamp copied into updates created by this transaction.
      *
