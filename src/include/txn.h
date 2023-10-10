@@ -243,12 +243,16 @@ struct __wt_txn_op {
 };
 
 /*
- * WT_TXN_SNAP_BACKUP --
- *	A backup snapshot structure to store the transactions snapshot details. This
- *  will be used to store the application threads snapshots when the application
- *  threads are triggered to perform eviction.
+ * WT_TXN_SNAPSHOT_DATA --
+ *	A structure to store the transactions snapshot details.
  */
-struct __wt_txn_snap_backup {
+struct __wt_txn_snapshot_data {
+    /*
+     * Snapshot data:
+     *	txn_ids >= snap_max are invisible,
+     *	txn_ids < snap_min are visible,
+     *	everything else is visible unless it is in the snapshot.
+     */
     uint64_t snap_max, snap_min;
     uint64_t *snapshot;
     uint32_t snapshot_count;
@@ -267,19 +271,14 @@ struct __wt_txn {
 
     uint32_t forced_iso; /* Isolation is currently forced. */
 
-    /*
-     * Snapshot data:
-     *	ids >= snap_max are invisible,
-     *	ids < snap_min are visible,
-     *	everything else is visible unless it is in the snapshot.
-     */
-    uint64_t snap_max, snap_min;
-    uint64_t *snapshot;
-    uint32_t snapshot_count;
     uint32_t txn_logsync; /* Log sync configuration */
 
-    /* Save the snapshot backup. */
-    WT_TXN_SNAP_BACKUP *snap_backup;
+    /* Snapshot data. */
+    WT_TXN_SNAPSHOT_DATA snapshot_data;
+
+    /* Backup snapshot data. */
+    WT_TXN_SNAPSHOT_DATA *backup_snapshot_data;
+
     /*
      * Timestamp copied into updates created by this transaction.
      *
