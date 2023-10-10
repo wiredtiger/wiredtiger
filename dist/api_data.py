@@ -1233,7 +1233,7 @@ wiredtiger_open_common =\
         Config('available', 'false', r'''
             whether the thread pool for the pre-fetch functionality is started''',
             type='boolean'),
-        Config('enabled', 'false', r'''
+        Config('default', 'false', r'''
             whether pre-fetch is enabled for all sessions by default''',
             type='boolean'),
         ]),

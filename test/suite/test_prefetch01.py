@@ -32,7 +32,7 @@ import helper, wiredtiger, wttest
 # test_prefetch01.py
 #    Test basic functionality of the prefetch configuration.
 class test_prefetch01(wttest.WiredTigerTestCase):
-    conn_config = 'prefetch=(available=true,enabled=false)'
+    conn_config = 'prefetch=(available=true,default=false)'
 
     def test_prefetch_config(self):
         s = self.conn.open_session('prefetch=(enabled=true)')
@@ -49,9 +49,9 @@ class test_prefetch_incompatible_config(wttest.WiredTigerTestCase):
     def test_incompatible_config(self):
         os.mkdir(self.new_dir)
         helper.copy_wiredtiger_home(self, '.', self.new_dir)
-        msg = '/pre-fetching cannot be enabled if pre-fetching server is unavailable/'
+        msg = '/pre-fetching cannot be enabled/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, 
-            lambda: self.wiredtiger_open(self.new_dir, 'prefetch=(available=false,enabled=true)'), msg)
+            lambda: self.wiredtiger_open(self.new_dir, 'prefetch=(available=false,default=true)'), msg)
 
 if __name__ == '__main__':
     wttest.run()

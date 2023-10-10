@@ -3046,11 +3046,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
     conn->prefetch_available = cval.val != 0;
-    WT_ERR(__wt_config_gets(session, cfg, "prefetch.enabled", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
     conn->prefetch_auto_on = cval.val != 0;
     if (conn->prefetch_auto_on && !conn->prefetch_available)
-        WT_ERR_MSG(
-          session, EINVAL, "pre-fetching cannot be enabled if pre-fetching server is unavailable");
+        WT_ERR_MSG(session, EINVAL,
+          "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
