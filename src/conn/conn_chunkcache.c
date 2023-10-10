@@ -184,7 +184,6 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
         if (entry == NULL)
             break;
 
-        /* TODO where to check TAILQ_EMPTY? */
         if (entry->type == WT_CHUNKCACHE_METADATA_WORK_INS)
             WT_ERR(__chunkcache_metadata_insert(cursor, entry));
         else if (entry->type == WT_CHUNKCACHE_METADATA_WORK_DEL)
