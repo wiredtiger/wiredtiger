@@ -53,8 +53,8 @@ public:
     inline kv_database() : _last_transaction_id(k_txn_none) {}
 
     /*
-     * kv_database::add_table --
-     *     Add the table. Throw an exception if the name is not unique.
+     * kv_database::create_table --
+     *     Create and return a new table. Throw an exception if the name is not unique.
      */
     kv_table_ptr create_table(const char *name);
 

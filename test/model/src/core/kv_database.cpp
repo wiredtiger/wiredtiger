@@ -35,8 +35,8 @@
 namespace model {
 
 /*
- * kv_database::add_table --
- *     Add the table. Throw an exception if the name is not unique.
+ * kv_database::create_table --
+ *     Create and return a new table. Throw an exception if the name is not unique.
  */
 kv_table_ptr
 kv_database::create_table(const char *name)
@@ -103,7 +103,7 @@ kv_transaction_snapshot
 kv_database::txn_snapshot(txn_id_t do_not_exclude)
 {
     std::lock_guard lock_guard(_transactions_lock);
-    return txn_snapshot_nolock();
+    return txn_snapshot_nolock(do_not_exclude);
 }
 
 /*
