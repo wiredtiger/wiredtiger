@@ -187,7 +187,7 @@ struct __wt_session_impl {
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
-    WT_PREFETCH *pf; /* Prefetch information */
+    WT_PREFETCH pf; /* Prefetch structure */
 
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);

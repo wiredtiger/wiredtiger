@@ -35,7 +35,7 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
       "Pre-fetch requires a split generation to traverse internal page(s)");
 
-    session->pf->prefetch_prev_ref = ref;
+    session->pf.prefetch_prev_ref = ref;
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
         /* Don't let the pre-fetch queue get overwhelmed. */
