@@ -937,16 +937,6 @@ struct __wt_ref_hist {
 };
 
 /*
- * WT_PREFETCH --
- *	Pre-fetch structure containing useful information for pre-fetch.
- */
-struct __wt_prefetch {
-    WT_REF *prefetch_prev_ref;
-    uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
-    uint64_t prefetch_skipped_with_parent;
-};
-
-/*
  * WT_PREFETCH_QUEUE_ENTRY --
  *	Queue entry for pages queued for pre-fetch.
  */
