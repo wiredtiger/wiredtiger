@@ -38,7 +38,7 @@ union __wt_lsn {
         uint32_t file;
 #endif
     } l;
-    uint64_t file_offset;
+    wt_shared uint64_t file_offset;
 };
 
 #define WT_LOG_FILENAME "WiredTigerLog"     /* Log file name */
@@ -187,16 +187,16 @@ union __wt_lsn {
 
 struct __wt_logslot {
     WT_CACHE_LINE_PAD_BEGIN
-    volatile int64_t slot_state; /* Slot state */
-    int64_t slot_unbuffered;     /* Unbuffered data in this slot */
-    int slot_error;              /* Error value */
-    wt_off_t slot_start_offset;  /* Starting file offset */
-    wt_off_t slot_last_offset;   /* Last record offset */
-    WT_LSN slot_release_lsn;     /* Slot release LSN */
-    WT_LSN slot_start_lsn;       /* Slot starting LSN */
-    WT_LSN slot_end_lsn;         /* Slot ending LSN */
-    WT_FH *slot_fh;              /* File handle for this group */
-    WT_ITEM slot_buf;            /* Buffer for grouped writes */
+    wt_shared volatile int64_t slot_state; /* Slot state */
+    int64_t slot_unbuffered;               /* Unbuffered data in this slot */
+    int slot_error;                        /* Error value */
+    wt_off_t slot_start_offset;            /* Starting file offset */
+    wt_shared wt_off_t slot_last_offset;   /* Last record offset */
+    WT_LSN slot_release_lsn;               /* Slot release LSN */
+    WT_LSN slot_start_lsn;                 /* Slot starting LSN */
+    WT_LSN slot_end_lsn;                   /* Slot ending LSN */
+    WT_FH *slot_fh;                        /* File handle for this group */
+    WT_ITEM slot_buf;                      /* Buffer for grouped writes */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_SLOT_CLOSEFH 0x01u        /* Close old fh on release */
