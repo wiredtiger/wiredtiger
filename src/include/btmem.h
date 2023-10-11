@@ -1202,7 +1202,7 @@ struct __wt_ref {
  * to make sure we don't introduce this bug (again).
  */
 struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
-    void *volatile __key;
+    wt_shared void *volatile __key;
 };
 #define WT_ROW_KEY_COPY(rip) ((rip)->__key)
 #define WT_ROW_KEY_SET(rip, v) ((rip)->__key) = (void *)(v)

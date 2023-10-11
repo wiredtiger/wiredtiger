@@ -146,8 +146,8 @@ struct __wt_session_impl {
      * Variables used to look for violations of the contract that a session is only used by a single
      * session at once.
      */
-    volatile uintmax_t api_tid;
-    volatile uint32_t api_enter_refcnt;
+    wt_shared volatile uintmax_t api_tid;
+    wt_shared volatile uint32_t api_enter_refcnt;
     /*
      * It's hard to figure out from where a buffer was allocated after it's leaked, so in diagnostic
      * mode we track them; DIAGNOSTIC can't simply add additional fields to WT_ITEM structures
@@ -292,7 +292,7 @@ struct __wt_session_impl {
      * The random number state persists past session close because we don't want to repeatedly use
      * the same values for skiplist depth when the application isn't caching sessions.
      */
-    WT_RAND_STATE rnd; /* Random number generation state */
+    wt_shared WT_RAND_STATE rnd; /* Random number generation state */
 
     /*
      * Hash tables are allocated lazily as sessions are used to keep the size of this structure from
@@ -310,7 +310,7 @@ struct __wt_session_impl {
 #define WT_GEN_HAZARD 3     /* Hazard pointer */
 #define WT_GEN_SPLIT 4      /* Page splits */
 #define WT_GENERATIONS 5    /* Total generation manager entries */
-    volatile uint64_t generations[WT_GENERATIONS];
+    wt_shared volatile uint64_t generations[WT_GENERATIONS];
 
     /*
      * Session memory persists past session close because it's accessed by threads of control other
@@ -343,10 +343,10 @@ struct __wt_session_impl {
  * The hazard pointer array grows as necessary, initialize with 250 slots.
  */
 #define WT_SESSION_INITIAL_HAZARD_SLOTS 250
-    uint32_t hazard_size;  /* Allocated size of the Hazard pointer array */
-    uint32_t hazard_inuse; /* Number of hazard pointer array slots potentially in-use */
-    uint32_t nhazard;      /* Number of hazard pointer array slots actively in-use */
-    WT_HAZARD *hazard;     /* Hazard pointer array */
+    wt_shared uint32_t hazard_size;  /* Allocated size of the Hazard pointer array */
+    wt_shared uint32_t hazard_inuse; /* Number of hazard pointer array slots potentially in-use */
+    wt_shared uint32_t nhazard;      /* Number of hazard pointer array slots actively in-use */
+    wt_shared WT_HAZARD *hazard;     /* Hazard pointer array */
 
     /*
      * Operation tracking.

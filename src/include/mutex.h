@@ -37,7 +37,7 @@ struct __wt_condvar {
  * functions.
  */
 struct __wt_rwlock { /* Read/write lock */
-    volatile union {
+    wt_shared volatile union {
         uint64_t v; /* Full 64-bit value */
         struct {
             uint8_t current;         /* Current ticket */
@@ -103,7 +103,7 @@ struct __wt_spinlock {
     uint8_t unused[7];
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX || \
   SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE || SPINLOCK_TYPE == SPINLOCK_MSVC
-    wt_mutex_t lock;
+    wt_shared wt_mutex_t lock;
 #else
 #error Unknown spinlock type
 #endif
