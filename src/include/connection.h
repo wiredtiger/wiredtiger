@@ -42,10 +42,10 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
-typedef enum __wt_bg_compact_cleanup_type {
+typedef enum __wt_background_compact_cleanup_stat_type {
     BACKGROUND_CLEANUP_ALL_STAT,
     BACKGROUND_CLEANUP_STALE_STAT
-} WT_BACKGROUND_COMPACT_CLEANUP_TYPE;
+} WT_BACKGROUND_COMPACT_CLEANUP_STAT_TYPE;
 
 /*
  * WT_BACKGROUND_COMPACT_STAT --
@@ -534,8 +534,9 @@ struct __wt_connection_impl {
     WT_THREAD_GROUP prefetch_threads;
     uint64_t prefetch_queue_count;
     /* Queue of refs to pre-fetch from */
-    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch) pfqh; /* Locked: prefetch_lock */
+    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
+    bool prefetch_available;
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */

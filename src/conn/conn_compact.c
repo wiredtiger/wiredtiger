@@ -12,11 +12,11 @@
 #define WT_BACKGROUND_COMPACT_URI_PREFIX "file:"
 
 /*
- * __compact_server_run_chk --
+ * __background_compact_server_run_chk --
  *     Check to decide if the compact server should continue running.
  */
 static bool
-__compact_server_run_chk(WT_SESSION_IMPL *session)
+__background_compact_server_run_chk(WT_SESSION_IMPL *session)
 {
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_COMPACT));
 }
@@ -337,7 +337,7 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
  */
 static void
 __background_compact_list_cleanup(
-  WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_CLEANUP_TYPE cleanup_type)
+  WT_SESSION_IMPL *session, WT_BACKGROUND_COMPACT_CLEANUP_STAT_TYPE cleanup_type)
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
@@ -426,11 +426,11 @@ err:
 }
 
 /*
- * __compact_server --
+ * __background_compact_server --
  *     The compact server thread.
  */
 static WT_THREAD_RET
-__compact_server(void *arg)
+__background_compact_server(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(config);
@@ -473,11 +473,11 @@ __compact_server(void *arg)
             /* Check periodically in case the signal was missed. */
             __wt_cond_wait(session, conn->background_compact.cond,
               conn->background_compact.full_iteration_wait_time * WT_MILLION,
-              __compact_server_run_chk);
+              __background_compact_server_run_chk);
         }
 
         /* Check if we're quitting or being reconfigured. */
-        if (!__compact_server_run_chk(session))
+        if (!__background_compact_server_run_chk(session))
             break;
 
         __wt_spin_lock(session, &conn->background_compact.lock);
@@ -572,11 +572,11 @@ err:
 }
 
 /*
- * __wt_compact_server_create --
+ * __wt_background_compact_server_create --
  *     Start the compact thread.
  */
 int
-__wt_compact_server_create(WT_SESSION_IMPL *session)
+__wt_background_compact_server_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t i;
@@ -608,18 +608,19 @@ __wt_compact_server_create(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_cond_alloc(session, "compact server", &conn->background_compact.cond));
 
-    WT_RET(__wt_thread_create(session, &conn->background_compact.tid, __compact_server, session));
+    WT_RET(__wt_thread_create(
+      session, &conn->background_compact.tid, __background_compact_server, session));
     conn->background_compact.tid_set = true;
 
     return (0);
 }
 
 /*
- * __wt_compact_server_destroy --
+ * __wt_background_compact_server_destroy --
  *     Destroy the background compaction server thread.
  */
 int
-__wt_compact_server_destroy(WT_SESSION_IMPL *session)
+__wt_background_compact_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -645,12 +646,12 @@ __wt_compact_server_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_compact_signal --
+ * __wt_background_compact_signal --
  *     Signal the compact thread. Return an error if the background compaction server has not
  *     processed a previous signal yet or because of an invalid configuration.
  */
 int
-__wt_compact_signal(WT_SESSION_IMPL *session, const char *config)
+__wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONFIG exclude_config;
     WT_CONFIG_ITEM cval, k, v;

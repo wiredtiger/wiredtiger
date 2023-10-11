@@ -881,6 +881,12 @@ struct __wt_session {
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
+     * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
+     * pre-fetch future content into the cache., a set of related configuration options defined as
+     * follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether pre-fetch is enabled for this
+     * session., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @configend
      * @errors
      */
@@ -2457,16 +2463,17 @@ struct __wt_connection {
      * a list\, where each message type can optionally define an associated verbosity level\, such
      * as <code>"verbose=[evictserver\,read:1\,rts:0]"</code>. Verbosity levels that can be provided
      * include <code>0</code> (INFO) and <code>1</code> through <code>5</code>\, corresponding to
-     * (DEBUG_1) to (DEBUG_5)., a list\, with values chosen from the following options: \c "api"\,
-     * \c "backup"\, \c "block"\, \c "block_cache"\, \c "checkpoint"\, \c "checkpoint_cleanup"\, \c
-     * "checkpoint_progress"\, \c "chunkcache"\, \c "compact"\, \c "compact_progress"\, \c
-     * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
-     * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "log"\,
-     * \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c
-     * "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\,
-     * \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c
-     * "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write";
-     * default \c [].}
+     * (DEBUG_1) to (DEBUG_5). \c all is a special case that defines the verbosity level for all
+     * categories not explicitly set in the config string., a list\, with values chosen from the
+     * following options: \c "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c
+     * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
+     * "compact"\, \c "compact_progress"\, \c "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c
+     * "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c "history_store"\, \c
+     * "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c
+     * "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
+     * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
+     * "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c
+     * "verify"\, \c "version"\, \c "write"; default \c [].}
      * @configend
      * @errors
      */
@@ -2548,6 +2555,12 @@ struct __wt_connection {
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
+     * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
+     * pre-fetch future content into the cache., a set of related configuration options defined as
+     * follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether pre-fetch is enabled for this
+     * session., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @configend
      * @param[out] sessionp the new session handle
      * @errors
@@ -3236,8 +3249,15 @@ struct __wt_connection {
  * is not an absolute path\, the path is relative to the database home (see @ref absolute_path for
  * more information)., a string; default \c ".".}
  * @config{ ),,}
- * @config{prefetch, Enable automatic detection of scans by applications\, and attempt to pre-fetch
- * future content into the cache., a boolean flag; default \c false.}
+ * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
+ * pre-fetch future content into the cache., a set of related configuration options defined as
+ * follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;available, whether the thread pool for the pre-fetch
+ * functionality is started., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * default, whether pre-fetch is enabled for all sessions by default., a boolean flag; default \c
+ * false.}
+ * @config{ ),,}
  * @config{readonly, open connection in read-only mode.  The database must exist.  All methods that
  * may modify a database are disabled.  See @ref readonly for more information., a boolean flag;
  * default \c false.}
@@ -3320,15 +3340,17 @@ struct __wt_connection {
  * list\, where each message type can optionally define an associated verbosity level\, such as
  * <code>"verbose=[evictserver\,read:1\,rts:0]"</code>. Verbosity levels that can be provided
  * include <code>0</code> (INFO) and <code>1</code> through <code>5</code>\, corresponding to
- * (DEBUG_1) to (DEBUG_5)., a list\, with values chosen from the following options: \c "api"\, \c
- * "backup"\, \c "block"\, \c "block_cache"\, \c "checkpoint"\, \c "checkpoint_cleanup"\, \c
- * "checkpoint_progress"\, \c "chunkcache"\, \c "compact"\, \c "compact_progress"\, \c
- * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
- * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "log"\, \c
- * "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
- * "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
- * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\,
- * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
+ * (DEBUG_1) to (DEBUG_5). \c all is a special case that defines the verbosity level for all
+ * categories not explicitly set in the config string., a list\, with values chosen from the
+ * following options: \c "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c
+ * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
+ * "compact"\, \c "compact_progress"\, \c "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c
+ * "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c "history_store"\, \c
+ * "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\,
+ * \c "out_of_order"\, \c "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
+ * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\,
+ * \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c
+ * "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
  * opening a connection from a backup.  This API allows verification and detection of corruption in
  * WiredTiger metadata., a boolean flag; default \c false.}
@@ -5992,16 +6014,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_WAIT_REDUCE_DIRTY	1267
 /*! chunk-cache: aggregate number of spanned chunks on read */
 #define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_READ	1268
-/*! chunk-cache: aggregate number of spanned chunks on remove */
-#define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_REMOVE	1269
 /*! chunk-cache: chunks evicted */
-#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_EVICTED		1270
+#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_EVICTED		1269
 /*! chunk-cache: could not allocate due to exceeding capacity */
-#define	WT_STAT_CONN_CHUNK_CACHE_EXCEEDED_CAPACITY	1271
+#define	WT_STAT_CONN_CHUNK_CACHE_EXCEEDED_CAPACITY	1270
 /*! chunk-cache: lookups */
-#define	WT_STAT_CONN_CHUNK_CACHE_LOOKUPS		1272
+#define	WT_STAT_CONN_CHUNK_CACHE_LOOKUPS		1271
 /*! chunk-cache: number of misses */
-#define	WT_STAT_CONN_CHUNK_CACHE_MISSES			1273
+#define	WT_STAT_CONN_CHUNK_CACHE_MISSES			1272
+/*! chunk-cache: number of newly inserted objects in chunk cache */
+#define	WT_STAT_CONN_CHUNK_CACHE_NEWLY_INSERTED		1273
 /*! chunk-cache: number of times a read from storage failed */
 #define	WT_STAT_CONN_CHUNK_CACHE_IO_FAILED		1274
 /*! chunk-cache: retried accessing a chunk while I/O was in progress */
@@ -7745,6 +7767,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 typedef enum {
 /* VERBOSE ENUM START */
+    WT_VERB_ALL,                  /*!< ALL module messages. */
     WT_VERB_API,                  /*!< API messages. */
     WT_VERB_BACKUP,               /*!< Backup messages. */
     WT_VERB_BLKCACHE,

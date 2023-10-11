@@ -112,11 +112,11 @@ __chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
 }
 
 /*
- * __chunkcache_should_pin_chunk --
+ * __name_in_pinned_list --
  *     Return true if the chunk belongs to the object in pinned object array.
  */
 static inline bool
-__chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+__name_in_pinned_list(WT_SESSION_IMPL *session, const char *name)
 {
     WT_CHUNKCACHE *chunkcache;
     bool found;
@@ -125,8 +125,8 @@ __chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
     found = false;
 
     __wt_readlock(session, &chunkcache->pinned_objects.array_lock);
-    WT_BINARY_SEARCH_STRING(chunk->hash_id.objectname, chunkcache->pinned_objects.array,
-      chunkcache->pinned_objects.entries, found);
+    WT_BINARY_SEARCH_STRING(
+      name, chunkcache->pinned_objects.array, chunkcache->pinned_objects.entries, found);
     __wt_readunlock(session, &chunkcache->pinned_objects.array_lock);
 
     return (found);
@@ -158,7 +158,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunk_cache_chunks_inuse);
     WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
-    if (__chunkcache_should_pin_chunk(session, chunk)) {
+    if (__name_in_pinned_list(session, chunk->hash_id.objectname)) {
         F_SET(chunk, WT_CHUNK_PINNED);
         WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
         WT_STAT_CONN_INCRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
@@ -273,6 +273,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
     WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
+    /* We can fail when reading chunks, and some are pinned. Unset the pinned stats here. */
     if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
         WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
         WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
@@ -570,6 +571,47 @@ __chunkcache_read_into_chunk(
 }
 
 /*
+ * __chunkcache_unpin_old_versions --
+ *     Unpin the old versions of newly added chunks so eviction can remove them.
+ */
+static void
+__chunkcache_unpin_old_versions(WT_SESSION_IMPL *session, const char *sp_obj_name)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
+    size_t i;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    /* Optimization: check if the file contains objects in the pinned list, otherwise skip. */
+    if (__name_in_pinned_list(session, sp_obj_name)) {
+        /*
+         * Loop through the entire chunkcache and search for matching objects from the file and
+         * clear the pinned flag.
+         */
+        for (i = 0; i < chunkcache->hashtable_size; i++) {
+            __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
+            TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+            {
+                if (strcmp(chunk->hash_id.objectname, sp_obj_name) == 0) {
+                    if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
+                        /*
+                         * Decrement the stat when a chunk that was initially pinned becomes
+                         * unpinned.
+                         */
+                        WT_STAT_CONN_DECR(session, chunk_cache_chunks_pinned);
+                        WT_STAT_CONN_DECRV(
+                          session, chunk_cache_bytes_inuse_pinned, chunk->chunk_size);
+                    }
+                    F_CLR(chunk, WT_CHUNK_PINNED);
+                }
+            }
+            __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
+        }
+    }
+}
+
+/*
  * __wt_chunkcache_get --
  *     Return the data to the caller if we have it. Otherwise read it from storage and cache it.
  *
@@ -695,88 +737,6 @@ retry:
 }
 
 /*
- * __wt_chunkcache_remove --
- *     Remove the chunk containing an outdated block.
- */
-int
-__wt_chunkcache_remove(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, uint32_t size)
-{
-    WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
-    WT_CHUNKCACHE_HASHID hash_id;
-    size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
-    uint64_t bucket_id;
-    const char *object_name;
-    bool valid;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
-
-    chunkcache = &S2C(session)->chunkcache;
-    already_removed = 0;
-    remains_to_remove = size;
-    object_name = NULL;
-
-    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
-        return (0);
-
-    /* Remove chunks for read-only tiered objects. */
-    if (!block->readonly)
-        return (0);
-
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "remove block: %s(%u), offset=%" PRId64 ", size=%u",
-      (char *)block->name, objectid, offset, size);
-
-    WT_RET(
-      __wt_tiered_name(session, session->dhandle, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
-
-    /* A block may span many chunks. Loop until we have removed all the chunks. */
-    while (remains_to_remove > 0) {
-        /* Find the bucket for the containing chunk. */
-        bucket_id = __chunkcache_tmp_hash(
-          chunkcache, &hash_id, object_name, objectid, offset + (wt_off_t)already_removed);
-        removable_in_chunk = (size_t)WT_CHUNK_OFFSET(chunkcache, (size_t)offset + already_removed) +
-          chunkcache->chunk_size - ((size_t)offset + already_removed);
-        __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk, chunk_tmp)
-        {
-            if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
-                WT_ORDERED_READ(valid, chunk->valid);
-                if (valid) {
-                    WT_ASSERT(session,
-                      WT_BLOCK_OVERLAPS_CHUNK(chunk->chunk_offset,
-                        offset + (wt_off_t)already_removed, chunk->chunk_size, size));
-
-                    TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-                    __chunkcache_free_chunk(session, chunk);
-                    __wt_verbose(session, WT_VERB_CHUNKCACHE,
-                      "removed chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
-                      hash_id.objectname, hash_id.objectid, chunk->chunk_offset,
-                      (uint64_t)chunk->chunk_size);
-                    break;
-                }
-            }
-        }
-        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        /*
-         * If we found the chunk, we removed the data and we update the variables so that we can
-         * find the next chunk that might contain the block's data. If we did not find the cached
-         * chunk, we still update the variables, so that we can look for the next chunk that might
-         * have part of the block. If we don't update these variables, we will be stuck forever
-         * looking for a chunk that's not cached.
-         */
-        size_removed = WT_MIN(removable_in_chunk, remains_to_remove);
-        already_removed += size_removed;
-        remains_to_remove -= size_removed;
-
-        if (remains_to_remove > 0)
-            WT_STAT_CONN_INCR(session, chunk_cache_spans_chunks_remove);
-    }
-
-    return (0);
-}
-
-/*
  * __wt_chunkcache_ingest --
  *     Read all the contents from a file and insert it into the chunkcache.
  */
@@ -799,6 +759,9 @@ __wt_chunkcache_ingest(
       !F_ISSET(chunkcache, WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION))
         return (0);
 
+    /* Check and unpin any old versions of newly added objects. */
+    __chunkcache_unpin_old_versions(session, sp_obj_name);
+
     WT_RET(__wt_open(session, local_name, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_READONLY, &fh));
     WT_ERR(__wt_filesize(session, fh, &size));
 
@@ -812,6 +775,8 @@ __wt_chunkcache_ingest(
         WT_ERR(ret);
 
         WT_ERR(__chunkcache_read_into_chunk(session, bucket_id, fh, chunk));
+
+        WT_STAT_CONN_INCR(session, chunk_cache_newly_inserted);
 
         __wt_verbose(session, WT_VERB_CHUNKCACHE, "ingest: %s(%u), offset=%" PRId64 ", size=%lu",
           (char *)local_name, objectid, chunk->chunk_offset, chunk->chunk_size);
@@ -870,7 +835,7 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
         __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
         {
-            if (__chunkcache_should_pin_chunk(session, chunk)) {
+            if (__name_in_pinned_list(session, chunk->hash_id.objectname)) {
                 /* Increment the stat when a chunk that was initially unpinned becomes pinned. */
                 if (!F_ISSET(chunk, WT_CHUNK_PINNED)) {
                     WT_STAT_CONN_INCR(session, chunk_cache_chunks_pinned);
