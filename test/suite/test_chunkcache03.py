@@ -31,6 +31,8 @@ import wiredtiger, wttest
 
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+from time import sleep
+
 
 '''
 - Evaluate chunkcache performance both in-memory and on-disk, to test the functionality of pinned chunks.
@@ -92,6 +94,9 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
+
+        # Assert the new chunks are ingested. 
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_newly_inserted), 0)
 
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()
