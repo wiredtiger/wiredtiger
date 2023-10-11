@@ -310,11 +310,11 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_swap_snapshot --
+ * __txn_swap_snapshot --
  *     Swap the snapshot pointers.
  */
-void
-__wt_swap_snapshot(uint64_t **snap_a, uint64_t **snap_b)
+static void
+__txn_swap_snapshot(uint64_t **snap_a, uint64_t **snap_b)
 {
     uint64_t *temp;
 
@@ -358,7 +358,7 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
           &txn->backup_snapshot_data->snapshot));
 
         /* Swap the snapshot pointers. */
-        __wt_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
+        __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
 
         /*
          * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
@@ -397,7 +397,7 @@ __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
     txn->snapshot_data.snapshot_count = snapshot_backup->snapshot_count;
     if (snapshot_backup->snapshot_count > 0) {
         /* Swap the snapshot pointers. */
-        __wt_swap_snapshot(&snapshot_backup->snapshot, &txn->snapshot_data.snapshot);
+        __txn_swap_snapshot(&snapshot_backup->snapshot, &txn->snapshot_data.snapshot);
         __wt_free(session, snapshot_backup->snapshot);
         __wt_free(session, snapshot_backup);
     }
