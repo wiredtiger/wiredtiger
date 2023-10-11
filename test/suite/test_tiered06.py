@@ -276,15 +276,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         expect = sorted(self.suffix(expect2, 'wtobj'))
         self.assertEquals(got, expect)
 
-    # Check that objects are in the cache directory after flush_finish.
-    def check_caches(self, expect1, expect2):
-        got = sorted(list(os.listdir(self.cachedir1)))
-        expect = sorted(self.suffix(expect1, 'wtobj'))
-        self.assertEquals(got, expect)
-        got = sorted(list(os.listdir(self.cachedir2)))
-        expect = sorted(self.suffix(expect2, 'wtobj'))
-        self.assertEquals(got, expect)
-
     def create_wt_file(self, name):
         with open(name + '.wt', 'w') as f:
             f.write('hello')
@@ -307,7 +298,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         os.mkdir(self.cachedir1)
         os.mkdir(self.cachedir2)
         bad_bucket = "./objects_BAD"
-        bad_cachedir = '/BAD'
 
         # Create file system objects. First try some error cases.
         errmsg = '/No such|Invalid bucket name/'

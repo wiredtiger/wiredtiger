@@ -128,7 +128,6 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
         ('dir_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = True,
-            has_cache = True,
             auth_token = get_auth_token('dir_store'),
             bucket = get_bucket_name('dir_store', 0),
             bucket1 = get_bucket_name('dir_store', 1),

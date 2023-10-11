@@ -30,7 +30,6 @@
 #include <wiredtiger_ext.h>
 #include <fstream>
 #include <list>
-#include <errno.h>
 #include <mutex>
 #include <atomic>
 
@@ -73,7 +72,7 @@ struct S3Storage {
     std::mutex fhMutex;               // Protect the file handle list
     std::list<S3FileHandle *> fhList; // List of open file handles
 
-    uint32_t referenceCount; // Number of references to this storage source
+    std::atomic<uint32_t> referenceCount; // Number of references to this storage source
     int32_t verbose;
 
     S3Statistics statistics;
@@ -149,8 +148,27 @@ S3SourcePath(const std::string &dir, const std::string &name)
 // Return if the file exists, via looking into the S3 Bucket. Also, if the file exists, fetch the
 // file size.
 static int
-S3FileExistsAndGetSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
-  bool *fileExists, wt_off_t *size)
+S3FileSizeHelper(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off_t *size)
+{
+    int ret = 0;
+    S3FileSystem *fs = (S3FileSystem *)fileSystem;
+    S3Storage *s3 = FS2S3(fileSystem);
+    size_t objectSize;
+    bool fileExists;
+
+    if ((ret = fs->connection->ObjectExists(name, fileExists, objectSize)) != 0)
+        s3->log->LogErrorMessage("S3FileSizeHelper: ObjectExists request to S3 failed.");
+
+    if (fileExists)
+        *size = objectSize;
+    else {
+        s3->log->LogDebugMessage("S3FileSizeHelper: File not found in S3.");
+        return ENONET;
+    }
+}
+
+static int
+S3FileExists(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *fileExists)
 {
     int ret = 0;
     S3FileSystem *fs = (S3FileSystem *)fileSystem;
@@ -161,24 +179,13 @@ S3FileExistsAndGetSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const ch
 
     s3->statistics.objectExistsCount++;
     if ((ret = fs->connection->ObjectExists(name, *fileExists, objectSize)) != 0)
-        s3->log->LogErrorMessage("S3FileExistsAndGetSize: ObjectExists request to S3 failed.");
-    else {
-        if (fileExists)
-            s3->log->LogDebugMessage("S3FileExistsAndGetSize: Found file in S3.");
-        else
-            s3->log->LogDebugMessage("S3FileExistsAndGetSize: File not found in S3.");
-    }
+        s3->log->LogErrorMessage("S3FileExists: ObjectExists request to S3 failed.");
 
-    if (*fileExists && size != NULL)
-        *size = objectSize;
-
+    if (fileExists)
+        s3->log->LogDebugMessage("S3FileExists: Found file in S3.");
+    else
+        s3->log->LogDebugMessage("S3FileExists: File not found in S3.");
     return (ret);
-}
-
-static int
-S3FileExists(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *fileExists)
-{
-    return (S3FileExistsAndGetSize(fileSystem, session, name, fileExists, NULL));
 }
 
 // File handle close.
@@ -230,10 +237,11 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 
     // Check if the file exists and get the size
     bool objExists;
-    wt_off_t objSize;
-    if ((ret = S3FileExistsAndGetSize(fileSystem, session, name, &objExists, &objSize)) != 0) {
-        s3->log->LogErrorMessage("S3FileOpen: error checking if the file exists. Ret code:" + ret);
-        return (EINVAL);
+    size_t objSize;
+    if ((ret = fs->connection->ObjectExists(std::string(name), objExists, objSize)) != 0) {
+        s3->log->LogErrorMessage("S3FileOpen: error checking if the file exists. Ret code:" +
+          std::string(std::strerror(ret)));
+        return (ret);
     }
     if (!objExists) {
         s3->log->LogErrorMessage(
@@ -331,8 +339,7 @@ S3Remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uin
 static int
 S3ObjectSize(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
-    bool fileExists;
-    return (S3FileExistsAndGetSize(fileSystem, session, name, &fileExists, sizep));
+    return (S3FileSizeHelper(fileSystem, session, name, sizep));
 }
 
 // Lock/unlock a file.
@@ -375,7 +382,7 @@ S3FileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
     WT_FILE_SYSTEM *fs = (WT_FILE_SYSTEM *)s3FileHandle->fs;
 
     bool fileExists;
-    return (S3FileExistsAndGetSize(fs, session, s3FileHandle->objName.c_str(), &fileExists, sizep));
+    return (S3FileSizeHelper(fs, session, s3FileHandle->objName.c_str(), sizep));
 }
 
 // Return a customized file system to access the s3 storage source objects. The authToken

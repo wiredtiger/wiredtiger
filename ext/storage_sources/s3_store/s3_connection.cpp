@@ -175,8 +175,8 @@ S3Connection::ReadObjectWithRange(
     request.SetRange(range);
 
     /*
-     * The requested S3 object's range should be extracted into the given buffer. We create a
-     * IOstream using the givem buffer, so that the object can directly be downloaded into the
+     * The requested S3 object's range should be extracted into the given buffer. We create an
+     * IOstream using the given buffer, so that the object can directly be downloaded into the
      * buffer without making unnecessary intermediate copies.
      */
     Aws::Utils::Stream::PreallocatedStreamBuf streambuf(
