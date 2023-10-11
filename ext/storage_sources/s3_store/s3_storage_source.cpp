@@ -163,7 +163,7 @@ S3FileSizeHelper(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *na
         *size = objectSize;
     else {
         s3->log->LogDebugMessage("S3FileSizeHelper: File not found in S3.");
-        return (ENONET);
+        return (ENOENT);
     }
     return (ret);
 }
