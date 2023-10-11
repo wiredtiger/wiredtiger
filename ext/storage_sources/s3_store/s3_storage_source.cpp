@@ -92,7 +92,7 @@ struct S3FileHandle {
     S3FileSystem *fs;
     wt_off_t objSize;
     std::string objName;
-    uint32_t referenceCount;
+    std::atomic<uint32_t> referenceCount;
 };
 
 // Configuration variables for connecting to S3CrtClient.
