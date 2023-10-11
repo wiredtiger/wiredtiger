@@ -16,6 +16,7 @@ int
 __wt_backup_load_incr(
   WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, WT_ITEM *bitstring, uint64_t nbits)
 {
+    printf(".    __wt_backup_load_incr()\n");
     if (blkcfg->len != 0)
         WT_RET(__wt_nhex_to_raw(session, blkcfg->str, blkcfg->len, bitstring));
     if (bitstring->size != (nbits >> 3))
@@ -75,6 +76,8 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
           "Found modified incr block gran %" PRIu64 " nbits %" PRIu64 " offset %" PRIu64,
           cb->granularity, cb->nbits, cb->offset);
         __wt_verbose_debug2(session, WT_VERB_BACKUP, "Modified incr block config: \"%s\"", config);
+
+        printf(".    Modified incr block config: \'%s\'\n", config);
 
         /*
          * The rename configuration string component was added later. So don't error if we don't
