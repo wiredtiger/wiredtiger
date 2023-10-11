@@ -61,32 +61,46 @@ __chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
 }
 
 /*
- * __chunkcache_bitmap_alloc --
- *     Find the bit index to allocate.
+ * __set_bit_index --
+ *     Allocate the bit index.
  */
-static int
-__chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
+static inline int
+__set_bit_index(WT_SESSION_IMPL *session, size_t bit_index)
 {
     WT_CHUNKCACHE *chunkcache;
     uint8_t map_byte_expected, map_byte_mask;
 
     chunkcache = &S2C(session)->chunkcache;
 
+    /* Bit index should be less than the maximum number of chunks that can be allocated. */
+    WT_ASSERT(session, bit_index < (chunkcache->capacity / chunkcache->chunk_size));
+
+    WT_READ_ONCE(map_byte_expected, chunkcache->free_bitmap[bit_index / 8]);
+    map_byte_mask = (uint8_t)(0x01 << (bit_index % 8));
+    if (((map_byte_expected & map_byte_mask) != 0) ||
+      !__wt_atomic_cas8(&chunkcache->free_bitmap[bit_index / 8], map_byte_expected,
+        map_byte_expected | map_byte_mask))
+        return (EAGAIN);
+
+    return (0);
+}
+
+/*
+ * __chunkcache_bitmap_alloc --
+ *     Find the bit index to allocate.
+ */
+static int
+__chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
+{
+    WT_DECL_RET;
+
 retry:
     /* Use the bitmap to find a free slot for a chunk in the cache. */
     WT_RET(__chunkcache_bitmap_find_free(session, bit_index));
-
-    /* Bit index should be less than the maximum number of chunks that can be allocated. */
-    WT_ASSERT(session, *bit_index < (chunkcache->capacity / chunkcache->chunk_size));
-
-    WT_READ_ONCE(map_byte_expected, chunkcache->free_bitmap[*bit_index / 8]);
-    map_byte_mask = (uint8_t)(0x01 << (*bit_index % 8));
-    if (((map_byte_expected & map_byte_mask) != 0) ||
-      !__wt_atomic_cas8(&chunkcache->free_bitmap[*bit_index / 8], map_byte_expected,
-        map_byte_expected | map_byte_mask))
+    if ((ret = __set_bit_index(session, *bit_index)) == EAGAIN)
         goto retry;
 
-    return (0);
+    return (ret);
 }
 
 /*
@@ -121,10 +135,14 @@ __chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, con
   uint32_t objectid, wt_off_t file_offset, uint64_t cache_offset, size_t data_sz)
 {
     /* TODO limit to on-disk only at some point */
+    WT_CHUNKCACHE *cache;
     WT_CHUNKCACHE_METADATA_WORK_UNIT *entry;
     WT_CONNECTION_IMPL *conn;
 
+    cache = &S2C(session)->chunkcache;
     conn = S2C(session);
+
+    WT_ASSERT(session, cache->type == WT_CHUNKCACHE_FILE);
 
     /* TODO pop objects off if queue len > 1000. */
 
@@ -194,10 +212,17 @@ __chunkcache_should_pin_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
     return (found);
 }
 
-/* Increment chunk's disk usage and update statistics. */
-static void
+/*
+ * __insert_update_stats --
+ *     Increment chunk's disk usage and update statistics.
+ */
+static inline void
 __insert_update_stats(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
+    WT_CHUNKCACHE *chunkcache;
+
+    chunkcache = &S2C(session)->chunkcache;
+
     __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunkcache_chunks_inuse);
     WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse, chunk->chunk_size);
@@ -209,11 +234,11 @@ __insert_update_stats(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 }
 
 /*
- * __chunkcache_alloc --
+ * __chunkcache_memory_alloc --
  *     Allocate memory for the chunk in the cache.
  */
 static int
-__chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+__chunkcache_memory_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
     size_t bit_index;
@@ -229,9 +254,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         /* Allocate the free memory in the chunk cache. */
         chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
     }
-
     __insert_update_stats(session, chunk);
-
     return (0);
 }
 
@@ -258,24 +281,32 @@ __chunkcache_admit_size(WT_SESSION_IMPL *session)
     return (0);
 }
 
+/*
+ * __create_and_populate_chunk --
+ *     Allocate and populate the chunk.
+ */
 static int
-__populate_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *blank, wt_off_t chunk_offset,
-  size_t chunk_size, WT_CHUNKCACHE_HASHID *hash_id, uint64_t bucket)
+__create_and_populate_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **newchunk,
+  wt_off_t chunk_offset, size_t chunk_size, WT_CHUNKCACHE_HASHID *hash_id, uint64_t bucket)
 {
-    WT_DECL_RET;
+    size_t admit_size;
 
-    blank->chunk_offset = chunk_offset;
-    blank->chunk_size = chunk_size;
+    if ((admit_size = __chunkcache_admit_size(session)) == 0)
+        return (ENOSPC);
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), newchunk));
 
-    blank->hash_id.objectid = hash_id->objectid;
-    blank->hash_id.offset = chunk_offset;
-    WT_RET(__wt_strdup(session, hash_id->objectname, &blank->hash_id.objectname));
+    (*newchunk)->chunk_offset = chunk_offset;
+    (*newchunk)->chunk_size = chunk_size;
 
-    blank->bucket_id = bucket;
+    (*newchunk)->hash_id.objectid = hash_id->objectid;
+    (*newchunk)->hash_id.offset = chunk_offset;
+    WT_RET(__wt_strdup(session, hash_id->objectname, &(*newchunk)->hash_id.objectname));
 
-    blank->access_count = 1;
+    (*newchunk)->bucket_id = bucket;
 
-    return (ret);
+    (*newchunk)->access_count = 1;
+
+    return (0);
 }
 
 /*
@@ -289,9 +320,9 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t siz
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_INTERMEDIATE_HASH intermediate;
     WT_DECL_RET;
-    size_t admit_size, chunk_size;
-    uint64_t hash;
     wt_off_t chunk_offset;
+    size_t chunk_size;
+    uint64_t hash;
 
     *newchunk = NULL;
     chunkcache = &S2C(session)->chunkcache;
@@ -308,17 +339,13 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t siz
      * the allocation function we don't care about the block's size. If more than one chunk is
      * needed to cover the entire block, another function will take care of allocating multiple
      * chunks.
+     *
+     * Convert the block offset to the offset of the enclosing chunk.
      */
-
-    if ((admit_size = __chunkcache_admit_size(session)) == 0)
-        return (ENOSPC);
-    WT_RET(__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), newchunk));
-
-    /* Convert the block offset to the offset of the enclosing chunk. */
     chunk_offset = WT_CHUNK_OFFSET(chunkcache, offset);
 
     /* Chunk cannot be larger than the file. */
-    chunk_size = WT_MIN(admit_size, (size_t)(size - chunk_offset));
+    chunk_size = WT_MIN(chunkcache->chunk_size, (size_t)(size - chunk_offset));
 
     /* Part of the hash ID was populated by the caller, but we must set the offset. */
     intermediate.name_hash = __wt_hash_city64(hash_id->objectname, strlen(hash_id->objectname));
@@ -326,11 +353,12 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t siz
     intermediate.offset = chunk_offset;
     hash = __wt_hash_city64(&intermediate, sizeof(WT_CHUNKCACHE_INTERMEDIATE_HASH));
 
-    WT_RET(__populate_chunk(session, *newchunk, chunk_offset, chunk_size, hash_id, hash % chunkcache->hashtable_size));
+    WT_RET(__create_and_populate_chunk(
+      session, newchunk, chunk_offset, chunk_size, hash_id, hash % chunkcache->hashtable_size));
 
     WT_ASSERT_SPINLOCK_OWNED(session, WT_BUCKET_LOCK(chunkcache, (*newchunk)->bucket_id));
 
-    if ((ret = __chunkcache_alloc(session, *newchunk)) != 0) {
+    if ((ret = __chunkcache_memory_alloc(session, *newchunk)) != 0) {
         __wt_free(session, *newchunk);
         return (ret);
     }
@@ -656,7 +684,8 @@ __chunkcache_read_into_chunk(
     WT_PUBLISH(new_chunk->valid, true);
 
     /* Push the chunk into the work queue so it can get written to the chunkcache metadata. */
-    WT_RET(__chunkcache_metadata_queue_insert(session, new_chunk));
+    if (chunkcache->type == WT_CHUNKCACHE_FILE)
+        WT_RET(__chunkcache_metadata_queue_insert(session, new_chunk));
 
     return (0);
 }
@@ -993,12 +1022,11 @@ __wt_chunkcache_create_and_link_chunk(WT_SESSION_IMPL *session, const char *name
   wt_off_t file_offset, uint64_t cache_offset, size_t chunk_size)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_CHUNKCACHE_CHUNK *newchunk;
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
+    size_t bit_index;
     uint64_t bucket_id;
-
-    /* TODO check if in-memory - where? */
 
     chunkcache = &S2C(session)->chunkcache;
 
@@ -1012,25 +1040,27 @@ __wt_chunkcache_create_and_link_chunk(WT_SESSION_IMPL *session, const char *name
     bucket_id = __chunkcache_tmp_hash(chunkcache, &hash_id, name, id, file_offset);
 
     __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-    ret = __wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), chunk);
-    ret = __populate_chunk(session, chunk, (wt_off_t)cache_offset, chunk_size, &hash_id, bucket_id);
+    WT_ERR(__create_and_populate_chunk(
+      session, &newchunk, file_offset, chunk_size, &hash_id, bucket_id));
 
-    /* TODO bitmap */
-    size_t bit_index = __get_bit_index(chunkcache->chunk_size, cache_offset);
-    ret = __set_bit_index(bit_index);
-    if (ret == 0) {
-        chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
-        __insert_update_stats(session, chunk);
-    }
+    /* Get the position of a specific bit index and link the chunk and its memory cached on disk */
+    bit_index = cache_offset / chunkcache->chunk_size;
+    WT_ASSERT_ALWAYS(session, !__set_bit_index(session, bit_index),
+      "the link between chunk memory and cached data cannot be established as the link is already "
+      "in place");
+    newchunk->chunk_memory = chunkcache->memory + cache_offset;
+    __insert_update_stats(session, newchunk);
 
-    TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-    WT_PUBLISH(chunk->valid, true);
+    TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), newchunk, next_chunk);
+    WT_PUBLISH(newchunk->valid, true);
 
+    __wt_verbose(session, WT_VERB_CHUNKCACHE,
+      "created and linked chunk: %s(%u), offset=%" PRId64 ", size=%lu", (char *)name, id,
+      newchunk->chunk_offset, newchunk->chunk_size);
+
+err:
     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-
-    WT_RET(ret);
-
-    return (0);
+    return (ret);
 }
 
 /*

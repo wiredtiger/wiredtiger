@@ -59,7 +59,6 @@ static int
 __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, uint64_t capacity,
   unsigned int hashtable_size, size_t chunk_size)
 {
-    WT_DECL_RET;
     char tmp[128];
 
     WT_RET(
@@ -71,7 +70,7 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
         return (-1);
     }
 
-    return (ret);
+    return (0);
 }
 
 /*
@@ -88,6 +87,7 @@ __chunkcache_apply_metadata_content(WT_SESSION_IMPL *session)
     uint64_t cache_offset;
     uint32_t id;
     const char *name;
+
     WT_RET(session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
@@ -172,8 +172,7 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    WT_RET(session->iface.open_cursor(
-      &session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
+    WT_RET(session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
 
     entry = NULL;
     for (int i = 0; i < WT_CHUNKCACHE_METADATA_MAX_WORK; i++) {
@@ -259,6 +258,9 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
     conn = S2C(session);
     chunkcache = &conn->chunkcache;
 
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED) || chunkcache->type != WT_CHUNKCACHE_FILE)
+        return (0);
+
     /* Retrieve the chunk cache metadata config, and ensure it matches our startup config. */
     ret = __chunkcache_get_metadata_config(session, &metadata_config);
     if (ret == WT_NOTFOUND) {
@@ -306,11 +308,16 @@ err:
 int
 __wt_chunkcache_metadata_destroy(WT_SESSION_IMPL *session)
 {
+    WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_METADATA_WORK_UNIT *entry;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     conn = S2C(session);
+    chunkcache = &conn->chunkcache;
+
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED) || chunkcache->type != WT_CHUNKCACHE_FILE)
+        return (0);
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHUNKCACHE_METADATA);
     if (conn->chunkcache_metadata_tid_set) {
