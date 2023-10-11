@@ -2056,14 +2056,18 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
         /*
          * If the global transaction state hasn't changed since the last time we tried eviction,
-         * it's unlikely we can make progress. Similarly, if the most recent update on the page from
-         * the transaction that is greater than the last running transaction, eviction will fail.
-         * This heuristic avoids repeated attempts to evict the same page.
+         * it's unlikely we can make progress. This heuristic avoids repeated attempts to evict the
+         * same page.
          */
         if (!__wt_page_evict_retry(session, page)) {
             WT_STAT_CONN_INCR(session, cache_eviction_skip_pages_retry);
             continue;
         } else if (modified && page->modify->update_txn >= conn->txn_global.last_running) {
+            /*
+             * The assumption that the eviction will fail if most recent update on the page from the
+             * transaction that is greater than the last running transaction has changed, but we
+             * have not figured out a way to fix this.
+             */
             WT_STAT_CONN_INCR(session, cache_eviction_skip_pages_last_running);
             continue;
         }
