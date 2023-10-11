@@ -1303,7 +1303,7 @@ struct __wt_update {
      * from memory rather than using the local variable, mark the shared transaction IDs volatile to
      * prevent unexpected repeated/reordered reads.
      */
-    volatile uint64_t txnid; /* transaction ID */
+    wt_shared volatile uint64_t txnid; /* transaction ID */
 
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
@@ -1315,7 +1315,7 @@ struct __wt_update {
      */
     wt_timestamp_t prev_durable_ts;
 
-    WT_UPDATE *next; /* forward-linked list */
+    wt_shared WT_UPDATE *next; /* forward-linked list */
 
     uint32_t size; /* data length */
 
@@ -1334,7 +1334,7 @@ struct __wt_update {
      * The update state is used for transaction prepare to manage visibility and transitioning
      * update structure state safely.
      */
-    volatile uint8_t prepare_state; /* prepare state */
+    wt_shared volatile uint8_t prepare_state; /* prepare state */
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -1489,7 +1489,7 @@ struct __wt_update_vector {
  * to re-implement, IMNSHO.)
  */
 struct __wt_insert {
-    WT_UPDATE *upd; /* value */
+    wt_shared WT_UPDATE *upd; /* value */
 
     union {
         uint64_t recno; /* column-store record number */
