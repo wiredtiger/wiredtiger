@@ -67,7 +67,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
         /*
          * We have a valid entry. Load the block information.
          */
-        printf(".    We have a valid entry (%llu). Load the block information.\n", i);
+        printf(".    We have a valid entry. Load the block information.\n");
         blk_mod = &ckpt->backup_blocks[i];
         WT_RET(__wt_strdup(session, blkincr->id_str, &blk_mod->id_str));
         WT_RET(__wt_config_subgets(session, &v, "granularity", &b));
@@ -1430,20 +1430,32 @@ check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, boo
     partial_result = 0;
     original_ptr = NULL;
     new_ptr = NULL;
-    *ok = true;
+    *ok = false;
 
     printf("check_incorrect_modified_bits()\n");
     print_item(original_bitmap, " original bitmap:");
     print_item(new_bitmap, " new bitmap:     ");
 
-    if (original_bitmap == NULL || new_bitmap == NULL)
+    if (original_bitmap == NULL) {
+        printf("original_bitmap == NULL\n");
         WT_RET(EINVAL);
+    }
 
-    if (original_bitmap->size != new_bitmap->size)
+    if (new_bitmap == NULL) {
+        printf("new_bitmap == NULL\n");
         WT_RET(EINVAL);
+    }
+
+    /* If the new bitmap is smaller then some bits have been lost, which is a problem. */
+    if (original_bitmap->size > new_bitmap->size) {
+        printf("New bitmap is smaller than the original");
+        WT_RET(EINVAL);
+    }
 
     original_ptr = (unsigned char *)original_bitmap->data;
     new_ptr = (unsigned char *)new_bitmap->data;
+
+    *ok = true;
 
     for (index = 0; index < original_bitmap->size && (*ok); index++) {
         /* Detect bits that were (incorrectly) changed from 1 in the original to 0 in the new */
@@ -1517,16 +1529,17 @@ __wt_meta_ckptlist_set(
                         print_item(&file_blkmods_buffer, " file_blkmods_buffer       (at B)");
                         print_item(&checkpoint_blkmods_buffer, " checkpoint_blkmods_buffer (at B)");
 
-                        WT_ERR(check_incorrect_modified_bits(
-                          &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok));
+                        blkmods_are_ok = false;
+                        ret = check_incorrect_modified_bits(
+                          &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
 
-                        printf(".  __wt_meta_ckptlist_set: blkmods_are_ok = %d\n", blkmods_are_ok);
+                        printf(".  __wt_meta_ckptlist_set: ret = %i, blkmods_are_ok = %d\n", ret, blkmods_are_ok);
 
-                        if (!blkmods_are_ok) {
+                        if ((ret != 0) || !blkmods_are_ok) {
                             printf(
                               "========== File blkmods are not compatible with those in the checkpoint =======\n");
-                            //                WT_ERR_MSG(
-                            //                  session, EINVAL, "File blkmods are not compatible with those in the checkpoint");
+                            WT_ERR_MSG(
+                              session, EINVAL, "File blkmods are not compatible with those in the checkpoint");
                         }
                     }
                 }
