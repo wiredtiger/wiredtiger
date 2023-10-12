@@ -88,7 +88,7 @@ __chunkcache_apply_metadata_content(WT_SESSION_IMPL *session)
     uint32_t id;
     const char *name;
 
-    WT_RET(session->iface.open_cursor(&session->iface, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
+    WT_ERR(__wt_open_cursor(session, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &name, &id, &file_offset));
