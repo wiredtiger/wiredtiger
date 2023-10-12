@@ -1317,7 +1317,6 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *
     WT_CURSOR *metadata_cursor;
     WT_DECL_RET;
     char *file_config;
-    bool searching_for_blocks;
 
     WT_CLEAR(blocks);
     WT_CLEAR(key);
@@ -1328,7 +1327,6 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *
 
     metadata_cursor = NULL;
     file_config = NULL;
-    searching_for_blocks = false;
 
     WT_RET(__wt_metadata_cursor_open(session, NULL, &metadata_cursor));
 
@@ -1339,9 +1337,7 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *
 
     if ((value.len > 0) && (value.type == WT_CONFIG_ITEM_STRUCT)) {
         __wt_config_subinit(session, &blkconf, &value);
-        searching_for_blocks = true;
-        while (searching_for_blocks &&
-          ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0)) {
+        while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
             if (blocks_value.len > 0) {
                 if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
                     ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
