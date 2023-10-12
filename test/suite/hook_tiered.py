@@ -422,10 +422,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
         self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_tiered)
 
-# Strip matching single or double quotes
-def strip_quotes(s):
+# Strip matching parens, which act as a quoting mechanism.
+def strip_matching_parens(s):
     if len(s) >= 2:
-        if (s[0] == '\"' or s[0] == '\'') and s[0] == s[-1]:
+        if s[0] == '(' and s[-1] == ')':
             s = s[1:-1]
     return s
 
@@ -437,7 +437,7 @@ def config_split(config):
     else:
         left = config
         right = ''
-    return [left, strip_quotes(right)]
+    return [left, strip_matching_parens(right)]
 
 # Override some platform APIs for this hook.
 class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
@@ -450,13 +450,15 @@ class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
 
         # We want to split args something like arg.split(','), except that we need
         # to sometimes allow commas as part of the individual parameters, which we
-        # allow via quoting.  For example, a developer can run:
+        # allow via parens.  For example, a developer can run:
         #  run.py --hook \
-        #    'tiered=tier_storage_source=dir_store,tier_storage_source_config="force_delay=5,delay_ms=10"'
+        #    'tiered=(tier_storage_source=dir_store,tier_storage_source_config=(force_delay=5,delay_ms=10))'
         #
-        # and that should be two parameters.
+        # and that should appear as two parameters to the tiered hook.
         if arg:
-            config_list = re.split(r",(?=(?:[^\"']*[\"'][^\"']*[\"'])*[^\"']*$)", arg)
+            arg = strip_matching_parens(arg)
+            # Note: this regular expression does not handle arbitrary nesting of parens
+            config_list = re.split(r",(?=(?:[^(]*[(][^)]*[)])*[^)]*$)", arg)
             params = [config_split(config) for config in config_list]
 
         import wttest

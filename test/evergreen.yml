@@ -2775,7 +2775,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --hook 'tiered=tier_storage_source=dir_store,tier_storage_source_config="force_delay=1,delay_ms=10,verbose=1"'
+          unit_test_args: -v 2 --hook 'tiered=(tier_storage_source=dir_store,tier_storage_source_config=(force_delay=1,delay_ms=10,verbose=1))'
 
   - name: unit-test-hook-tiered-s3
     tags: ["python"]
