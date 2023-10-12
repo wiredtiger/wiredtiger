@@ -98,6 +98,7 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
         # As we have not flushed yet, assert we have no newly inserted chunks. 
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunk_cache_newly_inserted), 0)
         
+        # Flush the unpinned tables into the chunkcache 
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
@@ -108,13 +109,14 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
         unpinned_ingest = self.get_stat(wiredtiger.stat.conn.chunk_cache_newly_inserted)
         self.assertGreater(unpinned_ingest, 0)
         
-        ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in self.pinned_uris]
+        ds2 = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in self.pinned_uris]
 
         # Insert pinned data into two tables.
-        for i, dataset in enumerate(ds):
+        for i, dataset in enumerate(ds2):
             dataset.populate()
-            self.insert(uris[i], dataset)
+            self.insert(self.pinned_uris[i], dataset)
 
+        # Flush the pinned tables into the chunkcache 
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
@@ -126,16 +128,18 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
         old_pinned = self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned)
         self.assertGreater(old_pinned, 0)
 
-        # Flush the pinned chunks
+        # Modify the tables content so flush has work to do.  
+        cursor = self.session.open_cursor(self.pinned_uris[0])
+        cursor[ds2[0].key(1)] = 'foo'
+        cursor1 = self.session.open_cursor(self.pinned_uris[1])
+        cursor1[ds2[1].key(2)] = 'bar'
+
+        # Flush the pinned tables into the chunkcache 
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
-        # Assert the pinned chunks were unset after flush.
-        self.assertGreaterEqual(old_pinned, self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned))
-        
-        # Reopen wiredtiger to migrate all data to disk.
-        self.reopen_conn()
+        # Assert another set of ingests took place. 
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_newly_inserted), pinned_ingest)
 
-        # Assert none of the chunks are pinned and newly ingested chunks are cleared. 
-        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned), 0)
-        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunk_cache_newly_inserted), 0)
+        # Assert the old chunks from the pinned table were unset after flush.
+        self.assertGreater(old_pinned, self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_pinned))
