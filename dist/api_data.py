@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This file is a python script that describes the WiredTiger API.
 
 class Method:
@@ -827,8 +829,10 @@ connection_runtime_config = [
         where each message type can optionally define an associated verbosity level, such as
         <code>"verbose=[evictserver,read:1,rts:0]"</code>. Verbosity levels that can be provided
         include <code>0</code> (INFO) and <code>1</code> through <code>5</code>, corresponding to
-        (DEBUG_1) to (DEBUG_5).''',
+        (DEBUG_1) to (DEBUG_5). \c all is a special case that defines the verbosity level for all
+        categories not explicitly set in the config string.''',
         type='list', choices=[
+            'all',
             'api',
             'backup',
             'block',
@@ -1118,6 +1122,14 @@ session_config = [
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
+    Config('prefetch', '', r'''
+        Enable automatic detection of scans by applications, and attempt to pre-fetch future
+        content into the cache''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            whether pre-fetch is enabled for this session''',
+            type='boolean'),
+        ]),
 ]
 
 wiredtiger_open_common =\
@@ -1218,6 +1230,17 @@ wiredtiger_open_common =\
         permit sharing between processes (will automatically start an RPC server for primary
         processes and use RPC for secondary processes). <b>Not yet supported in WiredTiger</b>''',
         type='boolean'),
+    Config('prefetch', '', r'''
+        Enable automatic detection of scans by applications, and attempt to pre-fetch future
+        content into the cache''',
+        type='category', subconfig=[
+        Config('available', 'false', r'''
+            whether the thread pool for the pre-fetch functionality is started''',
+            type='boolean'),
+        Config('default', 'false', r'''
+            whether pre-fetch is enabled for all sessions by default''',
+            type='boolean'),
+        ]),
     Config('readonly', 'false', r'''
         open connection in read-only mode. The database must exist. All methods that may
         modify a database are disabled. See @ref readonly for more information''',

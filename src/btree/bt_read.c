@@ -434,6 +434,25 @@ read:
             }
 
 skip_evict:
+            page = ref->page;
+            /*
+             * Keep track of whether a session is reading leaf pages into the cache. This allows for
+             * the session to decide whether pre-fetch would be helpful. It might not work if a
+             * session has multiple cursors on different tables open, since the operations on
+             * different tables get in the way of the heuristic. That isn't super likely - this is
+             * to catch traversals through a btree, not complex multi-table user transactions.
+             */
+            if (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+                /*
+                 * If the page was read by this retrieval or was pulled into the cache via the
+                 * pre-fetch mechanism, count that as a page read directly from disk.
+                 */
+                if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH) ||
+                  page->read_gen == WT_READGEN_NOTSET)
+                    ++session->pf.prefetch_disk_read_count;
+                else
+                    session->pf.prefetch_disk_read_count = 0;
+            }
             /*
              * If we read the page and are configured to not trash the cache, and no other thread
              * has already used the page, set the read generation so the page is evicted soon.
