@@ -1224,7 +1224,6 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
         WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
         __wt_buf_free(session, &bitstring);
     }
-
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
     return (0);
 }
