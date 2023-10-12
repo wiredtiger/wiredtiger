@@ -1535,8 +1535,8 @@ __wt_meta_ckptlist_set(
 //                        printf(".  __wt_meta_ckptlist_set: ret = %i, blkmods_are_ok = %d\n", ret, blkmods_are_ok);
 
                         if ((ret != 0) || !blkmods_are_ok) {
-                            printf(
-                              "========== File blkmods are not compatible with those in the checkpoint =======\n");
+//                            printf(
+//                              "========== File blkmods are not compatible with those in the checkpoint =======\n");
                             WT_ERR_MSG(
                               session, EINVAL, "File blkmods are not compatible with those in the checkpoint");
                         }
