@@ -1978,7 +1978,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
         /* Don't queue dirty pages in trees during checkpoints. */
         if (modified && WT_BTREE_SYNCING(btree)) {
-            WT_STAT_CONN_INCR(session, cache_eviction_skip_dirty_pages_during_checkpoint);
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_dirty_pages_during_checkpoint);
             continue;
         }
 
@@ -2060,7 +2060,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * same page.
          */
         if (!__wt_page_evict_retry(session, page)) {
-            WT_STAT_CONN_INCR(session, cache_eviction_skip_pages_retry);
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
             continue;
         } else if (modified && page->modify->update_txn >= conn->txn_global.last_running) {
             /*
@@ -2068,7 +2068,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
              * the page from the transaction that is greater than the last running transaction has
              * changed because now eviction also has it's own snapshot for visibility check.
              */
-            WT_STAT_CONN_INCR(session, cache_eviction_skip_pages_last_running);
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
             continue;
         }
 
