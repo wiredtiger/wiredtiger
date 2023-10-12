@@ -806,63 +806,29 @@ check_backup(const char *backup_home, const char *backup_check, TABLE_INFO *tinf
     testutil_check(conn->close(conn, NULL));
 }
 
-/*
- * main --
- *     TODO: Add a comment describing this function.
- */
-int
-main(int argc, char *argv[])
+
+static void
+run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
 {
-    ACTIVE_FILES active;
-    TABLE_INFO tinfo;
-    WT_CONNECTION *conn;
-    WT_FILE_COPY_OPTS copy_opts;
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
+    WT_CONNECTION *conn;
+    TABLE_INFO tinfo;
     uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
-    int ch, ncheckpoints, nreopens;
-    const char *backup_verbose, *working_dir;
+    const char *backup_verbose;
+    int ncheckpoints, nreopens;
+    WT_FILE_COPY_OPTS copy_opts;
+    ACTIVE_FILES active;
     char backup_check[1024], backup_dir[1024], backup_src[1024], conf[1024], home[1024];
-    bool preserve;
+
+    /* Save the rnd state in the seed global variable for error reporting */
+    seed = rnd->v;
 
     preserve = false;
     ncheckpoints = nreopens = 0;
-    (void)testutil_set_progname(argv);
-    custom_die = die; /* Set our own abort handler */
     WT_CLEAR(tinfo);
-    active_files_init(&active);
-
     memset(&copy_opts, 0, sizeof(copy_opts));
     copy_opts.preserve = true;
-
-    working_dir = "WT_TEST.incr_backup";
-
-    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:v:")) != EOF)
-        switch (ch) {
-        case 'h':
-            working_dir = __wt_optarg;
-            break;
-        case 'p':
-            preserve = true;
-            break;
-        case 'S':
-            seed = (uint64_t)atoll(__wt_optarg);
-            break;
-        case 'v':
-            verbose_level = atoi(__wt_optarg);
-            break;
-        default:
-            usage();
-        }
-    argc -= __wt_optind;
-    if (argc != 0)
-        usage();
-
-    if (seed == 0) {
-        __wt_random_init_seed(NULL, &rnd);
-        seed = rnd.v;
-    } else
-        rnd.v = seed;
+    active_files_init(&active);
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     /* Put the backup directories as the same level as the home directory. */
@@ -885,23 +851,23 @@ main(int argc, char *argv[])
      * insert choose a uniform random size between 1 and MAX_VALUE_SIZE, once we did a bunch
      * of inserts, each run would look very much the same with respect to value size.
      */
-    max_value_size = __wt_random(&rnd) % MAX_VALUE_SIZE;
+    max_value_size = __wt_random(rnd) % MAX_VALUE_SIZE;
 
     /* Compute a random value of file_max. */
-    rough_size = __wt_random(&rnd) % 3;
+    rough_size = __wt_random(rnd) % 3;
     if (rough_size == 0)
-        file_max = 100 + __wt_random(&rnd) % 100; /* small log files, min 100K */
+        file_max = 100 + __wt_random(rnd) % 100; /* small log files, min 100K */
     else if (rough_size == 1)
-        file_max = 200 + __wt_random(&rnd) % WT_THOUSAND; /* 200K to ~1M */
+        file_max = 200 + __wt_random(rnd) % WT_THOUSAND; /* 200K to ~1M */
     else
-        file_max = WT_THOUSAND + __wt_random(&rnd) % (20 * WT_THOUSAND); /* 1M to ~20M */
+        file_max = WT_THOUSAND + __wt_random(rnd) % (20 * WT_THOUSAND); /* 1M to ~20M */
     testutil_snprintf(conf, sizeof(conf), "%s,create,%s,log=(enabled=true,file_max=%" PRIu32 "K)",
       CONN_CONFIG_COMMON, backup_verbose, file_max);
     VERBOSE(2, "wiredtiger config: %s\n", conf);
     testutil_check(wiredtiger_open(home, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    tinfo.table_count = __wt_random(&rnd) % MAX_NTABLES + 1;
+    tinfo.table_count = __wt_random(rnd) % MAX_NTABLES + 1;
     tinfo.table = dcalloc(tinfo.table_count, sizeof(tinfo.table[0]));
 
     /*
@@ -911,11 +877,11 @@ main(int argc, char *argv[])
     for (slot = 0; slot < tinfo.table_count; slot++) {
         tinfo.table[slot].rand.v = seed + slot;
         testutil_assert(!TABLE_VALID(&tinfo.table[slot]));
-        tinfo.table[slot].max_value_size = __wt_random(&rnd) % (max_value_size + 1);
+        tinfo.table[slot].max_value_size = __wt_random(rnd) % (max_value_size + 1);
     }
 
     /* How many files should we update until next checkpoint. */
-    next_checkpoint = __wt_random(&rnd) % tinfo.table_count;
+    next_checkpoint = __wt_random(rnd) % tinfo.table_count;
 
     for (iter = 0; iter < ITERATIONS; iter++) {
         VERBOSE(1, "**** iteration %" PRIu32 " ****\n", iter);
@@ -924,17 +890,17 @@ main(int argc, char *argv[])
          * We have schema changes during about half the iterations. The number of schema changes
          * varies, averaging 10.
          */
-        if (tinfo.tables_in_use == 0 || __wt_random(&rnd) % 2 != 0) {
-            while (__wt_random(&rnd) % 10 != 0) {
+        if (tinfo.tables_in_use == 0 || __wt_random(rnd) % 2 != 0) {
+            while (__wt_random(rnd) % 10 != 0) {
                 /*
                  * For schema events, we choose to create, rename or drop tables. We pick a random
                  * slot, and if it is empty, create a table there. Otherwise, we rename or drop.
                  * That should give us a steady state with slots mostly filled.
                  */
-                slot = __wt_random(&rnd) % tinfo.table_count;
+                slot = __wt_random(rnd) % tinfo.table_count;
                 if (!TABLE_VALID(&tinfo.table[slot]))
-                    create_table(session, &rnd, &tinfo, slot);
-                else if (__wt_random(&rnd) % 3 == 0 && do_rename)
+                    create_table(session, rnd, &tinfo, slot);
+                else if (__wt_random(rnd) % 3 == 0 && do_rename)
                     rename_table(session, &tinfo, slot);
                 else if (do_drop)
                     drop_table(session, &tinfo, slot);
@@ -946,13 +912,13 @@ main(int argc, char *argv[])
             if (next_checkpoint-- == 0) {
                 VERBOSE(2, "Checkpoint %d\n", ncheckpoints);
                 testutil_check(session->checkpoint(session, NULL));
-                next_checkpoint = __wt_random(&rnd) % tinfo.table_count;
+                next_checkpoint = __wt_random(rnd) % tinfo.table_count;
                 ncheckpoints++;
             }
         }
 
         /* Close and reopen the connection once in a while. */
-        if (iter != 0 && __wt_random(&rnd) % 5 == 0) {
+        if (iter != 0 && __wt_random(rnd) % 5 == 0) {
             VERBOSE(2, "Close and reopen the connection %d\n", nreopens);
             testutil_check(conn->close(conn, NULL));
             /* Check the source bitmap after restart. Copy while closed. */
@@ -968,13 +934,13 @@ main(int argc, char *argv[])
         }
 
         if (iter == 0) {
-            base_backup(conn, &rnd, home, backup_dir, &tinfo, &active);
+            base_backup(conn, rnd, home, backup_dir, &tinfo, &active);
             check_backup(backup_dir, backup_check, &tinfo);
         } else {
             incr_backup(conn, home, backup_dir, &tinfo, &active);
             check_backup(backup_dir, backup_check, &tinfo);
-            if (__wt_random(&rnd) % 10 == 0) {
-                base_backup(conn, &rnd, home, backup_dir, &tinfo, &active);
+            if (__wt_random(rnd) % 10 == 0) {
+                base_backup(conn, rnd, home, backup_dir, &tinfo, &active);
                 check_backup(backup_dir, backup_check, &tinfo);
             }
         }
@@ -988,6 +954,70 @@ main(int argc, char *argv[])
     if (!preserve) {
         testutil_clean_test_artifacts(home);
         testutil_remove(home);
+    }
+}
+
+
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
+int
+main(int argc, char *argv[])
+{
+    WT_RAND_STATE rnd;
+    int ch;
+    const char *working_dir;
+    bool preserve;
+    uint64_t seed_param;
+
+    seed_param = 0;
+    preserve = false;
+    (void)testutil_set_progname(argv);
+    custom_die = die; /* Set our own abort handler */
+
+    working_dir = "WT_TEST.incr_backup";
+
+    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:v:")) != EOF)
+        switch (ch) {
+        case 'h':
+            working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
+            break;
+        case 'S':
+            seed_param = (uint64_t)atoll(__wt_optarg);
+            break;
+        case 'v':
+            verbose_level = atoi(__wt_optarg);
+            break;
+        default:
+            usage();
+        }
+    argc -= __wt_optind;
+    if (argc != 0)
+        usage();
+
+    if (seed_param == 0) {
+        /*
+         * Run with fixed seeds, and then with a random seed.
+         *
+         * A seed of 123456789 can reproduce the incremental bitmap backup bug that was fixed in
+         * WT-10551, which the subsequently added checks can detect if the WT-10551 fix is
+         * commented out.
+         */
+        rnd.v = 123456789;
+        run_test(working_dir, &rnd, preserve);
+
+        rnd.v = 987654321;
+        run_test(working_dir, &rnd, preserve);
+
+        __wt_random_init_seed(NULL, &rnd);
+        run_test(working_dir, &rnd, preserve);
+    } else {
+        rnd.v = seed_param;
+        run_test(working_dir, &rnd, preserve);
     }
 
     return (EXIT_SUCCESS);
