@@ -2323,7 +2323,11 @@ static inline int __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTRE
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
   uint64_t recno, WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2518,10 +2522,7 @@ static inline void __wt_txn_cursor_op(WT_SESSION_IMPL *session);
 static inline void __wt_txn_err_set(WT_SESSION_IMPL *session, int ret);
 static inline void __wt_txn_op_delete_apply_prepare_state(
   WT_SESSION_IMPL *session, WT_REF *ref, bool commit);
-static inline void __wt_txn_op_delete_commit_apply_timestamps(
-  WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno);
-static inline void __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 static inline void __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 static inline void __wt_txn_unmodify(WT_SESSION_IMPL *session);

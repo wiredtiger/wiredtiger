@@ -969,7 +969,8 @@ __curhs_insert(WT_CURSOR *cursor)
     hs_upd->start_ts = hs_cursor->time_window.start_ts;
 
     WT_RET(__wt_txn_upd_get_durable(session, hs_upd, &durable_ts));
-    WT_RET(__wt_txn_upd_set_durable(&durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_start_ts));
+    WT_RET(__wt_txn_upd_set_durable(
+      &durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_start_ts));
     // hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
     hs_upd->txnid = hs_cursor->time_window.start_txn;
 
@@ -1130,7 +1131,7 @@ __curhs_update(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
-    wt_timestamp_t *hs_tombstone_durable_ts, *hs_upd_durable_ts;
+    wt_timestamp_t hs_tombstone_durable_ts, hs_upd_durable_ts;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -1153,26 +1154,23 @@ __curhs_update(WT_CURSOR *cursor)
     /* The tombstone to represent the stop time window. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
     hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
-    WT_ASSERT(
-      session, __wt_txn_upd_get_durable(session, hs_tombstone, hs_tombstone_durable_ts) == 0);
-    WT_ASSERT(session,
-      __wt_txn_upd_set_durable(
-        hs_tombstone_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_stop_ts) == 0);
+    WT_RET(__wt_txn_upd_get_durable(session, hs_tombstone, &hs_tombstone_durable_ts));
+    WT_RET(__wt_txn_upd_set_durable(
+      &hs_tombstone_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_stop_ts));
     // hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
     hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
 
     WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
     hs_upd->start_ts = hs_cursor->time_window.start_ts;
 
-    WT_ASSERT(session, __wt_txn_upd_get_durable(session, hs_upd, hs_upd_durable_ts) == 0);
-    WT_ASSERT(session,
-      __wt_txn_upd_set_durable(
-        hs_upd_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_start_ts) == 0);
+    WT_RET(__wt_txn_upd_get_durable(session, hs_upd, &hs_upd_durable_ts));
+    WT_RET(__wt_txn_upd_set_durable(
+      &hs_upd_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_start_ts));
     // hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
     hs_upd->txnid = hs_cursor->time_window.start_txn;
 
     WT_ASSERT(session,
-      hs_tombstone->start_ts >= hs_upd->start_ts && *hs_tombstone_durable_ts >= *hs_upd_durable_ts);
+      hs_tombstone->start_ts >= hs_upd->start_ts && hs_tombstone_durable_ts >= hs_upd_durable_ts);
 
     /* Connect the tombstone to the update. */
     hs_tombstone->next = hs_upd;

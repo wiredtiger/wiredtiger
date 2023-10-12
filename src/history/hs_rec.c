@@ -621,7 +621,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  * garbage collection of history store removes the history values once the stop
                  * timestamp is globally visible. i.e. durable timestamp of data store version.
                  */
-                WT_ASSERT(session, prev_upd->start_ts <= &durable_ts);
+                WT_ASSERT(session, prev_upd->start_ts <= durable_ts);
 
                 if (no_ts_upd != NULL) {
                     tw.durable_stop_ts = WT_TS_NONE;

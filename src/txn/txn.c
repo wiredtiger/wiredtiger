@@ -729,7 +729,7 @@ __txn_prepare_rollback_restore_hs_update(
     WT_DECL_RET;
     WT_TIME_WINDOW *hs_tw;
     WT_UPDATE *tombstone, *upd;
-    wt_timestamp_t durable_ts, hs_stop_durable_ts;
+    wt_timestamp_t durable_ts, hs_stop_durable_ts, tombstone_durable_ts;
     size_t size, total_size;
     uint64_t type_full;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -752,7 +752,7 @@ __txn_prepare_rollback_restore_hs_update(
     __wt_hs_upd_time_window(hs_cursor, &hs_tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
     upd->txnid = hs_tw->start_txn;
-    // FIXME-WT-11469
+
     WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
     WT_RET(__wt_txn_upd_set_durable(&durable_ts, &hs_tw->durable_start_ts));
     upd->start_ts = hs_tw->start_ts;
@@ -767,13 +767,14 @@ __txn_prepare_rollback_restore_hs_update(
     __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-      __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
+      __wt_timestamp_to_string(durable_ts, ts_string[1]));
 
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
         WT_ASSERT(session, hs_tw->stop_ts != WT_TS_MAX);
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->durable_ts = hs_tw->durable_stop_ts;
+        WT_RET(__wt_txn_upd_get_durable(session, upd, &tombstone_durable_ts));
+        WT_RET(__wt_txn_upd_set_durable(&tombstone_durable_ts, &hs_tw->durable_stop_ts));
         tombstone->start_ts = hs_tw->stop_ts;
         tombstone->txnid = hs_tw->stop_txn;
         tombstone->next = upd;
@@ -787,7 +788,7 @@ __txn_prepare_rollback_restore_hs_update(
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "tombstone restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
           tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
-          __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(tombstone_durable_ts, ts_string[1]));
 
         upd = tombstone;
     }
@@ -1159,6 +1160,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_UPDATE *first_committed_upd, *upd, *upd_followed_tombstone;
     WT_UPDATE *head_upd;
 
+    wt_timestamp_t upd_durable_ts, upd_next_durable_ts;
     uint8_t *p, resolve_case, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool tw_found, has_hs_record;
@@ -1260,13 +1262,16 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *     rollback: if the prepared update is written to the disk image, delete the whole key.
      */
 
+    WT_RET(__wt_txn_upd_get_durable(session, upd, &upd_durable_ts));
+    WT_RET(__wt_txn_upd_get_durable(session, upd->next, &upd_next_durable_ts));
+
     /*
      * We also need to handle the on disk prepared updates if we have a prepared delete and a
      * prepared update on the disk image.
      */
     if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
-        (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
+        (upd->next != NULL && upd_durable_ts == upd_next_durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts)))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
     /*
@@ -1725,7 +1730,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 if (cache->hs_fileid != 0 && op->btree->id == cache->hs_fileid)
                     break;
 
-                __wt_txn_op_set_timestamp(session, op);
+                WT_RET(__wt_txn_op_set_timestamp(session, op));
                 WT_ERR(__txn_timestamp_usage_check(session, op, upd));
             } else {
                 /*
@@ -1751,7 +1756,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
-            __wt_txn_op_set_timestamp(session, op);
+            WT_RET(__wt_txn_op_set_timestamp(session, op));
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:

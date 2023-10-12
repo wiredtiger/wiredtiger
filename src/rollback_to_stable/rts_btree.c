@@ -269,7 +269,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     WT_PAGE *page;
     WT_TIME_WINDOW *hs_tw;
     WT_UPDATE *tombstone, *upd;
-    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts, pinned_ts, durable_ts, tombstone_durable_ts;
+    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts, pinned_ts,
+      durable_ts, tombstone_durable_ts;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id;
     uint8_t *memp;
@@ -505,8 +506,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             upd->txnid = WT_TXN_NONE;
         else
             upd->txnid = hs_tw->start_txn;
-        WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, &durable_ts) == 0);
-        WT_ASSERT(session, __wt_txn_upd_set_durable(&durable_ts, &hs_tw->durable_start_ts) == 0);
+        WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
+        WT_RET(__wt_txn_upd_set_durable(&durable_ts, &hs_tw->durable_start_ts));
 
         upd->start_ts = hs_tw->start_ts;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
@@ -628,7 +629,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *upd;
-    wt_timestamp_t *durable_ts;
+    wt_timestamp_t durable_ts;
     uint8_t *memp;
     char time_string[WT_TIME_STRING_SIZE];
     char ts_string[5][WT_TS_INT_STRING_SIZE];
@@ -733,9 +734,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             else
                 upd->txnid = vpack->tw.start_txn;
 
-            WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, durable_ts) == 0);
-            WT_ASSERT(
-              session, __wt_txn_upd_set_durable(durable_ts, vpack->tw.durable_start_ts) == 0);
+            WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
+            WT_RET(__wt_txn_upd_set_durable(&durable_ts, &vpack->tw.durable_start_ts));
 
             // upd->durable_ts = vpack->tw.durable_start_ts;
             upd->start_ts = vpack->tw.start_ts;
