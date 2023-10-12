@@ -54,7 +54,6 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
          */
         for (i = 0; i < WT_BLKINCR_MAX; ++i) {
             blkincr = &conn->incr_backups[i];
-//            printf(".   in __ckpt_load_blk_mods(), blkincr->id_str = %s, k.str = %.*s\n", blkincr->id_str, (int) k.len, k.str);
             if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
                 break;
         }
@@ -67,7 +66,6 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
         /*
          * We have a valid entry. Load the block information.
          */
-//        printf(".    We have a valid entry. Load the block information.\n");
         blk_mod = &ckpt->backup_blocks[i];
         WT_RET(__wt_strdup(session, blkincr->id_str, &blk_mod->id_str));
         WT_RET(__wt_config_subgets(session, &v, "granularity", &b));
@@ -1225,8 +1223,6 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
         /* The hex string length should match the appropriate number of bits. */
         WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
 
-//        printf(".   in __wt_ckpt_blkmod_to_meta(), bitstring.data (i = %u) for %s of size %d = '%.*s'\n", i, blk->id_str, (int)bitstring.size, (int)bitstring.size, (char *)bitstring.data);
-
         __wt_buf_free(session, &bitstring);
     }
 
@@ -1273,26 +1269,6 @@ err:
     return (ret);
 }
 
-/*
- * print_item --
- *     Prints the bytes in a WT_ITEM using printf. Used for debugging.
- */
-
-//static void
-//print_item(WT_ITEM *item, const char *msg)
-//{
-//    size_t index;
-//    unsigned char *data_p;
-//    printf("%s: item size = %" PRIu64 ", bytes: ", msg, (uint64_t) item->size);
-//
-//    data_p = (unsigned char *)item->data;
-//
-//    if (item->size > 0)
-//        for (index = 0; index < item->size; index++)
-//            printf("0x%02x ", *data_p++);
-//
-//    printf("\n");
-//}
 
 /*
  * ckpt_blkmod_to_item --
@@ -1304,8 +1280,6 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char* id, WT_
     WT_BLOCK_MODS *blk;
     u_int i;
     bool valid;
-
-//    printf("Starting ckpt_blkmod_to_item(): checkpoint name = '%s', id = '%s'\n", ckpt->name, id);
 
     valid = false;
     WT_CLEAR(*output_item);
@@ -1328,15 +1302,9 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char* id, WT_
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
 
-        //printf(".   in ckpt_blkmod_to_item() at A, i = %u, blk->id_str = '%s'\n", i, blk->id_str);
-
-        if (strcmp(id, blk->id_str) == 0) {
+        if (strcmp(id, blk->id_str) == 0)
             WT_RET(__wt_buf_set(session, output_item, blk->bitstring.data, blk->bitstring.size));
-//            print_item(output_item, ".        output_item");
-        }
     }
-
-//    print_item(output_item, "Ending ckpt_blkmod_to_item()");
 
     return (0);
 }
@@ -1371,33 +1339,19 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char* id, WT_ITEM *
     metadata_cursor->set_key(metadata_cursor, uri);
     WT_RET(metadata_cursor->search(metadata_cursor));
     WT_RET(metadata_cursor->get_value(metadata_cursor, &file_config));
-
-//    printf(".   in get_blkmods(), id = '%s' and metadata config for '%s' is %s\n", id, uri, file_config);
-
     WT_RET(__wt_config_getones(session, file_config, "checkpoint_backup_info", &value));
 
     if ((value.len > 0) && (value.type == WT_CONFIG_ITEM_STRUCT)) {
-//        printf(".   get_blkmods(): uri %s, ret = %d, checkpoint_backup_info = '%.*s'\n", uri, ret, (int)value.len, value.str);
-
         __wt_config_subinit(session, &blkconf, &value);
         searching_for_blocks = true;
         while (searching_for_blocks && ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0)) {
-//            printf(".   blocks_value.len = %zu\n", blocks_value.len);
             if (blocks_value.len > 0) {
-//                printf(".   blocks_key   = %.*s\n", (int)blocks_key.len, blocks_key.str);
-//                printf(".   blocks_value = %.*s\n", (int)blocks_value.len, blocks_value.str);
-
                 if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
-//                    printf(".   id = %s and key = %.*s match\n", id, (int)blocks_key.len, blocks_key.str);
 
                     if ((ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks)) == 0)
                     {
-//                        printf(".   blocks.len = %zu\n", blocks.len);
-                        if (blocks.len > 0) {
-//                            printf(".   blocks = %.*s\n", (int)blocks.len, blocks.str);
+                        if (blocks.len > 0)
                             WT_RET(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
-                            //                searching_for_blocks = false;
-                        }
                     }
                 }
             }
@@ -1432,25 +1386,12 @@ check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, boo
     new_ptr = NULL;
     *ok = false;
 
-//    printf("check_incorrect_modified_bits()\n");
-//    print_item(original_bitmap, " original bitmap:");
-//    print_item(new_bitmap, " new bitmap:     ");
-
-    if (original_bitmap == NULL) {
-//        printf("original_bitmap == NULL\n");
+    if ((original_bitmap == NULL) || (new_bitmap == NULL))
         WT_RET(EINVAL);
-    }
-
-    if (new_bitmap == NULL) {
-//        printf("new_bitmap == NULL\n");
-        WT_RET(EINVAL);
-    }
 
     /* If the new bitmap is smaller, then some bits have been lost which is a problem. */
-    if (original_bitmap->size > new_bitmap->size) {
-//        printf("New bitmap is smaller than the original");
+    if (original_bitmap->size > new_bitmap->size)
         WT_RET(EINVAL);
-    }
 
     original_ptr = (unsigned char *)original_bitmap->data;
     new_ptr = (unsigned char *)new_bitmap->data;
@@ -1461,16 +1402,12 @@ check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, boo
         /* Detect bits that were (incorrectly) changed from 1 in the original to 0 in the new */
         partial_result = (*original_ptr ^ *new_ptr) & *original_ptr;
 
-        if (partial_result != 0) {
-//            printf("partial_result is %d\n", partial_result);
+        if (partial_result != 0)
             *ok = false;
-        }
 
         original_ptr++;
         new_ptr++;
     }
-
-//    printf("    bitmaps are ok? = %d\n", *ok);
 
     return (0);
 }
@@ -1495,51 +1432,32 @@ __wt_meta_ckptlist_set(
     filename = dhandle->name;
     blkmods_are_ok = true;
 
-    //printf("Starting __wt_meta_ckptlist_set(): filename  = %s\n", filename);
-
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
-            // printf(".   WT_CKPT_ADD is set\n");
             WT_CLEAR(file_blkmods_buffer);
             WT_CLEAR(checkpoint_blkmods_buffer);
 
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
-//            if (buf->mem != NULL)
-//                printf(".   in __wt_meta_ckptlist_set(): fname = %s, buf->mem = \'%s\'\n", filename,
-//                  (char *)buf->mem);
 
             if (!F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
                 for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
                     if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
                         continue;
 
-//                    printf(".   in __wt_meta_ckptlist_set() - at B, blk->id_str = %s\n", blk->id_str);
-
                     WT_ERR(ckpt_blkmod_to_item(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
-//                    print_item(&checkpoint_blkmods_buffer, ".   checkpoint_blkmods_buffer ");
 
                     ret = get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer);
                     if (file_blkmods_buffer.size > 0 && checkpoint_blkmods_buffer.size > 0) {
-//                        printf(". in __wt_meta_ckptlist_set() - at C, filename %s, blk->id_str = %s, ret = %d\n",
-//                          filename, blk->id_str, ret);
-//                        print_item(&file_blkmods_buffer, " file_blkmods_buffer       (at B)");
-//                        print_item(&checkpoint_blkmods_buffer, " checkpoint_blkmods_buffer (at B)");
-
                         blkmods_are_ok = false;
                         ret = check_incorrect_modified_bits(
                           &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
 
-//                        printf(".  __wt_meta_ckptlist_set: ret = %i, blkmods_are_ok = %d\n", ret, blkmods_are_ok);
-
-                        if ((ret != 0) || !blkmods_are_ok) {
-//                            printf(
-//                              "========== File blkmods are not compatible with those in the checkpoint =======\n");
+                        if ((ret != 0) || !blkmods_are_ok)
                             WT_ERR_MSG(
                               session, EINVAL, "File blkmods are not compatible with those in the checkpoint");
-                        }
                     }
                 }
             }
@@ -1554,9 +1472,6 @@ __wt_meta_ckptlist_set(
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 
     WT_ERR(__ckpt_set(session, filename, buf->mem, has_lsn));
-
-//    if (buf->mem != NULL)
-//        printf("Ending __wt_meta_ckptlist_set(): fname = %s, buf->mem = %s\n", filename, (char*)buf->mem);
 
 err:
     __wt_scr_free(session, &buf);
