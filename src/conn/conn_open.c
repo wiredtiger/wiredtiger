@@ -231,7 +231,6 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Can create a table, so must be done after metadata tracking. */
     WT_RET(__wt_chunkcache_setup(session, cfg));
 
-
     /* Can create a table, so must be done after metadata tracking. */
     WT_RET(__wt_chunkcache_setup(session, cfg));
 

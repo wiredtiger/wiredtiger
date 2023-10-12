@@ -577,7 +577,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
         default:
             busy = true;
         }
-
         if (busy)
             break;
     }

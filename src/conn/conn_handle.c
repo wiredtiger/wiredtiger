@@ -132,6 +132,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_rwlock_destroy(session, &conn->table_lock);
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
+    __wt_spin_destroy(session, &conn->prefetch_lock);
 
     /* Free LSM serialization resources. */
     __wt_spin_destroy(session, &conn->lsm_manager.switch_lock);
