@@ -107,11 +107,9 @@ class test_compact09(wttest.WiredTigerTestCase):
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
-        # Create and populate tables. Add all tables to the exclude list.
-        exclude_list = []
+        # Create and populate tables.
         for i in range(self.n_tables):
             uri = self.uri_prefix + f'_{i}'
-            exclude_list.append(f"{uri}.wt")
             self.session.create(uri, self.create_params)
             self.populate(uri, self.table_numkv, self.value_size)
         
@@ -126,7 +124,8 @@ class test_compact09(wttest.WiredTigerTestCase):
         # Write to disk.
         self.session.checkpoint()
 
-        # Enable background compaction.
+        # Enable background compaction and exclude the two tables.
+        exclude_list = f'["{self.uri_prefix}_0.wt", "{self.uri_prefix}_1.wt"]'
         config = f'background=true,free_space_target=1MB,exclude={exclude_list}'
         self.turn_on_bg_compact(config)
         
