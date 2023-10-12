@@ -310,21 +310,6 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_swap_snapshot --
- *     Swap the snapshot pointers.
- */
-static void
-__txn_swap_snapshot(uint64_t **snap_a, uint64_t **snap_b)
-{
-    uint64_t *temp;
-
-    WT_UNUSED(temp);
-
-    temp = *snap_a;
-    *snap_a = *snap_b;
-    *snap_b = temp;
-}
-/*
  * __wt_txn_bump_snapshot --
  *     Uncommon case, allocate a snapshot but skip updating our shared ids.
  */

@@ -230,6 +230,21 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 }
 
 /*
+ * __txn_swap_snapshot --
+ *     Swap the snapshot pointers.
+ */
+static inline void
+__txn_swap_snapshot(uint64_t **snap_a, uint64_t **snap_b)
+{
+    uint64_t *temp;
+    WT_UNUSED(temp);
+
+    temp = *snap_a;
+    *snap_a = *snap_b;
+    *snap_b = temp;
+}
+
+/*
  * __wt_txn_unmodify --
  *     If threads race making updates, they may discard the last referenced WT_UPDATE item while the
  *     transaction is still active. This function removes the last update item from the "log".
