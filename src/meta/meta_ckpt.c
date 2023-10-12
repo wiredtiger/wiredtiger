@@ -54,7 +54,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
          */
         for (i = 0; i < WT_BLKINCR_MAX; ++i) {
             blkincr = &conn->incr_backups[i];
-            printf(".   in __ckpt_load_blk_mods(), blkincr->id_str = %s, k.str = %.*s\n", blkincr->id_str, (int) k.len, k.str);
+//            printf(".   in __ckpt_load_blk_mods(), blkincr->id_str = %s, k.str = %.*s\n", blkincr->id_str, (int) k.len, k.str);
             if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
                 break;
         }
@@ -1495,32 +1495,31 @@ __wt_meta_ckptlist_set(
     filename = dhandle->name;
     blkmods_are_ok = true;
 
-//    printf("Starting __wt_meta_ckptlist_set()\n");
-    printf("Starting __wt_meta_ckptlist_set(): filename  = %s\n", filename);
+    //printf("Starting __wt_meta_ckptlist_set(): filename  = %s\n", filename);
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
-            printf(".   WT_CKPT_ADD is set\n");
+            // printf(".   WT_CKPT_ADD is set\n");
             WT_CLEAR(file_blkmods_buffer);
             WT_CLEAR(checkpoint_blkmods_buffer);
 
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
-            if (buf->mem != NULL)
-                printf(".   in __wt_meta_ckptlist_set(): fname = %s, buf->mem = \'%s\'\n", filename,
-                  (char *)buf->mem);
+//            if (buf->mem != NULL)
+//                printf(".   in __wt_meta_ckptlist_set(): fname = %s, buf->mem = \'%s\'\n", filename,
+//                  (char *)buf->mem);
 
             if (!F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
                 for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
                     if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
                         continue;
 
-                    printf(".   in __wt_meta_ckptlist_set() - at B, blk->id_str = %s\n", blk->id_str);
+//                    printf(".   in __wt_meta_ckptlist_set() - at B, blk->id_str = %s\n", blk->id_str);
 
                     WT_ERR(ckpt_blkmod_to_item(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
-                    print_item(&checkpoint_blkmods_buffer, ".   checkpoint_blkmods_buffer ");
+//                    print_item(&checkpoint_blkmods_buffer, ".   checkpoint_blkmods_buffer ");
 
                     ret = get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer);
                     if (file_blkmods_buffer.size > 0 && checkpoint_blkmods_buffer.size > 0) {
