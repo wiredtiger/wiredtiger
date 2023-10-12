@@ -31,7 +31,6 @@ import wiredtiger, wttest
 
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from time import sleep
 
 
 '''
@@ -46,10 +45,13 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
         ('row_string', dict(key_format='S', value_format='S')),
     ]
 
+
     cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
     if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
+    
+    pinned_uris = ["table:chunkcache01", "table:chunkcache02"]
 
     scenarios = make_scenarios(format_values, cache_types)
 
@@ -58,7 +60,9 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
             os.mkdir('bucket2')
 
         return 'tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20MB,pinned=("table:chunkcache01", "table:chunkcache02"),type=DRAM,storage_path=WiredTigerChunkCache]'
+            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20GB,pinned=' \
+                + '("' + '{}'.format("\",\"".join(self.pinned_uris)) \
+                + '"),type={},storage_path=WiredTigerChunkCache]'.format(self.chunk_cache_type)
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':
@@ -105,8 +109,7 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
         unpinned_ingest = self.get_stat(wiredtiger.stat.conn.chunk_cache_newly_inserted)
         self.assertGreater(unpinned_ingest, 0)
         
-        uris = ["table:chunkcache01", "table:chunkcache02"]
-        ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in uris]
+        ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in self.pinned_uris]
 
         # Insert pinned data into two tables.
         for i, dataset in enumerate(ds):
