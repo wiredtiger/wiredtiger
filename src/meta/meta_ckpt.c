@@ -1344,12 +1344,9 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *
           ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0)) {
             if (blocks_value.len > 0) {
                 if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
-
-                    if ((ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks)) ==
-                      0) {
-                        if (blocks.len > 0)
-                            WT_RET(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
-                    }
+                    ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
+                    if ((ret == 0) && (blocks.len > 0))
+                        WT_RET(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
                 }
             }
         }
