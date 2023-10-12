@@ -2242,7 +2242,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
       {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
+      {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
       {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
       {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
       {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
@@ -2609,10 +2609,10 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     int64_t v;
 
 /*
- * Start with 20 internal sessions to cover threads the application can't configure (for example,
+ * Start with 25 internal sessions to cover threads the application can't configure (for example,
  * checkpoint or statistics log server threads).
  */
-#define WT_EXTRA_INTERNAL_SESSIONS 20
+#define WT_EXTRA_INTERNAL_SESSIONS 25
     v = WT_EXTRA_INTERNAL_SESSIONS;
 
     /* Then, add in the thread counts applications can configure. */
@@ -2974,6 +2974,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
+    WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));

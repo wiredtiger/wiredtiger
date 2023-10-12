@@ -29,6 +29,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->extractorqh);  /* Extractor list */
     TAILQ_INIT(&conn->storagesrcqh); /* Storage source list */
     TAILQ_INIT(&conn->tieredqh);     /* Tiered work unit list */
+    TAILQ_INIT(&conn->pfqh);         /* Pre-fetch reference list */
 
     TAILQ_INIT(&conn->lsmqh); /* WT_LSM_TREE list */
 
@@ -59,6 +60,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->storage_lock, "tiered storage"));
     WT_RET(__wt_spin_init(session, &conn->tiered_lock, "tiered work unit list"));
     WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
+    WT_RET(__wt_spin_init(session, &conn->prefetch_lock, "prefetch"));
 
     /* Read-write locks */
     WT_RET(__wt_rwlock_init(session, &conn->debug_log_retention_lock));
