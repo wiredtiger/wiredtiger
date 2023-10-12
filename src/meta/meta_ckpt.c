@@ -1269,13 +1269,12 @@ err:
     return (ret);
 }
 
-
 /*
  * ckpt_blkmod_to_item --
  *     Extracts the blkmod info in a checkpoint into a bitmap in a WT_ITEM.
  */
 static int
-ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char* id, WT_ITEM *output_item)
+ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *id, WT_ITEM *output_item)
 {
     WT_BLOCK_MODS *blk;
     u_int i;
@@ -1314,7 +1313,7 @@ ckpt_blkmod_to_item(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char* id, WT_
  *     Extracts the blkmod info from the metadata about a file+id into a bitmap in a WT_ITEM.
  */
 static int
-get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char* id, WT_ITEM *output_item)
+get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *output_item)
 {
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM blocks, key, value, blocks_key, blocks_value;
@@ -1344,12 +1343,13 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char* id, WT_ITEM *
     if ((value.len > 0) && (value.type == WT_CONFIG_ITEM_STRUCT)) {
         __wt_config_subinit(session, &blkconf, &value);
         searching_for_blocks = true;
-        while (searching_for_blocks && ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0)) {
+        while (searching_for_blocks &&
+          ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0)) {
             if (blocks_value.len > 0) {
                 if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
 
-                    if ((ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks)) == 0)
-                    {
+                    if ((ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks)) ==
+                      0) {
                         if (blocks.len > 0)
                             WT_RET(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
                     }
@@ -1365,7 +1365,6 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char* id, WT_ITEM *
 
     return (ret);
 }
-
 
 /*
  * check_incorrect_modified_bits --
@@ -1420,14 +1419,14 @@ int
 __wt_meta_ckptlist_set(
   WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
 {
+    WT_BLOCK_MODS *blk;
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM file_blkmods_buffer, checkpoint_blkmods_buffer;
+    u_int i;
     const char *filename;
     bool blkmods_are_ok, has_lsn;
-    WT_BLOCK_MODS *blk;
-    u_int i;
 
     filename = dhandle->name;
     blkmods_are_ok = true;
@@ -1447,7 +1446,8 @@ __wt_meta_ckptlist_set(
                     if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
                         continue;
 
-                    WT_ERR(ckpt_blkmod_to_item(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
+                    WT_ERR(
+                      ckpt_blkmod_to_item(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
 
                     ret = get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer);
                     if (file_blkmods_buffer.size > 0 && checkpoint_blkmods_buffer.size > 0) {
@@ -1456,8 +1456,8 @@ __wt_meta_ckptlist_set(
                           &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
 
                         if ((ret != 0) || !blkmods_are_ok)
-                            WT_ERR_MSG(
-                              session, EINVAL, "File blkmods are not compatible with those in the checkpoint");
+                            WT_ERR_MSG(session, EINVAL,
+                              "File blkmods are not compatible with those in the checkpoint");
                     }
                 }
             }

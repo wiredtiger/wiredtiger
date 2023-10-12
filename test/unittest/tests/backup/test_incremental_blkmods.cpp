@@ -60,8 +60,6 @@ parse_blkmods(WT_SESSION *session, std::string const &file_uri)
     char *file_config;
     REQUIRE(metadata_cursor->get_value(metadata_cursor, &file_config) == 0);
 
-//    printf("file_config = %s\n", file_config);
-
     std::cmatch match_results;
     REQUIRE(std::regex_search(file_config, match_results, std::regex(",blocks=(\\w+)")));
     std::string hex_blkmod = match_results[1];

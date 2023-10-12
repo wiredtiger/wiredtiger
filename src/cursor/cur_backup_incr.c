@@ -16,7 +16,6 @@ int
 __wt_backup_load_incr(
   WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, WT_ITEM *bitstring, uint64_t nbits)
 {
-    //printf(".    __wt_backup_load_incr()\n");
     if (blkcfg->len != 0)
         WT_RET(__wt_nhex_to_raw(session, blkcfg->str, blkcfg->len, bitstring));
     if (bitstring->size != (nbits >> 3))

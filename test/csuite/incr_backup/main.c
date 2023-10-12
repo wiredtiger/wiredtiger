@@ -806,12 +806,16 @@ check_backup(const char *backup_home, const char *backup_check, TABLE_INFO *tinf
     testutil_check(conn->close(conn, NULL));
 }
 
-
+/*
+ * run_test --
+ *     Performs an incremental backup test using the rnd state as a seed for the random number
+ *     generator, facilitating deterministic testing.
+ */
 static void
 run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
 {
-    WT_SESSION *session;
     WT_CONNECTION *conn;
+    WT_SESSION *session;
     TABLE_INFO tinfo;
     uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
     const char *backup_verbose;
@@ -957,19 +961,18 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     }
 }
 
-
 /*
  * main --
- *     TODO: Add a comment describing this function.
+ *     The main function for the incremental backup test.
  */
 int
 main(int argc, char *argv[])
 {
     WT_RAND_STATE rnd;
+    uint64_t seed_param;
     int ch;
     const char *working_dir;
     bool preserve;
-    uint64_t seed_param;
 
     seed_param = 0;
     preserve = false;
@@ -1004,8 +1007,8 @@ main(int argc, char *argv[])
          * Run with fixed seeds, and then with a random seed.
          *
          * A seed of 123456789 can reproduce the incremental bitmap backup bug that was fixed in
-         * WT-10551, which the subsequently added checks can detect if the WT-10551 fix is
-         * commented out.
+         * WT-10551, which the subsequently added checks can detect if the WT-10551 fix is commented
+         * out.
          */
         rnd.v = 123456789;
         run_test(working_dir, &rnd, preserve);
