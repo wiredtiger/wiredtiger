@@ -189,7 +189,7 @@ public:
 
 private:
     int pageSize;
-    void memPageSet(uint8_t *dest, int len) const;
+    void memPageSet(uint8_t *dest, uint32_t len) const;
 };
 
 class CompressionCodecDeflate {
