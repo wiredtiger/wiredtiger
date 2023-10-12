@@ -35,7 +35,8 @@ __background_compact_exclude_list_add(WT_SESSION_IMPL *session, const char *name
 
     conn = S2C(session);
 
-    WT_ERR(__wt_calloc_one(session, &new_entry));
+    /* Early exit if this allocation fails. */
+    WT_RET(__wt_calloc_one(session, &new_entry));
     WT_ERR(__wt_strndup(session, name, len, &new_entry->name));
 
     hash = __wt_hash_city64(name, len);
@@ -45,8 +46,7 @@ __background_compact_exclude_list_add(WT_SESSION_IMPL *session, const char *name
 
     return (0);
 err:
-    if (new_entry != NULL)
-        __wt_free(session, new_entry->name);
+    __wt_free(session, new_entry->name);
     __wt_free(session, new_entry);
 
     return (ret);
