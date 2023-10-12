@@ -117,7 +117,8 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             time_total = self.get_stat(stat.conn.checkpoint_time_total)
             self.pr('checkpoint_time_total ' + str(time_total))
 
-            self.assertEqual(num_ckpt, 2)
+            expected_ckpts = 3 if multiplier > 1 else 2
+            self.assertEqual(num_ckpt, expected_ckpts)
             self.assertEqual(running, 0)
             self.assertEqual(prep_running, 0)
             # Assert if this loop continues for more than 100 iterations.
