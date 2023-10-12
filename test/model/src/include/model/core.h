@@ -123,5 +123,35 @@ public:
     inline model_exception(const std::string &message) noexcept : std::runtime_error(message) {}
 };
 
+/*
+ * wiredtiger_abort_exception --
+ *     An exception that models that WiredTiger would abort or panic, either at the point when this
+ *     exception is thrown or in the future (e.g., during reconciliation).
+ */
+class wiredtiger_abort_exception : std::runtime_error {
+
+public:
+    /*
+     * wiredtiger_abort_exception::wiredtiger_abort_exception --
+     *     Create a new instance of the exception.
+     */
+    inline wiredtiger_abort_exception(const char *message) noexcept : std::runtime_error(message) {}
+
+    /*
+     * wiredtiger_abort_exception::wiredtiger_abort_exception --
+     *     Create a new instance of the exception.
+     */
+    inline wiredtiger_abort_exception(const std::string &message) noexcept
+        : std::runtime_error(message)
+    {
+    }
+
+    /*
+     * wiredtiger_abort_exception::wiredtiger_abort_exception --
+     *     Create a new instance of the exception.
+     */
+    inline wiredtiger_abort_exception() noexcept : std::runtime_error("WiredTiger would abort") {}
+};
+
 } /* namespace model */
 #endif

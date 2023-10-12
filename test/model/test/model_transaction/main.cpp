@@ -38,6 +38,7 @@ extern "C" {
 #include "test_util.h"
 }
 
+#include "model/test/util.h"
 #include "model/test/wiredtiger_util.h"
 #include "model/kv_database.h"
 #include "model/util.h"
@@ -166,7 +167,8 @@ test_transaction_basic(void)
     txn1->set_timestamp(55);
     testutil_check(table->insert(txn1, key1, value3));
     txn1->set_timestamp(53);
-    testutil_assert(table->insert(txn1, key1, value3) == EINVAL); /* WT aborts at commit. */
+    model_testutil_assert_exception(table->insert(txn1, key1, value3),
+      model::wiredtiger_abort_exception); /* WT aborts at commit. */
     txn1->commit(60);
     testutil_assert(table->get(key1, 52) == value2);
     testutil_assert(table->get(key1, 53) == value2);
@@ -175,7 +177,8 @@ test_transaction_basic(void)
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key1, value1));
     txn1->set_timestamp(65);
-    testutil_assert(table->insert(txn1, key1, value4) == EINVAL); /* WT aborts at checkpoint. */
+    model_testutil_assert_exception(table->insert(txn1, key1, value4),
+      model::wiredtiger_abort_exception); /* WT aborts at checkpoint. */
     txn1->commit(70);
     testutil_assert(table->get(key1, 65) == value3);
     testutil_assert(table->get(key1, 70) == value1);

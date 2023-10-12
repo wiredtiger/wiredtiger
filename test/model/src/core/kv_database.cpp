@@ -62,13 +62,6 @@ kv_database::begin_transaction(timestamp_t read_timestamp)
 {
     std::lock_guard lock_guard(_transactions_lock);
 
-    std::unordered_set<txn_id_t> active_txn_ids;
-    for (auto p : _active_transactions) {
-        kv_transaction_state state = p.second->state();
-        if (state != kv_transaction_state::committed && state != kv_transaction_state::rolled_back)
-            active_txn_ids.insert(p.first);
-    }
-
     txn_id_t id = ++_last_transaction_id;
     kv_transaction_ptr txn =
       std::make_shared<kv_transaction>(*this, id, std::move(txn_snapshot_nolock()), read_timestamp);

@@ -91,12 +91,12 @@ kv_table_item::add_update_nolock(
                 /* Can't conflict with self. */
                 if (u->txn_id() == txn->id()) {
                     /*
-                     * Cannot update a key with a more recent timestamp. This is where the model
-                     * diverges from WiredTiger: We return an error here, but WiredTiger would abort
-                     * during commit.
+                     * Cannot update a key with a more recent timestamp. If we do this, WiredTiger
+                     * would abort during commit.
                      */
                     if (u->timestamp() > update->timestamp())
-                        return EINVAL;
+                        throw wiredtiger_abort_exception(
+                          "Updating a key with a more recent timestamp");
                     break;
                 }
                 return WT_ROLLBACK;

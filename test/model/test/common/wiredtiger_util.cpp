@@ -58,7 +58,9 @@ wt_get(
     testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
     model::set_wt_cursor_key(cursor, key);
-    testutil_check_error_ok(ret = cursor->search(cursor), WT_NOTFOUND);
+    ret = cursor->search(cursor);
+    if (ret != WT_NOTFOUND && ret != WT_ROLLBACK)
+        testutil_check(ret);
     if (ret == 0)
         testutil_check(cursor->get_value(cursor, &value));
 
@@ -85,7 +87,9 @@ wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
 
     model::set_wt_cursor_key(cursor, key);
     model::set_wt_cursor_value(cursor, value);
-    testutil_check_error_ok(ret = cursor->insert(cursor), WT_DUPLICATE_KEY);
+    ret = cursor->insert(cursor);
+    if (ret != WT_DUPLICATE_KEY && ret != WT_ROLLBACK)
+        testutil_check(ret);
 
     testutil_check(cursor->close(cursor));
     if (timestamp == 0)
@@ -113,7 +117,9 @@ wt_remove(
     testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
     model::set_wt_cursor_key(cursor, key);
-    testutil_check_error_ok(ret = cursor->remove(cursor), WT_NOTFOUND);
+    ret = cursor->remove(cursor);
+    if (ret != WT_NOTFOUND && ret != WT_ROLLBACK)
+        testutil_check(ret);
 
     testutil_check(cursor->close(cursor));
     if (timestamp == 0)
@@ -143,7 +149,9 @@ wt_update(WT_SESSION *session, const char *uri, const model::data_value &key,
 
     model::set_wt_cursor_key(cursor, key);
     model::set_wt_cursor_value(cursor, value);
-    testutil_check_error_ok(ret = cursor->update(cursor), WT_NOTFOUND);
+    ret = cursor->update(cursor);
+    if (ret != WT_NOTFOUND && ret != WT_ROLLBACK)
+        testutil_check(ret);
 
     testutil_check(cursor->close(cursor));
     if (timestamp == 0)
