@@ -299,11 +299,12 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
     for (offset = 0, n = 0;; offset += n) {
         WT_SYSCALL_RETRY((n = pread(rfd, buf, COPY_BUF_SIZE, offset)) < 0 ? -1 : 0, ret);
         testutil_check(ret);
-        if (n == 0)
+        if (n == 0) {
+            testutil_assert(offset >= info->stat.st_size);
             break;
+        }
         testutil_assert_errno(write(wfd, buf, (size_t)n) == n);
     }
-
     testutil_assert_errno(close(rfd) == 0);
     testutil_assert_errno(close(wfd) == 0);
     free(buf);
@@ -612,4 +613,50 @@ testutil_remove(const char *path)
           g.gl_pathv[i], NULL, 0, true, remove_on_file, NULL, remove_on_directory_leave, NULL);
 
     globfree(&g);
+}
+
+/*
+ * testutil_exists --
+ *     Check whether a file exists. The function takes both a directory and a file argument, because
+ *     it is often used to check whether a file exists in a different directory. This saves the
+ *     caller an unnecessary snprintf.
+ */
+bool
+testutil_exists(const char *dir, const char *file)
+{
+    struct stat sb;
+    char path[PATH_MAX];
+
+    if (dir == NULL)
+        testutil_snprintf(path, sizeof(path), "%s", file);
+    else
+        testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", dir, file);
+
+    if (stat(path, &sb) == 0)
+        return (true);
+    else {
+        /* If stat failed, make sure that it is because the file does not exist. */
+        testutil_assert(errno == ENOENT);
+        return (false);
+    }
+}
+
+/*
+ * testutil_sentinel --
+ *     Create an empty "sentinel" file to indicate that something has happened. For example, this
+ *     can be used to indicate that a checkpoint or a backup completed.
+ */
+void
+testutil_sentinel(const char *dir, const char *file)
+{
+    FILE *fp;
+    char path[PATH_MAX];
+
+    if (dir == NULL)
+        testutil_snprintf(path, sizeof(path), "%s", file);
+    else
+        testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", dir, file);
+
+    testutil_assert_errno((fp = fopen(path, "w")) != NULL);
+    testutil_assert_errno(fclose(fp) == 0);
 }

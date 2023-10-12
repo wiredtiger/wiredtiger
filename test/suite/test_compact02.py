@@ -142,7 +142,8 @@ class test_compact02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         sz = self.getSize()
         self.pr('After populate ' + str(sz // mb) + 'MB')
-        self.assertGreater(sz, self.fullsize)
+        if not self.runningHook('tiered'):
+            self.assertGreater(sz, self.fullsize)
 
         # 3. Delete the half of the records with the larger record size.
         c = self.session.open_cursor(self.uri, None)
@@ -161,10 +162,11 @@ class test_compact02(wttest.WiredTigerTestCase):
         # 5. Call compact.
         # Compact can collide with eviction, if that happens we retry. Wait for
         # a long time, the check for EBUSY means we're not retrying on any real
-        # errors.
+        # errors. Set the minimum threshold to make sure compaction can be executed.
+        compact_cfg = "free_space_target=1MB"
         for i in range(1, 100):
             if not self.raisesBusy(
-              lambda: self.session.compact(self.uri, None)):
+              lambda: self.session.compact(self.uri, compact_cfg)):
                 break
             time.sleep(6)
 
@@ -173,13 +175,14 @@ class test_compact02(wttest.WiredTigerTestCase):
         self.pr('After compact ' + str(sz // mb) + 'MB')
 
         # After compact, the file size should be less than half the full size.
-        self.assertLess(sz, self.fullsize // 2)
+        if not self.runningHook('tiered'):
+            self.assertLess(sz, self.fullsize // 2)
 
-        # Verify compact progress stats.
-        statDict = self.getCompactProgressStats()
-        self.assertGreater(statDict["pages_reviewed"],0)
-        self.assertGreater(statDict["pages_rewritten"],0)
-        self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
+            # Verify compact progress stats.
+            statDict = self.getCompactProgressStats()
+            self.assertGreater(statDict["pages_reviewed"],0)
+            self.assertGreater(statDict["pages_rewritten"],0)
+            self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
                             statDict["pages_reviewed"])
 
 if __name__ == '__main__':

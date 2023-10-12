@@ -26,6 +26,7 @@ CURSTD
 CXX
 Cheng
 Christoph
+Chunkcache
 Collet's
 Coverity
 Coverity's
@@ -121,6 +122,7 @@ PROFDATA
 Powershell
 README
 RLE
+RNG
 RedHat
 RepMgr
 Riak
@@ -225,6 +227,7 @@ checkpointed
 checkpointing
 checksum
 checksums
+chunkcache
 ckp
 ckpt
 clickable

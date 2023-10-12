@@ -105,7 +105,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
 
     /* Undo any create on error. */
     if (ret != 0)
-        WT_TRET(__wt_fs_remove(session, filename, false));
+        WT_TRET(__wt_fs_remove(session, filename, false, false));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -198,6 +198,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     /* Basic structure allocation, initialization. */
     WT_ERR(__wt_calloc_one(session, &block));
     WT_ERR(__wt_strdup(session, filename, &block->name));
+    block->compact_session_id = WT_SESSION_ID_INVALID;
     block->objectid = objectid;
     block->ref = 1;
 
@@ -209,7 +210,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     block->allocsize = allocsize;
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
-    block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
+    block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len) ? 1 : 0;
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));
@@ -244,8 +245,10 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * Tiered storage sets file permissions to readonly, but nobody else does. This flag means the
      * underlying file is read-only, and NOT that the handle access pattern is read-only.
      */
-    if (readonly)
+    if (readonly) {
         LF_SET(WT_FS_OPEN_READONLY);
+        block->readonly = true;
+    }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
     /* Set the file's size. */

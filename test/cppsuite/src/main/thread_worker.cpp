@@ -41,6 +41,8 @@ const std::string
 type_string(thread_type type)
 {
     switch (type) {
+    case thread_type::BACKGROUND_COMPACT:
+        return ("background_compact");
     case thread_type::CHECKPOINT:
         return ("checkpoint");
     case thread_type::CUSTOM:
@@ -70,13 +72,14 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
   operation_tracker *op_tracker, database &dbase, std::shared_ptr<barrier> barrier_ptr)
     : /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->get_optional_int(COLLECTION_COUNT, 1)),
+      free_space_target_mb(config->get_optional_int(FREE_SPACE_TARGET_MB, 1)),
       key_count(config->get_optional_int(KEY_COUNT_PER_COLLECTION, 1)),
       key_size(config->get_optional_int(KEY_SIZE, 1)),
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
       txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
-      _sleep_time_ms(config->get_throttle_ms()), _barrier(barrier_ptr)
+      _sleep_time_ms(std::chrono::milliseconds(config->get_throttle_ms())), _barrier(barrier_ptr)
 {
     if (op_tracker->enabled())
         op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
@@ -265,7 +268,7 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
 void
 thread_worker::sleep()
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
+    std::this_thread::sleep_for(_sleep_time_ms);
 }
 
 void

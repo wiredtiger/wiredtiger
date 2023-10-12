@@ -5,6 +5,12 @@
 CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0,
                                  V_GLOBAL_ASSERT_READ_TIMESTAMP},
 
+  {"background_compact", "configure background compaction", C_BOOL, 10, 0, 0,
+    V_GLOBAL_BACKGROUND_COMPACT},
+
+  {"background_compact.free_space_target", "free space target for background compaction (MB)", 0x0,
+    1, 100, UINT_MAX, V_GLOBAL_BACKGROUND_COMPACT_FREE_SPACE_TARGET},
+
   {"backup", "configure backups", C_BOOL, 20, 0, 0, V_GLOBAL_BACKUP},
 
   {"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0,
@@ -101,6 +107,23 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
+
+  {"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_CHUNK_CACHE},
+
+  {"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 10,
+    1024, 100 * 1024, V_GLOBAL_CHUNK_CACHE_CAPACITY},
+
+  {"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 100, 100 * 1024,
+    V_GLOBAL_CHUNK_CACHE_CHUNK_SIZE},
+
+  {"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE,
+    0, 0, 0, V_GLOBAL_CHUNK_CACHE_STORAGE_PATH},
+
+  {"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0,
+    V_GLOBAL_CHUNK_CACHE_TYPE},
+
+  {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
+    V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
 
   {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024,
     V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
@@ -256,6 +279,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"ops.salvage", "configure salvage", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_SALVAGE},
 
+  {"ops.throttle", "enable delay between ops", C_BOOL, 10, 0, 0, V_GLOBAL_OPS_THROTTLE},
+
+  {"ops.throttle.sleep_us", "average duration of sleep between ops per table, us", 0x0, 0, M(1),
+    M(60), V_GLOBAL_OPS_THROTTLE_SLEEP_US},
+
   {"ops.truncate", "configure truncation", C_BOOL | C_TABLE, 100, 0, 0, V_TABLE_OPS_TRUNCATE},
 
   {"ops.verify", "configure verify", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_VERIFY},
@@ -314,12 +342,13 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_CHECKPOINT_PREPARE},
 
+  {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_COMPACT_SLOW},
+
   {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_EVICT_REPOSITION},
 
-  {"stress.failpoint_eviction_fail_after_reconciliation",
-    "stress failpoint eviction fail after reconciliation", C_BOOL, 30, 0, 0,
-    V_GLOBAL_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
+  {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0,
+    V_GLOBAL_STRESS_FAILPOINT_EVICTION_SPLIT},
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},

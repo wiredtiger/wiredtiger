@@ -178,11 +178,11 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_session_compact_check_timeout --
+ * __session_compact_check_timeout --
  *     Check if the timeout has been exceeded.
  */
-int
-__wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
+static int
+__session_compact_check_timeout(WT_SESSION_IMPL *session)
 {
     struct timespec end;
     WT_DECL_RET;
@@ -206,6 +206,50 @@ __wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_session_compact_check_interrupted --
+ *     Check if compaction has been interrupted. Foreground compaction can be interrupted through an
+ *     event handler while background compaction can be disabled at any time using the compact API.
+ */
+int
+__wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    bool background_compaction;
+
+    background_compaction = false;
+    conn = S2C(session);
+
+    /* If compaction has been interrupted, we return WT_ERROR to the caller. */
+    if (session == conn->background_compact.session) {
+        background_compaction = true;
+        /* Only check for interruption when the connection is not being opened/closed. */
+        if (!F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL)) {
+            __wt_spin_lock(session, &conn->background_compact.lock);
+            if (!conn->background_compact.running)
+                ret = WT_ERROR;
+            __wt_spin_unlock(session, &conn->background_compact.lock);
+        }
+    } else if (session->event_handler->handle_general != NULL) {
+        ret = session->event_handler->handle_general(
+          session->event_handler, &conn->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
+        if (ret != 0)
+            ret = WT_ERROR;
+    }
+
+    if (ret != 0) {
+        __wt_verbose_warning(session, WT_VERB_COMPACT, "%s interrupted by application",
+          background_compaction ? "background compact" : "compact");
+        return (ret);
+    }
+
+    /* Compaction can be interrupted if the timeout has exceeded. */
+    WT_RET(__session_compact_check_timeout(session));
+
+    return (0);
+}
+
+/*
  * __compact_checkpoint --
  *     This function does wait and force checkpoint.
  */
@@ -219,8 +263,10 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
     const char *checkpoint_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL};
 
-    /* Checkpoints take a lot of time, check if we've run out. */
-    WT_RET(__wt_session_compact_check_timeout(session));
+    /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
+    WT_RET(__wt_session_compact_check_interrupted(session));
+
+    WT_STAT_CONN_INCR(session, checkpoints_compact);
     return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
 }
 
@@ -271,9 +317,10 @@ __compact_worker(WT_SESSION_IMPL *session)
              * work, skip this file in the future.
              */
             if (ret == 0) {
-                if (session->compact_state == WT_COMPACT_SUCCESS)
+                if (session->compact_state == WT_COMPACT_SUCCESS) {
+                    WT_STAT_CONN_INCR(session, session_table_compact_dhandle_success);
                     another_pass = true;
-                else
+                } else
                     session->op_handle[i]->compact_skip = true;
                 continue;
             }
@@ -315,6 +362,22 @@ err:
 }
 
 /*
+ * __wt_compact_check_eligibility --
+ *     Function to check whether the specified URI is eligible for compaction.
+ */
+bool
+__wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_UNUSED(session);
+
+    /* Tiered tables cannot be compacted. */
+    if (WT_SUFFIX_MATCH(uri, ".wtobj"))
+        return (false);
+
+    return (true);
+}
+
+/*
  * __wt_session_compact --
  *     WT_SESSION.compact method.
  */
@@ -333,6 +396,36 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, compact, config, cfg);
+
+    /* Trigger the background server. */
+    if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
+        if (uri != NULL)
+            WT_ERR_MSG(session, EINVAL, "Background compaction does not work on specific URIs.");
+
+        /*
+         * We shouldn't provide any other configurations when explicitly disabling the background
+         * compaction server.
+         */
+        if (!cval.val) {
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "timeout configuration cannot be set when disabling the background compaction "
+                  "server.");
+
+            WT_ERR_NOTFOUND_OK(
+              __wt_config_getones(session, config, "free_space_target", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "free_space_target configuration cannot be set when disabling the background "
+                  "compaction server.");
+        }
+
+        WT_ERR(__wt_background_compact_signal(session, config));
+
+        goto done;
+    } else
+        WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_STAT_CONN_SET(session, session_table_compact_running, 1);
 
@@ -376,9 +469,17 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
         goto err;
     }
 
+    /* Check the file is eligible for compaction. */
+    if (!__wt_compact_check_eligibility(session, uri))
+        WT_ERR(__wt_object_unsupported(session, uri));
+
     /* Setup the session handle's compaction state structure. */
     memset(&compact, 0, sizeof(WT_COMPACT_STATE));
     session->compact = &compact;
+
+    /* Configure the minimum amount of space recoverable. */
+    WT_ERR(__wt_config_gets(session, cfg, "free_space_target", &cval));
+    session->compact->free_space_target = (uint64_t)cval.val;
 
     /* Compaction can be time-limited. */
     WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
@@ -431,6 +532,7 @@ err:
     if (ret == WT_PREPARE_CONFLICT)
         ret = WT_ROLLBACK;
 
+done:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 

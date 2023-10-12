@@ -488,6 +488,28 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
         session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    if (S2C(session)->prefetch_auto_on)
+        F_SET(session, WT_SESSION_PREFETCH);
+    else
+        F_CLR(session, WT_SESSION_PREFETCH);
+
+    /*
+     * Override any connection-level pre-fetch settings if a specific session-level setting was
+     * provided.
+     */
+    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) != WT_NOTFOUND) {
+        if (cval.val) {
+            if (!S2C(session)->prefetch_available) {
+                F_CLR(session, WT_SESSION_PREFETCH);
+                WT_ERR_MSG(session, EINVAL,
+                  "pre-fetching cannot be enabled for the session if pre-fetching is configured as "
+                  "unavailable");
+            } else
+                F_SET(session, WT_SESSION_PREFETCH);
+        } else
+            F_CLR(session, WT_SESSION_PREFETCH);
+    }
+
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
@@ -2349,7 +2371,8 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    WT_STAT_CONN_INCR(session, txn_checkpoint);
+    WT_STAT_CONN_INCR(session, checkpoints);
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RUNNING);
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, checkpoint, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
@@ -2375,6 +2398,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_TRET(__wt_session_release_resources(session));
 
 err:
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 

@@ -125,6 +125,18 @@ database_operation::populate(
 }
 
 void
+database_operation::background_compact_operation(thread_worker *tc)
+{
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
+    /* This needs to be executed only once in the workload. */
+    const std::string compact_cfg(
+      "background=true,free_space_target=" + std::to_string(tc->free_space_target_mb) + "MB");
+    testutil_check(tc->session->compact(tc->session.get(), nullptr, compact_cfg.c_str()));
+}
+
+void
 database_operation::checkpoint_operation(thread_worker *tc)
 {
     logger::log_msg(
@@ -255,7 +267,8 @@ database_operation::read_operation(thread_worker *tc)
                     testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
             tc->txn.add_op();
-            tc->txn.try_rollback();
+            if (tc->txn.get_op_count() >= tc->txn.get_target_op_count())
+                tc->txn.rollback();
             tc->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
@@ -408,9 +421,12 @@ database_operation::update_operation(thread_worker *tc)
 }
 
 void
-database_operation::validate(
-  const std::string &operation_table_name, const std::string &schema_table_name, database &db)
+database_operation::validate(bool tracking_enabled, const std::string &operation_table_name,
+  const std::string &schema_table_name, database &db)
 {
+    // The default implementation requires the tracking component to be enabled.
+    if (!tracking_enabled)
+        return;
     validator wv;
     wv.validate(operation_table_name, schema_table_name, db);
 }

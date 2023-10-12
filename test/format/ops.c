@@ -267,7 +267,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    wt_thread_t alter_tid, backup_tid, checkpoint_tid, compact_tid, hs_tid, import_tid, random_tid;
+    wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid, hs_tid,
+      import_tid, random_tid;
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
@@ -281,6 +282,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     session = NULL; /* -Wconditional-uninitialized */
     memset(&alter_tid, 0, sizeof(alter_tid));
+    memset(&background_compact_tid, 0, sizeof(background_compact_tid));
     memset(&backup_tid, 0, sizeof(backup_tid));
     memset(&checkpoint_tid, 0, sizeof(checkpoint_tid));
     memset(&compact_tid, 0, sizeof(compact_tid));
@@ -346,6 +348,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     /* Start optional special-purpose threads. */
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL));
+    if (GV(BACKGROUND_COMPACT))
+        testutil_check(__wt_thread_create(NULL, &background_compact_tid, background_compact, NULL));
     if (GV(BACKUP))
         testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL));
     if (GV(OPS_COMPACTION))
@@ -443,6 +447,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     g.workers_finished = true;
     if (GV(OPS_ALTER))
         testutil_check(__wt_thread_join(NULL, &alter_tid));
+    if (GV(BACKGROUND_COMPACT))
+        testutil_check(__wt_thread_join(NULL, &background_compact_tid));
     if (GV(BACKUP))
         testutil_check(__wt_thread_join(NULL, &backup_tid));
     if (g.checkpoint_config == CHECKPOINT_ON)
@@ -949,13 +955,14 @@ ops(void *arg)
     WT_SESSION *session;
     iso_level_t iso_level;
     thread_op op;
-    uint64_t reset_op, session_op, truncate_op;
+    uint64_t reset_op, session_op, throttle_delay, truncate_op;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i;
+    u_int i, throttle_delay_max;
     const char *iso_config;
-    bool greater_than, intxn, prepared;
+    bool greater_than, intxn, prepared, mirrored_truncate;
 
     tinfo = arg;
+    mirrored_truncate = false;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -975,6 +982,14 @@ ops(void *arg)
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
 
+    /*
+     * Calculate max delay so that per-table ops/sec is as set. We use 2* here as our random
+     * operation uses a flat distribution and the average delay will come out to
+     * OPS_THROTTLE_SLEEP_US.
+     */
+    throttle_delay_max =
+      2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
+
     /* Set the first operation where we'll create a new session and cursors. */
     session = NULL;
     session_op = 0;
@@ -986,7 +1001,13 @@ ops(void *arg)
     truncate_op = mmrand(&tinfo->data_rnd, 100, 10 * WT_THOUSAND);
 
     for (intxn = false; !tinfo->quit;) {
+        if (GV(OPS_THROTTLE)) {
+            /* Sleep first to avoid burst when all threads start. */
+            throttle_delay = mmrand(&tinfo->extra_rnd, 0, throttle_delay_max);
+            __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
+        }
 rollback_retry:
+        mirrored_truncate = false;
         if (tinfo->quit)
             break;
 
@@ -1167,22 +1188,18 @@ rollback_retry:
                      * Edge case: There is a case where we cannot detect a proper mirror mismatch.
                      * Say we truncated the tail end key range of all the mirrors from N to
                      * max_rows. This truncate happened before any thread added another non-mirrored
-                     * append/insert to a VLCS table and the data in that truncated key range was
-                     * sufficient to delete the pages at the end of the VLCS table. Then when a VLCS
-                     * non-mirrored insert happened, it appended the new item at key N instead of at
-                     * max_rows + 1.
-                     *
-                     * Then the next mirror check will detect a mismatch if there is an FLCS table
-                     * because the appended value does not match the FLCS truncated value. The
-                     * mismatch does not trigger with row-store tables because the row-store code to
-                     * get the next mirror key in format returns WT_NOTFOUND because all those
-                     * mirror keys are gone. But FLCS maintains all record numbers.
+                     * append/insert to a column store table and the data in that truncated key
+                     * range was sufficient to delete the pages at the end of the column store
+                     * table. Then when a column store non-mirrored insert happened, it appended the
+                     * new item at key N instead of at max_rows + 1. Then the next mirror check will
+                     * detect a mismatch from the row-store table because the appended value does
+                     * not match the truncated value.
                      *
                      * We want to test truncate at the end of the range as much as possible, so
                      * adjust the end range to max_rows - 1 only in the case where we are mirroring
-                     * and have both a VLCS and FLCS table.
+                     * and have a column store table.
                      */
-                    if (g.base_mirror != NULL && g.mirror_fix_var &&
+                    if (g.base_mirror != NULL && g.mirror_col_store &&
                       (tinfo->last == 0 || tinfo->last == max_rows)) {
                         tinfo->last = max_rows - 1;
                         /*
@@ -1287,7 +1304,9 @@ rollback_retry:
                 goto rollback;
             skip2 = table;
         }
-        if (ret == 0 && table->mirror)
+        if (ret == 0 && table->mirror) {
+            if (op == TRUNCATE)
+                mirrored_truncate = true;
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
@@ -1298,6 +1317,7 @@ rollback_retry:
                     if (ret == WT_ROLLBACK)
                         break;
                 }
+        }
 skip_operation:
         table = tinfo->table = NULL;
 
@@ -1392,6 +1412,9 @@ rollback:
             snap_repeat_update(tinfo, false);
             break;
         }
+
+        if (mirrored_truncate)
+            wts_verify_mirrored_truncate(tinfo);
 
         intxn = false;
     }

@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef THREAD_MANAGER_H
-#define THREAD_MANAGER_H
+#pragma once
 
 #include <thread>
 #include <vector>
@@ -43,7 +42,7 @@ public:
      */
     template <typename Callable, typename... Args>
     void
-    add_thread(Callable &&fct, Args &&... args)
+    add_thread(Callable &&fct, Args &&...args)
     {
         std::thread *t = new std::thread(fct, std::forward<Args>(args)...);
         _workers.push_back(t);
@@ -58,5 +57,3 @@ private:
     std::vector<std::thread *> _workers;
 };
 } // namespace test_harness
-
-#endif
