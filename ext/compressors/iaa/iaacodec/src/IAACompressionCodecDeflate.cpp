@@ -1,6 +1,6 @@
 #include <thread>
 #include <cstdio>
-#include <stdlib.h>
+#include <unistd.h>
 #include "IAACompressionCodecDeflate.h"
 
 namespace DB::IAA {
@@ -68,9 +68,9 @@ HardwareCodecDeflate::~HardwareCodecDeflate()
 }
 
 inline void
-HardwareCodecDeflate::memPageSet(uint8_t *dest, int len) const
+HardwareCodecDeflate::memPageSet(uint8_t *dest, uint32_t len) const
 {
-    if (dest == NULL || len < 0) {
+    if (dest == NULL) {
         return;
     }
     // Touch dest buffer in advance to avoid page fault on it triggered by accelerator.
