@@ -76,8 +76,6 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
           cb->granularity, cb->nbits, cb->offset);
         __wt_verbose_debug2(session, WT_VERB_BACKUP, "Modified incr block config: \"%s\"", config);
 
-        printf(".    Modified incr block config: \'%s\'\n", config);
-
         /*
          * The rename configuration string component was added later. So don't error if we don't
          * find it in the string. If we don't have it, we're not doing a rename. Otherwise rename
