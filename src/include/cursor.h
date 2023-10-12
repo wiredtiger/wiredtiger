@@ -109,8 +109,8 @@ struct __wt_cursor_btree {
     WT_REF *ref;   /* Current page */
     uint32_t slot; /* WT_COL/WT_ROW 0-based slot */
 
-    wt_shared WT_INSERT_HEAD *ins_head; /* Insert chain head */
-    WT_INSERT *ins;                     /* Current insert node */
+    WT_INSERT_HEAD *ins_head; /* Insert chain head */
+    WT_INSERT *ins;           /* Current insert node */
     /* Search stack */
     WT_INSERT **ins_stack[WT_SKIP_MAXDEPTH];
 

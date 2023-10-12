@@ -1536,8 +1536,8 @@ struct __wt_insert {
  * 	The head of a skiplist of WT_INSERT items.
  */
 struct __wt_insert_head {
-    WT_INSERT *head[WT_SKIP_MAXDEPTH]; /* first item on skiplists */
-    WT_INSERT *tail[WT_SKIP_MAXDEPTH]; /* last item on skiplists */
+    wt_shared WT_INSERT *head[WT_SKIP_MAXDEPTH]; /* first item on skiplists */
+    wt_shared WT_INSERT *tail[WT_SKIP_MAXDEPTH]; /* last item on skiplists */
 };
 
 /*
