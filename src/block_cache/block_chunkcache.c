@@ -1128,6 +1128,7 @@ __wt_chunkcache_salvage(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     WT_RET_NOTFOUND_OK(__wt_metadata_remove(session, WT_CC_METAFILE_URI));
+
     return (ret);
 }
 

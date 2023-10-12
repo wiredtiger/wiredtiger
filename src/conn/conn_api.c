@@ -3155,9 +3155,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         wt_session = &session->iface;
         WT_ERR(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
-
-        /* Now that the metadata is usable, see if we need to erase the chunk cache. */
-        WT_ERR(__wt_chunkcache_salvage(session));
     }
 
     /* Initialize connection values from stored metadata. */
@@ -3177,6 +3174,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
+
+    /*
+     * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a
+     * boring metadata operation that should be done after metadata, transactions, schema,
+     * etc. are all up and running.
+     */
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
+        WT_ERR(__wt_chunkcache_salvage(session));
 
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
