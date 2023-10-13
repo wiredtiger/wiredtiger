@@ -360,9 +360,11 @@ struct __wt_connection_impl {
 
     WT_FH *lock_fh; /* Lock file handle */
 
-    /* Locked: chunkcache metadata work queue. */
+    /* Locked: chunkcache metadata work queue (and length counter). */
     TAILQ_HEAD(__wt_chunkcache_metadata_qh, __wt_chunkcache_metadata_work_unit)
     chunkcache_metadataqh;
+    int chunkcache_queue_len;
+
     /*
      * The connection keeps a cache of data handles. The set of handles can grow quite large so we
      * maintain both a simple list and a hash table of lists. The hash table key is based on a hash

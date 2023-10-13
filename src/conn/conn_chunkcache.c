@@ -154,8 +154,10 @@ __chunkcache_metadata_pop_work(WT_SESSION_IMPL *session, WT_CHUNKCACHE_METADATA_
     conn = S2C(session);
 
     __wt_spin_lock(session, &conn->chunkcache_metadata_lock);
-    if ((*entryp = TAILQ_FIRST(&conn->chunkcache_metadataqh)) != NULL)
+    if ((*entryp = TAILQ_FIRST(&conn->chunkcache_metadataqh)) != NULL) {
         TAILQ_REMOVE(&conn->chunkcache_metadataqh, *entryp, q);
+        --conn->chunkcache_queue_len;
+    }
     __wt_spin_unlock(session, &conn->chunkcache_metadata_lock);
 
     WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_dequeued);
@@ -327,7 +329,9 @@ __wt_chunkcache_metadata_destroy(WT_SESSION_IMPL *session)
         while ((entry = TAILQ_FIRST(&conn->chunkcache_metadataqh)) != NULL) {
             TAILQ_REMOVE(&conn->chunkcache_metadataqh, entry, q);
             __wt_free(session, entry);
+            --conn->chunkcache_queue_len;
         }
+        WT_ASSERT(session, conn->chunkcache_queue_len == 0);
     }
 
     if (conn->chunkcache_metadata_session != NULL) {
