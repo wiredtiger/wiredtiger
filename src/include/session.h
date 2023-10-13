@@ -30,6 +30,16 @@ struct __wt_hazard {
 #endif
 };
 
+/*
+ * WT_PREFETCH --
+ *	Pre-fetch structure containing useful information for pre-fetch.
+ */
+struct __wt_prefetch {
+    WT_REF *prefetch_prev_ref;
+    uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
+    uint64_t prefetch_skipped_with_parent;
+};
+
 /* Get the connection implementation for a session */
 #define S2C(session) ((WT_CONNECTION_IMPL *)((WT_SESSION_IMPL *)(session))->iface.connection)
 
@@ -177,6 +187,8 @@ struct __wt_session_impl {
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
+    WT_PREFETCH pf; /* Pre-fetch structure */
+
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
 
@@ -262,11 +274,12 @@ struct __wt_session_impl {
 #define WT_SESSION_LOGGING_INMEM 0x00800u
 #define WT_SESSION_NO_DATA_HANDLES 0x01000u
 #define WT_SESSION_NO_RECONCILE 0x02000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x04000u
-#define WT_SESSION_READ_WONT_NEED 0x08000u
-#define WT_SESSION_RESOLVING_TXN 0x10000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000u
-#define WT_SESSION_SCHEMA_TXN 0x40000u
+#define WT_SESSION_PREFETCH 0x04000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x08000u
+#define WT_SESSION_READ_WONT_NEED 0x10000u
+#define WT_SESSION_RESOLVING_TXN 0x20000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x40000u
+#define WT_SESSION_SCHEMA_TXN 0x80000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

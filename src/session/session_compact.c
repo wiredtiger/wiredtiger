@@ -265,6 +265,8 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 
     /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
     WT_RET(__wt_session_compact_check_interrupted(session));
+
+    WT_STAT_CONN_INCR(session, checkpoints_compact);
     return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
 }
 
@@ -316,8 +318,7 @@ __compact_worker(WT_SESSION_IMPL *session)
              */
             if (ret == 0) {
                 if (session->compact_state == WT_COMPACT_SUCCESS) {
-                    if (session == S2C(session)->background_compact.session)
-                        WT_STAT_CONN_INCR(session, background_compact_success);
+                    WT_STAT_CONN_INCR(session, session_table_compact_dhandle_success);
                     another_pass = true;
                 } else
                     session->op_handle[i]->compact_skip = true;
@@ -358,6 +359,22 @@ err:
     session->compact_state = WT_COMPACT_NONE;
 
     return (ret);
+}
+
+/*
+ * __wt_compact_check_eligibility --
+ *     Function to check whether the specified URI is eligible for compaction.
+ */
+bool
+__wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_UNUSED(session);
+
+    /* Tiered tables cannot be compacted. */
+    if (WT_SUFFIX_MATCH(uri, ".wtobj"))
+        return (false);
+
+    return (true);
 }
 
 /*
@@ -404,7 +421,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
                   "compaction server.");
         }
 
-        WT_ERR(__wt_compact_signal(session, config));
+        WT_ERR(__wt_background_compact_signal(session, config));
 
         goto done;
     } else
@@ -451,6 +468,10 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
             ret = __wt_bad_object_type(session, uri);
         goto err;
     }
+
+    /* Check the file is eligible for compaction. */
+    if (!__wt_compact_check_eligibility(session, uri))
+        WT_ERR(__wt_object_unsupported(session, uri));
 
     /* Setup the session handle's compaction state structure. */
     memset(&compact, 0, sizeof(WT_COMPACT_STATE));

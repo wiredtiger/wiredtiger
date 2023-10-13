@@ -1,6 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import print_function
 import os, re, sys, textwrap
 from dist import compare_srcfile, format_srcfile, ModifyFile
 
@@ -504,3 +503,4 @@ if not test_config:
     config_h = ModifyFile('../src/include/config.h')
     with config_h.replace_fragment('configuration section') as tfile:
             tfile.write(config_defines)
+    config_h.done()

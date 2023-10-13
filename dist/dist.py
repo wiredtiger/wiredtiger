@@ -1,4 +1,5 @@
-from __future__ import print_function
+#!/usr/bin/env python3
+
 import filecmp, fnmatch, glob, os, re, shutil, subprocess
 from contextlib import contextmanager
 

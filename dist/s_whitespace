@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/bash
 
 # Single space, newline at the end of file, and remove trailing whitespace from source files.
 t=__wt.$$
@@ -23,7 +23,9 @@ find bench dist examples ext src test \
     -name '*.cpp' -o \
     -name '*.dox' -o \
     -name '*.in' -o \
+    -name '*.sh' -o \
     -name 's_*' -o \
+    -name 'CONFIG.*' -o \
     -name 'Makefile.am' |
     sed -e '/Makefile.in/d' \
         -e '/checksum\/power8/d' \

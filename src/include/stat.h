@@ -354,10 +354,13 @@ struct __wt_connection_stats {
     int64_t background_compact_fail;
     int64_t background_compact_fail_cache_pressure;
     int64_t background_compact_interrupted;
+    int64_t background_compact_ema;
+    int64_t background_compact_bytes_recovered;
     int64_t background_compact_running;
     int64_t background_compact_skipped;
     int64_t background_compact_success;
     int64_t background_compact_timeout;
+    int64_t background_compact_files_tracked;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
     int64_t block_cache_blocks_evicted;
@@ -372,6 +375,12 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
+    int64_t block_prefetch_disk_one;
+    int64_t block_prefetch_skipped;
+    int64_t block_prefetch_pages_fail;
+    int64_t block_prefetch_pages_queued;
+    int64_t block_prefetch_pages_read;
+    int64_t block_prefetch_attempts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_blocks;
@@ -387,6 +396,7 @@ struct __wt_connection_stats {
     int64_t block_byte_read_mmap;
     int64_t block_byte_read_syscall;
     int64_t block_byte_write;
+    int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
     int64_t block_byte_write_mmap;
     int64_t block_byte_write_syscall;
@@ -507,6 +517,7 @@ struct __wt_connection_stats {
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
+    int64_t cache_eviction_consider_prefetch;
     int64_t cache_pages_inuse;
     int64_t cache_eviction_app;
     int64_t cache_eviction_pages_in_parallel_with_checkpoint;
@@ -520,6 +531,7 @@ struct __wt_connection_stats {
     int64_t cache_read_deleted_prepared;
     int64_t cache_eviction_clear_ordinary;
     int64_t cache_pages_requested;
+    int64_t cache_pages_prefetch;
     int64_t cache_eviction_pages_seen;
     int64_t cache_eviction_pages_already_queued;
     int64_t cache_eviction_fail;
@@ -533,6 +545,9 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t cache_eviction_server_skip_pages_last_running;
+    int64_t cache_eviction_server_skip_pages_retry;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_reentry_hs_eviction_milliseconds;
@@ -571,6 +586,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
     int64_t checkpoints;
+    int64_t checkpoints_compact;
     int64_t checkpoint_sync;
     int64_t checkpoint_presync;
     int64_t checkpoint_hs_pages_reconciled;
@@ -594,11 +610,11 @@ struct __wt_connection_stats {
     int64_t checkpoint_obsolete_applied;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t chunk_cache_spans_chunks_read;
-    int64_t chunk_cache_spans_chunks_remove;
     int64_t chunk_cache_chunks_evicted;
     int64_t chunk_cache_exceeded_capacity;
     int64_t chunk_cache_lookups;
     int64_t chunk_cache_misses;
+    int64_t chunk_cache_newly_inserted;
     int64_t chunk_cache_io_failed;
     int64_t chunk_cache_retries;
     int64_t chunk_cache_toomany_retries;
@@ -852,6 +868,7 @@ struct __wt_connection_stats {
     int64_t session_table_alter_success;
     int64_t session_table_alter_trigger_checkpoint;
     int64_t session_table_alter_skip;
+    int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
     int64_t session_table_compact_running;
@@ -1064,6 +1081,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
     int64_t cache_pages_requested;
+    int64_t cache_pages_prefetch;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;
