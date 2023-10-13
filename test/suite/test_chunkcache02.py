@@ -99,7 +99,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         self.session.checkpoint('flush_tier=(enabled)')
 
         # Assert the new chunks are ingested. 
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_newly_inserted), 0)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_loaded_from_flushed_tables), 0)
 
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()

@@ -6010,10 +6010,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHUNK_CACHE_EXCEEDED_CAPACITY	1269
 /*! chunk-cache: lookups */
 #define	WT_STAT_CONN_CHUNK_CACHE_LOOKUPS		1270
+/*!
+ * chunk-cache: number of chunks loaded from flushed tables in chunk
+ * cache
+ */
+#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_LOADED_FROM_FLUSHED_TABLES	1271
 /*! chunk-cache: number of misses */
-#define	WT_STAT_CONN_CHUNK_CACHE_MISSES			1271
-/*! chunk-cache: number of newly inserted objects in chunk cache */
-#define	WT_STAT_CONN_CHUNK_CACHE_NEWLY_INSERTED		1272
+#define	WT_STAT_CONN_CHUNK_CACHE_MISSES			1272
 /*! chunk-cache: number of times a read from storage failed */
 #define	WT_STAT_CONN_CHUNK_CACHE_IO_FAILED		1273
 /*! chunk-cache: retried accessing a chunk while I/O was in progress */
