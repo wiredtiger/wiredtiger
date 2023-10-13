@@ -47,11 +47,16 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 /*
  * Configuration.
  */
-#define ENV_CONFIG                                            \
+#define ENV_CONFIG_DEFAULT                                    \
     "cache_size=20M,create,"                                  \
-    "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=100," \
+    "statistics=(all),statistics_log=(wait=1,json,on_close)"
+
+#define ENV_CONFIG_NOLOG                                      \
+    "cache_size=20M,create,"                                  \
+    "eviction_updates_target=20,eviction_updates_trigger=90," \
+    "session_max=100,"                                        \
     "statistics=(all),statistics_log=(wait=1,json,on_close)"
 
 #define BACKUP_BASE "backup."
@@ -60,6 +65,8 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 #define TABLE_CONFIG "key_format=S,value_format=S,log=(enabled=false)"
 #define TABLE_NAME "table"
 #define TABLE_URI ("table:" TABLE_NAME)
+
+static const char *env_config;
 
 /*
  * Other constants.
@@ -129,7 +136,7 @@ verify_backup(const char *backup_home)
     testutil_copy(backup_home, CHECK_DIR);
 
     /* Open the backup. */
-    testutil_wiredtiger_open(opts, CHECK_DIR, ENV_CONFIG, NULL, &conn, true, false);
+    testutil_wiredtiger_open(opts, CHECK_DIR, env_config, NULL, &conn, true, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Verify self-consistency. */
@@ -198,7 +205,7 @@ do_work_after_failure(bool backup_from_min)
     char backup_home[64], backup_id[32], src_backup_home[64], src_backup_id[32], *str;
 
     /* Reopen the database and find available backup IDs. */
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, ENV_CONFIG, NULL, &conn, false, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, env_config, NULL, &conn, false, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
@@ -262,7 +269,7 @@ run_test1(void)
 
     if (pid == 0) { /* Child. */
         testutil_recreate_dir(WT_HOME_DIR);
-        testutil_wiredtiger_open(opts, WT_HOME_DIR, ENV_CONFIG, NULL, &conn, false, false);
+        testutil_wiredtiger_open(opts, WT_HOME_DIR, env_config, NULL, &conn, false, false);
         testutil_check(conn->open_session(conn, NULL, NULL, &session));
         testutil_check(session->create(session, TABLE_URI, TABLE_CONFIG));
 
@@ -314,7 +321,7 @@ run_test2(void)
 
     if (pid == 0) { /* Child. */
         testutil_recreate_dir(WT_HOME_DIR);
-        testutil_wiredtiger_open(opts, WT_HOME_DIR, ENV_CONFIG, NULL, &conn, false, false);
+        testutil_wiredtiger_open(opts, WT_HOME_DIR, env_config, NULL, &conn, false, false);
         testutil_check(conn->open_session(conn, NULL, NULL, &session));
         testutil_check(session->create(session, TABLE_URI, TABLE_CONFIG));
 
@@ -353,7 +360,10 @@ run_test2(void)
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s%s [-s SCENARIO_NUM]\n", progname, opts->usage);
+    fprintf(stderr, "usage: %s%s [-n] [-s SCENARIO_NUM]\n\n", progname, opts->usage);
+    fprintf(stderr, "Test-specific options:\n");
+    fprintf(stderr, "    -n    disable log\n");
+    fprintf(stderr, "    -s N  set the scenario number (use 0 for all scenarios)\n");
     exit(EXIT_FAILURE);
 }
 
@@ -376,12 +386,17 @@ main(int argc, char *argv[])
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
+
+    env_config = ENV_CONFIG_DEFAULT;
     scenario = 0;
 
     /* Parse the command-line arguments. */
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
-    while ((ch = __wt_getopt(progname, argc, argv, "s:" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "ns:" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
+        case 'n':
+            env_config = ENV_CONFIG_NOLOG;
+            break;
         case 's':
             scenario = atoi(__wt_optarg);
             break;
