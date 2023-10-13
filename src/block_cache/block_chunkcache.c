@@ -1082,6 +1082,7 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
     __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE,
       "created and linked chunk: %s(%u), offset=%" PRId64 ", size=%lu", (char *)name, id,
       newchunk->chunk_offset, newchunk->chunk_size);
+    WT_STAT_CONN_INCR(session, chunkcache_create_and_link_chunks);
     __insert_update_stats(session, newchunk);
 
     if (0) {
