@@ -240,8 +240,8 @@ S3FileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
     bool objExists;
     size_t objSize;
     if ((ret = fs->connection->ObjectExists(std::string(name), objExists, objSize)) != 0) {
-        s3->log->LogErrorMessage("S3FileOpen: error checking if the file exists. Ret code:" +
-          std::string(std::strerror(ret)));
+        s3->log->LogErrorMessage(
+          "S3FileOpen: error checking if the file exists: " + std::string(std::strerror(ret)));
         return (ret);
     }
     if (!objExists) {
