@@ -248,18 +248,21 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # call for now.
         #
         # There have been no data changes nor checkpoints since the last flush_tier with
-        # force, above. The skip statistics should increase and the switched
-        # statistics should stay the same.
+        # force, above. Even if the tables are clean, when asked to flush, there should
+        # be a switch and the tables should not be skipped.
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
         self.session.checkpoint('flush_tier=(enabled,timeout=100)')
         skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
-        self.assertEqual(switch1, switch2)
-        self.assertGreater(skip2, skip1)
+        self.assertEqual(skip1, skip2)
+        self.assertGreater(switch2, switch1)
+        flush += 1
+        calls = self.get_stat(stat.conn.flush_tier, None)
+        self.assertEqual(calls, flush)
 
         self.session.checkpoint('flush_tier=(enabled,sync=false)')
-        flush += 2
+        flush += 1
         self.pr("reconfigure get stat")
         calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(calls, flush)
@@ -296,8 +299,9 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Due to the above modification, we should skip the 'other' table while
         # switching the main tiered table. Therefore, both the skip and switch
         # values should increase by one.
-        self.assertEqual(skip2, skip1 + 1)
-        self.assertEqual(switch2, switch1 + 1)
+        # --- We do not skip even if clean ---
+        self.assertEqual(skip2, skip1)
+        self.assertEqual(switch2, switch1 + 2)
 
 if __name__ == '__main__':
     wttest.run()
