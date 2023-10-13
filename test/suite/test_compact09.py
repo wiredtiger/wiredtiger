@@ -133,6 +133,8 @@ class test_compact09(wttest.WiredTigerTestCase):
         while self.get_bg_compaction_files_excluded() < self.n_tables:
             time.sleep(1)
         assert self.get_files_compacted() == 0
+        num_files_excluded = self.get_bg_compaction_files_excluded()
+        assert num_files_excluded == self.n_tables
 
         # Stop the background compaction server.
         self.turn_off_bg_compact()
@@ -142,10 +144,11 @@ class test_compact09(wttest.WiredTigerTestCase):
         config = f'background=true,free_space_target=1MB,exclude={exclude_list}'
         self.turn_on_bg_compact(config)
 
-        # Background compaction should exclude only one file now.
-        while self.get_bg_compaction_files_excluded() < self.n_tables + 1:
+        # Background compaction should exclude only one file now. Since the stats are cumulative, we
+        # need to take into account the previous check.
+        while self.get_bg_compaction_files_excluded() < num_files_excluded + 1:
             time.sleep(1)
-        assert self.get_bg_compaction_files_excluded() == self.n_tables + 1
+        assert self.get_bg_compaction_files_excluded() == num_files_excluded + 1
 
         # We should now start compacting the second table.
         while self.get_files_compacted() == 0:
