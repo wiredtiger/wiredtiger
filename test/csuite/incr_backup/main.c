@@ -839,7 +839,7 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     testutil_snprintf(backup_check, sizeof(backup_check), "./%s.CHECK", home);
     testutil_snprintf(backup_dir, sizeof(backup_dir), "./%s.BACKUP", home);
     testutil_snprintf(backup_src, sizeof(backup_src), "./%s.BACKUP.SRC", home);
-    printf("Seed: %" PRIu64 "\n", seed);
+    printf("Seed: %" PRIu64 " (0x%" PRIx64 ")\n", seed, seed);
 
     testutil_recreate_dir(home);
     testutil_remove(backup_dir);
@@ -990,7 +990,7 @@ main(int argc, char *argv[])
             preserve = true;
             break;
         case 'S':
-            seed_param = (uint64_t)atoll(__wt_optarg);
+            seed_param = strtoull(__wt_optarg, NULL, 0);
             break;
         case 'v':
             verbose_level = atoi(__wt_optarg);
