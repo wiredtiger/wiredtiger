@@ -408,6 +408,7 @@ conn_stats = [
     ChunkCacheStat('chunkcache_chunks_evicted', 'chunks evicted'),
     ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
     ChunkCacheStat('chunkcache_chunks_pinned', 'total pinned chunks held by the chunk cache'),
+    ChunkCacheStat('chunkcache_create_and_link_chunks', 'total number of chunks created, and linked to their corresponding on-disk offsets using information extracted from metadata.'),
     ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
     ChunkCacheStat('chunkcache_io_failed', 'number of times a read from storage failed'),
     ChunkCacheStat('chunkcache_lookups', 'lookups'),

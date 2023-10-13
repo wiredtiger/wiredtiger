@@ -1043,7 +1043,7 @@ __wt_chunkcache_create_and_link_chunk(WT_SESSION_IMPL *session, const char *name
     WT_ERR(__create_and_populate_chunk(
       session, &newchunk, file_offset, chunk_size, &hash_id, bucket_id));
 
-    /* Get the position of a specific bit index and link the chunk and its memory cached on disk */
+    /* Get the position of a specific bit index and link the chunk's memory cached on disk */
     bit_index = cache_offset / chunkcache->chunk_size;
     WT_ASSERT_ALWAYS(session, !__set_bit_index(session, bit_index),
       "the link between chunk memory and cached data cannot be established as the link is already "
@@ -1053,6 +1053,8 @@ __wt_chunkcache_create_and_link_chunk(WT_SESSION_IMPL *session, const char *name
 
     TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), newchunk, next_chunk);
     WT_PUBLISH(newchunk->valid, true);
+
+    WT_STAT_CONN_INCR(session, chunkcache_create_and_link_chunks);
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE,
       "created and linked chunk: %s(%u), offset=%" PRId64 ", size=%lu", (char *)name, id,
