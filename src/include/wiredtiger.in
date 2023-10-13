@@ -5239,7 +5239,6 @@ struct __wt_storage_source {
      * the handle will not be subsequently accessed by WiredTiger.
      */
     int (*terminate)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session);
-
 };
 #endif
 
