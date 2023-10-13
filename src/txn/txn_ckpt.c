@@ -1753,6 +1753,10 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
      * checkpoint.
      */
     WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
+
+    /* Make sure checkpoint "now" is only set temporarily. We should have cleared it by now. */
+    WT_ASSERT(session, btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_NOW);
+
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
         /*
          * If we decide to skip checkpointing, clear the delete flag on the checkpoints. The list of
@@ -2073,6 +2077,14 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
+
+    /* If the timer has been set to checkpoint "now", we can not skip it. */
+    if (btree->clean_ckpt_timer == WT_BTREE_CLEAN_CKPT_NOW) {
+        /* Do the checks for the old checkpoint deletion and obsolete pages the next time. */
+        WT_BTREE_CLEAN_CKPT(session, btree, 0);
+        return (0);
+    }
+
     if (!btree->modified && !force) {
         deleted = 0;
         WT_CKPT_FOREACH (ckptbase, ckpt) {
@@ -2080,10 +2092,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
              * checkpoint cleanup.
              */
-            if (__checkpoint_apply_obsolete(session, btree, ckpt)) {
-                WT_BTREE_CLEAN_CKPT(session, btree, 0);
+            if (__checkpoint_apply_obsolete(session, btree, ckpt))
                 return (0);
-            }
 
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 ++deleted;
@@ -2092,17 +2102,15 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
         /*
          * Complicated test: if the tree is clean and last two checkpoints have the same name
          * (correcting for internal checkpoint names with their generational suffix numbers), we can
-         * skip the checkpoint, there's nothing to do. The exception is if this tree was marked to
-         * be checkpointed now, or if we're deleting two or more checkpoints: then we may save
-         * space.
+         * skip the checkpoint, there's nothing to do. The exception is if we're deleting two or
+         * more checkpoints: then we may save space.
          */
         name = (ckpt - 1)->name;
         if (ckpt > ckptbase + 1 && deleted < 2 &&
           (strcmp(name, (ckpt - 2)->name) == 0 ||
             (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
               WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
-            if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_NOW)
-                F_SET(btree, WT_BTREE_SKIP_CKPT);
+            F_SET(btree, WT_BTREE_SKIP_CKPT);
             /*
              * If there are potentially extra checkpoints to delete, we set the timer to recheck
              * later. If there are at most two checkpoints, the current one and possibly a previous
