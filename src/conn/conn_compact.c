@@ -44,10 +44,11 @@ __background_compact_exclude_list_add(WT_SESSION_IMPL *session, const char *name
     /* Insert entry into hash table. */
     TAILQ_INSERT_HEAD(&conn->background_compact.exclude_list_hash[bucket], new_entry, hashq);
 
-    return (0);
+    if (ret != 0) {
 err:
-    __wt_free(session, new_entry->name);
-    __wt_free(session, new_entry);
+        __wt_free(session, new_entry->name);
+        __wt_free(session, new_entry);
+    }
 
     return (ret);
 }
