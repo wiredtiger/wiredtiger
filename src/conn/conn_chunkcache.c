@@ -93,7 +93,7 @@ __chunkcache_apply_metadata_content(WT_SESSION_IMPL *session)
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &name, &id, &file_offset));
         WT_ERR(cursor->get_value(cursor, &cache_offset, &data_sz));
-        WT_ERR(__wt_chunkcache_create_and_link_chunk(
+        WT_ERR(__wt_chunkcache_create_from_metadata(
           session, name, id, file_offset, cache_offset, data_sz));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
