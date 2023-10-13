@@ -41,7 +41,7 @@ __background_compact_exclude_list_add(WT_SESSION_IMPL *session, const char *name
 
     hash = __wt_hash_city64(name, len);
     bucket = hash & (conn->hash_size - 1);
-    /* Insert target uri entry into hashtable. */
+    /* Insert entry into hash table. */
     TAILQ_INSERT_HEAD(&conn->background_compact.exclude_list_hash[bucket], new_entry, hashq);
 
     return (0);
@@ -68,7 +68,7 @@ __background_compact_exclude_list_clear(WT_SESSION_IMPL *session, bool closing)
     for (i = 0; i < conn->hash_size; ++i) {
         while (!TAILQ_EMPTY(&conn->background_compact.exclude_list_hash[i])) {
             entry = TAILQ_FIRST(&conn->background_compact.exclude_list_hash[i]);
-            /* Remove target uri entry from the hashtable. */
+            /* Remove entry from the hash table. */
             TAILQ_REMOVE(&conn->background_compact.exclude_list_hash[i], entry, hashq);
             __wt_free(session, entry->name);
             __wt_free(session, entry);

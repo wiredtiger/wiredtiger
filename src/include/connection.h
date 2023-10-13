@@ -69,7 +69,7 @@ struct __wt_background_compact_stat {
 
 /*
  * WT_BACKGROUND_COMPACT_EXCLUDE --
- *	An entry indicating this URI should be excluded from background compaction.
+ *	An entry indicating this file should be excluded from background compaction.
  */
 struct __wt_background_compact_exclude {
     const char *name; /* File name */
