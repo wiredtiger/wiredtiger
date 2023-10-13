@@ -138,8 +138,6 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
 
     tombstone = upd = NULL;
     total_size = 0;
-    upd_durable_ts = WT_TS_NONE;
-    tombstone_durable_ts = WT_TS_NONE;
 
     WT_RET(__wt_txn_upd_get_durable(session, upd, &upd_durable_ts));
 

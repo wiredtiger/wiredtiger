@@ -424,17 +424,19 @@ __tombstone_update_alloc(
   WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, WT_UPDATE **updp, size_t *sizep)
 {
     WT_UPDATE *upd;
+    wt_timestamp_t durable_ts;
 
     WT_RET(__wt_upd_alloc_tombstone(session, &upd, sizep));
     F_SET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE);
 
+    WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
     /*
      * Cleared memory matches the lowest possible transaction ID and timestamp; do nothing if the
      * page_del pointer is null.
      */
     if (page_del != NULL) {
         upd->txnid = page_del->txnid;
-        upd->__durable_ts = page_del->durable_timestamp;
+        WT_RET(__wt_txn_upd_set_durable(&durable_ts, &page_del->durable_timestamp));
         upd->start_ts = page_del->timestamp;
         upd->prepare_state = page_del->prepare_state;
     }

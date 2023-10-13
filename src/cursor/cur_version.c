@@ -203,7 +203,6 @@ __curversion_next_int(WT_CURSOR *cursor)
                 version_cursor->upd_stop_txnid = upd->txnid;
                 WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
                 version_cursor->upd_durable_stop_ts = durable_ts;
-                // version_cursor->upd_durable_stop_ts = upd->durable_ts;
                 version_cursor->upd_stop_ts = upd->start_ts;
 
                 /* No need to check the next update if the tombstone is globally visible. */
@@ -232,7 +231,7 @@ __curversion_next_int(WT_CURSOR *cursor)
                  * If the update is a modify, reconstruct the value.
                  */
                 if (upd->type != WT_UPDATE_MODIFY)
-                    __wt_upd_value_assign(cbt->upd_value, upd);
+                    WT_RET(__wt_upd_value_assign(session, cbt->upd_value, upd));
                 else
                     WT_ERR(
                       __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));

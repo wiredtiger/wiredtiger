@@ -1571,8 +1571,12 @@ __debug_modify(WT_DBG *ds, const uint8_t *data)
 static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
+    WT_SESSION_IMPL *session;
+    wt_timestamp_t durable_ts;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *prepare_state;
+
+    session = ds->session;
 
     for (; upd != NULL; upd = upd->next) {
         switch (upd->type) {
@@ -1614,7 +1618,9 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
               upd->txnid));
 
         WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->start_ts, ts_string)));
-        if (upd->__durable_ts != WT_TS_NONE)
+
+        WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
+        if (durable_ts != WT_TS_NONE)
             WT_RET(
               ds->f(ds, ", durable_ts %s", __wt_timestamp_to_string(upd->__durable_ts, ts_string)));
 

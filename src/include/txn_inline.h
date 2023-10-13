@@ -360,7 +360,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
-                (*updp)->start_ts = txn->commit_timestamp;                
+                (*updp)->start_ts = txn->commit_timestamp;
                 WT_RET(__wt_txn_upd_get_durable(session, *updp, &durable_ts));
                 WT_RET(__wt_txn_upd_set_durable(&durable_ts, &txn->durable_timestamp));
             }
@@ -971,7 +971,7 @@ __wt_txn_visible(
  */
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-{
+{   
     wt_timestamp_t durable_ts;
     uint8_t prepare_state, previous_state;
     bool upd_visible;
@@ -991,6 +991,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
         // FIXME-WT-11469
         WT_ASSERT(session, __wt_txn_upd_get_durable(session, upd, &durable_ts) == 0);
+
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts, durable_ts);
 
         /*
@@ -1208,7 +1209,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
      * reconstructing the modify.
      */
     if (upd->type != WT_UPDATE_MODIFY || cbt->upd_value->skip_buf)
-        __wt_upd_value_assign(cbt->upd_value, upd);
+        WT_RET(__wt_upd_value_assign(session, cbt->upd_value, upd));
     else
         WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
     return (0);
@@ -1847,38 +1848,34 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
  *     Point an update value at a given update. We're specifically not getting the value to own the
  *     memory since this exists in an update list somewhere.
  */
-static inline void
-__wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
+static inline int
+__wt_upd_value_assign(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
-    // wt_timestamp_t *durable_ts;
-    // int ret;
-
-    // durable_ts = WT_TS_NONE;
+    wt_timestamp_t durable_ts;
 
     if (!upd_value->skip_buf) {
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
     }
-    // ret = __wt_txn_upd_get_durable(session, upd, durable_ts);
-    // WT_UNUSED(ret);
-    // FIXME-WT-11469
+
+    WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
 
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        // FIXME-WT-11469
-        upd_value->tw.durable_stop_ts = upd->__durable_ts;
+        upd_value->tw.durable_stop_ts = durable_ts;
         upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
         upd_value->tw.prepare =
           upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
     } else {
-        // FIXME-WT-11469
-        upd_value->tw.durable_start_ts = upd->__durable_ts;
+        upd_value->tw.durable_start_ts = durable_ts;
         upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
         upd_value->tw.prepare =
           upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
     }
     upd_value->type = upd->type;
+
+    return (0);
 }
 
 /*

@@ -166,7 +166,6 @@ __rec_append_orig_value(
             WT_RET(__wt_txn_upd_get_durable(session, tombstone, &durable_ts));
             WT_RET(
               __wt_txn_upd_set_durable(&durable_ts, (wt_timestamp_t *)unpack->tw.durable_stop_ts));
-            // tombstone->__durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
         } else {
             /*

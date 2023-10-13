@@ -136,7 +136,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             added_to_txn = true;
 
             /* Avoid WT_CURSOR.update data copy. */
-            __wt_upd_value_assign(cbt->modify_update, upd);
+            WT_RET(__wt_upd_value_assign(session, cbt->modify_update, upd));
         } else {
             upd_size = __wt_update_list_memsize(upd);
 
@@ -218,7 +218,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             added_to_txn = true;
 
             /* Avoid WT_CURSOR.update data copy. */
-            __wt_upd_value_assign(cbt->modify_update, upd);
+            WT_RET(__wt_upd_value_assign(session, cbt->modify_update, upd));
         } else
             upd_size = __wt_update_list_memsize(upd);
         ins->upd = upd;

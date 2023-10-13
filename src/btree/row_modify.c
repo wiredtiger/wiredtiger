@@ -116,7 +116,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             added_to_txn = true;
 
             /* Avoid WT_CURSOR.update data copy. */
-            __wt_upd_value_assign(cbt->modify_update, upd);
+            WT_RET(__wt_upd_value_assign(session, cbt->modify_update, upd));
         } else {
             /*
              * We only update history store records in three cases:
@@ -203,7 +203,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             added_to_txn = true;
 
             /* Avoid a data copy in WT_CURSOR.update. */
-            __wt_upd_value_assign(cbt->modify_update, upd);
+            WT_RET(__wt_upd_value_assign(session, cbt->modify_update, upd));
         } else {
             /*
              * We either insert a tombstone with a standard update or only a standard update to the
