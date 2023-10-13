@@ -1006,14 +1006,20 @@ main(int argc, char *argv[])
         /*
          * Run with fixed seeds, and then with a random seed.
          *
+         * NOTE: changing this test, and/of random number generation, may change the behaviour of
+         * this test with the following seeds.
+         *
          * A seed of 123456789 can reproduce the incremental bitmap backup bug that was fixed in
          * WT-10551, which the subsequently added checks can detect if the WT-10551 fix is commented
          * out.
+         *
+         * Whereas a seed of 0x9b1bde3f111fe316 will succeed even if the WT-10551 fix is commented
+         * out because that seed doesn't generate the right set of steps to hit the issue.
          */
-        rnd.v = 123456789;
+        rnd.v = 0x9b1bde3f111fe316;
         run_test(working_dir, &rnd, preserve);
 
-        rnd.v = 987654321;
+        rnd.v = 123456789;
         run_test(working_dir, &rnd, preserve);
 
         __wt_random_init_seed(NULL, &rnd);
