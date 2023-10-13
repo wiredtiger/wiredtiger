@@ -331,7 +331,7 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
 
     txn = session->txn;
 
-    WT_ERR(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT_DATA), &txn->backup_snapshot_data));
+    WT_ERR(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT), &txn->backup_snapshot_data));
 
     txn->backup_snapshot_data->snap_max = txn->snapshot_data.snap_max;
     txn->backup_snapshot_data->snap_min = txn->snapshot_data.snap_min;
@@ -372,7 +372,7 @@ void
 __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
-    WT_TXN_SNAPSHOT_DATA *snapshot_backup;
+    WT_TXN_SNAPSHOT *snapshot_backup;
 
     txn = session->txn;
     snapshot_backup = txn->backup_snapshot_data;

@@ -243,10 +243,10 @@ struct __wt_txn_op {
 };
 
 /*
- * WT_TXN_SNAPSHOT_DATA --
+ * WT_TXN_SNAPSHOT --
  *	A structure to store the transactions snapshot details.
  */
-struct __wt_txn_snapshot_data {
+struct __wt_txn_snapshot {
     /*
      * Snapshot data:
      *	txn_ids >= snap_max are invisible,
@@ -274,10 +274,10 @@ struct __wt_txn {
     uint32_t txn_logsync; /* Log sync configuration */
 
     /* Snapshot data. */
-    WT_TXN_SNAPSHOT_DATA snapshot_data;
+    WT_TXN_SNAPSHOT snapshot_data;
 
     /* Backup snapshot data. */
-    WT_TXN_SNAPSHOT_DATA *backup_snapshot_data;
+    WT_TXN_SNAPSHOT *backup_snapshot_data;
 
     /*
      * Timestamp copied into updates created by this transaction.
