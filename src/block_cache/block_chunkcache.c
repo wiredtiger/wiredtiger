@@ -129,14 +129,14 @@ __chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
 
 /*
  * __chunkcache_drop_queued_work --
- *     Pop items off the head of the metadata read/write queue (i.e. oldest first). Intended for cases where the queue
- *     is getting too long, indicating the consumer thread is behind.
+ *     Pop items off the head of the metadata read/write queue (i.e. oldest first). Intended for
+ *     cases where the queue is getting too long, indicating the consumer thread is behind.
  */
 static void
 __chunkcache_drop_queued_work(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CHUNKCACHE_METADATA_WORK_UNIT *entry;
+    WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
     WT_ASSERT(session, __wt_spin_locked(session, &conn->chunkcache_metadata_lock));
