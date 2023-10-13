@@ -2488,7 +2488,7 @@ err:
          * takes precedence over asking for a rollback. We can not do both.
          */
         if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
+            ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE);
             --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
         }
