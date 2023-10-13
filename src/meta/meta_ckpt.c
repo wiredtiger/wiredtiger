@@ -1431,7 +1431,11 @@ __wt_meta_ckptlist_set(
 
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
+            if (strcmp(filename, WT_HS_URI) == 0 || session->hs_cursor_counter != 0) {
+                /* Skip history store tables */
+            } else if (F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
+                /* Skip */
+            } else {
                 for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
                     if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
                         continue;
