@@ -39,7 +39,7 @@ namespace model {
  * wiredtiger_exception --
  *     A WiredTiger exception.
  */
-class wiredtiger_exception : std::runtime_error {
+class wiredtiger_exception : public std::runtime_error {
 
 public:
     /*

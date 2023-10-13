@@ -252,7 +252,7 @@ kv_table_item::get(kv_transaction_ptr txn, data_value &out)
     for (auto i = _updates.rbegin(); i != _updates.rend(); i++)
         if ((*i)->txn_id() == txn_id) {
             out = (*i)->value();
-            return 0;
+            return out == NONE ? WT_NOTFOUND : 0;
         }
 
     /* Otherwise do a regular read using the transaction's read timestamp and snapshot. */

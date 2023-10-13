@@ -175,6 +175,11 @@ kv_transaction::set_commit_timestamp(timestamp_t commit_timestamp)
     if (commit_timestamp == k_initial_commit_timestamp)
         throw model_exception("Invalid commit timestamp");
 
+    kv_transaction_state txn_state = state();
+    if (txn_state != kv_transaction_state::in_progress &&
+      txn_state != kv_transaction_state::prepared)
+        throw model_exception("The transaction must be either in progress or prepared");
+
     /*
      * In non-prepared transactions, updates will have the durable timestamp the same as the commit
      * timestamp. We don't have to worry about prepared transactions, because after we set the
