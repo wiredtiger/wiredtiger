@@ -107,7 +107,7 @@ static_assert(k_txn_none == WT_TXN_NONE);
  * model_exception --
  *     A model exception.
  */
-class model_exception : std::runtime_error {
+class model_exception : public std::runtime_error {
 
 public:
     /*
@@ -128,7 +128,7 @@ public:
  *     An exception that models that WiredTiger would abort or panic, either at the point when this
  *     exception is thrown or in the future (e.g., during reconciliation).
  */
-class wiredtiger_abort_exception : std::runtime_error {
+class wiredtiger_abort_exception : public std::runtime_error {
 
 public:
     /*

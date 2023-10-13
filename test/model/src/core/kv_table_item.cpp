@@ -94,13 +94,14 @@ kv_table_item::add_update_nolock(
                      * Cannot update a key with a more recent timestamp. If we do this, WiredTiger
                      * would abort during commit.
                      */
-                    if (u->timestamp() > update->timestamp())
+                    if (u->commit_timestamp() > update->commit_timestamp())
                         throw wiredtiger_abort_exception(
                           "Updating a key with a more recent timestamp");
                     break;
                 }
                 return WT_ROLLBACK;
             case kv_transaction_state::committed:
+            case kv_transaction_state::prepared:
                 if (!txn->visible_txn(u->txn_id()))
                     return WT_ROLLBACK;
                 break;
@@ -159,10 +160,10 @@ kv_table_item::contains_any(const data_value &value, timestamp_t timestamp)
         return false;
 
     /* Read the timestamp of the latest visible update. */
-    timestamp_t t = (*(--i))->timestamp();
+    timestamp_t t = (*(--i))->commit_timestamp();
 
     /* Check all updates with that timestamp. */
-    for (; (*i)->timestamp() == t; i--) {
+    for (; (*i)->commit_timestamp() == t; i--) {
         if ((*i)->value() == value)
             return true;
         if (i == _updates.begin())
@@ -172,30 +173,58 @@ kv_table_item::contains_any(const data_value &value, timestamp_t timestamp)
 }
 
 /*
- * kv_table_item::get --
- *     Get the corresponding value. Note that this returns a copy of the object.
+ * kv_table_item::exists --
+ *     Check whether the latest value exists.
  */
-data_value
-kv_table_item::get(timestamp_t timestamp)
+bool
+kv_table_item::exists()
 {
-    std::lock_guard lock_guard(_lock);
-    kv_update::timestamp_comparator cmp;
-
-    if (_updates.empty())
-        return NONE;
-
-    auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
-    if (i == _updates.begin())
-        return NONE;
-    return (*(--i))->value();
+    data_value out;
+    int ret = get(k_timestamp_latest, out);
+    if (ret != 0 && ret != WT_NOTFOUND) {
+        std::ostringstream error;
+        error << "Get returned: " << ret;
+        throw model_exception(error.str());
+    }
+    return ret != WT_NOTFOUND;
 }
 
 /*
  * kv_table_item::get --
- *     Get the corresponding value. Note that this returns a copy of the object.
+ *     Get the corresponding value.
  */
-data_value
-kv_table_item::get(kv_transaction_ptr txn)
+int
+kv_table_item::get(timestamp_t timestamp, data_value &out)
+{
+    std::lock_guard lock_guard(_lock);
+    kv_update::timestamp_comparator cmp;
+
+    if (_updates.empty()) {
+        out = NONE;
+        return WT_NOTFOUND;
+    }
+
+    if (has_prepared_nolock(timestamp)) {
+        out = NONE;
+        return WT_PREPARE_CONFLICT;
+    }
+
+    auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
+    if (i == _updates.begin()) {
+        out = NONE;
+        return WT_NOTFOUND;
+    }
+
+    out = (*(--i))->value();
+    return out == NONE ? WT_NOTFOUND : 0;
+}
+
+/*
+ * kv_table_item::get --
+ *     Get the corresponding value.
+ */
+int
+kv_table_item::get(kv_transaction_ptr txn, data_value &out)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -203,21 +232,31 @@ kv_table_item::get(kv_transaction_ptr txn)
     if (!txn)
         throw model_exception("Null transaction");
 
-    if (_updates.empty())
-        return NONE;
+    if (_updates.empty()) {
+        out = NONE;
+        return WT_NOTFOUND;
+    }
+
+    txn_id_t txn_id = txn->id();
+    timestamp_t read_timestamp = txn->read_timestamp();
+
+    if (has_prepared_nolock(read_timestamp)) {
+        out = NONE;
+        return WT_PREPARE_CONFLICT;
+    }
 
     /*
      * See if the transaction wrote something - we read our own writes, irrespective of the read
      * timestamp.
      */
-    txn_id_t txn_id = txn->id();
     for (auto i = _updates.rbegin(); i != _updates.rend(); i++)
-        if ((*i)->txn_id() == txn_id)
-            return (*i)->value();
+        if ((*i)->txn_id() == txn_id) {
+            out = (*i)->value();
+            return 0;
+        }
 
     /* Otherwise do a regular read using the transaction's read timestamp and snapshot. */
-    timestamp_t timestamp = txn ? txn->read_timestamp() : k_timestamp_latest;
-    auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
+    auto i = std::upper_bound(_updates.begin(), _updates.end(), read_timestamp, cmp);
 
     while (i != _updates.begin()) {
         std::shared_ptr<kv_update> &u = *(--i);
@@ -225,20 +264,25 @@ kv_table_item::get(kv_transaction_ptr txn)
          * The transaction snapshot includes only committed transactions, so no need to check
          * whether the update is actually committed.
          */
-        if (txn->visible_txn(u->txn_id()))
-            return u->value();
+        if (txn->visible_txn(u->txn_id())) {
+            out = u->value();
+            return out == NONE ? WT_NOTFOUND : 0;
+        }
     }
 
-    return NONE;
+    out = NONE;
+    return WT_NOTFOUND;
 }
 
 /*
- * kv_table_item::fix_commit_timestamp --
- *     Fix the commit timestamp for the corresponding update. We need to do this, because WiredTiger
- *     transaction API specifies the commit timestamp after performing the operations, not before.
+ * kv_table_item::fix_timestamps --
+ *     Fix the commit and durable timestamps for the corresponding update. We need to do this,
+ *     because WiredTiger transaction API specifies the commit timestamp after performing the
+ *     operations, not before.
  */
 void
-kv_table_item::fix_commit_timestamp(txn_id_t txn_id, timestamp_t timestamp)
+kv_table_item::fix_timestamps(
+  txn_id_t txn_id, timestamp_t commit_timestamp, timestamp_t durable_timestamp)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -250,7 +294,7 @@ kv_table_item::fix_commit_timestamp(txn_id_t txn_id, timestamp_t timestamp)
      */
     std::list<std::shared_ptr<kv_update>> to_fix;
     auto i = std::lower_bound(_updates.begin(), _updates.end(), k_initial_commit_timestamp, cmp);
-    while (i != _updates.end() && (*i)->timestamp() == k_initial_commit_timestamp)
+    while (i != _updates.end() && (*i)->commit_timestamp() == k_initial_commit_timestamp)
         if ((*i)->txn_id() == txn_id) {
             to_fix.push_back(*i);
             i = _updates.erase(i);
@@ -258,7 +302,7 @@ kv_table_item::fix_commit_timestamp(txn_id_t txn_id, timestamp_t timestamp)
             i++;
 
     for (auto &u : to_fix) {
-        u->set_timestamp(timestamp);
+        u->set_timestamps(commit_timestamp, durable_timestamp);
         int ret = add_update_nolock(u, false, false);
         if (ret != 0) {
             std::ostringstream ss;
@@ -266,6 +310,40 @@ kv_table_item::fix_commit_timestamp(txn_id_t txn_id, timestamp_t timestamp)
             throw model_exception(ss.str());
         }
     }
+}
+
+/*
+ * kv_table_item::has_prepared --
+ *     Check whether the item has any prepared updates for the given timestamp.
+ */
+bool
+kv_table_item::has_prepared(timestamp_t timestamp)
+{
+    std::lock_guard lock_guard(_lock);
+    return has_prepared_nolock(timestamp);
+}
+
+/*
+ * kv_table_item::has_prepared_nolock --
+ *     Check whether the item has any prepared updates without taking a lock.
+ */
+bool
+kv_table_item::has_prepared_nolock(timestamp_t timestamp)
+{
+    kv_update::timestamp_comparator cmp;
+
+    /*
+     * Check only updates with the initial commit timestamp. An update in a prepared transaction is
+     * guaranteed to have that timestamp at this point.
+     */
+    auto r = std::equal_range(_updates.begin(), _updates.end(), k_initial_commit_timestamp, cmp);
+    for (auto i = r.first; i != r.second; i++) {
+        const kv_update *u = (*i).get();
+        if (u->prepared() && u->txn()->prepare_timestamp() <= timestamp)
+            return true;
+    }
+
+    return false;
 }
 
 /*

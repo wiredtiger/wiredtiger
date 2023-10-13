@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 #include "model/kv_table.h"
 #include "wiredtiger.h"
@@ -50,7 +51,8 @@ kv_table::contains_any(const data_value &key, const data_value &value, timestamp
 
 /*
  * kv_table::get --
- *     Get the value. Note that this returns a copy of the object.
+ *     Get the value. This is a convenience function that returns a copy of the object, turning any
+ *     errors (other than NOT FOUND) to exceptions.
  */
 data_value
 kv_table::get(const data_value &key, timestamp_t timestamp)
@@ -58,12 +60,21 @@ kv_table::get(const data_value &key, timestamp_t timestamp)
     kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(timestamp);
+
+    data_value out;
+    int ret = item->get(timestamp, out);
+    if (ret == 0 || ret == WT_NOTFOUND)
+        return out; /* The value is already NONE if not found. */
+
+    std::ostringstream error;
+    error << "Get returned: " << ret;
+    throw model_exception(error.str());
 }
 
 /*
  * kv_table::get --
- *     Get the value. Note that this returns a copy of the object.
+ *     Get the value. This is a convenience function that returns a copy of the object, turning any
+ *     errors (other than NOT FOUND) to exceptions.
  */
 data_value
 kv_table::get(kv_transaction_ptr txn, const data_value &key)
@@ -71,7 +82,45 @@ kv_table::get(kv_transaction_ptr txn, const data_value &key)
     kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(txn);
+
+    data_value out;
+    int ret = item->get(txn, out);
+    if (ret == 0 || ret == WT_NOTFOUND)
+        return out; /* The value is already NONE if not found. */
+
+    std::ostringstream error;
+    error << "Get returned: " << ret;
+    throw model_exception(error.str());
+}
+
+/*
+ * kv_table::get_ext --
+ *     Get the value and return the error code.
+ */
+int
+kv_table::get_ext(const data_value &key, data_value &out, timestamp_t timestamp)
+{
+    kv_table_item *item = item_if_exists(key);
+    if (item == nullptr) {
+        out = NONE;
+        return WT_NOTFOUND;
+    }
+    return item->get(timestamp, out);
+}
+
+/*
+ * kv_table::get_ext --
+ *     Get the value and return the error code.
+ */
+int
+kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out)
+{
+    kv_table_item *item = item_if_exists(key);
+    if (item == nullptr) {
+        out = NONE;
+        return WT_NOTFOUND;
+    }
+    return item->get(txn, out);
 }
 
 /*
@@ -158,14 +207,16 @@ kv_table::update(
 }
 
 /*
- * kv_table::fix_commit_timestamp --
- *     Fix the commit timestamp for the corresponding update. We need to do this, because WiredTiger
- *     transaction API specifies the commit timestamp after performing the operations, not before.
+ * kv_table::fix_timestamps --
+ *     Fix the commit and durable timestamps for the corresponding update. We need to do this,
+ *     because WiredTiger transaction API specifies the commit timestamp after performing the
+ *     operations, not before.
  */
 void
-kv_table::fix_commit_timestamp(const data_value &key, txn_id_t txn_id, timestamp_t timestamp)
+kv_table::fix_timestamps(
+  const data_value &key, txn_id_t txn_id, timestamp_t timestamp, timestamp_t durable_timestamp)
 {
-    item(key).fix_commit_timestamp(txn_id, timestamp);
+    item(key).fix_timestamps(txn_id, timestamp, durable_timestamp);
 }
 
 /*

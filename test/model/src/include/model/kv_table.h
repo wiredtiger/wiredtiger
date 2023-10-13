@@ -77,15 +77,29 @@ public:
 
     /*
      * kv_table::get --
-     *     Get the value. Note that this returns a copy of the object.
+     *     Get the value. This is a convenience function that returns a copy of the object, turning
+     *     any errors (other than NOT FOUND) to exceptions.
      */
     data_value get(const data_value &key, timestamp_t timestamp = k_timestamp_latest);
 
     /*
      * kv_table::get --
-     *     Get the value. Note that this returns a copy of the object.
+     *     Get the value. This is a convenience function that returns a copy of the object, turning
+     *     any errors (other than NOT FOUND) to exceptions.
      */
     data_value get(kv_transaction_ptr txn, const data_value &key);
+
+    /*
+     * kv_table::get_ext --
+     *     Get the value and return the error code.
+     */
+    int get_ext(const data_value &key, data_value &out, timestamp_t timestamp = k_timestamp_latest);
+
+    /*
+     * kv_table::get_ext --
+     *     Get the value and return the error code.
+     */
+    int get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out);
 
     /*
      * kv_table::insert --
@@ -114,12 +128,13 @@ public:
     int remove(kv_transaction_ptr txn, const data_value &key);
 
     /*
-     * kv_table::fix_commit_timestamp --
-     *     Fix the commit timestamp for the corresponding update. We need to do this, because
-     *     WiredTiger transaction API specifies the commit timestamp after performing the
+     * kv_table::fix_timestamps --
+     *     Fix the commit and durable timestamps for the corresponding update. We need to do this,
+     *     because WiredTiger transaction API specifies the commit timestamp after performing the
      *     operations, not before.
      */
-    void fix_commit_timestamp(const data_value &key, txn_id_t txn_id, timestamp_t timestamp);
+    void fix_timestamps(
+      const data_value &key, txn_id_t txn_id, timestamp_t timestamp, timestamp_t durable_timestamp);
 
     /*
      * kv_table::rollback_updates --
