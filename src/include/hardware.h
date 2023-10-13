@@ -7,9 +7,10 @@
  */
 
 /*
- * This macro doesn't do anything and is used for annotation only. We use it to highlight to readers
- * that the variable is shared across threads, possibly without locking, and requires caution when
- * handling. It is designed to look like a type qualifier.
+ * This macro doesn't do anything and is used for annotation only. We use it to highlight
+ * the variable is used in lock-less inter-thread communication - using mechanisms like memory
+ * barriers and compare_and_swap - and requires caution when handling. It is designed to look like a
+ * type qualifier.
  *
  * Example usage:
  *     wt_shared volatile bool blkcache_exiting;
