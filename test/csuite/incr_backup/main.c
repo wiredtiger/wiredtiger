@@ -1006,7 +1006,7 @@ main(int argc, char *argv[])
         /*
          * Run with fixed seeds, and then with a random seed.
          *
-         * NOTE: changing this test, and/of random number generation, may change the behaviour of
+         * NOTE: changing this test, and/of random number generation, may change the behavior of
          * this test with the following seeds.
          *
          * A seed of 123456789 can reproduce the incremental bitmap backup bug that was fixed in
