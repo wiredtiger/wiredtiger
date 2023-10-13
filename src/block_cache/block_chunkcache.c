@@ -1087,22 +1087,13 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
     WT_ERR(__create_and_populate_chunk(
       session, &newchunk, file_offset, chunk_size, &hash_id, bucket_id));
 
-    /*
-     * Get the original position of the chunk and attempt to link it to its cached on-disk location.
-     * This could fail, e.g. if something else managed to get inserted while processing the insert
-     * queue -- in that case, just discard it. This whole step is a performance optimization, don't
-     * let it take down the database.
-     */
+    /* Get the position of a specific bit index and link the chunk and its memory cached on disk */
     bit_index = cache_offset / chunkcache->chunk_size;
-    ret = __set_bit_index(session, bit_index);
-    if (ret == EAGAIN || ret == ENOSPC) {
-        ret = 0;
-        /* FIXME-WT-11726 Add a statistic for this. */
-        goto err;
-    }
-    WT_ERR(ret);
-
+    WT_ASSERT_ALWAYS(session, !__set_bit_index(session, bit_index),
+      "the link between chunk memory and cached data cannot be established as the link is already "
+      "in place");
     newchunk->chunk_memory = chunkcache->memory + cache_offset;
+
     TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), newchunk, next_chunk);
     WT_PUBLISH(newchunk->valid, true);
 
@@ -1114,9 +1105,7 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
 
     if (0) {
 err:
-        __chunkcache_free_chunk(session, newchunk);
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "Error linking chunk");
-        /* FIXME-WT-11726 Add a statistic for this. */
+        __wt_free(session, newchunk);
     }
     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
     return (ret);
