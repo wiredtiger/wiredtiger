@@ -44,7 +44,6 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
         ('row_string', dict(key_format='S', value_format='S')),
     ]
 
-
     cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
     if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
@@ -78,13 +77,6 @@ class test_chunkcache4(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for i in range(1, self.rows):
             cursor[ds.key(i)] = str(i) * 100
-    
-    def read_and_verify(self, uri, ds):
-        cursor = self.session.open_cursor(uri)
-        for i in range(1, self.rows):
-            cursor.set_key(ds.key(i))
-            cursor.search()
-            self.assertEqual(cursor.get_value(), str(i) * 100)
 
     def test_chunkcache04(self):
         uris = ["table:chunkcache03", "table:chunkcache04"]
