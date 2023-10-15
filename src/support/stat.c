@@ -1505,6 +1505,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: recent modification of a page blocked its eviction",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
+  "cache: skip dirty pages during a running checkpoint",
+  "cache: skip pages that are written with transactions greater than the last running",
+  "cache: skip pages that previously failed eviction and likely will again",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
@@ -1567,13 +1570,13 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: transaction checkpoints due to obsolete pages",
   "checkpoint: wait cycles while cache dirty level is decreasing",
   "chunk-cache: aggregate number of spanned chunks on read",
-  "chunk-cache: aggregate number of spanned chunks on remove",
   "chunk-cache: chunks evicted",
   "chunk-cache: could not allocate due to exceeding capacity",
   "chunk-cache: lookups",
   "chunk-cache: number of metadata inserts/deletes pushed to the worker thread",
   "chunk-cache: number of metadata inserts/deletes read by the worker thread",
   "chunk-cache: number of misses",
+  "chunk-cache: number of newly inserted objects in chunk cache",
   "chunk-cache: number of times a read from storage failed",
   "chunk-cache: retried accessing a chunk while I/O was in progress",
   "chunk-cache: timed out due to too many retries",
@@ -2182,6 +2185,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
+    stats->cache_eviction_server_skip_dirty_pages_during_checkpoint = 0;
+    stats->cache_eviction_server_skip_pages_last_running = 0;
+    stats->cache_eviction_server_skip_pages_retry = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_reentry_hs_eviction_milliseconds */
@@ -2244,13 +2250,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_obsolete_applied = 0;
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->chunkcache_spans_chunks_read = 0;
-    stats->chunkcache_spans_chunks_remove = 0;
     stats->chunkcache_chunks_evicted = 0;
     stats->chunkcache_exceeded_capacity = 0;
     stats->chunkcache_lookups = 0;
     stats->chunkcache_metadata_work_units_created = 0;
     stats->chunkcache_metadata_work_units_dequeued = 0;
     stats->chunkcache_misses = 0;
+    stats->chunkcache_newly_inserted = 0;
     stats->chunkcache_io_failed = 0;
     stats->chunkcache_retries = 0;
     stats->chunkcache_toomany_retries = 0;
@@ -2863,6 +2869,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_reverse_splits += WT_STAT_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs += WT_STAT_READ(from, cache_reverse_splits_skipped_vlcs);
+    to->cache_eviction_server_skip_dirty_pages_during_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_server_skip_dirty_pages_during_checkpoint);
+    to->cache_eviction_server_skip_pages_last_running +=
+      WT_STAT_READ(from, cache_eviction_server_skip_pages_last_running);
+    to->cache_eviction_server_skip_pages_retry +=
+      WT_STAT_READ(from, cache_eviction_server_skip_pages_retry);
     to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_READ(from, cache_hs_insert_reverse_modify);
     to->cache_reentry_hs_eviction_milliseconds +=
@@ -2928,7 +2940,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_obsolete_applied += WT_STAT_READ(from, checkpoint_obsolete_applied);
     to->checkpoint_wait_reduce_dirty += WT_STAT_READ(from, checkpoint_wait_reduce_dirty);
     to->chunkcache_spans_chunks_read += WT_STAT_READ(from, chunkcache_spans_chunks_read);
-    to->chunkcache_spans_chunks_remove += WT_STAT_READ(from, chunkcache_spans_chunks_remove);
     to->chunkcache_chunks_evicted += WT_STAT_READ(from, chunkcache_chunks_evicted);
     to->chunkcache_exceeded_capacity += WT_STAT_READ(from, chunkcache_exceeded_capacity);
     to->chunkcache_lookups += WT_STAT_READ(from, chunkcache_lookups);
@@ -2937,6 +2948,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_metadata_work_units_dequeued +=
       WT_STAT_READ(from, chunkcache_metadata_work_units_dequeued);
     to->chunkcache_misses += WT_STAT_READ(from, chunkcache_misses);
+    to->chunkcache_newly_inserted += WT_STAT_READ(from, chunkcache_newly_inserted);
     to->chunkcache_io_failed += WT_STAT_READ(from, chunkcache_io_failed);
     to->chunkcache_retries += WT_STAT_READ(from, chunkcache_retries);
     to->chunkcache_toomany_retries += WT_STAT_READ(from, chunkcache_toomany_retries);
