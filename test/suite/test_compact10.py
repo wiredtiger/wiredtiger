@@ -57,12 +57,6 @@ class test_compact10(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return compact_running
 
-    def get_bg_compaction_running(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        compact_running = stat_cursor[stat.conn.background_compact_running][2]
-        stat_cursor.close()
-        return compact_running
-
     def get_pages_rewritten(self, uri):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
         pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
