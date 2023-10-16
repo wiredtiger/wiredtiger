@@ -78,15 +78,15 @@ public:
 
     /*
      * kv_table_item::get --
-     *     Get the corresponding value.
+     *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
      */
-    int get(timestamp_t timestamp, data_value &out);
+    data_value get(timestamp_t timestamp);
 
     /*
      * kv_table_item::get --
-     *     Get the corresponding value.
+     *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
      */
-    int get(kv_transaction_ptr txn, data_value &out);
+    data_value get(kv_transaction_ptr txn);
 
     /*
      * kv_table_item::fix_timestamps --

@@ -294,7 +294,6 @@ wt_txn_get(WT_SESSION *session, const char *uri, const model::data_value &key)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *value;
-    char cfg[64];
 
     value = nullptr;
 

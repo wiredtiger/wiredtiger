@@ -212,6 +212,13 @@ public:
      */
     void set_commit_timestamp(timestamp_t commit_timestamp);
 
+protected:
+    /*
+     * kv_transaction::assert_in_progress_or_prepared --
+     *     Assert that the transaction is in progress or prepared.
+     */
+    void assert_in_progress_or_prepared();
+
 private:
     txn_id_t _id;
     bool _failed;

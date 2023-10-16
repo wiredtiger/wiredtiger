@@ -179,52 +179,38 @@ kv_table_item::contains_any(const data_value &value, timestamp_t timestamp)
 bool
 kv_table_item::exists()
 {
-    data_value out;
-    int ret = get(k_timestamp_latest, out);
-    if (ret != 0 && ret != WT_NOTFOUND) {
-        std::ostringstream error;
-        error << "Get returned: " << ret;
-        throw model_exception(error.str());
-    }
-    return ret != WT_NOTFOUND;
+    return get(k_timestamp_latest) != NONE;
 }
 
 /*
  * kv_table_item::get --
- *     Get the corresponding value.
+ *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
  */
-int
-kv_table_item::get(timestamp_t timestamp, data_value &out)
+data_value
+kv_table_item::get(timestamp_t timestamp)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
 
-    if (_updates.empty()) {
-        out = NONE;
-        return WT_NOTFOUND;
-    }
+    if (_updates.empty())
+        return NONE;
 
-    if (has_prepared_nolock(timestamp)) {
-        out = NONE;
-        return WT_PREPARE_CONFLICT;
-    }
+    if (has_prepared_nolock(timestamp))
+        throw wiredtiger_exception(WT_PREPARE_CONFLICT);
 
     auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
-    if (i == _updates.begin()) {
-        out = NONE;
-        return WT_NOTFOUND;
-    }
+    if (i == _updates.begin())
+        return NONE;
 
-    out = (*(--i))->value();
-    return out == NONE ? WT_NOTFOUND : 0;
+    return (*(--i))->value();
 }
 
 /*
  * kv_table_item::get --
- *     Get the corresponding value.
+ *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
  */
-int
-kv_table_item::get(kv_transaction_ptr txn, data_value &out)
+data_value
+kv_table_item::get(kv_transaction_ptr txn)
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -232,28 +218,22 @@ kv_table_item::get(kv_transaction_ptr txn, data_value &out)
     if (!txn)
         throw model_exception("Null transaction");
 
-    if (_updates.empty()) {
-        out = NONE;
-        return WT_NOTFOUND;
-    }
+    if (_updates.empty())
+        return NONE;
 
     txn_id_t txn_id = txn->id();
     timestamp_t read_timestamp = txn->read_timestamp();
 
-    if (has_prepared_nolock(read_timestamp)) {
-        out = NONE;
-        return WT_PREPARE_CONFLICT;
-    }
+    if (has_prepared_nolock(read_timestamp))
+        throw wiredtiger_exception(WT_PREPARE_CONFLICT);
 
     /*
      * See if the transaction wrote something - we read our own writes, irrespective of the read
      * timestamp.
      */
     for (auto i = _updates.rbegin(); i != _updates.rend(); i++)
-        if ((*i)->txn_id() == txn_id) {
-            out = (*i)->value();
-            return out == NONE ? WT_NOTFOUND : 0;
-        }
+        if ((*i)->txn_id() == txn_id)
+            return (*i)->value();
 
     /* Otherwise do a regular read using the transaction's read timestamp and snapshot. */
     auto i = std::upper_bound(_updates.begin(), _updates.end(), read_timestamp, cmp);
@@ -264,14 +244,11 @@ kv_table_item::get(kv_transaction_ptr txn, data_value &out)
          * The transaction snapshot includes only committed transactions, so no need to check
          * whether the update is actually committed.
          */
-        if (txn->visible_txn(u->txn_id())) {
-            out = u->value();
-            return out == NONE ? WT_NOTFOUND : 0;
-        }
+        if (txn->visible_txn(u->txn_id()))
+            return u->value();
     }
 
-    out = NONE;
-    return WT_NOTFOUND;
+    return NONE;
 }
 
 /*

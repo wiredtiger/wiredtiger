@@ -77,27 +77,27 @@ public:
 
     /*
      * kv_table::get --
-     *     Get the value. This is a convenience function that returns a copy of the object, turning
-     *     any errors (other than NOT FOUND) to exceptions.
+     *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
+     *     exception on error.
      */
     data_value get(const data_value &key, timestamp_t timestamp = k_timestamp_latest);
 
     /*
      * kv_table::get --
-     *     Get the value. This is a convenience function that returns a copy of the object, turning
-     *     any errors (other than NOT FOUND) to exceptions.
+     *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
+     *     exception on error.
      */
     data_value get(kv_transaction_ptr txn, const data_value &key);
 
     /*
      * kv_table::get_ext --
-     *     Get the value and return the error code.
+     *     Get the value and return the error code instead of throwing an exception.
      */
     int get_ext(const data_value &key, data_value &out, timestamp_t timestamp = k_timestamp_latest);
 
     /*
      * kv_table::get_ext --
-     *     Get the value and return the error code.
+     *     Get the value and return the error code instead of throwing an exception.
      */
     int get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out);
 

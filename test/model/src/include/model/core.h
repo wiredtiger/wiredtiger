@@ -30,6 +30,7 @@
 #define MODEL_CORE_H
 
 #include <limits>
+#include "wiredtiger.h"
 
 /* Redefine important WiredTiger internal constants, if they are not already available. */
 
@@ -105,7 +106,8 @@ static_assert(k_txn_none == WT_TXN_NONE);
 
 /*
  * model_exception --
- *     A model exception.
+ *     An exception for model-related errors, which are not meant to faithfully model WiredTiger
+ *     errors.
  */
 class model_exception : public std::runtime_error {
 
@@ -121,6 +123,57 @@ public:
      *     Create a new instance of the exception.
      */
     inline model_exception(const std::string &message) noexcept : std::runtime_error(message) {}
+};
+
+/*
+ * wiredtiger_exception --
+ *     A WiredTiger exception, which is coming either from a C++ wrapper around a WiredTiger
+ *     function call, or from the model indicating that the given operation would result in
+ *     returning the specified error.
+ */
+class wiredtiger_exception : public std::runtime_error {
+
+public:
+    /*
+     * wiredtiger_exception::wiredtiger_exception --
+     *     Create a new instance of the exception.
+     */
+    inline wiredtiger_exception(WT_SESSION *session, const char *message, int error) noexcept
+        : std::runtime_error(std::string(message) + session->strerror(session, error)),
+          _error(error)
+    {
+    }
+
+    /*
+     * wiredtiger_exception::wiredtiger_exception --
+     *     Create a new instance of the exception.
+     */
+    inline wiredtiger_exception(WT_SESSION *session, int error) noexcept
+        : std::runtime_error(session->strerror(session, error)), _error(error)
+    {
+    }
+
+    /*
+     * wiredtiger_exception::wiredtiger_exception --
+     *     Create a new instance of the exception. This constructor is not thread-safe.
+     */
+    inline wiredtiger_exception(int error) noexcept
+        : std::runtime_error(wiredtiger_strerror(error)), _error(error)
+    {
+    }
+
+    /*
+     * wiredtiger_exception::error --
+     *     Get the error code.
+     */
+    inline int
+    error() const noexcept
+    {
+        return _error;
+    }
+
+private:
+    int _error;
 };
 
 /*

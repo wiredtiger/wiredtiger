@@ -28,7 +28,6 @@
 
 #include <algorithm>
 #include <iostream>
-#include <sstream>
 
 #include "model/kv_table.h"
 #include "wiredtiger.h"
@@ -51,8 +50,8 @@ kv_table::contains_any(const data_value &key, const data_value &value, timestamp
 
 /*
  * kv_table::get --
- *     Get the value. This is a convenience function that returns a copy of the object, turning any
- *     errors (other than NOT FOUND) to exceptions.
+ *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
+ *     exception on error.
  */
 data_value
 kv_table::get(const data_value &key, timestamp_t timestamp)
@@ -60,21 +59,13 @@ kv_table::get(const data_value &key, timestamp_t timestamp)
     kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-
-    data_value out;
-    int ret = item->get(timestamp, out);
-    if (ret == 0 || ret == WT_NOTFOUND)
-        return out; /* The value is already NONE if not found. */
-
-    std::ostringstream error;
-    error << "Get returned: " << ret;
-    throw model_exception(error.str());
+    return item->get(timestamp);
 }
 
 /*
  * kv_table::get --
- *     Get the value. This is a convenience function that returns a copy of the object, turning any
- *     errors (other than NOT FOUND) to exceptions.
+ *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
+ *     exception on error.
  */
 data_value
 kv_table::get(kv_transaction_ptr txn, const data_value &key)
@@ -82,20 +73,12 @@ kv_table::get(kv_transaction_ptr txn, const data_value &key)
     kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-
-    data_value out;
-    int ret = item->get(txn, out);
-    if (ret == 0 || ret == WT_NOTFOUND)
-        return out; /* The value is already NONE if not found. */
-
-    std::ostringstream error;
-    error << "Get returned: " << ret;
-    throw model_exception(error.str());
+    return item->get(txn);
 }
 
 /*
  * kv_table::get_ext --
- *     Get the value and return the error code.
+ *     Get the value and return the error code instead of throwing an exception.
  */
 int
 kv_table::get_ext(const data_value &key, data_value &out, timestamp_t timestamp)
@@ -105,12 +88,18 @@ kv_table::get_ext(const data_value &key, data_value &out, timestamp_t timestamp)
         out = NONE;
         return WT_NOTFOUND;
     }
-    return item->get(timestamp, out);
+    try {
+        out = item->get(timestamp);
+        return out == NONE ? WT_NOTFOUND : 0;
+    } catch (wiredtiger_exception &e) {
+        out = NONE;
+        return e.error();
+    }
 }
 
 /*
  * kv_table::get_ext --
- *     Get the value and return the error code.
+ *     Get the value and return the error code instead of throwing an exception.
  */
 int
 kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out)
@@ -120,7 +109,13 @@ kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out
         out = NONE;
         return WT_NOTFOUND;
     }
-    return item->get(txn, out);
+    try {
+        out = item->get(txn);
+        return out == NONE ? WT_NOTFOUND : 0;
+    } catch (wiredtiger_exception &e) {
+        out = NONE;
+        return e.error();
+    }
 }
 
 /*

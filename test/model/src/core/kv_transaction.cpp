@@ -65,9 +65,7 @@ kv_transaction::commit(timestamp_t commit_timestamp, timestamp_t durable_timesta
     if (_failed && !_updates.empty())
         throw model_exception("Failed transaction requires rollback");
 
-    if (txn_state != kv_transaction_state::in_progress &&
-      txn_state != kv_transaction_state::prepared)
-        throw model_exception("The transaction must be either in progress or prepared");
+    assert_in_progress_or_prepared();
 
     if (txn_state == kv_transaction_state::prepared) {
         if (durable_timestamp == k_timestamp_none)
@@ -146,11 +144,8 @@ void
 kv_transaction::rollback()
 {
     std::lock_guard lock_guard(_lock);
-    kv_transaction_state txn_state = state();
 
-    if (txn_state != kv_transaction_state::in_progress &&
-      txn_state != kv_transaction_state::prepared)
-        throw model_exception("The transaction must be either in progress or prepared");
+    assert_in_progress_or_prepared();
 
     /* Mark the transaction as rolled back. */
     _state.store(kv_transaction_state::rolled_back, std::memory_order_release);
@@ -174,11 +169,7 @@ kv_transaction::set_commit_timestamp(timestamp_t commit_timestamp)
 
     if (commit_timestamp == k_initial_commit_timestamp)
         throw model_exception("Invalid commit timestamp");
-
-    kv_transaction_state txn_state = state();
-    if (txn_state != kv_transaction_state::in_progress &&
-      txn_state != kv_transaction_state::prepared)
-        throw model_exception("The transaction must be either in progress or prepared");
+    assert_in_progress_or_prepared();
 
     /*
      * In non-prepared transactions, updates will have the durable timestamp the same as the commit
@@ -187,6 +178,19 @@ kv_transaction::set_commit_timestamp(timestamp_t commit_timestamp)
      */
     _commit_timestamp = commit_timestamp;
     _durable_timestamp = commit_timestamp;
+}
+
+/*
+ * kv_transaction::assert_in_progress_or_prepared --
+ *     Assert that the transaction is in progress or prepared.
+ */
+void
+kv_transaction::assert_in_progress_or_prepared()
+{
+    kv_transaction_state txn_state = state();
+    if (txn_state != kv_transaction_state::in_progress &&
+      txn_state != kv_transaction_state::prepared)
+        throw model_exception("The transaction must be either in progress or prepared");
 }
 
 } /* namespace model */
