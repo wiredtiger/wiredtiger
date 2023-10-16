@@ -6,8 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#pragma once
-
 /*
  * Condition variables:
  *
@@ -20,14 +18,14 @@ struct __wt_condvar {
     wt_mutex_t mtx; /* Mutex */
     wt_cond_t cond; /* Condition variable */
 
-    int waiters; /* Numbers of waiters, or
+    wt_shared int waiters; /* Numbers of waiters, or
                     -1 if signalled with no waiters. */
     /*
      * The following fields are used for automatically adjusting condition variable wait times.
      */
-    uint64_t min_wait;  /* Minimum wait duration */
-    uint64_t max_wait;  /* Maximum wait duration */
-    uint64_t prev_wait; /* Wait duration used last time */
+    uint64_t min_wait;            /* Minimum wait duration */
+    uint64_t max_wait;            /* Maximum wait duration */
+    wt_shared uint64_t prev_wait; /* Wait duration used last time */
 };
 
 /*
@@ -39,7 +37,7 @@ struct __wt_condvar {
  * functions.
  */
 struct __wt_rwlock { /* Read/write lock */
-    volatile union __wt_rwlock_union {
+    wt_shared volatile union {
         uint64_t v; /* Full 64-bit value */
         struct {
             uint8_t current;         /* Current ticket */
@@ -48,14 +46,6 @@ struct __wt_rwlock { /* Read/write lock */
             uint8_t readers_queued;  /* Count of queued readers */
             uint32_t readers_active; /* Count of active readers */
         } s;
-#ifdef USE_CPP_FOR_C_FILES
-        __wt_rwlock_union volatile &
-        operator=(__wt_rwlock_union volatile &from) volatile
-        {
-            v = from.v;
-            return (*this);
-        }
-#endif
     } u;
 
     int16_t stat_read_count_off;    /* read acquisitions offset */
@@ -113,7 +103,7 @@ struct __wt_spinlock {
     uint8_t unused[7];
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX || \
   SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE || SPINLOCK_TYPE == SPINLOCK_MSVC
-    wt_mutex_t lock;
+    wt_shared wt_mutex_t lock;
 #else
 #error Unknown spinlock type
 #endif

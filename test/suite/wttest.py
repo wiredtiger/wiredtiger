@@ -208,6 +208,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def getTierStorageSource(self):
         return self.platform_api.getTierStorageSource()
 
+    # Return the tier storage source configuration for this testcase, or None.
+    def getTierStorageSourceConfig(self):
+        return self.platform_api.getTierStorageSourceConfig()
+
     def buildDirectory(self):
         return self._builddir
 
@@ -829,6 +833,29 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return a recno key
         """
         return i
+
+@contextmanager
+def open_cursor(session, uri: str, **kwargs):
+    """
+    Open a cursor instance on a session.
+
+    Supports 'with' statements.
+
+    Args:
+        uri (str): URI.
+
+    Keyword Args:
+        config (str): Configuration.
+    """
+
+    config = None if "config" not in kwargs else str(kwargs["config"])
+
+    cursor = session.open_cursor(uri, None, config)
+    try:
+        yield cursor
+    finally:
+        cursor.close()
+
 
 def zstdtest(description):
     """
