@@ -357,6 +357,7 @@ struct __wt_connection_stats {
     int64_t background_compact_ema;
     int64_t background_compact_bytes_recovered;
     int64_t background_compact_running;
+    int64_t background_compact_exclude;
     int64_t background_compact_skipped;
     int64_t background_compact_success;
     int64_t background_compact_timeout;
@@ -613,10 +614,10 @@ struct __wt_connection_stats {
     int64_t chunkcache_chunks_evicted;
     int64_t chunkcache_exceeded_capacity;
     int64_t chunkcache_lookups;
+    int64_t chunkcache_chunks_loaded_from_flushed_tables;
     int64_t chunkcache_metadata_work_units_created;
     int64_t chunkcache_metadata_work_units_dequeued;
     int64_t chunkcache_misses;
-    int64_t chunkcache_newly_inserted;
     int64_t chunkcache_io_failed;
     int64_t chunkcache_retries;
     int64_t chunkcache_toomany_retries;

@@ -938,7 +938,7 @@ __wt_chunkcache_ingest(
 
         WT_ERR(__chunkcache_read_into_chunk(session, bucket_id, fh, chunk));
 
-        WT_STAT_CONN_INCR(session, chunkcache_newly_inserted);
+        WT_STAT_CONN_INCR(session, chunkcache_chunks_loaded_from_flushed_tables);
 
         __wt_verbose(session, WT_VERB_CHUNKCACHE, "ingest: %s(%u), offset=%" PRId64 ", size=%lu",
           (char *)local_name, objectid, chunk->chunk_offset, chunk->chunk_size);
