@@ -120,8 +120,8 @@ class test_compact10(wttest.WiredTigerTestCase):
         
         # Enable background compaction. Exclude the HS file as there is no content to compact.
         exclude_list = '["table:WiredTigerHS.wt"]'
-        config = f'background=true,free_space_target=1MB,exclude={exclude_list}'
-        self.turn_on_bg_compact(config)
+        compact_config = f'background=true,free_space_target=1MB,exclude={exclude_list}'
+        self.turn_on_bg_compact(compact_config)
 
         # Wait for a random table to be compacted before crashing.
         uri_idx = random.randint(0, self.n_tables - 1)
@@ -132,7 +132,7 @@ class test_compact10(wttest.WiredTigerTestCase):
         # Simulate a crash.
         new_dir = 'RESTART'
         copy_wiredtiger_home(self, '.', new_dir)
-        self.reopen_conn(new_dir)
+        self.reopen_conn(new_dir, self.conn_config)
 
         # Verify each table.
         for uri in uris:
