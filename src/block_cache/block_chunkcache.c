@@ -160,14 +160,12 @@ static int
 __chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, const char *name,
   uint32_t objectid, wt_off_t file_offset, uint64_t cache_offset, size_t data_sz)
 {
-    WT_CHUNKCACHE *cache;
     WT_CHUNKCACHE_METADATA_WORK_UNIT *entry;
     WT_CONNECTION_IMPL *conn;
 
-    cache = &S2C(session)->chunkcache;
     conn = S2C(session);
 
-    WT_ASSERT(session, cache->type == WT_CHUNKCACHE_FILE);
+    WT_ASSERT(session, conn->chunkcache.type == WT_CHUNKCACHE_FILE);
 
     WT_RET(__wt_calloc_one(session, &entry));
     entry->type = type;
