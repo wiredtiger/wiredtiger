@@ -49,7 +49,7 @@
 #
 from __future__ import print_function
 
-import sys, unittest, wthooks, wttimestamp
+import sys, unittest, wthooks, wttest, wttimestamp
 
 # These are the hook functions that are run when particular APIs are called.
 
@@ -101,31 +101,33 @@ class TimestampHookCreator(wthooks.WiredTigerHookCreator):
 
     dataset_names = make_dataset_names()
 
-    # We skip tests that don't use datasets
-    def skip_test(self, test, known_skip):
-        import importlib
+    # Determine if a test should be skipped. 
+    # If it should skip, return the reason as a string. If it shouldn't, return None
+    # The timestamp hook skips tests that don't use datasets.
+    def skip_reason(self, test):
         testname = str(test)
-        #print('CHECK: {}'.format(testname))
         modname = testname.split('.')[0]
-        if modname in known_skip:
-            return known_skip[modname]
         g = sys.modules[modname].__dict__
+
         uses_dataset = False
         for dsname in self.dataset_names:
             if dsname in g:
                 uses_dataset = True
                 break
-        #print('CHECK: {}: {}'.format(test,uses_dataset))
-        skip = not uses_dataset
-        known_skip[modname] = skip
-        return skip
 
+        if not uses_dataset:
+            return "Doesn't use dataset"
+        else:
+            return None
+
+    # FIXME-WT-11804 - Update name of filter_tests
     # Remove tests that won't work on timestamp cursors
     def filter_tests(self, tests):
-        new_tests = unittest.TestSuite()
-        known_skip = dict()
-        new_tests.addTests([t for t in tests if not self.skip_test(t, known_skip)])
-        return new_tests
+        for t in tests:
+            skip_reason = self.skip_reason(t)
+            if skip_reason is not None:
+                wttest.register_skipped_test(t, skip_reason)
+        return tests
 
     def get_platform_api(self):
         return self.platform_api
