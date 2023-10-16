@@ -216,6 +216,7 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     bool background_compaction;
+    char interrupt_msg[128];
 
     background_compaction = false;
     conn = S2C(session);
@@ -235,8 +236,19 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     }
 
     if (ret != 0) {
-        __wt_verbose_warning(session, WT_VERB_COMPACT, "%s interrupted by application",
-          background_compaction ? "background compact" : "compact");
+        WT_RET(__wt_snprintf(interrupt_msg, sizeof(interrupt_msg), "%s interrupted by application",
+          background_compaction ? "background compact" : "compact"));
+        /*
+         * Always log a warning when:
+         * - Interrupting foreground compaction
+         * - Interrupting background compaction and the connection is not being closed/open.
+         * Otherwise, it is expected to potentially interrupt background compaction and should not
+         * be exposed as a warning.
+         */
+        if (!background_compaction || !F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL))
+            __wt_verbose_warning(session, WT_VERB_COMPACT, "%s", interrupt_msg);
+        else
+            __wt_verbose(session, WT_VERB_COMPACT, "%s", interrupt_msg);
         return (ret);
     }
 
