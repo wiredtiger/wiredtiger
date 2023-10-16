@@ -29,6 +29,7 @@
 import random, time, wttest
 from helper import copy_wiredtiger_home
 from wiredtiger import stat
+from wtscenario import make_scenarios
 
 # test_compact10.py
 # Verify database can be recovered when a crash occurs during compaction.
@@ -43,6 +44,12 @@ class test_compact10(wttest.WiredTigerTestCase):
     # Create up to 3 tables.
     n_tables = random.randint(1, 3)
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
+
+    timing_stress_cfg_values = [
+        ('checkpoint_slow', dict(timing_stress_cfg='checkpoint_slow')),
+        ('compact_slow', dict(timing_stress_cfg='compact_slow')),
+    ]
+    scenarios = make_scenarios(timing_stress_cfg_values)
 
     def delete_range(self, uri, num_keys):
         c = self.session.open_cursor(uri, None)
@@ -106,7 +113,7 @@ class test_compact10(wttest.WiredTigerTestCase):
         reconf_config = self.conn_config + ',debug_mode=(background_compact)'
         # - Stressing options to slow down compaction and checkpoints so the test can trigger the
         # crash while compaction is still in progress.
-        reconf_config += ',timing_stress_for_test=(checkpoint_slow, compact_slow)'
+        reconf_config += f',timing_stress_for_test=({self.timing_stress_cfg})'
         # - Verbose (for debugging purposes)
         # reconf_config += ',verbose=(compact,compact_progress)'
         self.conn.reconfigure(reconf_config)
