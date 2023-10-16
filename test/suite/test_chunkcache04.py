@@ -33,10 +33,10 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 '''
-- Evaluate chunkcache performance both in-memory and on-disk, to test the functionality of pinned chunks.
-- Verify the functionality of reconfiguring pinned configurations.
+- Functional testing for the ingesting. Verify ingests are taking place with both pinned and unpinned chunks.
+- Verify that when ingesting new chunks with old pinned objects, we are releasing the pin on the old objects. 
 '''
-class test_chunkcache03(wttest.WiredTigerTestCase):
+class test_chunkcache4(wttest.WiredTigerTestCase):
     rows = 10000
 
     format_values = [
@@ -48,7 +48,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
     if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
-
+    
     pinned_uris = ["table:chunkcache01", "table:chunkcache02"]
 
     scenarios = make_scenarios(format_values, cache_types)
@@ -78,50 +78,61 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         for i in range(1, self.rows):
             cursor[ds.key(i)] = str(i) * 100
 
-    def read_and_verify(self, uri, ds):
-        cursor = self.session.open_cursor(uri)
-        for i in range(1, self.rows):
-            cursor.set_key(ds.key(i))
-            cursor.search()
-            self.assertEqual(cursor.get_value(), str(i) * 100)
-
-    def test_chunkcache03(self):
-        uris = self.pinned_uris + ["table:chunkcache03", "table:chunkcache04"]
+    def test_chunkcache04(self):
+        uris = ["table:chunkcache03", "table:chunkcache04"]
         ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in uris]
 
-        # Insert data in four tables.
+        # Insert unpinned data into two tables. 
         for i, dataset in enumerate(ds):
             dataset.populate()
             self.insert(uris[i], dataset)
 
+        # As we have not flushed yet, assert we have no newly inserted chunks. 
+        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
+        
+        # Flush the unpinned tables into the chunkcache 
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
+        # Assert that chunks are not pinned. 
+        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned), 0)
+
         # Assert the new chunks are ingested. 
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
+        first_ingest = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables)
+        self.assertGreater(first_ingest, 0)
+        
+        ds2 = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in self.pinned_uris]
 
-        # Reopen wiredtiger to migrate all data to disk.
-        self.reopen_conn()
+        # Insert pinned data into two tables.
+        for i, dataset in enumerate(ds2):
+            dataset.populate()
+            self.insert(self.pinned_uris[i], dataset)
 
-        # Ensure chunks are read from metadata in type=FILE case.
-        if self.chunk_cache_type == "FILE":
-            self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
+        # Flush the pinned tables into the chunkcache 
+        self.session.checkpoint()
+        self.session.checkpoint('flush_tier=(enabled)')
 
-        # For the type=DRAM case read manually to cache the chunks.
-        for i in range(0, 4):
-            self.read_and_verify(uris[i], ds[i])
+        # Assert the new chunks are ingested.
+        second_ingest = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables)
+        self.assertGreater(second_ingest, first_ingest)
 
-        # Assert pinned/unpinned stats.
-        total_chunks = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse)
-        pinned_chunks = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned)
-        self.assertGreater(total_chunks, 0)
-        self.assertGreater(pinned_chunks, 0)
+        # Assert that chunks are pinned.
+        old_pinned = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned)
+        self.assertGreater(old_pinned, 0)
 
-        # Assert that pinned chunks make up 50% of the total chunks.
-        self.assertEqual(total_chunks/pinned_chunks, 2)
+        # Modify the tables content so flush has work to do.  
+        cursor = self.session.open_cursor(self.pinned_uris[0])
+        cursor[ds2[0].key(1)] = 'foo'
+        cursor1 = self.session.open_cursor(self.pinned_uris[1])
+        cursor1[ds2[1].key(2)] = 'bar'
 
-        # Reconfigure wiredtiger and mark the pinned objects as unpinned and vice-versa.
-        self.conn.reconfigure('chunk_cache=[pinned=("table:chunkcache03", "table:chunkcache04")]')
+        # Flush the pinned tables into the chunkcache 
+        self.session.checkpoint()
+        self.session.checkpoint('flush_tier=(enabled)')
 
-        # Assert that pinned chunks make up 50% of the total chunks.
-        self.assertEqual(total_chunks/pinned_chunks, 2)
+        # Assert another set of ingests took place. 
+        total_ingest = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables)
+        self.assertGreater(total_ingest, second_ingest)
+
+        # Assert the old chunks from the pinned table were unset after flush.
+        self.assertGreater(old_pinned, self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned))

@@ -160,14 +160,12 @@ static int
 __chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, const char *name,
   uint32_t objectid, wt_off_t file_offset, uint64_t cache_offset, size_t data_sz)
 {
-    WT_CHUNKCACHE *cache;
     WT_CHUNKCACHE_METADATA_WORK_UNIT *entry;
     WT_CONNECTION_IMPL *conn;
 
-    cache = &S2C(session)->chunkcache;
     conn = S2C(session);
 
-    WT_ASSERT(session, cache->type == WT_CHUNKCACHE_FILE);
+    WT_ASSERT(session, conn->chunkcache.type == WT_CHUNKCACHE_FILE);
 
     WT_RET(__wt_calloc_one(session, &entry));
     entry->type = type;
@@ -435,7 +433,8 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         __wt_free(session, chunk->chunk_memory);
     else {
-        /* Push the removal into the work queue so it can get removed from the chunkcache metadata.
+        /*
+         * Push the removal into the work queue so it can get removed from the chunkcache metadata.
          */
         WT_IGNORE_RET(__chunkcache_metadata_queue_delete(session, chunk));
 
@@ -940,7 +939,7 @@ __wt_chunkcache_ingest(
 
         WT_ERR(__chunkcache_read_into_chunk(session, bucket_id, fh, chunk));
 
-        WT_STAT_CONN_INCR(session, chunkcache_newly_inserted);
+        WT_STAT_CONN_INCR(session, chunkcache_chunks_loaded_from_flushed_tables);
 
         __wt_verbose(session, WT_VERB_CHUNKCACHE, "ingest: %s(%u), offset=%" PRId64 ", size=%lu",
           (char *)local_name, objectid, chunk->chunk_offset, chunk->chunk_size);

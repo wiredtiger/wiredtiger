@@ -174,9 +174,10 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
+    entry = NULL;
+
     WT_ERR(__wt_open_cursor(session, WT_CC_METAFILE_URI, NULL, NULL, &cursor));
 
-    entry = NULL;
     for (int i = 0; i < WT_CHUNKCACHE_METADATA_MAX_WORK; i++) {
         if (!__chunkcache_metadata_run_chk(session))
             break;

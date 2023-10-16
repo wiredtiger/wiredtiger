@@ -203,6 +203,7 @@ conn_stats = [
     ##########################################
     BackgroundCompactStat('background_compact_bytes_recovered', 'background compact recovered bytes', 'no_scale'),
     BackgroundCompactStat('background_compact_ema', 'background compact moving average of bytes rewritten', 'no_scale'),
+    BackgroundCompactStat('background_compact_exclude', 'background compact skipped file as it is part of the exclude list', 'no_scale'),
     BackgroundCompactStat('background_compact_fail', 'background compact failed calls', 'no_scale'),
     BackgroundCompactStat('background_compact_fail_cache_pressure', 'background compact failed calls due to cache pressure', 'no_scale'),
     BackgroundCompactStat('background_compact_files_tracked', 'number of files tracked by background compaction', 'no_scale'),
@@ -412,6 +413,7 @@ conn_stats = [
     ChunkCacheStat('chunkcache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
     ChunkCacheStat('chunkcache_chunks_evicted', 'chunks evicted'),
     ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunkcache_chunks_loaded_from_flushed_tables', 'number of chunks loaded from flushed tables in chunk cache'),
     ChunkCacheStat('chunkcache_chunks_pinned', 'total pinned chunks held by the chunk cache'),
     ChunkCacheStat('chunkcache_created_from_metadata', 'total number of chunks created, and linked to their corresponding on-disk offsets using information extracted from metadata.'),
     ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
@@ -420,7 +422,6 @@ conn_stats = [
     ChunkCacheStat('chunkcache_metadata_work_units_created', 'number of metadata inserts/deletes pushed to the worker thread'),
     ChunkCacheStat('chunkcache_metadata_work_units_dequeued', 'number of metadata inserts/deletes read by the worker thread'),
     ChunkCacheStat('chunkcache_misses', 'number of misses'),
-    ChunkCacheStat('chunkcache_newly_inserted', 'number of newly inserted objects in chunk cache'),
     ChunkCacheStat('chunkcache_retries', 'retried accessing a chunk while I/O was in progress'),
     ChunkCacheStat('chunkcache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
     ChunkCacheStat('chunkcache_toomany_retries', 'timed out due to too many retries'),
