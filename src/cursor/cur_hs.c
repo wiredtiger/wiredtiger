@@ -988,9 +988,8 @@ __curhs_insert(WT_CURSOR *cursor)
         hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
 
         WT_RET(__wt_txn_upd_get_durable(session, hs_tombstone, &tombstone_durable_ts));
-        WT_ASSERT(session,
-          __wt_txn_upd_set_durable(
-            &tombstone_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_stop_ts) == 0);
+        WT_RET(__wt_txn_upd_set_durable(
+          &tombstone_durable_ts, (wt_timestamp_t *)hs_cursor->time_window.durable_stop_ts));
         hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
 
         WT_ASSERT(session,

@@ -132,15 +132,15 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
  * __txn_apply_prepare_state_update --
  *     Change the prepared state of an update.
  */
-static inline void
+static inline int
 __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
     WT_TXN *txn;
-    // wt_timestamp_t *durable_ts;
+    wt_timestamp_t durable_ts;
 
     txn = session->txn;
 
-    // wt_txn_upd_get_durable(session, upd, durable_ts);
+    WT_RET(__wt_txn_upd_get_durable(session, upd, &durable_ts));
 
     if (commit) {
         /*
@@ -153,7 +153,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
         upd->prepare_state = WT_PREPARE_LOCKED;
         WT_WRITE_BARRIER();
         upd->start_ts = txn->commit_timestamp;
-        // *durable_ts = txn->durable_timestamp;
+        WT_RET(__wt_txn_upd_set_durable(&durable_ts, &txn->durable_timestamp));
 
         WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
@@ -165,9 +165,11 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
          * problem.
          */
-        // durable_ts = WT_TS_NONE;
+        WT_RET(__wt_txn_upd_set_durable(&durable_ts, WT_TS_NONE));
         WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
     }
+
+    return (0);
 }
 
 /*
@@ -258,7 +260,7 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
  *     Apply the correct prepare state and the timestamp to the ref and to any updates in the page
  *     del update list.
  */
-static inline void
+static inline int
 __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_PAGE_DELETED *page_del;
@@ -290,13 +292,15 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp)
-                __txn_apply_prepare_state_update(session, *updp, commit);
+                WT_RET(__txn_apply_prepare_state_update(session, *updp, commit));
     }
 
     if ((page_del = ref->page_del) != NULL)
         __txn_apply_prepare_state_page_del(session, page_del, commit);
 
     WT_REF_UNLOCK(ref, previous_state);
+
+    return (0);
 }
 
 /*
@@ -416,12 +420,12 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
          * transaction commit call.
          */
         if (op->type == WT_TXN_OP_REF_DELETE)
-            __wt_txn_op_delete_apply_prepare_state(session, op->u.ref, true);
+            WT_RET(__wt_txn_op_delete_apply_prepare_state(session, op->u.ref, true));
         else {
             upd = op->u.op_upd;
 
             /* Resolve prepared update to be committed update. */
-            __txn_apply_prepare_state_update(session, upd, true);
+            WT_RET(__txn_apply_prepare_state_update(session, upd, true));
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
@@ -971,7 +975,7 @@ __wt_txn_visible(
  */
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-{   
+{
     wt_timestamp_t durable_ts;
     uint8_t prepare_state, previous_state;
     bool upd_visible;
