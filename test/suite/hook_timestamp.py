@@ -126,7 +126,7 @@ class TimestampHookCreator(wthooks.WiredTigerHookCreator):
         for t in tests:
             skip_reason = self.skip_reason(t)
             if skip_reason is not None:
-                wttest.register_skipped_test(t, skip_reason)
+                wttest.register_skipped_test(t, "timestamp", skip_reason)
         return tests
 
     def get_platform_api(self):

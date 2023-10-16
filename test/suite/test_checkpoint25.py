@@ -38,6 +38,7 @@ from wtscenario import make_scenarios
 # Test reading a checkpoint that contains fast-delete pages.
 # This version uses timestamps.
 
+@wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
 
