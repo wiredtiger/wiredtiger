@@ -17,13 +17,9 @@
 /* The maximum number of metadata entries to write out per server wakeup. */
 #define WT_CHUNKCACHE_METADATA_MAX_WORK 1000
 
-/*
- * Different types of chunkcache metadata operations.
- */
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CHUNKCACHE_METADATA_WORK_DEL 0x1u
-#define WT_CHUNKCACHE_METADATA_WORK_INS 0x2u
-/* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+/* Different types of chunkcache metadata operations. */
+#define WT_CHUNKCACHE_METADATA_WORK_DEL 1
+#define WT_CHUNKCACHE_METADATA_WORK_INS 2
 
 struct __wt_chunkcache_metadata_work_unit {
     TAILQ_ENTRY(__wt_chunkcache_metadata_work_unit) q;

@@ -315,7 +315,7 @@ struct __wt_connection_impl {
 
     WT_SPINLOCK api_lock;                 /* Connection API spinlock */
     WT_SPINLOCK checkpoint_lock;          /* Checkpoint spinlock */
-    WT_SPINLOCK chunkcache_metadata_lock; /* Checkpoint spinlock */
+    WT_SPINLOCK chunkcache_metadata_lock; /* Chunkcache metadata spinlock */
     WT_RWLOCK debug_log_retention_lock;   /* Log retention reconfiguration lock */
     WT_SPINLOCK fh_lock;                  /* File handle queue spinlock */
     WT_SPINLOCK flush_tier_lock;          /* Flush tier spinlock */
@@ -384,7 +384,8 @@ struct __wt_connection_impl {
      * of the table URI.
      */
     /* Locked: data handle hash array */
-    TAILQ_HEAD(__wt_dhhash, __wt_data_handle) * dhhash; /* Locked: data handle list */
+    TAILQ_HEAD(__wt_dhhash, __wt_data_handle) * dhhash;
+    /* Locked: data handle list */
     TAILQ_HEAD(__wt_dhandle_qh, __wt_data_handle) dhqh;
     /* Locked: dynamic library handle list */
     TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
