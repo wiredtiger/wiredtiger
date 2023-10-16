@@ -129,7 +129,7 @@ class test_compact10(wttest.WiredTigerTestCase):
 
         # Verify each table.
         for uri in uris:
-            self.verifyUntilSuccess(self.session, uri, None)
+            self.verifyUntilSuccess(self.session, uri, "strict")
 
         # Background compaction may be have been inspecting a table when disabled which is
         # considered as an interruption, ignore that message.
