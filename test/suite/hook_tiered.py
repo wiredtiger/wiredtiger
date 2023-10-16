@@ -307,10 +307,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         skip_categories = [
             ("backup",               "Can't backup a tiered table"),
             ("inmem",                "In memory tests don't make sense with tiered storage"),
-            ("lsm",                  "If the test name tells us it uses lsm ignore it"),
+            ("lsm",                  "LSM is not supported with tiering"),
             ("modify_smoke_recover", "Copying WT dir doesn't copy the bucket directory"),
             ("test_salvage",         "Salvage tests directly name files ending in '.wt'"),
-            ("test_config_json",     "create replacement can't handle a json config string"),
+            ("test_config_json",     "Tiered hook's create function can't handle a json config string"),
             ("test_cursor_big",      "Cursor caching verified with stats"),
             ("tiered",               "Tiered tests already do tiering."),
             ("test_verify",          "Verify not supported on tiered tables (yet)")
