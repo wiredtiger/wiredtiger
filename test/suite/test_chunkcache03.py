@@ -49,6 +49,8 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
 
+    pinned_uris = ["table:chunkcache01", "table:chunkcache02"]
+
     scenarios = make_scenarios(format_values, cache_types)
 
     def conn_config(self):
@@ -56,7 +58,9 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
             os.mkdir('bucket2')
 
         return 'tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20GB,pinned=("table:chunkcache01", "table:chunkcache02"),type={},storage_path=WiredTigerChunkCache]'.format(self.chunk_cache_type)
+            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20GB,pinned=' \
+                + '("' + '{}'.format("\",\"".join(self.pinned_uris)) \
+                + '"),type={},storage_path=WiredTigerChunkCache]'.format(self.chunk_cache_type)
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':
@@ -82,7 +86,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_value(), str(i) * 100)
 
     def test_chunkcache03(self):
-        uris = ["table:chunkcache01", "table:chunkcache02", "table:chunkcache03", "table:chunkcache04"]
+        uris = self.pinned_uris + ["table:chunkcache03", "table:chunkcache04"]
         ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in uris]
 
         # Insert data in four tables.
@@ -92,6 +96,9 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
+
+        # Assert the new chunks are ingested. 
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_loaded_from_flushed_tables), 0)
 
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()

@@ -1745,6 +1745,18 @@ tasks:
   # All cppsuite pull request tasks must supply the relative path to the config file as we are in
   # the cmake build working directory and the LD_LIBRARY_PATH is .libs.
 
+  - name: cppsuite-background-compact-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(background_compact,cursor_copy=true)
+          test_config_filename: configs/background_compact_default.txt
+          test_name: background_compact
+
   - name: cppsuite-cache-resize-test-default
     tags: ["pull_request"]
     depends_on:
@@ -1874,6 +1886,17 @@ tasks:
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/reverse_split_default.txt
           test_name: reverse_split
+
+  - name: cppsuite-background-long
+    tags: ["cppsuite-stress-test"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/background_compact_long.txt
+          test_name: background_compact
 
   - name: cppsuite-operations-test-stress
     depends_on:
@@ -2753,6 +2776,16 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --hook tiered
+
+  - name: unit-test-hook-tiered-with-delays
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --hook 'tiered=(tier_storage_source=dir_store,tier_storage_source_config=(force_delay=1,delay_ms=10,verbose=1))'
 
   - name: unit-test-hook-tiered-s3
     tags: ["python"]
@@ -3890,6 +3923,8 @@ tasks:
             echo ". remote path   =  wiredtiger/${build_variant}/${revision}/${dependent_task}_${build_id}-${execution}/full_coverage_report.json"
             mkdir -p coverage_report
       - command: s3.get
+        vars:
+          dependent_task: coverage-report
         params:
           aws_key: ${aws_key}
           aws_secret: ${aws_secret}
@@ -3932,6 +3967,9 @@ tasks:
 
             # Log the contents of the change info file
             cat coverage_report/code_change_info.json
+
+            # Generate the Code Change Report
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_report.py -v -c coverage_report/code_change_info.json -o coverage_report/code_change_report.html
       - func: "code coverage publish report"
 
   - name: s3-tiered-storage-extensions-test
@@ -4037,6 +4075,9 @@ tasks:
 
             # Run Azure extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
+
+            # Run GCP extension unit testing.
+            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
 
   - name: azure-gcp-tiered-test-small
     tags: ["pull_request", "python"]
@@ -4704,6 +4745,20 @@ tasks:
         vars:
           NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "split stress test"
+
+  - name: model-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/test"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ./test_model.sh
 
   - name: format-stress-zseries-test
     tags: ["stress-test-zseries-1"]
@@ -6295,6 +6350,7 @@ buildvariants:
     - name: unit-test-zstd
     - name: unit-test-random-seed
     - name: unit-test-hook-tiered
+    - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
     - name: unit-test-hook-timestamp
     - name: test-prepare-hs03-hook-timestamp
@@ -6327,6 +6383,7 @@ buildvariants:
     - name: chunkcache-test
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
+    - name: model-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -6702,6 +6759,7 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
+    - name: model-test
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
