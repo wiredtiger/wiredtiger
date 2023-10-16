@@ -215,8 +215,8 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    bool background_compaction;
     char interrupt_msg[128];
+    bool background_compaction;
 
     background_compaction = false;
     conn = S2C(session);
