@@ -56,9 +56,8 @@ class NonStandAloneHookCreator(wthooks.WiredTigerHookCreator):
         # Individual tests are skipped via the skip_for_hook decorator
         return None
 
-    # Remove tests that won't work on non-standalone build
-    # FIXME-WT-11804 - Common pattern?
-    def filter_tests(self, tests):
+    # Skip tests that won't work on non-standalone build
+    def register_skipped_test(self, tests):
         for t in tests:
             skip_reason = self.skip_reason(t)
             if skip_reason is not None:

@@ -323,8 +323,8 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
         return None
 
-    # Remove tests that won't work on tiered cursors
-    def filter_tests(self, tests):
+    # Skip tests that won't work on tiered cursors
+    def register_skipped_tests(self, tests):
         for t in tests:
             skip_reason = self.skip_reason(t)
             if skip_reason is not None:

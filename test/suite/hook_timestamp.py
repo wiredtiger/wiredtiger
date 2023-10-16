@@ -120,9 +120,8 @@ class TimestampHookCreator(wthooks.WiredTigerHookCreator):
         else:
             return None
 
-    # FIXME-WT-11804 - Update name of filter_tests
     # Remove tests that won't work on timestamp cursors
-    def filter_tests(self, tests):
+    def register_skipped_tests(self, tests):
         for t in tests:
             skip_reason = self.skip_reason(t)
             if skip_reason is not None:

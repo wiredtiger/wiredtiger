@@ -111,8 +111,8 @@ class DemoHookCreator(wthooks.WiredTigerHookCreator):
 
     # We have an opportunity to filter the list of tests to be run.
     # For this demo, we don't filter.
-    def filter_tests(self, tests):
-        print('Filtering: ' + str(tests))
+    def register_skipped_tests(self, tests):
+        print('Registering skipped tests: ' + str(tests))
         return tests
 
     # If the hook wants to override some implementation of the test framework,
