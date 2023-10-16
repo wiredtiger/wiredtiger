@@ -2263,7 +2263,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->chunkcache_bytes_inuse = 0;
     stats->chunkcache_bytes_inuse_pinned = 0;
     stats->chunkcache_chunks_inuse = 0;
-    stats->chunkcache_create_and_link_chunks = 0;
+    stats->chunkcache_created_from_metadata = 0;
     stats->chunkcache_chunks_pinned = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
@@ -2955,7 +2955,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_bytes_inuse += WT_STAT_READ(from, chunkcache_bytes_inuse);
     to->chunkcache_bytes_inuse_pinned += WT_STAT_READ(from, chunkcache_bytes_inuse_pinned);
     to->chunkcache_chunks_inuse += WT_STAT_READ(from, chunkcache_chunks_inuse);
-    to->chunkcache_create_and_link_chunks += WT_STAT_READ(from, chunkcache_create_and_link_chunks);
+    to->chunkcache_created_from_metadata += WT_STAT_READ(from, chunkcache_created_from_metadata);
     to->chunkcache_chunks_pinned += WT_STAT_READ(from, chunkcache_chunks_pinned);
     to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);

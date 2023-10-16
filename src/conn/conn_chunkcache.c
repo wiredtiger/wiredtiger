@@ -191,7 +191,7 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(__chunkcache_metadata_delete(cursor, entry), false);
         else {
             __wt_verbose_error(
-              session, WT_VERB_CHUNKCACHE, "got messed up event type %d\n", entry->type);
+              session, WT_VERB_CHUNKCACHE, "got invalid event type %d\n", entry->type);
             ret = -1;
             goto err;
         }

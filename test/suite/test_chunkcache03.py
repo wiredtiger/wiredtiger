@@ -98,7 +98,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
         # Ensure chunks are read from metadata in type=FILE case.
         if self.chunk_cache_type == "FILE":
-            self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_create_and_link_chunks), 0)
+            self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
 
         # For the type=DRAM case read manually to cache the chunks.
         for i in range(0, 4):

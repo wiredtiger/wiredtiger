@@ -6053,7 +6053,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * corresponding on-disk offsets using information extracted from
  * metadata.
  */
-#define	WT_STAT_CONN_CHUNKCACHE_CREATE_AND_LINK_CHUNKS	1284
+#define	WT_STAT_CONN_CHUNKCACHE_CREATED_FROM_METADATA	1284
 /*! chunk-cache: total pinned chunks held by the chunk cache */
 #define	WT_STAT_CONN_CHUNKCACHE_CHUNKS_PINNED		1285
 /*! connection: auto adjusting condition resets */
