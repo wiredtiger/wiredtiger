@@ -881,7 +881,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * acquire a new snapshot to evict the latest data, once the application threads are done
          * with eviction then the snapshots are switched back to its original snapshots.
          */
-        is_application_thread_snapshot_refreshed = __wt_txn_snapshot_save_and_refresh(session);
+        ret = __wt_txn_snapshot_save_and_refresh(session);
+        is_application_thread_snapshot_refreshed = ret != 0 ? false : true;
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);

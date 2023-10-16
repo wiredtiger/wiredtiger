@@ -323,7 +323,7 @@ __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
  * __wt_txn_snapshot_save_and_refresh --
  *     Save the existing snapshot and allocate a new snapshot.
  */
-bool
+int
 __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
@@ -331,7 +331,7 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
 
     txn = session->txn;
 
-    WT_ERR(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT), &txn->backup_snapshot_data));
+    WT_RET(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT), &txn->backup_snapshot_data));
 
     txn->backup_snapshot_data->snap_max = txn->snapshot_data.snap_max;
     txn->backup_snapshot_data->snap_min = txn->snapshot_data.snap_min;
@@ -358,10 +358,10 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
 err:
     /* Free the backup_snapshot_data if the memory allocation of the underlying snapshot has failed.
      */
-    if (ret != 0 && txn->backup_snapshot_data != NULL)
+    if (ret != 0)
         __wt_free(session, txn->backup_snapshot_data);
 
-    return (ret != 0 ? false : true);
+    return (ret);
 }
 
 /*
@@ -384,8 +384,8 @@ __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
         /* Swap the snapshot pointers. */
         __txn_swap_snapshot(&snapshot_backup->snapshot, &txn->snapshot_data.snapshot);
         __wt_free(session, snapshot_backup->snapshot);
-        __wt_free(session, snapshot_backup);
     }
+    __wt_free(session, snapshot_backup);
 }
 
 /*

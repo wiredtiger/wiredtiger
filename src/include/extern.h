@@ -49,8 +49,6 @@ extern bool __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_point_to_string(wt_timestamp_t ts, wt_timestamp_t durable_ts,
@@ -1732,6 +1730,8 @@ extern int __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], b
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which,
   wt_timestamp_t ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_ts_log(WT_SESSION_IMPL *session)
