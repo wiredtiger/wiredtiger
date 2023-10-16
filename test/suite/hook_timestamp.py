@@ -101,10 +101,9 @@ class TimestampHookCreator(wthooks.WiredTigerHookCreator):
 
     dataset_names = make_dataset_names()
 
-    # Determine if a test should be skipped. 
-    # If it should skip, return the reason as a string. If it shouldn't, return None
+    # Determine whether a test should be skipped, if it should also return the reason for skipping.
     # The timestamp hook skips tests that don't use datasets.
-    def skip_reason(self, test):
+    def should_skip(self, test) -> (bool, str):
         testname = str(test)
         modname = testname.split('.')[0]
         g = sys.modules[modname].__dict__
@@ -116,15 +115,15 @@ class TimestampHookCreator(wthooks.WiredTigerHookCreator):
                 break
 
         if not uses_dataset:
-            return "Doesn't use dataset"
+            return (True, "Doesn't use dataset")
         else:
-            return None
+            return (False, None)
 
     # Skip tests that won't work on timestamp cursors
     def register_skipped_tests(self, tests):
         for t in tests:
-            skip_reason = self.skip_reason(t)
-            if skip_reason is not None:
+            (should_skip, skip_reason) = self.should_skip(t)
+            if should_skip:
                 wttest.register_skipped_test(t, "timestamp", skip_reason)
 
     def get_platform_api(self):

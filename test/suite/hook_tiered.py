@@ -300,11 +300,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
             return True
         return False
 
-    # Determine if a test should be skipped. 
-    # If it should skip, return the reason as a string. If it shouldn't, return None
+    # Determine whether a test should be skipped, if it should also return the reason for skipping.
     # Some features aren't supported with tiered storage currently. If they exist in 
     # the test name (or scenario name) skip the test.
-    def skip_reason(self, test):
+    def should_skip(self, test) -> (bool, str):
         skip_categories = [
             ("backup",               "Can't backup a tiered table"),
             ("inmem",                "In memory tests don't make sense with tiered storage"),
@@ -319,15 +318,15 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
         for (skip_string, skip_reason) in skip_categories:
             if skip_string in str(test):
-                return skip_reason
+                return (True, skip_reason)
 
-        return None
+        return (False, None)
 
     # Skip tests that won't work on tiered cursors
     def register_skipped_tests(self, tests):
         for t in tests:
-            skip_reason = self.skip_reason(t)
-            if skip_reason is not None:
+            (should_skip, skip_reason) = self.should_skip(t)
+            if should_skip:
                 wttest.register_skipped_test(t, "tiered", skip_reason)
 
     def get_platform_api(self):

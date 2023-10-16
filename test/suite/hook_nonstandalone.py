@@ -50,19 +50,11 @@ class NonStandAloneHookCreator(wthooks.WiredTigerHookCreator):
     def get_platform_api(self):
         return self.platform_api
 
-    # Is this test one we should skip?
-    def skip_reason(self, test):
-        # There are no general categories of tests to skip. 
-        # Individual tests are skipped via the skip_for_hook decorator
-        return None
-
     # Skip tests that won't work on non-standalone build
     def register_skipped_test(self, tests):
-        for t in tests:
-            skip_reason = self.skip_reason(t)
-            if skip_reason is not None:
-                wttest.register_skipped_test(t, "nonstandalone", skip_reason)
-        return tests
+        # There are no general categories of tests to skip for non-standalone. 
+        # Individual tests are skipped via the skip_for_hook decorator
+        pass
 
     def setup_hooks(self):
         pass
