@@ -229,7 +229,7 @@ class WiredTigerHookManager(object):
 
     def register_skipped_tests(self, tests):
         for hook in self.hooks:
-            tests = hook.register_skipped_tests(tests)
+            hook.register_skipped_tests(tests)
 
     def get_hook_names(self):
         return self.hook_names
