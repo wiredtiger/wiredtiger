@@ -38,44 +38,41 @@ namespace model {
 
 /*
  * kv_table_item::add_update --
- *     Add an update.
+ *     Add an update. Throw exception on error.
  */
-int
+void
 kv_table_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
 {
     std::shared_ptr<kv_update> update_ptr = std::make_shared<kv_update>(std::move(update));
-    return add_update(update_ptr, must_exist, must_not_exist);
+    add_update(update_ptr, must_exist, must_not_exist);
 }
 
 /*
  * kv_table_item::add_update --
- *     Add an update.
+ *     Add an update. Throw exception on error.
  */
-int
+void
 kv_table_item::add_update(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist)
 {
     std::lock_guard lock_guard(_lock);
-    int ret = add_update_nolock(update, must_exist, must_not_exist);
-    if (ret == WT_ROLLBACK)
-        update->txn()->fail();
-    return ret;
+    add_update_nolock(update, must_exist, must_not_exist);
 }
 
 /*
  * kv_table_item::add_update_nolock --
- *     Add an update but without taking a lock (this assumes the caller has it).
+ *     Add an update but without taking a lock (this assumes the caller has it). Throw an exception
+ *     on error.
  */
-int
+void
 kv_table_item::add_update_nolock(
   std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist)
 {
     kv_update::timestamp_comparator cmp;
 
     /* If this is a non-timestamped update, there cannot be existing timestamped updates. */
-    if (update->global()) {
+    if (update->global())
         if (!_updates.empty() && !_updates.back()->global())
-            return EINVAL;
-    }
+            throw wiredtiger_exception(EINVAL);
 
     /* Check for transaction conflicts. */
     kv_transaction_ptr txn = update->txn();
@@ -99,11 +96,11 @@ kv_table_item::add_update_nolock(
                           "Updating a key with a more recent timestamp");
                     break;
                 }
-                return WT_ROLLBACK;
+                fail_with_rollback(update);
             case kv_transaction_state::committed:
             case kv_transaction_state::prepared:
                 if (!txn->visible_txn(u->txn_id()))
-                    return WT_ROLLBACK;
+                    fail_with_rollback(update);
                 break;
             case kv_transaction_state::rolled_back:
             default:
@@ -118,23 +115,35 @@ kv_table_item::add_update_nolock(
     /* If need be, fail if the key does not exist. */
     if (must_exist) {
         if (_updates.empty())
-            return WT_NOTFOUND;
+            throw wiredtiger_exception(WT_NOTFOUND);
 
         auto j = i;
         if (j == _updates.begin() || (*(--j))->value() == NONE)
-            return WT_NOTFOUND;
+            throw wiredtiger_exception(WT_NOTFOUND);
     }
 
     /* If need be, fail if the key exists. */
     if (must_not_exist && !_updates.empty()) {
         auto j = i;
         if (j != _updates.begin() && (*(--j))->value() != NONE)
-            return WT_DUPLICATE_KEY;
+            throw wiredtiger_exception(WT_DUPLICATE_KEY);
     }
 
     /* Insert. */
     _updates.insert(i, update);
-    return 0;
+}
+
+/*
+ * kv_table_item::fail_with_rollback --
+ *     Fail the given update and throw an exception indicating rollback.
+ */
+void
+kv_table_item::fail_with_rollback(std::shared_ptr<kv_update> update)
+{
+    kv_transaction_ptr txn = update->txn();
+    if (txn)
+        txn->fail();
+    throw wiredtiger_exception(WT_ROLLBACK);
 }
 
 /*
@@ -280,10 +289,12 @@ kv_table_item::fix_timestamps(
 
     for (auto &u : to_fix) {
         u->set_timestamps(commit_timestamp, durable_timestamp);
-        int ret = add_update_nolock(u, false, false);
-        if (ret != 0) {
+        try {
+            add_update_nolock(u, false, false);
+        } catch (wiredtiger_exception &e) {
             std::ostringstream ss;
-            ss << "Unexpected error during the commit of transaction " << txn_id << ": " << ret;
+            ss << "Unexpected error during the commit of transaction " << txn_id << ": ";
+            ss << e.what();
             throw model_exception(ss.str());
         }
     }

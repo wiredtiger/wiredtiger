@@ -126,7 +126,12 @@ int
 kv_table::insert(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    return item(key).add_update(std::move(kv_update(value, timestamp)), false, !overwrite);
+    try {
+        item(key).add_update(std::move(kv_update(value, timestamp)), false, !overwrite);
+        return 0;
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 }
 
 /*
@@ -138,10 +143,13 @@ kv_table::insert(
   kv_transaction_ptr txn, const data_value &key, const data_value &value, bool overwrite)
 {
     std::shared_ptr<kv_update> update = std::make_shared<kv_update>(value, txn);
-    int ret = item(key).add_update(update, false, !overwrite);
-    if (ret == 0)
+    try {
+        item(key).add_update(update, false, !overwrite);
         txn->add_update(*this, key, update);
-    return ret;
+        return 0;
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 }
 
 /*
@@ -154,7 +162,12 @@ kv_table::remove(const data_value &key, timestamp_t timestamp)
     kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return WT_NOTFOUND;
-    return item->add_update(std::move(kv_update(NONE, timestamp)), true, false);
+    try {
+        item->add_update(std::move(kv_update(NONE, timestamp)), true, false);
+        return 0;
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 }
 
 /*
@@ -169,10 +182,13 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
         return WT_NOTFOUND;
 
     std::shared_ptr<kv_update> update = std::make_shared<kv_update>(NONE, txn);
-    int ret = item->add_update(update, true, false);
-    if (ret == 0)
+    try {
+        item->add_update(update, true, false);
         txn->add_update(*this, key, update);
-    return ret;
+        return 0;
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 }
 
 /*
@@ -183,7 +199,12 @@ int
 kv_table::update(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    return item(key).add_update(std::move(kv_update(value, timestamp)), !overwrite, false);
+    try {
+        item(key).add_update(std::move(kv_update(value, timestamp)), !overwrite, false);
+        return 0;
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 }
 
 /*
@@ -195,10 +216,13 @@ kv_table::update(
   kv_transaction_ptr txn, const data_value &key, const data_value &value, bool overwrite)
 {
     std::shared_ptr<kv_update> update = std::make_shared<kv_update>(value, txn);
-    int ret = item(key).add_update(update, !overwrite, false);
-    if (ret == 0)
+    try {
+        item(key).add_update(update, !overwrite, false);
         txn->add_update(*this, key, update);
-    return ret;
+        return 0;
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 }
 
 /*

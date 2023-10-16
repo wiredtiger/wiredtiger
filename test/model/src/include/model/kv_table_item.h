@@ -53,15 +53,15 @@ public:
 
     /*
      * kv_table_item::add_update --
-     *     Add an update.
+     *     Add an update. Throw exception on error.
      */
-    int add_update(kv_update &&update, bool must_exist, bool must_not_exist);
+    void add_update(kv_update &&update, bool must_exist, bool must_not_exist);
 
     /*
      * kv_table_item::add_update --
-     *     Add an update.
+     *     Add an update. Throw exception on error.
      */
-    int add_update(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist);
+    void add_update(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist);
 
     /*
      * kv_table_item::contains_any --
@@ -112,9 +112,16 @@ public:
 protected:
     /*
      * kv_table_item::add_update_nolock --
-     *     Add an update but without taking a lock (this assumes the caller has it).
+     *     Add an update but without taking a lock (this assumes the caller has it). Throw an
+     *     exception on error.
      */
-    int add_update_nolock(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist);
+    void add_update_nolock(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist);
+
+    /*
+     * kv_table_item::fail_with_rollback --
+     *     Fail the given update and throw an exception indicating rollback.
+     */
+    void fail_with_rollback(std::shared_ptr<kv_update> update);
 
     /*
      * kv_table_item::has_prepared_nolock --
