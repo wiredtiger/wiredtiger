@@ -1186,9 +1186,9 @@ err:
      * Shut down the checkpoint, compact and capacity server threads: we don't want to throttle
      * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
+    WT_TRET(__wt_background_compact_server_destroy(session));
     WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
-    WT_TRET(__wt_compact_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
@@ -2975,7 +2975,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
-    WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
@@ -3212,6 +3211,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
+
+    /*
+     * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
+     * metadata operation that should be done after metadata, transactions, schema, etc. are all up
+     * and running.
+     */
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
+        WT_ERR(__wt_chunkcache_salvage(session));
 
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
