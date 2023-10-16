@@ -16,6 +16,8 @@
 bool
 __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    if (S2C(session)->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE)
+        return (false);
     /*
      * Check if pre-fetching is enabled on the session level. If not, don't perform pre-fetching on
      * any of the associated cursors. We don't perform pre-fetching on internal threads or internal
