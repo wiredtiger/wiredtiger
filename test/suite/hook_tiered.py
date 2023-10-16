@@ -55,7 +55,7 @@
 #
 from __future__ import print_function
 
-import os, re, unittest, wthooks
+import os, re, unittest, wthooks, wttest
 from wttest import WiredTigerTestCase
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 
@@ -300,30 +300,36 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
             return True
         return False
 
-    # Is this test one we should skip?
-    def skip_test(self, test):
-        # Skip any test that contains one of these strings as a substring
-        skip = ["backup",               # Can't backup a tiered table
-                "inmem",                # In memory tests don't make sense with tiered storage
-                "lsm",                  # If the test name tells us it uses lsm ignore it
-                "modify_smoke_recover", # Copying WT dir doesn't copy the bucket directory
-                "test_salvage",         # Salvage tests directly name files ending in ".wt"
-                "test_config_json",     # create replacement can't handle a json config string
-                "test_cursor_big",      # Cursor caching verified with stats
-                "tiered",               # Tiered tests already do tiering.
-                "test_verify",          # Verify not supported on tiered tables (yet)
-                ]
+    # Determine if a test should be skipped. 
+    # If it should skip, return the reason as a string. If it shouldn't, return None
+    # Some features aren't supported with tiered storage currently. If they exist in 
+    # the test name (or scenario name) skip the test.
+    def skip_reason(self, test):
+        skip_categories = [
+            ("backup",               "Can't backup a tiered table"),
+            ("inmem",                "In memory tests don't make sense with tiered storage"),
+            ("lsm",                  "If the test name tells us it uses lsm ignore it"),
+            ("modify_smoke_recover", "Copying WT dir doesn't copy the bucket directory"),
+            ("test_salvage",         "Salvage tests directly name files ending in '.wt'"),
+            ("test_config_json",     "create replacement can't handle a json config string"),
+            ("test_cursor_big",      "Cursor caching verified with stats"),
+            ("tiered",               "Tiered tests already do tiering."),
+            ("test_verify",          "Verify not supported on tiered tables (yet)")
+        ]
 
-        for item in skip:
-            if item in str(test):
-                return True
-        return False
+        for (skip_string, skip_reason) in skip_categories:
+            if skip_string in str(test):
+                return skip_reason
+
+        return None
 
     # Remove tests that won't work on tiered cursors
     def filter_tests(self, tests):
-        new_tests = unittest.TestSuite()
-        new_tests.addTests([t for t in tests if not self.skip_test(t)])
-        return new_tests
+        for t in tests:
+            skip_reason = self.skip_reason(t)
+            if skip_reason is not None:
+                wttest.register_skipped_test(t, "tiered", skip_reason)
+        return tests
 
     def get_platform_api(self):
         return self.platform_api

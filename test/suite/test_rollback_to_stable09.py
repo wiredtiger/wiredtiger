@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os
-import wiredtiger
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
 

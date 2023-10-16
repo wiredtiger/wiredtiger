@@ -32,6 +32,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
+import wttest
 
 # test_rollback_to_stable28.py
 # Test the debug mode setting for update_restore_evict during recovery.

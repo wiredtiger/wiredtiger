@@ -32,6 +32,7 @@
 import os, random, shutil
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
+import wttest
 
 @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_import09(test_import_base):
