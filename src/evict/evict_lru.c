@@ -2434,7 +2434,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             break;
 
         /* Check if we have exceeded the global or the session timeout for waiting on the cache. */
-        if (time_start != 0 && cache_max_wait_us != 0) {
+        if (app_thread && cache_max_wait_us != 0) {
             time_stop = __wt_clock(session);
             if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
                 break;
