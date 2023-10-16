@@ -433,7 +433,8 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         __wt_free(session, chunk->chunk_memory);
     else {
-        /* Push the removal into the work queue so it can get removed from the chunkcache metadata.
+        /*
+         * Push the removal into the work queue so it can get removed from the chunkcache metadata.
          */
         WT_IGNORE_RET(__chunkcache_metadata_queue_delete(session, chunk));
 
