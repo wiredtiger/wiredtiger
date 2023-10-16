@@ -36,15 +36,15 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
     uri = 'table:test_chunkcache01'
 
     format_values = [
-        # ('column-fix', dict(key_format='r', value_format='8t')),
-        # ('column', dict(key_format='r', value_format='u')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('column', dict(key_format='r', value_format='u')),
         ('row_string', dict(key_format='S', value_format='u')),
     ]
 
-    cache_types = [('on-disk', dict(chunk_cache_type='FILE'))]
-    # if sys.byteorder == 'little':
+    cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
+    if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
-        # cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
+        cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
 
     scenarios = make_scenarios(format_values, cache_types)
 

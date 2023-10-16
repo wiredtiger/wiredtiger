@@ -624,7 +624,7 @@ struct __wt_connection_stats {
     int64_t chunkcache_bytes_inuse;
     int64_t chunkcache_bytes_inuse_pinned;
     int64_t chunkcache_chunks_inuse;
-    int64_t chunkcache_create_and_link_chunks;
+    int64_t chunkcache_created_from_metadata;
     int64_t chunkcache_chunks_pinned;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
