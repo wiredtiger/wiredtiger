@@ -104,6 +104,24 @@ __bm_checkpoint(
 
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
+    /*
+     * We might have postponed a tiered switch to a new file. This is the right time to make that
+     * happen since eviction is disabled at the moment, and hence we are the exclusive writers.
+     */
+    if (bm->next_block != NULL) {
+        __wt_writelock(session, &bm->handle_array_lock);
+        bm->prev_block = bm->block;
+        bm->block = bm->next_block;
+        __wt_writeunlock(session, &bm->handle_array_lock);
+    }
+
+    /*
+     * QUESTIONS: If after this point checkpoint fails - do we switch back to older file? Is the
+     * above block better be after the multi handle check, or possibly before the first switch we
+     * are not multi handle just yet? If we are multi handle, and since all the files marked for
+     * sync are fsync here, does that mean we might fsync the prev_block twice now?
+     */
+
     if (!bm->is_multi_handle)
         return (0);
     /*
@@ -611,20 +629,17 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
     WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));
 
     /* The previous object must by synced to disk as part of the next checkpoint. */
+    /*
+     * QUESTION: Do we need this now as we will call bm->sync on this file at the end of global
+     * checkpoint.
+     */
     current->sync_on_checkpoint = true;
 
     /*
-     * Switch the active handle. We take the handle table lock to coordinate with a reader who is
-     * concurrently trying to read the old active handle.
-     *
-     * FIXME: it should not be possible for a thread of control to copy the WT_BM value in the btree
-     * layer, sleep until after a subsequent switch and a subsequent a checkpoint that would discard
-     * the WT_BM it copied, but it would be worth thinking through those scenarios in detail to be
-     * sure there aren't any races.
+     * We don't do the actual switch just yet. Eviction is active and might write to the file in
+     * parallel. We postpone the switch to be done when the block manager writes the checkpoint.
      */
-    __wt_writelock(session, &bm->handle_array_lock);
-    bm->block = block;
-    __wt_writeunlock(session, &bm->handle_array_lock);
+    bm->next_block = block;
 
     return (0);
 }
@@ -648,7 +663,16 @@ __bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object
 static int
 __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
-    return (__wt_fsync(session, bm->block->fh, block));
+    WT_DECL_RET;
+
+    /* If we have made a switch from the older file, sync the older one instead. */
+    WT_ASSERT(session, bm->prev_block == NULL || block);
+    if (bm->prev_block != NULL) {
+        if ((ret = __wt_fsync(session, bm->prev_block->fh, block)) == 0)
+            bm->prev_block = bm->next_block = NULL;
+        return (ret);
+    } else
+        return (__wt_fsync(session, bm->block->fh, block));
 }
 
 /*
