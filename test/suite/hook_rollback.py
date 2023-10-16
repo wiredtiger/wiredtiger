@@ -113,7 +113,7 @@ class RollbackHookCreator(wthooks.WiredTigerHookCreator):
 
     # No skipping needed
     def register_skipped_tests(self, tests):
-        return tests
+        pass
 
     def setup_hooks(self):
         self.Session['begin_transaction'] = (wthooks.HOOK_NOTIFY, session_begin_transaction_notify)

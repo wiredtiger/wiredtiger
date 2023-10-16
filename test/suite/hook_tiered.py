@@ -329,7 +329,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
             skip_reason = self.skip_reason(t)
             if skip_reason is not None:
                 wttest.register_skipped_test(t, "tiered", skip_reason)
-        return tests
 
     def get_platform_api(self):
         return self.platform_api

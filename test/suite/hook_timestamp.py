@@ -120,13 +120,12 @@ class TimestampHookCreator(wthooks.WiredTigerHookCreator):
         else:
             return None
 
-    # Remove tests that won't work on timestamp cursors
+    # Skip tests that won't work on timestamp cursors
     def register_skipped_tests(self, tests):
         for t in tests:
             skip_reason = self.skip_reason(t)
             if skip_reason is not None:
                 wttest.register_skipped_test(t, "timestamp", skip_reason)
-        return tests
 
     def get_platform_api(self):
         return self.platform_api
