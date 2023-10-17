@@ -26,7 +26,7 @@ __chunkcache_create_metadata_file(
 /*
  * __chunkcache_get_metadata_config --
  *     If present, retrieve the on-disk configuration for the chunk cache metadata file. The caller
- *     must only use *config if *found is true. The caller is responsible for freeing the memory
+ *     must only use *config if this returns zero. The caller is responsible for freeing the memory
  *     allocated into *config.
  */
 static int
