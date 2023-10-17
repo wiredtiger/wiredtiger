@@ -2207,7 +2207,7 @@ tasks:
               fi
             done
 
-  - name: csuite-schema-abort-test
+  - name: csuite-smoke-tests
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -2217,16 +2217,13 @@ tasks:
         vars:
           test_args: cmake_build/test/csuite/schema_abort/test_schema_abort
           test_binary: schema_abort
-
-  - name: csuite-timestamp-abort-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
       - func: "csuite smoke test"
         vars:
           test_args: -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
+          test_binary: timestamp_abort
+      - func: "csuite smoke test"
+        vars:
+          test_args: -s -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
           test_binary: timestamp_abort
 
   - name: csuite-timestamp-abort-test-s3
@@ -2247,17 +2244,6 @@ tasks:
             set -o verbose
 
             ./test_timestamp_abort -PT -Po s3_store
-
-  - name: csuite-timestamp-abort-stress-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: -s -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
-          test_binary: timestamp_abort
 
   - name: csuite-wt8963-insert-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
