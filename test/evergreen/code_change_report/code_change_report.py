@@ -117,7 +117,7 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 if strikethrough:
                     report.append("    <del>\n")
                 report.append("      <p style=\"background-color:{};font-family:\'Courier New\',sans-serif;"
-                              "white-space:pre\">{}</p>\n".format(
+                              "white-space:pre;font-size:small\">{}</p>\n".format(
                         code_colour, html.escape(line['content'], quote=True)))
                 if strikethrough:
                     report.append("    </del>\n")
