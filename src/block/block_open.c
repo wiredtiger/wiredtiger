@@ -247,7 +247,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     if (!forced_salvage)
         WT_ERR(__desc_read(session, allocsize, block));
 
-    /* 
+    /*
      * No errors are possible past this point. So it is safe to make the block visible
      * to other sessions.
      */
