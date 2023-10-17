@@ -279,8 +279,6 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
     }
     __wt_free(session, metadata_config);
 
-    /* Start the internal thread. */
-    WT_ERR(__wt_cond_alloc(session, "chunkcache metadata", &conn->chunkcache_metadata_cond));
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHUNKCACHE_METADATA);
 
     /* TODO set isolation */
@@ -289,6 +287,8 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
     session = conn->chunkcache_metadata_session;
 
     WT_ERR(__chunkcache_apply_metadata_content(session));
+
+    WT_ERR(__wt_cond_alloc(session, "chunkcache metadata", &conn->chunkcache_metadata_cond));
 
     /* Start the thread. */
     WT_ERR(__wt_thread_create(
