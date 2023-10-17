@@ -130,13 +130,12 @@ __chunkcache_metadata_insert(WT_CURSOR *cursor, WT_CHUNKCACHE_METADATA_WORK_UNIT
 
 /*
  * __chunkcache_metadata_delete --
- *     Remove a specific work queue entry into the chunk cache metadata file.
+ *     Remove an entry from the chunk cache metadata file.
  */
 static int
 __chunkcache_metadata_delete(WT_CURSOR *cursor, WT_CHUNKCACHE_METADATA_WORK_UNIT *entry)
 {
     cursor->set_key(cursor, entry->name, entry->id, entry->file_offset);
-    cursor->set_value(cursor, entry->cache_offset, entry->data_sz);
 
     return (cursor->remove(cursor));
 }
