@@ -24,7 +24,7 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "verify [-acestu] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# "
+      "verify [-acSstu] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# "
       "| dump_pages] [uri]",
       "options:", options);
 
@@ -67,7 +67,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     abort_on_error = do_not_clear_txn_id = dump_address = dump_app_data = dump_blocks =
       dump_layout = dump_pages = read_corrupt = stable_timestamp = strict = false;
     config = dump_offsets = uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:estu?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:eStu?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
@@ -94,7 +94,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             else
                 return (usage());
             break;
-        case 'e':
+        case 'S':
             strict = true;
             break;
         case 's':
