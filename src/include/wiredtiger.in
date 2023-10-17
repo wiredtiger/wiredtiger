@@ -6466,7 +6466,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! perf: file system read latency histogram (bucket 7) - 1000ms+ */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_GT1000	1465
 /*! perf: file system read latency histogram total (msecs) */
-#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_TOTAL	1466
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_TOTAL_MSECS	1466
 /*! perf: file system write latency histogram (bucket 1) - 0-10ms */
 #define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT10	1467
 /*! perf: file system write latency histogram (bucket 2) - 10-49ms */
@@ -6482,7 +6482,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! perf: file system write latency histogram (bucket 7) - 1000ms+ */
 #define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_GT1000	1473
 /*! perf: file system write latency histogram total (msecs) */
-#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_TOTAL	1474
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_TOTAL_MSECS	1474
 /*! perf: operation read latency histogram (bucket 1) - 0-100us */
 #define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT100	1475
 /*! perf: operation read latency histogram (bucket 2) - 100-249us */
@@ -6496,7 +6496,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! perf: operation read latency histogram (bucket 6) - 10000us+ */
 #define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_GT10000	1480
 /*! perf: operation read latency histogram total (usecs) */
-#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_TOTAL	1481
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_TOTAL_USECS	1481
 /*! perf: operation write latency histogram (bucket 1) - 0-100us */
 #define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT100	1482
 /*! perf: operation write latency histogram (bucket 2) - 100-249us */
@@ -6510,7 +6510,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! perf: operation write latency histogram (bucket 6) - 10000us+ */
 #define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_GT10000	1487
 /*! perf: operation write latency histogram total (usecs) */
-#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_TOTAL	1488
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_TOTAL_USECS	1488
 /*! reconciliation: VLCS pages explicitly reconciled as empty */
 #define	WT_STAT_CONN_REC_VLCS_EMPTIED_PAGES		1489
 /*! reconciliation: approximate byte size of timestamps in pages written */

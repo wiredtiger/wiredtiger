@@ -2450,7 +2450,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_fsread_latency_lt500 = 0;
     stats->perf_hist_fsread_latency_lt1000 = 0;
     stats->perf_hist_fsread_latency_gt1000 = 0;
-    stats->perf_hist_fsread_latency_total = 0;
+    stats->perf_hist_fsread_latency_total_msecs = 0;
     stats->perf_hist_fswrite_latency_lt10 = 0;
     stats->perf_hist_fswrite_latency_lt50 = 0;
     stats->perf_hist_fswrite_latency_lt100 = 0;
@@ -2458,21 +2458,21 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_fswrite_latency_lt500 = 0;
     stats->perf_hist_fswrite_latency_lt1000 = 0;
     stats->perf_hist_fswrite_latency_gt1000 = 0;
-    stats->perf_hist_fswrite_latency_total = 0;
+    stats->perf_hist_fswrite_latency_total_msecs = 0;
     stats->perf_hist_opread_latency_lt100 = 0;
     stats->perf_hist_opread_latency_lt250 = 0;
     stats->perf_hist_opread_latency_lt500 = 0;
     stats->perf_hist_opread_latency_lt1000 = 0;
     stats->perf_hist_opread_latency_lt10000 = 0;
     stats->perf_hist_opread_latency_gt10000 = 0;
-    stats->perf_hist_opread_latency_total = 0;
+    stats->perf_hist_opread_latency_total_usecs = 0;
     stats->perf_hist_opwrite_latency_lt100 = 0;
     stats->perf_hist_opwrite_latency_lt250 = 0;
     stats->perf_hist_opwrite_latency_lt500 = 0;
     stats->perf_hist_opwrite_latency_lt1000 = 0;
     stats->perf_hist_opwrite_latency_lt10000 = 0;
     stats->perf_hist_opwrite_latency_gt10000 = 0;
-    stats->perf_hist_opwrite_latency_total = 0;
+    stats->perf_hist_opwrite_latency_total_usecs = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -3153,7 +3153,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->perf_hist_fsread_latency_lt500 += WT_STAT_READ(from, perf_hist_fsread_latency_lt500);
     to->perf_hist_fsread_latency_lt1000 += WT_STAT_READ(from, perf_hist_fsread_latency_lt1000);
     to->perf_hist_fsread_latency_gt1000 += WT_STAT_READ(from, perf_hist_fsread_latency_gt1000);
-    to->perf_hist_fsread_latency_total += WT_STAT_READ(from, perf_hist_fsread_latency_total);
+    to->perf_hist_fsread_latency_total_msecs +=
+      WT_STAT_READ(from, perf_hist_fsread_latency_total_msecs);
     to->perf_hist_fswrite_latency_lt10 += WT_STAT_READ(from, perf_hist_fswrite_latency_lt10);
     to->perf_hist_fswrite_latency_lt50 += WT_STAT_READ(from, perf_hist_fswrite_latency_lt50);
     to->perf_hist_fswrite_latency_lt100 += WT_STAT_READ(from, perf_hist_fswrite_latency_lt100);
@@ -3161,21 +3162,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->perf_hist_fswrite_latency_lt500 += WT_STAT_READ(from, perf_hist_fswrite_latency_lt500);
     to->perf_hist_fswrite_latency_lt1000 += WT_STAT_READ(from, perf_hist_fswrite_latency_lt1000);
     to->perf_hist_fswrite_latency_gt1000 += WT_STAT_READ(from, perf_hist_fswrite_latency_gt1000);
-    to->perf_hist_fswrite_latency_total += WT_STAT_READ(from, perf_hist_fswrite_latency_total);
+    to->perf_hist_fswrite_latency_total_msecs +=
+      WT_STAT_READ(from, perf_hist_fswrite_latency_total_msecs);
     to->perf_hist_opread_latency_lt100 += WT_STAT_READ(from, perf_hist_opread_latency_lt100);
     to->perf_hist_opread_latency_lt250 += WT_STAT_READ(from, perf_hist_opread_latency_lt250);
     to->perf_hist_opread_latency_lt500 += WT_STAT_READ(from, perf_hist_opread_latency_lt500);
     to->perf_hist_opread_latency_lt1000 += WT_STAT_READ(from, perf_hist_opread_latency_lt1000);
     to->perf_hist_opread_latency_lt10000 += WT_STAT_READ(from, perf_hist_opread_latency_lt10000);
     to->perf_hist_opread_latency_gt10000 += WT_STAT_READ(from, perf_hist_opread_latency_gt10000);
-    to->perf_hist_opread_latency_total += WT_STAT_READ(from, perf_hist_opread_latency_total);
+    to->perf_hist_opread_latency_total_usecs +=
+      WT_STAT_READ(from, perf_hist_opread_latency_total_usecs);
     to->perf_hist_opwrite_latency_lt100 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt100);
     to->perf_hist_opwrite_latency_lt250 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt250);
     to->perf_hist_opwrite_latency_lt500 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt500);
     to->perf_hist_opwrite_latency_lt1000 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt1000);
     to->perf_hist_opwrite_latency_lt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt10000);
     to->perf_hist_opwrite_latency_gt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_gt10000);
-    to->perf_hist_opwrite_latency_total += WT_STAT_READ(from, perf_hist_opwrite_latency_total);
+    to->perf_hist_opwrite_latency_total_usecs +=
+      WT_STAT_READ(from, perf_hist_opwrite_latency_total_usecs);
     to->rec_vlcs_emptied_pages += WT_STAT_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_READ(from, rec_time_window_bytes_txn);

@@ -277,7 +277,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                                                  \
     static inline void __wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
     {                                                                                             \
-        WT_STAT_CONN_INCRV(session, stat##_total, msecs);                                         \
+        WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs);                                   \
         if (msecs < 10)                                                                           \
             WT_STAT_CONN_INCR(session, stat##_lt10);                                              \
         else if (msecs < 50)                                                                      \
@@ -297,7 +297,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define WT_STAT_USECS_HIST_INCR_FUNC(name, stat)                                                  \
     static inline void __wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
     {                                                                                             \
-        WT_STAT_CONN_INCRV(session, stat##_total, usecs);                                         \
+        WT_STAT_CONN_INCRV(session, stat##_total_usecs, usecs);                                   \
         if (usecs < 100)                                                                          \
             WT_STAT_CONN_INCR(session, stat##_lt100);                                             \
         else if (usecs < 250)                                                                     \
@@ -807,7 +807,7 @@ struct __wt_connection_stats {
     int64_t perf_hist_fsread_latency_lt500;
     int64_t perf_hist_fsread_latency_lt1000;
     int64_t perf_hist_fsread_latency_gt1000;
-    int64_t perf_hist_fsread_latency_total;
+    int64_t perf_hist_fsread_latency_total_msecs;
     int64_t perf_hist_fswrite_latency_lt10;
     int64_t perf_hist_fswrite_latency_lt50;
     int64_t perf_hist_fswrite_latency_lt100;
@@ -815,21 +815,21 @@ struct __wt_connection_stats {
     int64_t perf_hist_fswrite_latency_lt500;
     int64_t perf_hist_fswrite_latency_lt1000;
     int64_t perf_hist_fswrite_latency_gt1000;
-    int64_t perf_hist_fswrite_latency_total;
+    int64_t perf_hist_fswrite_latency_total_msecs;
     int64_t perf_hist_opread_latency_lt100;
     int64_t perf_hist_opread_latency_lt250;
     int64_t perf_hist_opread_latency_lt500;
     int64_t perf_hist_opread_latency_lt1000;
     int64_t perf_hist_opread_latency_lt10000;
     int64_t perf_hist_opread_latency_gt10000;
-    int64_t perf_hist_opread_latency_total;
+    int64_t perf_hist_opread_latency_total_usecs;
     int64_t perf_hist_opwrite_latency_lt100;
     int64_t perf_hist_opwrite_latency_lt250;
     int64_t perf_hist_opwrite_latency_lt500;
     int64_t perf_hist_opwrite_latency_lt1000;
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
-    int64_t perf_hist_opwrite_latency_total;
+    int64_t perf_hist_opwrite_latency_total_usecs;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
