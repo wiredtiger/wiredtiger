@@ -233,7 +233,7 @@ private:
     /* The lifetime of the transaction must not exceed the lifetime of the database. */
     kv_database &_database;
 
-    std::mutex _lock;
+    mutable std::mutex _lock;
     std::list<std::shared_ptr<kv_transaction_update>> _updates;
     std::list<std::shared_ptr<kv_transaction_update>> _nontimestamped_updates;
 };

@@ -68,25 +68,25 @@ public:
      *     Check whether the table contains the given value. If there are multiple values associated
      *     with the given timestamp, return true if any of them match.
      */
-    bool contains_any(const data_value &value, timestamp_t timestamp = k_timestamp_latest);
+    bool contains_any(const data_value &value, timestamp_t timestamp = k_timestamp_latest) const;
 
     /*
      * kv_table_item::exists --
      *     Check whether the latest value exists.
      */
-    bool exists();
+    bool exists() const;
 
     /*
      * kv_table_item::get --
      *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
      */
-    data_value get(timestamp_t timestamp);
+    data_value get(timestamp_t timestamp) const;
 
     /*
      * kv_table_item::get --
      *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
      */
-    data_value get(kv_transaction_ptr txn);
+    data_value get(kv_transaction_ptr txn) const;
 
     /*
      * kv_table_item::fix_timestamps --
@@ -101,7 +101,7 @@ public:
      * kv_table_item::has_prepared --
      *     Check whether the item has any prepared updates for the given timestamp.
      */
-    bool has_prepared(timestamp_t timestamp);
+    bool has_prepared(timestamp_t timestamp) const;
 
     /*
      * kv_table_item::rollback_updates --
@@ -128,10 +128,10 @@ protected:
      *     Check whether the item has any prepared updates for the given timestamp, but without
      *     taking a lock.
      */
-    bool has_prepared_nolock(timestamp_t timestamp);
+    bool has_prepared_nolock(timestamp_t timestamp) const;
 
 private:
-    std::mutex _lock;
+    mutable std::mutex _lock;
     std::deque<std::shared_ptr<kv_update>> _updates; /* sorted list of updates */
 };
 

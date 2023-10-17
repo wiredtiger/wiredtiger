@@ -152,7 +152,7 @@ kv_table_item::fail_with_rollback(std::shared_ptr<kv_update> update)
  *     the given timestamp, return true if any of them match.
  */
 bool
-kv_table_item::contains_any(const data_value &value, timestamp_t timestamp)
+kv_table_item::contains_any(const data_value &value, timestamp_t timestamp) const
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -186,7 +186,7 @@ kv_table_item::contains_any(const data_value &value, timestamp_t timestamp)
  *     Check whether the latest value exists.
  */
 bool
-kv_table_item::exists()
+kv_table_item::exists() const
 {
     return get(k_timestamp_latest) != NONE;
 }
@@ -196,7 +196,7 @@ kv_table_item::exists()
  *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
  */
 data_value
-kv_table_item::get(timestamp_t timestamp)
+kv_table_item::get(timestamp_t timestamp) const
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -219,7 +219,7 @@ kv_table_item::get(timestamp_t timestamp)
  *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
  */
 data_value
-kv_table_item::get(kv_transaction_ptr txn)
+kv_table_item::get(kv_transaction_ptr txn) const
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
@@ -248,7 +248,7 @@ kv_table_item::get(kv_transaction_ptr txn)
     auto i = std::upper_bound(_updates.begin(), _updates.end(), read_timestamp, cmp);
 
     while (i != _updates.begin()) {
-        std::shared_ptr<kv_update> &u = *(--i);
+        const std::shared_ptr<kv_update> &u = *(--i);
         /*
          * The transaction snapshot includes only committed transactions, so no need to check
          * whether the update is actually committed.
@@ -305,7 +305,7 @@ kv_table_item::fix_timestamps(
  *     Check whether the item has any prepared updates for the given timestamp.
  */
 bool
-kv_table_item::has_prepared(timestamp_t timestamp)
+kv_table_item::has_prepared(timestamp_t timestamp) const
 {
     std::lock_guard lock_guard(_lock);
     return has_prepared_nolock(timestamp);
@@ -316,7 +316,7 @@ kv_table_item::has_prepared(timestamp_t timestamp)
  *     Check whether the item has any prepared updates without taking a lock.
  */
 bool
-kv_table_item::has_prepared_nolock(timestamp_t timestamp)
+kv_table_item::has_prepared_nolock(timestamp_t timestamp) const
 {
     kv_update::timestamp_comparator cmp;
 
