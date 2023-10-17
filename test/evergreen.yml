@@ -2202,7 +2202,6 @@ tasks:
             $test 2>&1
           done
 
-
   - name: csuite-schema-abort-test
     tags: ["pull_request"]
     depends_on:
