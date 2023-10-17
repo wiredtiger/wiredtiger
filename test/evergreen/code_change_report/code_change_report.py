@@ -30,13 +30,20 @@ def get_non_zero_count(value_list: list):
 def get_html_colour(count: int, of: int):
     colour = ""
     if count == 0:
-        colour = "Red"
+        colour = "LightPink"
     elif count == of:
-        colour = "LightGreen"
+        colour = "PaleGreen"
     else:
-        colour = "Orange"
+        colour = "SandyBrown"
 
     return colour
+
+
+def line_number_to_text(code_colour, line_number):
+    if line_number > 0:
+        return "    <p style=\"background-color:{};text-align: center\">{}</p>\n".format(code_colour, line_number)
+    else:
+        return "    <p style=\"background-color:{};text-align: center\"></p>\n".format(code_colour)
 
 
 def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
@@ -49,10 +56,12 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
 
         for hunk in file_info:
             lines = hunk['lines']
-            report.append("<table>\n")
+            report.append("<table cellpadding=0 cellspacing=0>\n")
             report.append("  <tr>\n")
             report.append("    <th>Count</th>\n")
             report.append("    <th>Branches</th>\n")
+            report.append("    <th>Old line</th>\n")
+            report.append("    <th>New line</th>\n")
             report.append("    <th>=+-</th>\n")
             report.append("    <th></th>\n")
             report.append("  </tr>\n")
@@ -112,17 +121,21 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                         report.append("    <td></td>\n")
                 else:
                     report.append("    <td></td>\n")
+
+                report.append("    <td>{}</td>\n".format(line_number_to_text(code_colour, old_lineno)))
+                report.append("    <td>{}</td>\n".format(line_number_to_text(code_colour, new_lineno)))
                 report.append("    <td>{}</td>\n".format(plus_minus))
                 report.append("    <td>\n")
                 if strikethrough:
                     report.append("    <del>\n")
                 report.append("      <p style=\"background-color:{};font-family:\'Courier New\',sans-serif;"
-                              "white-space:pre;font-size:small\">{}</p>\n".format(
+                              "white-space:pre\">{}</p>\n".format(
                         code_colour, html.escape(line['content'], quote=True)))
                 if strikethrough:
                     report.append("    </del>\n")
                 report.append("    <td>\n")
                 report.append("  </tr>\n")
+                report.append("<p>")
             report.append("</table>\n")
 
     return report
