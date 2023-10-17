@@ -2180,27 +2180,27 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      command: shell.exec
-      params:
-        working_dir: "wiredtiger/cmake_build"
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          ${PREPARE_TEST_ENV}
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
 
-          csuite_tests=`find $(pwd)/test/csuite -not -path "$(pwd)/test/csuite/CMakeFiles/*" -name "test_*"`
-          smoke_tests=('test_schema_abort', 'test_timestamp_abort')
-          special_tests=('wt2909_checkpoint_integrity', 'csuite-wt3120-filesys-test')
-          for test in $csuite_tests
-          do
-            test_binary=`echo $test | sed "s/.*\///"`
-            if [[ "$smoke_tests[*]" =~ "$test_binary" ]] || [[ "$special_tests[*]" =~ "$test_binary" ]]; then
-                continue
-            fi
-            echo "Running $test"
-            $test 2>&1
-          done
+            csuite_tests=`find $(pwd)/test/csuite -not -path "$(pwd)/test/csuite/CMakeFiles/*" -name "test_*"`
+            smoke_tests=('test_schema_abort', 'test_timestamp_abort')
+            special_tests=('wt2909_checkpoint_integrity', 'csuite-wt3120-filesys-test')
+            for test in $csuite_tests
+            do
+              test_binary=`echo $test | sed "s/.*\///"`
+              if [[ "$smoke_tests[*]" =~ "$test_binary" ]] || [[ "$special_tests[*]" =~ "$test_binary" ]]; then
+                  continue
+              fi
+              echo "Running $test"
+              $test 2>&1
+            done
 
   - name: csuite-schema-abort-test
     tags: ["pull_request"]
