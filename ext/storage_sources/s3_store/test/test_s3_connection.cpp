@@ -216,6 +216,7 @@ main(int argc, char **argv)
 {
     // Set the SDK options
     Aws::SDKOptions options;
+    options.httpOptions.installSigPipeHandler = true; 
     Aws::InitAPI(options);
 
     int ret = Catch::Session().run(argc, argv);
