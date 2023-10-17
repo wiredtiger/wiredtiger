@@ -222,7 +222,15 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
 static int
 __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
-    return (__wt_block_checkpoint_resolve(session, bm->block, failed));
+    WT_DECL_RET;
+
+    /* If we have made a switch from the older file, resolve the older one instead. */
+    if (bm->prev_block != NULL) {
+        if ((ret = __wt_block_checkpoint_resolve(session, bm->prev_block, failed)) == 0)
+            bm->prev_block = bm->next_block = NULL;
+        return (ret);
+    } else
+        return (__wt_block_checkpoint_resolve(session, bm->block, failed));
 }
 
 /*
@@ -663,15 +671,11 @@ __bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object
 static int
 __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
-    WT_DECL_RET;
-
     /* If we have made a switch from the older file, sync the older one instead. */
     WT_ASSERT(session, bm->prev_block == NULL || block);
-    if (bm->prev_block != NULL) {
-        if ((ret = __wt_fsync(session, bm->prev_block->fh, block)) == 0)
-            bm->prev_block = bm->next_block = NULL;
-        return (ret);
-    } else
+    if (bm->prev_block != NULL)
+        return (__wt_fsync(session, bm->prev_block->fh, block));
+    else
         return (__wt_fsync(session, bm->block->fh, block));
 }
 
