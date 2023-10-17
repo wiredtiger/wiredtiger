@@ -43,7 +43,9 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
     report = list()
 
     if file.startswith("src/"):
-        report.append("<h3>File: {}</h3>\n".format(html.escape(file, quote=True)))
+        escaped_file = html.escape(file, quote=True)
+        report.append("<a id=\"{}\"></a>\n".format(escaped_file))
+        report.append("<h3>File: {}</h3>\n".format(escaped_file))
 
         for hunk in file_info:
             lines = hunk['lines']
@@ -154,7 +156,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("</head>\n")
 
     report.append("<body>\n")
-    report.append("<h1>Code Change Report</h1>\n")
+    report.append("<h1>Code Change Report V2</h1>\n")
 
     # Create table with a list of changed files
     report.append("<table>\n")
@@ -162,9 +164,14 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("    <th>Changed File(s)</th>\n")
     report.append("  </tr>\n")
     for file in code_change_info:
-        report.append("  <tr>\n")
-        report.append("    <td>{}</td>\n".format(html.escape(file, quote=True)))
-        report.append("  </tr>\n")
+        escaped_file = html.escape(file, quote=True)
+        report.append("  <tr><td>\n")
+        if file.startswith("src/"):
+            report.append("    <a href = \"#{}\">\n".format(escaped_file))
+        report.append("      {}\n".format(escaped_file))
+        if file.startswith("src/"):
+            report.append("    </a>\n")
+        report.append("  </td></tr>\n")
     report.append("</table>\n")
 
     report.append("<p><p>")
