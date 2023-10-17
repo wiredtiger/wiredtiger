@@ -1066,8 +1066,8 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
     WT_PUBLISH(newchunk->valid, true);
 
     __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE,
-      "new chunk instantiated from metadata during startup: %s(%u), offset=%" PRId64 ", size=%lu", (char *)name, id,
-      newchunk->chunk_offset, newchunk->chunk_size);
+      "new chunk instantiated from metadata during startup: %s(%u), offset=%" PRId64 ", size=%lu",
+      (char *)name, id, newchunk->chunk_offset, newchunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunkcache_created_from_metadata);
     __insert_update_stats(session, newchunk);
 
