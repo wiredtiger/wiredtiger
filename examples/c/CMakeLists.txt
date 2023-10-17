@@ -61,6 +61,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET ex_debug_tree
+    SOURCES ex_debug_tree.c
+    DIR_NAME ex_debug_tree
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_debug_tree>/WT_HOME>
+)
+
+define_c_test(
     TARGET ex_data_source
     SOURCES ex_data_source.c
     DIR_NAME ex_data_source

@@ -18,6 +18,9 @@ Shows how to use a column-store with column groups using example operations.
 @example ex_cursor.c
 Shows some common cursor types and operations.
 
+@example ex_debug_tree.c
+Shows how to debug the tree.
+
 @example ex_encrypt.c
 Shows how to extend WiredTiger with a simple encryption algorithm.
 
