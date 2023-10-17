@@ -3232,7 +3232,7 @@ struct __wt_connection {
  * more information)., a string; default \c ".".}
  * @config{ ),,}
  * @config{prefetch, Enable automatic detection of scans by applications\, and attempt to pre-fetch
- * future content into the cache., a boolean flag; default \c false.}
+ * future content into the cache., a boolean flag; default \c true.}
  * @config{readonly, open connection in read-only mode.  The database must exist.  All methods that
  * may modify a database are disabled.  See @ref readonly for more information., a boolean flag;
  * default \c false.}
