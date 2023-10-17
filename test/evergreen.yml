@@ -2195,11 +2195,16 @@ tasks:
             for test in $csuite_tests
             do
               test_binary=`echo $test | sed "s/.*\///"`
-              if [[ "$smoke_tests[*]" =~ "$test_binary" ]] || [[ "$special_tests[*]" =~ "$test_binary" ]]; then
+              if [[ "$smoke_tests[*]" =~ "$test_binary" ]]; then
                   continue
               fi
+
               echo "Running $test"
-              $test 2>&1
+              if [[ "$special_tests[*]" =~ "$test_binary" ]]; then
+                $test -b $(pwd) 2>&1
+              else
+                $test 2>&1 
+              fi
             done
 
   - name: csuite-schema-abort-test
@@ -2254,27 +2259,6 @@ tasks:
           test_args: -s -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
           test_binary: timestamp_abort
 
-  - name: csuite-wt3120-filesys-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_args: -b $(pwd)
-          test_name: wt3120_filesys
-
-  - name: csuite-wt2909-checkpoint-integrity-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_args: -b $(pwd)
-          test_name: wt2909_checkpoint_integrity
 
   - name: csuite-wt8963-insert-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
