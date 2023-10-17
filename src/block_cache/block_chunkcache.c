@@ -380,20 +380,24 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t siz
     WT_ASSERT(session, offset >= 0);
 
     /*
-     * Calculate the size and the offset for the chunk. The chunk storage area is broken into
-     * equally sized chunks of configured size. We calculate the offset of the chunk into which the
-     * block's offset falls. Chunks are equally sized and are not necessarily a multiple of a block.
-     * So a block may begin in one chunk and end in another. It may also span multiple chunks, if
-     * the chunk size is configured much smaller than a block size (we hope that never happens). In
-     * the allocation function we don't care about the block's size. If more than one chunk is
-     * needed to cover the entire block, another function will take care of allocating multiple
-     * chunks.
+     * Convert the block offset to the offset of the enclosing chunk. Calculate the offset for the
+     * chunk. The chunk storage area is broken into equally sized chunks of a configured size. We
+     * need to calculate the offset of the chunk into which the block's offset falls. This offset is
+     * crucial as chunks are equally sized and not necessarily a multiple of a block. A block may
+     * start in one chunk and end in another or even span multiple chunks if the chunk size is
+     * configured to be much smaller than the block size (we hope that never happens).In the
+     * allocation function we don't care about the block's size. If more than one chunk is needed to
+     * cover the entire block, another function will take care of allocating multiple chunks.
      *
-     * Convert the block offset to the offset of the enclosing chunk.
      */
     chunk_offset = WT_CHUNK_OFFSET(chunkcache, offset);
 
-    /* Chunk cannot be larger than the file. */
+    /*
+     * Determine the size of the chunk, ensuring it does not exceed the file's size. We find the
+     * minimum size between the configured chunk size and the size remaining from the current
+     * chunk's offset to the end of the file. This step ensures we do not allocate a chunk beyond
+     * what the file can accommodate.
+     */
     chunk_size = WT_MIN(chunkcache->chunk_size, (size_t)(size - chunk_offset));
 
     /* Part of the hash ID was populated by the caller, but we must set the offset. */
