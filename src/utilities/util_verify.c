@@ -67,7 +67,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     abort_on_error = do_not_clear_txn_id = dump_address = dump_app_data = dump_blocks =
       dump_layout = dump_pages = read_corrupt = stable_timestamp = strict = false;
     config = dump_offsets = uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:eStu?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:Sstu?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
