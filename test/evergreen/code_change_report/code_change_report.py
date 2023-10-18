@@ -39,37 +39,56 @@ def get_html_colour(count: int, of: int):
     return colour
 
 
+def centred_text(text):
+    return "<p style=\"text-align: center\">{}</p>\n".format(text)
+
+
+def right_text(text):
+    return "<p style=\"text-align: right\">{}</p>\n".format(text)
+
+
 def line_number_to_text(code_colour, line_number):
     if line_number > 0:
-        return "    <p style=\"background-color:{};text-align: center\">{}</p>\n".format(code_colour, line_number)
+        return "    <p style=\"background-color:{};text-align: right\">{}</p>\n".format(code_colour, line_number)
     else:
-        return "    <p style=\"background-color:{};text-align: center\"></p>\n".format(code_colour)
+        return ""
 
 
 def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
     report = list()
+    code_unhighlighted = "White"
 
     if file.startswith("src/"):
         escaped_file = html.escape(file, quote=True)
         report.append("<a id=\"{}\"></a>\n".format(escaped_file))
         report.append("<h3>File: {}</h3>\n".format(escaped_file))
 
+        report.append("<table cellpadding=0 cellspacing=0>\n")
+        report.append("  <tr>\n")
+        report.append("    <th>&nbspCount&nbsp</th>\n")
+        report.append("    <th>&nbspBranches&nbsp</th>\n")
+        report.append("    <th>&nbspOld line&nbsp</th>\n")
+        report.append("    <th>&nbspNew line&nbsp</th>\n")
+        report.append("    <th>&nbsp=+-&nbsp</th>\n")
+        report.append("    <th></th>\n")
+        report.append("  </tr>\n")
+
+        first_line_for_file = True
+
         for hunk in file_info:
+            if not first_line_for_file:
+                seperator = "--------"
+                report.append("  <tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td></td><td></td></tr>\n".
+                              format(centred_text(seperator), centred_text(seperator),
+                                     right_text(seperator), right_text(seperator)))
+            first_line_for_file = False
+
             lines = hunk['lines']
-            report.append("<table cellpadding=0 cellspacing=0>\n")
-            report.append("  <tr>\n")
-            report.append("    <th>Count</th>\n")
-            report.append("    <th>Branches</th>\n")
-            report.append("    <th>Old line</th>\n")
-            report.append("    <th>New line</th>\n")
-            report.append("    <th>=+-</th>\n")
-            report.append("    <th></th>\n")
-            report.append("  </tr>\n")
             for line in lines:
                 new_lineno = line['new_lineno']
                 old_lineno = line['old_lineno']
                 content = line['content']
-                code_colour = "White"
+                code_colour = code_unhighlighted
                 plus_minus = "="
                 strikethrough = False
                 if new_lineno > 0 > old_lineno:
@@ -84,7 +103,7 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                         count_str = str(count)
                         code_colour = get_html_colour(count, count)
                 report.append("  <tr>\n")
-                report.append("    <td>{}</td>\n".format(count_str))
+                report.append("    <td>{}</td>\n".format(right_text(count_str)))
                 if 'branches' in line:
                     branches = line['branches']
                     branch_info = get_branch_info(branches=branches)
@@ -122,21 +141,20 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 else:
                     report.append("    <td></td>\n")
 
-                report.append("    <td>{}</td>\n".format(line_number_to_text(code_colour, old_lineno)))
+                report.append("    <td>{}</td>\n".format(line_number_to_text(code_unhighlighted, old_lineno)))
                 report.append("    <td>{}</td>\n".format(line_number_to_text(code_colour, new_lineno)))
-                report.append("    <td>{}</td>\n".format(plus_minus))
+                report.append("    <td>{}</td>\n".format(centred_text(plus_minus)))
                 report.append("    <td>\n")
                 if strikethrough:
                     report.append("    <del>\n")
                 report.append("      <p style=\"background-color:{};font-family:\'Courier New\',sans-serif;"
                               "white-space:pre\">{}</p>\n".format(
-                        code_colour, html.escape(line['content'], quote=True)))
+                    code_colour, html.escape(line['content'], quote=True)))
                 if strikethrough:
                     report.append("    </del>\n")
                 report.append("    <td>\n")
-                report.append("  </tr>\n")
-                report.append("<p>")
-            report.append("</table>\n")
+
+        report.append("</table>\n")
 
     return report
 
@@ -165,14 +183,27 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("    box-shadow: 5px 5px 10px gray;\n")
     report.append("    z-index: 1;\n")  # pop up in front of the main text
     report.append("  }\n")
+    report.append("  table\n")
+    report.append("  {\n")
+    report.append("      border: 1px solid black\n")
+    report.append("  }\n")
+    report.append("  td\n")
+    report.append("  {\n")
+    report.append("      padding-left: 5px; padding-right: 5px;\n")
+    report.append("  }\n")
+    report.append("  table.center\n")
+    report.append("  {\n")
+    report.append("      margin-left: auto;\n")
+    report.append("      margin-right: auto;\n")
+    report.append("  }\n")
     report.append("</style>\n")
     report.append("</head>\n")
 
     report.append("<body>\n")
-    report.append("<h1>Code Change Report V2</h1>\n")
+    report.append("<h1 style=\"text-align: center\">Code Change Report</h1>\n")
 
     # Create table with a list of changed files
-    report.append("<table>\n")
+    report.append("<table class=\"center\">\n")
     report.append("  <tr>\n")
     report.append("    <th>Changed File(s)</th>\n")
     report.append("  </tr>\n")
@@ -189,8 +220,8 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
 
     report.append("<p><p>")
 
-    report.append("<h2>Code Change Details</h2>\n")
-    report.append("Only files in the 'src' directory are shown below<p>\n")
+    report.append("<h2 style=\"text-align: center\">Code Change Details</h2>\n")
+    report.append(centred_text("Only files in the 'src' directory are shown below<p>\n"))
 
     # Create per-file info
     for file in code_change_info:
