@@ -100,11 +100,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         case 's':
             stable_timestamp = true;
             break;
-        case 'u':
-            dump_app_data = true;
-            break;
         case 't':
             do_not_clear_txn_id = true;
+            break;
+        case 'u':
+            dump_app_data = true;
             break;
         case '?':
             usage();
