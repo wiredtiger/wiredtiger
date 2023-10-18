@@ -95,7 +95,10 @@ spellchk()
 
     # We need to remove the required header first.
     sed -i '/personal_ws-1.1 en 200/d' $custom_spellings
-    sort -c $custom_spellings || echo "Sorting $custom_spellings..." && sort -u -o $custom_spellings $custom_spellings
+    if ! sort -c $custom_spellings; then
+        echo "Sorting $custom_spellings..."
+        sort -u -o $custom_spellings $custom_spellings
+    fi
 
     # Add the header back.
     sed -i '1 i\personal_ws-1.1 en 200' $custom_spellings
