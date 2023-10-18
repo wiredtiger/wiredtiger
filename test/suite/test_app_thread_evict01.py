@@ -36,8 +36,10 @@ from wtdataset import SimpleDataSet
 class test_app_thread_evict01(wttest.WiredTigerTestCase):
     uri = "table:test_app_thread_evict001"
     format_values = [
-    ('row_integer', dict(key_format='S', value_format='S')),
+    ('row_integer', dict(key_format='i', value_format='S')),
+    ('column', dict(key_format='r', value_format='S')),
     ]
+
     conn_config = "cache_size=50MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)," \
         "eviction=(threads_max=1),eviction_updates_trigger=5"
     rows = 20000
@@ -53,9 +55,8 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
 
         for i in range(rows):
-            key = 'key' + str(i)
             self.session.begin_transaction()
-            cursor.set_key(key)
+            cursor.set_key(i+1)
             cursor.set_value((str(i)))
             cursor.insert()
             self.session.commit_transaction()
@@ -72,9 +73,9 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         session2.begin_transaction()
         cursor = self.session.open_cursor(self.uri)
-        key = 'key' + str(350)
+        key = 350
         cursor.set_key(key)
-        cursor.set_value((key))
+        cursor.set_value(str(key))
         cursor.insert()        
         
         for i in range(1000):

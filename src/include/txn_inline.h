@@ -237,7 +237,6 @@ static inline void
 __txn_swap_snapshot(uint64_t **snap_a, uint64_t **snap_b)
 {
     uint64_t *temp;
-    WT_UNUSED(temp);
 
     temp = *snap_a;
     *snap_a = *snap_b;
