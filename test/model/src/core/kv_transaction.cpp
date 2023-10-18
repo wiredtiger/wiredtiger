@@ -121,7 +121,7 @@ kv_transaction::prepare(timestamp_t prepare_timestamp)
 
     _prepare_timestamp = prepare_timestamp;
 
-    /* Mark the transaction as committed. */
+    /* Mark the transaction as prepared. */
     _state.store(kv_transaction_state::prepared, std::memory_order_release);
 }
 
