@@ -2194,7 +2194,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "csuite tests all"
 
-  - name: csuite-smoke-tests
+  - name: csuite-timestamp-abort-stress-test
     tags: ["pull_request"]
     depends_on:
       - name: compile
