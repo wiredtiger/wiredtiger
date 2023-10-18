@@ -103,6 +103,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_timestamp_abort_stress
+    SOURCES timestamp_abort/main.c
+    DIR_NAME timestamp_abort
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
+    ARGUMENTS -s -b $<TARGET_FILE:test_timestamp_abort>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_timestamp_abort_lazyfs
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort

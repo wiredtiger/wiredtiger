@@ -2194,17 +2194,6 @@ tasks:
       - func: "compile wiredtiger"
       - func: "csuite tests all"
 
-  - name: csuite-timestamp-abort-stress-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: -s -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
-          test_binary: timestamp_abort
-
   - name: csuite-timestamp-abort-test-s3
     commands:
       - func: "get project"
