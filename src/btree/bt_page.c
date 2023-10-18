@@ -130,7 +130,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
 {
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
-    wt_timestamp_t upd_durable_ts, tombstone_durable_ts;
+    wt_timestamp_t upd_durable_ts = WT_TS_NONE, tombstone_durable_ts;
     size_t size, total_size;
 
     size = 0;
@@ -181,7 +181,6 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->next = upd;
         *updp = tombstone;
     } else {
-        upd_durable_ts = WT_TS_NONE;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         *updp = upd;
     }

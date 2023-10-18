@@ -424,7 +424,7 @@ __tombstone_update_alloc(
   WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, WT_UPDATE **updp, size_t *sizep)
 {
     WT_UPDATE *upd;
-    wt_timestamp_t durable_ts;
+    wt_timestamp_t durable_ts = WT_TS_NONE;
 
     WT_RET(__wt_upd_alloc_tombstone(session, &upd, sizep));
     F_SET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE);

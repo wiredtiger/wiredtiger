@@ -73,7 +73,7 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
-    wt_timestamp_t durable_ts;
+    wt_timestamp_t durable_ts = WT_TS_NONE;
     size_t size, total_size;
     bool tombstone_globally_visible;
 
@@ -366,7 +366,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
-    wt_timestamp_t prev_upd_durable_ts, upd_durable_ts;
+    wt_timestamp_t prev_upd_durable_ts = WT_TS_NONE, upd_durable_ts = WT_TS_NONE;
 
     /*
      * There is no selected update to go to disk as such we don't need to check the updates
@@ -670,7 +670,7 @@ __rec_fill_tw_from_upd_select(
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *upd, *tombstone;
-    wt_timestamp_t durable_ts;
+    wt_timestamp_t durable_ts = WT_TS_NONE;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;

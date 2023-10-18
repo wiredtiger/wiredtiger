@@ -1572,7 +1572,7 @@ static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
     WT_SESSION_IMPL *session;
-    wt_timestamp_t durable_ts;
+    wt_timestamp_t durable_ts = WT_TS_NONE;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *prepare_state;
 

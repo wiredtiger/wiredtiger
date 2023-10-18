@@ -345,7 +345,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_UPDATE *newest_hs, *no_ts_upd, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
-    wt_timestamp_t durable_ts, prev_upd_durable_ts;
+    wt_timestamp_t durable_ts = WT_TS_NONE, prev_upd_durable_ts = WT_TS_NONE;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
     uint32_t i;

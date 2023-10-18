@@ -719,10 +719,12 @@ __wt_txn_upd_get_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd, wt_timestamp_
 
     WT_ORDERED_READ(prepare_state, upd->prepare_state);
 
-    WT_ASSERT(
-      session, prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS);
+    WT_ASSERT_ALWAYS(session,
+      prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS,
+      "Trying to read durable_ts in an invalid prepare state.");
 
     *durable_ts = upd->__durable_ts;
+
     return (0);
 }
 

@@ -161,7 +161,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *first, *next_upd, *upd, *tombstone;
-    wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts, durable_ts;
+    wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts, durable_ts = WT_TS_NONE;
     uint64_t stop_txn, hs_upd_type, raw;
     uint8_t *p, version_prepare_state;
     bool upd_found;
