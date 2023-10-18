@@ -630,7 +630,7 @@ functions:
   "csuite tests all":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/cmake_build"
+      working_dir: "wiredtiger"
       shell: bash
       script: |
         set -o errexit
@@ -638,7 +638,7 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build
-        ${test_env_vars|} $CTEST -L csuite --output-on-failure 2>&1
+        $CTEST -L csuite -j ${num_jobs} --output-on-failure 2>&1
 
   "unit test":
     command: shell.exec
@@ -2189,10 +2189,9 @@ tasks:
   # Start of csuite test tasks
   - name: csuite-tests-all
     tags: ["pull_request"]
-    depends_on:
-      - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
       - func: "csuite tests all"
 
   - name: csuite-smoke-tests
