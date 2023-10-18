@@ -337,23 +337,20 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
     txn->backup_snapshot_data->snap_min = txn->snapshot_data.snap_min;
     txn->backup_snapshot_data->snapshot_count = txn->snapshot_data.snapshot_count;
 
-    /* Take the backup of the snapshot only if the snapshot count is greater than 0. */
-    if (txn->snapshot_data.snapshot_count > 0) {
-        WT_ERR(__wt_calloc_def(session, sizeof(uint64_t) * S2C(session)->session_size,
-          &txn->backup_snapshot_data->snapshot));
+    WT_ERR(__wt_calloc_def(session, sizeof(uint64_t) * S2C(session)->session_size,
+      &txn->backup_snapshot_data->snapshot));
 
-        /* Swap the snapshot pointers. */
-        __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
+    /* Swap the snapshot pointers. */
+    __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
 
-        /*
-         * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
-         * already has a snapshot so clear the flag WT_TXN_HAS_SNAPSHOT.
-         */
-        F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
+    /*
+     * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
+     * already has a snapshot so clear the flag WT_TXN_HAS_SNAPSHOT.
+     */
+    F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
-        /* Get the snapshot without publishing the shared ids. */
-        __wt_txn_bump_snapshot(session);
-    }
+    /* Get the snapshot without publishing the shared ids. */
+    __wt_txn_bump_snapshot(session);
 
 err:
     /* Free the backup_snapshot_data if the memory allocation of the underlying snapshot has failed.
@@ -380,11 +377,10 @@ __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
     txn->snapshot_data.snap_max = snapshot_backup->snap_max;
     txn->snapshot_data.snap_min = snapshot_backup->snap_min;
     txn->snapshot_data.snapshot_count = snapshot_backup->snapshot_count;
-    if (snapshot_backup->snapshot_count > 0) {
-        /* Swap the snapshot pointers. */
-        __txn_swap_snapshot(&snapshot_backup->snapshot, &txn->snapshot_data.snapshot);
-        __wt_free(session, snapshot_backup->snapshot);
-    }
+
+    /* Swap the snapshot pointers. */
+    __txn_swap_snapshot(&snapshot_backup->snapshot, &txn->snapshot_data.snapshot);
+    __wt_free(session, snapshot_backup->snapshot);
     __wt_free(session, snapshot_backup);
 }
 
