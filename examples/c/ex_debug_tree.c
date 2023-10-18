@@ -55,25 +55,26 @@ debug_tree_example(void)
     /*! [access example connection] */
 
     /*! [access example table create] */
-    error_check(session->create(session, "table:debug_tree", "memory_page_max=21K, key_format=q,value_format=u"));
+    error_check(session->create(
+      session, "table:debug_tree", "memory_page_max=21K, key_format=q,value_format=u"));
     /*! [access example table create] */
 
     /*! [access example cursor open] */
     error_check(session->open_cursor(session, "table:debug_tree", NULL, NULL, &cursor));
     /*! [access example cursor open] */
 
-    //insert
+    /* insert */
     for (i = 0; i < MAX_TEST_KV_NUM; i++) {
         cursor->set_key(cursor, i);
 
         value_item.data = "old value #####################################################";
         value_item.size = strlen(value_item.data);
-        
+
         cursor->set_value(cursor, &value_item);
         error_check(cursor->insert(cursor));
     }
 
-    //update
+    /* update */
     for (i = 0; i < MAX_TEST_KV_NUM; i++) {
         cursor->set_key(cursor, i);
 
@@ -84,15 +85,16 @@ debug_tree_example(void)
     }
 
     error_check(cursor->reset(cursor));
-    cbt = (WT_CURSOR_BTREE *)cursor;  
+    cbt = (WT_CURSOR_BTREE *)cursor;
     session_impl = CUR2S(cbt);
     btree = CUR2BT(cbt);
-    WT_WITH_BTREE(session_impl, btree, error_check(__wt_debug_tree_all(session_impl, NULL, NULL, NULL)));
+    WT_WITH_BTREE(
+      session_impl, btree, error_check(__wt_debug_tree_all(session_impl, NULL, NULL, NULL)));
 
     error_check(cursor->close(cursor));
     /*! [access example close] */
     error_check(conn->close(conn, NULL)); /* Close all handles. */
-                                          /*! [access example close] */
+                                          /*! [debug_tree example close] */
 }
 
 int
@@ -104,4 +106,3 @@ main(int argc, char *argv[])
 
     return (EXIT_SUCCESS);
 }
-
