@@ -69,7 +69,7 @@ while :
         # Between aspell versions 0.60.7-20110707 and 0.60.8 the following program names have been
         # added to the dictionary and are no longer considered spelling errors. This means
         # that building a replacement list of words with the newer version of aspell will omit them
-        # from our custom words, and subsequently running s_string with older aspell version will
+        # from our custom words file, and subsequently running s_string with older aspell version will
         # report spelling errors. Manually whitelist these names to address this.
         prog_names="AWS AWS's MongoDB MONGODB PostgreSQL sanitizer sanitizers"
         for name in $prog_names; do
