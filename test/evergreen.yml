@@ -627,6 +627,19 @@ functions:
         ${PREPARE_TEST_ENV}
         $(pwd)/test/csuite/${test_name}/test_${test_name} ${test_args|} 2>&1
 
+  "csuite tests all":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        . test/evergreen/find_cmake.sh
+        cd cmake_build
+        ${test_env_vars|} $CTEST -L csuite --output-on-failure 2>&1
+
   "unit test":
     command: shell.exec
     params:
@@ -2174,38 +2187,13 @@ tasks:
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
-  - name: csuite-all-tests
+  - name: csuite-tests-all
     tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-
-            csuite_tests=`find $(pwd)/test/csuite -not -path "$(pwd)/test/csuite/CMakeFiles/*" -name "test_*"`
-            smoke_tests=('test_schema_abort', 'test_timestamp_abort')
-            special_tests=('wt2909_checkpoint_integrity', 'csuite-wt3120-filesys-test')
-            for test in $csuite_tests
-            do
-              test_binary=`echo $test | sed "s/.*\///"`
-              if [[ "$smoke_tests[*]" =~ "$test_binary" ]]; then
-                  continue
-              fi
-
-              echo "Running $test"
-              if [[ "$special_tests[*]" =~ "$test_binary" ]]; then
-                $test -b $(pwd) 2>&1
-              else
-                $test 2>&1 
-              fi
-            done
+      - func: "csuite tests all"
 
   - name: csuite-smoke-tests
     tags: ["pull_request"]
@@ -2213,14 +2201,6 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: cmake_build/test/csuite/schema_abort/test_schema_abort
-          test_binary: schema_abort
-      - func: "csuite smoke test"
-        vars:
-          test_args: -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
-          test_binary: timestamp_abort
       - func: "csuite smoke test"
         vars:
           test_args: -s -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
