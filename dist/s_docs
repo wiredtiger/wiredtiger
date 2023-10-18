@@ -87,7 +87,7 @@ structurechk()
 spellchk()
 {
     # If aspell has been installed, run a spell check.
-    type aspell > /dev/null 2>&1 || exit 1
+    type aspell > /dev/null 2>&1 || (echo "Cannot find aspell!"; exit 1)
 
     # Make sure custom spellings are sorted.
     header="personal_ws-1.1 en 200"
