@@ -254,6 +254,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_DIAGNOSTIC
     __hazard_dump(session);
+    __wt_abort(session);
 #endif
 
     /*
