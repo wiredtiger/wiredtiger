@@ -17,6 +17,10 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     if (S2C(session)->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE)
         return (false);
+
+    if (session->pf.prefetch_disk_read_count == 1)
+        WT_STAT_CONN_INCR(session, block_prefetch_disk_one);
+
     /*
      * Check if pre-fetching is enabled on the session level. We don't perform pre-fetching on
      * internal threads or internal pages (finding the right content to preload based on internal
@@ -45,6 +49,8 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * evaluate to false and the counter will be reset, effectively marking the ref as available to
      * pre-fetch from.
      */
+    WT_ASSERT(session, session->pf.prefetch_prev_ref != NULL);
+
     if (session->pf.prefetch_prev_ref->page == ref->home &&
       session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
         ++session->pf.prefetch_skipped_with_parent;
@@ -53,9 +59,6 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     session->pf.prefetch_skipped_with_parent = 0;
-
-    if (session->pf.prefetch_disk_read_count == 1)
-        WT_STAT_CONN_INCR(session, block_prefetch_disk_one);
 
     WT_STAT_CONN_INCR(session, block_prefetch_attempts);
     return (true);
