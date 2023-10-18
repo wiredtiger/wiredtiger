@@ -9,6 +9,8 @@ trap 'rm -f $t' 0 1 2 3 13 15
 LC_ALL=C
 export LC_ALL
 
+custom_words=s_string.ok
+
 # If aspell has not been installed, quit
 type aspell > /dev/null 2>&1 || {
     echo "$0 skipped: aspell not found"
@@ -88,6 +90,9 @@ while :
         break;;
     esac
 done
+
+# Check custom words are sorted.
+sort -c $custom_words || echo "Sorting $custom_words..." && sort -u -o $custom_words $custom_words
 
 # Check source files.
 for f in $l; do
