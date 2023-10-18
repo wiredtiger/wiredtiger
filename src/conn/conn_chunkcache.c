@@ -280,7 +280,6 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
 
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHUNKCACHE_METADATA);
 
-    /* TODO set isolation */
     WT_ERR(__wt_open_internal_session(
       conn, "chunkcache-metadata-server", true, 0, 0, &conn->chunkcache_metadata_session));
     session = conn->chunkcache_metadata_session;
