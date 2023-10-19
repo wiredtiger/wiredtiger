@@ -1584,8 +1584,7 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: total bytes used by the cache",
   "chunk-cache: total bytes used by the cache for pinned chunks",
   "chunk-cache: total chunks held by the chunk cache",
-  "chunk-cache: total number of chunks created, and linked to their corresponding on-disk offsets "
-  "using information extracted from metadata.",
+  "chunk-cache: total number of chunks inserted on startup from persisted metadata.",
   "chunk-cache: total pinned chunks held by the chunk cache",
   "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",

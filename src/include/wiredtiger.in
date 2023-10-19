@@ -6062,8 +6062,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! chunk-cache: total chunks held by the chunk cache */
 #define	WT_STAT_CONN_CHUNKCACHE_CHUNKS_INUSE		1284
 /*!
- * chunk-cache: total number of chunks created, and linked to their
- * corresponding on-disk offsets using information extracted from
+ * chunk-cache: total number of chunks inserted on startup from persisted
  * metadata.
  */
 #define	WT_STAT_CONN_CHUNKCACHE_CREATED_FROM_METADATA	1285
