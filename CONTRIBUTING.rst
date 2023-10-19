@@ -9,8 +9,8 @@ For more information about how to contribute, please read `the WiredTiger Wiki o
 .. _the WiredTiger Wiki on GitHub: https://github.com/wiredtiger/wiredtiger/wiki/Contributing-to-WiredTiger
 
 
-Coding Style for C and C++
-==========================
+Coding Style
+============
 
 A consistent style makes it easier for engineers to read the sources
 and to move between different parts of the code base. A coding style
@@ -26,11 +26,9 @@ the C coding style contains guidelines that are not appropriate (and
 in some cases are bad practices) in C++. WiredTiger itself is written
 in C, while tools like cppsuite and workgen are written in C++.
 
-The WiredTiger C and C++ language standards and minimum compiler
-versions required are documented here.
 
 WiredTiger C Coding Style
--------------------------
+=========================
 
 The WiredTiger C coding standard is loosely based on K&R indentation
 and formatted using Clang-Format. Some specific points are listed
