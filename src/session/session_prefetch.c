@@ -34,6 +34,11 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     }
 
+    if (session->pf.prefetch_prev_ref == NULL) {
+        WT_STAT_CONN_INCR(session, block_prefetch_attempts);
+        return (true);
+    }
+
     /*
      * We want to avoid the scenario of requesting pre-fetch on one particular ref many times (e.g
      * when reading along a single page). We can identify this by checking if the previous pre-fetch
@@ -49,10 +54,6 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * evaluate to false and the counter will be reset, effectively marking the ref as available to
      * pre-fetch from.
      */
-    if (session->pf.prefetch_prev_ref == NULL) {
-        WT_STAT_CONN_INCR(session, block_prefetch_attempts);
-        return (true);
-    }
 
     if (session->pf.prefetch_prev_ref->page == ref->home &&
       session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
