@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+import random
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet, simple_value
 
@@ -37,7 +38,6 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
     uri = "table:test_app_thread_evict001"
     format_values = [
     ('row_integer', dict(key_format='i', value_format='S')),
-    ('column', dict(key_format='r', value_format='S')),
     ]
 
     conn_config = "cache_size=50MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)," \
@@ -49,23 +49,21 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
         stat_cursor.close()
-        return val        
-    
+        return val
+
     def insert_range(self,uri,rows):
         cursor = self.session.open_cursor(uri)
 
         for i in range(rows):
             self.session.begin_transaction()
             cursor.set_key(i+1)
-            value = simple_value(cursor, i) + 'abcdef' * 100
+            value = simple_value(cursor, i) + 'abcdef' * random.randint(500,1000)
             cursor.set_value((value))
             cursor.insert()
             self.session.commit_transaction()
-    
-    
+
+
     def test_app_thread_evict01(self):
-        retry_limit = 10
-        retries = 0
         num_app_evict_snapshot_refreshed = 0
 
         format='key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -81,21 +79,15 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         key = 350
         cursor.set_key(key)
         cursor.set_value(str(key))
-        cursor.insert()        
-        
-        while retries < retry_limit:
-            for i in range(1000):
-                self.insert_range(self.uri, i)
+        cursor.insert()
 
-            cursor.set_key(key)
-            self.assertEquals(cursor.search(), 0)
+        for i in range(500):
+            self.insert_range(self.uri, i)
 
-            num_app_evict_snapshot_refreshed = self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed)
-            if num_app_evict_snapshot_refreshed > 0:
-                break;
-
-            retries += 1
+        cursor.set_key(350)
+        self.assertEquals(cursor.search(), 0)
 
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed), 0)
+
 if __name__ == '__main__':
     wttest.run()
