@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 from wtscenario import make_scenarios
-from wtdataset import SimpleDataSet
+from wtdataset import SimpleDataSet, simple_value
 
 # test_app_thread_evict01.py
 # Test to trigger application threads to perform eviction.
@@ -57,12 +57,17 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         for i in range(rows):
             self.session.begin_transaction()
             cursor.set_key(i+1)
-            cursor.set_value((str(i)))
+            value = simple_value(cursor, i) + 'abcdef' * 100
+            cursor.set_value((value))
             cursor.insert()
             self.session.commit_transaction()
     
     
     def test_app_thread_evict01(self):
+        retry_limit = 10
+        retries = 0
+        num_app_evict_snapshot_refreshed = 0
+
         format='key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, format)
         # Create our table.
@@ -78,13 +83,19 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         cursor.set_value(str(key))
         cursor.insert()        
         
-        for i in range(1000):
-            self.insert_range(self.uri, i)
+        while retries < retry_limit:
+            for i in range(1000):
+                self.insert_range(self.uri, i)
 
-        cursor.set_key(key)
-        self.assertEquals(cursor.search(), 0)
+            cursor.set_key(key)
+            self.assertEquals(cursor.search(), 0)
+
+            num_app_evict_snapshot_refreshed = self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed)
+            if num_app_evict_snapshot_refreshed > 0:
+                break;
+
+            retries += 1
 
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed), 0)
-
 if __name__ == '__main__':
     wttest.run()
