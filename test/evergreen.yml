@@ -638,7 +638,7 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build
-        $CTEST -L csuite -j ${num_jobs} --output-on-failure 2>&1
+        $CTEST -L csuite ${check_args} -j ${num_jobs} --output-on-failure 2>&1
 
   "unit test":
     command: shell.exec
