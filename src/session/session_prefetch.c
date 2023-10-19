@@ -54,7 +54,6 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * evaluate to false and the counter will be reset, effectively marking the ref as available to
      * pre-fetch from.
      */
-
     if (session->pf.prefetch_prev_ref->page == ref->home &&
       session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
         ++session->pf.prefetch_skipped_with_parent;
