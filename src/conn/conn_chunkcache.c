@@ -223,7 +223,7 @@ __chunkcache_metadata_server(void *arg)
 
     session = arg;
     conn = S2C(session);
-    cond_time_us = 1 * WT_MILLION;
+    cond_time_us = WT_MILLION;
 
     for (;;) {
         /* Wait until the next event. */
