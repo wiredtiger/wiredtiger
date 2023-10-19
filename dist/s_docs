@@ -90,7 +90,6 @@ spellchk()
     type aspell > /dev/null 2>&1 || (echo "Cannot find aspell!"; exit 1)
 
     # Make sure custom spellings are sorted.
-    header="personal_ws-1.1 en 200"
     custom_spellings=../src/docs/spell.ok
 
     # We need to remove the required header first.
