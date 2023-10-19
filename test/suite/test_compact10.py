@@ -46,6 +46,7 @@ class test_compact10(wttest.WiredTigerTestCase):
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     timing_stress_cfg_values = [
+        ('none', dict(timing_stress_cfg='')),
         ('checkpoint_slow', dict(timing_stress_cfg='checkpoint_slow')),
         ('compact_slow', dict(timing_stress_cfg='compact_slow')),
     ]
