@@ -271,8 +271,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 /*
  * Construct histogram increment functions to put the passed value into the right bucket. Bucket
  * ranges, represented by various statistics, depend upon whether the passed value is in
- * milliseconds or microseconds. Also values less than a given minimum are ignored and not put in
- * any bucket. This floor value keeps us from having an excessively large smallest values.
+ * milliseconds or microseconds.
  */
 #define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                                                  \
     static inline void __wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
