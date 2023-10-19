@@ -34,6 +34,8 @@ from wtdataset import SimpleDataSet, simple_value
 # test_app_thread_evict01.py
 # Test to trigger application threads to perform eviction.
 
+@wttest.skip_for_hook("timestamp", "This test uses dataset and hooks assume that timestamp are used and fails.")
+
 class test_app_thread_evict01(wttest.WiredTigerTestCase):
     uri = "table:test_app_thread_evict001"
     format_values = [
@@ -62,8 +64,9 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
             cursor.insert()
             self.session.commit_transaction()
 
-
     def test_app_thread_evict01(self):
+        retry_limit = 10
+        retries = 0
         num_app_evict_snapshot_refreshed = 0
 
         format='key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -81,13 +84,22 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         cursor.set_value(str(key))
         cursor.insert()
 
-        for i in range(500):
-            self.insert_range(self.uri, i)
 
-        cursor.set_key(350)
-        self.assertEquals(cursor.search(), 0)
+        while retries < retry_limit:
+            for i in range(500):
+                self.insert_range(self.uri, i)
+
+            cursor.set_key(key)
+            self.assertEquals(cursor.search(), 0)
+
+            num_app_evict_snapshot_refreshed = self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed)
+            if num_app_evict_snapshot_refreshed > 0:
+                break
+
+            retries += 1
 
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed), 0)
+
 
 if __name__ == '__main__':
     wttest.run()
