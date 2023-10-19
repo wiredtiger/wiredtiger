@@ -93,7 +93,7 @@ done
 
 # Check custom words are sorted.
 if ! sort -c $custom_words; then
-    echo "Sorting $custom_words..."
+    echo "Sorting $custom_words ..."
     sort -u -o $custom_words $custom_words
 fi
 
