@@ -22,8 +22,8 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_INCR(session, block_prefetch_disk_one);
 
     /*
-     * Check if pre-fetching is enabled on the session level. We don't perform pre-fetching on
-     * internal threads or internal pages (finding the right content to preload based on internal
+     * Check if pre-fetching is enabled for this particular session. We don't perform pre-fetching
+     * on internal threads or internal pages (finding the right content to preload based on internal
      * pages is hard), so check for that too. We also want to pre-fetch pages that have had at least
      * one read. The result of this check will be used by cursor logic to determine if pre-fetching
      * will be performed.
@@ -49,7 +49,10 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * evaluate to false and the counter will be reset, effectively marking the ref as available to
      * pre-fetch from.
      */
-    WT_ASSERT(session, session->pf.prefetch_prev_ref != NULL);
+    if (session->pf.prefetch_prev_ref == NULL) {
+        WT_STAT_CONN_INCR(session, block_prefetch_attempts);
+        return (true);
+    }
 
     if (session->pf.prefetch_prev_ref->page == ref->home &&
       session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
