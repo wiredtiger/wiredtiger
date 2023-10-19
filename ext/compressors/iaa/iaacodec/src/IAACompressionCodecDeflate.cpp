@@ -59,7 +59,7 @@ DeflateJobHWPool::~DeflateJobHWPool()
 HardwareCodecDeflate::HardwareCodecDeflate(WT_COMPRESSOR *compressor, WT_SESSION *session)
 {
     hwEnabled = DeflateJobHWPool::instance(compressor, session).jobPoolReady();
-    pageSize = (int)getpagesize();
+    pageSize = getpagesize();
 }
 
 HardwareCodecDeflate::~HardwareCodecDeflate()
