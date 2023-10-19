@@ -223,6 +223,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2909_checkpoint_integrity/smoke.sh
     ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_wt2909_checkpoint_integrity>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -375,6 +376,7 @@ define_c_test(
     DIR_NAME wt8246_compact_rts_data_correctness
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
