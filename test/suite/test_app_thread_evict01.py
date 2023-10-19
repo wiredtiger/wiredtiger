@@ -64,8 +64,6 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
 
     def test_app_thread_evict01(self):
-        retry_limit = 10
-        retries = 0
         num_app_evict_snapshot_refreshed = 0
 
         format='key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -96,8 +94,6 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
             num_app_evict_snapshot_refreshed = self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed)
             if num_app_evict_snapshot_refreshed > 0:
                 break
-
-            retries += 1
 
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed), 0)
 
