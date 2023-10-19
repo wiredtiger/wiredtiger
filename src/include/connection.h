@@ -42,10 +42,10 @@ struct __wt_process {
 };
 extern WT_PROCESS __wt_process;
 
-typedef enum __wt_bg_compact_cleanup_type {
+typedef enum __wt_background_compact_cleanup_stat_type {
     BACKGROUND_CLEANUP_ALL_STAT,
     BACKGROUND_CLEANUP_STALE_STAT
-} WT_BACKGROUND_COMPACT_CLEANUP_TYPE;
+} WT_BACKGROUND_COMPACT_CLEANUP_STAT_TYPE;
 
 /*
  * WT_BACKGROUND_COMPACT_STAT --
@@ -65,6 +65,16 @@ struct __wt_background_compact_stat {
 
     /* Hash of files background compact has worked on */
     TAILQ_ENTRY(__wt_background_compact_stat) hashq;
+};
+
+/*
+ * WT_BACKGROUND_COMPACT_EXCLUDE --
+ *	An entry indicating this file should be excluded from background compaction.
+ */
+struct __wt_background_compact_exclude {
+    const char *name; /* File name */
+
+    TAILQ_ENTRY(__wt_background_compact_exclude) hashq; /* internal hash queue */
 };
 
 /*
@@ -91,7 +101,10 @@ struct __wt_background_compact {
     uint64_t full_iteration_wait_time; /* Time in seconds to wait after a full iteration */
 
     /* List of files to track compaction statistics across background server iterations. */
-    TAILQ_HEAD(__wt_bg_compacthash, __wt_background_compact_stat) * compacthash;
+    TAILQ_HEAD(__wt_background_compactstathash, __wt_background_compact_stat) * stat_hash;
+    /* List of files excluded from background compaction. */
+    TAILQ_HEAD(__wt_background_compactexcludelisthash, __wt_background_compact_exclude) *
+      exclude_list_hash;
 };
 
 /*
@@ -295,7 +308,7 @@ struct __wt_connection_impl {
     WT_CONNECTION iface;
 
     /* For operations without an application-supplied session */
-    WT_SESSION_IMPL *default_session;
+    wt_shared WT_SESSION_IMPL *default_session;
     WT_SESSION_IMPL dummy_session;
 
     const char *cfg; /* Connection configuration */
@@ -337,7 +350,7 @@ struct __wt_connection_impl {
     WT_EXTENSION_API extension_api; /* Extension API */
 
     /* Configuration */
-    const WT_CONFIG_ENTRY **config_entries;
+    wt_shared const WT_CONFIG_ENTRY **config_entries;
 
     WT_BACKGROUND_COMPACT background_compact; /* Background compaction server */
 
@@ -387,12 +400,12 @@ struct __wt_connection_impl {
 
     /* Locked: handles in each bucket */
     uint64_t *dh_bucket_count;
-    uint64_t dhandle_count;        /* Locked: handles in the queue */
-    u_int open_btree_count;        /* Locked: open writable btree count */
-    uint32_t next_file_id;         /* Locked: file ID counter */
-    uint32_t open_file_count;      /* Atomic: open file handle count */
-    uint32_t open_cursor_count;    /* Atomic: open cursor handle count */
-    uint32_t version_cursor_count; /* Atomic: open version cursor count */
+    uint64_t dhandle_count;                  /* Locked: handles in the queue */
+    u_int open_btree_count;                  /* Locked: open writable btree count */
+    uint32_t next_file_id;                   /* Locked: file ID counter */
+    wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
+    wt_shared uint32_t open_cursor_count;    /* Atomic: open cursor handle count */
+    wt_shared uint32_t version_cursor_count; /* Atomic: open version cursor count */
 
     /*
      * WiredTiger allocates space for 50 simultaneous sessions (threads of control) by default.
@@ -403,14 +416,14 @@ struct __wt_connection_impl {
      * that way because we want an easy way for the server thread code to avoid walking the entire
      * array when only a few threads are running.
      */
-    WT_SESSION_IMPL *sessions; /* Session reference */
-    uint32_t session_size;     /* Session array size */
-    uint32_t session_cnt;      /* Session count */
+    WT_SESSION_IMPL *sessions;      /* Session reference */
+    uint32_t session_size;          /* Session array size */
+    wt_shared uint32_t session_cnt; /* Session count */
 
     size_t session_scratch_max; /* Max scratch memory per session */
 
-    WT_CACHE *cache;              /* Page cache */
-    volatile uint64_t cache_size; /* Cache size (either statically
+    WT_CACHE *cache;                        /* Page cache */
+    wt_shared volatile uint64_t cache_size; /* Cache size (either statically
                                      configured or the current size
                                      within a cache pool). */
 
@@ -426,11 +439,11 @@ struct __wt_connection_impl {
     char **hot_backup_list;    /* Hot backup file list */
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
 
-    WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
-    wt_thread_t ckpt_tid;          /* Checkpoint thread */
-    bool ckpt_tid_set;             /* Checkpoint thread set */
-    WT_CONDVAR *ckpt_cond;         /* Checkpoint wait mutex */
-    uint64_t ckpt_most_recent;     /* Clock value of most recent checkpoint */
+    WT_SESSION_IMPL *ckpt_session;       /* Checkpoint thread session */
+    wt_thread_t ckpt_tid;                /* Checkpoint thread */
+    bool ckpt_tid_set;                   /* Checkpoint thread set */
+    WT_CONDVAR *ckpt_cond;               /* Checkpoint wait mutex */
+    wt_shared uint64_t ckpt_most_recent; /* Clock value of most recent checkpoint */
 #define WT_CKPT_LOGSIZE(conn) ((conn)->ckpt_logsize != 0)
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */
@@ -501,7 +514,7 @@ struct __wt_connection_impl {
     bool capacity_tid_set;             /* Capacity thread set */
     WT_CONDVAR *capacity_cond;         /* Capacity wait mutex */
 
-    WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
+    wt_shared WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
 
 #define WT_CONN_TIERED_STORAGE_ENABLED(conn) ((conn)->bstorage != NULL)
     WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
@@ -514,6 +527,16 @@ struct __wt_connection_impl {
     WT_THREAD_GROUP evict_threads;
     uint32_t evict_threads_max; /* Max eviction threads */
     uint32_t evict_threads_min; /* Min eviction threads */
+
+#define WT_MAX_PREFETCH_QUEUE 120
+#define WT_PREFETCH_QUEUE_PER_TRIGGER 30
+    WT_SPINLOCK prefetch_lock;
+    WT_THREAD_GROUP prefetch_threads;
+    uint64_t prefetch_queue_count;
+    /* Queue of refs to pre-fetch from */
+    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
+    bool prefetch_auto_on;
+    bool prefetch_available;
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
@@ -569,7 +592,7 @@ struct __wt_connection_impl {
     bool log_wrlsn_tid_set;                /* Log write lsn thread set */
     WT_LOG *log;                           /* Logging structure */
     WT_COMPRESSOR *log_compressor;         /* Logging compressor */
-    uint32_t log_cursors;                  /* Log cursor count */
+    wt_shared uint32_t log_cursors;        /* Log cursor count */
     wt_off_t log_dirty_max;                /* Log dirty system cache max size */
     wt_off_t log_file_max;                 /* Log file max size */
     uint32_t log_force_write_wait;         /* Log force write wait configuration */
@@ -577,7 +600,7 @@ struct __wt_connection_impl {
     uint32_t log_prealloc;                 /* Log file pre-allocation */
     uint16_t log_req_max;                  /* Max required log version */
     uint16_t log_req_min;                  /* Min required log version */
-    uint32_t txn_logsync;                  /* Log sync configuration */
+    wt_shared uint32_t txn_logsync;        /* Log sync configuration */
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
@@ -620,11 +643,11 @@ struct __wt_connection_impl {
     /* If non-zero, all buffers used for I/O will be aligned to this. */
     size_t buffer_alignment;
 
-    uint64_t stashed_bytes; /* Atomic: stashed memory statistics */
-    uint64_t stashed_objects;
+    wt_shared uint64_t stashed_bytes; /* Atomic: stashed memory statistics */
+    wt_shared uint64_t stashed_objects;
 
     /* Generations manager */
-    volatile uint64_t generations[WT_GENERATIONS];
+    wt_shared volatile uint64_t generations[WT_GENERATIONS];
     uint64_t gen_drain_timeout_ms; /* Maximum waiting time for a resource to drain in diagnostic
                                       mode before timing out */
 
@@ -644,10 +667,10 @@ struct __wt_connection_impl {
     int page_size; /* OS page size for mmap alignment */
 
     /* Access to these fields is protected by the debug_log_retention_lock. */
-    WT_LSN *debug_ckpt;      /* Debug mode checkpoint LSNs. */
-    size_t debug_ckpt_alloc; /* Checkpoint retention allocated. */
-    uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
-    uint32_t debug_log_cnt;  /* Log file retention count */
+    WT_LSN *debug_ckpt;                /* Debug mode checkpoint LSNs. */
+    size_t debug_ckpt_alloc;           /* Checkpoint retention allocated. */
+    wt_shared uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
+    wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_DEBUG_CKPT_RETAIN 0x001u
@@ -771,14 +794,15 @@ struct __wt_connection_impl {
 #define WT_CONN_MINIMAL 0x00040000u
 #define WT_CONN_OPTRACK 0x00080000u
 #define WT_CONN_PANIC 0x00100000u
-#define WT_CONN_READONLY 0x00200000u
-#define WT_CONN_READY 0x00400000u
-#define WT_CONN_RECONFIGURING 0x00800000u
-#define WT_CONN_RECOVERING 0x01000000u
-#define WT_CONN_RECOVERY_COMPLETE 0x02000000u
-#define WT_CONN_SALVAGE 0x04000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x08000000u
-#define WT_CONN_WAS_BACKUP 0x10000000u
+#define WT_CONN_PREFETCH_RUN 0x00200000u
+#define WT_CONN_READONLY 0x00400000u
+#define WT_CONN_READY 0x00800000u
+#define WT_CONN_RECONFIGURING 0x01000000u
+#define WT_CONN_RECOVERING 0x02000000u
+#define WT_CONN_RECOVERY_COMPLETE 0x04000000u
+#define WT_CONN_SALVAGE 0x08000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x10000000u
+#define WT_CONN_WAS_BACKUP 0x20000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t flags;
+    wt_shared uint32_t flags;
 };
