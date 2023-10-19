@@ -86,7 +86,6 @@ class test_compact10(wttest.WiredTigerTestCase):
                 break
             bkup_file = cursor.get_key()
             copy_file = os.path.join(fromdir, bkup_file)
-            sz = os.path.getsize(copy_file)
             shutil.copy(copy_file, todir)
         assert ret == wiredtiger.WT_NOTFOUND
         cursor.close()
