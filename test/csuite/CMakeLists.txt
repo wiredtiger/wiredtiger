@@ -107,7 +107,7 @@ define_c_test(
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
-    ARGUMENTS -s -b $<TARGET_FILE:test_timestamp_abort>
+    ARGUMENTS -s -b $<TARGET_FILE:test_timestamp_abort>_stress
     DEPENDS "WT_POSIX"
 )
 
