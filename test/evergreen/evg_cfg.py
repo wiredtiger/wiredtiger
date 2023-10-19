@@ -87,6 +87,9 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
     with open(evg_cfg_file, 'r') as f:
         evg_cfg = f.readlines()
 
+    with open(CSUITE_TEST_DIR + "/CMakeLists.txt", 'r') as f:
+        cmake_cfg = f.readlines()
+
     debug('\n')
     missing_tests = {}
     for d in dirs:
@@ -112,14 +115,15 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
         else:
             sys.exit("Unsupported test_type '%s'" % test_type)
 
-        # Check if the Evergreen task name exists in current Evergreen configuration
-        if evg_task_name in str(evg_cfg):
+        # Check if the Evergreen task name exists in current Evergreen configuration or in the
+        # csuite CMakeLists file.
+        if evg_task_name in str(evg_cfg) or d in str(cmake_cfg):
             # Match found
             continue
         else:
             # Missing task/test found
             missing_tests.update({evg_task_name: d})
-            print("Task '%s' (for directory '%s') is missing in %s!" %
+            print("Task '%s' (for directory '%s') is missing in %s or CMakeLists.txt file!" %
                   (evg_task_name, d, evg_cfg_file))
 
     return missing_tests
