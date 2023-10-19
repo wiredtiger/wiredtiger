@@ -35,7 +35,6 @@ from wtdataset import SimpleDataSet, simple_value
 # Test to trigger application threads to perform eviction.
 
 @wttest.skip_for_hook("timestamp", "This test uses dataset and hooks assume that timestamp are used and fails.")
-
 class test_app_thread_evict01(wttest.WiredTigerTestCase):
     uri = "table:test_app_thread_evict001"
     format_values = [
@@ -84,8 +83,10 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
         cursor.set_value(str(key))
         cursor.insert()
 
-
-        while retries < retry_limit:
+        # For our target stat to be incremented we need our application thread to evict a page, but
+        # this is probabilistic as the application thread is always racing against the internal
+        # eviction threads. Give the application thread a few chances to beat the internal thread
+        for _ in range(0, 10):
             for i in range(500):
                 self.insert_range(self.uri, i)
 
@@ -99,7 +100,6 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
             retries += 1
 
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.application_evict_snapshot_refreshed), 0)
-
 
 if __name__ == '__main__':
     wttest.run()
