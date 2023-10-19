@@ -26,23 +26,22 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, time, wttest
-from helper import copy_wiredtiger_home
+import os, random, shutil, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_compact10.py
-# Verify database can be recovered when a crash occurs during compaction.
+# Verify a backup of the database can be taken while background compaction is running.
 # It is worth noting that this test has a random behavior and one run from the other may not execute
 # the same code paths.
 class test_compact10(wttest.WiredTigerTestCase):
-    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
+    backup_dir = "BACKUP"
     conn_config = 'cache_size=100MB,statistics=(all)'
+    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
     uri_prefix = 'table:test_compact10'
 
+    n_tables = 3
     table_numkv = 100 * 1000
-    # Create up to 3 tables.
-    n_tables = random.randint(1, 3)
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     timing_stress_cfg_values = [
@@ -76,6 +75,21 @@ class test_compact10(wttest.WiredTigerTestCase):
         for k in range(num_keys):
             c[k] = ('%07d' % k) + '_' + 'abcd' * ((value_size // 4) - 2)
         c.close()
+
+    def take_full_backup(self, fromdir, todir):
+        # Do a full backup by opening up a backup cursor and copying the files.
+        cursor = self.session.open_cursor('backup:', None, None)
+        os.mkdir(todir)
+        while True:
+            ret = cursor.next()
+            if ret != 0:
+                break
+            bkup_file = cursor.get_key()
+            copy_file = os.path.join(fromdir, bkup_file)
+            sz = os.path.getsize(copy_file)
+            shutil.copy(copy_file, todir)
+        assert ret == wiredtiger.WT_NOTFOUND
+        cursor.close()
 
     def turn_on_bg_compact(self, config):
         self.session.compact(None, config)
@@ -112,30 +126,31 @@ class test_compact10(wttest.WiredTigerTestCase):
         # Reconfigure the connection with:
         # - Aggressive compaction
         reconf_config = self.conn_config + ',debug_mode=(background_compact)'
-        # - Stressing options to slow down compaction and checkpoints so the test can trigger the
-        # crash while compaction is still in progress.
+        # - Stressing options to slow down compaction and checkpoints so compaction takes more time.
         reconf_config += f',timing_stress_for_test=({self.timing_stress_cfg})'
-        # - Verbose (for debugging purposes)
+        # - Verbose for debugging purposes.
         # reconf_config += ',verbose=(compact,compact_progress)'
         self.conn.reconfigure(reconf_config)
         
-        # Enable background compaction. Exclude the HS file as there is no content to compact.
-        exclude_list = '["table:WiredTigerHS.wt"]'
-        compact_config = f'background=true,free_space_target=1MB,exclude={exclude_list}'
+        # Enable background compaction.
+        compact_config = f'background=true,free_space_target=1MB'
         self.turn_on_bg_compact(compact_config)
 
         # Wait for a random table to be compacted before crashing.
         uri_idx = random.randint(0, self.n_tables - 1)
         uri = uris[uri_idx]
+        # Given 50% of each collection has been deleted, compaction must have work to do.
         while not self.get_pages_rewritten(uri):
             time.sleep(0.5)
 
-        # Simulate a crash.
-        new_dir = 'RESTART'
-        copy_wiredtiger_home(self, '.', new_dir)
-        self.reopen_conn(new_dir, self.conn_config)
+        # Sleep some random time before proceeding.
+        time.sleep(random.uniform(0, 0.5))
 
-        # Verify each table.
+        # Take a full backup.
+        self.take_full_backup('.', self.backup_dir)
+        self.reopen_conn(self.backup_dir, self.conn_config)
+
+        # Verify each table from the backup.
         for uri in uris:
             self.verifyUntilSuccess(self.session, uri, "strict")
 
