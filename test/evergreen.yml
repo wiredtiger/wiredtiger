@@ -5929,6 +5929,7 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    check_args: -LE "long_running"
   tasks:
     - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest"
     - name: examples-c-test

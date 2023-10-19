@@ -100,6 +100,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
     ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -109,6 +110,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
     ARGUMENTS -s -b $<TARGET_FILE:test_timestamp_abort>_stress
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
