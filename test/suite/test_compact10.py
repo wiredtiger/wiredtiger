@@ -26,30 +26,22 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, random, shutil, time, wiredtiger, wttest
+import os, shutil, time, wiredtiger, wttest
 from wiredtiger import stat
-from wtscenario import make_scenarios
+from wtbackup import backup_base
 
 # test_compact10.py
-# Verify a backup of the database can be taken while background compaction is running.
-# It is worth noting that this test has a random behavior and one run from the other may not execute
-# the same code paths.
-class test_compact10(wttest.WiredTigerTestCase):
-    backup_dir = "BACKUP"
+# Verify backups can be taken while background compaction is running.
+class test_compact10(backup_base):
+    backup_dir_1 = "BACKUP_1"
+    backup_dir_2 = "BACKUP_2"
     conn_config = 'cache_size=100MB,statistics=(all)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
     uri_prefix = 'table:test_compact10'
 
-    n_tables = 3
+    num_tables = 3
     table_numkv = 100 * 1000
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
-
-    timing_stress_cfg_values = [
-        ('none', dict(timing_stress_cfg='')),
-        ('checkpoint_slow', dict(timing_stress_cfg='checkpoint_slow')),
-        ('compact_slow', dict(timing_stress_cfg='compact_slow')),
-    ]
-    scenarios = make_scenarios(timing_stress_cfg_values)
 
     def delete_range(self, uri, num_keys):
         c = self.session.open_cursor(uri, None)
@@ -63,6 +55,13 @@ class test_compact10(wttest.WiredTigerTestCase):
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
         stat_cursor.close()
         return compact_running
+
+    def get_files_compacted(self, uris):
+        files_compacted = 0
+        for uri in uris:
+            if self.get_pages_rewritten(uri) > 0:
+                files_compacted += 1
+        return files_compacted
 
     def get_pages_rewritten(self, uri):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
@@ -98,7 +97,7 @@ class test_compact10(wttest.WiredTigerTestCase):
             compact_running = self.get_bg_compaction_running()
         self.assertEqual(compact_running, 1)
 
-    def test_compact10(self):
+    def test_compact10_full_backup(self):
 
         # FIXME-WT-11399
         if self.runningHook('tiered'):
@@ -106,7 +105,7 @@ class test_compact10(wttest.WiredTigerTestCase):
 
         # Create and populate tables.
         uris = []
-        for i in range(self.n_tables):
+        for i in range(self.num_tables):
             uri = self.uri_prefix + f'_{i}'
             uris.append(uri)
             self.session.create(uri, self.create_params)
@@ -122,36 +121,25 @@ class test_compact10(wttest.WiredTigerTestCase):
         # Write to disk.
         self.session.checkpoint()
 
-        # Reconfigure the connection with:
-        # - Aggressive compaction
-        reconf_config = self.conn_config + ',debug_mode=(background_compact)'
-        # - Stressing options to slow down compaction and checkpoints so compaction takes more time.
-        reconf_config += f',timing_stress_for_test=({self.timing_stress_cfg})'
-        # - Verbose for debugging purposes.
-        # reconf_config += ',verbose=(compact,compact_progress)'
-        self.conn.reconfigure(reconf_config)
-        
+        # Take the first full backup.
+        self.take_full_backup('.', self.backup_dir_1)
+
         # Enable background compaction.
         compact_config = f'background=true,free_space_target=1MB'
         self.turn_on_bg_compact(compact_config)
 
-        # Wait for a random table to be compacted before crashing.
-        uri_idx = random.randint(0, self.n_tables - 1)
-        uri = uris[uri_idx]
-        # Given 50% of each collection has been deleted, compaction must have work to do.
-        while not self.get_pages_rewritten(uri):
+        # Wait for all tables to be compacted but the HS.
+        while self.get_files_compacted(uris) < 3:
             time.sleep(0.5)
 
-        # Sleep some random time before proceeding.
-        time.sleep(random.uniform(0, 0.5))
+        assert self.get_files_compacted(uris) == self.num_tables
 
-        # Take a full backup.
-        self.take_full_backup('.', self.backup_dir)
-        self.reopen_conn(self.backup_dir, self.conn_config)
+        # Take a second full backup.
+        self.take_full_backup('.', self.backup_dir_2)
 
-        # Verify each table from the backup.
+        # Compare the backups.
         for uri in uris:
-            self.verifyUntilSuccess(self.session, uri, "strict")
+            self.compare_backups(uri, self.backup_dir_1, self.backup_dir_2)
 
         # Background compaction may be have been inspecting a table when disabled which is
         # considered as an interruption, ignore that message.
