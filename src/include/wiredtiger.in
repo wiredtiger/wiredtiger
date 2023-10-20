@@ -68,6 +68,7 @@ struct __wt_config_parser;
     typedef struct __wt_config_parser WT_CONFIG_PARSER;
 struct __wt_connection;     typedef struct __wt_connection WT_CONNECTION;
 struct __wt_cursor;     typedef struct __wt_cursor WT_CURSOR;
+struct __wt_cursor_details; typedef struct __wt_cursor_details WT_CURSOR_DETAILS;
 struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;
 struct __wt_encryptor;      typedef struct __wt_encryptor WT_ENCRYPTOR;
 struct __wt_event_handler;  typedef struct __wt_event_handler WT_EVENT_HANDLER;
@@ -176,6 +177,13 @@ struct __wt_modify {
 #define WT_INTPACK32_MAXSIZE    ((int)sizeof(int32_t) + 1)
 
 /*!
+ * The WT_CURSOR_DETAILS is used to report contextual information from a cursor handle.
+ */
+struct __wt_cursor_details {
+    int unused;                 /* Ensure structure is not empty during prototyping. */
+};
+
+/*!
  * A WT_CURSOR handle is the interface to a cursor.
  *
  * Cursors allow data to be searched, iterated and modified, implementing the
@@ -225,6 +233,7 @@ struct __wt_cursor {
      * @name Data access
      * @{
      */
+
     /*!
      * Get the key for the current record.
      *
@@ -717,6 +726,16 @@ struct __wt_cursor {
      * @errors
      */
     int __F(bound)(WT_CURSOR *cursor, const char *config);
+
+    /*!
+     * Query a cursor for additional contextual information.
+     *
+     * @param cursor  Cursor handle. Must not be \c NULL.
+     * @param[out] detailsp  Used to return any information to caller. Must not be \c NULL.
+     * @param config  Reserved for future use. Must be \c NULL.
+     * @errors
+     */
+    int __F(get_details)(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, const char *config);
 
     /*
      * Protected fields, only to be used by cursor implementations.
