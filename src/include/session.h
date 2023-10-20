@@ -40,11 +40,11 @@ struct __wt_hazard_array {
 /* The hazard pointer array grows as necessary, initialize with 250 slots. */
 #define WT_SESSION_INITIAL_HAZARD_SLOTS 250
 
-    wt_shared WT_HAZARD *arr;  /* The hazard pointer array */
-    wt_shared uint32_t inuse;  /* Number of array slots potentially in-use. We only need to iterate
-                                  this many slots to find all active pointers */
-    wt_shared uint32_t active; /* Number of array slots containing an active hazard pointer */
-    uint32_t size;             /* Allocated size of the array */
+    wt_shared WT_HAZARD *arr; /* The hazard pointer array */
+    wt_shared uint32_t inuse; /* Number of array slots potentially in-use. We only need to iterate
+                                 this many slots to find all active pointers */
+    wt_shared uint32_t num_active; /* Number of array slots containing an active hazard pointer */
+    uint32_t size;                 /* Allocated size of the array */
 };
 
 /*

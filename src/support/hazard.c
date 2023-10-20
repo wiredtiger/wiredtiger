@@ -92,9 +92,9 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     }
 
     /* If we have filled the current hazard pointer array, grow it. */
-    if (session->hazards.active >= session->hazards.size) {
+    if (session->hazards.num_active >= session->hazards.size) {
         WT_ASSERT(session,
-          session->hazards.active == session->hazards.size &&
+          session->hazards.num_active == session->hazards.size &&
             session->hazards.inuse == session->hazards.size);
         WT_RET(hazard_grow(session));
     }
@@ -102,9 +102,9 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     /*
      * If there are no available hazard pointer slots, make another one visible.
      */
-    if (session->hazards.active >= session->hazards.inuse) {
+    if (session->hazards.num_active >= session->hazards.inuse) {
         WT_ASSERT(session,
-          session->hazards.active == session->hazards.inuse &&
+          session->hazards.num_active == session->hazards.inuse &&
             session->hazards.inuse < session->hazards.size);
         /*
          * If we've grown the hazard array the inuse counter can be incremented beyond the size of
@@ -115,7 +115,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
         hp = &session->hazards.arr[session->hazards.inuse++];
     } else {
         WT_ASSERT(session,
-          session->hazards.active < session->hazards.inuse &&
+          session->hazards.num_active < session->hazards.inuse &&
             session->hazards.inuse <= session->hazards.size);
 
         /*
@@ -124,7 +124,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
          * is expensive. If we reach the end of the array, continue the search from the beginning of
          * the array.
          */
-        for (hp = session->hazards.arr + session->hazards.active;; ++hp) {
+        for (hp = session->hazards.arr + session->hazards.num_active;; ++hp) {
             if (hp >= session->hazards.arr + session->hazards.inuse)
                 hp = session->hazards.arr;
             if (hp->ref == NULL)
@@ -158,7 +158,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      */
     current_state = ref->state;
     if (current_state == WT_REF_MEM) {
-        ++session->hazards.active;
+        ++session->hazards.num_active;
 
         /*
          * Callers require a barrier here so operations holding the hazard pointer see consistent
@@ -214,7 +214,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
              * A write-barrier() is necessary before the change to the in-use value, the number of
              * active references can never be less than the number of in-use slots.
              */
-            if (--session->hazards.active == 0)
+            if (--session->hazards.num_active == 0)
                 WT_PUBLISH(session->hazards.inuse, 0);
             return (0);
         }
@@ -247,14 +247,14 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
             found = true;
             break;
         }
-    if (session->hazards.active == 0 && !found)
+    if (session->hazards.num_active == 0 && !found)
         return;
 
     __wt_errx(session, "session %p: close hazard pointer table: table not empty", (void *)session);
 
 #ifdef HAVE_DIAGNOSTIC
     __hazard_dump(session);
-    WT_ASSERT(session, session->hazards.active == 0 && !found);
+    WT_ASSERT(session, session->hazards.num_active == 0 && !found);
 #endif
 
     /*
@@ -269,10 +269,10 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
     for (hp = session->hazards.arr; hp < session->hazards.arr + session->hazards.inuse; ++hp)
         if (hp->ref != NULL) {
             hp->ref = NULL;
-            --session->hazards.active;
+            --session->hazards.num_active;
         }
 
-    if (session->hazards.active != 0)
+    if (session->hazards.num_active != 0)
         __wt_errx(session, "session %p: close hazard pointer table: count didn't match entries",
           (void *)session);
 }
