@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef TRANSACTION_H
-#define TRANSACTION_H
+#pragma once
 
 #include <string>
 
@@ -66,6 +65,8 @@ public:
      * the transaction.
      */
     bool can_commit();
+    /* Get the current number of operations executed. */
+    int64_t get_op_count() const;
     /* Get the number of operations this transaction needs before it can commit */
     int64_t get_target_op_count() const;
 
@@ -92,5 +93,3 @@ private:
 };
 
 } // namespace test_harness
-
-#endif

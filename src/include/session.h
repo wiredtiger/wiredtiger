@@ -23,11 +23,38 @@ struct __wt_data_handle_cache {
  *	A hazard pointer.
  */
 struct __wt_hazard {
-    WT_REF *ref; /* Page reference */
+    wt_shared WT_REF *ref; /* Page reference */
 #ifdef HAVE_DIAGNOSTIC
     const char *func; /* Function/line hazard acquired */
     int line;
 #endif
+};
+
+/*
+ * WT_HAZARD_ARRAY --
+ *   An array of all hazard pointers held by the session.
+ *   New hazard pointers are added on a first-fit basis, and on removal their entry
+ *   in the array is set to null. As such this array may contain holes.
+ */
+struct __wt_hazard_array {
+/* The hazard pointer array grows as necessary, initialize with 250 slots. */
+#define WT_SESSION_INITIAL_HAZARD_SLOTS 250
+
+    wt_shared WT_HAZARD *arr; /* The hazard pointer array */
+    wt_shared uint32_t inuse; /* Number of array slots potentially in-use. We only need to iterate
+                                 this many slots to find all active pointers */
+    wt_shared uint32_t num_active; /* Number of array slots containing an active hazard pointer */
+    uint32_t size;                 /* Allocated size of the array */
+};
+
+/*
+ * WT_PREFETCH --
+ *	Pre-fetch structure containing useful information for pre-fetch.
+ */
+struct __wt_prefetch {
+    WT_REF *prefetch_prev_ref;
+    uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
+    uint64_t prefetch_skipped_with_parent;
 };
 
 /* Get the connection implementation for a session */
@@ -83,7 +110,7 @@ struct __wt_session_impl {
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
     u_int api_call_counter;        /* Depth of api calls */
 
-    WT_DATA_HANDLE *dhandle;           /* Current data handle */
+    wt_shared WT_DATA_HANDLE *dhandle; /* Current data handle */
     WT_BUCKET_STORAGE *bucket_storage; /* Current bucket storage and file system */
 
     /*
@@ -136,8 +163,8 @@ struct __wt_session_impl {
      * Variables used to look for violations of the contract that a session is only used by a single
      * session at once.
      */
-    volatile uintmax_t api_tid;
-    volatile uint32_t api_enter_refcnt;
+    wt_shared volatile uintmax_t api_tid;
+    wt_shared volatile uint32_t api_enter_refcnt;
     /*
      * It's hard to figure out from where a buffer was allocated after it's leaked, so in diagnostic
      * mode we track them; DIAGNOSTIC can't simply add additional fields to WT_ITEM structures
@@ -176,6 +203,8 @@ struct __wt_session_impl {
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
+
+    WT_PREFETCH pf; /* Pre-fetch structure */
 
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
@@ -262,11 +291,12 @@ struct __wt_session_impl {
 #define WT_SESSION_LOGGING_INMEM 0x00800u
 #define WT_SESSION_NO_DATA_HANDLES 0x01000u
 #define WT_SESSION_NO_RECONCILE 0x02000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x04000u
-#define WT_SESSION_READ_WONT_NEED 0x08000u
-#define WT_SESSION_RESOLVING_TXN 0x10000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000u
-#define WT_SESSION_SCHEMA_TXN 0x40000u
+#define WT_SESSION_PREFETCH 0x04000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x08000u
+#define WT_SESSION_READ_WONT_NEED 0x10000u
+#define WT_SESSION_RESOLVING_TXN 0x20000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x40000u
+#define WT_SESSION_SCHEMA_TXN 0x80000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
@@ -280,7 +310,7 @@ struct __wt_session_impl {
      * The random number state persists past session close because we don't want to repeatedly use
      * the same values for skiplist depth when the application isn't caching sessions.
      */
-    WT_RAND_STATE rnd; /* Random number generation state */
+    wt_shared WT_RAND_STATE rnd; /* Random number generation state */
 
     /*
      * Hash tables are allocated lazily as sessions are used to keep the size of this structure from
@@ -298,7 +328,7 @@ struct __wt_session_impl {
 #define WT_GEN_HAZARD 3     /* Hazard pointer */
 #define WT_GEN_SPLIT 4      /* Page splits */
 #define WT_GENERATIONS 5    /* Total generation manager entries */
-    volatile uint64_t generations[WT_GENERATIONS];
+    wt_shared volatile uint64_t generations[WT_GENERATIONS];
 
     /*
      * Session memory persists past session close because it's accessed by threads of control other
@@ -322,19 +352,11 @@ struct __wt_session_impl {
  * Hazard information persists past session close because it's accessed by threads of control other
  * than the thread owning the session.
  *
- * Use the non-NULL state of the hazard field to know if the session has previously been
+ * Use the non-NULL state of the hazard array to know if the session has previously been
  * initialized.
  */
-#define WT_SESSION_FIRST_USE(s) ((s)->hazard == NULL)
-
-/*
- * The hazard pointer array grows as necessary, initialize with 250 slots.
- */
-#define WT_SESSION_INITIAL_HAZARD_SLOTS 250
-    uint32_t hazard_size;  /* Allocated size of the Hazard pointer array */
-    uint32_t hazard_inuse; /* Number of hazard pointer array slots potentially in-use */
-    uint32_t nhazard;      /* Number of hazard pointer array slots actively in-use */
-    WT_HAZARD *hazard;     /* Hazard pointer array */
+#define WT_SESSION_FIRST_USE(s) ((s)->hazards.arr == NULL)
+    WT_HAZARD_ARRAY hazards;
 
     /*
      * Operation tracking.

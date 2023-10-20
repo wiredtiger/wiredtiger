@@ -89,13 +89,15 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
      * Shut down server threads. Some of these threads access btree handles and eviction, shut them
      * down before the eviction server, and shut all servers down before closing open data handles.
      */
+    WT_TRET(__wt_background_compact_server_destroy(session));
     WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
-    WT_TRET(__wt_compact_server_destroy(session));
     WT_TRET(__wt_statlog_destroy(session, true));
     WT_TRET(__wt_tiered_storage_destroy(session, false));
     WT_TRET(__wt_sweep_destroy(session));
     WT_TRET(__wt_chunkcache_teardown(session));
+    WT_TRET(__wt_chunkcache_metadata_destroy(session));
+    WT_TRET(__wt_prefetch_destroy(session));
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
@@ -180,7 +182,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
                 __wt_free(session, s->cursor_cache);
                 __wt_free(session, s->dhhash);
                 __wt_stash_discard_all(session, s);
-                __wt_free(session, s->hazard);
+                __wt_free(session, s->hazards.arr);
             }
 
     /* Destroy the file-system configuration. */
@@ -227,6 +229,10 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));
 
+    /* Can create a table, so must be done after metadata tracking. */
+    WT_RET(__wt_chunkcache_setup(session, cfg));
+    WT_RET(__wt_chunkcache_metadata_create(session));
+
     /*
      * Create the history store file. This will only actually create it on a clean upgrade or when
      * creating a new database.
@@ -250,13 +256,16 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_sweep_create(session));
 
     /* Start the compact thread. */
-    WT_RET(__wt_compact_server_create(session));
+    WT_RET(__wt_background_compact_server_create(session));
 
     /* Start the optional capacity thread. */
     WT_RET(__wt_capacity_server_create(session, cfg));
 
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));
+
+    /* Start pre-fetch utilities. */
+    WT_RET(__wt_prefetch_create(session, cfg));
 
     return (0);
 }

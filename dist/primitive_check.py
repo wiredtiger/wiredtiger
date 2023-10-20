@@ -3,8 +3,6 @@ import subprocess, re
 import common_functions
 
 # This is a temporary script to detect code changes to WiredTiger primitives.
-# FIXME-WT-10861 That ticket will introduce a script to replace this one, delete this script when
-# complete.
 primitives = [
     "__wt_atomic_.*",
     "F_CLR_ATOMIC",
@@ -24,6 +22,7 @@ primitives = [
     "WT_PAGE_ALLOC_AND_SWAP",
     "WT_PUBLISH",
     "WT_READ_BARRIER",
+    "WT_READ_ONCE",
     "WT_REF_CAS_STATE",
     "WT_REF_LOCK",
     "WT_REF_UNLOCK",

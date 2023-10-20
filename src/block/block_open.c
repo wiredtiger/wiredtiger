@@ -210,7 +210,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     block->allocsize = allocsize;
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
-    block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
+    block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len) ? 1 : 0;
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));
@@ -329,6 +329,17 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 }
 
 /*
+ * __file_is_wt_internal --
+ *     Check if a filename is one used by WiredTiger internal files.
+ */
+static bool
+__file_is_wt_internal(const char *name)
+{
+    return (strcmp(name, WT_METAFILE) == 0 || strcmp(name, WT_HS_FILE) == 0 ||
+      strcmp(name, WT_CC_METAFILE) == 0);
+}
+
+/*
  * __desc_read --
  *     Read and verify the file's metadata.
  */
@@ -404,7 +415,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * file name, and is now frantically pounding their interrupt key.
      */
     if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched) {
-        if (strcmp(block->name, WT_METAFILE) == 0 || strcmp(block->name, WT_HS_FILE) == 0)
+        if (__file_is_wt_internal(block->name))
             WT_ERR_MSG(session, WT_TRY_SALVAGE,
               "%s is corrupted: calculated block checksum of %#" PRIx32
               " doesn't match expected checksum of %#" PRIx32,

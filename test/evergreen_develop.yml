@@ -11,43 +11,26 @@ variables:
     additional_env_vars: export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_BUILDDIR/test/utility/"
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
     HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     database: WTPerformanceDataDB
-  display_tasks:
-    - name: Wiredtiger-perf-btree-jobs
-      execution_tasks:
-      - ".btree-perf"
+  tasks:
+    - name: compile
+    - ".btree-perf"
     # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
-    # - name: Wiredtiger-perf-lsm-jobs
-    #   execution_tasks:
-    #   - ".lsm-perf"
-    - name: Wiredtiger-perf-stress-jobs
-      execution_tasks:
-      - ".stress-perf"
-    - name: Wiredtiger-perf-checkpoint-jobs
-      execution_tasks:
-      - ".checkpoint-perf"
-    - name: Wiredtiger-perf-evict-jobs
-      execution_tasks:
-      - ".evict-perf"
-    - name: Wiredtiger-perf-log-jobs
-      execution_tasks:
-      - ".log-perf"
-    - name: Wiredtiger-perf-chunk-cache-jobs
-      execution_tasks:
-      - ".chunk-cache-perf"
-    - name: Wiredtiger-perf-long-jobs
-      execution_tasks:
-      - ".long-perf"
-    - name: Wiredtiger-perf-oplog-jobs
-      execution_tasks:
-      - ".oplog-perf"
-    - name: WiredTiger-wt2853-perf
-      execution_tasks:
-      - ".wt2853-perf"
+    # - ".lsm-perf"
+    - ".stress-perf"
+    - ".checkpoint-perf"
+    - ".evict-perf"
+    - ".log-perf"
+    - ".chunk-cache-perf"
+    - ".long-perf"
+    - ".oplog-perf"
+    - ".wt2853-perf"
+    - name: many-collection-test
+      distros: ubuntu2004-wt-large
+    - name: ".cppsuite-perf-test"
+    - name: many-dhandle-stress
 
 # Build variants that need to be run only on the develop branch.
 buildvariants:
@@ -59,21 +42,6 @@ buildvariants:
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTests
-  tasks:
-    - name: compile
-    - name: ".btree-perf"
-    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
-    # - name: ".lsm-perf"
-    - name: ".stress-perf"
-    - name: ".checkpoint-perf"
-    - name: ".evict-perf"
-    - name: ".log-perf"
-    - name: ".chunk-cache-perf"
-    - name: ".long-perf"
-    - name: ".oplog-perf"
-    - name: many-dhandle-stress
-    - name: ".wt2853-perf"
-    - name: cppsuite-bounded-cursor-perf-stress
 
 - <<: *perf-tasks-template
   name: ubuntu2004-perf-tests-arm64
@@ -83,23 +51,6 @@ buildvariants:
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTestsARM64
-  tasks:
-    - name: compile
-    - name: ".btree-perf"
-    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
-    # - name: ".lsm-perf"
-    - name: ".stress-perf"
-    - name: ".checkpoint-perf"
-    - name: ".evict-perf"
-    - name: ".log-perf"
-    - name: ".chunk-cache-perf"
-    - name: ".long-perf"
-    - name: ".oplog-perf"
-    - name: many-dhandle-stress
-    - name: ".wt2853-perf"
-    - name: cppsuite-bounded-cursor-perf-stress
-    - name: many-collection-test
-      distros: ubuntu2004-wt-large
 
 - name: documentation-update
   display_name: "~ Documentation update"
@@ -107,7 +58,9 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     doc_update_branches: develop,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: doc-update
 
@@ -116,21 +69,24 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     database: WTCodeStatisticsDB
     additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
-    cmake_generator: Ninja
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: coverage-report
     - name: coverage-report-catch2
     - name: cyclomatic-complexity
+    - name: code-change-report
 
 - name: compatibility-tests-less-frequent
   display_name: Compatibility tests (less frequent)
   batchtime: 10080 # 7 days
   run_on:
   - ubuntu1804-test
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compatibility-test-for-older-releases
     - name: compatibility-test-for-wt-standalone-releases
@@ -140,13 +96,20 @@ buildvariants:
   batchtime: 1440 # 1 day
   run_on:
   - ubuntu2004-test
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: compatibility-test-suite
     - name: compatibility-test-upgrade-to-latest
 
 - name: compatibility-tests
   display_name: Compatibility tests
   run_on:
   - ubuntu2004-test
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compatibility-test-for-newer-releases
     - name: compatibility-test-for-patch-releases
@@ -157,13 +120,12 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
-  # As these tests run infrequently by the time they fail we may have had 
-  # a lot of prior commits that would also fail for the same test. This is acceptable 
-  # as our infrequent tests aren't tracking critical failures, but we don't want 
-  # to perform stepback as evergreen will run the same test on all of these older commits 
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+  # As these tests run infrequently by the time they fail we may have had
+  # a lot of prior commits that would also fail for the same test. This is acceptable
+  # as our infrequent tests aren't tracking critical failures, but we don't want
+  # to perform stepback as evergreen will run the same test on all of these older commits
   # and generate a lot of redundant BFGs.
   stepback: false
   tasks:

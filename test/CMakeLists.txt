@@ -38,6 +38,10 @@ if(WT_POSIX)
         add_subdirectory(cppsuite)
     endif()
 
+    if(ENABLE_MODEL)
+        add_subdirectory(model)
+    endif()
+
     add_subdirectory(simulator)
 
     if(ENABLE_LLVM)

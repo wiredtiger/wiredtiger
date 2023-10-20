@@ -215,6 +215,7 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    char interrupt_msg[128];
     bool background_compaction;
 
     background_compaction = false;
@@ -223,13 +224,10 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     /* If compaction has been interrupted, we return WT_ERROR to the caller. */
     if (session == conn->background_compact.session) {
         background_compaction = true;
-        /* Only check for interruption when the connection is not being opened/closed. */
-        if (!F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL)) {
-            __wt_spin_lock(session, &conn->background_compact.lock);
-            if (!conn->background_compact.running)
-                ret = WT_ERROR;
-            __wt_spin_unlock(session, &conn->background_compact.lock);
-        }
+        __wt_spin_lock(session, &conn->background_compact.lock);
+        if (!conn->background_compact.running)
+            ret = WT_ERROR;
+        __wt_spin_unlock(session, &conn->background_compact.lock);
     } else if (session->event_handler->handle_general != NULL) {
         ret = session->event_handler->handle_general(
           session->event_handler, &conn->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
@@ -238,8 +236,19 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     }
 
     if (ret != 0) {
-        __wt_verbose_warning(session, WT_VERB_COMPACT, "%s interrupted by application",
-          background_compaction ? "background compact" : "compact");
+        WT_RET(__wt_snprintf(interrupt_msg, sizeof(interrupt_msg), "%s interrupted by application",
+          background_compaction ? "background compact" : "compact"));
+        /*
+         * Always log a warning when:
+         * - Interrupting foreground compaction
+         * - Interrupting background compaction and the connection is not being closed/open.
+         * Otherwise, it is expected to potentially interrupt background compaction and should not
+         * be exposed as a warning.
+         */
+        if (!background_compaction || !F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL))
+            __wt_verbose_warning(session, WT_VERB_COMPACT, "%s", interrupt_msg);
+        else
+            __wt_verbose(session, WT_VERB_COMPACT, "%s", interrupt_msg);
         return (ret);
     }
 
@@ -265,6 +274,8 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 
     /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
     WT_RET(__wt_session_compact_check_interrupted(session));
+
+    WT_STAT_CONN_INCR(session, checkpoints_compact);
     return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
 }
 
@@ -316,8 +327,7 @@ __compact_worker(WT_SESSION_IMPL *session)
              */
             if (ret == 0) {
                 if (session->compact_state == WT_COMPACT_SUCCESS) {
-                    if (session == S2C(session)->background_compact.session)
-                        WT_STAT_CONN_INCR(session, background_compact_success);
+                    WT_STAT_CONN_INCR(session, session_table_compact_dhandle_success);
                     another_pass = true;
                 } else
                     session->op_handle[i]->compact_skip = true;
@@ -361,6 +371,22 @@ err:
 }
 
 /*
+ * __wt_compact_check_eligibility --
+ *     Function to check whether the specified URI is eligible for compaction.
+ */
+bool
+__wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_UNUSED(session);
+
+    /* Tiered tables cannot be compacted. */
+    if (WT_SUFFIX_MATCH(uri, ".wtobj"))
+        return (false);
+
+    return (true);
+}
+
+/*
  * __wt_session_compact --
  *     WT_SESSION.compact method.
  */
@@ -390,21 +416,25 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
          * compaction server.
          */
         if (!cval.val) {
-            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
-            if (ret == 0)
-                WT_ERR_MSG(session, EINVAL,
-                  "timeout configuration cannot be set when disabling the background compaction "
-                  "server.");
-
             WT_ERR_NOTFOUND_OK(
               __wt_config_getones(session, config, "free_space_target", &cval), true);
             if (ret == 0)
                 WT_ERR_MSG(session, EINVAL,
                   "free_space_target configuration cannot be set when disabling the background "
                   "compaction server.");
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "exclude", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "exclude configuration cannot be set when disabling the background compaction "
+                  "server.");
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "timeout configuration cannot be set when disabling the background compaction "
+                  "server.");
         }
 
-        WT_ERR(__wt_compact_signal(session, config));
+        WT_ERR(__wt_background_compact_signal(session, config));
 
         goto done;
     } else
@@ -451,6 +481,10 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
             ret = __wt_bad_object_type(session, uri);
         goto err;
     }
+
+    /* Check the file is eligible for compaction. */
+    if (!__wt_compact_check_eligibility(session, uri))
+        WT_ERR(__wt_object_unsupported(session, uri));
 
     /* Setup the session handle's compaction state structure. */
     memset(&compact, 0, sizeof(WT_COMPACT_STATE));

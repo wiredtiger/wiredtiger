@@ -17,7 +17,6 @@ static void __block_dump_file_stat(WT_SESSION_IMPL *, WT_BLOCK *, bool);
 int
 __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_UNUSED(session);
 
     if (block->compact_session_id != WT_SESSION_ID_INVALID)
         return (EBUSY);
@@ -35,6 +34,9 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
+
+    if (session == S2C(session)->background_compact.session)
+        WT_RET(__wt_background_compact_start(session));
 
     return (0);
 }
@@ -59,6 +61,9 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
         __block_dump_file_stat(session, block, false);
         __wt_spin_unlock(session, &block->live_lock);
     }
+
+    if (session == S2C(session)->background_compact.session)
+        WT_RET(__wt_background_compact_end(session));
 
     return (0);
 }
@@ -619,6 +624,7 @@ __wt_block_compact_page_rewrite(
 
     WT_STAT_CONN_INCR(session, block_write);
     WT_STAT_CONN_INCRV(session, block_byte_write, size);
+    WT_STAT_CONN_INCRV(session, block_byte_write_compact, size);
 
     discard_block = false;
     __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_4,
