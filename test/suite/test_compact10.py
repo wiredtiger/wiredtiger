@@ -75,20 +75,6 @@ class test_compact10(backup_base):
             c[k] = ('%07d' % k) + '_' + 'abcd' * ((value_size // 4) - 2)
         c.close()
 
-    def take_full_backup(self, fromdir, todir):
-        # Do a full backup by opening up a backup cursor and copying the files.
-        cursor = self.session.open_cursor('backup:', None, None)
-        os.mkdir(todir)
-        while True:
-            ret = cursor.next()
-            if ret != 0:
-                break
-            bkup_file = cursor.get_key()
-            copy_file = os.path.join(fromdir, bkup_file)
-            shutil.copy(copy_file, todir)
-        assert ret == wiredtiger.WT_NOTFOUND
-        cursor.close()
-
     def turn_on_bg_compact(self, config):
         self.session.compact(None, config)
         compact_running = self.get_bg_compaction_running()
@@ -122,7 +108,8 @@ class test_compact10(backup_base):
         self.session.checkpoint()
 
         # Take the first full backup.
-        self.take_full_backup('.', self.backup_dir_1)
+        os.mkdir(self.backup_dir_1)
+        self.take_full_backup(self.backup_dir_1)
 
         # Enable background compaction.
         compact_config = f'background=true,free_space_target=1MB'
@@ -135,7 +122,8 @@ class test_compact10(backup_base):
         assert self.get_files_compacted(uris) == self.num_tables
 
         # Take a second full backup.
-        self.take_full_backup('.', self.backup_dir_2)
+        os.mkdir(self.backup_dir_2)
+        self.take_full_backup(self.backup_dir_2)
 
         # Compare the backups.
         for uri in uris:
