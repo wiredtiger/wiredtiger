@@ -89,6 +89,10 @@ class test_compact10(backup_base):
             compact_running = self.get_bg_compaction_running()
         self.assertEqual(compact_running, 1)
 
+    # This test:
+    # - Creates a full backup before background compaction is enabled.
+    # - Waits for background compaction to compact all the files and create a new full backup.
+    # - Compares the two backups.
     def test_compact10_full_backup(self):
 
         # FIXME-WT-11399
@@ -139,6 +143,12 @@ class test_compact10(backup_base):
         # considered as an interruption, ignore that message.
         self.ignoreStdoutPatternIfExists('background compact interrupted by application')
 
+    # This test:
+    # - Creates two full backups before background compaction is enabled, one that will be used for
+    # comparison and another one as a base for incremental backups.
+    # - Performs incremental backups as compaction is rewriting the files until all files have been
+    # compacted.
+    # - Compares the two backups.
     def test_compact10_incr_backup(self):
 
         # FIXME-WT-11399
