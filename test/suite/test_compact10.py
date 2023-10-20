@@ -51,16 +51,10 @@ class test_compact10(backup_base):
         c.close()
 
     def get_bg_compaction_running(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        compact_running = stat_cursor[stat.conn.background_compact_running][2]
-        stat_cursor.close()
-        return compact_running
+        return self.get_stat(stat.conn.background_compact_running)
 
     def get_bytes_recovered(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        bytes_recovered = stat_cursor[stat.conn.background_compact_bytes_recovered][2]
-        stat_cursor.close()
-        return bytes_recovered
+        return self.get_stat(stat.conn.background_compact_bytes_recovered)
 
     def get_files_compacted(self, uris):
         files_compacted = 0
@@ -74,6 +68,12 @@ class test_compact10(backup_base):
         pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
         stat_cursor.close()
         return pages_rewritten
+
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
     def populate(self, uri, num_keys, value_size):
         c = self.session.open_cursor(uri, None)
