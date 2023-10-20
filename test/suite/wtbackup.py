@@ -39,7 +39,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # We use counter to produce unique backup ids for multiple iterations
     # of incremental backup.
     bkup_id = 0
-    # Setup some of the backup tests, and increments the backup id.
+    # Setup some of the backup tests, and increments the backup id. This should be updated in the
+    # test itself.
     initial_backup = False
     # Used for populate function.
     rows = 100
@@ -188,7 +189,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #    holds responsibility of closing the cursor.
     #
     def take_full_backup(self, backup_dir, backup_cur=None):
-        self.pr('Full backup to ' + backup_dir + ': ')
+        assert os.path.exists(backup_dir), f"The directory '{backup_dir}' does not exist"
+        self.pr(f"Full backup to '{backup_dir}'")
         bkup_c = backup_cur
         if backup_cur == None:
             config = None
@@ -202,7 +204,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         while bkup_c.next() == 0:
             newfile = bkup_c.get_key()
             sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
+            self.pr(f'Copy from: {newfile} ({sz}) to {backup_dir}')
             self.copy_file(newfile, backup_dir)
             all_files.append(newfile)
         if backup_cur == None:
@@ -298,12 +300,12 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertTrue(curtype == wiredtiger.WT_BACKUP_FILE or curtype == wiredtiger.WT_BACKUP_RANGE)
             if curtype == wiredtiger.WT_BACKUP_FILE:
                 sz = os.path.getsize(newfile)
-                self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + backup_incr_dir)
+                self.pr(f'Copy from: {newfile} ({sz}) to {backup_incr_dir}')
                 # Copy the whole file.
                 self.copy_file(newfile, backup_incr_dir)
             else:
                 # Copy the block range.
-                self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
+                self.pr(f"Range copy file '{newfile}' offset {offset} len {size}")
                 self.range_copy(newfile, offset, size, backup_incr_dir, consolidate)
                 lens.append(size)
         incr_c.close()
@@ -324,8 +326,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             newfile = dupc.get_key()
             self.assertTrue("WiredTigerLog" in newfile)
             sz = os.path.getsize(newfile)
-            if (newfile not in orig_logs):
-                self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + backup_dir)
+            if newfile not in orig_logs:
+                self.pr(f'DUP: Copy from: {newfile} ({sz}) to {backup_dir}')
                 shutil.copy(newfile, backup_dir)
             # Record all log files returned for later verification.
             dup_logs.append(newfile)
