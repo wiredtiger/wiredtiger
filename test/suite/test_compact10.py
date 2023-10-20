@@ -64,13 +64,12 @@ class test_compact10(backup_base):
         return files_compacted
 
     def get_pages_rewritten(self, uri):
-        stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
-        pages_rewritten = stat_cursor[stat.dsrc.btree_compact_pages_rewritten][2]
-        stat_cursor.close()
-        return pages_rewritten
+        return self.get_stat(stat.dsrc.btree_compact_pages_rewritten, uri)
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
+    def get_stat(self, stat, uri = None):
+        if not uri:
+            uri = ''
+        stat_cursor = self.session.open_cursor(f'statistics:{uri}', None, None)
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
