@@ -194,6 +194,7 @@ class test_compact10(backup_base):
         while self.get_files_compacted(uris) < self.num_tables:
             new_bytes_recovered = self.get_bytes_recovered()
             if new_bytes_recovered != bytes_recovered:
+                # Update the incremental backup ID from the parent class.
                 self.bkup_id += 1
                 self.take_incr_backup(self.backup_dir_2)
                 bytes_recovered = new_bytes_recovered
