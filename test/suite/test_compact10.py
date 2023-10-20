@@ -56,6 +56,12 @@ class test_compact10(backup_base):
         stat_cursor.close()
         return compact_running
 
+    def get_bytes_recovered(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        bytes_recovered = stat_cursor[stat.conn.background_compact_bytes_recovered][2]
+        stat_cursor.close()
+        return bytes_recovered
+
     def get_files_compacted(self, uris):
         files_compacted = 0
         for uri in uris:
@@ -124,6 +130,65 @@ class test_compact10(backup_base):
         # Take a second full backup.
         os.mkdir(self.backup_dir_2)
         self.take_full_backup(self.backup_dir_2)
+
+        # Compare the backups.
+        for uri in uris:
+            self.compare_backups(uri, self.backup_dir_1, self.backup_dir_2)
+
+        # Background compaction may be have been inspecting a table when disabled which is
+        # considered as an interruption, ignore that message.
+        self.ignoreStdoutPatternIfExists('background compact interrupted by application')
+
+    def test_compact10_incr_backup(self):
+
+        # FIXME-WT-11399
+        if self.runningHook('tiered'):
+            self.skipTest("this test does not yet work with tiered storage")
+
+        # Create and populate tables.
+        uris = []
+        for i in range(self.num_tables):
+            uri = self.uri_prefix + f'_{i}'
+            uris.append(uri)
+            self.session.create(uri, self.create_params)
+            self.populate(uri, self.table_numkv, self.value_size)
+
+        # Write to disk.
+        self.session.checkpoint()
+
+        # Delete 50% of the file.
+        for uri in uris:
+            self.delete_range(uri, 50 * self.table_numkv // 100)
+
+        # Write to disk.
+        self.session.checkpoint()
+
+        # Take two full backups:
+
+        # - The first one will remain untouched.
+        os.mkdir(self.backup_dir_1)
+        self.take_full_backup(self.backup_dir_1)
+
+        # - The second one is used for the incremental backups.
+        os.mkdir(self.backup_dir_2)
+        self.initial_backup = True
+        self.take_full_backup(self.backup_dir_2)
+        self.initial_backup = False
+
+        # Enable background compaction.
+        compact_config = f'background=true,free_space_target=1MB'
+        self.turn_on_bg_compact(compact_config)
+
+        # Every time compaction makes progress, perform an incremental backup.
+        bytes_recovered = 0
+        while self.get_files_compacted(uris) < self.num_tables:
+            new_bytes_recovered = self.get_bytes_recovered()
+            if new_bytes_recovered != bytes_recovered:
+                self.bkup_id += 1
+                self.take_incr_backup(self.backup_dir_2)
+                bytes_recovered = new_bytes_recovered
+
+        assert self.get_files_compacted(uris) == self.num_tables
 
         # Compare the backups.
         for uri in uris:
