@@ -485,6 +485,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build/${directory}
         $CTEST ${extra_args} --output-on-failure 2>&1
+
   "make check all":
     command: shell.exec
     params:
@@ -497,7 +498,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using number of parallel processes '-j ${num_jobs}' for 'make check all'"
-        $CTEST -L check -j ${num_jobs} --output-on-failure ${check_args|} 2>&1
+        $CTEST -L check -j ${num_jobs} --output-on-failure ${extra_args|} 2>&1
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run
@@ -626,19 +627,6 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
         $(pwd)/test/csuite/${test_name}/test_${test_name} ${test_args|} 2>&1
-
-  "csuite tests all":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        . test/evergreen/find_cmake.sh
-        cd cmake_build
-        $CTEST -L csuite ${check_args} -j ${num_jobs} --output-on-failure 2>&1
 
   "unit test":
     command: shell.exec
@@ -2187,12 +2175,15 @@ tasks:
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
-  - name: csuite-tests-all
+  - name: csuite-tests-pull-request
     tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - func: "csuite tests all"
+      - func: "make check directory"
+        vars:
+          directory: test/csuite
+          extra_args: -LE "long_running"
 
   - name: csuite-timestamp-abort-test-s3
     commands:
@@ -5929,7 +5920,6 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    check_args: -LE "long_running"
   tasks:
     - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest"
     - name: examples-c-test
@@ -5969,7 +5959,7 @@ buildvariants:
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
-    check_args: -LE "cppsuite|long_running"
+    extra_args: -LE "cppsuite|long_running"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: clang-analyzer

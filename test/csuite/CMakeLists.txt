@@ -11,6 +11,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt10461_skip_list_stress/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt10461_skip_list_stress>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
