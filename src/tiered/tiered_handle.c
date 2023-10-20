@@ -309,7 +309,7 @@ __tiered_restart_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
             __wt_verbose(session, WT_VERB_TIERED,
               "RESTART_WORK: local object %s has flush time %" PRId64, obj_uri, cval.val);
             if (cval.val == 0)
-                WT_ERR(__wt_tiered_put_flush(session, tiered, i));
+                WT_ERR(__wt_tiered_put_flush(session, tiered, i, 0));
             else
                 WT_ERR(__wt_tiered_put_remove_local(session, tiered, i));
             __wt_free(session, obj_val);
@@ -592,7 +592,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     /* Create the object: entry in the metadata. */
     if (need_object) {
         WT_ERR(__tiered_create_object(session, tiered));
-        WT_ERR(__wt_tiered_put_flush(session, tiered, tiered->current_id));
+        WT_ERR(__wt_tiered_put_flush(
+          session, tiered, tiered->current_id, __wt_gen(session, WT_GEN_CHECKPOINT)));
     }
 
     /* We always need to create a local object. */

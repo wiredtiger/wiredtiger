@@ -318,11 +318,15 @@ err:
 static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
+    uint64_t ckpt_gen;
+    bool ckpt_running;
 
+    conn = S2C(session);
     /* There is nothing to do until the checkpoint after the flush completes. */
-    if (!S2C(session)->flush_ckpt_complete)
+    if (!conn->flush_ckpt_complete)
         return (0);
     entry = NULL;
     for (;;) {
@@ -331,13 +335,16 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
             break;
 
         /*
-         * We probably need some kind of flush generation so that we don't process flush items for
-         * tables that are added during an in-progress flush_tier. This thread could run due to a
-         * condition timeout rather than a signal. Checking that generation number would be part of
-         * calling __wt_tiered_get_flush so that we don't pull it off the queue until we're sure we
-         * want to process it.
+         * We use the checkpoint generation to avoid processing the flush items for tables that are
+         * added during an in-progress flush_tier. This thread could run due to a condition timeout
+         * rather than a signal. First get the checkpoint generation, then check if it is running.
+         * If the checkpoint is running we can't process items from this generation count. If the
+         * checkpoint is not running, we can process the items with the read generation count. If
+         * the checkpoint starts after checking, it would push flush units of a higher count.
          */
-        __wt_tiered_get_flush(session, &entry);
+        WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+        WT_ORDERED_READ(ckpt_running, conn->txn_global.checkpoint_running);
+        __wt_tiered_get_flush(session, (ckpt_running ? ckpt_gen : ckpt_gen + 1), &entry);
         if (entry == NULL)
             break;
         WT_ERR(__tier_operation(session, entry->tiered, entry->id, WT_TIERED_WORK_FLUSH));
