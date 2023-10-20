@@ -221,13 +221,18 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         if os.path.exists(base_out):
             os.remove(base_out)
 
-        # Run wt dump on base backup directory
+        # Run wt dump and verify on base directory.
         self.runWt(['-R', '-h', base_dir, 'dump', uri], outfilename=base_out)
+        self.runWt(['-R', '-h', base_dir, 'verify', '-S', uri])
+
         other_out = "./backup_other" + sfx
         if os.path.exists(other_out):
             os.remove(other_out)
-        # Run wt dump on incremental backup
+
+        # Run the same commands on the second directory.
         self.runWt(['-R', '-h', other_dir, 'dump', uri], outfilename=other_out)
+        self.runWt(['-R', '-h', other_dir, 'verify', '-S', uri])
+
         self.pr("compare_files: " + base_out + ", " + other_out)
         self.assertEqual(True, compare_files(self, base_out, other_out))
 
