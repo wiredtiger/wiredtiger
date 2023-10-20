@@ -39,7 +39,7 @@ class test_compact10(backup_base):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
     uri_prefix = 'table:test_compact10'
 
-    num_tables = 3
+    num_tables = 5
     table_numkv = 100 * 1000
     value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
@@ -116,7 +116,7 @@ class test_compact10(backup_base):
         self.turn_on_bg_compact(compact_config)
 
         # Wait for all tables to be compacted but the HS.
-        while self.get_files_compacted(uris) < 3:
+        while self.get_files_compacted(uris) < self.num_tables:
             time.sleep(0.5)
 
         assert self.get_files_compacted(uris) == self.num_tables
