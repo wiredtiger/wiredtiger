@@ -2183,7 +2183,7 @@ tasks:
       - func: "make check directory"
         vars:
           directory: test/csuite
-          extra_args: -LE "long_running"
+          extra_args: -LE "long_running" -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
     commands:
