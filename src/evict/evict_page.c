@@ -900,16 +900,22 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 void
 __wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message)
 {
-    WT_ADDR_COPY addr;
+    WT_ADDR_COPY addr, parent_addr;
     WT_DECL_ITEM(tmp);
+    WT_DECL_ITEM(ptmp);
     WT_PAGE *page;
+    WT_REF  *parent_ref;
 
     page = ref->page;
+    parent_ref = page->pg_intl_parent_ref;
 
-    if (__wt_ref_addr_copy(session, ref, &addr) && !__wt_scr_alloc(session, 0, &tmp)) {
-        __wt_verbose(session, WT_VERB_CACHE_TRACE, "%s %p addr %s type %s read_gen %" PRIu64,
-          message, (void *)page, __wt_addr_string(session, addr.addr, addr.size, tmp),
+    if (__wt_ref_addr_copy(session, ref, &addr) && !__wt_scr_alloc(session, 0, &tmp) &&
+        __wt_ref_addr_copy(session, parent_ref, &parent_addr) && !__wt_scr_alloc(session, 0, &ptmp)){
+        __wt_verbose(session, WT_VERB_CACHE_TRACE, "%s %p addr %s parent-addr %s type %s read_gen %"
+          PRIu64, message, (void *)page, __wt_addr_string(session, addr.addr, addr.size, tmp),
+          __wt_addr_string(session, parent_addr.addr, parent_addr.size, ptmp),
           WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen);
         __wt_scr_free(session, &tmp);
+        __wt_scr_free(session, &ptmp);
     }
 }
