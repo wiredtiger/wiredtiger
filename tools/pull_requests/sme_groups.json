@@ -2,7 +2,7 @@
     "APIs": [],
     "Backup": [],
     "Block cache": [],
-    "Block manager": [],
+    "Block manager": ["etienneptl"],
     "Btree": [],
     "Build-compile": [],
     "Cache and eviction": ["ajmorton"],
