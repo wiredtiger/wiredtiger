@@ -19,6 +19,7 @@ src/block_cache/block_map.c
 src/block_cache/block_mgr.c
 src/block_cache/block_tier.c
 src/bloom/bloom.c
+src/btree/bt_alloc.c
 src/btree/bt_compact.c
 src/btree/bt_curnext.c
 src/btree/bt_curprev.c
