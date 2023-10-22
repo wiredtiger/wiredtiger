@@ -52,9 +52,6 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(types, commit_ts, with_ts)
 
     def test_wtu_never(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -100,9 +97,6 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(types, read_ts)
 
     def test_read_timestamp(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -158,9 +152,6 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(types)
 
     def test_alter(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -205,9 +196,6 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(types)
 
     def test_alter_inconsistent_update(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -285,9 +273,6 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(types)
 
     def test_timestamp_inconsistent_update(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -345,9 +330,6 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
     # Try to update a key previously used with timestamps without one. We should get the
     # inconsistent usage error/message.
     def test_timestamp_ts_then_nots(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -377,9 +359,6 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
 
     # Smoke test setting the timestamp at various points in the transaction.
     def test_timestamp_ts_order(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -445,9 +424,6 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
 
     # Smoke test that logged files don't complain about timestamps.
     def test_log_ts(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -503,9 +479,6 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
     # Test that timestamps are ignored in in-memory configurations and that object configurations
     # always override.
     def test_in_memory_ts(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
