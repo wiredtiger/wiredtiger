@@ -286,7 +286,7 @@ __wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip, struct __wt_huff
         if (tmp->size == 0)
             break;
         /* NOLINTNEXTLINE(cert-err34-c) */
-        n = sscanf(tmp->data, "%" SCNi64 " %" SCNi64, &symbol, &frequency);
+        n = sscanf((const char *)tmp->data, "%" SCNi64 " %" SCNi64, &symbol, &frequency);
         /*
          * Entries is 0-based, that is, there are (entries +1) possible values that can be
          * configured. The line number is 1-based, so adjust the test for too many entries, and

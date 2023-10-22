@@ -142,7 +142,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         if (WT_PREFIX_MATCH(file, WT_LOG_FILENAME)) {
             WT_ERR(__wt_scr_alloc(session, 0, &buf));
             WT_ERR(__wt_log_filename(session, UINT32_MAX, file, buf));
-            file = buf->data;
+            file = (const char *)buf->data;
         }
         WT_ERR(__wt_fs_size(session, file, &size));
 
@@ -199,7 +199,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         WT_ASSERT(session, cb->bit_offset <= cb->nbits);
         /* Look for the next chunk that had modifications. */
         while (cb->bit_offset < cb->nbits)
-            if (__bit_test(cb->bitstring.mem, cb->bit_offset)) {
+            if (__bit_test((uint8_t *)cb->bitstring.mem, cb->bit_offset)) {
                 found = true;
                 /*
                  * Care must be taken to leave the bit_offset field set to the next offset bit so
@@ -207,8 +207,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                  */
                 start_bitoff = cb->bit_offset++;
                 if (F_ISSET(cb, WT_CURBACKUP_CONSOLIDATE)) {
-                    while (
-                      cb->bit_offset < cb->nbits && __bit_test(cb->bitstring.mem, cb->bit_offset++))
+                    while (cb->bit_offset < cb->nbits &&
+                      __bit_test((uint8_t *)cb->bitstring.mem, cb->bit_offset++))
                         total_len += cb->granularity;
                 }
                 break;
@@ -304,7 +304,8 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
          */
         session_cache_flags = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
         F_CLR(session, WT_SESSION_CACHE_CURSORS);
-        WT_ERR(__wt_curfile_open(session, open_uri->data, NULL, cfg, &cb->incr_cursor));
+        WT_ERR(
+          __wt_curfile_open(session, (const char *)open_uri->data, NULL, cfg, &cb->incr_cursor));
         F_SET(session, session_cache_flags);
     }
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));

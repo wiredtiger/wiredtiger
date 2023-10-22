@@ -50,7 +50,8 @@ __wt_checksum_hw(const void *chunk, size_t len)
     crc = 0xffffffff;
 
     /* Checksum one byte at a time to the first 8B boundary. */
-    for (p = chunk; ((uintptr_t)p & (sizeof(uint64_t) - 1)) != 0 && len > 0; ++p, --len) {
+    for (p = (const uint8_t *)chunk; ((uintptr_t)p & (sizeof(uint64_t) - 1)) != 0 && len > 0;
+         ++p, --len) {
         __asm__ __volatile__(".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1" : "=S"(crc) : "0"(crc), "c"(*p));
     }
 
@@ -110,12 +111,21 @@ __wt_checksum_hw(const void *chunk, size_t len)
 #endif
 #endif
 
+#ifdef __cplusplus
+/* The following  function declarations need to have C linkage */
+extern "C" {
+#endif
+
 extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
 #if defined(__GNUC__)
 extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
   __attribute__((visibility("default")));
 #else
 extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 /*

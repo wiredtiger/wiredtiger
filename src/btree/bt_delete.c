@@ -507,7 +507,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     recno = ref->ref_recno;
     WT_COL_FOREACH (page, cip, i) {
         /* Retrieve the stop time point from the page. */
-        __wt_cell_unpack_kv(session, page->dsk, WT_COL_PTR(page, cip), &unpack);
+        __wt_cell_unpack_kv(session, page->dsk, (WT_CELL *)WT_COL_PTR(page, cip), &unpack);
         rle = __wt_cell_rle(&unpack);
 
         /* If it's already deleted, it doesn't need another tombstone. */

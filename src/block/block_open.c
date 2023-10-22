@@ -44,7 +44,7 @@ __wt_block_manager_drop_object(
      */
     WT_WITH_BUCKET_STORAGE(bstorage, session,
       ret = bstorage->file_system->fs_remove(
-        bstorage->file_system, (WT_SESSION *)session, tmp->data, 0));
+        bstorage->file_system, (WT_SESSION *)session, (const char *)tmp->data, 0));
     WT_ERR(ret);
 
 err:
@@ -82,9 +82,9 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
 
         for (suffix = 1;; ++suffix) {
             WT_ERR(__wt_buf_fmt(session, tmp, "%s.%d", filename, suffix));
-            WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
+            WT_ERR(__wt_fs_exist(session, (const char *)tmp->data, &exists));
             if (!exists) {
-                WT_ERR(__wt_fs_rename(session, filename, tmp->data, false));
+                WT_ERR(__wt_fs_rename(session, filename, (const char *)tmp->data, false));
                 __wt_verbose_notice(session, WT_VERB_BLOCK,
                   "unexpected file %s found, renamed to %s", filename, (const char *)tmp->data);
                 break;
@@ -312,7 +312,7 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
      * The checksum is (potentially) returned in a big-endian format, swap it into place in a
      * separate step.
      */
-    desc = buf->mem;
+    desc = (WT_BLOCK_DESC *)buf->mem;
     desc->magic = WT_BLOCK_MAGIC;
     desc->majorv = WT_BLOCK_MAJOR_VERSION;
     desc->minorv = WT_BLOCK_MINOR_VERSION;
@@ -397,7 +397,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * restore the header's checksum, and byte-swap the whole thing as necessary, leaving us with a
      * calculated checksum that should match the checksum in the header.
      */
-    desc = buf->mem;
+    desc = (WT_BLOCK_DESC *)buf->mem;
     checksum_saved = checksum_tmp = desc->checksum;
 #ifdef WORDS_BIGENDIAN
     checksum_tmp = __wt_bswap32(checksum_tmp);

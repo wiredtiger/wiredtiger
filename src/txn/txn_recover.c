@@ -9,9 +9,14 @@
 #include "wt_internal.h"
 
 /* Enable all recovery-related verbose messaging events. */
+#ifdef USE_CPP_FOR_C_FILES
+static WT_VERBOSE_MULTI_CATEGORY WT_VERB_RECOVERY_ALL = WT_DECL_VERBOSE_MULTI_CATEGORY(
+  ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS}));
+#else
 #define WT_VERB_RECOVERY_ALL        \
     WT_DECL_VERBOSE_MULTI_CATEGORY( \
       ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS}))
+#endif
 
 /* State maintained during recovery. */
 typedef struct {
@@ -362,7 +367,7 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
     uint32_t rectype;
     const uint8_t *end, *p;
 
-    r = cookie;
+    r = (WT_RECOVERY *)cookie;
     p = WT_LOG_SKIP_HEADER(logrec->data);
     end = (const uint8_t *)logrec->data + logrec->size;
     WT_UNUSED(firstrecord);
@@ -1019,8 +1024,7 @@ done:
             eviction_started = true;
         }
 
-        __wt_verbose_multi(session,
-          WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})),
+        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS_RECOVERY_AND_RTS,
           "[RECOVERY_RTS] performing recovery rollback_to_stable with stable_timestamp=%s and "
           "oldest_timestamp=%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),

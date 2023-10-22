@@ -113,8 +113,8 @@ __evict_lru_cmp_debug(const void *a_arg, const void *b_arg)
     const WT_EVICT_ENTRY *a, *b;
     uint64_t a_score, b_score;
 
-    a = a_arg;
-    b = b_arg;
+    a = (const WT_EVICT_ENTRY *)a_arg;
+    b = (const WT_EVICT_ENTRY *)b_arg;
     a_score = (a->ref == NULL ? UINT64_MAX : 0);
     b_score = (b->ref == NULL ? UINT64_MAX : 0);
 
@@ -131,8 +131,8 @@ __evict_lru_cmp(const void *a_arg, const void *b_arg)
     const WT_EVICT_ENTRY *a, *b;
     uint64_t a_score, b_score;
 
-    a = a_arg;
-    b = b_arg;
+    a = (const WT_EVICT_ENTRY *)a_arg;
+    b = (const WT_EVICT_ENTRY *)b_arg;
     a_score = (a->ref == NULL ? UINT64_MAX : a->score);
     b_score = (b->ref == NULL ? UINT64_MAX : b->score);
 
@@ -151,7 +151,7 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
         F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
     }
     e->ref = NULL;
-    e->btree = WT_DEBUG_POINT;
+    e->btree = (WT_BTREE *)WT_DEBUG_POINT;
 }
 
 /*
@@ -1499,7 +1499,7 @@ retry:
             continue;
 
         /* Skip files that don't allow eviction. */
-        btree = dhandle->handle;
+        btree = (WT_BTREE *)dhandle->handle;
         if (btree->evict_disabled > 0)
             continue;
 
@@ -2648,7 +2648,7 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
     updates_bytes = 0;
 
     dhandle = session->dhandle;
-    btree = dhandle->handle;
+    btree = (WT_BTREE *)dhandle->handle;
     WT_RET(__wt_msg(session, "%s(%s%s)%s%s:", dhandle->name,
       WT_DHANDLE_IS_CHECKPOINT(dhandle) ? "checkpoint=" : "",
       WT_DHANDLE_IS_CHECKPOINT(dhandle) ? dhandle->checkpoint : "<live>",

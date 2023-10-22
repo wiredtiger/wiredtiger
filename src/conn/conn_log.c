@@ -594,7 +594,7 @@ __log_file_server(void *arg)
     WT_SESSION_IMPL *session;
     uint32_t filenum;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     log = conn->log;
     while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
@@ -811,7 +811,7 @@ __log_wrlsn_server(void *arg)
     int yield;
     bool did_work;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     log = conn->log;
     yield = 0;
@@ -866,7 +866,7 @@ __log_server(void *arg)
     uint64_t time_start, time_stop, timediff;
     bool did_work, signalled;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     log = conn->log;
     force_write_timediff = 0;

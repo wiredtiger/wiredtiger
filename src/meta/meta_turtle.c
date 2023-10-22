@@ -39,7 +39,7 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
     WT_ERR(__wt_buf_fmt(session, buf,
       "key_format=S,value_format=S,id=%d,version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
       WT_METAFILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
-    cfg[1] = buf->data;
+    cfg[1] = (const char *)buf->data;
     ret = __wt_config_tiered_strip(session, cfg, (const char **)metaconfp);
 
 err:
@@ -188,7 +188,7 @@ __metadata_entry_worker(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, 
      * In the case of partial backup restore, add the entry to the metadata even if the table entry
      * doesn't exist so that we can correctly drop all related entries via the schema code later.
      */
-    WT_RET(__wt_metadata_update(session, key->data, value->data));
+    WT_RET(__wt_metadata_update(session, (const char *)key->data, (const char *)value->data));
 
     return (0);
 }
@@ -643,7 +643,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
         WT_ERR(__wt_getline(session, fs, buf));
         if (buf->size == 0)
             WT_ERR(WT_NOTFOUND);
-    } while (strcmp(key, buf->data) != 0);
+    } while (strcmp(key, (const char *)buf->data) != 0);
 
     /* Key matched: read the subsequent line for the value. */
     WT_ERR(__wt_getline(session, fs, buf));
@@ -651,7 +651,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
         WT_ERR(WT_NOTFOUND);
 
     /* Copy the value for the caller. */
-    WT_ERR(__wt_strdup(session, buf->data, valuep));
+    WT_ERR(__wt_strdup(session, (const char *)buf->data, valuep));
 
 err:
     WT_TRET(__wt_fclose(session, &fs));

@@ -360,7 +360,7 @@ __stash_discard(WT_SESSION_IMPL *session, int which)
     uint64_t oldest;
 
     conn = S2C(session);
-    session_stash = &session->stash[which];
+    session_stash = (WT_SESSION_STASH *)&session->stash[which];
 
     /* Get the resource's oldest generation. */
     oldest = __gen_oldest(session, which);

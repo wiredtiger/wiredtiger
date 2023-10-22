@@ -170,7 +170,7 @@ __lsm_tree_set_name(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char 
     WT_RET(__wt_strdup(session, uri, &p));
 
     __wt_free(session, lsm_tree->name);
-    lsm_tree->name = p;
+    lsm_tree->name = (const char *)p;
     lsm_tree->filename = lsm_tree->name + strlen("lsm:");
     return (0);
 }

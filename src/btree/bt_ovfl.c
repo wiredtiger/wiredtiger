@@ -28,7 +28,7 @@ __ovfl_read(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_
      * page sizes, overflow items should be rare.
      */
     WT_RET(__wt_blkcache_read(session, store, addr, addr_size));
-    dsk = store->data;
+    dsk = (const WT_PAGE_HEADER *)store->data;
     store->data = WT_PAGE_HEADER_BYTE(btree, dsk);
     store->size = dsk->u.datalen;
 
@@ -54,7 +54,7 @@ __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *u
      * about WT_CELL_VALUE_OVFL_RM cells.
      */
     if (page == NULL)
-        return (__ovfl_read(session, unpack->data, unpack->size, store));
+        return (__ovfl_read(session, (const uint8_t *)unpack->data, unpack->size, store));
 
     /*
      * WT_CELL_VALUE_OVFL_RM cells: if reconciliation deletes an overflow value, the on-page cell
@@ -67,7 +67,7 @@ __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *u
         ret = __wt_buf_setstr(session, store, "WT_CELL_VALUE_OVFL_RM");
         *decoded = true;
     } else
-        ret = __ovfl_read(session, unpack->data, unpack->size, store);
+        ret = __ovfl_read(session, (const uint8_t *)unpack->data, unpack->size, store);
     __wt_readunlock(session, &S2BT(session)->ovfl_lock);
 
     return (ret);
@@ -152,5 +152,5 @@ __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
     __wt_writeunlock(session, &btree->ovfl_lock);
 
     /* Free the backing disk blocks. */
-    return (bm->free(bm, session, unpack->data, unpack->size));
+    return (bm->free(bm, session, (const uint8_t *)unpack->data, unpack->size));
 }

@@ -395,7 +395,7 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 
     s = NULL;
     for (i = 0;;) {
-        if ((hp = __wt_hazard_check(session, ref, &s)) == NULL)
+        if ((hp = __wt_hazard_check(session, (WT_REF *)ref, &s)) == NULL)
             return (true);
         if (!waitfor || ++i > 100)
             break;

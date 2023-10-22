@@ -167,7 +167,8 @@ __curmetadata_setkv(WT_CURSOR_METADATA *mdc, WT_CURSOR *fc)
     c->key.data = fc->key.data;
     c->key.size = fc->key.size;
     if (F_ISSET(mdc, WT_MDC_CREATEONLY)) {
-        WT_ERR(__schema_create_collapse(session, mdc, fc->key.data, fc->value.data, &value));
+        WT_ERR(__schema_create_collapse(
+          session, mdc, (const char *)fc->key.data, (const char *)fc->value.data, &value));
         WT_ERR(__wt_buf_set(session, &c->value, value, strlen(value) + 1));
     } else {
         c->value.data = fc->value.data;
@@ -187,10 +188,10 @@ err:
  * Check if a key matches the metadata. The public value is "metadata:", but also check for the
  * internal version of the URI.
  */
-#define WT_KEY_IS_METADATA(key)                                          \
-    ((key)->size > 0 &&                                                  \
-      (WT_STRING_MATCH(WT_METADATA_URI, (key)->data, (key)->size - 1) || \
-        WT_STRING_MATCH(WT_METAFILE_URI, (key)->data, (key)->size - 1)))
+#define WT_KEY_IS_METADATA(key)                                                        \
+    ((key)->size > 0 &&                                                                \
+      (WT_STRING_MATCH(WT_METADATA_URI, (const char *)(key)->data, (key)->size - 1) || \
+        WT_STRING_MATCH(WT_METAFILE_URI, (const char *)(key)->data, (key)->size - 1)))
 
 /*
  * __curmetadata_metadata_search --
@@ -480,7 +481,8 @@ __curmetadata_insert(WT_CURSOR *cursor)
     /*
      * Since the key/value formats are 's' the WT_ITEMs must contain a NULL terminated string.
      */
-    ret = __wt_metadata_insert(session, cursor->key.data, cursor->value.data);
+    ret = __wt_metadata_insert(
+      session, (const char *)cursor->key.data, (const char *)cursor->value.data);
 
 err:
     API_END_RET(session, ret);
@@ -508,7 +510,8 @@ __curmetadata_update(WT_CURSOR *cursor)
     /*
      * Since the key/value formats are 's' the WT_ITEMs must contain a NULL terminated string.
      */
-    ret = __wt_metadata_update(session, cursor->key.data, cursor->value.data);
+    ret = __wt_metadata_update(
+      session, (const char *)cursor->key.data, (const char *)cursor->value.data);
 
 err:
     API_END_RET(session, ret);
@@ -535,7 +538,7 @@ __curmetadata_remove(WT_CURSOR *cursor)
     /*
      * Since the key format is 's' the WT_ITEM must contain a NULL terminated string.
      */
-    ret = __wt_metadata_remove(session, cursor->key.data);
+    ret = __wt_metadata_remove(session, (const char *)cursor->key.data);
 
 err:
     API_END_RET(session, ret);

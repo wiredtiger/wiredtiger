@@ -45,7 +45,7 @@ __ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, c
 
     __wt_verbose_debug2(session, WT_VERB_OVERFLOW, "discard: %s%s%p %s", tag == NULL ? "" : tag,
       tag == NULL ? "" : ": ", (void *)page,
-      __wt_addr_string(session, unpack->data, unpack->size, tmp));
+      __wt_addr_string(session, (const uint8_t *)unpack->data, unpack->size, tmp));
 
     __wt_scr_free(session, &tmp);
     return (0);
@@ -168,7 +168,7 @@ __ovfl_reuse_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_OVFL_REUSE *reu
 
     __wt_verbose_debug2(session, WT_VERB_OVERFLOW, "reuse: %s%s%p %s (%s%s%s) {%.*s}",
       tag == NULL ? "" : tag, tag == NULL ? "" : ": ", (void *)page,
-      __wt_addr_string(session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size, tmp),
+      __wt_addr_string(session, (const uint8_t *)WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size, tmp),
       F_ISSET(reuse, WT_OVFL_REUSE_INUSE) ? "inuse" : "",
       F_ISSET(reuse, WT_OVFL_REUSE_INUSE) && F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED) ? ", " : "",
       F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED) ? "just-added" : "",
@@ -342,7 +342,7 @@ __ovfl_reuse_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
             WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
 
-        WT_RET(bm->free(bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
+        WT_RET(bm->free(bm, session, (const uint8_t *)WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
         decr += WT_OVFL_SIZE(reuse, WT_OVFL_REUSE);
         __wt_free(session, reuse);
     }
@@ -397,7 +397,8 @@ __ovfl_reuse_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
             WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
 
-        WT_TRET(bm->free(bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
+        WT_TRET(
+          bm->free(bm, session, (const uint8_t *)WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
         decr += WT_OVFL_SIZE(reuse, WT_OVFL_REUSE);
         __wt_free(session, reuse);
     }
@@ -432,7 +433,7 @@ __wt_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page, uint8_t **addrp,
     if ((reuse = __ovfl_reuse_skip_search(head, value, value_size)) == NULL)
         return (0);
 
-    *addrp = WT_OVFL_REUSE_ADDR(reuse);
+    *addrp = (uint8_t *)WT_OVFL_REUSE_ADDR(reuse);
     *addr_sizep = reuse->addr_size;
     F_SET(reuse, WT_OVFL_REUSE_INUSE);
 
@@ -512,7 +513,7 @@ __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (mod == NULL || mod->ovfl_track == NULL)
         return;
 
-    for (reuse = mod->ovfl_track->ovfl_reuse[0]; reuse != NULL; reuse = next) {
+    for (reuse = mod->ovfl_track->ovfl_reuse[0]; reuse != NULL; reuse = (WT_OVFL_REUSE *)next) {
         next = reuse->next[0];
         __wt_free(session, reuse);
     }

@@ -79,7 +79,7 @@ __ckpt_server(void *arg)
     WT_SESSION_IMPL *session;
     uint64_t checkpoint_gen;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
 

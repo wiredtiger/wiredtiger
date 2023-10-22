@@ -66,7 +66,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     filecfg[0] = oldvalue;
     if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
         WT_ERR(__wt_reset_blkmod(session, oldvalue, buf));
-        filecfg[1] = buf->mem;
+        filecfg[1] = (const char *)buf->mem;
     } else
         filecfg[1] = NULL;
     WT_ERR(__wt_config_collapse(session, filecfg, &newvalue));
@@ -162,13 +162,13 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
      * Do the rename before updating the metadata to avoid leaving the metadata inconsistent if the
      * rename fails.
      */
-    WT_ERR(__wt_schema_rename(session, os->data, ns->data, cfg));
+    WT_ERR(__wt_schema_rename(session, (const char *)os->data, (const char *)ns->data, cfg));
 
     /*
      * Remove the old metadata entry. Insert the new metadata entry.
      */
     WT_ERR(__wt_metadata_remove(session, name));
-    WT_ERR(__wt_metadata_insert(session, nn->data, nv->data));
+    WT_ERR(__wt_metadata_insert(session, (const char *)nn->data, (const char *)nv->data));
 
 err:
     __wt_scr_free(session, &nn);

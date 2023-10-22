@@ -362,7 +362,7 @@ __curversion_next_int(WT_CURSOR *cursor)
                 /* Ensure enough room for a column-store key without checking. */
                 WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
-                p = key->mem;
+                p = (uint8_t *)key->mem;
                 WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
                 key->size = WT_PTRDIFF(p, key->data);
                 hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);

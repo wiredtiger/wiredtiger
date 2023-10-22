@@ -67,7 +67,7 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
 
     dhandle = session->dhandle;
-    btree = WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
+    btree = WT_DHANDLE_BTREE(dhandle) ? (WT_BTREE *)dhandle->handle : NULL;
 
     /* This method expects dhandle write lock. */
     WT_ASSERT(session, FLD_ISSET(dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
@@ -349,7 +349,7 @@ __sweep_server(void *arg)
     u_int dead_handles;
     bool cv_signalled;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
 
     /*

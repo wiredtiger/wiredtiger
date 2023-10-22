@@ -6,6 +6,10 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
+#include "dhandle.h"
+
 /*
  * Define the maximum number of tiers for convenience. We expect at most two initially. This can
  * change if more are needed. It is easier to have the array statically allocated initially than
@@ -109,6 +113,31 @@ struct __wt_tiered {
 #define WT_TIERED_FLAG_UNUSED 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+#ifdef USE_CPP_FOR_C_FILES
+#ifdef __clang__
+    __wt_tiered &
+    operator=(const __wt_tiered &other)
+    {
+        iface = (WT_DATA_HANDLE &)other.iface;
+
+        obj_config = other.obj_config;
+        key_format = other.key_format;
+        value_format = other.value_format;
+        bstorage = other.bstorage;
+
+        for (int i = 0; i < WT_TIERED_MAX_TIERS; i++)
+            tiers[i] = other.tiers[i];
+
+        current_id = other.current_id;
+        next_id = other.next_id;
+        oldest_id = other.oldest_id;
+        flags = other.flags;
+
+        return (*this);
+    }
+#endif
+#endif
 };
 
 /* FIXME: Currently the WT_TIERED_OBJECT data structure is not used. */

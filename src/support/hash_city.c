@@ -352,5 +352,5 @@ static inline uint64_t CityHash64(const char *s, size_t len) {
 uint64_t
 __wt_hash_city64(const void *s, size_t len)
 {
-	return (CityHash64(s, len));
+	return (CityHash64((const char *)s, len));
 }

@@ -95,6 +95,8 @@ struct __wt_cursor_backup {
         NULL :                                   \
         (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
 
+enum WT_CBT_RETRY_ENUM { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE };
+
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
@@ -234,8 +236,7 @@ struct __wt_cursor_btree {
      * We have to restart cursor next/prev after a prepare conflict. Keep the state of the cursor
      * separately so we can restart at exactly the right point.
      */
-    enum { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE } iter_retry;
-
+    enum WT_CBT_RETRY_ENUM iter_retry;
 #ifdef HAVE_DIAGNOSTIC
     /* Check that cursor next/prev never returns keys out-of-order. */
     WT_ITEM *lastkey, _lastkey;

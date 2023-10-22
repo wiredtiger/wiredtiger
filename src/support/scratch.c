@@ -132,15 +132,15 @@ __wt_buf_set_printable(
     WT_DECL_RET;
 
     if (hexonly)
-        ret = __wt_raw_to_hex(session, p, size, buf);
+        ret = __wt_raw_to_hex(session, (const uint8_t *)p, size, buf);
     else
-        ret = __wt_raw_to_esc_hex(session, p, size, buf);
+        ret = __wt_raw_to_esc_hex(session, (const uint8_t *)p, size, buf);
 
     if (ret != 0) {
         buf->data = "[Error]";
         buf->size = strlen("[Error]");
     }
-    return (buf->data);
+    return ((const char *)buf->data);
 }
 
 /*
@@ -254,7 +254,7 @@ __wt_buf_set_size(WT_SESSION_IMPL *session, uint64_t size, bool exact, WT_ITEM *
         buf->data = "[Error]";
         buf->size = strlen("[Error]");
     }
-    return (buf->data);
+    return ((const char *)buf->data);
 }
 
 /*

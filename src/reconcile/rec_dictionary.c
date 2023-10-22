@@ -161,7 +161,7 @@ __wt_rec_dictionary_lookup(
          dp != NULL && dp->hash == hash; dp = dp->next[0]) {
         WT_RET(
           __wt_cell_pack_value_match((WT_CELL *)((uint8_t *)r->cur_ptr->image.mem + dp->offset),
-            &val->cell, val->buf.data, &match));
+            &val->cell, (const uint8_t *)val->buf.data, &match));
         if (match) {
             WT_STAT_DATA_INCR(session, rec_dictionary);
             *dpp = dp;

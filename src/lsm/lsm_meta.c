@@ -297,7 +297,7 @@ __lsm_meta_read_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char *
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_buf_fmt(session, buf, "key_format=u,value_format=u,memory_page_max=%" PRIu64,
       2 * lsm_tree->chunk_size));
-    file_cfg[2] = buf->data;
+    file_cfg[2] = (const char *)buf->data;
     WT_ERR(__wt_config_collapse(session, file_cfg, &fileconf));
     lsm_tree->file_config = fileconf;
 
@@ -355,7 +355,7 @@ __lsm_meta_upgrade_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 
     WT_ERR(__wt_buf_catfmt(session, buf, ")"));
 
-    new_cfg[2] = buf->data;
+    new_cfg[2] = (const char *)buf->data;
     WT_ERR(__wt_config_merge(session, new_cfg, NULL, &lsm_tree->config));
 
 err:
@@ -459,7 +459,7 @@ __wt_lsm_meta_write(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char 
     /* Update the existing configuration with the new values. */
     new_cfg[0] = WT_CONFIG_BASE(session, lsm_meta);
     new_cfg[1] = lsm_tree->config;
-    new_cfg[2] = buf->data;
+    new_cfg[2] = (const char *)buf->data;
     new_cfg[3] = newconfig;
     WT_ERR(__wt_config_collapse(session, new_cfg, &new_metadata));
     ret = __wt_metadata_update(session, lsm_tree->name, new_metadata);

@@ -303,7 +303,7 @@ restart_read:
         }
 
         /* Unpack the cell and build the return information. */
-        cell = WT_COL_PTR(page, cip);
+        cell = (WT_CELL *)WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
         rle = __wt_cell_rle(&unpack);
         if (unpack.type == WT_CELL_DEL) {

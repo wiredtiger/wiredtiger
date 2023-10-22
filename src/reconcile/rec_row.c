@@ -120,7 +120,8 @@ __rec_cell_build_leaf_key(
                 pfx_max = size;
             if (r->last->size < pfx_max)
                 pfx_max = r->last->size;
-            for (a = data, b = r->last->data; pfx < pfx_max; ++pfx)
+            for (a = (const uint8_t *)data, b = (const uint8_t *)r->last->data; pfx < pfx_max;
+                 ++pfx)
                 if (*a++ != *b++)
                     break;
 
@@ -182,7 +183,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_TIME_WINDOW tw;
     bool ovfl_key;
 
-    r = cbulk->reconcile;
+    r = (WT_RECONCILE *)cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
     WT_TIME_WINDOW_INIT(&tw);
@@ -338,7 +339,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         cell = NULL;
         ikey = __wt_ref_key_instantiated(ref);
         if (ikey != NULL && ikey->cell_offset != 0) {
-            cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
+            cell = (WT_CELL *)WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
             __wt_cell_unpack_addr(session, page->dsk, cell, kpack);
 
             /*
@@ -351,7 +352,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         }
 
         WT_ERR(__wt_rec_child_modify(session, r, ref, &cms));
-        addr = ref->addr;
+        addr = (WT_ADDR *)ref->addr;
         child = ref->page;
 
         switch (cms.state) {
@@ -403,7 +404,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             source_ta = &addr->ta;
         } else if (cms.state == WT_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
-            __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
+            __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)ref->addr, vpack);
             page_del = &cms.del;
             __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
             source_ta = &vpack->ta;
@@ -414,7 +415,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              */
             WT_ASSERT_ALWAYS(session, cms.state == WT_CHILD_ORIGINAL,
               "Not propagating the original fast-truncate information");
-            __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
+            __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
             WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
@@ -655,8 +656,8 @@ __rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
         p = vpack->data;
         size = vpack->size;
     } else {
-        WT_ERR(
-          __wt_huffman_decode(session, btree->huffman_value, vpack->data, vpack->size, tmpval));
+        WT_ERR(__wt_huffman_decode(
+          session, btree->huffman_value, (const uint8_t *)vpack->data, vpack->size, tmpval));
         p = tmpval->data;
         size = tmpval->size;
     }
@@ -675,7 +676,15 @@ int
 __wt_rec_row_leaf(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
-    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
+    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE,
+      .durable_ts = 0,
+      .start_ts = 0,
+      .prev_durable_ts = 0,
+      .next = NULL,
+      .size = 0,
+      .type = WT_UPDATE_TOMBSTONE,
+      .prepare_state = 0,
+      .flags = 0};
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *kpack, _kpack, *vpack, _vpack;

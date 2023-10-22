@@ -203,7 +203,7 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
      * do our best, and simply count every overflow item (or RLE set of items) we see.
      */
     WT_COL_FOREACH (page, cip, i) {
-        cell = WT_COL_PTR(page, cip);
+        cell = (WT_CELL *)WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
         if (unpack->type == WT_CELL_DEL) {
             orig_deleted = true;

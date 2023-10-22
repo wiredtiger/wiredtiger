@@ -129,7 +129,7 @@ __wt_block_salvage_next(
          * it. Move to the next allocation sized boundary, we'll never consider this one again.
          */
         WT_ERR(__wt_read(session, fh, offset, (size_t)allocsize, tmp->mem));
-        blk = WT_BLOCK_HEADER_REF(tmp->mem);
+        blk = (WT_BLOCK_HEADER *)WT_BLOCK_HEADER_REF(tmp->mem);
         __wt_block_header_byteswap(blk);
         size = blk->disk_size;
         checksum = blk->checksum;

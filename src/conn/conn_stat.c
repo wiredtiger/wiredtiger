@@ -145,7 +145,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     WT_RET(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_fmt(session, tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
-    WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
+    WT_ERR(__wt_filename(session, (const char *)tmp->data, &conn->stat_path));
 
     WT_ERR(__wt_config_gets(session, cfg, "statistics_log.sources", &cval));
     __wt_config_subinit(session, &objectconf, &cval);
@@ -323,7 +323,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
         uri = "statistics:";
     else {
         WT_ERR(__wt_buf_fmt(session, tmp, "statistics:%s", name));
-        uri = tmp->data;
+        uri = (const char *)tmp->data;
     }
 
     /*
@@ -346,7 +346,8 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
             endprefix = strchr(desc, ':');
             prefixlen = WT_PTRDIFF(endprefix, desc);
             WT_ASSERT(session, endprefix != NULL);
-            if (first || tmp->size != prefixlen || strncmp(desc, tmp->data, tmp->size) != 0) {
+            if (first || tmp->size != prefixlen ||
+              strncmp(desc, (const char *)tmp->data, tmp->size) != 0) {
                 WT_ERR(__wt_buf_set(session, tmp, desc, prefixlen));
                 WT_ERR(__wt_fprintf(
                   session, conn->stat_fs, "%s\"%.*s\":{", first ? "" : "},", (int)prefixlen, desc));
@@ -470,23 +471,24 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
     WT_RET(__wt_localtime(session, &ts.tv_sec, &localt));
 
     /* Create the logging path name for this time of day. */
-    if (strftime(tmp->mem, tmp->memsize, conn->stat_path, &localt) == 0)
+    if (strftime((char *)tmp->mem, tmp->memsize, conn->stat_path, &localt) == 0)
         WT_RET_MSG(session, ENOMEM, "strftime path conversion");
 
     /* If the path has changed, cycle the log file. */
-    if (conn->stat_fs == NULL || path == NULL || strcmp(tmp->mem, path->mem) != 0) {
+    if (conn->stat_fs == NULL || path == NULL ||
+      strcmp((const char *)tmp->mem, (const char *)path->mem) != 0) {
         WT_RET(__wt_fclose(session, &conn->stat_fs));
-        WT_RET(__wt_fopen(session, tmp->mem, WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED, WT_STREAM_APPEND,
-          &conn->stat_fs));
+        WT_RET(__wt_fopen(session, (const char *)tmp->mem, WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED,
+          WT_STREAM_APPEND, &conn->stat_fs));
 
         if (path != NULL)
-            WT_RET(__wt_buf_setstr(session, path, tmp->mem));
+            WT_RET(__wt_buf_setstr(session, path, (const char *)tmp->mem));
     }
 
     /* Create the entry prefix for this time of day. */
-    if (strftime(tmp->mem, tmp->memsize, conn->stat_format, &localt) == 0)
+    if (strftime((char *)tmp->mem, tmp->memsize, conn->stat_format, &localt) == 0)
         WT_RET_MSG(session, ENOMEM, "strftime timestamp conversion");
-    conn->stat_stamp = tmp->mem;
+    conn->stat_stamp = (const char *)tmp->mem;
     WT_RET(__statlog_print_header(session));
 
     /* Dump the connection statistics. */
@@ -564,7 +566,7 @@ __statlog_server(void *arg)
     WT_ITEM path, tmp;
     WT_SESSION_IMPL *session;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
 
     WT_CLEAR(path);

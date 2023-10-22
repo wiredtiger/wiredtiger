@@ -88,7 +88,7 @@ __capacity_server(void *arg)
     WT_SESSION_IMPL *session;
     uint64_t start, stop, time_ms;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     cap = &conn->capacity;
     for (;;) {

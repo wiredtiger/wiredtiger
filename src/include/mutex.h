@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Condition variables:
  *
@@ -37,7 +39,7 @@ struct __wt_condvar {
  * functions.
  */
 struct __wt_rwlock { /* Read/write lock */
-    wt_shared volatile union {
+    wt_shared volatile union __wt_rwlock_union {
         uint64_t v; /* Full 64-bit value */
         struct {
             uint8_t current;         /* Current ticket */
@@ -46,6 +48,14 @@ struct __wt_rwlock { /* Read/write lock */
             uint8_t readers_queued;  /* Count of queued readers */
             uint32_t readers_active; /* Count of active readers */
         } s;
+#ifdef USE_CPP_FOR_C_FILES
+        __wt_rwlock_union volatile &
+        operator=(__wt_rwlock_union volatile &from) volatile
+        {
+            v = from.v;
+            return (*this);
+        }
+#endif
     } u;
 
     int16_t stat_read_count_off;    /* read acquisitions offset */

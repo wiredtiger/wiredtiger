@@ -295,7 +295,7 @@ __checkpoint_apply_operation(
         if (op == NULL)
             continue;
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)k.len, k.str));
-        if ((ret = __wt_schema_worker(session, tmp->data, op, NULL, cfg, 0)) != 0)
+        if ((ret = __wt_schema_worker(session, (const char *)tmp->data, op, NULL, cfg, 0)) != 0)
             WT_ERR_MSG(session, ret, "%s", (const char *)tmp->data);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -1542,7 +1542,7 @@ __drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list)
     WT_DECL_RET;
 
     /* The list has the form (name, name, ...,) so we can read it with the config parser. */
-    __wt_config_init(session, &dropconf, drop_list->data);
+    __wt_config_init(session, &dropconf, (const char *)drop_list->data);
     while ((ret = __wt_config_next(&dropconf, &k, &v)) == 0) {
         WT_RET(__wt_meta_sysinfo_clear(session, k.str, k.len));
     }
@@ -2151,7 +2151,7 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0) {
             WT_ERR(__wt_buf_fmt(session, tmp, "%s.%" PRId64, WT_CHECKPOINT, ckpt->order));
             __wt_free(session, ckpt->name);
-            WT_ERR(__wt_strdup(session, tmp->mem, &ckpt->name));
+            WT_ERR(__wt_strdup(session, (const char *)tmp->mem, &ckpt->name));
         }
 
         /* Reset the flags, and mark a checkpoint fake if there is no address. */

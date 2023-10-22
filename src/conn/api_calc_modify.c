@@ -124,9 +124,9 @@ __wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM
 
     cms.session = (WT_SESSION_IMPL *)wt_session;
 
-    cms.s1 = cms.used1 = oldv->data;
+    cms.s1 = cms.used1 = (const uint8_t *)oldv->data;
     cms.e1 = cms.s1 + oldv->size;
-    cms.s2 = cms.used2 = newv->data;
+    cms.s2 = cms.used2 = (const uint8_t *)newv->data;
     cms.e2 = cms.s2 + newv->size;
     cms.maxdiff = maxdiff;
     cms.maxentries = *nentriesp;

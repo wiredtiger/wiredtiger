@@ -79,7 +79,7 @@ __wt_page_alloc(
         WT_ERR(
           __wt_calloc(session, 1, sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *), &p));
         size += sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *);
-        pindex = p;
+        pindex = (WT_PAGE_INDEX *)p;
         pindex->index = (WT_REF **)((WT_PAGE_INDEX *)p + 1);
         pindex->entries = alloc_entries;
         WT_INTL_INDEX_SET(page, pindex);
@@ -244,7 +244,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
         recno = ref->ref_recno;
         WT_COL_FOREACH (page, cip, i) {
             /* Search for prepare records. */
-            cell = WT_COL_PTR(page, cip);
+            cell = (WT_CELL *)WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             rle = __wt_cell_rle(&unpack);
             if (!unpack.tw.prepare) {
@@ -344,7 +344,7 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
     if (preparedp != NULL)
         *preparedp = false;
 
-    dsk = image;
+    dsk = (const WT_PAGE_HEADER *)image;
     alloc_entries = 0;
 
     /*
@@ -548,7 +548,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
     tmp = 0;
     prepare = false;
 
-    page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
+    page->pg_fix_bitf = (uint8_t *)WT_PAGE_HEADER_BYTE(btree, dsk);
 
     WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
     WT_ASSERT(session, auxhdr.dataoffset <= dsk->mem_size);
@@ -569,7 +569,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
         entry_num = 0;
         WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
             if (unpack.type == WT_CELL_KEY) {
-                p8 = unpack.data;
+                p8 = (const uint8_t *)unpack.data;
                 /* The array is attached to the page, so we don't need to free it on error here. */
                 WT_RET(__wt_vunpack_uint(&p8, unpack.size, &tmp));
                 /* For now at least, check that the entries are in ascending order. */
@@ -584,7 +584,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
                       (auxhdr.entries - skipped) * sizeof(WT_COL_FIX_TW_ENTRY);
                     WT_RET(__wt_calloc(session, 1, size, &pv));
                     *sizep += size;
-                    page->u.col_fix.fix_tw = pv;
+                    page->u.col_fix.fix_tw = (WT_COL_FIX_TW *)pv;
                 }
                 page->pg_fix_tws[entry_num].recno_offset = recno_offset;
                 page->pg_fix_tws[entry_num].cell_offset = WT_PAGE_DISK_OFFSET(page, unpack.cell);
@@ -787,7 +787,7 @@ __inmem_col_var(
                 WT_RET(__wt_calloc(session, 1, size, &p));
                 *sizep += size;
 
-                page->u.col_var.repeats = p;
+                page->u.col_var.repeats = (WT_COL_VAR_REPEAT *)p;
                 page->pg_var_nrepeats = n;
                 repeats = page->pg_var_repeats;
             }

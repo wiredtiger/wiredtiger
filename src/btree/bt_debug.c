@@ -100,7 +100,7 @@ __debug_bytes(WT_DBG *ds, const void *data_arg, size_t size)
     const uint8_t *data;
     u_char ch;
 
-    for (data = data_arg, i = 0; i < size; ++i, ++data) {
+    for (data = (const uint8_t *)data_arg, i = 0; i < size; ++i, ++data) {
         ch = data[0];
         if (__wt_isprint(ch))
             WT_RET(ds->f(ds, "%c", (int)ch));
@@ -383,7 +383,7 @@ __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_blkcache_read(session, buf, addr, addr_size));
-    ret = __wt_debug_disk(session, buf->mem, ofile, false);
+    ret = __wt_debug_disk(session, (const WT_PAGE_HEADER *)buf->mem, ofile, false);
 
 err:
     __wt_scr_free(session, &buf);
@@ -442,7 +442,7 @@ __wt_debug_offset(
      */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_blkcache_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
-    ret = __wt_debug_disk(session, buf->mem, ofile, false);
+    ret = __wt_debug_disk(session, (const WT_PAGE_HEADER *)buf->mem, ofile, false);
 
 err:
     __wt_scr_free(session, &buf);
@@ -480,7 +480,7 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
           __wt_time_window_to_string(&cbt->upd_value->tw, time_string)));
         if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
             WT_RET(ds->f(ds, "\tV "));
-            WT_RET(__debug_modify(ds, ds->hs_value->data));
+            WT_RET(__debug_modify(ds, (const uint8_t *)ds->hs_value->data));
             WT_RET(ds->f(ds, "\n"));
         } else
             WT_RET(ds->f(ds, "\tV {REDACTED}\n"));
@@ -594,7 +594,8 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
             WT_RET(ds->f(ds, ", %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
 
         WT_RET(__wt_scr_alloc(session, 128, &buf));
-        ret = ds->f(ds, ", %s", __wt_addr_string(session, unpack->data, unpack->size, buf));
+        ret = ds->f(
+          ds, ", %s", __wt_addr_string(session, (const uint8_t *)unpack->data, unpack->size, buf));
         __wt_scr_free(session, &buf);
         WT_RET(ret);
         break;
@@ -688,7 +689,8 @@ __debug_cell_kv(
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
     case WT_CELL_VALUE_OVFL:
-        WT_RET(ds->f(ds, ", %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
+        WT_RET(ds->f(ds, ", %s",
+          __wt_addr_string(session, (const uint8_t *)unpack->data, unpack->size, ds->t1)));
         break;
     }
     WT_RET(ds->f(ds, "\n"));
@@ -1037,7 +1039,7 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
     WT_SESSION_IMPL *session;
     bool did_hs_checkpoint;
 
-    cbt = cursor_arg;
+    cbt = (WT_CURSOR_BTREE *)cursor_arg;
     session = CUR2S(cursor_arg);
     did_hs_checkpoint = false;
 
@@ -1379,14 +1381,14 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
     recno = ref->ref_recno;
 
     WT_COL_FOREACH (page, cip, i) {
-        cell = WT_COL_PTR(page, cip);
+        cell = (WT_CELL *)WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(ds->session, page->dsk, cell, unpack);
         rle = __wt_cell_rle(unpack);
         WT_RET(__wt_snprintf(tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
         WT_RET(__debug_cell_kv(ds, page, WT_PAGE_COL_VAR, tag, unpack));
 
         if (!WT_IS_HS(session->dhandle) && ds->hs_cursor != NULL) {
-            p = ds->key->mem;
+            p = (uint8_t *)ds->key->mem;
             WT_RET(__wt_vpack_uint(&p, 0, recno));
             ds->key->size = WT_PTRDIFF(p, ds->key->mem);
             WT_RET(__debug_hs_key(ds));
@@ -1503,7 +1505,7 @@ __debug_col_skip(
         WT_RET(__debug_update(ds, ins->upd, hexbyte));
 
         if (!WT_IS_HS(session->dhandle) && hs_cursor != NULL) {
-            p = ds->key->mem;
+            p = (uint8_t *)ds->key->mem;
             WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
             ds->key->size = WT_PTRDIFF(p, ds->key->mem);
             WT_RET(__debug_hs_key(ds));
