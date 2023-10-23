@@ -135,165 +135,264 @@ __wt_upd_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **updp)
 }
 
 /* ---------------------------------------------------------------------------- */
+#include <stdint.h>
 
-/* use a single vm page -- though potentially overkill consider winding down to 1024 */
-#define BT_ARENA_BITMAP_SIZE (4096u * 8u)
-#define BT_ARENA_BITMAP_SIZE_BYTES ((BT_ARENA_BITMAP_SIZE) >> 3)
 
-#define BT_ARENA_PAGE_SIZE (4096u)
+#define BT_ALLOC_MIB(n) ((ptrdiff_t)(n) * (1 << 20))
 
-/* This will need to hang off the btree somewhere. */
-struct bt_arena {
-    /* virtual memory */
-    size_t vsize;
-    uintptr_t vmem;
-
-    /* concurrency protection? */
-
-    size_t region_max;          /* maximal region size */
-    size_t region_largest;      /* size of largest region in bytes */
-    uint32_t region_count;      /* used to infer maximal region size */
-    uint32_t region_highest;    /* highest bit offset for a region */
-
-    /* bitmap of utilized regions 0 = used, 1 = unused */
-    _Alignas(size_t) uint8_t region_map[BT_ARENA_BITMAP_SIZE_BYTES];
-};
 
 /*
- * Page Region header
- * u32 : amount allocated -- enough?
- * u32 : pad
- * u32 : offset of first regular alloc ptr
- * u32 : pad
+ * Region size should a multiple of vm page size and be large enough to accommodate the largest
+ * initial page.
  */
-struct bt_region_header {
-    uint32_t region_used;
-    uint32_t pad1_;
-    uint32_t offset;
-    uint32_t pad2_;
-} __attribute__((packed));
+#define BT_ALLOC_REGION_SIZE BT_ALLOC_MIB(128)
+
+/*
+ * Number of memory regions available to the allocator. Also absoluate maximum number of pages for
+ * the tree.
+ */
+#define BT_ALLOC_REGION_COUNT 4096
+
+#define BT_ALLOC_VMSIZE (BT_ALLOC_REGION_COUNT * BT_ALLOC_REGION_SIZE)
+
+#define BT_ALLOC_INVALID_REGION UINT32_MAX
+
+#define BT_ALLOC_GIANT_END UINTPTR_MAX
 
 
-int bt_arena_ctor(struct bt_arena *arena, size_t vmem_size);
-int bt_arena_dtor(struct bt_arena *arena);
+/* Allocator context. */
+typedef struct {
+    uintptr_t vmem_start;       /* Start address of reserved vmem. */
+    uint32_t region_count;      /* Number of active regions. */
+    uint32_t region_high;       /* Active region high water mark. */
+    uint32_t region_first_free; /* First free region in bitmap. */
 
-int bt_arena_page_alloc(struct bt_arena *arena, size_t alloc_size, void **page_pp);
-int bt_arena_page_free(struct bt_arena *arena, WT_PAGE *page);
-
-/* zero-ed memory without the extra calloc parameter */
-int bt_arena_zalloc(struct bt_arena *arena, size_t alloc_size, WT_PAGE *page, void **mem_pp);
-int bt_arena_free(struct bt_arena *arena, size_t alloc_size, WT_PAGE *page, void *mem_p);
+    _Alignas(size_t) uint8_t region_map[BT_ALLOC_REGION_COUNT / 8 ];
+} bt_allocator;
 
 
-static uint32_t next_highest_pow2(uint32_t v)
+/*
+ * Header for first region used by a page.
+ */
+typedef struct {
+    size_t used;                /* Total bytes used in region. */
+    uintptr_t last_giant;       /* Pointer to last giant allocation in this region. */
+    uint32_t spill;             /* Region id location of first spill region. */
+    uint32_t reserved1;         /* Reserved for future use. */
+} __attribute__((packed)) bt_alloc_page_region;
+
+
+/*
+ * Header for spill region.
+ */
+typedef struct {
+    size_t used;                /* Total bytes used in region. */
+    uint32_t prior_region;      /* Region id of prior spill or page region. */
+    uint32_t next_spill;        /* Region id of next spill region. */
+} __attribute__((packed)) bt_alloc_spill_region;
+
+
+/* Giant allocation reference. */
+typedef struct {
+    uintptr_t alloc_ptr;
+    uintptr_t prev_giant;
+} __attribute__((packed)) bt_alloc_giant;
+
+
+/* TODO static assertion sizeof(WT_PAGE) < BT_ALLOC_PR_SIZE */
+
+
+/* Offset in byte array bit is located. */
+static inline uint32_t
+_bit_to_byte(uint32_t bit)
 {
-    v--;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v++;
-    v += (v == 0);
-    return v;
+    return bit >> 3;
 }
 
 
-int bt_arena_ctor(struct bt_arena *arena, size_t vmem_size)
+/* Find the next free region. */
+static uint32_t
+_next_free_region(bt_allocator *allocator, uint32_t start_bit)
 {
-    size_t actual_size;
+    uint32_t i;
+    uint8_t b;
+
+    WT_ASSERT(NULL, allocator->region_count < allocator->region_high);
+
+    /* Ideally the map would be a multiple of 8/4 bytes so we could use a larger stride. */
+    for (i = _bit_to_byte(start_bit); i < sizeof(allocator->region_map); i++) {
+        if (allocator->region_map[i]) {
+            b = allocator->region_map[i];
+            b = b & (b - 1);
+            return i + 4 * (b & 0x88) + 2 * (b & 0x44) + 1 * (b & 0x22);
+        }
+    }
+    WT_ASSERT(NULL, 0 && "Unable to find free region in bitmap.");
+
+    /* This will point outside the virtual memory region and hhopefully result in a segfault. */
+    return sizeof(allocator->region_map) * sizeof(uint8_t);
+}
+
+
+static void *
+_region_ptr(bt_allocator *allocator, uint32_t region)
+{
+    uintptr_t addr = allocator->vmem_start + (region * BT_ALLOC_REGION_SIZE);
+    return (void *)addr;
+}
+
+
+static void *
+_region_offset_ptr(bt_allocator *allocator, uint32_t region, uint32_t offset)
+{
+    uintptr_t addr;
+
+    WT_ASSERT(NULL, offset < BT_ALLOC_REGION_SIZE);
+
+    addr = allocator->vmem_start + (region * BT_ALLOC_REGION_SIZE) + offset;
+
+    /* When working inside the allocator, should be dealing only in alignment sizes. */
+    WT_ASSERT(NULL, (offset & 3) == 0);
+
+    return (void *)addr;
+}
+
+
+int bt_alloc_ctor(bt_allocator *allocator);
+int bt_alloc_dtor(bt_allocator *allocator);
+int bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_pp);
+int bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page);
+int bt_alloc_zalloc(bt_allocator *alloc, size_t alloc_size, WT_PAGE *page, void **mem_pp);
+
+
+int bt_alloc_ctor(bt_allocator *allocator)
+{
     void *vmem;
 
-    if (arena == NULL || vmem_size == 0) {
+    if (allocator == NULL) {
         return EINVAL;
     }
 
-    /* reserve virtual memory */
-    actual_size = (vmem_size + BT_ARENA_PAGE_SIZE) & (BT_ARENA_PAGE_SIZE - 1);
-    vmem = mmap(NULL, actual_size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+    /* Reserve virtual memory. */
+    vmem = mmap(NULL, BT_ALLOC_VMSIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
     if (vmem == MAP_FAILED) {
         return errno;
     }
 
-    /* initialize bitmap */
-    memset(arena->region_map, 0xff, sizeof(arena->region_map));
+    /* Initialize empty bitmap. */
+    memset(allocator->region_map, 0xff, sizeof(allocator->region_map));
 
-    /* initialize arena */
-    arena->vsize = actual_size;
-    arena->vmem = (uintptr_t)vmem;
-    arena->region_max = actual_size;
-    arena->region_largest = 0;
-    arena->region_highest = 0;
-    arena->region_count = 0;
+    allocator->vmem_start = (uintptr_t)vmem;
+    allocator->region_count = 0;
+    allocator->region_high = 0;
+    allocator->region_first_free = 0;
     return 0;
 }
 
 
-int bt_arena_dtor(struct bt_arena *arena)
+int bt_alloc_dtor(bt_allocator *allocator)
 {
     int retval;
 
-    if (arena == NULL) {
+    if (allocator == NULL) {
         return EINVAL;
     }
-    /* iteratively free threaded out of region allocations */
-    /* decommit virtual memory */
-    retval = munmap((void*)arena->vmem, arena->vsize);
+
+    /* TODO Iterate over all regions freeing giant allocation sequences. */
+
+    /* Decommit virtual memory. */
+    retval = munmap((void*)allocator->vmem_start, BT_ALLOC_VMSIZE);
     return (retval) ? errno : retval;
 }
 
 
-int bt_arena_page_alloc(struct bt_arena *arena, size_t alloc_size, void **page_pp)
+int bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_pp)
 {
-    uint64_t *map_iter;
-    uint32_t r_count;
-    size_t new_max;
+    uint32_t region;
+    bt_alloc_page_region *hdr;
 
-    if (arena == NULL || alloc_size == 0 || page_pp == NULL) {
+    WT_ASSERT(NULL, alloc_size <= (BT_ALLOC_REGION_SIZE - sizeof(bt_alloc_page_region)));
+
+    if (allocator == NULL || alloc_size == 0 || page_pp == NULL) {
         return EINVAL;
     }
 
-    if (arena->region_count >= BT_ARENA_BITMAP_SIZE) {
-        /* how?: need warning log message as to why */
+    if (allocator->region_count >= BT_ALLOC_REGION_COUNT) {
+        /* TODO log error */
         return ENOMEM;
     }
 
-    WT_ASSERT(NULL, arena->region_highest <= arena->region_count);
-    /* which branch is unlikely??? */
-    if (arena->region_highest == arena->region_count) {
-        /*
-         * append a new region
-         *
-         * potentially sub-divides the available space for a region
-         */
-        r_count = arena->region_count + 1;
-        new_max = arena->vsize / next_highest_pow2(r_count);
-        if (new_max < arena->region_largest) {
-            /* how?: need warning log message as to why */
-            return ENOMEM;
-        }
-        arena->region_max = new_max;
-        WT_ASSERT(NULL, 0 && "not implemented");
+    region = allocator->region_first_free;
+    allocator->region_count++;
+    if (allocator->region_count < allocator->region_high) {
+        allocator->region_first_free = _next_free_region(allocator, region + 1);
     } else {
-        /*
-         * scan to find the first free region
-         *
-         * guaranteed to exist by earlier region count check
-         */
-        for (map_iter = (void *)&arena->region_map; *map_iter != 0; ++map_iter) {
-            WT_ASSERT(NULL, ((uintptr_t)map_iter - (uintptr_t)&arena->region_map) < BT_ARENA_BITMAP_SIZE_BYTES);
-        }
-        WT_ASSERT(NULL, 0 && "not implemented");
+        allocator->region_first_free = allocator->region_count + 1;
     }
+
+    hdr = _region_ptr(allocator, region);
+    hdr->used = alloc_size;
+    hdr->spill = BT_ALLOC_INVALID_REGION;
+    hdr->last_giant = BT_ALLOC_GIANT_END;
+    *page_pp = _region_offset_ptr(allocator, region, sizeof(hdr));
+
+    return 0;
+}
+
+
+int bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
+{
+    uintptr_t paddr;
+    bt_alloc_page_region *hdr;
+
+    if (allocator == NULL || page == NULL) {
+        return EINVAL;
+    }
+
+    paddr = (uintptr_t)page;
+    if (paddr < allocator->vmem_start || paddr >= (allocator->vmem_start + BT_ALLOC_VMSIZE)) {
+        /* TODO log error */
+        return EINVAL;
+    }
+
+    hdr = (void *)page;
+    if (hdr->last_giant != BT_ALLOC_GIANT_END) {
+        /* TODO Free giant allocation sequence. */
+        WT_ASSERT(NULL, 0 && "Not implemented.");
+    }
+
+    /* TODO Iterate spill regions associated with this page. Decommit each region, and mark free in
+     * the region map. */
 
     return ENOTSUP;
 }
 
-int bt_arena_page_free(struct bt_arena *arena, WT_PAGE *page)
+
+static size_t
+_free_mem_in_region(bt_alloc_page_region *pghdr)
 {
-    if (arena == NULL || page == NULL) {
+    return BT_ALLOC_REGION_SIZE - sizeof(*pghdr) - pghdr->used;
+}
+
+
+int bt_alloc_zalloc(bt_allocator *alloc, size_t alloc_size, WT_PAGE *page, void **mem_pp)
+{
+    bt_alloc_page_region *pghdr;
+
+    if (alloc == NULL || page == NULL || mem_pp == NULL) {
         return EINVAL;
     }
-    WT_ASSERT(NULL, 0 && "not implemented");
+
+    if (alloc_size == 0) {
+        *mem_pp = NULL;
+        return 0;
+    }
+
+    pghdr = (void *)((uintptr_t)page - sizeof(bt_alloc_page_region));
+    if (alloc_size < _free_mem_in_region(pghdr)) {
+        /* Allocate out of this region. */
+        WT_ASSERT(NULL, 0 && "Not implemented.");
+    }
+
     return ENOTSUP;
 }
