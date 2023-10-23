@@ -87,3 +87,40 @@ __wt_upd_custom_alloc_row_leaf(
     WT_UNUSED(page);
     return (__wt_calloc(session, 1, allocsz, updp));
 }
+
+/* ---------------------------------------------------------------------------- */
+
+/* This will need to hang off the btree somewhere. */
+struct bt_arena {
+    /* virtual memory */
+    size_t vsize;
+    void  *vmem;
+
+    /* concurrency protection? */
+
+    uint32_t region_count;      /* used to infer maximal region size */
+    size_t largest;             /* size of largest region in bytes */
+    uint8_t region_map[];       /* bitmap of utilized regions */
+};
+
+/*
+ * Page Region header
+ * u32 : amount allocated -- enough?
+ * u32 : pad
+ * u32 : offset of first regular alloc ptr
+ * u32 : pad
+ */
+
+struct bt_region_header {
+    uint32_t region_used;
+    uint32_t pad1_;
+    uint32_t offset;
+    uint32_t pad2_;
+};
+
+int bt_arena_ctor(struct bt_arena *arena, size_t vmem_size);
+int bt_arena_dtor(struct bt_arena *arena);
+int bt_arena_page_alloc(struct bt_arena *arena, size_t alloc_size, void **page_pp);
+int bt_arena_page_free(struct bt_arena *arena, WT_PAGE *page);
+int bt_arena_zalloc(struct bt_arena *arena, size_t alloc_size, void **page_pp);
+int bt_arena_free(struct bt_arena *arena, size_t alloc_size, void **page_pp);
