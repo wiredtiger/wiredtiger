@@ -90,6 +90,10 @@ __wt_upd_custom_alloc_row_leaf(
 
 /* ---------------------------------------------------------------------------- */
 
+/* potentially overkill consider winding down to 1024 */
+#define BT_ARENA_BITMAP_SIZE (4096u * 8u)
+#define BT_ARENA_BITMAP_SIZE_BYTES ((BT_ARENA_BITMAP_SIZE) >> 3)
+
 /* This will need to hang off the btree somewhere. */
 struct bt_arena {
     /* virtual memory */
@@ -98,9 +102,9 @@ struct bt_arena {
 
     /* concurrency protection? */
 
-    uint32_t region_count;      /* used to infer maximal region size */
-    size_t largest;             /* size of largest region in bytes */
-    uint8_t region_map[];       /* bitmap of utilized regions */
+    uint32_t region_count;                          /* used to infer maximal region size */
+    size_t largest;                                 /* size of largest region in bytes */
+    uint8_t region_map[BT_ARENA_BITMAP_SIZE_BYTES]; /* bitmap of utilized regions */
 };
 
 /*
@@ -110,7 +114,6 @@ struct bt_arena {
  * u32 : offset of first regular alloc ptr
  * u32 : pad
  */
-
 struct bt_region_header {
     uint32_t region_used;
     uint32_t pad1_;
@@ -127,3 +130,16 @@ int bt_arena_page_free(struct bt_arena *arena, WT_PAGE *page);
 /* zero-ed memory without the extra calloc parameter */
 int bt_arena_zalloc(struct bt_arena *arena, size_t alloc_size, WT_PAGE *page, void **mem_pp);
 int bt_arena_free(struct bt_arena *arena, size_t alloc_size, WT_PAGE *page, void *mem_p);
+
+int bt_arena_ctor(struct bt_arena *arena, size_t vmem_size)
+{
+    if (arena == NULL || vmem_size == 0) {
+        return EINVAL;
+    }
+    /* reserve virtual memory */
+    /* initialize bitmap */
+    /* initialize arena */
+    return ENOTSUP;
+}
+
+int bt_arena_dtor(struct bt_arena *arena);
