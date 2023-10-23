@@ -1953,6 +1953,7 @@ extern void __wt_optrack_record_funcid(
 extern void __wt_os_stdio(WT_SESSION_IMPL *session);
 extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_page_custom_free_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
 extern void __wt_print_huffman_code(void *huffman_arg, uint16_t symbol);
 extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)

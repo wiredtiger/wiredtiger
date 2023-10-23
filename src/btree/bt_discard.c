@@ -114,8 +114,14 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         return;
 
     /* Free the page modification information. */
+    /* TODO custom version of this call for row leaf? Or push the custom thing further down? */
     if (page->modify != NULL)
         __free_page_modify(session, page);
+
+    if (page->type == WT_PAGE_ROW_LEAF) {
+        __wt_page_custom_free_row_leaf(session, page);
+        return;
+    }
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:

@@ -61,7 +61,7 @@ __wt_page_alloc(
     }
 
     if (type == WT_PAGE_ROW_LEAF)
-        WT_RET(__wt_page_custom_alloc_row_leaf(session, alloc_entries, pagep));
+        WT_RET(__wt_page_custom_alloc_row_leaf(session, alloc_entries, &page));
     else
         WT_RET(__wt_calloc(session, 1, size, &page));
 
