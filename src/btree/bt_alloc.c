@@ -120,7 +120,10 @@ struct bt_region_header {
 
 int bt_arena_ctor(struct bt_arena *arena, size_t vmem_size);
 int bt_arena_dtor(struct bt_arena *arena);
+
 int bt_arena_page_alloc(struct bt_arena *arena, size_t alloc_size, void **page_pp);
 int bt_arena_page_free(struct bt_arena *arena, WT_PAGE *page);
-int bt_arena_zalloc(struct bt_arena *arena, size_t alloc_size, void **page_pp);
-int bt_arena_free(struct bt_arena *arena, size_t alloc_size, void **page_pp);
+
+/* zero-ed memory without the extra calloc parameter */
+int bt_arena_zalloc(struct bt_arena *arena, size_t alloc_size, WT_PAGE *page, void **mem_pp);
+int bt_arena_free(struct bt_arena *arena, size_t alloc_size, WT_PAGE *page, void *mem_p);
