@@ -491,7 +491,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         /* Retrieve the time window from the history cursor. */
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
         WT_ASSERT(session, hs_tw->start_ts < tw->start_ts || hs_tw->start_txn < tw->start_txn);
-        WT_ERR(__wt_upd_alloc(session, full_value, WT_UPDATE_STANDARD, &upd, NULL));
+        WT_ERR(__wt_upd_alloc(session, page, full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
         /*
          * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because the
@@ -532,7 +532,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               hs_stop_durable_ts == WT_TS_NONE || hs_stop_durable_ts < newer_hs_durable_ts ||
                 tw->prepare);
 
-            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+            WT_ERR(__wt_upd_alloc_tombstone(session, page, &tombstone, NULL));
             /*
              * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because
              * the connections write generation will be initialized after rollback to stable and the
@@ -562,7 +562,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
         }
     } else {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+        WT_ERR(__wt_upd_alloc_tombstone(session, page, &upd, NULL));
         WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
           WT_RTS_VERB_TAG_KEY_REMOVED "%s", "key removed");
@@ -654,7 +654,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
               __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[2]),
               __wt_timestamp_to_string(tw->stop_ts, ts_string[3]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
-            WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
+            WT_RET(__wt_upd_alloc_tombstone(session, page, &upd, NULL));
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_sweep_hs_keys);
         } else
             return (0);
@@ -680,7 +680,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
              * chain, so we should only get here for a key/value that never existed at all as of the
              * rollback timestamp; thus, deleting it is the correct response.
              */
-            WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
+            WT_RET(__wt_upd_alloc_tombstone(session, page, &upd, NULL));
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(tw) &&
@@ -702,7 +702,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
                  * In-memory database don't have a history store to provide a stable update, so
                  * remove the key.
                  */
-                WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
+                WT_RET(__wt_upd_alloc_tombstone(session, page, &upd, NULL));
                 WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
             }
         } else {
@@ -712,7 +712,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
              */
             WT_RET(__wt_scr_alloc(session, 0, &tmp));
             if ((ret = __wt_page_cell_data_ref_kv(session, page, vpack, tmp)) == 0)
-                ret = __wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &upd, NULL);
+                ret = __wt_upd_alloc(session, page, tmp, WT_UPDATE_STANDARD, &upd, NULL);
             __wt_scr_free(session, &tmp);
             WT_RET(ret);
 

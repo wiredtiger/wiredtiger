@@ -75,3 +75,15 @@ __wt_page_custom_free_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     __wt_overwrite_and_free(session, page);
 }
+
+/*
+ * __wt_upd_custom_alloc_row_leaf --
+ *     Words to make s all happy.
+ */
+int
+__wt_upd_custom_alloc_row_leaf(
+  WT_SESSION_IMPL *session, WT_PAGE *page, size_t allocsz, WT_UPDATE **updp)
+{
+    WT_UNUSED(page);
+    return (__wt_calloc(session, 1, allocsz, updp));
+}

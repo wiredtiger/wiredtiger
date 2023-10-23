@@ -993,8 +993,8 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *     Allocate a WT_UPDATE structure and associated value and fill it in.
  */
 static inline int
-__wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type, WT_UPDATE **updp,
-  size_t *sizep)
+__wt_upd_alloc(WT_SESSION_IMPL *session, WT_PAGE *page, const WT_ITEM *value, u_int modify_type,
+  WT_UPDATE **updp, size_t *sizep)
 {
     WT_UPDATE *upd;
     size_t allocsz; /* Allocation size in bytes. */
@@ -1026,7 +1026,12 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
      *    WT_UPDATE.prepare_state = WT_PREPARE_INIT;
      *    WT_UPDATE.flags = 0;
      */
-    WT_RET(__wt_calloc(session, 1, allocsz, &upd));
+    if (page != NULL && page->type == WT_PAGE_ROW_LEAF) {
+        WT_RET(__wt_upd_custom_alloc_row_leaf(session, page, allocsz, &upd));
+    } else {
+        WT_RET(__wt_calloc(session, 1, allocsz, &upd));
+    }
+
     if (value != NULL && value->size != 0) {
         upd->size = WT_STORE_SIZE(value->size);
         memcpy(upd->data, value->data, value->size);
@@ -1044,9 +1049,9 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
  *     Allocate a tombstone update.
  */
 static inline int
-__wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *sizep)
+__wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **updp, size_t *sizep)
 {
-    return (__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, updp, sizep));
+    return (__wt_upd_alloc(session, page, NULL, WT_UPDATE_TOMBSTONE, updp, sizep));
 }
 
 /*

@@ -158,7 +158,7 @@ __rec_append_orig_value(
             if (unpack->tw.durable_stop_ts != WT_TS_NONE && tombstone_globally_visible)
                 return (0);
 
-            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+            WT_ERR(__wt_upd_alloc_tombstone(session, page, &tombstone, &size));
             total_size += size;
             tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
@@ -188,7 +188,7 @@ __rec_append_orig_value(
          */
         WT_ASSERT(session,
           unpack->cell == NULL || __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
-        WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
+        WT_ERR(__wt_upd_alloc(session, page, tmp, WT_UPDATE_STANDARD, &append, &size));
         total_size += size;
         append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;

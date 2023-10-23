@@ -1754,6 +1754,8 @@ extern int __wt_txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_time
 extern int __wt_unexpected_object_type(
   WT_SESSION_IMPL *session, const char *uri, const char *expect) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_upd_custom_alloc_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, size_t allocsz,
+  WT_UPDATE **updp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_update_vector_push(WT_UPDATE_VECTOR *updates, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_upgrade(WT_SESSION_IMPL *session, const char *cfg[])
@@ -2371,10 +2373,11 @@ static inline int __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_C
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type,
+static inline int __wt_upd_alloc(WT_SESSION_IMPL *session, WT_PAGE *page, const WT_ITEM *value,
+  u_int modify_type, WT_UPDATE **updp, size_t *sizep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_PAGE *page,
   WT_UPDATE **updp, size_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp,
-  size_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
   WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

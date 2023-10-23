@@ -127,8 +127,8 @@ err:
  *     Create the actual update for a prepared value.
  */
 static int
-__page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
+__page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *value,
+  WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
 {
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
@@ -140,7 +140,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     tombstone = upd = NULL;
     total_size = 0;
 
-    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
+    WT_RET(__wt_upd_alloc(session, page, value, WT_UPDATE_STANDARD, &upd, &size));
     total_size += size;
     upd->durable_ts = unpack->tw.durable_start_ts;
     upd->start_ts = unpack->tw.start_ts;
@@ -153,7 +153,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
      * the prepared transaction gets rollback.
      */
     if (WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+        WT_ERR(__wt_upd_alloc_tombstone(session, page, &tombstone, &size));
         total_size += size;
         tombstone->durable_ts = WT_TS_NONE;
         tombstone->start_ts = unpack->tw.stop_ts;
@@ -196,10 +196,11 @@ err:
  *     Shared code for calling __page_inmem_prepare_update on columns.
  */
 static int
-__page_inmem_prepare_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt,
-  uint64_t recno, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
+__page_inmem_prepare_update_col(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref,
+  WT_CURSOR_BTREE *cbt, uint64_t recno, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp,
+  size_t *sizep)
 {
-    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, sizep));
+    WT_RET(__page_inmem_prepare_update(session, page, value, unpack, updp, sizep));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
@@ -263,7 +264,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
             for (; rle > 0; --rle, ++recno) {
                 /* Create an update to resolve the prepare. */
                 WT_ERR(__page_inmem_prepare_update_col(
-                  session, ref, &cbt, recno, value, &unpack, &upd, &size));
+                  session, page, ref, &cbt, recno, value, &unpack, &upd, &size));
                 total_size += size;
                 upd = NULL;
             }
@@ -286,7 +287,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* Create an update to resolve the prepare. */
             WT_ERR(__page_inmem_prepare_update_col(
-              session, ref, &cbt, recno, value, &unpack, &upd, &size));
+              session, page, ref, &cbt, recno, value, &unpack, &upd, &size));
             total_size += size;
             upd = NULL;
         }
@@ -304,7 +305,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(__wt_page_cell_data_ref_kv(session, page, &unpack, value));
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
               "Should never read an overflow removed value for a prepared update");
-            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_prepare_update(session, page, value, &unpack, &upd, &size));
             total_size += size;
 
             /* Search the page and apply the modification. */

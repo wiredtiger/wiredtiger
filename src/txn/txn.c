@@ -817,7 +817,7 @@ __txn_prepare_rollback_restore_hs_update(
 
     /* Use time window in cell to initialize the update. */
     __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-    WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
+    WT_ERR(__wt_upd_alloc(session, page, hs_value, WT_UPDATE_STANDARD, &upd, &size));
     upd->txnid = hs_tw->start_txn;
     upd->durable_ts = hs_tw->durable_start_ts;
     upd->start_ts = hs_tw->start_ts;
@@ -837,7 +837,7 @@ __txn_prepare_rollback_restore_hs_update(
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
         WT_ASSERT(session, hs_tw->stop_ts != WT_TS_MAX);
-        WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
+        WT_ERR(__wt_upd_alloc(session, page, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
         tombstone->durable_ts = hs_tw->durable_stop_ts;
         tombstone->start_ts = hs_tw->stop_ts;
         tombstone->txnid = hs_tw->stop_txn;
@@ -1127,7 +1127,7 @@ __txn_search_prepared_op(
  *     Append a tombstone to the end of a keys update chain.
  */
 static int
-__txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE *cbt)
+__txn_append_tombstone(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TXN_OP *op, WT_CURSOR_BTREE *cbt)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1136,7 +1136,7 @@ __txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE 
     tombstone = NULL;
     btree = S2BT(session);
 
-    WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
+    WT_ERR(__wt_upd_alloc_tombstone(session, page, &tombstone, &not_used));
     WT_WITH_BTREE(session, op->btree,
       ret = btree->type == BTREE_ROW ?
         __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false) :
@@ -1442,7 +1442,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             if (!commit)
-                WT_ERR(__txn_append_tombstone(session, op, cbt));
+                WT_ERR(__txn_append_tombstone(session, page, op, cbt));
         }
         break;
     case RESOLVE_IN_MEMORY:
@@ -1459,7 +1459,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
             if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
-                WT_ERR(__txn_append_tombstone(session, op, cbt));
+                WT_ERR(__txn_append_tombstone(session, page, op, cbt));
         }
         break;
     default:

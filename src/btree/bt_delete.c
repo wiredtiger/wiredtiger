@@ -420,12 +420,12 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
  *     Allocate and initialize a page-deleted tombstone update structure.
  */
 static int
-__tombstone_update_alloc(
-  WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, WT_UPDATE **updp, size_t *sizep)
+__tombstone_update_alloc(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_DELETED *page_del,
+  WT_UPDATE **updp, size_t *sizep)
 {
     WT_UPDATE *upd;
 
-    WT_RET(__wt_upd_alloc_tombstone(session, &upd, sizep));
+    WT_RET(__wt_upd_alloc_tombstone(session, page, &upd, sizep));
     F_SET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE);
 
     /*
@@ -447,7 +447,7 @@ __tombstone_update_alloc(
  *     Instantiate a single tombstone on a page.
  */
 static inline int
-__instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
+__instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_DELETED *page_del,
   WT_UPDATE **update_list, uint32_t *countp, const WT_TIME_WINDOW *tw, WT_UPDATE **updp,
   size_t *sizep)
 {
@@ -461,7 +461,7 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
     if (WT_TIME_WINDOW_HAS_STOP(tw))
         *updp = NULL;
     else {
-        WT_RET(__tombstone_update_alloc(session, page_del, updp, sizep));
+        WT_RET(__tombstone_update_alloc(session, page, page_del, updp, sizep));
 
         if (update_list != NULL)
             update_list[(*countp)++] = *updp;
@@ -519,7 +519,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
         /* Delete each key. */
         for (j = 0; j < rle; j++) {
             WT_ERR(__instantiate_tombstone(
-              session, page_del, update_list, countp, &unpack.tw, &upd, NULL));
+              session, page, page_del, update_list, countp, &unpack.tw, &upd, NULL));
             if (upd != NULL) {
                 /* Position the cursor on the page. */
                 WT_ERR(__wt_col_search(&cbt, recno + j, ref, true /*leaf_safe*/, NULL));
@@ -582,7 +582,8 @@ __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_d
         /* Retrieve the stop time point from the page's row. */
         __wt_read_row_time_window(session, page, rip, &tw);
 
-        WT_RET(__instantiate_tombstone(session, page_del, update_list, countp, &tw, &upd, &size));
+        WT_RET(
+          __instantiate_tombstone(session, page, page_del, update_list, countp, &tw, &upd, &size));
         if (upd != NULL) {
             upd->next = upd_array[WT_ROW_SLOT(page, rip)];
             upd_array[WT_ROW_SLOT(page, rip)] = upd;

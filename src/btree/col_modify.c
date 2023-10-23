@@ -130,7 +130,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             WT_ERR(__wt_txn_modify_check(session, cbt, old_upd, &prev_upd_ts, modify_type));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
-            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
+            WT_ERR(__wt_upd_alloc(session, page, value, modify_type, &upd, &upd_size));
             upd->prev_durable_ts = prev_upd_ts;
             WT_ERR(__wt_txn_modify(session, upd));
             added_to_txn = true;
@@ -212,7 +212,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             (recno != WT_RECNO_OOB && mod->mod_col_split_recno > recno));
 
         if (upd_arg == NULL) {
-            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
+            WT_ERR(__wt_upd_alloc(session, page, value, modify_type, &upd, &upd_size));
             upd->prev_durable_ts = prev_upd_ts;
             WT_ERR(__wt_txn_modify(session, upd));
             added_to_txn = true;

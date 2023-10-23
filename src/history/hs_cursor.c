@@ -164,7 +164,10 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
         while (upd_type == WT_UPDATE_MODIFY) {
-            WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &mod_upd, NULL));
+            WT_ERR(__wt_upd_alloc(session,
+              ((WT_CURSOR_BTREE *)hs_cursor)->ref ? ((WT_CURSOR_BTREE *)hs_cursor)->ref->page :
+                                                    NULL,
+              hs_value, upd_type, &mod_upd, NULL));
             WT_ERR(__wt_update_vector_push(&modifies, mod_upd));
             mod_upd = NULL;
 
