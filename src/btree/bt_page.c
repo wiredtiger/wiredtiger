@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -445,16 +445,24 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
         __wt_cache_page_image_incr(session, page);
 
     /* Link the new internal page to the parent. */
+    page->pg_intl_parent_ref = NULL;
     if (ref != NULL) {
         switch (page->type) {
         case WT_PAGE_COL_INT:
         case WT_PAGE_ROW_INT:
             page->pg_intl_parent_ref = ref;
+            printf("Setting the parent reference: %p for page %p\n", (void*) ref, (void*)page);
             break;
+        default:
+            page->pg_intl_parent_ref = NULL;
+            printf("Parent reference NOT set for page %p, type %d\n", (void*)page, page->type);
         }
         ref->page = page;
     }
-
+    else {
+        page->pg_intl_parent_ref = NULL;
+        printf("NOT Setting the parent reference for page %p type %d\n", (void*)page, page->type);
+    }
     *pagep = page;
     return (0);
 
