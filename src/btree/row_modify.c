@@ -290,7 +290,7 @@ err:
 
             /* Discard any allocated update, unless we failed after linking it into page memory. */
             if (upd_arg == NULL)
-                __wt_free(session, upd);
+                __wt_upd_free(session, page, &upd);
 
             /*
              * When prepending a list of updates to an update chain, we link them together; sever
@@ -429,7 +429,7 @@ __wt_update_obsolete_check(
     }
 
     if (next != NULL)
-        __wt_free_update_list(session, &next);
+        __wt_free_update_list(session, page, &next);
     else {
         /*
          * If the list is long, don't retry checks on this page until the transaction state has

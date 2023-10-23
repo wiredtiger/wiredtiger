@@ -185,7 +185,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *va
     return (0);
 
 err:
-    __wt_free(session, upd);
+    __wt_upd_free(session, page, &upd);
     __wt_free(session, tombstone);
 
     return (ret);
@@ -319,7 +319,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 
     if (0) {
 err:
-        __wt_free_update_list(session, &upd);
+        __wt_free_update_list(session, page, &upd);
     }
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_scr_free(session, &key);

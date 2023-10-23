@@ -199,7 +199,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         while (modifies.size > 0) {
             __wt_update_vector_pop(&modifies, &mod_upd);
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
-            __wt_free_update_list(session, &mod_upd);
+            __wt_free_update_list(session, NULL, &mod_upd); /* TODO - null page? */
         }
         WT_STAT_CONN_DATA_INCR(session, cache_hs_read_squash);
     }
@@ -223,10 +223,10 @@ err:
         __wt_scr_free(session, &hs_value);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
-    __wt_free_update_list(session, &mod_upd);
+    __wt_free_update_list(session, NULL, &mod_upd); /* TODO - null page? */
     while (modifies.size > 0) {
         __wt_update_vector_pop(&modifies, &mod_upd);
-        __wt_free_update_list(session, &mod_upd);
+        __wt_free_update_list(session, NULL, &mod_upd); /* TODO - null page? */
     }
     __wt_update_vector_free(&modifies);
 

@@ -88,6 +88,38 @@ __wt_upd_custom_alloc_row_leaf(
     return (__wt_calloc(session, 1, allocsz, updp));
 }
 
+/*
+ * __upd_custom_free --
+ *     Words to make s all happy.
+ */
+static void
+__upd_custom_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
+{
+    /*
+     * TODO - can probably be a no-nop, since updates are freed when the page is freed.
+     */
+    WT_UNUSED(page);
+    __wt_free(session, upd);
+}
+
+/*
+ * __wt_upd_free --
+ *     Words to make s all happy.
+ */
+void
+__wt_upd_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **updp)
+{
+    WT_UPDATE *upd;
+
+    upd = *updp;
+    *updp = NULL;
+
+    if (page && page->type == WT_PAGE_ROW_LEAF)
+        __upd_custom_free(session, page, upd);
+    else
+        __wt_free(session, upd);
+}
+
 /* ---------------------------------------------------------------------------- */
 
 /* potentially overkill consider winding down to 1024 */

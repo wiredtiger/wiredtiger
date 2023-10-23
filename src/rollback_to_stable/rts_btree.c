@@ -587,7 +587,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     if (0) {
 err:
         WT_ASSERT(session, tombstone == NULL || upd == tombstone);
-        __wt_free_update_list(session, &upd);
+        __wt_free_update_list(session, page, &upd);
     }
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &hs_key);
@@ -602,7 +602,7 @@ err:
          * Dry runs don't modify the database so any upd structure allocated by this function is not
          * in use and must be cleaned up.
          */
-        __wt_free_update_list(session, &upd);
+        __wt_free_update_list(session, page, &upd);
     return (ret);
 }
 
@@ -779,7 +779,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
 
     if (S2C(session)->rts->dryrun) {
 err:
-        __wt_free(session, upd);
+        __wt_upd_free(session, page, &upd);
     }
     if (rip == NULL || row_key == NULL)
         __wt_scr_free(session, &key);

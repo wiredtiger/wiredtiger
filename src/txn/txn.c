@@ -874,7 +874,7 @@ __txn_prepare_rollback_restore_hs_update(
     if (0) {
 err:
         WT_ASSERT(session, tombstone == NULL || upd == tombstone);
-        __wt_free_update_list(session, &upd);
+        __wt_free_update_list(session, page, &upd);
     }
     __wt_scr_free(session, &hs_value);
     return (ret);

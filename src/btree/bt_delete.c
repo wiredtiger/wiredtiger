@@ -540,7 +540,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     WT_ASSERT(session, WT_COL_APPEND(page) == NULL);
 
 err:
-    __wt_free(session, upd);
+    __wt_upd_free(session, page, &upd);
 
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
@@ -715,6 +715,6 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     return (0);
 
 err:
-    __wt_free(session, update_list);
+    __wt_upd_free(session, page, update_list);
     return (ret);
 }

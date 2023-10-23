@@ -268,7 +268,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         if ((ret = __wt_txn_modify_check(
                session, cbt, upd->next = *srch_upd, &prev_upd_ts, upd->type)) != 0) {
             /* Free unused memory on error. */
-            __wt_free(session, upd);
+            __wt_upd_free(session, page, &upd);
             return (ret);
         }
     }

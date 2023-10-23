@@ -299,7 +299,7 @@ err:
 
             /* Discard any allocated update, unless we failed after linking it into page memory. */
             if (upd_arg == NULL)
-                __wt_free(session, upd);
+                __wt_upd_free(session, page, &upd);
 
             /*
              * When prepending a list of updates to an update chain, we link them together; sever

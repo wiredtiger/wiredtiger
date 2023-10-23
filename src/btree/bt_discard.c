@@ -13,9 +13,9 @@ static void __free_page_col_fix(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_col_var(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_int(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
-static void __free_skip_array(WT_SESSION_IMPL *, WT_INSERT_HEAD **, uint32_t, bool);
-static void __free_skip_list(WT_SESSION_IMPL *, WT_INSERT *, bool);
-static void __free_update(WT_SESSION_IMPL *, WT_UPDATE **, uint32_t, bool);
+static void __free_skip_array(WT_SESSION_IMPL *, WT_PAGE *, WT_INSERT_HEAD **, uint32_t, bool);
+static void __free_skip_list(WT_SESSION_IMPL *, WT_PAGE *, WT_INSERT *, bool);
+static void __free_update(WT_SESSION_IMPL *, WT_PAGE *, WT_UPDATE **, uint32_t, bool);
 
 /*
  * __wt_ref_out --
@@ -209,14 +209,14 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     case WT_PAGE_COL_VAR:
         /* Free the append array. */
         if ((append = WT_COL_APPEND(page)) != NULL) {
-            __free_skip_list(session, WT_SKIP_FIRST(append), update_ignore);
+            __free_skip_list(session, page, WT_SKIP_FIRST(append), update_ignore);
             __wt_free(session, append);
             __wt_free(session, mod->mod_col_append);
         }
 
         /* Free the insert/update array. */
         if (mod->mod_col_update != NULL)
-            __free_skip_array(session, mod->mod_col_update,
+            __free_skip_array(session, page, mod->mod_col_update,
               page->type == WT_PAGE_COL_FIX ? 1 : page->entries, update_ignore);
         break;
     case WT_PAGE_ROW_LEAF:
@@ -227,11 +227,11 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * extra slot to hold keys that sort before keys found on the original page).
          */
         if (mod->mod_row_insert != NULL)
-            __free_skip_array(session, mod->mod_row_insert, page->entries + 1, update_ignore);
+            __free_skip_array(session, page, mod->mod_row_insert, page->entries + 1, update_ignore);
 
         /* Free the update array. */
         if (mod->mod_row_update != NULL)
-            __free_update(session, mod->mod_row_update, page->entries, update_ignore);
+            __free_update(session, page, mod->mod_row_update, page->entries, update_ignore);
         break;
     }
 
@@ -438,7 +438,7 @@ __free_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
  */
 static void
 __free_skip_array(
-  WT_SESSION_IMPL *session, WT_INSERT_HEAD **head_arg, uint32_t entries, bool update_ignore)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD **head_arg, uint32_t entries, bool update_ignore)
 {
     WT_INSERT_HEAD **head;
 
@@ -448,11 +448,12 @@ __free_skip_array(
      */
     for (head = head_arg; entries > 0; --entries, ++head)
         if (*head != NULL) {
-            __free_skip_list(session, WT_SKIP_FIRST(*head), update_ignore);
+            __free_skip_list(session, page, WT_SKIP_FIRST(*head), update_ignore);
             __wt_free(session, *head);
         }
 
     /* Free the header array. */
+    /* TODO should head structures come from the custom allocator? */
     __wt_free(session, head_arg);
 }
 
@@ -462,13 +463,13 @@ __free_skip_array(
  *     structure and its associated chain of WT_UPDATE structures.
  */
 static void
-__free_skip_list(WT_SESSION_IMPL *session, WT_INSERT *ins, bool update_ignore)
+__free_skip_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT *ins, bool update_ignore)
 {
     WT_INSERT *next;
 
     for (; ins != NULL; ins = next) {
         if (!update_ignore)
-            __wt_free_update_list(session, &ins->upd);
+            __wt_free_update_list(session, page, &ins->upd);
         next = WT_SKIP_NEXT(ins);
         __wt_free(session, ins);
     }
@@ -479,8 +480,8 @@ __free_skip_list(WT_SESSION_IMPL *session, WT_INSERT *ins, bool update_ignore)
  *     Discard the update array.
  */
 static void
-__free_update(
-  WT_SESSION_IMPL *session, WT_UPDATE **update_head, uint32_t entries, bool update_ignore)
+__free_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **update_head, uint32_t entries,
+  bool update_ignore)
 {
     WT_UPDATE **updp;
 
@@ -490,10 +491,10 @@ __free_update(
      */
     if (!update_ignore)
         for (updp = update_head; entries > 0; --entries, ++updp)
-            __wt_free_update_list(session, updp);
+            __wt_free_update_list(session, page, updp);
 
     /* Free the update array. */
-    __wt_free(session, update_head);
+    __wt_upd_free(session, page, update_head);
 }
 
 /*
@@ -502,13 +503,13 @@ __free_update(
  *     structure and its associated data.
  */
 void
-__wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
+__wt_free_update_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **updp)
 {
     WT_UPDATE *next, *upd;
 
     for (upd = *updp; upd != NULL; upd = next) {
         next = upd->next;
-        __wt_free(session, upd);
+        __wt_upd_free(session, page, &upd);
     }
     *updp = NULL;
 }
