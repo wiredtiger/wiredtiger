@@ -53,6 +53,7 @@ function(get_gnu_base_flags flags)
     # The unsafe-loop-optimizations warning is only enabled for specific gcc versions.
     # Regardless, don't fail when it's configured.
     list(APPEND gnu_flags "-Wno-error=unsafe-loop-optimizations")
+    list(APPEND gnu_flags "-Wno-error=packed")
 
     if(${cmake_compiler_version} VERSION_EQUAL 4.7)
         list(APPEND gnu_flags "-Wno-c11-extensions")
@@ -115,6 +116,7 @@ function(get_clang_base_flags flags)
     set(clang_flags)
 
     list(APPEND clang_flags "-Werror")
+    list(APPEND clang_flags "-Wno-error=packed")
     list(APPEND clang_flags "-Wno-cast-align")
     list(APPEND clang_flags "-Wno-documentation-unknown-command")
     list(APPEND clang_flags "-Wno-format-nonliteral")
