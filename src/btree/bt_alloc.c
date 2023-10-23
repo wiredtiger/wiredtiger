@@ -15,12 +15,18 @@
 int
 __wt_page_custom_alloc_row_leaf(WT_SESSION_IMPL *session, uint32_t entries, WT_PAGE **pagep)
 {
+    WT_BTREE *tree;
     WT_PAGE *page;
     size_t size;
 
+    tree = S2BT(session);
     size = sizeof(WT_PAGE) + (entries * sizeof(WT_ROW));
 
     WT_RET(__wt_calloc(session, 1, size, &page));
+
+    __wt_verbose_info(session, WT_VERB_BT_ALLOC,
+      "[ALLOC_LEAF] tree_id=%" PRIu32 " page_addr=%p entries=%" PRIu32 " sz=%" WT_SIZET_FMT "B", tree->id, page, entries,
+      size);
 
     page->pg_row = entries == 0 ? NULL : (WT_ROW *)((uint8_t *)page + sizeof(WT_PAGE));
 
@@ -59,13 +65,16 @@ __wt_page_custom_free_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_PAGE_HEADER *dsk;
     WT_ROW *rip;
-    uint32_t i;
+    uint32_t i, rows_freed;
 
     WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
 
     /* Free any allocated memory used by instantiated keys. */
-    WT_ROW_FOREACH (page, rip, i)
+    WT_ROW_FOREACH (page, rip, i) {
+        ++rows_freed;
         __row_leaf_key_free(session, page, rip);
+    }
+    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_LEAF] page_addr=%p freed=%" PRIu32, page, rows_freed);
 
     /* Discard any allocated disk image. */
     dsk = (WT_PAGE_HEADER *)page->dsk;
@@ -84,8 +93,13 @@ int
 __wt_upd_custom_alloc_row_leaf(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t allocsz, WT_UPDATE **updp)
 {
-    WT_UNUSED(page);
-    return (__wt_calloc(session, 1, allocsz, updp));
+    WT_DECL_RET;
+
+    ret = __wt_calloc(session, 1, allocsz, updp);
+
+    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[ALLOC_UPD] page_addr=%p upd_addr=%p size=%" WT_SIZET_FMT, page, *updp, allocsz);
+
+    return (ret);
 }
 
 /*
@@ -98,7 +112,7 @@ __upd_custom_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
     /*
      * TODO - can probably be a no-nop, since updates are freed when the page is freed.
      */
-    WT_UNUSED(page);
+    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_UPD] page_addr=%p upd_addr=%p", page, upd);
     __wt_free(session, upd);
 }
 

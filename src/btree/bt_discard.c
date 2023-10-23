@@ -437,8 +437,8 @@ __free_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Discard an array of skip list headers.
  */
 static void
-__free_skip_array(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD **head_arg, uint32_t entries, bool update_ignore)
+__free_skip_array(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD **head_arg,
+  uint32_t entries, bool update_ignore)
 {
     WT_INSERT_HEAD **head;
 
