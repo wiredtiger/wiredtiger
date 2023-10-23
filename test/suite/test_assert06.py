@@ -56,6 +56,9 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
                 'durable_timestamp=' + self.timestamp_str(timestamp))
 
     def test_timestamp_alter(self):
+        if wiredtiger.diagnostic_build():
+            self.skipTest('requires a non-diagnostic build')
+
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -116,6 +119,9 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         self.ignoreStdoutPatternIfExists(self.msg_usage)
 
     def test_timestamp_usage(self):
+        if wiredtiger.diagnostic_build():
+            self.skipTest('requires a non-diagnostic build')
+
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
