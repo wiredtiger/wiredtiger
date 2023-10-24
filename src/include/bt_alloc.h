@@ -35,7 +35,8 @@ typedef struct bt_allocator_ {
     uint32_t region_high;       /* Region high water mark. If region_high < region_count also
                                  * corresponds to first free page. */
 
-    _Alignas(size_t) uint8_t region_map[BT_ALLOC_REGION_COUNT / 8 ];
+    /* TODO alignas not working on will's compiler. */
+    uint8_t region_map[BT_ALLOC_REGION_COUNT / 8 ];
 } bt_allocator;
 
 
