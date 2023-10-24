@@ -57,7 +57,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
          */
         cap->threshold = ((cap->ckpt + cap->evict + cap->log) / 100) * WT_CAPACITY_PCT;
         if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
-            cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
+            cap->threshold = WT_MIN(WT_CAPACITY_MIN_THRESHOLD, WT_THROTTLE_MIN);
+            
         WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
     } else
         WT_STAT_CONN_SET(session, capacity_threshold, 0);
