@@ -160,6 +160,14 @@ _region_offset_ptr(bt_allocator *allocator, uint32_t region, uint32_t offset)
 }
 
 
+static uint32_t
+_ptr_to_region_id(bt_allocator *allocator, void *ptr)
+{
+    uintptr_t addr;
+    addr = (uintptr_t)ptr;
+    return (uint32_t)((addr - allocator->vmem_start) / BT_ALLOC_REGION_SIZE);
+}
+
 int 
 bt_alloc_ctor(bt_allocator *allocator)
 {
@@ -304,6 +312,7 @@ _free_spill_pages(bt_allocator *allocator, bt_alloc_prh *pghdr)
             __wt_verbose(NULL, WT_VERB_BT_ALLOC,
               "bt_alloc posix_madvise error: %s", strerror(errno));
         }
+        allocator->region_count--;
 
         next = spillhdr->next_spill;
     }
@@ -393,7 +402,7 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
         ptr = _pr_free_mem_start(pghdr);
         pghdr->used += alloc_size;
     } else {
-        prev_rgn = BT_ALLOC_INVALID_REGION;
+        prev_rgn = _ptr_to_region_id(allocator, pghdr);
         curr_rgn = pghdr->spill;
         while (curr_rgn != BT_ALLOC_INVALID_REGION) {
             sphdr = _region_ptr(allocator, curr_rgn);
@@ -409,9 +418,19 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
                 return NULL;
             }
 
-            /* Add the newly allocated spill region. */
-            sphdr = _region_ptr(allocator, prev_rgn);
-            sphdr->next_spill = curr_rgn;
+            /* Initialize the new spill region. */
+            sphdr = _region_ptr(allocator, curr_rgn);
+            sphdr->next_spill = BT_ALLOC_INVALID_REGION;
+            sphdr->prior_region = prev_rgn;
+            sphdr->used = 0;
+
+            /* Link to the newly added spill region. */
+            if (pghdr == _region_ptr(allocator, prev_rgn)) {
+                pghdr->spill = curr_rgn;
+            } else {
+                sphdr = _region_ptr(allocator, prev_rgn);
+                sphdr->next_spill = curr_rgn;
+            }
         }
 
         sphdr = _region_ptr(allocator, curr_rgn);
