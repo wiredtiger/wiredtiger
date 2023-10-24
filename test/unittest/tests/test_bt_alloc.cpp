@@ -98,6 +98,27 @@ TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
 
     SECTION("zero_alloc")
     {
+        int ret;
+        bt_allocator allocator;
+        WT_PAGE *pagep;
+        void *memptr;
 
+        ret = bt_alloc_ctor(&allocator);
+        REQUIRE(ret == 0);
+
+        ret = bt_alloc_page_alloc(&allocator, 200 * 1024, &pagep);
+        REQUIRE(ret == 0);
+        REQUIRE(pagep != NULL);
+
+        ret = bt_alloc_zalloc(&allocator, 0, pagep, &memptr);
+        REQUIRE(ret == 0);
+        REQUIRE(memptr == NULL);
+
+        ret = bt_alloc_page_free(&allocator, pagep);
+        REQUIRE(ret == 0);
+        REQUIRE(pagep != NULL);
+
+        ret = bt_alloc_dtor(&allocator);
+        REQUIRE(ret == 0);
     }
 }
