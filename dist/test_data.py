@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This file is a python script that describes the cpp test framework test configuration options.
 
 class Method:
@@ -126,7 +128,7 @@ checkpoint_operation_thread_config = [
         The rate at which checkpoint is executed.''')
 ]
 
-background_compact_thread_config = [
+background_compact_thread_config = throttle_config + [
     Config('thread_count', 0, r'''
         Specifies the number of threads that will be used to perform background compaction
            operation.''',
@@ -228,18 +230,21 @@ test_config = [
         type='category', subconfig=operation_tracker),
 
 # Non component top level configuration.
+    Config('background_compact_debug_mode', 'false', r'''
+        If true, background compact aggressively removes compact statistics for a file and decreases
+        the max amount of time a file can be skipped for.''', type='boolean'),
     Config('cache_max_wait_ms', 0, r'''
         The strict equivalent of cache_max_wait_ms defined in wiredtiger.''', min=0),
     Config('cache_size_mb', 0, r'''
         The cache size that wiredtiger will be configured to run with''', min=0, max=100000000000),
     Config('compression_enabled', 'false', r'''
         Whether the database files will use snappy compression or not.''', type='boolean'),
-    Config('reverse_collator', 'false', r'''
-        Configure the database files to use the reverse collator.''', type='boolean'),
     Config('duration_seconds', 0, r'''
         The duration that the test run will last''', min=0, max=1000000),
     Config('enable_logging', 'false', r'''
         Enables write ahead logs''', type='boolean'),
+    Config('reverse_collator', 'false', r'''
+        Configure the database files to use the reverse collator.''', type='boolean'),
     Config('statistics_config', '', r'''
         Statistic configuration that is passed into wiredtiger on open.''',
         type='category', subconfig=[
@@ -250,12 +255,15 @@ test_config = [
             Configuration enabling or disabling statistics logging in the form of json logging.''',
             type='boolean')
         ]),
+    Config('validate', 'true', r'''
+        Enables the validation stage.''', type='boolean'),
 ]
 
 #
 # Test and their respective configuration sorted alphabetically.
 #
 methods = {
+    'background_compact' : Method(test_config),
     'bounded_cursor_perf' : Method(test_config),
     'bounded_cursor_prefix_indices' : Method(test_config),
     'bounded_cursor_prefix_search_near' : Method(test_config),

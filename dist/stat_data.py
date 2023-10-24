@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Auto-generate statistics #defines, with initialization, clear and aggregate
 # functions.
 #
@@ -123,7 +125,7 @@ class SessionOpStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class StorageStat(Stat):
-    prefix = 'session'
+    prefix = 'tiered-storage'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class ThreadStat(Stat):
@@ -201,6 +203,7 @@ conn_stats = [
     ##########################################
     BackgroundCompactStat('background_compact_bytes_recovered', 'background compact recovered bytes', 'no_scale'),
     BackgroundCompactStat('background_compact_ema', 'background compact moving average of bytes rewritten', 'no_scale'),
+    BackgroundCompactStat('background_compact_exclude', 'background compact skipped file as it is part of the exclude list', 'no_scale'),
     BackgroundCompactStat('background_compact_fail', 'background compact failed calls', 'no_scale'),
     BackgroundCompactStat('background_compact_fail_cache_pressure', 'background compact failed calls due to cache pressure', 'no_scale'),
     BackgroundCompactStat('background_compact_files_tracked', 'number of files tracked by background compaction', 'no_scale'),
@@ -236,6 +239,13 @@ conn_stats = [
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
 
+    BlockCacheStat('block_prefetch_attempts', 'pre-fetch triggered by page read'),
+    BlockCacheStat('block_prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
+    BlockCacheStat('block_prefetch_pages_queued', 'pre-fetch pages queued'),
+    BlockCacheStat('block_prefetch_pages_read', 'pre-fetch pages read in background'),
+    BlockCacheStat('block_prefetch_skipped', 'pre-fetch not triggered by page read'),
+    BlockCacheStat('block_prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
+
     ##########################################
     # Block manager statistics
     ##########################################
@@ -270,6 +280,7 @@ conn_stats = [
     CacheStat('cache_eviction_app', 'pages evicted by application threads'),
     CacheStat('cache_eviction_app_dirty', 'modified pages evicted by application threads'),
     CacheStat('cache_eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
+    CacheStat('cache_eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
@@ -308,6 +319,9 @@ conn_stats = [
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
+    CacheStat('cache_eviction_server_skip_pages_retry', 'skip pages that previously failed eviction and likely will again'),
+    CacheStat('cache_eviction_server_skip_pages_last_running', 'skip pages that are written with transactions greater than the last running'),
+    CacheStat('cache_eviction_server_skip_dirty_pages_during_checkpoint', 'skip dirty pages during a running checkpoint'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
     CacheStat('cache_eviction_stable_state_workers', 'eviction worker thread stable number', 'no_clear'),
     CacheStat('cache_eviction_state', 'eviction state', 'no_clear,no_scale'),
@@ -395,19 +409,22 @@ conn_stats = [
     ##########################################
     # Chunk cache statistics
     ##########################################
-    ChunkCacheStat('chunk_cache_bytes_inuse', 'total bytes used by the cache'),
-    ChunkCacheStat('chunk_cache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
-    ChunkCacheStat('chunk_cache_chunks_evicted', 'chunks evicted'),
-    ChunkCacheStat('chunk_cache_chunks_inuse', 'total chunks held by the chunk cache'),
-    ChunkCacheStat('chunk_cache_chunks_pinned', 'total pinned chunks held by the chunk cache'),
-    ChunkCacheStat('chunk_cache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
-    ChunkCacheStat('chunk_cache_io_failed', 'number of times a read from storage failed'),
-    ChunkCacheStat('chunk_cache_lookups', 'lookups'),
-    ChunkCacheStat('chunk_cache_misses', 'number of misses'),
-    ChunkCacheStat('chunk_cache_retries', 'retried accessing a chunk while I/O was in progress'),
-    ChunkCacheStat('chunk_cache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
-    ChunkCacheStat('chunk_cache_spans_chunks_remove', 'aggregate number of spanned chunks on remove'),
-    ChunkCacheStat('chunk_cache_toomany_retries', 'timed out due to too many retries'),
+    ChunkCacheStat('chunkcache_bytes_inuse', 'total bytes used by the cache'),
+    ChunkCacheStat('chunkcache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
+    ChunkCacheStat('chunkcache_chunks_evicted', 'chunks evicted'),
+    ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunkcache_chunks_loaded_from_flushed_tables', 'number of chunks loaded from flushed tables in chunk cache'),
+    ChunkCacheStat('chunkcache_chunks_pinned', 'total pinned chunks held by the chunk cache'),
+    ChunkCacheStat('chunkcache_created_from_metadata', 'total number of chunks inserted on startup from persisted metadata.'),
+    ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
+    ChunkCacheStat('chunkcache_io_failed', 'number of times a read from storage failed'),
+    ChunkCacheStat('chunkcache_lookups', 'lookups'),
+    ChunkCacheStat('chunkcache_metadata_work_units_created', 'number of metadata inserts/deletes pushed to the worker thread'),
+    ChunkCacheStat('chunkcache_metadata_work_units_dequeued', 'number of metadata inserts/deletes read by the worker thread'),
+    ChunkCacheStat('chunkcache_misses', 'number of misses'),
+    ChunkCacheStat('chunkcache_retries', 'retried accessing a chunk while I/O was in progress'),
+    ChunkCacheStat('chunkcache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
+    ChunkCacheStat('chunkcache_toomany_retries', 'timed out due to too many retries'),
 
     ##########################################
     # Cursor operations
@@ -558,28 +575,36 @@ conn_stats = [
     ##########################################
     # Performance Histogram Stats
     ##########################################
-    PerfHistStat('perf_hist_fsread_latency_gt1000', 'file system read latency histogram (bucket 6) - 1000ms+'),
-    PerfHistStat('perf_hist_fsread_latency_lt50', 'file system read latency histogram (bucket 1) - 10-49ms'),
-    PerfHistStat('perf_hist_fsread_latency_lt100', 'file system read latency histogram (bucket 2) - 50-99ms'),
-    PerfHistStat('perf_hist_fsread_latency_lt250', 'file system read latency histogram (bucket 3) - 100-249ms'),
-    PerfHistStat('perf_hist_fsread_latency_lt500', 'file system read latency histogram (bucket 4) - 250-499ms'),
-    PerfHistStat('perf_hist_fsread_latency_lt1000', 'file system read latency histogram (bucket 5) - 500-999ms'),
-    PerfHistStat('perf_hist_fswrite_latency_gt1000', 'file system write latency histogram (bucket 6) - 1000ms+'),
-    PerfHistStat('perf_hist_fswrite_latency_lt50', 'file system write latency histogram (bucket 1) - 10-49ms'),
-    PerfHistStat('perf_hist_fswrite_latency_lt100', 'file system write latency histogram (bucket 2) - 50-99ms'),
-    PerfHistStat('perf_hist_fswrite_latency_lt250', 'file system write latency histogram (bucket 3) - 100-249ms'),
-    PerfHistStat('perf_hist_fswrite_latency_lt500', 'file system write latency histogram (bucket 4) - 250-499ms'),
-    PerfHistStat('perf_hist_fswrite_latency_lt1000', 'file system write latency histogram (bucket 5) - 500-999ms'),
-    PerfHistStat('perf_hist_opread_latency_gt10000', 'operation read latency histogram (bucket 5) - 10000us+'),
-    PerfHistStat('perf_hist_opread_latency_lt250', 'operation read latency histogram (bucket 1) - 100-249us'),
-    PerfHistStat('perf_hist_opread_latency_lt500', 'operation read latency histogram (bucket 2) - 250-499us'),
-    PerfHistStat('perf_hist_opread_latency_lt1000', 'operation read latency histogram (bucket 3) - 500-999us'),
-    PerfHistStat('perf_hist_opread_latency_lt10000', 'operation read latency histogram (bucket 4) - 1000-9999us'),
-    PerfHistStat('perf_hist_opwrite_latency_gt10000', 'operation write latency histogram (bucket 5) - 10000us+'),
-    PerfHistStat('perf_hist_opwrite_latency_lt250', 'operation write latency histogram (bucket 1) - 100-249us'),
-    PerfHistStat('perf_hist_opwrite_latency_lt500', 'operation write latency histogram (bucket 2) - 250-499us'),
-    PerfHistStat('perf_hist_opwrite_latency_lt1000', 'operation write latency histogram (bucket 3) - 500-999us'),
-    PerfHistStat('perf_hist_opwrite_latency_lt10000', 'operation write latency histogram (bucket 4) - 1000-9999us'),
+    PerfHistStat('perf_hist_fsread_latency_gt1000', 'file system read latency histogram (bucket 7) - 1000ms+'),
+    PerfHistStat('perf_hist_fsread_latency_lt10', 'file system read latency histogram (bucket 1) - 0-10ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt50', 'file system read latency histogram (bucket 2) - 10-49ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt100', 'file system read latency histogram (bucket 3) - 50-99ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt250', 'file system read latency histogram (bucket 4) - 100-249ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt500', 'file system read latency histogram (bucket 5) - 250-499ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt1000', 'file system read latency histogram (bucket 6) - 500-999ms'),
+    PerfHistStat('perf_hist_fsread_latency_total_msecs', 'file system read latency histogram total (msecs)'),
+    PerfHistStat('perf_hist_fswrite_latency_gt1000', 'file system write latency histogram (bucket 7) - 1000ms+'),
+    PerfHistStat('perf_hist_fswrite_latency_lt10', 'file system write latency histogram (bucket 1) - 0-10ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt50', 'file system write latency histogram (bucket 2) - 10-49ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt100', 'file system write latency histogram (bucket 3) - 50-99ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt250', 'file system write latency histogram (bucket 4) - 100-249ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt500', 'file system write latency histogram (bucket 5) - 250-499ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt1000', 'file system write latency histogram (bucket 6) - 500-999ms'),
+    PerfHistStat('perf_hist_fswrite_latency_total_msecs', 'file system write latency histogram total (msecs)'),
+    PerfHistStat('perf_hist_opread_latency_gt10000', 'operation read latency histogram (bucket 6) - 10000us+'),
+    PerfHistStat('perf_hist_opread_latency_lt100', 'operation read latency histogram (bucket 1) - 0-100us'),
+    PerfHistStat('perf_hist_opread_latency_lt250', 'operation read latency histogram (bucket 2) - 100-249us'),
+    PerfHistStat('perf_hist_opread_latency_lt500', 'operation read latency histogram (bucket 3) - 250-499us'),
+    PerfHistStat('perf_hist_opread_latency_lt1000', 'operation read latency histogram (bucket 4) - 500-999us'),
+    PerfHistStat('perf_hist_opread_latency_lt10000', 'operation read latency histogram (bucket 5) - 1000-9999us'),
+    PerfHistStat('perf_hist_opread_latency_total_usecs', 'operation read latency histogram total (usecs)'),
+    PerfHistStat('perf_hist_opwrite_latency_gt10000', 'operation write latency histogram (bucket 6) - 10000us+'),
+    PerfHistStat('perf_hist_opwrite_latency_lt100', 'operation write latency histogram (bucket 1) - 0-100us'),
+    PerfHistStat('perf_hist_opwrite_latency_lt250', 'operation write latency histogram (bucket 2) - 100-249us'),
+    PerfHistStat('perf_hist_opwrite_latency_lt500', 'operation write latency histogram (bucket 3) - 250-499us'),
+    PerfHistStat('perf_hist_opwrite_latency_lt1000', 'operation write latency histogram (bucket 4) - 500-999us'),
+    PerfHistStat('perf_hist_opwrite_latency_lt10000', 'operation write latency histogram (bucket 5) - 1000-9999us'),
+    PerfHistStat('perf_hist_opwrite_latency_total_usecs', 'operation write latency histogram total (usecs)'),
 
     ##########################################
     # Reconciliation statistics
@@ -694,6 +719,7 @@ conn_stats = [
     ##########################################
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
     YieldStat('application_evict_time', 'application thread time evicting (usecs)'),
+    YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
     YieldStat('dhandle_lock_blocked', 'data handle lock yielded'),
@@ -940,6 +966,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
+    CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),

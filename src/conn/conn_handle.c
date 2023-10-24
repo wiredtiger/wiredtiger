@@ -19,16 +19,18 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 
     session = conn->default_session;
 
-    TAILQ_INIT(&conn->dhqh);         /* Data handle list */
-    TAILQ_INIT(&conn->dlhqh);        /* Library list */
-    TAILQ_INIT(&conn->dsrcqh);       /* Data source list */
-    TAILQ_INIT(&conn->fhqh);         /* File list */
-    TAILQ_INIT(&conn->collqh);       /* Collator list */
-    TAILQ_INIT(&conn->compqh);       /* Compressor list */
-    TAILQ_INIT(&conn->encryptqh);    /* Encryptor list */
-    TAILQ_INIT(&conn->extractorqh);  /* Extractor list */
-    TAILQ_INIT(&conn->storagesrcqh); /* Storage source list */
-    TAILQ_INIT(&conn->tieredqh);     /* Tiered work unit list */
+    TAILQ_INIT(&conn->chunkcache_metadataqh); /* Chunkcache metadata work unit list */
+    TAILQ_INIT(&conn->dhqh);                  /* Data handle list */
+    TAILQ_INIT(&conn->dlhqh);                 /* Library list */
+    TAILQ_INIT(&conn->dsrcqh);                /* Data source list */
+    TAILQ_INIT(&conn->fhqh);                  /* File list */
+    TAILQ_INIT(&conn->collqh);                /* Collator list */
+    TAILQ_INIT(&conn->compqh);                /* Compressor list */
+    TAILQ_INIT(&conn->encryptqh);             /* Encryptor list */
+    TAILQ_INIT(&conn->extractorqh);           /* Extractor list */
+    TAILQ_INIT(&conn->storagesrcqh);          /* Storage source list */
+    TAILQ_INIT(&conn->tieredqh);              /* Tiered work unit list */
+    TAILQ_INIT(&conn->pfqh);                  /* Pre-fetch reference list */
 
     TAILQ_INIT(&conn->lsmqh); /* WT_LSM_TREE list */
 
@@ -59,6 +61,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->storage_lock, "tiered storage"));
     WT_RET(__wt_spin_init(session, &conn->tiered_lock, "tiered work unit list"));
     WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
+    WT_RET(__wt_spin_init(session, &conn->prefetch_lock, "prefetch"));
 
     /* Read-write locks */
     WT_RET(__wt_rwlock_init(session, &conn->debug_log_retention_lock));
@@ -130,6 +133,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_rwlock_destroy(session, &conn->table_lock);
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
+    __wt_spin_destroy(session, &conn->prefetch_lock);
 
     /* Free LSM serialization resources. */
     __wt_spin_destroy(session, &conn->lsm_manager.switch_lock);

@@ -1216,9 +1216,9 @@ err:
      * Shut down the checkpoint, compact and capacity server threads: we don't want to throttle
      * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
+    WT_TRET(__wt_background_compact_server_destroy(session));
     WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
-    WT_TRET(__wt_compact_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
@@ -1236,6 +1236,7 @@ err:
     WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
     WT_TRET(__wt_tiered_storage_destroy(session, cval.val));
     WT_TRET(__wt_chunkcache_teardown(session));
+    WT_TRET(__wt_chunkcache_metadata_destroy(session));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
@@ -2120,7 +2121,7 @@ __debug_mode_background_compact_config(WT_SESSION_IMPL *session, const char *cfg
         conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME_DEBUG;
     } else {
         conn->background_compact.max_file_idle_time = WT_BACKGROUND_COMPACT_MAX_IDLE_TIME;
-        conn->background_compact.max_file_skip_time = 60 * WT_BACKGROUND_COMPACT_MAX_SKIP_TIME;
+        conn->background_compact.max_file_skip_time = WT_BACKGROUND_COMPACT_MAX_SKIP_TIME;
         conn->background_compact.full_iteration_wait_time = WT_BACKGROUND_COMPACT_WAIT_TIME;
     }
 
@@ -2261,8 +2262,8 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
-    static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
-      {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
+    static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
+      {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
       {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
@@ -2272,10 +2273,11 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
       {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
-      {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
-      {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
-      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
+      {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
+      {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
+      {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
+      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
@@ -2285,6 +2287,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
+    WT_VERBOSE_LEVEL verbosity_all;
 
     conn = S2C(session);
 
@@ -2297,25 +2300,51 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(ret);
 
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+
+    /*
+     * Special handling for "all". This determines the verbosity for any categories not explicitly
+     * set in the config string.
+     */
+    ft = &verbtypes[WT_VERB_ALL];
+    ret = __wt_config_subgets(session, &cval, ft->name, &sval);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret == WT_NOTFOUND)
+        /*
+         * If "all" isn't specified in the configuration string use the default WT_VERBOSE_NOTICE
+         * verbosity level. WT_VERBOSE_NOTICE is an always-on informational verbosity message.
+         */
+        verbosity_all = WT_VERBOSE_NOTICE;
+    else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
+        verbosity_all = WT_VERBOSE_LEVEL_DEFAULT;
+    else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
+      sval.val <= WT_VERBOSE_DEBUG_5)
+        verbosity_all = (WT_VERBOSE_LEVEL)sval.val;
+    else
+        WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s' with value '%" PRId64 "'",
+          ft->name, sval.val);
+
     for (ft = verbtypes; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
 
+        /* "all" is a special case we've already handled above. */
+        if (ft->flag == WT_VERB_ALL)
+            continue;
+
         if (ret == WT_NOTFOUND)
             /*
-             * If the given event isn't specified in configuration string, default it to the
-             * WT_VERBOSE_NOTICE verbosity level. WT_VERBOSE_NOTICE being an always-on informational
-             * verbosity message.
+             * If the given event isn't specified in configuration string, set it to the default
+             * verbosity level.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_NOTICE;
+            conn->verbose[ft->flag] = verbosity_all;
         else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
-             * the event to WT_VERBOSE_DEBUG_1. Correspondingly, all legacy uses of '__wt_verbose',
-             * being messages without an explicit verbosity level, will default to
-             * 'WT_VERBOSE_DEBUG_1'.
+             * the event to WT_VERBOSE_LEVEL_DEFAULT. Correspondingly, all legacy uses of
+             * '__wt_verbose', being messages without an explicit verbosity level, will default to
+             * 'WT_VERBOSE_LEVEL_DEFAULT'.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_DEBUG_1;
+            conn->verbose[ft->flag] = WT_VERBOSE_LEVEL_DEFAULT;
         else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
           sval.val <= WT_VERBOSE_DEBUG_5)
             conn->verbose[ft->flag] = (WT_VERBOSE_LEVEL)sval.val;
@@ -2326,7 +2355,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * [checkpoint,rts]). Return error for all other unsupported verbosity values e.g
              * negative numbers and strings.
              */
-            WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s'", ft->name);
+            WT_RET_MSG(session, EINVAL,
+              "Failed to parse verbose option '%s' with value '%" PRId64 "'", ft->name, sval.val);
     }
 
     return (0);
@@ -2635,10 +2665,10 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     int64_t v;
 
 /*
- * Start with 20 internal sessions to cover threads the application can't configure (for example,
+ * Start with 25 internal sessions to cover threads the application can't configure (for example,
  * checkpoint or statistics log server threads).
  */
-#define WT_EXTRA_INTERNAL_SESSIONS 20
+#define WT_EXTRA_INTERNAL_SESSIONS 25
     v = WT_EXTRA_INTERNAL_SESSIONS;
 
     /* Then, add in the thread counts applications can configure. */
@@ -3000,7 +3030,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
-    WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_array.size));
@@ -3097,6 +3126,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (conn->direct_io && conn->mmap_all)
         WT_ERR_MSG(
           session, EINVAL, "direct I/O configuration is incompatible with mmap_all configuration");
+
+    WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
+    conn->prefetch_available = cval.val != 0;
+    WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
+    conn->prefetch_auto_on = cval.val != 0;
+    if (conn->prefetch_auto_on && !conn->prefetch_available)
+        WT_ERR_MSG(session, EINVAL,
+          "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
@@ -3229,6 +3266,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
+
+    /*
+     * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
+     * metadata operation that should be done after metadata, transactions, schema, etc. are all up
+     * and running.
+     */
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
+        WT_ERR(__wt_chunkcache_salvage(session));
 
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the

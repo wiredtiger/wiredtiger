@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sys, wiredtiger, wttest
+import os, sys, platform, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -59,7 +59,7 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
             os.mkdir('bucket1')
 
         return 'tiered_storage=(auth_token=Secret,bucket=bucket1,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=100MB,capacity=2GB,type={},storage_path=WiredTigerChunkCache],'.format(self.chunk_cache_type)
+            'chunk_cache=[enabled=true,chunk_size=1MB,capacity=20MB,type={},storage_path=WiredTigerChunkCache],'.format(self.chunk_cache_type)
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':
@@ -67,6 +67,10 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
 
     def test_chunkcache(self):
+
+        if platform.system() == 'Darwin':
+            self.skipTest("FIXME-WT-11865 - Uninitialised lock on macos")
+
         ds = SimpleDataSet(self, self.uri, 10, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
         ds.check()
@@ -74,7 +78,10 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         self.session.checkpoint('flush_tier=(enabled)')
         ds.check()
 
+        # Assert the new chunks are ingested. 
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
+
         self.close_conn()
         self.reopen_conn()
         ds.check()
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_bytes_inuse), 0)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_inuse), 0)
