@@ -362,10 +362,28 @@ _pr_free_mem_size(bt_alloc_prh *pghdr)
 }
 
 
+static size_t
+_spillhdr_avail_mem(bt_alloc_srh *spillhdr) 
+{
+    return BT_ALLOC_REGION_SIZE - sizeof(*spillhdr) - spillhdr->used;
+}
+
+
+static void *
+_spillhdr_avail_mem_ptr(bt_alloc_srh *spillhdr)
+{
+    uintptr_t ptr;
+    ptr = (uintptr_t)spillhdr + sizeof(*spillhdr) + spillhdr->used;
+    return (void *)ptr;
+}
+
+
 static void *
 _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_size)
 {
     void *ptr;
+    uint32_t prev_rgn, curr_rgn;
+    bt_alloc_srh *sphdr;
 
     WT_ASSERT(NULL, pghdr != NULL && alloc_size > 0);
 
@@ -375,10 +393,30 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
         ptr = _pr_free_mem_start(pghdr);
         pghdr->used += alloc_size;
     } else {
-        /* TODO */
-        (void)allocator;
-        ptr = NULL;
-        WT_ASSERT(NULL, 0 && "NOT IMPLEMENTED");
+        prev_rgn = BT_ALLOC_INVALID_REGION;
+        curr_rgn = pghdr->spill;
+        while (curr_rgn != BT_ALLOC_INVALID_REGION) {
+            sphdr = _region_ptr(allocator, curr_rgn);
+            if (_spillhdr_avail_mem(sphdr) >= alloc_size) {
+                break;
+            }     
+        }
+
+        if (curr_rgn == BT_ALLOC_INVALID_REGION) {
+            curr_rgn = _take_next_free_region(allocator);
+            if (curr_rgn == BT_ALLOC_INVALID_REGION) {
+                /* Give up cannot find space for the allocation. */
+                return NULL;
+            }
+
+            /* Add the newly allocated spill region. */
+            sphdr = _region_ptr(allocator, prev_rgn);
+            sphdr->next_spill = curr_rgn;
+        }
+
+        sphdr = _region_ptr(allocator, curr_rgn);
+        ptr = _spillhdr_avail_mem_ptr(sphdr);
+        sphdr->used += alloc_size;
     }
 
     return ptr;
