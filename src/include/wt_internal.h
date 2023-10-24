@@ -473,6 +473,7 @@ typedef uint64_t wt_timestamp_t;
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
+#include "bt_alloc.h"
 #include "cache.h"
 #include "capacity.h"
 #include "cell.h"

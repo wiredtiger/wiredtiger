@@ -25,7 +25,7 @@ __wt_page_custom_alloc_row_leaf(WT_SESSION_IMPL *session, uint32_t entries, WT_P
     WT_RET(__wt_calloc(session, 1, size, &page));
 
     __wt_verbose_info(session, WT_VERB_BT_ALLOC,
-      "[ALLOC_LEAF] tree_id=%" PRIu32 " page_addr=%p entries=%" PRIu32 " sz=%" WT_SIZET_FMT "B", tree->id, page, entries,
+      "[ALLOC_LEAF] tree_id=%" PRIu32 " page_addr=%p entries=%" PRIu32 " sz=%" WT_SIZET_FMT "B", tree->id, (void *)page, entries,
       size);
 
     page->pg_row = entries == 0 ? NULL : (WT_ROW *)((uint8_t *)page + sizeof(WT_PAGE));
@@ -70,11 +70,12 @@ __wt_page_custom_free_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
 
     /* Free any allocated memory used by instantiated keys. */
+    rows_freed = 0;
     WT_ROW_FOREACH (page, rip, i) {
         ++rows_freed;
         __row_leaf_key_free(session, page, rip);
     }
-    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_LEAF] page_addr=%p freed=%" PRIu32, page, rows_freed);
+    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_LEAF] page_addr=%p freed=%" PRIu32, (void *)page, rows_freed);
 
     /* Discard any allocated disk image. */
     dsk = (WT_PAGE_HEADER *)page->dsk;
@@ -97,7 +98,7 @@ __wt_upd_custom_alloc_row_leaf(
 
     ret = __wt_calloc(session, 1, allocsz, updp);
 
-    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[ALLOC_UPD] page_addr=%p upd_addr=%p size=%" WT_SIZET_FMT, page, *updp, allocsz);
+    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[ALLOC_UPD] page_addr=%p upd_addr=%p size=%" WT_SIZET_FMT, (void *)page, (void *)*updp, allocsz);
 
     return (ret);
 }
@@ -112,7 +113,7 @@ __upd_custom_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
     /*
      * TODO - can probably be a no-nop, since updates are freed when the page is freed.
      */
-    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_UPD] page_addr=%p upd_addr=%p", page, upd);
+    __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_UPD] page_addr=%p upd_addr=%p", (void *)page, (void *)upd);
     __wt_free(session, upd);
 }
 
@@ -132,85 +133,6 @@ __wt_upd_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **updp)
         __upd_custom_free(session, page, upd);
     else
         __wt_free(session, upd);
-}
-
-/* ---------------------------------------------------------------------------- */
-
-#include <stdint.h>
-
-
-#define BT_ALLOC_MIB(n) ((ptrdiff_t)(n) * (1 << 20))
-
-
-/*
- * Region size should a multiple of vm page size and be large enough to accommodate the largest
- * initial page.
- */
-#define BT_ALLOC_REGION_SIZE BT_ALLOC_MIB(128)
-
-/*
- * Number of memory regions available to the allocator. Also absoluate maximum number of pages for
- * the tree.
- */
-#define BT_ALLOC_REGION_COUNT 4096
-
-#define BT_ALLOC_VMSIZE (BT_ALLOC_REGION_COUNT * BT_ALLOC_REGION_SIZE)
-
-#define BT_ALLOC_INVALID_REGION UINT32_MAX
-
-#define BT_ALLOC_GIANT_END UINTPTR_MAX
-
-
-/*
- * Allocator Context
- *
- */
-typedef struct {
-    uintptr_t vmem_start;       /* Start address of reserved vmem. */
-    uint32_t region_count;      /* Number of active regions. */
-    uint32_t region_high;       /* Region high water mark. If region_high < region_count also
-                                 * corresponds to first free page. */
-
-    _Alignas(size_t) uint8_t region_map[BT_ALLOC_REGION_COUNT / 8 ];
-} bt_allocator;
-
-
-/*
- * Page Region Header
- *
- * Embedded at the beginning of the region containing the page allocation, that is the first memory
- * region associated with a WT page.
- */
-typedef struct {
-    size_t used;                /* Total bytes used in region. */
-    uintptr_t last_giant;       /* Pointer to last giant allocation in this region. */
-    uint32_t spill;             /* Region id location of first spill region. */
-    uint32_t reserved1;         /* Reserved for future use. */
-} __attribute__((packed)) bt_alloc_prh;
-
-
-/*
- * Spill Region Header
- */
-typedef struct {
-    size_t used;                /* Total bytes used in region. */
-    uint32_t next_spill;        /* Region id of next spill region. */
-    uint32_t prior_region;      /* Region id of prior spill or page region. */
-} bt_alloc_srh;
-
-
-/* Giant allocation reference. */
-typedef struct {
-    uintptr_t alloc_ptr;        /* Memory allocated by system. */
-    uintptr_t prev_giant;       /* Memory offset to previous giant allocation. */
-} bt_alloc_giant;
-
-
-/* Offset to the byte in a byte array the corresponding bit would be located. */
-static inline uint32_t
-_bit_to_byte(uint32_t bit)
-{
-    return bit >> 3;
 }
 
 
@@ -238,14 +160,8 @@ _region_offset_ptr(bt_allocator *allocator, uint32_t region, uint32_t offset)
 }
 
 
-int bt_alloc_ctor(bt_allocator *allocator);
-int bt_alloc_dtor(bt_allocator *allocator);
-int bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_pp);
-int bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page);
-int bt_alloc_zalloc(bt_allocator *alloc, size_t alloc_size, WT_PAGE *page, void **mem_pp);
-
-
-int bt_alloc_ctor(bt_allocator *allocator)
+int 
+bt_alloc_ctor(bt_allocator *allocator)
 {
     void *vmem;
 
@@ -269,7 +185,8 @@ int bt_alloc_ctor(bt_allocator *allocator)
 }
 
 
-int bt_alloc_dtor(bt_allocator *allocator)
+int 
+bt_alloc_dtor(bt_allocator *allocator)
 {
     int retval;
 
@@ -290,7 +207,7 @@ _take_next_free_region(bt_allocator *allocator)
 {
     uint32_t region;
     unsigned int i;
-    uint8_t blk;
+    unsigned int rbit;
 
     if (allocator->region_count == BT_ALLOC_REGION_COUNT) {
         goto ret_failed;
@@ -300,7 +217,7 @@ _take_next_free_region(bt_allocator *allocator)
         region = allocator->region_high;
     } else {
         /* Need to search for a free region. */
-        for (i = 0; i < sizeof(allocator->region_map[0]); i++) {
+        for (i = 0; i < (BT_ALLOC_REGION_COUNT / 8); i++) {
             if (allocator->region_map[i] != 0) {
                 break;
             }
@@ -310,9 +227,9 @@ _take_next_free_region(bt_allocator *allocator)
             goto ret_failed;
         }
 
-        blk = ~allocator->region_map[i];
-        region = (i * 8) + (unsigned int)__builtin_clz(blk);
-        allocator->region_map[i] |= UINT8_C(1) << (unsigned int)__builtin_clz(blk);
+        rbit = (unsigned int)__builtin_ffs(allocator->region_map[i]) - 1;
+        region = (i * 8) + rbit;
+        allocator->region_map[i] ^= UINT8_C(1) << rbit;
     }
 
     allocator->region_high++;
@@ -324,7 +241,8 @@ ret_failed:
 }
 
 
-int bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_pp)
+int 
+bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_pp)
 {
     uint32_t region;
     bt_alloc_prh *hdr;
@@ -346,7 +264,7 @@ int bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **pa
     hdr->used = alloc_size;
     hdr->spill = BT_ALLOC_INVALID_REGION;
     hdr->last_giant = BT_ALLOC_GIANT_END;
-    *page_pp = _region_offset_ptr(allocator, region, sizeof(hdr));
+    *page_pp = _region_offset_ptr(allocator, region, sizeof(*hdr));
 
     return 0;
 }
@@ -380,6 +298,7 @@ _free_spill_pages(bt_allocator *allocator, bt_alloc_prh *pghdr)
 
         spillhdr = _region_ptr(allocator, next);
 
+        /* TODO */
         ret = posix_madvise((void *)pghdr, BT_ALLOC_REGION_SIZE, POSIX_MADV_DONTNEED);
         if (ret != 0) {
             __wt_verbose(NULL, WT_VERB_BT_ALLOC,
@@ -391,7 +310,8 @@ _free_spill_pages(bt_allocator *allocator, bt_alloc_prh *pghdr)
 }
 
 
-int bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
+int 
+bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
 {
     uintptr_t paddr;
     bt_alloc_prh *pghdr;
@@ -408,7 +328,7 @@ int bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
         return EINVAL;
     }
 
-    pghdr = (void *)page;
+    pghdr = (void *)(paddr - sizeof(*pghdr));
     _free_giants(pghdr);
     _free_spill_pages(allocator, pghdr);
 
@@ -417,11 +337,11 @@ int bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
         __wt_verbose(NULL, WT_VERB_BT_ALLOC,
           "bt_alloc posix_madvise  page=%zu  error=%s", paddr, strerror(errno));
     }
+    
+    allocator->region_count--;
+
     return 0;
 }
-
-
-#define BT_ALLOC_REGION_MAX (BT_ALLOC_REGION_SIZE - sizeof(*pghdr))
 
 
 static void *
@@ -433,18 +353,12 @@ _pr_free_mem_start(bt_alloc_prh *pagehdr)
     return (void *)ptr;
 }
 
+
 /* Memory available for allocation in region beginning with the page head */
 static size_t
 _pr_free_mem_size(bt_alloc_prh *pghdr)
 {
     return BT_ALLOC_REGION_SIZE - sizeof(*pghdr) - pghdr->used;
-}
-
-
-static size_t
-_sr_free_mem_size(bt_alloc_srh *spillhdr)
-{
-    return BT_ALLOC_REGION_SIZE - sizeof(*spillhdr) - spillhdr->used;
 }
 
 
@@ -464,6 +378,7 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
         /* TODO */
         (void)allocator;
         ptr = NULL;
+        WT_ASSERT(NULL, 0 && "NOT IMPLEMENTED");
     }
 
     return ptr;
@@ -497,7 +412,8 @@ _giant_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_size)
 }
 
 
-int bt_alloc_zalloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE *page, void **mem_pp)
+int 
+bt_alloc_zalloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE *page, void **mem_pp)
 {
     bt_alloc_prh *pghdr;
     void *ptr;
