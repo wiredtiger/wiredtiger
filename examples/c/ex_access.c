@@ -150,7 +150,7 @@ access_example(int argc, char *argv[])
         cursor->set_key(cursor, "key1");
         error_check(cursor->search(cursor));
         error_check(cursor->get_value(cursor, &value));
-        printf("Load search record: %s : %s\n", key, value);
+        printf("Load search record: %s : %s\n", "key1", value);
 
         /*! [access example close] */
         error_check(conn->close(conn, NULL)); /* Close all handles. */
