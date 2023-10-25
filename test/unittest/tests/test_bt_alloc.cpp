@@ -194,11 +194,15 @@ TEST_CASE("basic allocation with dynamic configuration", "[bt_alloc]")
         ret = bt_alloc_page_alloc(allocator, 1000, &page);
         REQUIRE(ret == 0);
         REQUIRE(page != NULL);
+        REQUIRE(allocator->region_count == 1);
+        REQUIRE(allocator->region_map[0] == 0xfe);
 
         ret = bt_alloc_page_free(allocator, page);
         REQUIRE(ret == 0);
+        REQUIRE(allocator->region_count == 0);
+        REQUIRE(allocator->region_map[0] == 0xff);
     }
-
+   
     ret = bt_alloc_destroy(&allocator);
     REQUIRE(ret == 0);
     REQUIRE(allocator == NULL);
