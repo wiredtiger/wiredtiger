@@ -122,6 +122,8 @@ __upd_custom_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
     /*
      * TODO - can probably be a no-nop, since updates are freed when the page is freed.
      */
+    WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
+
     __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_UPD] page_addr=%p upd_addr=%p", (void *)page, (void *)upd);
     /* __wt_free(session, upd); */
 }

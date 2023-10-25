@@ -372,9 +372,6 @@ __wt_cache_decr_check_uint64(WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v,
     __wt_errx(
       session, "%s was %" PRIu64 ", went negative with decrement of %" PRIu64, fld, orig, v);
 
-#ifdef HAVE_DIAGNOSTIC
-    __wt_abort(session);
-#endif
 }
 
 /*
