@@ -86,9 +86,14 @@ class test_reconfig01(wttest.WiredTigerTestCase):
     def test_reconfig_capacity(self):
         self.conn.reconfigure("io_capacity=(total=80M)")
         self.conn.reconfigure("io_capacity=(total=100M)")
+        self.conn.reconfigure("io_capacity=(total=80M, fsync_backgroud_period_sec=10)")
+        self.conn.reconfigure("io_capacity=(total=100M, fsync_backgroud_period_sec=10)")
         msg = '/below minimum/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure("io_capacity=(total=16K)"), msg)
+        msg = '/Value too large/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("io_capacity=(total=100M, fsync_backgroud_period_sec=1000)"), msg)
 
     def test_reconfig_checkpoints(self):
         self.conn.reconfigure("checkpoint=(wait=0)")
