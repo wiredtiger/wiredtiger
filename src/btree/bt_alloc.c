@@ -259,8 +259,11 @@ int
 bt_alloc_destroy(bt_allocator **allocator)
 {
     int ret;
+    size_t vmsize;
 
-    ret = munmap((void*)(*allocator)->vmem_start, BT_ALLOC_VMSIZE);
+    
+    vmsize = (*allocator)->region_max * (*allocator)->region_size;
+    ret = munmap((void*)(*allocator)->vmem_start, vmsize);
     if (ret) {
         return errno;
     }

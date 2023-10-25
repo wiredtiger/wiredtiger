@@ -43,7 +43,6 @@ TEST_CASE("setup and teardown", "[bt_alloc]")
         REQUIRE(ret == 0);
         REQUIRE(allocator == NULL);
     }
-
 }
 
 TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
