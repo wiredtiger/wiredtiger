@@ -99,9 +99,13 @@ int
 __wt_upd_custom_alloc_row_leaf(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t allocsz, WT_UPDATE **updp)
 {
+    WT_BTREE *tree;
     WT_DECL_RET;
 
-    ret = __wt_calloc(session, 1, allocsz, updp);
+    tree = S2BT(session);
+
+    /* ret = __wt_calloc(session, 1, allocsz, updp); */
+    ret = bt_alloc_zalloc(tree->allocator, allocsz, page, (void **)updp);
 
     __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[ALLOC_UPD] page_addr=%p upd_addr=%p size=%" WT_SIZET_FMT, (void *)page, (void *)*updp, allocsz);
 
@@ -119,7 +123,7 @@ __upd_custom_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
      * TODO - can probably be a no-nop, since updates are freed when the page is freed.
      */
     __wt_verbose_info(session, WT_VERB_BT_ALLOC, "[FREE_UPD] page_addr=%p upd_addr=%p", (void *)page, (void *)upd);
-    __wt_free(session, upd);
+    /* __wt_free(session, upd); */
 }
 
 /*
@@ -261,7 +265,9 @@ bt_alloc_destroy(bt_allocator **allocator)
     int ret;
     size_t vmsize;
 
-    
+    if (*allocator == NULL)
+        return 0;
+
     vmsize = (*allocator)->region_max * (*allocator)->region_size;
     ret = munmap((void*)(*allocator)->vmem_start, vmsize);
     if (ret) {

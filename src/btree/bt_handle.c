@@ -32,7 +32,7 @@ __btree_clear(WT_SESSION_IMPL *session)
     if (!F_ISSET(btree, WT_BTREE_CLOSED))
         return (0);
 
-    WT_IGNORE_RET(bt_alloc_dtor(btree->allocator));
+    WT_IGNORE_RET(bt_alloc_destroy(&btree->allocator));
 
     /* Close the Huffman tree. */
     __wt_btree_huffman_close(session);
@@ -518,8 +518,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
     WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
 
-    WT_RET(__wt_calloc(session, 1, sizeof(bt_allocator), &btree->allocator));
-    WT_RET(bt_alloc_ctor(btree->allocator));
+    WT_RET(bt_alloc_create(&btree->allocator, 2048, BT_ALLOC_MIB(128)));
 
     btree->modified = false; /* Clean */
 
