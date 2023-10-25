@@ -281,31 +281,29 @@ _take_next_free_region(bt_allocator *allocator)
     unsigned int i;
     unsigned int rbit;
 
-    if (allocator->region_count == allocator->region_max) {
+    if (allocator->region_count >= allocator->region_max) {
+        /* No free regions remaining. */
         goto ret_failed;
     }
 
-    if (allocator->region_high < allocator->region_count) {
+    if (allocator->region_high < allocator->region_max) {
+        /* Allocate from the high water mark. */
         region = allocator->region_high;
+        allocator->region_high++;
     } else {
-        /* Need to search for a free region. */
-        /* TODO use sizeof(region_map) */
         for (i = 0; i < (allocator->region_max / 8); i++) {
             if (allocator->region_map[i] != 0) {
                 break;
             }
         }
-        if (i >= sizeof(allocator->region_map)) {
-            /* This is really bad: there should be at least one free region.  */
-            goto ret_failed;
-        }
+
+        WT_ASSERT(NULL, i < allocator->region_max / 8);
 
         rbit = (unsigned int)__builtin_ffs(allocator->region_map[i]) - 1;
         region = (i * 8) + rbit;
         allocator->region_map[i] ^= UINT8_C(1) << rbit;
     }
 
-    allocator->region_high++;
     allocator->region_count++;
     return region;
 
@@ -352,34 +350,41 @@ _free_giants(bt_alloc_prh *pghdr)
     next = pghdr->last_giant;
     while (next != BT_ALLOC_GIANT_END) {
         giant = (void *)next;
-        next = giant->prev_giant;
         free((void *)giant->alloc_ptr);
+        next = giant->prev_giant;
     }
+}
+
+static void
+_region_release(bt_allocator *ator, uint32_t rgn)
+{
+    ator->region_map[rgn/8] = UINT8_C(1) << (rgn & 3);
+    ator->region_count--;
 }
 
 
 static void
 _free_spill_pages(bt_allocator *allocator, bt_alloc_prh *pghdr)
 {
-    uint32_t next;
+    uint32_t region;
     bt_alloc_srh *spillhdr;
     int ret;
 
-    next = pghdr->spill;
-    while (next != BT_ALLOC_INVALID_REGION) {
+    region = pghdr->spill;
+    while (region != BT_ALLOC_INVALID_REGION) {
         /* TODO add assertion to ensure still within allocator range. */
 
-        spillhdr = _region_ptr(allocator, next);
+        spillhdr = _region_ptr(allocator, region);
 
-        /* TODO */
+        /* TODO MADV_FREE */
         ret = posix_madvise((void *)pghdr, allocator->region_size, POSIX_MADV_DONTNEED);
         if (ret != 0) {
             __wt_verbose(NULL, WT_VERB_BT_ALLOC,
               "bt_alloc posix_madvise error: %s", strerror(errno));
         }
-        allocator->region_count--;
 
-        next = spillhdr->next_spill;
+        _region_release(allocator, region);
+        region = spillhdr->next_spill;
     }
 }
 
@@ -412,7 +417,7 @@ bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
           "bt_alloc posix_madvise  page=%zu  error=%s", paddr, strerror(errno));
     }
 
-    allocator->region_count--;
+    _region_release(allocator, _ptr_to_region_id(allocator, pghdr));
 
     return 0;
 }
