@@ -739,6 +739,10 @@ connection_runtime_config = [
             decisions about what subsystems are throttled, and in what proportion, are made
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
+        Config('fsync_backgroud_period_sec', '0', r'''
+            max waiting period for fsync background, If the written threshold are not met for
+            ertain time, force to running the fysnc background.''',
+            min='0', max='60'),
         ]),
     Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a

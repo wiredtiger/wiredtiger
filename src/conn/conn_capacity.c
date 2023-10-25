@@ -34,15 +34,28 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t total;
 
     conn = S2C(session);
+    cap = &conn->capacity;
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
     if (cval.val != 0 && cval.val < WT_THROTTLE_MIN)
         WT_RET_MSG(session, EINVAL, "total I/O capacity value %" PRId64 " below minimum %d",
           cval.val, WT_THROTTLE_MIN);
-
-    cap = &conn->capacity;
     cap->total = total = (uint64_t)cval.val;
-    if (cval.val != 0) {
+
+    WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_backgroud_period_sec", &cval));
+    if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUD_PERIOD_SEC)
+        WT_RET_MSG(session, EINVAL,
+          "fsync_backgroud_period_sec I/O capacity value %" PRId64 " exceed maxmum %d", cval.val,
+          WT_FSYNC_BACKGROUD_PERIOD_SEC);
+    cap->fsync_backgroud_period = (uint64_t)cval.val;
+
+    if (cap->total == 0 && cap->fsync_backgroud_period != 0) {
+        WT_RET_MSG(session, EINVAL,
+          "io_capacity.fsync_backgroud_period_sec is valid only when io_capacity.total is greater "
+          "than 0");
+    }
+
+    if (cap->total != 0) {
         /*
          * We've been given a total capacity, set the capacity of all the subsystems.
          */
@@ -57,8 +70,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
          */
         cap->threshold = ((cap->ckpt + cap->evict + cap->log) / 100) * WT_CAPACITY_PCT;
         if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
-            cap->threshold = WT_MIN(WT_CAPACITY_MIN_THRESHOLD, WT_THROTTLE_MIN);
-            
+            cap->threshold = WT_MIN(WT_CAPACITY_MIN_THRESHOLD, cap->total);
+
         WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
     } else
         WT_STAT_CONN_SET(session, capacity_threshold, 0);
@@ -87,11 +100,13 @@ __capacity_server(void *arg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t start, stop, time_ms;
+    uint64_t last_time;
+    uint64_t start, stop, now;
 
     session = arg;
     conn = S2C(session);
     cap = &conn->capacity;
+    last_time = __wt_clock(session);
     for (;;) {
         /*
          * Wait until signalled but check once per second in case the signal was missed.
@@ -103,14 +118,23 @@ __capacity_server(void *arg)
             break;
 
         cap->signalled = false;
-        if (cap->written < cap->threshold)
+        if (cap->written == 0)
             continue;
 
-        start = __wt_clock(session);
+        now = __wt_clock(session);
+        if (cap->fsync_backgroud_period == 0) {
+            if (cap->written < cap->threshold)
+                continue;
+        } else {
+            if (now - last_time < cap->fsync_backgroud_period && cap->written < cap->threshold)
+                continue;
+        }
+
+        start = now;
         WT_ERR(__wt_fsync_background(session));
         stop = __wt_clock(session);
-        time_ms = WT_CLOCKDIFF_MS(stop, start);
-        WT_STAT_CONN_SET(session, fsync_all_time, time_ms);
+        WT_STAT_CONN_SET(session, fsync_all_time, WT_CLOCKDIFF_MS(stop, start));
+        last_time = stop;
         cap->written = 0;
     }
 
