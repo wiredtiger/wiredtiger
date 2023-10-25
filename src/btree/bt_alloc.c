@@ -208,6 +208,11 @@ bt_alloc_create(bt_allocator **allocator, size_t region_size, size_t region_max)
     memset(tmp->region_map, 0xff, map_size);
     tmp->region_count = 0;
     tmp->region_high = 0;
+    tmp->stat_intra = 0;
+    tmp->stat_spill = 0;
+    tmp->stat_giant = 0;
+    tmp->stat_page = 0;
+
     tmp->vmem_start = (uintptr_t)vm;
     USE_LOCK(pthread_mutex_init(&tmp->lock, NULL));
 
@@ -299,6 +304,7 @@ bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_p
         pthread_mutex_unlock(&allocator->lock);
         return ENOMEM;
     }
+    allocator->stat_page++;
     USE_LOCK(pthread_mutex_unlock(&allocator->lock));
 
     hdr = _region_ptr(allocator, region);
@@ -481,6 +487,7 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
         sphdr = _region_ptr(allocator, curr_rgn);
         ptr = _spillhdr_avail_mem_ptr(sphdr);
         sphdr->used += alloc_size;
+        allocator->stat_spill++;
     }
 
     return ptr;
@@ -534,8 +541,10 @@ bt_alloc_zalloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE *page, void 
     USE_LOCK(pthread_mutex_lock(&allocator->lock));
     if (alloc_size <= (allocator->region_size - sizeof(bt_alloc_prh))) {
         ptr = _intra_region_alloc(allocator, pghdr, alloc_size);
+        allocator->stat_intra++;
     } else {
         ptr = _giant_alloc(allocator, pghdr, alloc_size);
+        allocator->stat_giant++;
     }
     USE_LOCK(pthread_mutex_unlock(&allocator->lock));
 

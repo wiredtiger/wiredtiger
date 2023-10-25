@@ -2,11 +2,14 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#define BT_ALLOC_MIB(n) ((ptrdiff_t)(n) * (1 << 20))
+#define BT_ALLOC_GIB(n) ((size_t)(n) * (1 << 30))
+#define BT_ALLOC_MIB(n) ((size_t)(n) * (1 << 20))
+#define BT_ALLOC_KIB(n) ((size_t)(n) * (1 << 10))
 
 #define BT_ALLOC_INVALID_REGION UINT32_MAX
 
 #define BT_ALLOC_GIANT_END UINTPTR_MAX
+
 
 #define USE_LOCK(x) x
 
@@ -24,7 +27,13 @@ typedef struct bt_allocator_ {
     uint32_t region_high;       /* Region high water mark. If region_high < region_count also
                                  * corresponds to first free page. */
 
+    uint64_t stat_intra;
+    uint64_t stat_spill;
+    uint64_t stat_giant;
+    uint64_t stat_page;
+
     USE_LOCK(pthread_mutex_t lock);
+
 
     /* TODO alignas not working on will's compiler. */
     uint8_t region_map[];
