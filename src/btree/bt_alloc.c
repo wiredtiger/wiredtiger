@@ -181,33 +181,6 @@ _ptr_to_region_id(bt_allocator *allocator, void *ptr)
 
 
 int
-bt_alloc_ctor(bt_allocator *allocator)
-{
-    void *vmem;
-
-    if (allocator == NULL) {
-        return EINVAL;
-    }
-
-    /* Reserve virtual memory. */
-    vmem = mmap(NULL, BT_ALLOC_VMSIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-    if (vmem == MAP_FAILED) {
-        return errno;
-    }
-
-    /* Initialize empty bitmap. */
-    memset(allocator->region_map, 0xff, sizeof(allocator->region_map));
-
-    allocator->vmem_start = (uintptr_t)vmem;
-    allocator->region_count = 0;
-    allocator->region_high = 0;
-    allocator->region_max = BT_ALLOC_REGION_COUNT;
-    allocator->region_size = BT_ALLOC_REGION_SIZE;
-    return 0;
-}
-
-
-int
 bt_alloc_create(bt_allocator **allocator, size_t region_size, size_t region_max)
 {
     bt_allocator *tmp;
@@ -236,28 +209,12 @@ bt_alloc_create(bt_allocator **allocator, size_t region_size, size_t region_max)
     tmp->region_count = 0;
     tmp->region_high = 0;
     tmp->vmem_start = (uintptr_t)vm;
+    USE_LOCK(pthread_mutex_init(&tmp->lock, NULL));
 
     tmp->region_max = region_max;
     tmp->region_size = region_size;   
     *allocator = tmp;
     return 0;
-}
-
-
-int
-bt_alloc_dtor(bt_allocator *allocator)
-{
-    int retval;
-
-    if (allocator == NULL) {
-        return EINVAL;
-    }
-
-    WT_ASSERT(NULL, allocator->region_count == 0);
-
-    /* Decommit virtual memory. */
-    retval = munmap((void*)allocator->vmem_start, BT_ALLOC_VMSIZE);
-    return (retval) ? errno : retval;
 }
 
 
@@ -275,6 +232,7 @@ bt_alloc_destroy(bt_allocator **allocator)
     if (ret) {
         return errno;
     }
+    USE_LOCK(pthread_mutex_destroy(&(*allocator)->lock));
 
     free(*allocator);
     *allocator = NULL;
@@ -332,12 +290,16 @@ bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_p
         return EINVAL;
     }
 
+    USE_LOCK(pthread_mutex_lock(&allocator->lock));
+
     region = _take_next_free_region(allocator);
     if (region == BT_ALLOC_INVALID_REGION) {
         __wt_verbose(NULL, WT_VERB_BT_ALLOC, "Exhausted allocator: used %" PRIu32 " regions.",
           allocator->region_count);
+        pthread_mutex_unlock(&allocator->lock);
         return ENOMEM;
     }
+    USE_LOCK(pthread_mutex_unlock(&allocator->lock));
 
     hdr = _region_ptr(allocator, region);
     hdr->used = alloc_size;
@@ -409,23 +371,27 @@ bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
     }
 
     paddr = (uintptr_t)page;
-    if (paddr < allocator->vmem_start || paddr >= (allocator->vmem_start + BT_ALLOC_VMSIZE)) {
+    if (paddr < allocator->vmem_start) {
         __wt_verbose(NULL, WT_VERB_BT_ALLOC,
           "Request to free page outside of reserved vmspace page=%zu", paddr);
         return EINVAL;
     }
 
+    USE_LOCK(pthread_mutex_lock(&allocator->lock));
+
     pghdr = (void *)(paddr - sizeof(*pghdr));
     _free_giants(pghdr);
     _free_spill_pages(allocator, pghdr);
 
-    ret = posix_madvise((void *)pghdr, allocator->region_size, POSIX_MADV_DONTNEED);
+    ret = madvise((void *)pghdr, allocator->region_size, MADV_FREE);
     if (ret != 0) {
         __wt_verbose(NULL, WT_VERB_BT_ALLOC,
           "bt_alloc posix_madvise  page=%zu  error=%s", paddr, strerror(errno));
     }
 
     _region_release(allocator, _ptr_to_region_id(allocator, pghdr));
+
+    USE_LOCK(pthread_mutex_unlock(&allocator->lock));
 
     return 0;
 }
@@ -565,11 +531,13 @@ bt_alloc_zalloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE *page, void 
 
     pghdr = (void *)((uintptr_t)page - sizeof(bt_alloc_prh));
 
-    if (alloc_size <= BT_ALLOC_REGION_MAX) {
+    USE_LOCK(pthread_mutex_lock(&allocator->lock));
+    if (alloc_size <= (allocator->region_size - sizeof(bt_alloc_prh))) {
         ptr = _intra_region_alloc(allocator, pghdr, alloc_size);
     } else {
         ptr = _giant_alloc(allocator, pghdr, alloc_size);
     }
+    USE_LOCK(pthread_mutex_unlock(&allocator->lock));
 
     if (ptr != NULL) {
         memset(ptr, 0, alloc_size);

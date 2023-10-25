@@ -1,29 +1,14 @@
 
 #include <stdint.h>
-
+#include <pthread.h>
 
 #define BT_ALLOC_MIB(n) ((ptrdiff_t)(n) * (1 << 20))
-
-/*
- * Region size should a multiple of vm page size and be large enough to accommodate the largest
- * initial page.
- */
-#define BT_ALLOC_REGION_SIZE BT_ALLOC_MIB(128)
-
-/*
- * Number of memory regions available to the allocator. Also absoluate maximum number of pages for
- * the tree.
- */
-#define BT_ALLOC_REGION_COUNT 4096
-
-#define BT_ALLOC_VMSIZE (BT_ALLOC_REGION_COUNT * BT_ALLOC_REGION_SIZE)
 
 #define BT_ALLOC_INVALID_REGION UINT32_MAX
 
 #define BT_ALLOC_GIANT_END UINTPTR_MAX
 
-#define BT_ALLOC_REGION_MAX (BT_ALLOC_REGION_SIZE - sizeof(*pghdr))
-
+#define USE_LOCK(x) x
 
 /*
  * Allocator Context
@@ -39,8 +24,10 @@ typedef struct bt_allocator_ {
     uint32_t region_high;       /* Region high water mark. If region_high < region_count also
                                  * corresponds to first free page. */
 
+    USE_LOCK(pthread_mutex_t lock);
+
     /* TODO alignas not working on will's compiler. */
-    uint8_t region_map[BT_ALLOC_REGION_COUNT / 8 ];
+    uint8_t region_map[];
 } bt_allocator;
 
 

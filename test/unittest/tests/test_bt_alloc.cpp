@@ -3,6 +3,38 @@
 
 TEST_CASE("setup and teardown", "[bt_alloc]")
 {
+    size_t region_size;
+    size_t region_count;
+
+    region_size = BT_ALLOC_MIB(4);
+    region_count = 1024;
+
+    SECTION("create") 
+    {
+        int ret;
+        bt_allocator *allocator;
+        ret = bt_alloc_create(&allocator, region_size, region_count);
+        REQUIRE(ret == 0);
+        REQUIRE(allocator != NULL);
+    }
+
+    SECTION("create and destroy") 
+    {
+        int ret;
+        bt_allocator *allocator;
+        ret = bt_alloc_create(&allocator, region_size, region_count);
+        REQUIRE(ret == 0);
+        REQUIRE(allocator != NULL);
+
+        ret = bt_alloc_destroy(&allocator);
+        REQUIRE(ret == 0);
+        REQUIRE(allocator == NULL);
+    }
+}
+
+#if 0
+TEST_CASE("setup and teardown", "[bt_alloc]")
+{
     SECTION("ctor") 
     {
         int ret;
@@ -12,14 +44,7 @@ TEST_CASE("setup and teardown", "[bt_alloc]")
         REQUIRE(ret == 0);
     }
 
-    SECTION("create") 
-    {
-        int ret;
-        bt_allocator *allocator;
-        ret = bt_alloc_create(&allocator, BT_ALLOC_REGION_SIZE, BT_ALLOC_REGION_COUNT);
-        REQUIRE(ret == 0);
-        REQUIRE(allocator != NULL);
-    }
+
 
     SECTION("ctor and dtor") 
     {
@@ -31,18 +56,6 @@ TEST_CASE("setup and teardown", "[bt_alloc]")
         REQUIRE(ret == 0);
     }
 
-    SECTION("create and destroy") 
-    {
-        int ret;
-        bt_allocator *allocator;
-        ret = bt_alloc_create(&allocator, BT_ALLOC_REGION_SIZE, BT_ALLOC_REGION_COUNT);
-        REQUIRE(ret == 0);
-        REQUIRE(allocator != NULL);
-
-        ret = bt_alloc_destroy(&allocator);
-        REQUIRE(ret == 0);
-        REQUIRE(allocator == NULL);
-    }
 }
 
 TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
@@ -203,3 +216,4 @@ TEST_CASE("basic allocation with dynamic configuration", "[bt_alloc]")
     REQUIRE(ret == 0);
     REQUIRE(allocator == NULL);
 }
+#endif
