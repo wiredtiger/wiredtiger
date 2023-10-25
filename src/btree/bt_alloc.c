@@ -301,9 +301,9 @@ _take_next_free_region(bt_allocator *allocator)
 
         rbit = (unsigned int)__builtin_ffs(allocator->region_map[i]) - 1;
         region = (i * 8) + rbit;
-        allocator->region_map[i] ^= UINT8_C(1) << rbit;
     }
 
+    allocator->region_map[region >> 3] &= ~(UINT8_C(1) << (region & 3));
     allocator->region_count++;
     return region;
 
@@ -564,6 +564,7 @@ bt_alloc_zalloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE *page, void 
     }
 
     if (ptr != NULL) {
+        memset(ptr, 0, alloc_size);
         *mem_pp = ptr;
         return 0;
     }

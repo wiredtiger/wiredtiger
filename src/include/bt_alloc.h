@@ -8,13 +8,13 @@
  * Region size should a multiple of vm page size and be large enough to accommodate the largest
  * initial page.
  */
-#define BT_ALLOC_REGION_SIZE BT_ALLOC_MIB(64)
+#define BT_ALLOC_REGION_SIZE BT_ALLOC_MIB(128)
 
 /*
  * Number of memory regions available to the allocator. Also absoluate maximum number of pages for
  * the tree.
  */
-#define BT_ALLOC_REGION_COUNT 1024
+#define BT_ALLOC_REGION_COUNT 4096
 
 #define BT_ALLOC_VMSIZE (BT_ALLOC_REGION_COUNT * BT_ALLOC_REGION_SIZE)
 
