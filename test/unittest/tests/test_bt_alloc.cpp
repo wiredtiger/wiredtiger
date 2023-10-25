@@ -1,9 +1,9 @@
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 
-TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
+TEST_CASE("setup and teardown", "[bt_alloc]")
 {
-    SECTION("construct") 
+    SECTION("ctor") 
     {
         int ret;
         bt_allocator allocator;
@@ -12,7 +12,16 @@ TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
         REQUIRE(ret == 0);
     }
 
-    SECTION("deconstruct") 
+    SECTION("create") 
+    {
+        int ret;
+        bt_allocator *allocator;
+        ret = bt_alloc_create(&allocator, BT_ALLOC_REGION_SIZE, BT_ALLOC_REGION_COUNT);
+        REQUIRE(ret == 0);
+        REQUIRE(allocator != NULL);
+    }
+
+    SECTION("ctor and dtor") 
     {
         int ret;
         bt_allocator allocator;
@@ -21,6 +30,24 @@ TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
         ret = bt_alloc_dtor(&allocator);
         REQUIRE(ret == 0);
     }
+
+    SECTION("create and destroy") 
+    {
+        int ret;
+        bt_allocator *allocator;
+        ret = bt_alloc_create(&allocator, BT_ALLOC_REGION_SIZE, BT_ALLOC_REGION_COUNT);
+        REQUIRE(ret == 0);
+        REQUIRE(allocator != NULL);
+
+        ret = bt_alloc_destroy(&allocator);
+        REQUIRE(ret == 0);
+        REQUIRE(allocator == NULL);
+    }
+
+}
+
+TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
+{
 
     SECTION("one_page_alloc") 
     {
@@ -121,14 +148,9 @@ TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
         ret = bt_alloc_dtor(&allocator);
         REQUIRE(ret == 0);
     }
-
-    SECTION("spill allocation simple")
-    {
-
-    }
 }
 
-TEST_CASE("bt_alloc spill allocation", "[bt_alloc]")
+TEST_CASE("spill allocation", "[bt_alloc]")
 {
     int ret;
     bt_allocator allocator;
@@ -155,4 +177,30 @@ TEST_CASE("bt_alloc spill allocation", "[bt_alloc]")
 
     ret = bt_alloc_dtor(&allocator);
     REQUIRE(ret == 0);
+}
+
+TEST_CASE("basic allocation with dynamic configuration", "[bt_alloc]")
+{
+    int ret;
+    bt_allocator *allocator;
+
+    ret = bt_alloc_create(&allocator, 4096, 128);
+    REQUIRE(ret == 0);
+    REQUIRE(allocator != NULL);
+
+    SECTION("one_page_alloc") 
+    {
+        WT_PAGE *page;
+
+        ret = bt_alloc_page_alloc(allocator, 1000, &page);
+        REQUIRE(ret == 0);
+        REQUIRE(page != NULL);
+
+        ret = bt_alloc_page_free(allocator, page);
+        REQUIRE(ret == 0);
+    }
+
+    ret = bt_alloc_destroy(&allocator);
+    REQUIRE(ret == 0);
+    REQUIRE(allocator == NULL);
 }

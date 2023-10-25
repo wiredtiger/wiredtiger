@@ -144,7 +144,7 @@ __wt_upd_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **updp)
 static void *
 _region_ptr(bt_allocator *allocator, uint32_t region)
 {
-    uintptr_t addr = allocator->vmem_start + (region * BT_ALLOC_REGION_SIZE);
+    uintptr_t addr = allocator->vmem_start + (region * allocator->region_size);
     return (void *)addr;
 }
 
@@ -154,9 +154,9 @@ _region_offset_ptr(bt_allocator *allocator, uint32_t region, uint32_t offset)
 {
     uintptr_t addr;
 
-    WT_ASSERT(NULL, offset < BT_ALLOC_REGION_SIZE);
+    WT_ASSERT(NULL, offset < allocator->region_size);
 
-    addr = allocator->vmem_start + (region * BT_ALLOC_REGION_SIZE) + offset;
+    addr = allocator->vmem_start + (region * allocator->region_size) + offset;
 
     /* When working inside the allocator, should be dealing only in alignment sizes. */
     WT_ASSERT(NULL, (offset & 3) == 0);
@@ -170,8 +170,9 @@ _ptr_to_region_id(bt_allocator *allocator, void *ptr)
 {
     uintptr_t addr;
     addr = (uintptr_t)ptr;
-    return (uint32_t)((addr - allocator->vmem_start) / BT_ALLOC_REGION_SIZE);
+    return (uint32_t)((addr - allocator->vmem_start) / allocator->region_size);
 }
+
 
 int
 bt_alloc_ctor(bt_allocator *allocator)
@@ -194,6 +195,45 @@ bt_alloc_ctor(bt_allocator *allocator)
     allocator->vmem_start = (uintptr_t)vmem;
     allocator->region_count = 0;
     allocator->region_high = 0;
+    allocator->region_max = BT_ALLOC_REGION_COUNT;
+    allocator->region_size = BT_ALLOC_REGION_SIZE;
+    return 0;
+}
+
+
+int
+bt_alloc_create(bt_allocator **allocator, size_t region_size, size_t region_max)
+{
+    bt_allocator *tmp;
+    size_t vmsize;
+    void *vm;
+    size_t map_size;
+
+    /* TODO replace arbitrary check values for region params. */
+    if (allocator == NULL || region_size < 1024 || region_max < 100) {
+        return EINVAL;
+    }
+
+    /* Align region size and max count. */
+    region_size = (region_size + 4095uL) & ~4095uL;
+    region_max = (region_max + 7uL) & ~7uL;
+
+    vmsize = region_size * region_max;
+    vm = mmap(NULL, BT_ALLOC_VMSIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+    if (vm == MAP_FAILED) {
+        return errno;
+    }
+
+    map_size = region_max / 8;
+    tmp = malloc(sizeof(bt_allocator) + map_size);
+    memset(tmp->region_map, 0xff, map_size);
+    tmp->region_count = 0;
+    tmp->region_high = 0;
+    tmp->vmem_start = (uintptr_t)vm;
+
+    tmp->region_max = region_max;
+    tmp->region_size = region_size;   
+    *allocator = tmp;
     return 0;
 }
 
@@ -215,6 +255,22 @@ bt_alloc_dtor(bt_allocator *allocator)
 }
 
 
+int 
+bt_alloc_destroy(bt_allocator **allocator)
+{
+    int ret;
+
+    ret = munmap((void*)(*allocator)->vmem_start, BT_ALLOC_VMSIZE);
+    if (ret) {
+        return errno;
+    }
+
+    free(*allocator);
+    *allocator = NULL;
+    return 0;
+}
+
+
 static uint32_t
 _take_next_free_region(bt_allocator *allocator)
 {
@@ -222,7 +278,7 @@ _take_next_free_region(bt_allocator *allocator)
     unsigned int i;
     unsigned int rbit;
 
-    if (allocator->region_count == BT_ALLOC_REGION_COUNT) {
+    if (allocator->region_count == allocator->region_max) {
         goto ret_failed;
     }
 
@@ -230,7 +286,8 @@ _take_next_free_region(bt_allocator *allocator)
         region = allocator->region_high;
     } else {
         /* Need to search for a free region. */
-        for (i = 0; i < (BT_ALLOC_REGION_COUNT / 8); i++) {
+        /* TODO use sizeof(region_map) */
+        for (i = 0; i < (allocator->region_max / 8); i++) {
             if (allocator->region_map[i] != 0) {
                 break;
             }
@@ -260,7 +317,7 @@ bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_p
     uint32_t region;
     bt_alloc_prh *hdr;
 
-    WT_ASSERT(NULL, alloc_size <= (BT_ALLOC_REGION_SIZE - sizeof(bt_alloc_prh)));
+    WT_ASSERT(NULL, alloc_size <= allocator->region_size - sizeof(bt_alloc_prh));
 
     if (allocator == NULL || alloc_size == 0 || page_pp == NULL) {
         return EINVAL;
@@ -312,7 +369,7 @@ _free_spill_pages(bt_allocator *allocator, bt_alloc_prh *pghdr)
         spillhdr = _region_ptr(allocator, next);
 
         /* TODO */
-        ret = posix_madvise((void *)pghdr, BT_ALLOC_REGION_SIZE, POSIX_MADV_DONTNEED);
+        ret = posix_madvise((void *)pghdr, allocator->region_size, POSIX_MADV_DONTNEED);
         if (ret != 0) {
             __wt_verbose(NULL, WT_VERB_BT_ALLOC,
               "bt_alloc posix_madvise error: %s", strerror(errno));
@@ -346,7 +403,7 @@ bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page)
     _free_giants(pghdr);
     _free_spill_pages(allocator, pghdr);
 
-    ret = posix_madvise((void *)pghdr, BT_ALLOC_REGION_SIZE, POSIX_MADV_DONTNEED);
+    ret = posix_madvise((void *)pghdr, allocator->region_size, POSIX_MADV_DONTNEED);
     if (ret != 0) {
         __wt_verbose(NULL, WT_VERB_BT_ALLOC,
           "bt_alloc posix_madvise  page=%zu  error=%s", paddr, strerror(errno));
@@ -370,16 +427,16 @@ _pr_free_mem_start(bt_alloc_prh *pagehdr)
 
 /* Memory available for allocation in region beginning with the page head */
 static size_t
-_pr_free_mem_size(bt_alloc_prh *pghdr)
+_pr_free_mem_size(bt_allocator *allocator, bt_alloc_prh *pghdr)
 {
-    return BT_ALLOC_REGION_SIZE - sizeof(*pghdr) - pghdr->used;
+    return allocator->region_size - sizeof(*pghdr) - pghdr->used;
 }
 
 
 static size_t
-_spillhdr_avail_mem(bt_alloc_srh *spillhdr)
+_spillhdr_avail_mem(bt_allocator *allocator, bt_alloc_srh *spillhdr)
 {
-    return BT_ALLOC_REGION_SIZE - sizeof(*spillhdr) - spillhdr->used;
+    return allocator->region_size - sizeof(*spillhdr) - spillhdr->used;
 }
 
 
@@ -403,7 +460,7 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
 
     alloc_size = (alloc_size + 7u) & ~7u;
 
-    if (_pr_free_mem_size(pghdr) >= alloc_size) {
+    if (_pr_free_mem_size(allocator, pghdr) >= alloc_size) {
         ptr = _pr_free_mem_start(pghdr);
         pghdr->used += alloc_size;
     } else {
@@ -411,7 +468,7 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
         curr_rgn = pghdr->spill;
         while (curr_rgn != BT_ALLOC_INVALID_REGION) {
             sphdr = _region_ptr(allocator, curr_rgn);
-            if (_spillhdr_avail_mem(sphdr) >= alloc_size) {
+            if (_spillhdr_avail_mem(allocator, sphdr) >= alloc_size) {
                 break;
             }
         }

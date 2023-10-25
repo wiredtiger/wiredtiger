@@ -30,6 +30,10 @@
  *
  */
 typedef struct bt_allocator_ {
+    /* Allocator configuration. */
+    size_t region_size;
+    size_t region_max;
+
     uintptr_t vmem_start;       /* Start address of reserved vmem. */
     uint32_t region_count;      /* Number of active regions. */
     uint32_t region_high;       /* Region high water mark. If region_high < region_count also
@@ -72,7 +76,9 @@ typedef struct bt_alloc_giant_ {
 
 
 int bt_alloc_ctor(bt_allocator *allocator);
+int bt_alloc_create(bt_allocator **allocator, size_t region_size, size_t region_max);
 int bt_alloc_dtor(bt_allocator *allocator);
+int bt_alloc_destroy(bt_allocator **allocator);
 int bt_alloc_page_alloc(bt_allocator *allocator, size_t alloc_size, WT_PAGE **page_pp);
 int bt_alloc_page_free(bt_allocator *allocator, WT_PAGE *page);
 int bt_alloc_zalloc(bt_allocator *alloc, size_t alloc_size, WT_PAGE *page, void **mem_pp);
