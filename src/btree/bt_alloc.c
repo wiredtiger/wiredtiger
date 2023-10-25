@@ -278,39 +278,39 @@ static uint32_t
 _take_next_free_region(bt_allocator *allocator)
 {
     uint32_t region;
+    unsigned int i;
+    unsigned int rbit;
 
-    if (allocator->region_high < allocator->region_max) {
-        region = allocator->region_high;
-        allocator->region_count++;
-        allocator->region_high++;
-        return region;
+    if (allocator->region_count == allocator->region_max) {
+        goto ret_failed;
     }
 
+    if (allocator->region_high < allocator->region_count) {
+        region = allocator->region_high;
+    } else {
+        /* Need to search for a free region. */
+        /* TODO use sizeof(region_map) */
+        for (i = 0; i < (allocator->region_max / 8); i++) {
+            if (allocator->region_map[i] != 0) {
+                break;
+            }
+        }
+        if (i >= sizeof(allocator->region_map)) {
+            /* This is really bad: there should be at least one free region.  */
+            goto ret_failed;
+        }
+
+        rbit = (unsigned int)__builtin_ffs(allocator->region_map[i]) - 1;
+        region = (i * 8) + rbit;
+        allocator->region_map[i] ^= UINT8_C(1) << rbit;
+    }
+
+    allocator->region_high++;
+    allocator->region_count++;
+    return region;
+
+ret_failed:
     return BT_ALLOC_INVALID_REGION;
-
-    // if (allocator->region_high < allocator->region_count) {
-    //     region = allocator->region_high;
-    // } else {
-    //     /* Need to search for a free region. */
-    //     /* TODO use sizeof(region_map) */
-    //     for (i = 0; i < (allocator->region_max / 8); i++) {
-    //         if (allocator->region_map[i] != 0) {
-    //             break;
-    //         }
-    //     }
-    //     if (i >= sizeof(allocator->region_map)) {
-    //         /* This is really bad: there should be at least one free region.  */
-    //         goto ret_failed;
-    //     }
-
-    //     rbit = (unsigned int)__builtin_ffs(allocator->region_map[i]) - 1;
-    //     region = (i * 8) + rbit;
-    //     allocator->region_map[i] ^= UINT8_C(1) << rbit;
-    // }
-
-    // allocator->region_high++;
-    // allocator->region_count++;
-    // return region;
 }
 
 
@@ -474,7 +474,7 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
             if (_spillhdr_avail_mem(allocator, sphdr) >= alloc_size) {
                 break;
             }
-            curr_rgn = sphdr->next_spill;
+            curr_rgn++;
         }
 
         if (curr_rgn == BT_ALLOC_INVALID_REGION) {
