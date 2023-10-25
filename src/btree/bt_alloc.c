@@ -219,7 +219,7 @@ bt_alloc_create(bt_allocator **allocator, size_t region_size, size_t region_max)
     region_max = (region_max + 7uL) & ~7uL;
 
     vmsize = region_size * region_max;
-    vm = mmap(NULL, BT_ALLOC_VMSIZE, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+    vm = mmap(NULL, vmsize, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
     if (vm == MAP_FAILED) {
         return errno;
     }
@@ -474,6 +474,7 @@ _intra_region_alloc(bt_allocator *allocator, bt_alloc_prh *pghdr, size_t alloc_s
             if (_spillhdr_avail_mem(allocator, sphdr) >= alloc_size) {
                 break;
             }
+            curr_rgn++;
         }
 
         if (curr_rgn == BT_ALLOC_INVALID_REGION) {
