@@ -121,4 +121,38 @@ TEST_CASE("bt_alloc_allocator", "[bt_alloc]")
         ret = bt_alloc_dtor(&allocator);
         REQUIRE(ret == 0);
     }
+
+    SECTION("spill allocation simple")
+    {
+
+    }
+}
+
+TEST_CASE("bt_alloc spill allocation", "[bt_alloc]")
+{
+    int ret;
+    bt_allocator allocator;
+    WT_PAGE *pagep;
+
+    ret = bt_alloc_ctor(&allocator);
+    REQUIRE(ret == 0);
+
+    ret = bt_alloc_page_alloc(&allocator, BT_ALLOC_MIB(30), &pagep);
+    REQUIRE(ret == 0);
+    REQUIRE(pagep != NULL);
+
+    SECTION("Immediately spill into new region.")
+    {
+        void *memptr;        
+        ret = bt_alloc_zalloc(&allocator, BT_ALLOC_MIB(50), pagep, &memptr);
+        REQUIRE(ret == 0);
+        REQUIRE(memptr != NULL);
+        REQUIRE(allocator.region_count == 2);
+    }
+
+    ret = bt_alloc_page_free(&allocator, pagep);
+    REQUIRE(ret == 0);
+
+    ret = bt_alloc_dtor(&allocator);
+    REQUIRE(ret == 0);
 }
