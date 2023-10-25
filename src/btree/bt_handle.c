@@ -32,7 +32,7 @@ __btree_clear(WT_SESSION_IMPL *session)
     if (!F_ISSET(btree, WT_BTREE_CLOSED))
         return (0);
 
-    WT_RET(bt_alloc_dtor(btree->allocator));
+    WT_IGNORE_RET(bt_alloc_dtor(btree->allocator));
 
     /* Close the Huffman tree. */
     __wt_btree_huffman_close(session);
