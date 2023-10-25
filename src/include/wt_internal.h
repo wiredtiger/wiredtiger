@@ -466,6 +466,7 @@ typedef uint64_t wt_timestamp_t;
 #include "dhandle.h"   /* required by btree.h */
 #include "timestamp.h" /* required by reconcile.h */
 
+#include "bt_alloc.h"
 #include "api.h"
 #include "block.h"
 #include "block_cache.h"
@@ -473,7 +474,6 @@ typedef uint64_t wt_timestamp_t;
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
-#include "bt_alloc.h"
 #include "cache.h"
 #include "capacity.h"
 #include "cell.h"
