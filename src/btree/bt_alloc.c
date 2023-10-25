@@ -281,12 +281,12 @@ _take_next_free_region(bt_allocator *allocator)
     unsigned int i;
     unsigned int rbit;
 
-    if (allocator->region_count == allocator->region_max) {
+    if (allocator->region_count >= allocator->region_max) {
         /* No free regions remaining. */
         goto ret_failed;
     }
 
-    if (allocator->region_high < allocator->region_count) {
+    if (allocator->region_high < allocator->region_max) {
         /* Allocate from the high water mark. */
         region = allocator->region_high;
         allocator->region_high++;
