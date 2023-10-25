@@ -285,7 +285,8 @@ __log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, 
         WT_ASSIGN_LSN(&log->sync_lsn, min_lsn);
         WT_STAT_CONN_INCR(session, log_sync);
         WT_STAT_CONN_INCRV(session, log_sync_duration, fsync_duration_usecs);
-        __wt_cond_signal(session, log->log_sync_cond);
+        if (log->log_sync_cond != NULL)
+            __wt_cond_signal(session, log->log_sync_cond);
     }
 err:
     if (use_own_fh && log_fh != NULL)
@@ -362,7 +363,8 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
      * into a later log file and there should be a log file ready to close.
      */
     while (log->sync_lsn.l.file < min_lsn->l.file) {
-        __wt_cond_signal(session, S2C(session)->log_file_cond);
+        if (S2C(session)->log_file_cond != NULL)
+            __wt_cond_signal(session, S2C(session)->log_file_cond);
         __wt_cond_wait(session, log->log_sync_cond, 10 * WT_THOUSAND, NULL);
     }
     __wt_spin_lock(session, &log->log_sync_lock);
@@ -1160,7 +1162,8 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         __wt_log_wrlsn(session, NULL);
         if (++yield_cnt % WT_THOUSAND == 0) {
             __wt_spin_unlock(session, &log->log_slot_lock);
-            __wt_cond_signal(session, conn->log_file_cond);
+            if (conn->log_file_cond != NULL)
+                __wt_cond_signal(session, conn->log_file_cond);
             __wt_spin_lock(session, &log->log_slot_lock);
         }
         if (++yield_cnt > WT_THOUSAND * 10)
@@ -1962,13 +1965,14 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
     WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);
 
     WT_ASSERT(session, slot != log->active_slot);
-    __wt_cond_signal(session, log->log_write_cond);
+    if (log->log_write_cond != NULL)
+        __wt_cond_signal(session, log->log_write_cond);
     F_CLR_ATOMIC_16(slot, WT_SLOT_FLUSH);
 
     /*
      * Signal the close thread if needed.
      */
-    if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH))
+    if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH) && conn->log_file_cond != NULL)
         __wt_cond_signal(session, conn->log_file_cond);
 
     if (F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC_DIRTY) && !F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC) &&

@@ -352,7 +352,8 @@ __wt_thread_group_start_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bo
           group->name, thread->id);
         WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_ACTIVE));
         F_SET(thread, WT_THREAD_ACTIVE);
-        __wt_cond_signal(session, thread->pause_cond);
+        if (thread->pause_cond != NULL)
+            __wt_cond_signal(session, thread->pause_cond);
     }
     if (!is_locked)
         __wt_writeunlock(session, &group->lock);
@@ -378,7 +379,8 @@ __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
           group->name, thread->id);
         WT_ASSERT(session, F_ISSET(thread, WT_THREAD_ACTIVE));
         F_CLR(thread, WT_THREAD_ACTIVE);
-        __wt_cond_signal(session, thread->pause_cond);
+        if (thread->pause_cond != NULL)
+            __wt_cond_signal(session, thread->pause_cond);
     }
     __wt_writeunlock(session, &group->lock);
 }

@@ -235,7 +235,7 @@ __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize)
 
     conn = S2C(session);
     WT_ASSERT(session, WT_CKPT_LOGSIZE(conn));
-    if (logsize >= conn->ckpt_logsize && !conn->ckpt_signalled) {
+    if (logsize >= conn->ckpt_logsize && !conn->ckpt_signalled && conn->ckpt_cond != NULL) {
         __wt_cond_signal(session, conn->ckpt_cond);
         conn->ckpt_signalled = true;
     }

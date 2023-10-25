@@ -642,7 +642,8 @@ __log_file_server(void *arg)
                 WT_ERR(__wt_close(session, &close_fh));
                 WT_ASSERT(session, __wt_log_cmp(&close_end_lsn, &log->sync_lsn) >= 0);
                 WT_ASSIGN_LSN(&log->sync_lsn, &close_end_lsn);
-                __wt_cond_signal(session, log->log_sync_cond);
+                if (log->log_sync_cond != NULL)
+                    __wt_cond_signal(session, log->log_sync_cond);
                 __wt_spin_unlock(session, &log->log_sync_lock);
             }
         }
@@ -782,12 +783,13 @@ restart:
                     slot->slot_start_lsn.l.offset = (uint32_t)slot->slot_last_offset;
                 WT_ASSIGN_LSN(&log->write_start_lsn, &slot->slot_start_lsn);
                 WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);
-                __wt_cond_signal(session, log->log_write_cond);
+                if (log->log_write_cond != NULL)
+                    __wt_cond_signal(session, log->log_write_cond);
                 WT_STAT_CONN_INCR(session, log_write_lsn);
                 /*
                  * Signal the close thread if needed.
                  */
-                if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH))
+                if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH) && conn->log_file_cond != NULL)
                     __wt_cond_signal(session, conn->log_file_cond);
             }
             __wt_log_slot_free(session, slot);
