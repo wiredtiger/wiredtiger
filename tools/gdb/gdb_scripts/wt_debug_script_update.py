@@ -2,7 +2,7 @@ import gdb
 import bson
 from pprint import pprint
 
-# FIXME - update to use gdb.Command like the other python scripts
+# FIXME-WT-11881 Update to use gdb.Command like the other python scripts
 
 # Usage examples:
 # To dump data from the original file handle.
