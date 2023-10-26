@@ -15,7 +15,7 @@
  */
 
 /*
- * WiredTiger uses opaque pointers to expose only neccessary data to end users. This public
+ * WiredTiger uses opaque pointers to expose only necessary data to end users. This public
  * information is stored in the iface field at the beginning of the struct, and private fields can
  * be accessed by casting the pointer to our internal type. Since this is just type casting and
  * pointer arithmetic the public fields must be the first fields in the struct.
