@@ -20,6 +20,7 @@ set(format_sources
     replay.c
     snap.c
     t.c
+    thread_pause.c
     trace.c
     verify.c
     wts.c

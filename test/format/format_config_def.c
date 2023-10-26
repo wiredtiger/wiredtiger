@@ -382,6 +382,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_8},
 
+  /* 0%. This feature is only supported on Linux and must be enabled explicitly */
+  {"thread_pause", "Randomly pause any wt internal or application threads during testing", C_BOOL,
+    0, 0, 0, V_GLOBAL_THREAD_PAUSE},
+
   {"tiered_storage.flush_frequency",
     "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50,
     100, V_GLOBAL_TIERED_STORAGE_FLUSH_FREQUENCY},

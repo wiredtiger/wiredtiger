@@ -213,10 +213,10 @@ typedef struct {
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
 
-    bool backward_compatible; /* Backward compatibility testing */
-    bool configured;          /* Configuration completed */
-    bool reopen;              /* Reopen an existing database */
-    bool workers_finished;    /* Operations completed */
+    bool backward_compatible;       /* Backward compatibility testing */
+    bool configured;                /* Configuration completed */
+    bool reopen;                    /* Reopen an existing database */
+    volatile bool workers_finished; /* Operations completed */
 
     WT_CONNECTION *trace_conn; /* Tracing operations */
     WT_SESSION *trace_session;
@@ -432,6 +432,7 @@ WT_THREAD_RET compact(void *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
+WT_THREAD_RET thread_pause(void *);
 WT_THREAD_RET timestamp(void *);
 
 uint32_t atou32(const char *, const char *, int);
@@ -444,6 +445,7 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+void dump_active_threads(WT_SESSION_IMPL *session);
 void fclose_and_clear(FILE **);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);

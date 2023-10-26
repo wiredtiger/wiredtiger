@@ -230,12 +230,21 @@ tinfo_teardown(void)
 static void
 rollback_to_stable(WT_SESSION *session)
 {
+    WT_DECL_RET;
     /* Rollback-to-stable only makes sense for timestamps. */
     if (!g.transaction_timestamps_config)
         return;
 
     /* Rollback the system. */
-    testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
+    ret = g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
+    /* 
+     * FIXME-thread-pause - Is this ok? This is suppressing the "can't run RTS when there are active
+     * threads" ret code which is coming from pausing this application thread long enough for
+     * another app thread to create an active cursor. 
+     */
+    if (ret == EBUSY)
+        return;
+    testutil_check(ret);
 
     /*
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
@@ -257,6 +266,24 @@ rollback_to_stable(WT_SESSION *session)
 }
 
 /*
+ * setup_thread --
+ *     Bit of a hack. Threads inherit their name from the session on creation, but these threads are all reusing
+ *     the same session. Temporarily set the thread name for creation and then revert to the
+ *     original name.
+ */
+static void
+setup_thread(
+  WT_SESSION *session, wt_thread_t *tid, void *thread_func(void *), const char *name, void *arg)
+{
+    WT_SESSION_IMPL *wt_session = (WT_SESSION_IMPL *)session;
+
+    const char *orig_session_name = wt_session->name;
+    wt_session->name = name;
+    testutil_check(__wt_thread_create((WT_SESSION_IMPL *)session, tid, thread_func, arg));
+    wt_session->name = orig_session_name;
+}
+
+/*
  * operations --
  *     Perform a number of operations in a set of threads.
  */
@@ -269,7 +296,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     WT_SESSION *session;
     wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid, hs_tid,
       import_tid, random_tid;
-    wt_thread_t timestamp_tid;
+    wt_thread_t timestamp_tid, thread_pause_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
     bool lastrun, running;
@@ -341,30 +368,39 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     replay_run_begin(session);
 
     for (i = 0; i < GV(RUNS_THREADS); ++i) {
+        char ops_name[20];
         tinfo = tinfo_list[i];
-        testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
+        testutil_snprintf(ops_name, WT_THREAD_NAME_MAX_LEN, "ops %u", i);
+        setup_thread(session, &tinfo->tid, ops, ops_name, tinfo);
     }
 
     /* Start optional special-purpose threads. */
     if (GV(OPS_ALTER))
-        testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL));
+        setup_thread(session, &alter_tid, alter, "alter", NULL);
     if (GV(BACKGROUND_COMPACT))
-        testutil_check(__wt_thread_create(NULL, &background_compact_tid, background_compact, NULL));
+        setup_thread(
+          session, &background_compact_tid, background_compact, "background_compact", NULL);
     if (GV(BACKUP))
-        testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL));
+        setup_thread(session, &backup_tid, backup, "backup", NULL);
     if (GV(OPS_COMPACTION))
-        testutil_check(__wt_thread_create(NULL, &compact_tid, compact, NULL));
+        setup_thread(session, &compact_tid, compact, "compact", NULL);
     if (GV(OPS_HS_CURSOR))
-        testutil_check(__wt_thread_create(NULL, &hs_tid, hs_cursor, NULL));
+        setup_thread(session, &hs_tid, hs_cursor, "hs_cursor", NULL);
     if (GV(IMPORT))
-        testutil_check(__wt_thread_create(NULL, &import_tid, import, NULL));
+        setup_thread(session, &import_tid, import, "import", NULL);
     if (GV(OPS_RANDOM_CURSOR))
-        testutil_check(__wt_thread_create(NULL, &random_tid, random_kv, NULL));
+        setup_thread(session, &random_tid, random_kv, "random_kv", NULL);
     if (g.transaction_timestamps_config)
-        testutil_check(__wt_thread_create(NULL, &timestamp_tid, timestamp, tinfo_list));
+        setup_thread(session, &timestamp_tid, timestamp, "timestamp", NULL);
 
     if (g.checkpoint_config == CHECKPOINT_ON)
-        testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
+        setup_thread(session, &checkpoint_tid, checkpoint, "checkpoint", NULL);
+
+    if (GV(THREAD_PAUSE)) {
+        /* NULL session so we don't add ourselves to the thread registry for pausing */
+        testutil_check(__wt_thread_create(NULL, &thread_pause_tid, thread_pause, session));
+        dump_active_threads((WT_SESSION_IMPL *)session);
+    }
 
     /* Spin on the threads, calculating the totals. */
     for (;;) {
@@ -389,7 +425,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
                 break;
             case TINFO_COMPLETE:
                 tinfo->state = TINFO_JOINED;
-                testutil_check(__wt_thread_join(NULL, &tinfo->tid));
+                testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &tinfo->tid));
                 break;
             case TINFO_JOINED:
                 break;
@@ -445,24 +481,30 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Wait for the special-purpose threads. */
     g.workers_finished = true;
+
+    if (GV(THREAD_PAUSE)) {
+        testutil_check(__wt_thread_join(NULL, &thread_pause_tid));
+    }
+
     if (GV(OPS_ALTER))
-        testutil_check(__wt_thread_join(NULL, &alter_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &alter_tid));
     if (GV(BACKGROUND_COMPACT))
-        testutil_check(__wt_thread_join(NULL, &background_compact_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &background_compact_tid));
     if (GV(BACKUP))
-        testutil_check(__wt_thread_join(NULL, &backup_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &backup_tid));
     if (g.checkpoint_config == CHECKPOINT_ON)
-        testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
-        testutil_check(__wt_thread_join(NULL, &compact_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &compact_tid));
     if (GV(OPS_HS_CURSOR))
-        testutil_check(__wt_thread_join(NULL, &hs_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &hs_tid));
     if (GV(IMPORT))
-        testutil_check(__wt_thread_join(NULL, &import_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &import_tid));
     if (GV(OPS_RANDOM_CURSOR))
-        testutil_check(__wt_thread_join(NULL, &random_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &random_tid));
     if (g.transaction_timestamps_config)
-        testutil_check(__wt_thread_join(NULL, &timestamp_tid));
+        testutil_check(__wt_thread_join((WT_SESSION_IMPL *)session, &timestamp_tid));
+
     g.workers_finished = false;
 
     trace_msg(session, "%s", "=============== thread ops stop");

@@ -56,6 +56,7 @@ static void config_off_all(const char *);
 static void config_pct(TABLE *);
 static void config_run_length(void);
 static void config_statistics(void);
+static void config_thread_pause(void);
 static void config_tiered_storage(void);
 static void config_transaction(void);
 static bool config_var(TABLE *);
@@ -528,6 +529,7 @@ config_run(void)
     config_mirrors();                                /* Mirrors */
     config_statistics();                             /* Statistics */
     config_compact();                                /* Compaction */
+    config_thread_pause();                           /* Thread pausing */
 
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
@@ -2376,4 +2378,17 @@ config_compact(void)
         config_off(NULL, "background_compact");
         config_off(NULL, "ops.compaction");
     }
+}
+
+/*
+ * config_thread_pause --
+ *     Verify thread_pause configuration.
+ */
+static void
+config_thread_pause(void)
+{
+#ifndef __linux__
+    if (GV(THREAD_PAUSE))
+        testutil_die(EINVAL, "Thread pause is only supported on linux");
+#endif
 }
