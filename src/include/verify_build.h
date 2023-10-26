@@ -21,8 +21,7 @@
  * pointer arithmetic the public fields must be the first fields in the struct.
  */
 #define WT_VERIFY_OPAQUE_POINTER(type) \
-    static_assert(                     \
-      offsetof(WT_CURSOR_BACKUP, iface) == 0, #type " does not begin with the 'iface' field")
+    static_assert(offsetof(type, iface) == 0, #type " does not begin with the 'iface' field")
 
 /* Check specific structures weren't padded. */
 static_assert(sizeof(WT_BLOCK_DESC) == WT_BLOCK_DESC_SIZE,
