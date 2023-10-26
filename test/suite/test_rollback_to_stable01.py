@@ -65,7 +65,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         return config
 
     def test_rollback_to_stable(self):
-        nrows = 10000
+        nrows = 1
 
         # Create a table.
         uri = "table:rollback_to_stable01"

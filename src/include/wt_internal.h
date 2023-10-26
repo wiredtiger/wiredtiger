@@ -135,6 +135,10 @@ struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_ckpt_snapshot;
 typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
+struct __wt_ckpt_threads;
+typedef struct __wt_ckpt_threads WT_CKPT_THREADS;
+struct __wt_ckpt_work_unit;
+typedef struct __wt_ckpt_work_unit WT_CKPT_WORK_UNIT;
 struct __wt_col;
 typedef struct __wt_col WT_COL;
 struct __wt_col_fix_auxiliary_header;
@@ -462,9 +466,10 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
-#include "stat.h"      /* required by dhandle.h */
-#include "dhandle.h"   /* required by btree.h */
-#include "timestamp.h" /* required by reconcile.h */
+#include "stat.h"         /* required by dhandle.h */
+#include "dhandle.h"      /* required by btree.h */
+#include "timestamp.h"    /* required by reconcile.h */
+#include "thread_group.h" /* required by checkpoint.h */
 
 #include "api.h"
 #include "block.h"
@@ -490,7 +495,6 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"
-#include "thread_group.h"
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"

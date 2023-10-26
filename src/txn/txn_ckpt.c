@@ -13,6 +13,12 @@ static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, con
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
+static void __wt_ckpt_pop_work(WT_SESSION_IMPL *session, WT_CKPT_WORK_UNIT **entryp);
+static int __wt_ckpt_push_work(
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle, WT_TXN_SNAPSHOT *snapshot, const char *cfg[]);
+static void __wt_ckpt_work_free(WT_SESSION_IMPL *session, WT_CKPT_WORK_UNIT *entry);
+static int __checkpoint_push_dhandles(WT_SESSION_IMPL *session, const char *cfg[]);
+static bool __checkpoint_workers_finish(WT_SESSION_IMPL *session);
 static int __drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
 
 /*
@@ -1070,6 +1076,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * trees so they match. The time is left in the session.
      */
     __txn_checkpoint_establish_time(session);
+    F_SET(session, WT_SESSION_CHECKPOINT);
 
     /*
      * Update the global oldest ID so we do all possible cleanup.
@@ -1151,7 +1158,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     tsp.tv_sec = 10;
     tsp.tv_nsec = 0;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
-    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
+    WT_ERR(__checkpoint_push_dhandles(session, cfg));
+    while (!__checkpoint_workers_finish(session))
+        __wt_sleep(1, 0);
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
@@ -1407,6 +1416,7 @@ err:
         __wt_scr_free(session, &session->ckpt_drop_list);
 
     __txn_checkpoint_clear_time(session);
+    F_CLR(session, WT_SESSION_CHECKPOINT);
 
     __wt_free(session, session->ckpt_handle);
     session->ckpt_handle_allocated = session->ckpt_handle_next = 0;
@@ -2599,30 +2609,43 @@ __checkpoint_timing_stress(WT_SESSION_IMPL *session, uint64_t flag, struct times
 bool
 __wt_ckpt_thread_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_CKPT_THREAD_RUN));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_THREADS));
 }
 
 /*
  * __wt_ckpt_thread_run --
- *     Entry function for a checkpoint thread. This is called repeatedly from the thread group code so it
- *     does not need to loop itself.
+ *     Entry function for a checkpoint thread. This is called repeatedly from the thread group code
+ *     so it does not need to loop itself.
  */
 int
 __wt_ckpt_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
-    WT_DECL_RET;
     WT_CKPT_WORK_UNIT *entry;
+    WT_DECL_RET;
+    bool signalled;
 
     WT_UNUSED(thread);
 
-    /* Mark the session as an eviction thread session. */
-    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    /* Wait until the next event. */
+    __wt_cond_wait_signal(
+        session, S2C(session)->ckpt->cond, WT_MILLION, __wt_ckpt_thread_chk, &signalled);
 
     __wt_ckpt_pop_work(session, &entry);
     if (entry == NULL)
         return (0);
 
-    WT_ERR(__wt_ckpt_btree_work_unit(session, entry));
+    memcpy(&session->txn->snapshot_data, entry->snapshot, sizeof(WT_TXN_SNAPSHOT));
+    F_SET(session, WT_SESSION_CHECKPOINT);
+    F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+    F_SET(session->txn, WT_TXN_RUNNING);
+    session->txn->id = S2C(session)->txn_global.checkpoint_txn_shared.id;
+
+    WT_WITH_DHANDLE(session, entry->handle, ret = __checkpoint_tree_helper(session, entry->config));
+    WT_ERR(ret);
+    __wt_ckpt_work_free(session, entry);
+    S2C(session)->ckpt->pop++;
+    session->txn->flags = 0;
+    F_CLR(session, WT_SESSION_CHECKPOINT);
 
     if (0) {
 err:
@@ -2641,9 +2664,6 @@ __wt_ckpt_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     if (thread->id != 0)
         return (0);
 
-    /* Clear the eviction thread session flag. */
-    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
-
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "checkpoint thread exiting");
     return (0);
 }
@@ -2652,7 +2672,7 @@ __wt_ckpt_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
  * __wt_ckpt_thread_create --
  *     Start checkpoint threads.
  */
-static int
+int
 __wt_ckpt_thread_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
@@ -2660,23 +2680,23 @@ __wt_ckpt_thread_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->rts->threads == 0)
-        return (0);
+    conn->ckpt = &conn->_ckpt;
+    conn->ckpt->threads = 4;
 
     /* Set first, the thread might run before we finish up. */
-    F_SET(conn, WT_CONN_CKPT_THREAD_RUN);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_THREADS);
 
-    TAILQ_INIT(&conn->rts->rtsqh); /* RTS work unit list */
-    WT_RET(__wt_spin_init(session, &conn->rts->rts_lock, "checkpoint work unit list"));
+    TAILQ_INIT(&conn->ckpt->qh); /* Checkpoint work unit list */
+    WT_RET(__wt_spin_init(session, &conn->ckpt->lock, "checkpoint work unit list"));
     WT_RET(__wt_cond_auto_alloc(
-      session, "checkpoint threads", 10 * WT_THOUSAND, WT_MILLION, &conn->rts->thread_cond));
+      session, "checkpoint threads", 10 * WT_THOUSAND, WT_MILLION, &conn->ckpt->cond));
 
     /*
      * Create a checkpoint thread group. Set the group size to the maximum allowed sessions.
      */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
-    WT_RET(__wt_thread_group_create(session, &conn->rts->thread_group, "checkpoint-threads",
-      conn->rts->threads, conn->rts->threads, session_flags, __wt_ckpt_thread_chk,
+    WT_RET(__wt_thread_group_create(session, &conn->ckpt->thread_group, "checkpoint-threads",
+      conn->ckpt->threads, conn->ckpt->threads, session_flags, __wt_ckpt_thread_chk,
       __wt_ckpt_thread_run, __wt_ckpt_thread_stop));
 
     return (0);
@@ -2686,7 +2706,7 @@ __wt_ckpt_thread_create(WT_SESSION_IMPL *session)
  * __wt_ckpt_thread_destroy --
  *     Destroy the checkpoint threads.
  */
-static int
+int
 __wt_ckpt_thread_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
@@ -2694,27 +2714,23 @@ __wt_ckpt_thread_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->rts->threads == 0)
-        return (0);
-
-    /* Wait for any rts thread group changes to stabilize. */
-    __wt_writelock(session, &conn->rts->thread_group.lock);
+    /* Wait for any checkpoint thread group changes to stabilize. */
+    __wt_writelock(session, &conn->ckpt->thread_group.lock);
 
     /*
      * Signal the threads to finish and stop populating the queue.
      */
-    F_CLR(conn, WT_CONN_RTS_THREAD_RUN);
-    __wt_cond_signal(session, conn->rts->thread_cond);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_THREADS);
+    __wt_cond_signal(session, conn->ckpt->cond);
 
-    __wt_verbose(
-      session, WT_VERB_CHECKPOINT, "%s", "waiting for helper threads");
+    __wt_verbose(session, WT_VERB_CHECKPOINT, "%s", "waiting for helper threads");
 
     /*
      * We call the destroy function still holding the write lock. It assumes it is called locked.
      */
-    WT_TRET(__wt_thread_group_destroy(session, &conn->rts->thread_group));
-    __wt_spin_destroy(session, &conn->rts->rts_lock);
-    __wt_cond_destroy(session, &conn->rts->thread_cond);
+    WT_TRET(__wt_thread_group_destroy(session, &conn->ckpt->thread_group));
+    __wt_spin_destroy(session, &conn->ckpt->lock);
+    __wt_cond_destroy(session, &conn->ckpt->cond);
 
     return (ret);
 }
@@ -2723,11 +2739,9 @@ __wt_ckpt_thread_destroy(WT_SESSION_IMPL *session)
  * __wt_ckpt_work_free --
  *     Free a work unit and account.
  */
-void
+static void
 __wt_ckpt_work_free(WT_SESSION_IMPL *session, WT_CKPT_WORK_UNIT *entry)
 {
-    __wt_free(session, entry->handle);
-    __wt_free(session, );
     __wt_free(session, entry);
 }
 
@@ -2735,31 +2749,31 @@ __wt_ckpt_work_free(WT_SESSION_IMPL *session, WT_CKPT_WORK_UNIT *entry)
  * __wt_ckpt_pop_work --
  *     Pop a work unit from the queue.
  */
-void
+static void
 __wt_ckpt_pop_work(WT_SESSION_IMPL *session, WT_CKPT_WORK_UNIT **entryp)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CKPT_WORK_UNIT *entry;
+    WT_CONNECTION_IMPL *conn;
 
     *entryp = entry = NULL;
 
     conn = S2C(session);
-    if (TAILQ_EMPTY(&conn->rts->rtsqh))
+    if (TAILQ_EMPTY(&conn->ckpt->qh))
         return;
 
-    __wt_spin_lock(session, &conn->rts->rts_lock);
+    __wt_spin_lock(session, &conn->ckpt->lock);
 
     /* Recheck again to confirm whether the queue is empty or not? */
-    if (TAILQ_EMPTY(&conn->rts->rtsqh)) {
-        __wt_spin_unlock(session, &conn->rts->rts_lock);
+    if (TAILQ_EMPTY(&conn->ckpt->qh)) {
+        __wt_spin_unlock(session, &conn->ckpt->lock);
         return;
     }
 
-    entry = TAILQ_FIRST(&conn->rts->rtsqh);
-    TAILQ_REMOVE(&conn->rts->rtsqh, entry, q);
+    entry = TAILQ_FIRST(&conn->ckpt->qh);
+    TAILQ_REMOVE(&conn->ckpt->qh, entry, q);
     *entryp = entry;
 
-    __wt_spin_unlock(session, &conn->rts->rts_lock);
+    __wt_spin_unlock(session, &conn->ckpt->lock);
     return;
 }
 
@@ -2767,36 +2781,60 @@ __wt_ckpt_pop_work(WT_SESSION_IMPL *session, WT_CKPT_WORK_UNIT **entryp)
  * __wt_ckpt_push_work --
  *     Push a work unit to the queue.
  */
-int
-__wt_ckpt_push_work(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_timestamp)
+static int
+__wt_ckpt_push_work(
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle, WT_TXN_SNAPSHOT *snapshot, const char *cfg[])
 {
+    WT_CKPT_WORK_UNIT *entry;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_RTS_WORK_UNIT *entry;
 
     conn = S2C(session);
 
     WT_RET(__wt_calloc_one(session, &entry));
-    WT_ERR(__wt_strdup(session, uri, &entry->uri));
-    entry->rollback_timestamp = rollback_timestamp;
+    entry->config = cfg;
+    entry->snapshot = snapshot;
+    entry->handle = handle;
 
-    __wt_spin_lock(session, &conn->rts->rts_lock);
-    TAILQ_INSERT_TAIL(&conn->rts->rtsqh, entry, q);
-    __wt_spin_unlock(session, &conn->rts->rts_lock);
-    __wt_cond_signal(session, conn->rts->thread_cond);
+    __wt_spin_lock(session, &conn->ckpt->lock);
+    TAILQ_INSERT_TAIL(&conn->ckpt->qh, entry, q);
+    __wt_spin_unlock(session, &conn->ckpt->lock);
+    __wt_cond_signal(session, conn->ckpt->cond);
 
     return (0);
-err:
-    __wt_free(session, entry);
-    return (ret);
 }
 
 /*
- * __wt_ckpt_btree_work_unit --
- *     Perform checkpoint on a single work unit.
+ * __checkpoint_push_dhandles --
+ *     Push all handles to the checkpoint threads for checkpoint operation.
  */
-int
-__wt_ckpt_btree_work_unit(WT_SESSION_IMPL *session, WT_CKPT_WORK_UNIT *entry)
+static int
+__checkpoint_push_dhandles(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    return (__checkpoint_tree_helper(session, entry->config));
+    u_int i;
+
+    /* If we have already locked the handles, apply the operation. */
+    for (i = 0; i < session->ckpt_handle_next; ++i) {
+        if (session->ckpt_handle[i] == NULL)
+            continue;
+        WT_RET(
+          __wt_ckpt_push_work(session, session->ckpt_handle[i], &session->txn->snapshot_data, cfg));
+        S2C(session)->ckpt->push++;
+    }
+
+    return (0);
+}
+
+/*
+ * __checkpoint_workers_finish --
+ *     Check whether the checkpoint workers finish all handles.
+ */
+static bool __checkpoint_workers_finish(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    if (conn->ckpt->push == conn->ckpt->pop)
+        return (true);
+
+    return (false);
 }

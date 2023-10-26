@@ -63,7 +63,7 @@ typedef enum {
     (S2C(s)->txn_global.txn_shared_list == NULL ? NULL : \
                                                   &S2C(s)->txn_global.txn_shared_list[(s)->id])
 
-#define WT_SESSION_IS_CHECKPOINT(s) ((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
+#define WT_SESSION_IS_CHECKPOINT(s) (F_ISSET((s), WT_SESSION_CHECKPOINT))
 
 /*
  * Perform an operation at the specified isolation level.
