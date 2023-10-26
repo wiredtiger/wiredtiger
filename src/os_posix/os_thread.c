@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include <signal.h>
 
 #ifdef __linux__
 
@@ -39,6 +40,24 @@ __thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t threa
     return (0);
 }
 #endif
+
+/*
+ * sig_func --
+ *     Interrupt handler that sleeps the current thread.
+ */
+static void
+sig_func(int sig)
+{
+    /* char thread_name[WT_THREAD_NAME_MAX_LEN]; */
+    WT_UNUSED(sig);
+
+    /* printf("Thread %s: Caught signal SIGUSR1\n", thread_name); */
+    /* pthread_getname_np(pthread_self(), thread_name, WT_THREAD_NAME_MAX_LEN); */
+    usleep(WT_THREAD_PAUSE_DURATION);
+    /* printf("Thread %s: Resuming after SIGUSR1\n", thread_name); */
+    return;
+}
+
 /*
  * __register_thread --
  *     Register a newly created thread in the thread registry.
@@ -79,6 +98,15 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
 {
     WT_DECL_RET;
 
+    pthread_attr_t attr;
+
+    /* 
+     * FIXME-thread-pause - understand this better. Are we registering at the process level on each
+     * call? 
+     */
+    signal(SIGUSR1, sig_func);
+    pthread_attr_init(&attr);
+
     /*
      * Creating a thread isn't a memory barrier, but WiredTiger commonly sets flags and or state and
      * then expects worker threads to start. Include a barrier to ensure safety in those cases.
@@ -86,7 +114,7 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
     WT_FULL_BARRIER();
 
     /* Spawn a new thread of control. */
-    WT_SYSCALL_RETRY(pthread_create(&tidret->id, NULL, func, arg), ret);
+    WT_SYSCALL_RETRY(pthread_create(&tidret->id, &attr, func, arg), ret);
     if (ret == 0) {
         tidret->created = true;
 #ifdef __linux__
