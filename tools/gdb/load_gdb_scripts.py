@@ -17,13 +17,13 @@ import gdb, sys, os
 
 print("Loading custom WiredTiger gdb scripts...")
 
-# Add the build directory to our path so we can import from the gdb_scripts subfolder
+# Add the build directory to our path so we can import from the gdb_scripts subfolder.
 build_dir = os.path.dirname(__file__)
 sys.path.append(build_dir)
 
-# Load gdb scripts written in python
+# Load gdb scripts written in python.
 import gdb_scripts.hazard_pointers
 import gdb_scripts.dump_insert_list
 
-# load gdb scripts written in scheme
+# load gdb scripts written in scheme.
 gdb.execute(f"source {build_dir}/gdb_scripts/dump_row_int.gdb")

@@ -1,4 +1,4 @@
-# Move load_gdb_scripts.py and its related gdb scripts into the build directory 
+# Move load_gdb_scripts.py and its related gdb scripts into the build directory. 
 # Rename the loader script to allow gdb to execute it automatically when the .so file is loaded.
 function(setup_gdb_autoloader)
     if(WT_LINUX AND ENABLE_SHARED)

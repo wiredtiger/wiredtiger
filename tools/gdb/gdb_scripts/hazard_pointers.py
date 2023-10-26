@@ -2,14 +2,14 @@
 # Example: 
 #     (in gdb) 
 #     source hazard_pointers.py
-#     dump_hazard_pointers`
+#     dump_hazard_pointers
 
 import gdb
 
 SESSION_IMPL_PTR = gdb.lookup_type("WT_SESSION_IMPL").pointer()
 CONN_IMPL_PTR = gdb.lookup_type("WT_CONNECTION_IMPL").pointer()
 
-# Return a list of sessions and which thread they are in
+# Return a list of sessions and which thread they are in.
 def find_sessions():
     original_frame = gdb.selected_frame()
     sessions = []
@@ -18,7 +18,7 @@ def find_sessions():
     for thread in current_prog.threads():
         thread.switch()
 
-        # Walk up the stack until we find a function that takes session as an argument
+        # Walk up the stack until we find a function that takes session as an argument.
         gdb.newest_frame()
         cur_frame = gdb.selected_frame()
         while cur_frame is not None:
@@ -29,15 +29,15 @@ def find_sessions():
                 break
             cur_frame = cur_frame.older()
 
-    # Return back to our original frame from before we called this function
+    # Return back to our original frame from before we called this function.
     original_frame.select()
     return sessions
 
 # Helper script to dump all active hazard pointers and the sessions that hold them.
 # Usage: `dump_hazard_pointers`
-class DumpHazardPointers(gdb.Command):
+class dump_hazard_pointers(gdb.Command):
     def __init__(self):
-        super(DumpHazardPointers, self).__init__("dump_hazard_pointers", gdb.COMMAND_DATA)
+        super(dump_hazard_pointers, self).__init__("dump_hazard_pointers", gdb.COMMAND_DATA)
 
     def invoke(self, arg, from_tty):
         for (thread, session_ptr) in find_sessions():
@@ -53,9 +53,9 @@ class DumpHazardPointers(gdb.Command):
 
 # Helper script that lists all threads that hold a hazard pointer on the provided ref.
 # Usage: `find_hazard_pointers_for 0xffff8c5792a0`
-class FindHazardPointerOf(gdb.Command):
+class find_hazard_pointer_for(gdb.Command):
     def __init__(self):
-        super(FindHazardPointerOf, self).__init__("find_hazard_pointers_for", gdb.COMMAND_DATA)
+        super(find_hazard_pointer_for, self).__init__("find_hazard_pointers_for", gdb.COMMAND_DATA)
 
     def invoke(self, arg, from_tty):
         if(len(arg.split()) != 1 or not str(arg).startswith("0x")):
@@ -76,5 +76,5 @@ class FindHazardPointerOf(gdb.Command):
                         print(f"        {hazard_ptr}")
 
 # Register scripts with gdb when `source` is called.
-DumpHazardPointers()
-FindHazardPointerOf()
+dump_hazard_pointers()
+find_hazard_pointer_for()
