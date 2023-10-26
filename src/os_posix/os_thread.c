@@ -39,6 +39,35 @@ __thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t threa
     return (0);
 }
 #endif
+/*
+ * __register_thread --
+ *     Register a newly created thread in the thread registry.
+ */
+static void
+__register_thread(WT_SESSION_IMPL *session, wt_thread_t *tid)
+{
+    if (session != NULL) {
+        bool found_spot;
+        WT_CONNECTION_IMPL *conn;
+
+        conn = S2C(session);
+        found_spot = false;
+
+        __wt_writelock(session, &conn->internal_thread_registry_lock);
+        for (uint32_t i = 0; i < INTERNAL_REGISTRY_SIZE; i++) {
+            if (conn->internal_thread_registry[i] == NULL) {
+                conn->internal_thread_registry[i] = tid;
+                found_spot = true;
+                if (i == conn->internal_thread_registry_size) {
+                    conn->internal_thread_registry_size = i + 1;
+                }
+                break;
+            }
+        }
+        WT_ASSERT_ALWAYS(session, found_spot, "Couldn't find spot to add new thread!!");
+        __wt_writeunlock(session, &conn->internal_thread_registry_lock);
+    }
+}
 
 /*
  * __wt_thread_create --
@@ -63,9 +92,46 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
 #ifdef __linux__
         WT_IGNORE_RET(__thread_set_name(session, tidret->name_index, tidret->id));
 #endif
+
+        __register_thread(session, tidret);
         return (0);
     }
     WT_RET_MSG(session, ret, "pthread_create");
+}
+
+/*
+ * __unregister_thread --
+ *     Remove the to-be-joined thread from the thread registry.
+ */
+static void
+__unregister_thread(WT_SESSION_IMPL *session, wt_thread_t *tid)
+{
+    if (session != NULL) {
+        bool found_spot;
+        WT_CONNECTION_IMPL *conn;
+
+        conn = S2C(session);
+        found_spot = false;
+
+        __wt_writelock(session, &conn->internal_thread_registry_lock);
+        for (uint32_t i = 0; i < INTERNAL_REGISTRY_SIZE; i++) {
+            if (conn->internal_thread_registry[i] == tid) {
+                conn->internal_thread_registry[i] = NULL;
+                found_spot = true;
+
+                conn->internal_thread_registry_size = 0;
+                for (uint32_t j = 0; j < INTERNAL_REGISTRY_SIZE; j++)
+                    if (conn->internal_thread_registry[j] != NULL) {
+                        conn->internal_thread_registry_size = j + 1;
+                    }
+
+                break;
+            }
+        }
+        WT_ASSERT_ALWAYS(
+          session, found_spot, "Couldn't find thread %s to remove from registry!!", session->name);
+        __wt_writeunlock(session, &conn->internal_thread_registry_lock);
+    }
 }
 
 /*
@@ -82,6 +148,8 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t *tid)
     if (!tid->created)
         return (0);
     tid->created = false;
+
+    __unregister_thread(session, tid);
 
     /*
      * Joining a thread isn't a memory barrier, but WiredTiger commonly sets flags and or state and

@@ -313,19 +313,20 @@ struct __wt_connection_impl {
 
     const char *cfg; /* Connection configuration */
 
-    WT_SPINLOCK api_lock;                 /* Connection API spinlock */
-    WT_SPINLOCK checkpoint_lock;          /* Checkpoint spinlock */
-    WT_SPINLOCK chunkcache_metadata_lock; /* Chunkcache metadata spinlock */
-    WT_RWLOCK debug_log_retention_lock;   /* Log retention reconfiguration lock */
-    WT_SPINLOCK fh_lock;                  /* File handle queue spinlock */
-    WT_SPINLOCK flush_tier_lock;          /* Flush tier spinlock */
-    WT_SPINLOCK metadata_lock;            /* Metadata update spinlock */
-    WT_SPINLOCK reconfig_lock;            /* Single thread reconfigure */
-    WT_SPINLOCK schema_lock;              /* Schema operation spinlock */
-    WT_RWLOCK table_lock;                 /* Table list lock */
-    WT_SPINLOCK tiered_lock;              /* Tiered work queue spinlock */
-    WT_SPINLOCK turtle_lock;              /* Turtle file spinlock */
-    WT_RWLOCK dhandle_lock;               /* Data handle list lock */
+    WT_SPINLOCK api_lock;                    /* Connection API spinlock */
+    WT_SPINLOCK checkpoint_lock;             /* Checkpoint spinlock */
+    WT_SPINLOCK chunkcache_metadata_lock;    /* Chunkcache metadata spinlock */
+    WT_RWLOCK debug_log_retention_lock;      /* Log retention reconfiguration lock */
+    WT_SPINLOCK fh_lock;                     /* File handle queue spinlock */
+    WT_SPINLOCK flush_tier_lock;             /* Flush tier spinlock */
+    WT_SPINLOCK metadata_lock;               /* Metadata update spinlock */
+    WT_SPINLOCK reconfig_lock;               /* Single thread reconfigure */
+    WT_SPINLOCK schema_lock;                 /* Schema operation spinlock */
+    WT_RWLOCK table_lock;                    /* Table list lock */
+    WT_SPINLOCK tiered_lock;                 /* Tiered work queue spinlock */
+    WT_SPINLOCK turtle_lock;                 /* Turtle file spinlock */
+    WT_RWLOCK dhandle_lock;                  /* Data handle list lock */
+    WT_RWLOCK internal_thread_registry_lock; /* Track all threads created in this connection */
 
     /* Connection queue */
     TAILQ_ENTRY(__wt_connection_impl) q;
@@ -698,6 +699,12 @@ struct __wt_connection_impl {
 #define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x800u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
+
+/* FIXME-thread-pause - Is it worth making this array growable? How often will we exceed 100 threads? */
+#define INTERNAL_REGISTRY_SIZE 100
+    /* Track all thread IDs created via wiredtiger thread_create calls */
+    wt_thread_t *internal_thread_registry[INTERNAL_REGISTRY_SIZE];
+    uint32_t internal_thread_registry_size;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001u
