@@ -3589,6 +3589,32 @@ tasks:
         vars:
           format_test_script_args: -t 110 direct_io=1
 
+  # The thread_pause config only works on Linux and will never be enabled by 
+  # chance, which means we need a task that intentionally turns on thread_pause. 
+  # Use higher spec distros same as linux-directio
+  - name: linux-thread-pause
+    # 6 hour timeout to be safe. We'll only run for 1
+    # thread_pause is causing some breakage of the timeout logic 
+    exec_timeout_secs: 21600
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 60 thread_pause=1
+
+  - name: linux-thread-pause-baseline-comparison
+    # FIXME-thread-pause - Temp test to compare rate of failures when running with and without thread_pause. To remove
+    # 6 hour timeout to be safe. We'll only run for 1
+    # thread_pause is causing some breakage of the timeout logic 
+    exec_timeout_secs: 21600
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 60
+
   - name: package
     commands:
       - func: "get project"
@@ -6352,6 +6378,10 @@ buildvariants:
     - name: static-wt-build-test
     - name: linux-directio
       distros: ubuntu2004-build
+    - name: linux-thread-pause
+      distros: ubuntu2004-build
+    - name: linux-thread-pause-baseline-comparison
+      distros: ubuntu2004-build
     - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
@@ -6592,6 +6622,10 @@ buildvariants:
     - name: time-shift-sensitivity-test
     - name: linux-directio
       distros: rhel80-build
+    - name: linux-thread-pause
+      distros: rhel80-build
+    - name: linux-thread-pause-baseline-comparison
+      distros: rhel80-build
     - name: syscall-linux
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
@@ -6728,6 +6762,8 @@ buildvariants:
     - name: fops
     - name: format-failure-configs-test
     - name: linux-directio
+    - name: linux-thread-pause
+    - name: linux-thread-pause-baseline-comparison
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-extra-long
@@ -6767,6 +6803,8 @@ buildvariants:
     - name: fops
     - name: format-failure-configs-test
     - name: linux-directio
+    - name: linux-thread-pause
+    - name: linux-thread-pause-baseline-comparison
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-extra-long
@@ -6814,6 +6852,8 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: linux-directio
+    - name: linux-thread-pause
+    - name: linux-thread-pause-baseline-comparison
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: spinlock-gcc-test
@@ -6842,6 +6882,8 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: linux-directio
+    - name: linux-thread-pause
+    - name: linux-thread-pause-baseline-comparison
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: spinlock-gcc-test
