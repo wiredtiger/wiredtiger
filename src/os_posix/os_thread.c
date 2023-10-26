@@ -100,9 +100,9 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
 
     pthread_attr_t attr;
 
-    /* 
+    /*
      * FIXME-thread-pause - understand this better. Are we registering at the process level on each
-     * call? 
+     * call?
      */
     signal(SIGUSR1, sig_func);
     pthread_attr_init(&attr);

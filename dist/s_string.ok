@@ -333,6 +333,7 @@ Redistributions
 Rogerio
 Runtime
 SDK
+SIGUSR
 SIMD
 SLVG
 SMT
@@ -1102,6 +1103,7 @@ programmatically
 ps
 psp
 pthread
+pthreads
 ptr
 ptrdiff
 pv
@@ -1321,6 +1323,7 @@ unmount
 unpackv
 unpositioned
 unreferenced
+unregister
 unsized
 unterminated
 untyped

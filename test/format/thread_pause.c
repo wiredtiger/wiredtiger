@@ -36,9 +36,9 @@
 
 /*
  * thread_pause --
- *     Randomly pick active threads as tracked in the connections thread_registry and pause them 
- *     for a brief period of time. The OS won't let me play with the scheduler so we use 
- *     pthread signals instead.
+ *     Randomly pick active threads as tracked in the connections thread_registry and pause them for
+ *     a brief period of time. The OS won't let me play with the scheduler so we use pthread signals
+ *     instead.
  */
 WT_THREAD_RET
 thread_pause(void *arg)
@@ -88,7 +88,10 @@ thread_pause(void *arg)
 
         __wt_readunlock(session, &conn->internal_thread_registry_lock);
 
-        /* Sleep a bit longer than the paused threads (0.05s). Make sure we're pausing at most one thread at a time. */
+        /*
+         * Sleep a bit longer than the paused threads (0.05s). Make sure we're pausing at most one
+         * thread at a time.
+         */
         usleep(WT_THREAD_PAUSE_DURATION + 50000);
     }
 

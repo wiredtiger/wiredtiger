@@ -237,10 +237,10 @@ rollback_to_stable(WT_SESSION *session)
 
     /* Rollback the system. */
     ret = g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
-    /* 
+    /*
      * FIXME-thread-pause - Is this ok? This is suppressing the "can't run RTS when there are active
      * threads" ret code which is coming from pausing this application thread long enough for
-     * another app thread to create an active cursor. 
+     * another app thread to create an active cursor.
      */
     if (ret == EBUSY)
         return;
@@ -267,9 +267,9 @@ rollback_to_stable(WT_SESSION *session)
 
 /*
  * setup_thread --
- *     Bit of a hack. Threads inherit their name from the session on creation, but these threads are all reusing
- *     the same session. Temporarily set the thread name for creation and then revert to the
- *     original name.
+ *     Bit of a hack. Threads inherit their name from the session on creation, but these threads are
+ *     all reusing the same session. Temporarily set the thread name for creation and then revert to
+ *     the original name.
  */
 static void
 setup_thread(

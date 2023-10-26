@@ -703,7 +703,10 @@ struct __wt_connection_impl {
 /* How long threads are paused in milliseconds. Equivalent for 0.5 seconds. */
 #define WT_THREAD_PAUSE_DURATION 500000
 
-/* FIXME-thread-pause - Is it worth making this array growable? How often will we exceed 100 threads? */
+/*
+ * FIXME-thread-pause - Is it worth making this array growable? How often will we exceed 100
+ * threads?
+ */
 #define INTERNAL_REGISTRY_SIZE 100
     /* Track all thread IDs created via wiredtiger thread_create calls */
     wt_thread_t *internal_thread_registry[INTERNAL_REGISTRY_SIZE];
