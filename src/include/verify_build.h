@@ -34,6 +34,14 @@
  */
 #define WT_STATIC_ASSERT(cond) (void)sizeof(char[1 - 2 * !(cond)])
 
+/*
+ * WiredTiger uses opaque pointers to expose only neccessary data to end users. This public
+ * information is stored in the iface field at the beginning of the struct, and private fields can
+ * be accessed by casting the pointer to our internal type. Since this is just type casting and
+ * pointer arithmetic the public fields must be the first fields in the struct.
+ */
+#define WT_VERIFY_OPAQUE_POINTER(type) static_assert(offsetof(WT_CURSOR_BACKUP, iface) == 0)
+
 /* Check specific structures weren't padded. */
 static_assert(sizeof(WT_BLOCK_DESC) == WT_BLOCK_DESC_SIZE,
   "size of WT_BLOCK_DESC did not match expected size WT_BLOCK_DESC_SIZE");
