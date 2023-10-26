@@ -15,26 +15,6 @@
  */
 
 /*
- * Compile time assertions.
- *
- * If the argument to WT_STATIC_ASSERT is zero, the macro evaluates to:
- *
- *	(void)sizeof(char[-1])
- *
- * which fails to compile (which is what we want, the assertion failed).
- * If the value of the argument to WT_STATIC_ASSERT is non-zero, then the
- * macro evaluates to:
- *
- *	(void)sizeof(char[1]);
- *
- * which compiles with no warnings, and produces no code.
- *
- * For more details about why this works, see
- * http://scaryreasoner.wordpress.com/2009/02/28/
- */
-#define WT_STATIC_ASSERT(cond) (void)sizeof(char[1 - 2 * !(cond)])
-
-/*
  * WiredTiger uses opaque pointers to expose only neccessary data to end users. This public
  * information is stored in the iface field at the beginning of the struct, and private fields can
  * be accessed by casting the pointer to our internal type. Since this is just type casting and
