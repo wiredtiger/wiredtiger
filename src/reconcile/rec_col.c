@@ -1015,7 +1015,7 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, uint32_t entries,
      *
      * This in turn guarantees that the pack calls cannot fail.
      */
-    static_assert(WT_COL_FIX_AUXHEADER_SIZE_MAX < POS_1BYTE_MAX);
+    static_assert(WT_COL_FIX_AUXHEADER_SIZE_MAX < POS_1BYTE_MAX, "col fix aux header check failed");
 
     btree = S2BT(session);
     WT_UNUSED(size); /* only used in DIAGNOSTIC */

@@ -20,7 +20,9 @@
  * be accessed by casting the pointer to our internal type. Since this is just type casting and
  * pointer arithmetic the public fields must be the first fields in the struct.
  */
-#define WT_VERIFY_OPAQUE_POINTER(type) static_assert(offsetof(WT_CURSOR_BACKUP, iface) == 0)
+#define WT_VERIFY_OPAQUE_POINTER(type) \
+    static_assert(                     \
+      offsetof(WT_CURSOR_BACKUP, iface) == 0, #type " does not begin with the 'iface' field")
 
 /* Check specific structures weren't padded. */
 static_assert(sizeof(WT_BLOCK_DESC) == WT_BLOCK_DESC_SIZE,
@@ -43,12 +45,13 @@ static_assert(offsetof(WT_UPDATE, data) == WT_UPDATE_SIZE,
  * If the fields WT_UPDATE these assertions should be revised to match the trailing padding of the
  * updated structure.
  */
-static_assert(WT_UPDATE_SIZE_NOVALUE == sizeof(WT_UPDATE));
-static_assert((WT_UPDATE_SIZE_NOVALUE - WT_UPDATE_SIZE) == 1);
+static_assert(WT_UPDATE_SIZE_NOVALUE == sizeof(WT_UPDATE), "WT_UPDATE size mismatch");
+static_assert((WT_UPDATE_SIZE_NOVALUE - WT_UPDATE_SIZE) == 1, "WT_UPDATE size mismatch");
 
 /* Check specific structures were padded. */
-#define WT_PADDING_CHECK(s) \
-    static_assert(sizeof(s) > WT_CACHE_LINE_ALIGNMENT || sizeof(s) % WT_CACHE_LINE_ALIGNMENT == 0)
+#define WT_PADDING_CHECK(s)                                                                        \
+    static_assert(sizeof(s) > WT_CACHE_LINE_ALIGNMENT || sizeof(s) % WT_CACHE_LINE_ALIGNMENT == 0, \
+      #s " padding check failed")
 WT_PADDING_CHECK(WT_LOGSLOT);
 WT_PADDING_CHECK(WT_TXN_SHARED);
 
