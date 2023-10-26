@@ -1935,6 +1935,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable calls",
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
+  "transaction: transaction checkpoint duration (secs)",
   "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction range of IDs currently pinned",
   "transaction: transaction range of IDs currently pinned by a checkpoint",
@@ -2615,6 +2616,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable = 0;
     stats->txn_set_ts_stable_upd = 0;
     stats->txn_begin = 0;
+    stats->txn_ckpt_duration = 0;
     stats->txn_hs_ckpt_duration = 0;
     /* not clearing txn_pinned_range */
     /* not clearing txn_pinned_checkpoint_range */
@@ -3341,6 +3343,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable += WT_STAT_READ(from, txn_set_ts_stable);
     to->txn_set_ts_stable_upd += WT_STAT_READ(from, txn_set_ts_stable_upd);
     to->txn_begin += WT_STAT_READ(from, txn_begin);
+    to->txn_ckpt_duration += WT_STAT_READ(from, txn_ckpt_duration);
     to->txn_hs_ckpt_duration += WT_STAT_READ(from, txn_hs_ckpt_duration);
     to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
     to->txn_pinned_checkpoint_range += WT_STAT_READ(from, txn_pinned_checkpoint_range);

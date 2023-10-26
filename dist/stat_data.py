@@ -680,6 +680,7 @@ conn_stats = [
     TxnStat('txn_begin', 'transaction begins'),
     TxnStat('txn_commit', 'transactions committed'),
     TxnStat('txn_hs_ckpt_duration', 'transaction checkpoint history store file duration (usecs)'),
+    TxnStat('txn_ckpt_duration', 'transaction checkpoint duration (secs)'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_range', 'transaction range of IDs currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),

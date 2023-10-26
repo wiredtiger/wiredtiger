@@ -1435,6 +1435,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
+    uint64_t time_start_ckpt, time_stop_ckpt, ckpt_duration_secs;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -1442,6 +1443,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     txn_global->checkpoint_running = true;
+    time_start_ckpt = __wt_clock(session);
 
     /*
      * FIXME-WT-11149: Some reading threads rely on the value of checkpoint running flag being
@@ -1451,6 +1453,10 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     WT_WRITE_BARRIER();
 
     ret = __txn_checkpoint(session, cfg);
+    
+    time_stop_ckpt = __wt_clock(session);
+    ckpt_duration_secs = WT_CLOCKDIFF_SEC(time_stop_ckpt, time_start_ckpt);
+    WT_STAT_CONN_SET(session, txn_ckpt_duration, ckpt_duration_secs);
 
     txn_global->checkpoint_running = false;
 
@@ -2628,7 +2634,7 @@ __wt_ckpt_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     /* Wait until the next event. */
     __wt_cond_wait_signal(
-        session, S2C(session)->ckpt->cond, WT_MILLION, __wt_ckpt_thread_chk, &signalled);
+      session, S2C(session)->ckpt->cond, WT_MILLION, __wt_ckpt_thread_chk, &signalled);
 
     __wt_ckpt_pop_work(session, &entry);
     if (entry == NULL)
@@ -2828,7 +2834,8 @@ __checkpoint_push_dhandles(WT_SESSION_IMPL *session, const char *cfg[])
  * __checkpoint_workers_finish --
  *     Check whether the checkpoint workers finish all handles.
  */
-static bool __checkpoint_workers_finish(WT_SESSION_IMPL *session)
+static bool
+__checkpoint_workers_finish(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 

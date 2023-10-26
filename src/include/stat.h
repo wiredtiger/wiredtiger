@@ -967,6 +967,7 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable;
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
+    int64_t txn_ckpt_duration;
     int64_t txn_hs_ckpt_duration;
     int64_t txn_pinned_range;
     int64_t txn_pinned_checkpoint_range;
