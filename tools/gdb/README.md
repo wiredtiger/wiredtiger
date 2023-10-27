@@ -8,6 +8,5 @@ If you have compiled WiredTiger with the `-DHAVE_SHARED=1` flag then these scrip
 will be auto-loaded when gdb is opened.
 
 ### Creating new scripts
-Scripts can be written in either python ([hazard_pointers.py](./gdb_scripts/hazard_pointers.py)) or scheme ([dump_row_int.gdb](./gdb_scripts/dump_row_int.gdb)). If you create a new python script it is recommended you follow the style in `hazard_pointers.py` by creating a class that extends `gdb.Command`.
-Don't forget to register the new command by calling its constructor at the bottom of the file.
+Scripts can be written in either python ([hazard_pointers.py](./gdb_scripts/hazard_pointers.py)) or scheme ([dump_row_int.gdb](./gdb_scripts/dump_row_int.gdb)). If you create a new python script it is recommended you follow the pattern of `hazard_pointers.py` where a class that extends `gdb.Command` is created for each command. Don't forget to register the new command by calling its constructor at the bottom of the file.
 Once created update `load_gdb_scripts.py` to include the new script.
