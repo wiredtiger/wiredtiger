@@ -48,13 +48,8 @@ __thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t threa
 static void
 sig_func(int sig)
 {
-    /* char thread_name[WT_THREAD_NAME_MAX_LEN]; */
     WT_UNUSED(sig);
-
-    /* printf("Thread %s: Caught signal SIGUSR1\n", thread_name); */
-    /* pthread_getname_np(pthread_self(), thread_name, WT_THREAD_NAME_MAX_LEN); */
     usleep(WT_THREAD_PAUSE_DURATION);
-    /* printf("Thread %s: Resuming after SIGUSR1\n", thread_name); */
     return;
 }
 

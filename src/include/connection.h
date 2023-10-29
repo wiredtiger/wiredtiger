@@ -704,7 +704,7 @@ struct __wt_connection_impl {
 #define WT_THREAD_PAUSE_DURATION 500000
 
 /*
- * FIXME-thread-pause - Is it worth making this array growable? How often will we exceed 100
+ * FIXME-thread-pause - Is it worth making this array grow past 100? How often will we exceed 100
  * threads?
  */
 #define INTERNAL_REGISTRY_SIZE 100
