@@ -31,7 +31,7 @@ from wiredtiger import stat
 from wtbackup import backup_base
 
 # test_compact10.py
-# Verify backups can be taken while background compaction is running.
+# Verify compaction does not alter data by comparing backups before/after compaction.
 class test_compact10(backup_base):
     backup_dir_1 = "BACKUP_1"
     backup_dir_2 = "BACKUP_2"
