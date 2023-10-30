@@ -90,8 +90,11 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
     debug('\n')
     missing_tests = {}
     for d in dirs:
-        # Figure out the Evergreen task name from the directory name
+        # Skip csuite tests as we run all of them using ctest.
+        if test_type == 'csuite':
+            continue
 
+        # Figure out the Evergreen task name from the directory name
         if test_type == 'make_check':
             # The Evergreen task name for each 'make check' test is worked out from directory name
             # E.g. for 'make check' directory 'test/cursor_order', the corresponding Evergreen
