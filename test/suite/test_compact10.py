@@ -74,6 +74,31 @@ class test_compact10(backup_base):
         stat_cursor.close()
         return val
 
+    # This function generates the required data for the test by performing the following:
+    # - Create N tables and populate them,
+    # - Delete the first 50% of each table,
+    # - Returns the URIs that were created.
+    def generate_data(self):
+        # Create and populate tables.
+        uris = []
+        for i in range(self.num_tables):
+            uri = self.uri_prefix + f'_{i}'
+            uris.append(uri)
+            self.session.create(uri, self.create_params)
+            self.populate(uri, self.table_numkv, self.value_size)
+
+        # Write to disk.
+        self.session.checkpoint()
+
+        # Delete 50% of the file.
+        for uri in uris:
+            self.delete_range(uri, 50 * self.table_numkv // 100)
+
+        # Write to disk.
+        self.session.checkpoint()
+
+        return uris
+
     def populate(self, uri, num_keys, value_size):
         c = self.session.open_cursor(uri, None)
         for k in range(num_keys):
@@ -98,23 +123,7 @@ class test_compact10(backup_base):
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
-        # Create and populate tables.
-        uris = []
-        for i in range(self.num_tables):
-            uri = self.uri_prefix + f'_{i}'
-            uris.append(uri)
-            self.session.create(uri, self.create_params)
-            self.populate(uri, self.table_numkv, self.value_size)
-
-        # Write to disk.
-        self.session.checkpoint()
-
-        # Delete 50% of the file.
-        for uri in uris:
-            self.delete_range(uri, 50 * self.table_numkv // 100)
-
-        # Write to disk.
-        self.session.checkpoint()
+        uris = self.generate_data()
 
         # Take the first full backup.
         os.mkdir(self.backup_dir_1)
@@ -154,23 +163,7 @@ class test_compact10(backup_base):
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
-        # Create and populate tables.
-        uris = []
-        for i in range(self.num_tables):
-            uri = self.uri_prefix + f'_{i}'
-            uris.append(uri)
-            self.session.create(uri, self.create_params)
-            self.populate(uri, self.table_numkv, self.value_size)
-
-        # Write to disk.
-        self.session.checkpoint()
-
-        # Delete 50% of the file.
-        for uri in uris:
-            self.delete_range(uri, 50 * self.table_numkv // 100)
-
-        # Write to disk.
-        self.session.checkpoint()
+        uris = self.generate_data()
 
         # Take two full backups:
 
