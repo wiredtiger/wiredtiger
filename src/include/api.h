@@ -10,25 +10,36 @@
 /*
  * Capture cases where a single session handle is used by multiple threads in parallel. The check
  * isn't trivial because some API calls re-enter via public API entry points and the session with ID
- * 0 is the default session in the connection handle which can be used across multiple threads. It
- * is safe to use the reference count without atomic operations because the reference count is only
- * tracking a thread re-entering the API.
+ * 0 is the default session in the connection handle which can be used across multiple threads.
  */
-#define WT_SINGLE_THREAD_CHECK_START(s)                                                   \
-    {                                                                                     \
-        uintmax_t __tmp_api_tid;                                                          \
-        __wt_thread_id(&__tmp_api_tid);                                                   \
-        WT_ASSERT(s, (s)->id == 0 || (s)->api_tid == 0 || (s)->api_tid == __tmp_api_tid); \
-        if ((s)->api_tid == 0) {                                                          \
-            (s)->api_tid = __tmp_api_tid;                                                 \
-            WT_FULL_BARRIER();                                                            \
-        }                                                                                 \
-        ++(s)->api_enter_refcnt;                                                          \
+#define WT_SINGLE_THREAD_CHECK_START(s)                                           \
+    {                                                                             \
+        uintmax_t __tmp_api_tid;                                                  \
+        __wt_thread_id(&__tmp_api_tid);                                           \
+                                                                                  \
+        /*                                                                        \
+         * Don't attempt take the lock if this is the default session             \
+         * (ID == 0), or if we already hold the lock.                             \
+         */                                                                       \
+        if ((s)->id != 0 && (s)->thread_check.owning_thread != __tmp_api_tid) {   \
+            WT_ASSERT((s), __wt_spin_trylock((s), &(s)->thread_check.lock) == 0); \
+            (s)->thread_check.owning_thread = __tmp_api_tid;                      \
+        }                                                                         \
+                                                                                  \
+        ++(s)->thread_check.entry_count;                                          \
     }
 
-#define WT_SINGLE_THREAD_CHECK_STOP(s) \
-    if (--(s)->api_enter_refcnt == 0)  \
-        WT_PUBLISH((s)->api_tid, 0);
+#define WT_SINGLE_THREAD_CHECK_STOP(s)                          \
+    {                                                           \
+        uintmax_t __tmp_api_tid;                                \
+        __wt_thread_id(&__tmp_api_tid);                         \
+        if (--((s)->thread_check.entry_count) == 0) {           \
+            if ((s)->id != 0) {                                 \
+                (s)->thread_check.owning_thread = 0;            \
+                __wt_spin_unlock((s), &(s)->thread_check.lock); \
+            }                                                   \
+        }                                                       \
+    }
 #else
 #define WT_SINGLE_THREAD_CHECK_START(s)
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
