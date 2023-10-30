@@ -18,21 +18,21 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
     if (S2C(session)->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE)
         return (false);
 
-    if (session->pf.prefetch_disk_read_count == 1)
-        WT_STAT_CONN_INCR(session, block_prefetch_disk_one);
-
     /*
      * Check if pre-fetching is enabled for this particular session. We don't perform pre-fetching
      * on internal threads or internal pages (finding the right content to preload based on internal
-     * pages is hard), so check for that too. We also want to pre-fetch pages that have had at least
-     * one read. The result of this check will be used by cursor logic to determine if pre-fetching
-     * will be performed.
+     * pages is hard), so check for that too. We also want to pre-fetch sessions that have read at
+     * least one page from disk. The result of this function will subsequently be checked by cursor
+     * logic to determine if pre-fetching will be performed.
      */
     if (!F_ISSET(session, WT_SESSION_PREFETCH) || F_ISSET(session, WT_SESSION_INTERNAL) ||
       F_ISSET(ref, WT_REF_FLAG_INTERNAL) || session->pf.prefetch_disk_read_count < 2) {
         WT_STAT_CONN_INCR(session, block_prefetch_skipped);
         return (false);
     }
+
+    if (session->pf.prefetch_disk_read_count == 1)
+        WT_STAT_CONN_INCR(session, block_prefetch_disk_one);
 
     if (session->pf.prefetch_prev_ref == NULL) {
         WT_STAT_CONN_INCR(session, block_prefetch_attempts);
