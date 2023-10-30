@@ -304,8 +304,8 @@ __chunkcache_memory_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
               " bytes "
               "with %" PRIu64 " bytes in use and the chunk size of %" PRIu64 " bytes",
               chunkcache->capacity, chunkcache->bytes_used, (uint64_t)chunk->chunk_size);
-            goto err;
         }
+        WT_ERR(ret);
 
         /* Allocate the free memory in the chunk cache. */
         chunk->chunk_memory = chunkcache->memory + chunkcache->chunk_size * bit_index;
