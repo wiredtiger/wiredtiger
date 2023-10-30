@@ -103,8 +103,7 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
         else:
             sys.exit("Unsupported test_type '%s'" % test_type)
 
-        # Check if the Evergreen task name exists in current Evergreen configuration or in the
-        # csuite CMakeLists file.
+        # Check if the Evergreen task name exists in current Evergreen configuration
         if evg_task_name in str(evg_cfg):
             # Match found
             continue
