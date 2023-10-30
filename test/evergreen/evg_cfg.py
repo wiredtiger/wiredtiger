@@ -87,9 +87,6 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
     with open(evg_cfg_file, 'r') as f:
         evg_cfg = f.readlines()
 
-    with open(CSUITE_TEST_DIR + "/CMakeLists.txt", 'r') as f:
-        cmake_cfg = f.readlines()
-
     debug('\n')
     missing_tests = {}
     for d in dirs:
@@ -103,28 +100,19 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
             dir_wo_test_prefix = d[len("test/"):] if d.startswith("test/") else d
             evg_task_name = dir_wo_test_prefix.replace('/', '-').replace('_', '-') + '-test'
             debug("Evergreen task name for make check directory '%s' is: %s" % (d, evg_task_name))
-
-        elif test_type == 'csuite':
-            # The Evergreen task name for each 'csuite' test is worked out from sub directory name
-            # E.g. for 'test/csuite' sub directory 'wt3184_dup_index_collator', the corresponding
-            # Evergreen task name will be 'csuite-wt3184-dup-index-collator-test'.
-
-            evg_task_name = 'csuite-' + d.replace('_', '-') + '-test'
-            debug("Evergreen task name for csuite sub directory '%s' is: %s" % (d, evg_task_name))
-
         else:
             sys.exit("Unsupported test_type '%s'" % test_type)
 
         # Check if the Evergreen task name exists in current Evergreen configuration or in the
         # csuite CMakeLists file.
-        if evg_task_name in str(evg_cfg) or d in str(cmake_cfg):
+        if evg_task_name in str(evg_cfg):
             # Match found
             continue
         else:
             # Missing task/test found
             missing_tests.update({evg_task_name: d})
-            print("Task '%s' (for directory '%s') is missing in %s or CMakeLists.txt file!" %
-                  (evg_task_name, d, evg_cfg_file))
+            print("Task '%s' (for directory '%s') is missing in %s!" %
+                (evg_task_name, d, evg_cfg_file))
 
     return missing_tests
 
