@@ -1310,7 +1310,6 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     session_ret = NULL;
     WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
-    //set the open_session method's session name
     session_ret->name = "connection-open-session";
     *wt_sessionp = &session_ret->iface;
 
