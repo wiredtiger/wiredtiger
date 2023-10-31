@@ -479,6 +479,7 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
     *updp = upd = NULL; /* -Wuninitialized */
     cbt = (WT_CURSOR_BTREE *)cursor;
     btree = CUR2BT(cbt);
+    WT_UNUSED(ret);
 
     /*
      * Set the key only flag to indicate to the search that we don't want to check visibility we
