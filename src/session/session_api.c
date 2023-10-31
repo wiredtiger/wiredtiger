@@ -235,8 +235,8 @@ __session_clear(WT_SESSION_IMPL *session)
      */
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
-    session->hazard_inuse = 0;
-    session->nhazard = 0;
+    session->hazards.inuse = 0;
+    session->hazards.num_active = 0;
 }
 
 /*
@@ -487,6 +487,28 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     if (ret == 0 && cval.val)
         session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (S2C(session)->prefetch_auto_on)
+        F_SET(session, WT_SESSION_PREFETCH);
+    else
+        F_CLR(session, WT_SESSION_PREFETCH);
+
+    /*
+     * Override any connection-level pre-fetch settings if a specific session-level setting was
+     * provided.
+     */
+    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) != WT_NOTFOUND) {
+        if (cval.val) {
+            if (!S2C(session)->prefetch_available) {
+                F_CLR(session, WT_SESSION_PREFETCH);
+                WT_ERR_MSG(session, EINVAL,
+                  "pre-fetching cannot be enabled for the session if pre-fetching is configured as "
+                  "unavailable");
+            } else
+                F_SET(session, WT_SESSION_PREFETCH);
+        } else
+            F_CLR(session, WT_SESSION_PREFETCH);
+    }
 
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
@@ -2470,6 +2492,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;
 
+    WT_VERIFY_OPAQUE_POINTER(WT_SESSION_IMPL);
+
     *sessionp = NULL;
 
     session = conn->default_session;
@@ -2557,10 +2581,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * access to it isn't serialized. Allocate the first time we open this session.
      */
     if (WT_SESSION_FIRST_USE(session_ret)) {
-        WT_ERR(__wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazard));
-        session_ret->hazard_size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        session_ret->hazard_inuse = 0;
-        session_ret->nhazard = 0;
+        WT_ERR(
+          __wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazards.arr));
+        session_ret->hazards.size = WT_SESSION_INITIAL_HAZARD_SLOTS;
+        session_ret->hazards.inuse = 0;
+        session_ret->hazards.num_active = 0;
     }
 
     /*
@@ -2598,7 +2623,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      */
     WT_PUBLISH(session_ret->active, 1);
 
-    WT_STATIC_ASSERT(offsetof(WT_SESSION_IMPL, iface) == 0);
     *sessionp = session_ret;
 
     WT_STAT_CONN_INCR(session, session_open);

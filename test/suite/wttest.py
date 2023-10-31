@@ -208,6 +208,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def getTierStorageSource(self):
         return self.platform_api.getTierStorageSource()
 
+    # Return the tier storage source configuration for this testcase, or None.
+    def getTierStorageSourceConfig(self):
+        return self.platform_api.getTierStorageSourceConfig()
+
     def buildDirectory(self):
         return self._builddir
 
@@ -918,6 +922,14 @@ def skip_for_hook(hookname, description):
         return unittest.skip("because running with hook '{}': {}".format(hookname, description))
     else:
         return runit_decorator
+
+# Override a test's setUp function to instead skip and report the reason for skipping
+def register_skipped_test(test, hook, skip_reason):
+
+    def _skip_test(self):
+        raise unittest.SkipTest(f"{test} for hook {hook}: {skip_reason}")
+
+    setattr(test, "setUp", lambda: _skip_test(test))
 
 def islongtest():
     return WiredTigerTestCase._longtest
