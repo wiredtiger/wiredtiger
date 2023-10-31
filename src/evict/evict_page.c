@@ -908,7 +908,7 @@ __wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message)
 
     if (__wt_ref_addr_copy(session, ref, &addr) && !__wt_scr_alloc(session, 0, &tmp)){
         __wt_verbose(session, WT_VERB_CACHE_TRACE, "%s %p addr %s type %s read_gen %"
-          PRIu64 " parent_page=%p", message, (void *)page,
+          PRIu64 " parent_page %p", message, (void *)page,
           __wt_addr_string(session, addr.addr, addr.size, tmp),
           WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen, (void*)ref->home);
         __wt_scr_free(session, &tmp);
