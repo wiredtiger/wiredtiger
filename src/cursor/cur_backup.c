@@ -259,6 +259,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
       __wt_cursor_compare_notsup,                     /* compare */
       __wt_cursor_equals_notsup,                      /* equals */
       __curbackup_next,                               /* next */
+      __wt_cursor_next_raw_n,                         /* next_raw_n */
       __wt_cursor_notsup,                             /* prev */
       __curbackup_reset,                              /* reset */
       __wt_cursor_notsup,                             /* search */

@@ -1239,6 +1239,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __curhs_compare,                                /* compare */
       __wt_cursor_equals_notsup,                      /* equals */
       __curhs_next,                                   /* next */
+      __wt_cursor_next_raw_n,                         /* next_raw_n */
       __curhs_prev,                                   /* prev */
       __curhs_reset,                                  /* reset */
       __wt_cursor_notsup,                             /* search */

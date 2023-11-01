@@ -93,6 +93,7 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
       __wt_cursor_compare_notsup,                     /* compare */
       __wt_cursor_equals_notsup,                      /* equals */
       __wt_cursor_notsup,                             /* next */
+      __wt_cursor_next_raw_n,                         /* next_raw_n */
       __wt_cursor_notsup,                             /* prev */
       __wt_cursor_notsup,                             /* reset */
       __wt_cursor_notsup,                             /* search */
@@ -1055,6 +1056,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curtable_compare,                               /* compare */
       __wt_cursor_equals,                               /* equals */
       __curtable_next,                                  /* next */
+      __wt_cursor_next_raw_n,                           /* next_raw_n */
       __curtable_prev,                                  /* prev */
       __curtable_reset,                                 /* reset */
       __curtable_search,                                /* search */

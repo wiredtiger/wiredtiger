@@ -42,6 +42,7 @@ __wt_curconfig_open(
       __wt_cursor_compare_notsup,                     /* compare */
       __wt_cursor_equals_notsup,                      /* equals */
       __wt_cursor_notsup,                             /* next */
+      __wt_cursor_next_raw_n,                         /* next_raw_n */
       __wt_cursor_notsup,                             /* prev */
       __wt_cursor_noop,                               /* reset */
       __wt_cursor_notsup,                             /* search */

@@ -607,6 +607,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
       __wt_cursor_compare_notsup,                      /* compare */
       __wt_cursor_equals_notsup,                       /* equals */
       __curversion_next,                               /* next */
+      __wt_cursor_next_raw_n,                          /* next_raw_n */
       __wt_cursor_notsup,                              /* prev */
       __curversion_reset,                              /* reset */
       __curversion_search,                             /* search */

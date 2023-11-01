@@ -215,6 +215,20 @@ __wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only)
 }
 
 /*
+ * __wt_cursor_next_raw_n --
+ *     Unsupported cursor next_raw_n.
+ */
+int
+__wt_cursor_next_raw_n(WT_CURSOR *cursor, WT_ITEM *keys[], WT_ITEM *values[], size_t *n)
+{
+    WT_UNUSED(keys);
+    WT_UNUSED(values);
+    WT_UNUSED(n);
+
+    return (__wt_cursor_notsup(cursor));
+}
+
+/*
  * __wt_cursor_set_notsup --
  *     Reset the cursor methods to not-supported.
  */
@@ -232,6 +246,7 @@ __wt_cursor_set_notsup(WT_CURSOR *cursor)
     cursor->insert = __wt_cursor_notsup;
     cursor->modify = __wt_cursor_modify_notsup;
     cursor->next = __wt_cursor_notsup;
+    cursor->next_raw_n = __wt_cursor_next_raw_n;
     cursor->prev = __wt_cursor_notsup;
     cursor->remove = __wt_cursor_notsup;
     cursor->reserve = __wt_cursor_notsup;

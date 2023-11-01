@@ -400,6 +400,7 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __wt_cursor_compare_notsup,                   /* compare */
       __wt_cursor_equals_notsup,                    /* equals */
       __curdump_next,                               /* next */
+      __wt_cursor_next_raw_n,                       /* next_raw_n */
       __curdump_prev,                               /* prev */
       __curdump_reset,                              /* reset */
       __curdump_search,                             /* search */
