@@ -153,7 +153,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, rollback_timestamp);
-    __wt_timer_evaluate(session, &timer, &time_diff_ms);
+    __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       "finished rollback to stable on uri %s and has ran for %" PRIu64 " milliseconds", uri, time_diff_ms);
 
@@ -214,7 +214,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
       session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
 
     /* Time since the RTS started. */
-    __wt_timer_evaluate(session, &timer, &time_diff_ms);
+    __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_END "finished rollback to stable%s and has ran for %" PRIu64 " milliseconds",
       dryrun ? " dryrun" : "", time_diff_ms);
