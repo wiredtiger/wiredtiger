@@ -2358,14 +2358,12 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
 /*
  * __verbose_dump_session_callback --
- *     Dump a single session, callback from the session walk.
+ *     Dump a single session, callback from the session walk. Maintaining a count of internal
+ *     sessions and optionally dumping cursor information.
  */
 static int
-__verbose_dump_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__verbose_dump_sessions_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
-    WT_CURSOR *cursor;
-    WT_DECL_ITEM(buf);
-    WT_DECL_RET;
     WT_VERBOSE_DUMP_COOKIE *cookie;
 
     WT_UNUSED(exit_walkp);
@@ -2376,69 +2374,13 @@ __verbose_dump_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void
         return (0);
     }
 
-    WT_ERR(__wt_scr_alloc(cookie->caller_session, 0, &buf));
-
-    WT_ERR(__wt_msg(
-      cookie->caller_session, "Session: ID: %" PRIu32 " @: 0x%p", session->id, (void *)session));
-    WT_ERR(__wt_msg(
-      cookie->caller_session, "  Name: %s", session->name == NULL ? "EMPTY" : session->name));
-    if (!cookie->show_cursors) {
-        WT_ERR(__wt_msg(cookie->caller_session, "  Last operation: %s",
-          session->lastop == NULL ? "NONE" : session->lastop));
-        WT_ERR(__wt_msg(cookie->caller_session, "  Current dhandle: %s",
-          session->dhandle == NULL ? "NONE" : session->dhandle->name));
-        WT_ERR(__wt_msg(cookie->caller_session, "  Backup in progress: %s",
-          session->bkp_cursor == NULL ? "no" : "yes"));
-        WT_ERR(__wt_msg(cookie->caller_session, "  Compact state: %s",
-          session->compact_state == WT_COMPACT_NONE ?
-            "none" :
-            (session->compact_state == WT_COMPACT_RUNNING ? "running" : "success")));
-        WT_ERR(__wt_msg(cookie->caller_session, "  Flags: 0x%" PRIx32, session->flags));
-        WT_ERR(__wt_msg(cookie->caller_session, "  Isolation level: %s",
-          session->isolation == WT_ISO_READ_COMMITTED ?
-            "read-committed" :
-            (session->isolation == WT_ISO_READ_UNCOMMITTED ? "read-uncommitted" : "snapshot")));
-        WT_ERR(__wt_msg(cookie->caller_session, "  Transaction:"));
-        WT_ERR(__wt_verbose_dump_txn_one(cookie->caller_session, session, 0, NULL));
-    } else {
-        WT_ERR(__wt_msg(
-          cookie->caller_session, "  Number of positioned cursors: %u", session->ncursors));
-        TAILQ_FOREACH (cursor, &session->cursors, q) {
-            WT_ERR(__wt_msg(cookie->caller_session, "Cursor @ %p:", (void *)cursor));
-            WT_ERR(__wt_msg(cookie->caller_session, "  URI: %s, Internal URI: %s",
-              cursor->uri == NULL ? "EMPTY" : cursor->uri,
-              cursor->internal_uri == NULL ? "EMPTY" : cursor->internal_uri));
-            if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
-                WT_ERR(__wt_buf_fmt(cookie->caller_session, buf, "OPEN"));
-                if (F_ISSET(cursor, WT_CURSTD_KEY_SET) || F_ISSET(cursor, WT_CURSTD_VALUE_SET))
-                    WT_ERR(__wt_buf_catfmt(cookie->caller_session, buf, ", POSITIONED"));
-                else
-                    WT_ERR(__wt_buf_catfmt(cookie->caller_session, buf, ", RESET"));
-                if (F_ISSET(cursor, WT_CURSTD_APPEND))
-                    WT_ERR(__wt_buf_catfmt(cookie->caller_session, buf, ", APPEND"));
-                if (F_ISSET(cursor, WT_CURSTD_BULK))
-                    WT_ERR(__wt_buf_catfmt(cookie->caller_session, buf, ", BULK"));
-                if (F_ISSET(cursor, WT_CURSTD_META_INUSE))
-                    WT_ERR(__wt_buf_catfmt(cookie->caller_session, buf, ", META_INUSE"));
-                if (F_ISSET(cursor, WT_CURSTD_OVERWRITE))
-                    WT_ERR(__wt_buf_catfmt(cookie->caller_session, buf, ", OVERWRITE"));
-                WT_ERR(__wt_msg(cookie->caller_session, "  %s", (const char *)buf->data));
-            }
-            WT_ERR(__wt_msg(cookie->caller_session, "  Flags: 0x%" PRIx64, cursor->flags));
-            WT_ERR(__wt_msg(cookie->caller_session, "  Key_format: %s, Value_format: %s",
-              cursor->key_format == NULL ? "EMPTY" : cursor->key_format,
-              cursor->value_format == NULL ? "EMPTY" : cursor->value_format));
-        }
-    }
-
-err:
-    __wt_scr_free(cookie->caller_session, &buf);
-    return (ret);
+    /* Dump the session, passing relevant cursor information. */
+    return (__wt_session_dump(session, cookie->caller_session, cookie->show_cursors));
 }
 
 /*
  * __wt_verbose_dump_sessions --
- *     Print out debugging information about sessions.
+ *     Print out debugging information about sessions. Skips internal sessions but does count them.
  */
 int
 __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
@@ -2457,7 +2399,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
      * While the verbose dump doesn't dump internal sessions it returns a count of them so we don't
      * instruct the walk to skip them.
      */
-    WT_RET(__wt_session_array_walk(S2C(session), __verbose_dump_session_callback, false, &cookie));
+    WT_RET(__wt_session_array_walk(S2C(session), __verbose_dump_sessions_callback, false, &cookie));
 
     if (!show_cursors)
         WT_RET(__wt_msg(session, "Internal sessions: %" PRIu32, cookie.internal_count));
