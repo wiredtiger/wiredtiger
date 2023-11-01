@@ -97,24 +97,15 @@
     } while (0)
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
-/*
- * Set a return code if one is not already set. Upgrade the existing return code if the new one is
- * more urgent. Return codes should be saved in a variable named "ret" wherever possible. Prefer
- * using WT_TRET over this macro.
- */
-#define WT_TRET_FUNC(ret, a)                                                                       \
-    do {                                                                                           \
-        int __ret;                                                                                 \
-        if ((__ret = (a)) != 0 &&                                                                  \
-          (__ret == WT_PANIC || (ret) == 0 || (ret) == WT_DUPLICATE_KEY || (ret) == WT_NOTFOUND || \
-            (ret) == WT_RESTART))                                                                  \
-            (ret) = __ret;                                                                         \
+/* Set "ret" if not already set. */
+#define WT_TRET(a)                                                                           \
+    do {                                                                                     \
+        int __ret;                                                                           \
+        if ((__ret = (a)) != 0 &&                                                            \
+          (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND || \
+            ret == WT_RESTART))                                                              \
+            ret = __ret;                                                                     \
     } while (0)
-/*
- * Set a return code if one is not already set. Upgrade the existing return code if the new one is
- * more urgent. Assumes the existing return code is stored in a variable named "ret".
- */
-#define WT_TRET(a) WT_TRET_FUNC(ret, (a))
 #define WT_TRET_ERROR_OK(a, e)                                                               \
     do {                                                                                     \
         int __ret;                                                                           \

@@ -14,9 +14,9 @@
  *     Callers can exit the walk early if desired. Arguments to the walk function are provided by a
  *     customizable cookie.
  */
-void
+int
 __wt_session_array_walk(WT_CONNECTION_IMPL *conn,
-  void (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), bool skip_internal,
+  int (*walk_func)(WT_SESSION_IMPL *, bool *exit_walkp, void *cookiep), bool skip_internal,
   void *cookiep)
 {
     WT_SESSION_IMPL *array_session;
@@ -51,9 +51,10 @@ __wt_session_array_walk(WT_CONNECTION_IMPL *conn,
         if (skip_internal && F_ISSET(array_session, WT_SESSION_INTERNAL))
             continue;
 
-        walk_func(array_session, &exit_walk, cookiep);
+        WT_RET(walk_func(array_session, &exit_walk, cookiep));
         /* Early exit the walk if possible. */
         if (exit_walk)
             break;
     }
+    return (0);
 }

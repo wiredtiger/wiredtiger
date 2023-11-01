@@ -101,7 +101,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
  * __gen_drain_callback --
  *     Wait for single session's generation to drain, callback from the session array walk.
  */
-static void
+static int
 __gen_drain_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     struct timespec stop;
@@ -129,7 +129,7 @@ __gen_drain_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
         if (session == cookie->original_session) {
             WT_IGNORE_RET(__wt_panic(session, WT_PANIC, "self-deadlock"));
             *exit_walkp = true;
-            return;
+            return (0);
         }
 
         /*
@@ -195,6 +195,8 @@ __gen_drain_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
             }
         }
     }
+
+    return (0);
 }
 
 /*
@@ -212,14 +214,14 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     cookie.original_session = session;
 
     __wt_epoch(session, &cookie.start);
-    __wt_session_array_walk(S2C(session), __gen_drain_callback, false, &cookie);
+    WT_IGNORE_RET(__wt_session_array_walk(S2C(session), __gen_drain_callback, false, &cookie));
 }
 
 /*
  * __gen_oldest_callback --
  *     Check a single session's generation to find the oldest, callback from the session array walk.
  */
-static void
+static int
 __gen_oldest_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_GENERATION_COOKIE *cookie;
@@ -231,6 +233,8 @@ __gen_oldest_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
     WT_ORDERED_READ(v, session->generations[cookie->which]);
     if (v != 0 && v < cookie->oldest_gen)
         cookie->oldest_gen = v;
+
+    return (0);
 }
 
 /*
@@ -255,7 +259,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      */
     WT_ORDERED_READ(cookie.oldest_gen, conn->generations[which]);
 
-    __wt_session_array_walk(conn, __gen_oldest_callback, false, &cookie);
+    WT_IGNORE_RET(__wt_session_array_walk(conn, __gen_oldest_callback, false, &cookie));
 
     return (cookie.oldest_gen);
 }
@@ -265,7 +269,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
  *     Check if a session's generation is relevant given a specific generation. Callback from the
  *     session array walk.
  */
-static void
+static int
 __gen_active_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_GENERATION_COOKIE *cookie;
@@ -278,6 +282,8 @@ __gen_active_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
         cookie->active = true;
         *exit_walkp = true;
     }
+
+    return (0);
 }
 
 /*
@@ -294,7 +300,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
     cookie.target_generation = generation;
     cookie.active = false;
 
-    __wt_session_array_walk(S2C(session), __gen_active_callback, false, &cookie);
+    WT_IGNORE_RET(__wt_session_array_walk(S2C(session), __gen_active_callback, false, &cookie));
 
     return (cookie.active);
 }

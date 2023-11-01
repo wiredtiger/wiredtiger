@@ -13,7 +13,7 @@
  *     Check if a single session has an active transaction or open cursors. Callback from the
  *     session array walk.
  */
-static void
+static int
 __rts_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_RTS_COOKIE *cookie;
@@ -29,6 +29,7 @@ __rts_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
         cookie->cursor_active = true;
         *exit_walkp = true;
     }
+    return (0);
 }
 
 /*
@@ -56,7 +57,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      * acquiring the lock shouldn't be an issue.
      */
     __wt_spin_lock(session, &conn->api_lock);
-    __wt_session_array_walk(conn, __rts_check_callback, true, &cookie);
+    WT_IGNORE_RET(__wt_session_array_walk(conn, __rts_check_callback, true, &cookie));
     __wt_spin_unlock(session, &conn->api_lock);
 
     /*

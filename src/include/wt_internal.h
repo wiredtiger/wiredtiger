@@ -161,8 +161,6 @@ struct __wt_config_entry;
 typedef struct __wt_config_entry WT_CONFIG_ENTRY;
 struct __wt_config_parser_impl;
 typedef struct __wt_config_parser_impl WT_CONFIG_PARSER_IMPL;
-struct __wt_conn_cookie;
-typedef struct __wt_conn_cookie WT_CONN_COOKIE;
 struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;

@@ -302,7 +302,7 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
  *     Check if a session holds a hazard pointer on a given ref. If it does return both the session
  *     and the hazard pointer. Callback from the session array walk.
  */
-static void
+static int
 __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_HAZARD_COOKIE *cookie;
@@ -323,7 +323,7 @@ __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookie
             if (cookie->session_ret != NULL)
                 *cookie->session_ret = session;
             *exit_walkp = true;
-            return;
+            return (0);
         }
     }
 
@@ -332,6 +332,7 @@ __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookie
      * iterated hazard pointer
      */
     cookie->hp = NULL;
+    return (0);
 }
 
 /*
@@ -358,7 +359,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * resource generation for the duration of the walk to ensure that doesn't happen.
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
-    __wt_session_array_walk(S2C(session), __hazard_check_callback, false, &cookie);
+    WT_IGNORE_RET(__wt_session_array_walk(S2C(session), __hazard_check_callback, false, &cookie));
 
     if (cookie.hp == NULL)
         /*

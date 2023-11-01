@@ -829,20 +829,11 @@ struct __wt_connection_impl {
 };
 
 /*
- * WT_CONN_COOKIE --
- *   State passed through to callbacks during the session walk logic.
- */
-struct __wt_conn_cookie {
-    int ret_arg;
-};
-
-/*
  * WT_VERBOSE_DUMP_COOKIE --
  *   State passed through to callbacks during the session walk logic when dumping all sessions.
  */
 struct __wt_verbose_dump_cookie {
     WT_SESSION_IMPL *caller_session;
-    int ret_arg;
     uint32_t internal_count;
     bool show_cursors;
 };

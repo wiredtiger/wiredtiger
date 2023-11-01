@@ -272,7 +272,7 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
  * __sweep_check_session_callback --
  *     Check if a given session hasn't swept. Callback from the session array walk.
  */
-static void
+static int
 __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_SWEEP_COOKIE *cookie;
@@ -292,7 +292,7 @@ __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void 
     if (last_sweep != 0 && (last == 0 || last_sweep < last))
         last = last_sweep;
     if (last == 0)
-        return;
+        return (0);
 
     /*
      * Check if the session did not run a sweep in 5 minutes. Handle the issue only once per
@@ -321,6 +321,8 @@ __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void 
     } else {
         session->sweep_warning_60min = 0;
     }
+
+    return (0);
 }
 
 /*
@@ -336,7 +338,8 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
     cookie.now = now;
     cookie.original_session = session;
 
-    __wt_session_array_walk(S2C(session), __sweep_check_session_callback, true, &cookie);
+    WT_IGNORE_RET(
+      __wt_session_array_walk(S2C(session), __sweep_check_session_callback, true, &cookie));
 }
 
 /*
