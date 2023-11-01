@@ -99,14 +99,15 @@ __txn_sort_snapshot(WT_SESSION_IMPL *session, uint32_t n, uint64_t snap_max)
     txn = session->txn;
 
     if (n > 1)
-        __snapsort(txn->snapshot, n);
+        __snapsort(txn->snapshot_data.snapshot, n);
 
-    txn->snapshot_count = n;
-    txn->snap_max = snap_max;
-    txn->snap_min =
-      (n > 0 && WT_TXNID_LE(txn->snapshot[0], snap_max)) ? txn->snapshot[0] : snap_max;
+    txn->snapshot_data.snapshot_count = n;
+    txn->snapshot_data.snap_max = snap_max;
+    txn->snapshot_data.snap_min = (n > 0 && WT_TXNID_LE(txn->snapshot_data.snapshot[0], snap_max)) ?
+      txn->snapshot_data.snapshot[0] :
+      snap_max;
     F_SET(txn, WT_TXN_HAS_SNAPSHOT);
-    WT_ASSERT(session, n == 0 || txn->snap_min != WT_TXN_NONE);
+    WT_ASSERT(session, n == 0 || txn->snapshot_data.snap_min != WT_TXN_NONE);
 }
 
 /*
@@ -228,7 +229,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
      */
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
         if (txn->id != id)
-            txn->snapshot[n++] = id;
+            txn->snapshot_data.snapshot[n++] = id;
         if (publish)
             txn_shared->metadata_pinned = id;
     }
@@ -276,7 +277,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
                  */
                 WT_READ_BARRIER();
                 if (id == s->id) {
-                    txn->snapshot[n++] = id;
+                    txn->snapshot_data.snapshot[n++] = id;
                     if (WT_TXNID_LT(id, pinned_id))
                         pinned_id = id;
                     break;
@@ -316,6 +317,71 @@ void
 __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 {
     __txn_get_snapshot_int(session, false);
+}
+
+/*
+ * __wt_txn_snapshot_save_and_refresh --
+ *     Save the existing snapshot and allocate a new snapshot.
+ */
+int
+__wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    WT_RET(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT), &txn->backup_snapshot_data));
+
+    txn->backup_snapshot_data->snap_max = txn->snapshot_data.snap_max;
+    txn->backup_snapshot_data->snap_min = txn->snapshot_data.snap_min;
+    txn->backup_snapshot_data->snapshot_count = txn->snapshot_data.snapshot_count;
+
+    WT_ERR(__wt_calloc_def(session, sizeof(uint64_t) * S2C(session)->session_size,
+      &txn->backup_snapshot_data->snapshot));
+
+    /* Swap the snapshot pointers. */
+    __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
+
+    /*
+     * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
+     * already has a snapshot so clear the flag WT_TXN_HAS_SNAPSHOT.
+     */
+    F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
+
+    /* Get the snapshot without publishing the shared ids. */
+    __wt_txn_bump_snapshot(session);
+
+err:
+    /* Free the backup_snapshot_data if the memory allocation of the underlying snapshot has failed.
+     */
+    if (ret != 0)
+        __wt_free(session, txn->backup_snapshot_data);
+
+    return (ret);
+}
+
+/*
+ * __wt_txn_snapshot_release_and_restore --
+ *     Switch back to the original snapshot.
+ */
+void
+__wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+    WT_TXN_SNAPSHOT *snapshot_backup;
+
+    txn = session->txn;
+    snapshot_backup = txn->backup_snapshot_data;
+
+    txn->snapshot_data.snap_max = snapshot_backup->snap_max;
+    txn->snapshot_data.snap_min = snapshot_backup->snap_min;
+    txn->snapshot_data.snapshot_count = snapshot_backup->snapshot_count;
+
+    /* Swap the snapshot pointers. */
+    __txn_swap_snapshot(&snapshot_backup->snapshot, &txn->snapshot_data.snapshot);
+    __wt_free(session, snapshot_backup->snapshot);
+    __wt_free(session, snapshot_backup);
 }
 
 /*
@@ -493,7 +559,8 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
           current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL) {
             __wt_verbose(session, WT_VERB_TRANSACTION,
               "old snapshot %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
-              oldest_id, oldest_session->id, oldest_session->lastop, oldest_session->txn->snap_min);
+              oldest_id, oldest_session->id, oldest_session->lastop,
+              oldest_session->txn->snapshot_data.snap_min);
         }
     }
 
@@ -1045,8 +1112,12 @@ __txn_search_prepared_op(
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
-    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL, WT_NOTFOUND,
-      "unable to locate update associated with a prepared operation");
+    /*
+     * We cannot guarantee that we find an update when collators are being used as we cannot sort
+     * modifications on collated b-trees.
+     */
+    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL || op->btree->collator != NULL,
+      WT_NOTFOUND, "unable to locate update associated with a prepared operation");
 
     return (0);
 }
@@ -1127,7 +1198,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
     }
 
     /* Resolve the prepared update to be a committed update. */
-    __txn_resolve_prepared_update(session, upd);
+    __txn_apply_prepare_state_update(session, upd, true);
 
     /* Sleep for 100ms in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
@@ -1469,7 +1540,7 @@ err:
  *     Given an operation return a boolean indicating if it has a sortable key.
  */
 static inline bool
-__txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
+__txn_mod_sortable_key(WT_TXN_OP *opt)
 {
     switch (opt->type) {
     case (WT_TXN_OP_NONE):
@@ -1483,27 +1554,23 @@ __txn_mod_sortable_key(WT_SESSION_IMPL *session, WT_TXN_OP *opt)
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
     }
-    WT_ASSERT_ALWAYS(session, false, "Unhandled op type encountered");
+    __wt_abort(NULL);
     return (false);
 }
 
 /*
  * __txn_mod_compare --
- *     Qsort comparison routine for transaction modify list. Takes a session as a context argument.
- *     This allows for the use of comparators.
+ *     Qsort comparison routine for transaction modify list.
  */
 static int WT_CDECL
-__txn_mod_compare(const void *a, const void *b, void *context)
+__txn_mod_compare(const void *a, const void *b)
 {
-    WT_SESSION_IMPL *session;
     WT_TXN_OP *aopt, *bopt;
-    int cmp;
     bool a_has_sortable_key;
     bool b_has_sortable_key;
 
     aopt = (WT_TXN_OP *)a;
     bopt = (WT_TXN_OP *)b;
-    session = (WT_SESSION_IMPL *)context;
 
     /*
      * We want to sort on two things:
@@ -1531,8 +1598,8 @@ __txn_mod_compare(const void *a, const void *b, void *context)
      * Order by whether the given operation has a key. We don't want to call key compare incorrectly
      * especially given that u is a union which would create undefined behavior.
      */
-    a_has_sortable_key = __txn_mod_sortable_key(session, aopt);
-    b_has_sortable_key = __txn_mod_sortable_key(session, bopt);
+    a_has_sortable_key = __txn_mod_sortable_key(aopt);
+    b_has_sortable_key = __txn_mod_sortable_key(bopt);
     if (a_has_sortable_key && !b_has_sortable_key)
         return (-1);
     if (!a_has_sortable_key && b_has_sortable_key)
@@ -1544,13 +1611,11 @@ __txn_mod_compare(const void *a, const void *b, void *context)
     if (!a_has_sortable_key && !b_has_sortable_key)
         return (0);
 
-    /* Finally, order by key. Row-store requires a call to __wt_compare. */
+    /* Finally, order by key. We cannot sort if there is a collator as we need a session pointer. */
     if (aopt->btree->type == BTREE_ROW) {
-        WT_ASSERT_ALWAYS(session,
-          __wt_compare(
-            session, aopt->btree->collator, &aopt->u.op_row.key, &bopt->u.op_row.key, &cmp) == 0,
-          "Failed to sort transaction modifications during prepare commit/rollback");
-        return (cmp);
+        return (aopt->btree->collator == NULL ?
+            __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
+            0);
     }
     if (aopt->u.op_col.recno < bopt->u.op_col.recno)
         return (-1);
@@ -1646,8 +1711,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * page within each file are done at the same time.
      */
     if (prepare)
-        __wt_qsort_r(
-          txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare, (void *)session);
+        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* If we are logging, write a commit log record. */
     if (txn->logrec != NULL) {
@@ -1987,17 +2051,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
             ++prepared_updates;
 
-            /* Set prepare timestamp. */
-            upd->start_ts = txn->prepare_timestamp;
-
-            /*
-             * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign
-             * it with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be
-             * a problem.
-             */
-            upd->durable_ts = WT_TS_NONE;
-
-            WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+            __txn_apply_prepare_state_update(session, upd, false);
             op->u.op_upd = NULL;
 
             /*
@@ -2083,8 +2137,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
      * page within each file are done at the same time.
      */
     if (prepare)
-        __wt_qsort_r(
-          txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare, (void *)session);
+        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -2187,9 +2240,10 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 
     /* Allocate the WT_TXN structure, including a variable length array of snapshot information. */
     WT_RET(__wt_calloc(session, 1,
-      sizeof(WT_TXN) + sizeof(txn->snapshot[0]) * S2C(session)->session_size, &session_ret->txn));
+      sizeof(WT_TXN) + sizeof(txn->snapshot_data.snapshot[0]) * S2C(session)->session_size,
+      &session_ret->txn));
     txn = session_ret->txn;
-    txn->snapshot = txn->__snapshot;
+    txn->snapshot_data.snapshot = txn->__snapshot;
     txn->id = WT_TXN_NONE;
 
     WT_ASSERT(session,
@@ -2237,10 +2291,10 @@ __wt_txn_init_checkpoint_cursor(
     txn->isolation = WT_ISO_SNAPSHOT;
 
     /* Save the snapshot data. */
-    txn->snap_min = snapinfo->snapshot_min;
-    txn->snap_max = snapinfo->snapshot_max;
-    txn->snapshot = snapinfo->snapshot_txns;
-    txn->snapshot_count = snapinfo->snapshot_count;
+    txn->snapshot_data.snap_min = snapinfo->snapshot_min;
+    txn->snapshot_data.snap_max = snapinfo->snapshot_max;
+    txn->snapshot_data.snapshot = snapinfo->snapshot_txns;
+    txn->snapshot_data.snapshot_count = snapinfo->snapshot_count;
 
     /*
      * At this point we have taken charge of the snapshot's transaction list; it has been moved to
@@ -2297,8 +2351,8 @@ __wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **txn_arg)
     *txn_arg = NULL;
 
     /* The snapshot list isn't at the end of the transaction structure here; free it explicitly. */
-    WT_ASSERT(session, txn->snapshot != txn->__snapshot);
-    __wt_free(session, txn->snapshot);
+    WT_ASSERT(session, txn->snapshot_data.snapshot != txn->__snapshot);
+    __wt_free(session, txn->snapshot_data.snapshot);
 
     __wt_free(session, txn);
 }
@@ -2350,16 +2404,16 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ? 0 : txn_global->current - checkpoint_pinned);
 
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_max, conn->ckpt_prep_max);
+    WT_STAT_SET(session, stats, checkpoint_prep_max, conn->ckpt_prep_max);
     if (conn->ckpt_prep_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, txn_checkpoint_prep_min, conn->ckpt_prep_min);
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_recent, conn->ckpt_prep_recent);
-    WT_STAT_SET(session, stats, txn_checkpoint_prep_total, conn->ckpt_prep_total);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_max, conn->ckpt_time_max);
+        WT_STAT_SET(session, stats, checkpoint_prep_min, conn->ckpt_prep_min);
+    WT_STAT_SET(session, stats, checkpoint_prep_recent, conn->ckpt_prep_recent);
+    WT_STAT_SET(session, stats, checkpoint_prep_total, conn->ckpt_prep_total);
+    WT_STAT_SET(session, stats, checkpoint_time_max, conn->ckpt_time_max);
     if (conn->ckpt_time_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, txn_checkpoint_time_min, conn->ckpt_time_min);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
-    WT_STAT_SET(session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
+        WT_STAT_SET(session, stats, checkpoint_time_min, conn->ckpt_time_min);
+    WT_STAT_SET(session, stats, checkpoint_time_recent, conn->ckpt_time_recent);
+    WT_STAT_SET(session, stats, checkpoint_time_total, conn->ckpt_time_total);
 }
 
 /*
@@ -2479,6 +2533,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *s;
+    WT_TIMER timer;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
     bool use_timestamp;
@@ -2506,16 +2561,24 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * clean shutdown.
          */
         if (use_timestamp) {
+            __wt_timer_start(session, &timer);
             __wt_verbose(session, WT_VERB_RTS,
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
 
+            /* Time since the shutdown RTS has started. */
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.rts_ms);
             if (ret != 0)
                 __wt_verbose_notice(session, WT_VERB_RTS,
                   WT_RTS_VERB_TAG_SHUTDOWN_RTS
                   "performing shutdown rollback to stable failed with code %s",
                   __wt_strerror(session, ret, NULL, 0));
+            else
+                __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+                  "shutdown rollback to stable has successfully finished and ran for %" PRIu64
+                  " milliseconds",
+                  conn->shutdown_timeline.rts_ms);
         }
 
         s = NULL;
@@ -2523,6 +2586,9 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
         if (s != NULL) {
             const char *checkpoint_cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
+
+            __wt_timer_start(session, &timer);
+
             WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
             /*
@@ -2531,6 +2597,12 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
 
             WT_TRET(__wt_session_close_internal(s));
+
+            /* Time since the shutdown checkpoint has started. */
+            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
+            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+              "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
+              conn->shutdown_timeline.checkpoint_ms);
         }
     }
 
@@ -2635,7 +2707,8 @@ __wt_verbose_dump_txn_one(
         ", full checkpoint: %s"
         ", rollback reason: %s"
         ", flags: 0x%08" PRIx32 ", isolation: %s",
-        txn->id, txn->mod_count, txn->snap_min, txn->snap_max, txn->snapshot_count,
+        txn->id, txn->mod_count, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
+        txn->snapshot_data.snapshot_count,
         __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
         __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
         __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
@@ -2734,3 +2807,11 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int WT_CDECL
+__ut_txn_mod_compare(const void *a, const void *b)
+{
+    return (__txn_mod_compare(a, b));
+}
+#endif

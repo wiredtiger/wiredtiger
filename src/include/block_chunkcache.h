@@ -8,6 +8,29 @@
 
 /* WiredTiger's chunk cache. Locally caches chunks of remote objects. */
 
+#define WT_CC_KEY_FORMAT WT_UNCHECKED_STRING(SLq)
+#define WT_CC_VALUE_FORMAT WT_UNCHECKED_STRING(QQ)
+#define WT_CC_APP_META_FORMAT \
+    "app_metadata=\"version=1,capacity=%" PRIu64 ",buckets=%u,chunk_size=%" WT_SIZET_FMT "\""
+#define WT_CC_META_CONFIG "key_format=" WT_CC_KEY_FORMAT ",value_format=" WT_CC_VALUE_FORMAT
+
+/* The maximum number of metadata entries to write out per server wakeup. */
+#define WT_CHUNKCACHE_METADATA_MAX_WORK 1000
+
+/* Different types of chunkcache metadata operations. */
+#define WT_CHUNKCACHE_METADATA_WORK_DEL 1
+#define WT_CHUNKCACHE_METADATA_WORK_INS 2
+
+struct __wt_chunkcache_metadata_work_unit {
+    TAILQ_ENTRY(__wt_chunkcache_metadata_work_unit) q;
+    uint8_t type;
+    const char *name;
+    uint32_t id;
+    wt_off_t file_offset;
+    uint64_t cache_offset;
+    size_t data_sz;
+};
+
 struct __wt_chunkcache_hashid {
     const char *objectname;
     uint32_t objectid;
@@ -32,7 +55,7 @@ struct __wt_chunkcache_chunk {
     uint8_t *chunk_memory;
     wt_off_t chunk_offset;
     size_t chunk_size;
-    volatile uint32_t valid;
+    wt_shared volatile uint32_t valid;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CHUNK_PINNED 0x1u
@@ -60,13 +83,15 @@ struct __wt_chunkcache_pinned_list {
  *     chunks are placed into a linked list. There is a per-bucket spinlock.
  */
 #define WT_CHUNKCACHE_MAX_RETRIES 32 * 1024
+#define WT_CHUNKCACHE_BITMAP_SIZE(capacity, chunk_size) \
+    (WT_CEIL_POS((double)((capacity) / (chunk_size)) / 8.0))
 struct __wt_chunkcache {
     /* Cache-wide. */
 #define WT_CHUNKCACHE_FILE 1
 #define WT_CHUNKCACHE_IN_VOLATILE_MEMORY 2
-    uint8_t type;        /* Location of the chunk cache (volatile memory or file) */
-    uint64_t bytes_used; /* Amount of data currently in cache */
-    uint64_t capacity;   /* Maximum allowed capacity */
+    uint8_t type;                  /* Location of the chunk cache (volatile memory or file) */
+    wt_shared uint64_t bytes_used; /* Amount of data currently in cache */
+    uint64_t capacity;             /* Maximum allowed capacity */
 
 #define WT_CHUNKCACHE_DEFAULT_CHUNKSIZE 1024 * 1024
     size_t chunk_size;
@@ -92,6 +117,7 @@ struct __wt_chunkcache {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CHUNKCACHE_CONFIGURED 0x1u
 #define WT_CHUNK_CACHE_EXITING 0x2u
+#define WT_CHUNK_CACHE_FLUSHED_DATA_INSERTION 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };

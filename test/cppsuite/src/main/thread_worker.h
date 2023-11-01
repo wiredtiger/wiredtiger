@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef THREAD_WORKER_H
-#define THREAD_WORKER_H
+#pragma once
 
 #include <optional>
 #include <memory>
@@ -43,7 +42,7 @@
 #include "src/util/barrier.h"
 
 namespace test_harness {
-enum class thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
+enum class thread_type { BACKGROUND_COMPACT, CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
 
 const std::string type_string(thread_type type);
 
@@ -105,6 +104,7 @@ public:
 
 public:
     const int64_t collection_count;
+    const int64_t free_space_target_mb;
     const int64_t key_count;
     const int64_t key_size;
     const int64_t value_size;
@@ -122,8 +122,6 @@ public:
 private:
     std::shared_ptr<barrier> _barrier = nullptr;
     bool _running = true;
-    uint64_t _sleep_time_ms = 1000;
+    std::chrono::milliseconds _sleep_time_ms;
 };
 } // namespace test_harness
-
-#endif

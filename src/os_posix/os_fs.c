@@ -555,7 +555,6 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 #endif
 
-#ifdef HAVE_FTRUNCATE
 /*
  * __posix_file_truncate --
  *     POSIX ftruncate.
@@ -590,7 +589,6 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     }
     return (0);
 }
-#endif
 
 /*
  * __posix_file_write --
@@ -858,6 +856,7 @@ directory_open:
     WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
     pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
+    pfh->mmap_flags = LF_ISSET(WT_FS_OPEN_READONLY) ? MAP_PRIVATE : MAP_SHARED;
     if (LF_ISSET(WT_FS_OPEN_FORCE_MMAP))
         pfh->mmap_file_mappable = true;
     if (conn->mmap_all) {
@@ -906,9 +905,7 @@ directory_open:
 #ifdef HAVE_SYNC_FILE_RANGE
     file_handle->fh_sync_nowait = __posix_file_sync_nowait;
 #endif
-#ifdef HAVE_FTRUNCATE
     file_handle->fh_truncate = __posix_file_truncate;
-#endif
 
     if (pfh->mmap_file_mappable)
         file_handle->fh_write = __posix_file_write_mmap;

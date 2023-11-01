@@ -195,7 +195,6 @@ __curbackup_close(WT_CURSOR *cursor)
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    const char *cfg[3] = {NULL, NULL, NULL};
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
@@ -205,20 +204,21 @@ err:
         __wt_verbose(
           session, WT_VERB_BACKUP, "%s", "Releasing resources from forced stop incremental");
         __wt_backup_destroy(session);
-        /*
-         * We need to force a checkpoint to the metadata to make the force stop durable. Without it,
-         * the backup information could reappear if we crash and restart.
-         */
-        cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_checkpoint);
-        cfg[1] = "force=true";
-        /*
-         * Metadata checkpoints rely on read-committed isolation. Use that here no matter what
-         * isolation the caller's session sets for isolation.
-         */
-        WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
-          WT_WITH_METADATA_LOCK(session,
-            WT_WITH_TXN_ISOLATION(
-              session, WT_ISO_READ_COMMITTED, ret = __wt_checkpoint(session, cfg))));
+    }
+
+    /*
+     * For either a force stop or a full backup starting an incremental force a checkpoint so that
+     * the new information is visible in the metadata and old backup information does not reappear
+     * if we crash and restart.
+     */
+    if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP) ||
+      (F_ISSET(cb, WT_CURBACKUP_INCR) && cb->incr_src == NULL)) {
+        /* Must be declared and initialized after session is set in the CURSOR_API macro. */
+        const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL};
+
+        /* Mark the connection modified to make sure a checkpoint happens even on an idle system. */
+        S2C(session)->modified = true;
+        WT_TRET(__wt_txn_checkpoint(session, cfg, true));
     }
 
     /*
@@ -279,7 +279,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_CURSOR_BACKUP *cb, *othercb;
     WT_DECL_RET;
 
-    WT_STATIC_ASSERT(offsetof(WT_CURSOR_BACKUP, iface) == 0);
+    WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_BACKUP);
 
     WT_RET(__wt_calloc_one(session, &cb));
     cursor = (WT_CURSOR *)cb;
@@ -303,6 +303,13 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     } else if (WT_STRING_MATCH("backup:export", uri, strlen(uri)))
         /* Special backup cursor for export operation. */
         F_SET(cb, WT_CURBACKUP_EXPORT);
+
+    /*
+     * Export cursors are for tiered storage. Do not allow backup cursors if tiered storage is in
+     * use on the connection and it isn't an export cursor.
+     */
+    if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)) && !F_ISSET(cb, WT_CURBACKUP_EXPORT))
+        return (ENOTSUP);
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent

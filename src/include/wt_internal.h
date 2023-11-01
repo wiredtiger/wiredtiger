@@ -71,6 +71,10 @@ struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
 struct __wt_background_compact;
 typedef struct __wt_background_compact WT_BACKGROUND_COMPACT;
+struct __wt_background_compact_exclude;
+typedef struct __wt_background_compact_exclude WT_BACKGROUND_COMPACT_EXCLUDE;
+struct __wt_background_compact_stat;
+typedef struct __wt_background_compact_stat WT_BACKGROUND_COMPACT_STAT;
 struct __wt_backup_target;
 typedef struct __wt_backup_target WT_BACKUP_TARGET;
 struct __wt_blkcache;
@@ -123,6 +127,8 @@ struct __wt_chunkcache_hashid;
 typedef struct __wt_chunkcache_hashid WT_CHUNKCACHE_HASHID;
 struct __wt_chunkcache_intermediate_hash;
 typedef struct __wt_chunkcache_intermediate_hash WT_CHUNKCACHE_INTERMEDIATE_HASH;
+struct __wt_chunkcache_metadata_work_unit;
+typedef struct __wt_chunkcache_metadata_work_unit WT_CHUNKCACHE_METADATA_WORK_UNIT;
 struct __wt_chunkcache_pinned_list;
 typedef struct __wt_chunkcache_pinned_list WT_CHUNKCACHE_PINNED_LIST;
 struct __wt_ckpt;
@@ -231,6 +237,8 @@ struct __wt_fstream;
 typedef struct __wt_fstream WT_FSTREAM;
 struct __wt_hazard;
 typedef struct __wt_hazard WT_HAZARD;
+struct __wt_hazard_array;
+typedef struct __wt_hazard_array WT_HAZARD_ARRAY;
 struct __wt_ikey;
 typedef struct __wt_ikey WT_IKEY;
 struct __wt_import_entry;
@@ -313,6 +321,10 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
+struct __wt_prefetch;
+typedef struct __wt_prefetch WT_PREFETCH;
+struct __wt_prefetch_queue_entry;
+typedef struct __wt_prefetch_queue_entry WT_PREFETCH_QUEUE_ENTRY;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
 struct __wt_rec_chunk;
@@ -325,6 +337,8 @@ struct __wt_reconcile;
 typedef struct __wt_reconcile WT_RECONCILE;
 struct __wt_reconcile_timeline;
 typedef struct __wt_reconcile_timeline WT_RECONCILE_TIMELINE;
+struct __wt_recovery_timeline;
+typedef struct __wt_recovery_timeline WT_RECOVERY_TIMELINE;
 struct __wt_ref;
 typedef struct __wt_ref WT_REF;
 struct __wt_ref_hist;
@@ -347,6 +361,8 @@ struct __wt_session_stash;
 typedef struct __wt_session_stash WT_SESSION_STASH;
 struct __wt_session_stats;
 typedef struct __wt_session_stats WT_SESSION_STATS;
+struct __wt_shutdown_timeline;
+typedef struct __wt_shutdown_timeline WT_SHUTDOWN_TIMELINE;
 struct __wt_size;
 typedef struct __wt_size WT_SIZE;
 struct __wt_spinlock;
@@ -387,6 +403,8 @@ struct __wt_txn_printlog_args;
 typedef struct __wt_txn_printlog_args WT_TXN_PRINTLOG_ARGS;
 struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
+struct __wt_txn_snapshot;
+typedef struct __wt_txn_snapshot WT_TXN_SNAPSHOT;
 struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
 struct __wt_update_value;
@@ -404,6 +422,7 @@ typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
 typedef union __wt_rand_state WT_RAND_STATE;
 
+typedef struct timespec WT_TIMER;
 typedef uint64_t wt_timestamp_t;
 
 /*
@@ -457,6 +476,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cache.h"
 #include "capacity.h"
 #include "cell.h"
+#include "checkpoint.h"
 #include "compact.h"
 #include "config.h"
 #include "cursor.h"

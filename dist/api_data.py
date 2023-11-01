@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This file is a python script that describes the WiredTiger API.
 
 class Method:
@@ -557,6 +559,10 @@ connection_runtime_config = [
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
+        Config('background_compact', 'false', r'''
+               if true, background compact aggressively removes compact statistics for a file and
+               decreases the max amount of time a file can be skipped for.''', 
+               type='boolean'),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
             type='boolean'),
@@ -823,8 +829,10 @@ connection_runtime_config = [
         where each message type can optionally define an associated verbosity level, such as
         <code>"verbose=[evictserver,read:1,rts:0]"</code>. Verbosity levels that can be provided
         include <code>0</code> (INFO) and <code>1</code> through <code>5</code>, corresponding to
-        (DEBUG_1) to (DEBUG_5).''',
+        (DEBUG_1) to (DEBUG_5). \c all is a special case that defines the verbosity level for all
+        categories not explicitly set in the config string.''',
         type='list', choices=[
+            'all',
             'api',
             'backup',
             'block',
@@ -1060,7 +1068,7 @@ wiredtiger_open_chunk_cache_configuration = [
         chunk_cache_configuration_common + [
         Config('capacity', '10GB', r'''
             maximum memory or storage to use for the chunk cache''',
-            min='0', max='100TB'),
+            min='512KB', max='100TB'),
         Config('chunk_cache_evict_trigger', '90', r'''
             chunk cache percent full that triggers eviction''',
             min='0', max='100'),
@@ -1068,13 +1076,18 @@ wiredtiger_open_chunk_cache_configuration = [
             size of cached chunks''',
             min='512KB', max='100GB'),
         Config('storage_path', '', r'''
-            the absolute path to the file used as cache location'''),
+            the path (absolute or relative) to the file used as cache location. This should be on a
+            filesystem that supports file truncation. All filesystems in common use
+            meet this criteria.'''),
         Config('enabled', 'false', r'''
             enable chunk cache''',
             type='boolean'),
         Config('hashsize', '1024', r'''
             number of buckets in the hashtable that keeps track of objects''',
             min='64', max='1048576'),
+        Config('flushed_data_cache_insertion', 'true', r'''
+            enable caching of freshly-flushed data, before it is removed locally.''',
+            type='boolean', undoc=True),
         Config('type', 'FILE', r'''
             cache location, defaults to the file system.''',
             choices=['FILE', 'DRAM'], undoc=True),
@@ -1109,6 +1122,14 @@ session_config = [
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
+    Config('prefetch', '', r'''
+        Enable automatic detection of scans by applications, and attempt to pre-fetch future
+        content into the cache''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            whether pre-fetch is enabled for this session''',
+            type='boolean'),
+        ]),
 ]
 
 wiredtiger_open_common =\
@@ -1209,6 +1230,17 @@ wiredtiger_open_common =\
         permit sharing between processes (will automatically start an RPC server for primary
         processes and use RPC for secondary processes). <b>Not yet supported in WiredTiger</b>''',
         type='boolean'),
+    Config('prefetch', '', r'''
+        Enable automatic detection of scans by applications, and attempt to pre-fetch future
+        content into the cache''',
+        type='category', subconfig=[
+        Config('available', 'false', r'''
+            whether the thread pool for the pre-fetch functionality is started''',
+            type='boolean'),
+        Config('default', 'false', r'''
+            whether pre-fetch is enabled for all sessions by default''',
+            type='boolean'),
+        ]),
     Config('readonly', 'false', r'''
         open connection in read-only mode. The database must exist. All methods that may
         modify a database are disabled. See @ref readonly for more information''',
@@ -1356,6 +1388,12 @@ methods = {
     Config('background', '', r'''
         enable/disabled the background compaction server.''',
         type='boolean'),
+    Config('exclude', '', r'''
+        A list of table objects to be excluded from background compaction. The list is immutable and
+        only applied when the background compaction gets enabled. The list is not saved between the
+        calls and needs to be reapplied each time the service is enabled. The individual objects in
+        the list can only be of the \c table: URI type''',
+        type='list'),
     Config('free_space_target', '20MB', r'''
         minimum amount of space recoverable for compaction to proceed''',
         min='1MB'),

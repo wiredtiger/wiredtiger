@@ -68,9 +68,11 @@ CURSTD
 CallsCustDate
 Castagnoli
 Cclmpv
+Ceil
 CentOS
 Checkpointing
 Checksums
+Chunkcache
 CityHash
 ClmSvxz
 CloseHandle
@@ -195,6 +197,7 @@ JSON
 Jyrki
 KV
 Kanowski's
+Keyedness
 Kounavis
 LANGID
 LF
@@ -237,7 +240,6 @@ MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
-McIlroy
 Mellor
 Mewhort
 Mitzenmacher
@@ -280,6 +282,7 @@ PID
 POS
 POSIX
 PPC
+PREFETCH
 PRId
 PRIu
 PRNG
@@ -325,7 +328,6 @@ RXB
 ReadFile
 Readonly
 Realloc
-Recurse
 RedHat
 Redistributions
 Rogerio
@@ -423,7 +425,9 @@ WideCharToMultiByte
 WinNT
 WiredTiger
 WiredTiger's
+WiredTigerCC
 WiredTigerCheckpoint
+WiredTigerChunkCache
 WiredTigerHS
 WiredTigerLAS
 WiredTigerLog
@@ -446,7 +450,7 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
-acstu
+acSstu
 addl
 addr
 addrs
@@ -806,7 +810,6 @@ hashval
 havesize
 hdr
 hhh
-highjack
 hpp
 hs
 html
@@ -822,6 +825,7 @@ icount
 idlems
 idx
 ie
+iface
 ifdef's
 iiSii
 iiiS
@@ -874,7 +878,9 @@ json
 kB
 kbits
 kepQFQ
+key'd
 keycmp
+keyedness
 keyid
 keyids
 keylen
@@ -1007,6 +1013,7 @@ nlpo
 nocase
 noclear
 nocrypto
+noexcept
 nolock
 nonces
 nonliteral
@@ -1024,6 +1031,7 @@ nrecs
 nsec
 nset
 nul
+nullptr
 num
 numSymbols
 numbare
@@ -1077,6 +1085,7 @@ pre
 pread
 prealloc
 precomp
+prefetch
 preload
 prepend
 prepended
@@ -1105,7 +1114,6 @@ qrrSS
 qsort
 quartile
 queueable
-quicksort
 quiesce
 qup
 rN
@@ -1285,6 +1293,7 @@ txnid
 txp
 txt
 typedef
+typeof
 uS
 ui
 uint
@@ -1345,6 +1354,7 @@ vd
 vdata
 vec
 vectorized
+verifier
 vfprintf
 vh
 vm

@@ -26,6 +26,7 @@ CURSTD
 CXX
 Cheng
 Christoph
+Chunkcache
 Collet's
 Coverity
 Coverity's
@@ -121,16 +122,17 @@ PROFDATA
 Powershell
 README
 RLE
+RNG
 RedHat
 RepMgr
 Riak
 RocksDB
 Roelofs
 Rrx
-SDK
-SDKs
-SDK's
 SCons
+SDK
+SDK's
+SDKs
 SYSV
 Sanitizer
 Seward's
@@ -169,8 +171,8 @@ aR
 aarch
 abc
 abstime
+acSstu
 ack'ed
-acstu
 addr
 ajn
 alloc
@@ -225,6 +227,7 @@ checkpointed
 checkpointing
 checksum
 checksums
+chunkcache
 ckp
 ckpt
 clickable
@@ -262,7 +265,6 @@ customerABC
 customizability
 cv
 cyclomatic
-de
 dN
 dNLen
 dNOff
@@ -277,6 +279,7 @@ dbc
 dbformat
 dbm
 dbt
+de
 deallocated
 decl
 decrement
@@ -349,8 +352,8 @@ filehandle
 fileid
 filename
 filesystem
-filesystems
 filesystem's
+filesystems
 fillfactor
 firstname
 flamegraph
@@ -373,8 +376,8 @@ fuzzutil
 fvisibility
 fxray
 gcc
-gcp
 gcov
+gcp
 gdbm
 ge
 getKey

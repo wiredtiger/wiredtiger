@@ -1887,14 +1887,13 @@ __rec_set_page_write_gen(WT_BTREE *btree, WT_PAGE_HEADER *dsk)
      * it's not as good anyway, because the internal page may not have been written after the leaf
      * page was updated. So, write generations it is.
      *
-     * Nothing is locked at this point but two versions of a page with the same generation is pretty
-     * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
-     * anyway.
+     * The write generation number should be increased atomically to prevent it from moving backward
+     * when it is updated simultaneously.
      *
      * Other than salvage, the write generation number is used to reset the stale transaction id's
      * present on the page upon server restart.
      */
-    dsk->write_gen = ++btree->write_gen;
+    dsk->write_gen = __wt_atomic_add64(&btree->write_gen, 1);
 }
 
 /*
@@ -2339,8 +2338,8 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         WT_RET(__wt_scr_alloc(session, 0, &tkey));
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             __wt_verbose_debug2(session, WT_VERB_SPLIT, "starting key %s",
-              __wt_buf_set_printable(
-                session, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size, false, tkey));
+              __wt_buf_set_printable_format(session, WT_IKEY_DATA(multi->key.ikey),
+                multi->key.ikey->size, btree->key_format, false, tkey));
         __wt_scr_free(session, &tkey);
     } else
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)

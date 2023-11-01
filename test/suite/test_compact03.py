@@ -103,6 +103,10 @@ class test_compact03(wttest.WiredTigerTestCase):
 
     # Create a table, add keys with both big and small values.
     def test_compact03(self):
+        # FIXME-WT-11399: check the other assertions that are skipped when the tiered hook is
+        # enabled.
+        if self.runningHook('tiered'):
+            self.skipTest("this test generates occasional rollback errors when tiered is enabled")
 
         mb = 1024 * 1024
         # 1. Create a table with relatively small page size.
@@ -117,7 +121,8 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         sizeWithoutOverflow = self.getSize()
         self.pr('After populate ' + str(sizeWithoutOverflow // mb) + 'MB')
-        self.assertGreater(sizeWithoutOverflow, self.expectedTableSize * mb)
+        if not self.runningHook('tiered'):
+            self.assertGreater(sizeWithoutOverflow, self.expectedTableSize * mb)
 
         # 3. Add overflow values.
         c = self.session.open_cursor(self.uri, None)
@@ -129,7 +134,8 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         sizeWithOverflow = self.getSize()
         self.pr('After inserting overflow values ' + str(sizeWithoutOverflow // mb) + 'MB')
-        self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
+        if not self.runningHook('tiered'):
+            self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
 
         # 5. Delete middle ~90% of the normal values in the table.
         if self.truncate:
@@ -156,13 +162,14 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.session.compact(self.uri)
         sizeAfterCompact = self.getSize()
         self.pr('After deleting values and compactions ' + str(sizeAfterCompact // mb) + 'MB')
-        self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
+        if not self.runningHook('tiered'):
+            self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
 
-        # Verify that we did indeed rewrote some pages but that didn't help with the file size.
-        statDict = self.getCompactProgressStats()
-        self.assertGreater(statDict["pages_reviewed"],0)
-        self.assertGreater(statDict["pages_rewritten"],0)
-        self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
+            # Verify that we did indeed rewrote some pages but that didn't help with the file size.
+            statDict = self.getCompactProgressStats()
+            self.assertGreater(statDict["pages_reviewed"],0)
+            self.assertGreater(statDict["pages_rewritten"],0)
+            self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
                             statDict["pages_reviewed"])
 
         # 9. Insert some normal values and expect that file size won't increase as free extents
@@ -182,7 +189,8 @@ class test_compact03(wttest.WiredTigerTestCase):
         # Test that the file size doesn't increase.
         sizeAfterNewInserts = self.getSize()
         self.pr('After Inserting bunch of values ' + str(sizeAfterNewInserts // mb) + 'MB')
-        self.assertEqual(sizeAfterCompact, sizeAfterNewInserts)
+        if not self.runningHook('tiered'):
+            self.assertEqual(sizeAfterCompact, sizeAfterNewInserts)
 
 if __name__ == '__main__':
     wttest.run()

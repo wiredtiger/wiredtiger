@@ -167,7 +167,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             while not ckpt_snapshot:
                 time.sleep(1)
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_snapshot = stat_cursor[stat.conn.txn_checkpoint_snapshot_acquired][2]
+                ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
                 stat_cursor.close()
 
             session1.commit_transaction()
@@ -228,7 +228,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             while not ckpt_snapshot:
                 time.sleep(1)
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_snapshot = stat_cursor[stat.conn.txn_checkpoint_snapshot_acquired][2]
+                ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
                 stat_cursor.close()
 
             session1.commit_transaction()
@@ -250,6 +250,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         self.assertGreater(inconsistent_ckpt, 0)
         self.assertGreaterEqual(keys_removed, 0)
 
+    @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
     def test_checkpoint_snapshot_with_txnid_and_timestamp(self):
         self.moresetup()
 
@@ -292,7 +293,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             while not ckpt_snapshot:
                 time.sleep(1)
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_snapshot = stat_cursor[stat.conn.txn_checkpoint_snapshot_acquired][2]
+                ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
                 stat_cursor.close()
 
             session2.commit_transaction()

@@ -288,9 +288,11 @@ __wt_block_checkpoint(
     if (buf == NULL) {
         ci->root_offset = WT_BLOCK_INVALID_OFFSET;
         ci->root_objectid = ci->root_size = ci->root_checksum = 0;
-    } else
-        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_objectid, &ci->root_offset,
-          &ci->root_size, &ci->root_checksum, data_checksum, true, false));
+    } else {
+        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_offset, &ci->root_size,
+          &ci->root_checksum, data_checksum, true, false));
+        ci->root_objectid = block->objectid;
+    }
 
     /*
      * Checkpoints are potentially reading/writing/merging lots of blocks, pre-allocate structures
@@ -683,6 +685,14 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
 
+        /*
+         * Set the "from" checkpoint structure. If it applies to a previous object, there's nothing
+         * more to do.
+         */
+        a = ckpt->bpriv;
+        if (a->root_objectid != block->objectid)
+            continue;
+
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
             __wt_ckpt_verbose(session, block, "delete", ckpt->name, ckpt->raw.data, ckpt->raw.size);
 
@@ -695,9 +705,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
                 break;
 
         /*
-         * Set the from/to checkpoint structures, where the "to" value may be the live tree.
+         * Set the "to" checkpoint structure, it may be the live tree.
          */
-        a = ckpt->bpriv;
         if (F_ISSET(next_ckpt, WT_CKPT_ADD))
             b = &block->live;
         else

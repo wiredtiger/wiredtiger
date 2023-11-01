@@ -257,11 +257,12 @@ struct __wt_block {
 
     bool created_during_backup; /* Created during incremental backup */
     bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
+    bool readonly;              /* Underlying file was opened only for reading */
 
     /* Configuration information, set when the file is opened. */
-    uint32_t allocfirst; /* Allocation is first-fit */
-    uint32_t allocsize;  /* Allocation size */
-    size_t os_cache;     /* System buffer cache flush max */
+    wt_shared uint32_t allocfirst; /* Allocation is first-fit */
+    uint32_t allocsize;            /* Allocation size */
+    size_t os_cache;               /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 
@@ -292,6 +293,7 @@ struct __wt_block {
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    uint32_t compact_session_id;               /* Session compacting */
 
     /* Salvage support */
     wt_off_t slvg_off; /* Salvage file offset */
@@ -307,7 +309,7 @@ struct __wt_block {
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
 
     /* Multi-file support */
-    uint32_t read_count; /* Count of active read requests using this block handle */
+    wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
 };
 
 /*

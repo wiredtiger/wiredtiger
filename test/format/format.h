@@ -242,8 +242,8 @@ typedef struct {
 
     char *config_open; /* Command-line configuration */
 
-    TABLE *base_mirror;  /* First mirrored table */
-    bool mirror_fix_var; /* Special case if mirroring both FIX and VAR tables */
+    TABLE *base_mirror;    /* First mirrored table */
+    bool mirror_col_store; /* Special case if mirroring column store table */
 
     bool background_compaction_running; /* Background compaction running */
 
@@ -509,7 +509,8 @@ void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, bool);
-void wts_verify_checkpoint(WT_CONNECTION *, const char *);
+void wts_verify_mirrored_truncate(TINFO *tinfo);
+void wts_verify_mirrors(WT_CONNECTION *, const char *, TINFO *);
 
 /* Backward compatibility to older versions of the WiredTiger library. */
 #if !defined(CUR2S)

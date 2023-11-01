@@ -56,7 +56,7 @@ get_stat_field(const std::string &name)
     if (name == CACHE_HS_INSERT)
         return (WT_STAT_CONN_CACHE_HS_INSERT);
     else if (name == CC_PAGES_REMOVED)
-        return (WT_STAT_CONN_CC_PAGES_REMOVED);
+        return (WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_REMOVED);
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
@@ -82,29 +82,24 @@ metrics_monitor::load()
     /* Load the general component things. */
     component::load();
 
-    /* If the component is enabled, load all the known statistics. */
-    if (_enabled) {
+    std::unique_ptr<configuration> stat_config(_config->get_subconfig(STAT_CACHE_SIZE));
+    _stats.push_back(std::unique_ptr<cache_limit>(new cache_limit(*stat_config, STAT_CACHE_SIZE)));
 
-        std::unique_ptr<configuration> stat_config(_config->get_subconfig(STAT_CACHE_SIZE));
-        _stats.push_back(
-          std::unique_ptr<cache_limit>(new cache_limit(*stat_config, STAT_CACHE_SIZE)));
+    stat_config.reset(_config->get_subconfig(STAT_DB_SIZE));
+    _stats.push_back(
+      std::unique_ptr<database_size>(new database_size(*stat_config, STAT_DB_SIZE, _database)));
 
-        stat_config.reset(_config->get_subconfig(STAT_DB_SIZE));
-        _stats.push_back(
-          std::unique_ptr<database_size>(new database_size(*stat_config, STAT_DB_SIZE, _database)));
+    stat_config.reset(_config->get_subconfig(CACHE_HS_INSERT));
+    _stats.push_back(std::unique_ptr<statistics>(
+      new statistics(*stat_config, CACHE_HS_INSERT, get_stat_field(CACHE_HS_INSERT))));
 
-        stat_config.reset(_config->get_subconfig(CACHE_HS_INSERT));
-        _stats.push_back(std::unique_ptr<statistics>(
-          new statistics(*stat_config, CACHE_HS_INSERT, get_stat_field(CACHE_HS_INSERT))));
+    stat_config.reset(_config->get_subconfig(CC_PAGES_REMOVED));
+    _stats.push_back(std::unique_ptr<statistics>(
+      new statistics(*stat_config, CC_PAGES_REMOVED, get_stat_field(CC_PAGES_REMOVED))));
 
-        stat_config.reset(_config->get_subconfig(CC_PAGES_REMOVED));
-        _stats.push_back(std::unique_ptr<statistics>(
-          new statistics(*stat_config, CC_PAGES_REMOVED, get_stat_field(CC_PAGES_REMOVED))));
-
-        /* Open our statistic cursor. */
-        _session = connection_manager::instance().create_session();
-        _cursor = _session.open_scoped_cursor(STATISTICS_URI);
-    }
+    /* Open our statistic cursor. */
+    _session = connection_manager::instance().create_session();
+    _cursor = _session.open_scoped_cursor(STATISTICS_URI);
 }
 
 void

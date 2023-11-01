@@ -35,6 +35,7 @@ static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(TABLE *);
+static void config_chunk_cache(void);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
 static void config_directio(void);
@@ -49,6 +50,7 @@ static void config_map_backup_incr(const char *, u_int *);
 static void config_map_checkpoint(const char *, u_int *);
 static void config_map_file_type(const char *, u_int *);
 static void config_mirrors(void);
+static void config_mirrors_disable_reverse(void);
 static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
@@ -494,12 +496,27 @@ config_run(void)
           REALLOC_MAX_TABLES);
     }
 
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        /*
+         * Predictable replays can get extremely slow with throttling.
+         *
+         * FIXME-WT-11782: Investigate why predictable replays get stuck with ops.throttling
+         * enabled. It can indicate a bug in predictable replay or in WiredTiger.
+         */
+        if (GV(OPS_THROTTLE)) {
+            if (config_explicit(NULL, "ops.throttle"))
+                WARN("%s", "turning off ops.throttle to work with predictable replay");
+            config_single(NULL, "ops.throttle=0", false);
+        }
+    }
+
     config_in_memory(); /* Periodically run in-memory. */
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
     /* Order can be important, don't shuffle without careful consideration. */
     config_tiered_storage();                         /* Tiered storage */
+    config_chunk_cache();                            /* Chunk cache */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
     config_checkpoint();                             /* Checkpoints */
@@ -1009,6 +1026,8 @@ config_in_memory(void)
      */
     if (ntables > 10)
         return;
+    if (config_explicit(NULL, "background_compact"))
+        return;
     if (config_explicit(NULL, "backup"))
         return;
     if (config_explicit(NULL, "block_cache"))
@@ -1061,6 +1080,8 @@ config_in_memory_reset(void)
         return;
 
     /* Turn off a lot of stuff. */
+    if (!config_explicit(NULL, "background_compact"))
+        config_off(NULL, "background_compact");
     if (!config_explicit(NULL, "backup"))
         config_off(NULL, "backup");
     if (!config_explicit(NULL, "block_cache"))
@@ -1152,24 +1173,37 @@ config_mirrors(void)
 {
     u_int available_tables, i, mirrors;
     char buf[100];
-    bool already_set, explicit_mirror, fix, var;
+    bool already_set, explicit_mirror;
 
-    fix = var = false;
-    g.mirror_fix_var = false;
+    g.mirror_col_store = false;
+
+    /*
+     * In theory, mirroring should work with predictable replay, although there's some overlap in
+     * functionality. That is, we usually do multiple runs with the same key with predictable replay
+     * and would notice if data was different or missing. We disable it to keep runs simple.
+     */
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        WARN("%s", "turning off mirroring for predictable replay");
+        config_off_all("runs.mirror");
+        return;
+    }
+
     /* Check for a CONFIG file that's already set up for mirroring. */
     for (already_set = false, i = 1; i <= ntables; ++i)
         if (NTV(tables[i], RUNS_MIRROR)) {
             already_set = tables[i]->mirror = true;
-            if (tables[i]->type == FIX)
-                fix = true;
-            if (tables[i]->type == VAR)
-                var = true;
+            if (tables[i]->type == FIX || tables[i]->type == VAR)
+                g.mirror_col_store = true;
             if (g.base_mirror == NULL && tables[i]->type != FIX)
                 g.base_mirror = tables[i];
         }
     if (already_set) {
         if (g.base_mirror == NULL)
             testutil_die(EINVAL, "no table configured that can act as the base mirror");
+
+        /* A custom collator would complicate the cursor traversal when comparing tables. */
+        config_mirrors_disable_reverse();
+
         /*
          * Assume that mirroring is already configured if one of the tables has explicitly
          * configured it on. This isn't optimal since there could still be other tables that haven't
@@ -1177,8 +1211,6 @@ config_mirrors(void)
          * it lets us avoid a bunch of extra logic around figuring out whether we have an acceptable
          * minimum number of tables.
          */
-        if (fix && var)
-            g.mirror_fix_var = true;
         return;
     }
 
@@ -1192,17 +1224,6 @@ config_mirrors(void)
      */
     explicit_mirror = config_explicit(NULL, "runs.mirror");
     if (!explicit_mirror && mmrand(&g.data_rnd, 1, 10) < 9) {
-        config_off_all("runs.mirror");
-        return;
-    }
-
-    /*
-     * In theory, mirroring should work with predictable replay, although there's some overlap in
-     * functionality. That is, we usually do multiple runs with the same key with predictable replay
-     * and would notice if data was different or missing. We disable it to keep runs simple.
-     */
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        WARN("%s", "turning off mirroring for predictable replay");
         config_off_all("runs.mirror");
         return;
     }
@@ -1240,13 +1261,7 @@ config_mirrors(void)
     }
 
     /* A custom collator would complicate the cursor traversal when comparing tables. */
-    for (i = 1; i <= ntables; ++i)
-        if (NTV(tables[i], BTREE_REVERSE) && config_explicit(tables[i], "btree.reverse")) {
-            WARN(
-              "%s", "mirroring incompatible with reverse collation, turning off reverse collation");
-            break;
-        }
-    config_off_all("btree.reverse");
+    config_mirrors_disable_reverse();
 
     /* Good to go: pick the first non-FLCS table that allows mirroring as our base. */
     for (i = 1; i <= ntables; ++i)
@@ -1256,7 +1271,7 @@ config_mirrors(void)
     config_single(tables[i], "runs.mirror=1", false);
     g.base_mirror = tables[i];
     if (tables[i]->type == VAR)
-        var = true;
+        g.mirror_col_store = true;
     /*
      * Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables, where
      * allowed.
@@ -1267,21 +1282,13 @@ config_mirrors(void)
         if (tables[i] != g.base_mirror) {
             tables[i]->mirror = true;
             config_single(tables[i], "runs.mirror=1", false);
-            if (tables[i]->type == FIX)
-                fix = true;
-            if (tables[i]->type == VAR)
-                var = true;
+            if (tables[i]->type == FIX || tables[i]->type == VAR)
+                g.mirror_col_store = true;
             if (--mirrors == 0)
                 break;
         }
     }
 
-    /*
-     * There is an edge case that is possible only when we are mirroring both VLCS and FLCS tables.
-     * Note if that is true now.
-     */
-    if (fix && var)
-        g.mirror_fix_var = true;
     /*
      * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
      * a mirror as OK, but this lets us assert matching rows).
@@ -1290,6 +1297,24 @@ config_mirrors(void)
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->mirror && tables[i] != g.base_mirror)
             config_single(tables[i], buf, false);
+}
+
+/*
+ * config_mirrors_disable_reverse --
+ *     Disable reverse if mirroring enabled.
+ */
+static void
+config_mirrors_disable_reverse(void)
+{
+    u_int i;
+
+    for (i = 1; i <= ntables; ++i)
+        if (NTV(tables[i], BTREE_REVERSE) && config_explicit(tables[i], "btree.reverse")) {
+            WARN(
+              "%s", "mirroring incompatible with reverse collation, turning off reverse collation");
+            break;
+        }
+    config_off_all("btree.reverse");
 }
 
 /*
@@ -1459,6 +1484,86 @@ config_statistics(void)
 }
 
 /*
+ * config_chunk_cache --
+ *     Chunk cache configuration.
+ */
+static void
+config_chunk_cache(void)
+{
+    char buf[128];
+    const char *chunkcache_type;
+
+    chunkcache_type = NULL;
+
+    /* Chunkcache does not work unless tiered storage is configured. */
+    if (!g.tiered_storage_config) {
+        if (config_explicit(NULL, "chunk_cache") && GV(CHUNK_CACHE))
+            testutil_die(EINVAL,
+              "%s: chunkcache cannot be enabled unless tiered storage is configured.", progname);
+        return;
+    }
+
+    if (!config_explicit(NULL, "chunk_cache")) {
+        /*
+         * Make sure no configurations related to chunk caching are set if chunkcache is not
+         * enabled.
+         */
+        if (config_explicit(NULL, "chunk_cache.capacity") ||
+          config_explicit(NULL, "chunk_cache.chunk_size") ||
+          config_explicit(NULL, "chunk_cache.type") ||
+          config_explicit(NULL, "chunk_cache.storage_path"))
+            testutil_die(EINVAL,
+              "%s: Enable chunk caching (chunk_cache=on) to allow configuring other chunk cache "
+              "settings",
+              progname);
+
+        /* Enable chunkcache 50% of the time if not explicit set. */
+        testutil_snprintf(
+          buf, sizeof(buf), "chunk_cache=%s", mmrand(&g.data_rnd, 1, 100) <= 50 ? "on" : "off");
+        config_single(NULL, buf, false);
+    }
+
+    if (GV(CHUNK_CACHE)) {
+        if (config_explicit(NULL, "chunk_cache.type")) {
+            chunkcache_type = GVS(CHUNK_CACHE_TYPE);
+            if (strcmp(chunkcache_type, "FILE") != 0 && strcmp(chunkcache_type, "DRAM") != 0)
+                testutil_die(EINVAL, "illegal chunkcache.type configuration: %s", chunkcache_type);
+
+            if (GV(RUNS_IN_MEMORY) && strcmp(chunkcache_type, "FILE") == 0)
+                testutil_die(EINVAL,
+                  "%s: chunk caching cannot be enabled for in-memory runs as chunkcache.type is "
+                  "set to FILE.",
+                  progname);
+        } else {
+            if (GV(RUNS_IN_MEMORY))
+                config_single(NULL, "chunk_cache.type=DRAM", false);
+            else {
+                /*
+                 * Alternate between running chunk cache with the 'File' type and the 'DRAM' type.
+                 */
+                testutil_snprintf(buf, sizeof(buf), "chunk_cache.type=%s",
+                  mmrand(&g.data_rnd, 1, 100) <= 50 ? "DRAM" : "FILE");
+                config_single(NULL, buf, false);
+            }
+        }
+
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "DRAM") == 0 &&
+          config_explicit(NULL, "chunk_cache.storage_path"))
+            testutil_die(EINVAL,
+              "For chunk_cache.type=%s, passing in the chunk_cache.storage_path=%s is unnecessary.",
+              chunkcache_type, GVS(CHUNK_CACHE_STORAGE_PATH));
+
+        if (!config_explicit(NULL, "chunk_cache.capacity") &&
+          !config_explicit(NULL, "chunk_cache.chunk_size"))
+            if (GV(CHUNK_CACHE_CAPACITY) <= GV(CHUNK_CACHE_CHUNK_SIZE))
+                GV(CHUNK_CACHE_CHUNK_SIZE) = GV(CHUNK_CACHE_CAPACITY) / 10;
+
+        /* Always ensure that capacity greater than chunk_size. */
+        testutil_assert(GV(CHUNK_CACHE_CAPACITY) > GV(CHUNK_CACHE_CHUNK_SIZE));
+    }
+}
+
+/*
  * config_tiered_storage --
  *     Tiered storage configuration.
  */
@@ -1494,6 +1599,7 @@ config_tiered_storage(void)
 
         /* FIXME-PM-2538: Compact is not yet supported for tiered tables. */
         config_off(NULL, "ops.compaction");
+        config_off(NULL, "background_compact");
     } else
         /* Never try flush to tiered storage unless running with tiered storage. */
         config_single(NULL, "tiered_storage.flush_frequency=0", true);
@@ -1931,7 +2037,7 @@ config_single(TABLE *table, const char *s, bool explicit)
      * configuration option includes JSON characters.
      */
     for (t = (const u_char *)s; *t != '\0'; ++t)
-        if (!__wt_isalnum(*t) && !__wt_isspace(*t) && strchr("\"'()-.:=[]_,", *t) == NULL)
+        if (!__wt_isalnum(*t) && !__wt_isspace(*t) && strchr("\"'()-.:=[]_/,", *t) == NULL)
             testutil_die(
               EINVAL, "%s: configuration contains unexpected character %#x", progname, (u_int)*t);
 
@@ -2259,32 +2365,15 @@ config_file_type(u_int type)
 static void
 config_compact(void)
 {
-    /* FIXME-WT-11432: Background and foreground compaction should not be executed in parallel. */
-    if (config_explicit(NULL, "background_compact") && GV(BACKGROUND_COMPACT) &&
-      config_explicit(NULL, "ops.compaction") && GV(OPS_COMPACTION))
-        testutil_die(EINVAL,
-          "%s: Background and foreground compaction cannot be enabled at the same time", progname);
-
-    /*
-     * FIXME-WT-11432: If both are enabled, disable the one that is not explicitly set or choose one
-     * randomly.
-     */
-    if (GV(BACKGROUND_COMPACT) && GV(OPS_COMPACTION)) {
-        if (config_explicit(NULL, "background_compact"))
-            config_single(NULL, "ops.compaction=0", false);
-        else if (config_explicit(NULL, "ops.compaction"))
-            config_single(NULL, "background_compact=0", false);
-        else {
-            if (mmrand(&g.data_rnd, 1, 2) == 1)
-                config_single(NULL, "background_compact=0", false);
-            else
-                config_single(NULL, "ops.compaction=0", false);
-        }
+    /* Compaction does not work on in-memory databases, disable it. */
+    if (GV(RUNS_IN_MEMORY)) {
+        if (config_explicit(NULL, "background_compact") && GV(BACKGROUND_COMPACT))
+            testutil_die(
+              EINVAL, "%s: Background compaction cannot be enabled for in-memory runs", progname);
+        if (config_explicit(NULL, "ops.compaction") && GV(OPS_COMPACTION))
+            testutil_die(
+              EINVAL, "%s: Foreground compaction cannot be enabled for in-memory runs", progname);
+        config_off(NULL, "background_compact");
+        config_off(NULL, "ops.compaction");
     }
-
-    /* Generate values if not explicit set. */
-    if (!config_explicit(NULL, "background_compact.free_space_target"))
-        GV(BACKGROUND_COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
-    if (!config_explicit(NULL, "compact.free_space_target"))
-        GV(COMPACT_FREE_SPACE_TARGET) = mmrand(&g.extra_rnd, 1, 100);
 }

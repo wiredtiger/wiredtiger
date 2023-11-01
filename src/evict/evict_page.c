@@ -252,6 +252,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_evict_list_clear_page(session, ref);
     }
 
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
+        WT_STAT_CONN_INCR(session, cache_eviction_consider_prefetch);
+
     /*
      * Review the page for conditions that would block its eviction. If the check fails (for
      * example, we find a page with active children), quit. Make this check for clean pages, too:
@@ -546,7 +549,11 @@ static int
 __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_REF *child;
-    bool visible;
+    bool busy, visible;
+
+    busy = false;
+    /* Pre-fetch queue flags on a ref need to be checked while holding the pre-fetch lock. */
+    __wt_spin_lock(session, &S2C(session)->prefetch_lock);
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -557,15 +564,27 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * opposite direction from our check.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+        /* It isn't safe to evict if there is a child on the pre-fetch queue. */
+        if (F_ISSET(child, WT_REF_FLAG_PREFETCH)) {
+            busy = true;
+            break;
+        }
+
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
         case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
-            return (__wt_set_return(session, EBUSY));
+            busy = true;
         }
+        if (busy)
+            break;
     }
     WT_INTL_FOREACH_END;
+    __wt_spin_unlock(session, &S2C(session)->prefetch_lock);
+    if (busy)
+        return (__wt_set_return(session, EBUSY));
+
     WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
@@ -590,6 +609,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * WT_REF structures pages can be discarded.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+
         switch (child->state) {
         case WT_REF_DISK: /* On-disk */
             break;
@@ -770,7 +790,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint32_t flags;
-    bool closing, is_eviction_thread, use_snapshot_for_app_thread;
+    bool closing, is_eviction_thread, use_snapshot_for_app_thread,
+      is_application_thread_snapshot_refreshed;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -778,6 +799,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
     cache = conn->cache;
+    is_application_thread_snapshot_refreshed = false;
 
     /*
      * Urgent eviction and forced eviction want two different behaviors for inefficient update
@@ -822,12 +844,12 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     /*
      * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered
-     * eviction through application threads and we have a transaction snapshot, we will use our
-     * existing snapshot to evict pages that are not globally visible based on the last_running
-     * transaction. Avoid using snapshots when application transactions are in the final stages of
-     * commit or rollback as they have already released the snapshot. Otherwise, it becomes harder
-     * in the later part of the code to detect updates that belonged to the last running application
-     * transaction.
+     * eviction through application threads then we save the existing snapshot and refresh to
+     * acquire a new snapshot, once the application threads are done with eviction then we switch
+     * back the snapshot to its original. Avoid using snapshots when application transactions are in
+     * the final stages of commit or rollback as they have already released the snapshot. Otherwise,
+     * it becomes harder in the later part of the code to detect updates that belonged to the last
+     * running application transaction.
      */
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
@@ -853,9 +875,19 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * outside world.
          */
         __wt_txn_bump_snapshot(session);
-    else if (use_snapshot_for_app_thread)
+    else if (use_snapshot_for_app_thread) {
+        /*
+         * Application threads entering into eviction saves the existing snapshots and refresh to
+         * acquire a new snapshot to evict the latest data, once the application threads are done
+         * with eviction then the snapshots are switched back to its original snapshots.
+         */
+        WT_RET(__wt_txn_snapshot_save_and_refresh(session));
+
+        is_application_thread_snapshot_refreshed = true;
+        WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
+
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
-    else if (!WT_SESSION_BTREE_SYNC(session))
+    } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
     WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -878,6 +910,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     if (is_eviction_thread)
         __wt_txn_release_snapshot(session);
+    else if (is_application_thread_snapshot_refreshed)
+        __wt_txn_snapshot_release_and_restore(session);
 
     WT_RET(ret);
 

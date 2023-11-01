@@ -132,6 +132,8 @@ thread_runner_main(void *arg)
         runner->_errno = runner->run();
     } catch (WorkgenException &wge) {
         runner->_exception = wge;
+        std::cerr << "Exception in runner->run(): " << wge._str << std::endl;
+        ASSERT(false);
     }
     return (nullptr);
 }
@@ -148,6 +150,7 @@ thread_workload(void *arg)
         runner->increment_timestamp(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while incrementing timestamp: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -164,6 +167,7 @@ thread_idle_table_cycle_workload(void *arg)
         runner->start_table_idle_cycle(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while create/drop tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -180,6 +184,7 @@ thread_tables_create_workload(void *arg)
         runner->start_tables_create(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while creating tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -196,6 +201,7 @@ thread_tables_drop_workload(void *arg)
         runner->start_tables_drop(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while dropping tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -287,8 +293,11 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
          * Drop the table. Keep retrying on EBUSY failure - it is an expected return when
          * checkpoints are happening.
          */
-        while ((ret = session->drop(session, uri, "checkpoint_wait=false")) == EBUSY)
+        while ((ret = session->drop(session, uri, "checkpoint_wait=false")) == EBUSY) {
+            if (stopping)
+                return 0;
             sleep(1);
+        }
 
         if (ret != 0) {
             THROW("Table drop failed in cycle_idle_tables.");
@@ -350,40 +359,102 @@ gen_random_table_name(char *name, workgen_random_state volatile *rand_state)
  * fails.
  */
 int
-WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, const std::string &uri,
-  const std::string &mirror_uri, const bool is_base)
+WorkloadRunner::create_table(
+  WT_SESSION *session, const std::string &config, const std::string &uri, bool mirror_enabled)
 {
-    // Check if a table with this name already exists. Return if it does. Use a shared lock to
-    // read the dynamic table structure.
+    const std::string mirror_uri(mirror_enabled ? uri + _workload->options.mirror_suffix : "");
+
+    // Return if a table with the same name already exists. If mirror is enabled, make sure it does
+    // not exist either.
     ContextInternal *icontext = _workload->_context->_internal;
     {
+        // Use a shared lock to read the dynamic table structure.
         const std::shared_lock lock(*icontext->_dyn_mutex);
         if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
             return EEXIST;
+        if (mirror_enabled &&
+          (icontext->_tint.count(mirror_uri) > 0 || icontext->_dyn_tint.count(mirror_uri) > 0))
+            return EEXIST;
     }
 
-    // Create the table.
-    WT_DECL_RET;
-    if ((ret = session->create(session, uri.c_str(), config.c_str())) != 0) {
-        if (ret != EBUSY)
-            THROW("Failed to create table '" << uri << "'.");
+    /*
+     * When mirror is enabled, create the mirror first and then the base. If we create the base
+     * first, threads may start working on the base while the mirror is not fully created.
+     *
+     * The config has to be updated with the following information:
+     *  - The name of the table's mirror if mirroring is enabled.
+     *  - If this table is a base table or a mirror.
+     *
+     * See below an example when creating the table 'a' with mirror enabled:
+     *  - Configuration expected for the mirror:
+     * app_metadata="workgen_dynamic_table=true,workgen_table_mirror=table:a,workgen_base_table=false"
+     *  - Configuration expected for the base:
+     * app_metadata="workgen_dynamic_table=true,workgen_table_mirror=table:a_mirror,workgen_base_table=true"
+     *
+     * Without mirror enabled:
+     * app_metadata="workgen_dynamic_table=true,workgen_base_table=true"
+     *
+     */
+    std::string mirror_config;
+    if (mirror_enabled) {
+        mirror_config = config + "," + MIRROR_TABLE_APP_METADATA + uri + "," +
+          BASE_TABLE_APP_METADATA + "false\"";
+        int ret = session->create(session, mirror_uri.c_str(), mirror_config.c_str());
+        if (ret != 0) {
+            VERBOSE(*_workload, "Failed to create mirror table '" << mirror_uri << "'");
+            return ret;
+        }
+        // This will be used when creating the base table.
+        mirror_config = MIRROR_TABLE_APP_METADATA + mirror_uri + ",";
+    }
+
+    // If mirror is enabled, we don't want to fail when creating the base. Getting spurious EBUSY
+    // errors is ok though, retry in that case.
+    const std::string base_config(
+      config + "," + mirror_config + BASE_TABLE_APP_METADATA + "true\"");
+    int ret, retries = 0;
+
+    do {
+        ret = session->create(session, uri.c_str(), base_config.c_str());
+    } while (ret != 0 && ret == EBUSY && mirror_enabled && ++retries < TABLE_MAX_RETRIES);
+
+    if (ret != 0) {
+        const std::string err_msg("Failed to create table '" + uri + "'");
+        VERBOSE(*_workload, err_msg);
+        // Fail if we have failed at creating the base of a mirror.
+        if (mirror_enabled)
+            THROW_ERRNO(ret, err_msg);
         return ret;
     }
 
-    // The data structures for the dynamic table set are protected by a mutex.
+    // All the required tables have been created, update the data structures for the dynamic tables
+    // which are protected by a mutex.
     {
         const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
-
-        // Add the table into the list of dynamic set.
-        tint_t tint = icontext->_dyn_tint_last;
-        icontext->_dyn_tint[uri] = tint;
-        icontext->_dyn_table_names[tint] = uri;
-        icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
-        ++icontext->_dyn_tint_last;
-        VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+        update_dyn_struct_locked(uri, true, mirror_uri);
+        if (mirror_enabled)
+            update_dyn_struct_locked(mirror_uri, false, uri);
     }
 
     return 0;
+}
+
+/*
+ * Update the structures dedicated to tables that can be created or removed during the workload. The
+ * caller should hold the mutex that protects those structures.
+ */
+void
+WorkloadRunner::update_dyn_struct_locked(
+  const std::string &uri, bool is_base, const std::string &mirror_uri)
+{
+    ContextInternal *icontext = _workload->_context->_internal;
+
+    // This should be safe as we are supposed to be under a lock.
+    tint_t tint = icontext->_dyn_tint_last++;
+    icontext->_dyn_tint[uri] = tint;
+    icontext->_dyn_table_names[tint] = uri;
+    icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
+    VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
 }
 
 /*
@@ -411,25 +482,6 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
         // Initially we start creating tables if the database size is less than the create target.
         creating = db_size < _workload->options.create_target;
     }
-
-    std::string uri;
-    std::string mirror_uri = std::string();
-    int creates, retries, status;
-    char rand_chars[DYNAMIC_TABLE_LEN];
-
-    /*
-     * Add app_metadata to the config to indicate the table was created dynamically (can be selected
-     * for random deletion), the name of the table's mirror if mirroring is enabled, and if this
-     * table is a base table or a mirror. We want these settings to persist over restarts.
-     */
-    std::string base_config =
-      "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA;
-    if (_workload->options.mirror_tables) {
-        base_config += "," + MIRROR_TABLE_APP_METADATA;
-    } else {
-        base_config += "," + BASE_TABLE_APP_METADATA + "true\"";
-    }
-    std::string config = base_config;
 
     while (!stopping) {
         /*
@@ -462,40 +514,27 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             continue;
         }
 
-        retries = 0;
-        creates = 0;
-        while (creates < _workload->options.create_count) {
+        // Add app_metadata to the config to indicate the table was created dynamically which means
+        // it can be selected for random deletion. We want this information to persist over restart.
+        const std::string config(
+          "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA);
 
+        int creates = 0, retries = 0;
+        while (
+          !stopping && creates < _workload->options.create_count && retries < TABLE_MAX_RETRIES) {
             // Generate a table name from the user specified prefix and a random alphanumeric
             // sequence.
+            char rand_chars[DYNAMIC_TABLE_LEN];
             gen_random_table_name(rand_chars, _rand_state);
-            uri = "table:";
-            uri += _workload->options.create_prefix;
-            uri += rand_chars;
+            const std::string uri("table:" + _workload->options.create_prefix + rand_chars);
 
-            if (_workload->options.mirror_tables) {
-                // The mirror table name is the table name with the user specified suffix.
-                mirror_uri = uri + _workload->options.mirror_suffix;
-                config = base_config + mirror_uri + "," + BASE_TABLE_APP_METADATA + "true\"";
-            }
-
-            // Create the table. Simply continue on failure.
-            if (create_table(session, config, uri, mirror_uri, true) == 0) {
-                VERBOSE(*_workload, "Created base table '" << uri << "'");
-                if (_workload->options.mirror_tables) {
-                    // Create the mirror. Retry on failure and throw an exception after
-                    // making too many retry attempts.
-                    config = base_config + uri + "," + BASE_TABLE_APP_METADATA + "false\"";
-                    do
-                        status = create_table(session, config, mirror_uri, uri, false);
-                    while (status == EBUSY && ++retries < TABLE_MAX_RETRIES);
-                    if (status != 0)
-                        THROW_ERRNO(
-                          status, "Failed to create mirror table '" << mirror_uri << "'.");
-                    VERBOSE(*_workload, "Created mirror table '" << mirror_uri << "'");
-                }
+            // Create the table and its mirror if enabled.
+            int ret = create_table(session, config, uri, _workload->options.mirror_tables);
+            ASSERT(ret == 0 || ret == EBUSY || ret == EEXIST);
+            if (ret == 0)
                 ++creates;
-            }
+            else
+                ++retries;
         }
         sleep(_workload->options.create_interval);
     }
@@ -614,7 +653,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             ASSERT(tables_remaining >= 0);
             int drop_count = std::min(tables_remaining, _workload->options.drop_count);
             int drops = 0;
-            while (drops < drop_count) {
+            while (drops < drop_count && !stopping) {
                 if (select_table_for_drop(pending_delete) != 0) {
                     continue;
                 }
@@ -653,6 +692,8 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             WT_DECL_RET;
             // Spin on EBUSY. We do not expect to get stuck.
             while ((ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
+                if (stopping)
+                    return 0;
                 VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
                 sleep(1);
             }
@@ -681,13 +722,13 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     while (!stopping) {
         if (_workload->options.oldest_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIu64, time_us);
+            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
         if (_workload->options.stable_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIu64, time_us);
+            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
@@ -704,6 +745,8 @@ monitor_main(void *arg)
         monitor->_errno = monitor->run();
     } catch (WorkgenException &wge) {
         monitor->_exception = wge;
+        std::cerr << "Exception in monitor->run(): " << wge._str << std::endl;
+        ASSERT(false);
     }
     return (nullptr);
 }
@@ -848,12 +891,15 @@ ContextInternal::ContextInternal()
     _context_count = count;
 }
 
-ContextInternal::~ContextInternal() {}
+ContextInternal::~ContextInternal()
+{
+    delete _dyn_mutex;
+}
 
 int
 ContextInternal::create_all(WT_CONNECTION *conn)
 {
-    if (_table_runtime.size() < _tint_last) {
+    if (_table_runtime.size() <= _tint_last) {
         // The array references are 1-based, we'll waste one entry.
         _table_runtime.resize(_tint_last + 1);
     }
@@ -1270,15 +1316,15 @@ ThreadRunner::free_all()
         _rand_state = nullptr;
     }
     if (_cursors != nullptr) {
-        delete _cursors;
+        delete[] _cursors;
         _cursors = nullptr;
     }
     if (_keybuf != nullptr) {
-        delete _keybuf;
+        delete[] _keybuf;
         _keybuf = nullptr;
     }
     if (_valuebuf != nullptr) {
-        delete _valuebuf;
+        delete[] _valuebuf;
         _valuebuf = nullptr;
     }
 }
@@ -1470,7 +1516,7 @@ ThreadRunner::op_get_table(Operation *op) const
 
     std::string uri = op->_tables[_number];
     tint_t tint = 0;
-    if (uri != std::string()) {
+    if (!uri.empty()) {
         const std::shared_lock lock(*_icontext->_dyn_mutex);
         tint = _icontext->_dyn_tint[uri];
     }
@@ -1604,13 +1650,12 @@ ThreadRunner::op_run_setup(Operation *op)
             std::advance(itr, random_value() % num_tables);
 
             if (_icontext->_dyn_table_runtime[itr->second]._is_base &&
-              !_icontext->_dyn_table_runtime[itr->second]._pending_delete) {
+              !_icontext->_dyn_table_runtime[itr->second]._pending_delete)
                 break;
-            }
         }
-        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES) { // Try again next time.
+        // Try again next time.
+        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES)
             return 0;
-        }
 
         std::string op_uri = itr->first; // Get the table name.
         tint_t op_tint = itr->second;    // Get the tint.
@@ -1748,7 +1793,8 @@ ThreadRunner::op_run(Operation *op)
             }
         }
     }
-    // Retry on rollback until success.
+
+    // We may retry on rollback errors.
     while (retry_op) {
         if (op->transaction != nullptr) {
             if (_in_transaction)
@@ -1760,7 +1806,7 @@ ThreadRunner::op_run(Operation *op)
                 uint64_t read =
                   WorkgenTimeStamp::get_timestamp_lag(op->transaction->read_timestamp_lag);
                 snprintf(
-                  buf, BUF_SIZE, "%s=%" PRIu64, op->transaction->_begin_config.c_str(), read);
+                  buf, BUF_SIZE, "%s=%" PRIx64, op->transaction->_begin_config.c_str(), read);
             } else {
                 snprintf(buf, BUF_SIZE, "%s", op->transaction->_begin_config.c_str());
             }
@@ -1801,11 +1847,23 @@ ThreadRunner::op_run(Operation *op)
             if (ret == 0)
                 cursor->reset(cursor);
             else {
-                retry_op = true;
+                /*
+                 * We don't retry on a WT_ROLLBACK error when:
+                 * - it is a mirrored operation as Workgen will create a new transaction and
+                 * - the mirror table is the one that faced the WT_ROLLBACK error as the operation
+                 * on the base table will be lost.
+                 */
+                if (op->_random_table && _icontext->_dyn_table_runtime[tint].has_mirror() &&
+                  !_icontext->_dyn_table_runtime[tint]._is_base) {
+                    VERBOSE(*this,
+                      "The table "
+                        << table_uri
+                        << " faced a WT_ROLLBACK error, giving up on the mirrored operation");
+                } else
+                    retry_op = true;
                 track->rollbacks++;
-                WT_ERR(_session->rollback_transaction(_session, nullptr));
                 _in_transaction = false;
-                ret = 0;
+                WT_ERR(_session->rollback_transaction(_session, nullptr));
             }
         } else {
             // Never retry on an internal op.
@@ -1830,7 +1888,7 @@ ThreadRunner::op_run(Operation *op)
             endtime = _op_time_us + secs_us(op->_timed);
 
         VERBOSE(
-          *this, "GROUP operation " << op->_timed << " secs, " << op->_repeatgroup << "times");
+          *this, "GROUP operation " << op->_timed << " secs, " << op->_repeatgroup << " times");
 
         do {
             // Wait for transactions to complete before stopping.
@@ -1856,14 +1914,14 @@ err:
             // Set prepare, commit and durable timestamp if prepare is set.
             if (op->transaction->use_prepare_timestamp) {
                 time_us = WorkgenTimeStamp::get_timestamp();
-                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIu64, time_us);
+                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIx64, time_us);
                 ret = _session->prepare_transaction(_session, buf);
-                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64,
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64,
                   time_us, time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
-                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64, commit_time_us);
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else {
                 ret =
@@ -2348,9 +2406,10 @@ Operation::kv_gen(
     TableOperationInternal *internal = static_cast<TableOperationInternal *>(_internal);
 
     uint_t size = iskey ? internal->_keysize : internal->_valuesize;
-    uint_t max = iskey ? internal->_keymax : internal->_valuemax;
+    uint64_t max = iskey ? internal->_keymax : internal->_valuemax;
     if (n > max)
         THROW((iskey ? "Key" : "Value") << " (" << n << ") too large for size (" << size << ")");
+
     /* Setup the buffer, defaulting to zero filled. */
     workgen_u64_to_string_zf(n, result, size);
 
@@ -2527,9 +2586,9 @@ Track::Track(const Track &other)
 Track::~Track()
 {
     if (us != nullptr) {
-        delete us;
-        delete ms;
-        delete sec;
+        delete[] us;
+        delete[] ms;
+        delete[] sec;
     }
 }
 
@@ -2973,7 +3032,7 @@ WorkloadOptions::WorkloadOptions()
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
       create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
       drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
-      mirror_tables(false), mirror_suffix("_mirror"), _options()
+      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -3034,6 +3093,8 @@ WorkloadOptions::WorkloadOptions()
     _options.add_bool("mirror_tables", mirror_tables, "mirror database operations");
     _options.add_string(
       "mirror_suffix", mirror_suffix, "the suffix to append to mirrored table names");
+    _options.add_int("background_compact", background_compact,
+      "minimum amount of space recoverable for compaction to proceed in MB, 0 to disable.");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -3178,6 +3239,7 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         // TODO: recover from partial failure here
         WT_RET(runner->create_all(conn));
     }
+
     WT_RET(context->_internal->create_all(conn));
     return (0);
 }
@@ -3379,6 +3441,23 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
                 stopping = true;
             }
         }
+    }
+
+    // Start the background compaction thread.
+    if (options->background_compact > 0) {
+        WT_SESSION *session;
+
+        if (conn->open_session(conn, nullptr, nullptr, &session) != 0)
+            THROW("Error opening a session.");
+
+        const std::string bg_compact_cfg("background=true,free_space_target=" +
+          std::to_string(options->background_compact) + "MB");
+        int ret = session->compact(session, nullptr, bg_compact_cfg.c_str());
+        if (ret != 0)
+            THROW_ERRNO(ret, "WT_SESSION->compact background compaction could not be enabled.");
+
+        if ((ret = session->close(session, NULL)) != 0)
+            THROW("Session close failed.");
     }
 
     timespec now;
