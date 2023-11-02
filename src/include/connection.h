@@ -430,7 +430,7 @@ struct __wt_connection_impl {
      * array when only a few threads are running.
      */
     struct {
-        WT_SESSION_IMPL *__array; /* Session reference */
+        WT_SESSION_IMPL *__array; /* Session reference. Do not use this field directly. */
         uint32_t size;            /* Session array size */
         wt_shared uint32_t cnt;   /* Session count */
     } session_array;

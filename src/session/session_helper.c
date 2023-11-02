@@ -38,8 +38,8 @@ __wt_session_array_walk(WT_CONNECTION_IMPL *conn,
         /*
          * This ordered read is paired with a WT_PUBLISH from the session create logic, and
          * guarantees that by the time this thread sees active == 1 all other fields in the session
-         * have been initialized properly. Any other ordering constraints, such as ensure this loop
-         * occurs in-order, are not intentional.
+         * have been initialized properly. Any other ordering constraints, such as ensuring this
+         * loop occurs in-order, are not intentional.
          */
         WT_ORDERED_READ(active, array_session->active);
 
