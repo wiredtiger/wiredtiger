@@ -2402,6 +2402,8 @@ struct __wt_connection {
      * If the value is not an absolute path\, the path is relative to the database home (see @ref
      * absolute_path for more information)., a string; default \c ".".}
      * @config{ ),,}
+     * @config{session_max, maximum expected number of sessions (including server threads)., an
+     * integer greater than or equal to \c 1; default \c 100.}
      * @config{shared_cache = (, shared cache configuration options.  A database should configure
      * either a cache_size or a shared_cache not both.  Enabling a shared cache uses a session from
      * the configured session_max.  A shared cache can not have absolute values configured for cache

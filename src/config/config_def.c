@@ -494,6 +494,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_wiredtiger_open_operation_tracking_subconfigs, 2,
     confchk_wiredtiger_open_operation_tracking_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
+  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 1, INT64_MAX,
+    NULL},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5,
     confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
     INT64_MIN, INT64_MAX, NULL},
@@ -543,8 +545,8 @@ static const uint8_t confchk_WT_CONNECTION_reconfigure_jump[WT_CONFIG_JUMP_TABLE
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9,
-  10, 20, 21, 22, 23, 24, 25, 25, 27, 27, 27, 29, 29, 29, 29, 32, 34, 34, 35, 35, 35, 35, 35, 35,
-  35, 35, 35};
+  10, 20, 21, 22, 23, 24, 25, 25, 27, 27, 27, 29, 29, 29, 29, 33, 35, 35, 36, 36, 36, 36, 36, 36,
+  36, 36, 36};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_rollback_to_stable[] = {
   {"dryrun", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, INT64_MIN,
@@ -3316,12 +3318,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "os_cache_dirty_pct=0,prealloc=true,remove=true,zero_fill=false),"
     "lsm_manager=(merge=true,worker_thread_max=4),"
     "operation_timeout_ms=0,operation_tracking=(enabled=false,"
-    "path=\".\"),shared_cache=(chunk=10MB,name=,quota=0,reserve=0,"
-    "size=500MB),statistics=none,statistics_log=(json=false,"
-    "on_close=false,sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
+    "path=\".\"),session_max=100,shared_cache=(chunk=10MB,name=,"
+    "quota=0,reserve=0,size=500MB),statistics=none,"
+    "statistics_log=(json=false,on_close=false,sources=,"
+    "timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_storage=(local_retention=300),timing_stress_for_test=,"
     "verbose=[]",
-    confchk_WT_CONNECTION_reconfigure, 35, confchk_WT_CONNECTION_reconfigure_jump},
+    confchk_WT_CONNECTION_reconfigure, 36, confchk_WT_CONNECTION_reconfigure_jump},
   {"WT_CONNECTION.rollback_to_stable", "dryrun=false", confchk_WT_CONNECTION_rollback_to_stable, 1,
     confchk_WT_CONNECTION_rollback_to_stable_jump},
   {"WT_CONNECTION.set_file_system", "", NULL, 0, NULL},

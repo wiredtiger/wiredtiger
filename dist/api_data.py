@@ -774,6 +774,9 @@ connection_runtime_config = [
                 directory must already exist. If the value is not an absolute path, the path
                 is relative to the database home (see @ref absolute_path for more information)'''),
         ]),
+    Config('session_max', '100', r'''
+	maximum expected number of sessions (including server threads)''',
+	min='1'),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure either a cache_size
         or a shared_cache not both. Enabling a shared cache uses a session from the configured
@@ -1251,9 +1254,6 @@ wiredtiger_open_common =\
         Salvage rebuilds files in place, overwriting existing files. We recommend making a
         backup copy of all files with the WiredTiger prefix prior to passing this flag.''',
         type='boolean'),
-    Config('session_max', '100', r'''
-        maximum expected number of sessions (including server threads)''',
-        min='1'),
     Config('session_scratch_max', '2MB', r'''
         maximum memory to cache in each session''',
         type='int', undoc=True),

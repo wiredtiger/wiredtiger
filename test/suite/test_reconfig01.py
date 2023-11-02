@@ -121,5 +121,13 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure(
             "file_manager=(close_idle_time=4,close_scan_interval=100)")
 
+    def test_reconfig_verbose(self):
+        self.conn.reconfigure("verbose=[api:1,metadata:2]")
+        self.conn.reconfigure("verbose=[all=0]")
+        self.conn.reconfigure("verbose=[api:2,all=1, metadata:3]")
+
+    def test_reconfig_verbose(self):
+        self.conn.reconfigure("session_max=1000")
+
 if __name__ == '__main__':
     wttest.run()
