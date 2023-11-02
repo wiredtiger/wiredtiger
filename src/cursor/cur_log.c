@@ -348,7 +348,9 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
-      __curlog_close);                                /* close */
+      __curlog_close,                                 /* close */
+      __wt_cursor_get_details                         /* get_details */
+    );
     WT_CURSOR *cursor;
     WT_CURSOR_LOG *cl;
     WT_DECL_RET;

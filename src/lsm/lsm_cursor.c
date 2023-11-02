@@ -1705,7 +1705,9 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
-      __wt_clsm_close);                               /* close */
+      __wt_clsm_close,                                /* close */
+      __wt_cursor_get_details                         /* get_details */
+    );
     WT_CURSOR *cursor;
     WT_CURSOR_LSM *clsm;
     WT_DECL_RET;

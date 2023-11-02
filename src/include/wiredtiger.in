@@ -180,7 +180,11 @@ struct __wt_modify {
  * The WT_CURSOR_DETAILS is used to report contextual information from a cursor handle.
  */
 struct __wt_cursor_details {
-    int unused;                 /* Ensure structure is not empty during prototyping. */
+    struct {
+        wt_timestamp_t oldest_timestamp;
+        wt_timestamp_t read_timestamp;
+        wt_timestamp_t stable_timestamp;
+    } checkpoint;
 };
 
 /*!
