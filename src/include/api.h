@@ -18,8 +18,15 @@
         __wt_thread_id(&__tmp_api_tid);                                           \
                                                                                   \
         /*                                                                        \
-         * Don't attempt take the lock if this is the default session             \
-         * (ID == 0), or if we already hold the lock.                             \
+         * Only a single thread should use this session at a time. It's ok        \
+         * (but unexpected) if different threads use the session consecutively,   \
+         * but concurrent access is not allowed. Verify this by having the thread \
+         * a lock on first API access. Failing to take the lock implies another   \
+         * thread holds it and we're attempting concurrent access of the session. \
+         *                                                                        \
+         * The default session (ID == 0) is an exception where concurrent access  \
+         * is allowed. We can also skip taking the lock if we're re-entrant and   \
+         * already hold it.                                                       \
          */                                                                       \
         if ((s)->id != 0 && (s)->thread_check.owning_thread != __tmp_api_tid) {   \
             WT_ASSERT((s), __wt_spin_trylock((s), &(s)->thread_check.lock) == 0); \
