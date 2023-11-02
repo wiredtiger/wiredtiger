@@ -668,7 +668,7 @@ extern int __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_modify_value_format_notsup(WT_CURSOR *cursor, WT_MODIFY *entries,
   int nentries) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_cursor_next_raw_n(WT_CURSOR *cursor, WT_ITEM *keys[], WT_ITEM *values[], size_t *n)
+extern int __wt_cursor_next_raw_n(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_t *n)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_noop(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_notsup(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
