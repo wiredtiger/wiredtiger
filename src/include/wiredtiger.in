@@ -372,8 +372,6 @@ struct __wt_cursor {
      *
      * Only row store with raw key value pairs support this api.
      *
-     * @snippet ex_all.c Return the next n record
-     *
      * @param cursor the cursor handle
      * @param keys pointer to the array of the keys. len(keys) indicates the
      * maximum number of keys to return.
@@ -405,8 +403,6 @@ struct __wt_cursor {
      * may return an error.
      *
      * Only row store with raw key value pairs support this api.
-     *
-     * @snippet ex_all.c Return the previous n record
      *
      * @param cursor the cursor handle
      * @param keys pointer to the array of the keys. len(keys) indicates the
