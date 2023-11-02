@@ -949,8 +949,9 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_compare,                              /* compare */
       __curfile_equals,                               /* equals */
       __curfile_next,                                 /* next */
-      __wt_cursor_next_raw_n,                         /* next_raw_n */
+      __wt_cursor_next_raw_n_notsup,                  /* next_raw_n */
       __curfile_prev,                                 /* prev */
+      __wt_cursor_prev_raw_n_notsup,                  /* prev_raw_n */
       __curfile_reset,                                /* reset */
       __curfile_search,                               /* search */
       __curfile_search_near,                          /* search-near */

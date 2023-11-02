@@ -372,7 +372,7 @@ struct __wt_cursor {
      *
      * Only row store with raw key value pairs support this api.
      *
-     * @snippet ex_all.c Return the next record
+     * @snippet ex_all.c Return the next n record
      *
      * @param cursor the cursor handle
      * @param keys pointer to the array of the keys. len(keys) indicates the
@@ -393,6 +393,30 @@ struct __wt_cursor {
      * @errors
      */
     int __F(prev)(WT_CURSOR *cursor);
+
+    /*!
+     * Return the prev n number of key value pairs in raw format. Maximum
+     * to return len(keys). Returns WT_NOTFOUND if no key value pair is
+     * returned and we are at the end.
+     *
+     * If WT_NOTFOUND is returned, the cursor is not positioned. Otherwise,
+     * it is still positioned but not necessarily on a visible record.
+     * Therefore, calling get_key and get_value after this function call
+     * may return an error.
+     *
+     * Only row store with raw key value pairs support this api.
+     *
+     * @snippet ex_all.c Return the previous n record
+     *
+     * @param cursor the cursor handle
+     * @param keys pointer to the array of the keys. len(keys) indicates the
+     * maximum number of keys to return.
+     * @param values pointer to the array of the values. len(values) must be
+     * equal to len(keys).
+     * @param[out] n the number of key value pairs returned
+     * @errors
+     */
+    int __F(prev_raw_n)(WT_CURSOR *cursor, WT_ITEM** keys, WT_ITEM** values, size_t *n);
 
     /*!
      * Reset the cursor. Any resources held by the cursor are released,

@@ -625,8 +625,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
       __wt_cursor_compare_notsup,                   /* compare */
       __wt_cursor_equals_notsup,                    /* equals */
       __curstat_next,                               /* next */
-      __wt_cursor_next_raw_n,                       /* next_raw_n */
+      __wt_cursor_next_raw_n_notsup,                /* next_raw_n */
       __curstat_prev,                               /* prev */
+      __wt_cursor_prev_raw_n_notsup,                /* prev_raw_n */
       __curstat_reset,                              /* reset */
       __curstat_search,                             /* search */
       __wt_cursor_search_near_notsup,               /* search-near */

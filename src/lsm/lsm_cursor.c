@@ -1690,8 +1690,9 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
       __clsm_compare,                                 /* compare */
       __wt_cursor_equals,                             /* equals */
       __clsm_next,                                    /* next */
-      __wt_cursor_next_raw_n,                         /* next_raw_n */
+      __wt_cursor_next_raw_n_notsup,                  /* next_raw_n */
       __clsm_prev,                                    /* prev */
+      __wt_cursor_prev_raw_n_notsup,                  /* prev_raw_n */
       __clsm_reset,                                   /* reset */
       __clsm_search,                                  /* search */
       __clsm_search_near,                             /* search-near */

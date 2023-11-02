@@ -438,8 +438,9 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
       __curds_compare,                                /* compare */
       __wt_cursor_equals,                             /* equals */
       __curds_next,                                   /* next */
-      __wt_cursor_next_raw_n,                         /* next_raw_n */
+      __wt_cursor_next_raw_n_notsup,                  /* next_raw_n */
       __curds_prev,                                   /* prev */
+      __wt_cursor_prev_raw_n_notsup,                  /* prev_raw_n */
       __curds_reset,                                  /* reset */
       __curds_search,                                 /* search */
       __curds_search_near,                            /* search-near */

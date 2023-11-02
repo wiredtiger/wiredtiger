@@ -13,18 +13,19 @@
  * Initialize a static WT_CURSOR structure.
  */
 #define WT_CURSOR_STATIC_INIT(n, get_key, get_value, get_raw_key_value, set_key, set_value,        \
-  compare, equals, next, next_raw_n, prev, reset, search, search_near, insert, modify, update,     \
-  remove, reserve, reconfigure, largest_key, bound, cache, reopen, checkpoint_id, close)           \
+  compare, equals, next, next_raw_n, prev, prev_raw_n, reset, search, search_near, insert, modify, \
+  update, remove, reserve, reconfigure, largest_key, bound, cache, reopen, checkpoint_id, close)   \
     static const WT_CURSOR n = {                                                                   \
       NULL, /* session */                                                                          \
       NULL, /* uri */                                                                              \
       NULL, /* key_format */                                                                       \
       NULL, /* value_format */                                                                     \
       get_key, get_value, get_raw_key_value, set_key, set_value, compare, equals, next,            \
-      next_raw_n, prev, reset, search, search_near, insert, modify, update, remove, reserve,       \
-      checkpoint_id, close, largest_key, reconfigure, bound, cache, reopen, 0, /* uri_hash */      \
-      {NULL, NULL},                                                            /* TAILQ_ENTRY q */ \
-      0,                                                                       /* recno key */     \
+      next_raw_n, prev, prev_raw_n, reset, search, search_near, insert, modify, update, remove,    \
+      reserve, checkpoint_id, close, largest_key, reconfigure, bound, cache, reopen,               \
+      0,                     /* uri_hash */                                                        \
+      {NULL, NULL},          /* TAILQ_ENTRY q */                                                   \
+      0,                     /* recno key */                                                       \
       {0},                   /* recno raw buffer */                                                \
       NULL,                  /* json_private */                                                    \
       NULL,                  /* lang_private */                                                    \
