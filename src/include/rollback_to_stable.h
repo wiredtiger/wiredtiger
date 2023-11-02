@@ -101,6 +101,6 @@ struct __wt_rollback_to_stable {
  *   transactions or open cursors before an RTS.
  */
 struct __wt_rts_cookie {
-    bool txn_active;
-    bool cursor_active;
+    bool ret_txn_active;
+    bool ret_cursor_active;
 };

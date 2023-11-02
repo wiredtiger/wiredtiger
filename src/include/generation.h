@@ -12,8 +12,8 @@
  *   tracking a generation across all sessions.
  */
 struct __wt_generation_cookie {
-    bool active;
-    uint64_t oldest_gen;
+    bool ret_active;
+    uint64_t ret_oldest_gen;
     int which;
     uint64_t target_generation;
 };

@@ -231,8 +231,8 @@ __gen_oldest_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
     cookie = (WT_GENERATION_COOKIE *)cookiep;
 
     WT_ORDERED_READ(v, session->generations[cookie->which]);
-    if (v != 0 && v < cookie->oldest_gen)
-        cookie->oldest_gen = v;
+    if (v != 0 && v < cookie->ret_oldest_gen)
+        cookie->ret_oldest_gen = v;
 
     return (0);
 }
@@ -257,11 +257,11 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * it could read an earlier session generation value. This would then violate the acquisition
      * semantics and could result in us reading 0 for the session generation when it is non-zero.
      */
-    WT_ORDERED_READ(cookie.oldest_gen, conn->generations[which]);
+    WT_ORDERED_READ(cookie.ret_oldest_gen, conn->generations[which]);
 
     WT_IGNORE_RET(__wt_session_array_walk(conn, __gen_oldest_callback, false, &cookie));
 
-    return (cookie.oldest_gen);
+    return (cookie.ret_oldest_gen);
 }
 
 /*
@@ -279,7 +279,7 @@ __gen_active_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 
     WT_ORDERED_READ(v, session->generations[cookie->which]);
     if (v != 0 && cookie->target_generation >= v) {
-        cookie->active = true;
+        cookie->ret_active = true;
         *exit_walkp = true;
     }
 
@@ -298,11 +298,11 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
     WT_CLEAR(cookie);
     cookie.which = which;
     cookie.target_generation = generation;
-    cookie.active = false;
+    cookie.ret_active = false;
 
     WT_IGNORE_RET(__wt_session_array_walk(S2C(session), __gen_active_callback, false, &cookie));
 
-    return (cookie.active);
+    return (cookie.ret_active);
 }
 
 /*

@@ -309,16 +309,16 @@ __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookie
     uint32_t i, hazard_inuse;
 
     cookie = (WT_HAZARD_COOKIE *)cookiep;
-    hazard_get_reference(session, &cookie->hp, &hazard_inuse);
+    hazard_get_reference(session, &cookie->ret_hp, &hazard_inuse);
 
     if (hazard_inuse > cookie->max) {
         cookie->max = hazard_inuse;
         WT_STAT_CONN_SET(cookie->original_session, cache_hazard_max, cookie->max);
     }
 
-    for (i = 0; i < hazard_inuse; ++cookie->hp, ++i) {
+    for (i = 0; i < hazard_inuse; ++cookie->ret_hp, ++i) {
         ++cookie->walk_cnt;
-        if (cookie->hp->ref == cookie->search_ref) {
+        if (cookie->ret_hp->ref == cookie->search_ref) {
             WT_STAT_CONN_INCRV(cookie->original_session, cache_hazard_walks, cookie->walk_cnt);
             if (cookie->session_ret != NULL)
                 *cookie->session_ret = session;
@@ -331,7 +331,7 @@ __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookie
      * We didn't find a hazard pointer. Clear this field so we don't accidentally report the last
      * iterated hazard pointer
      */
-    cookie->hp = NULL;
+    cookie->ret_hp = NULL;
     return (0);
 }
 
@@ -361,7 +361,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
     WT_IGNORE_RET(__wt_session_array_walk(S2C(session), __hazard_check_callback, false, &cookie));
 
-    if (cookie.hp == NULL)
+    if (cookie.ret_hp == NULL)
         /*
          * We increment this stat inside the walk logic when we find a hazard pointer. Since we
          * didn't find one increment here instead.
@@ -371,7 +371,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
     /* Leave the current resource generation. */
     __wt_session_gen_leave(session, WT_GEN_HAZARD);
 
-    return (cookie.hp);
+    return (cookie.ret_hp);
 }
 
 /*

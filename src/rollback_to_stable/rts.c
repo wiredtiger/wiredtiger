@@ -22,11 +22,11 @@ __rts_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 
     /* Check if a user session has a running transaction. */
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
-        cookie->txn_active = true;
+        cookie->ret_txn_active = true;
         *exit_walkp = true;
     } else if (session->ncursors != 0) {
         /* Check if a user session has an active file cursor. */
-        cookie->cursor_active = true;
+        cookie->ret_cursor_active = true;
         *exit_walkp = true;
     }
     return (0);
@@ -64,9 +64,9 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      * A new cursor may be positioned or a transaction may start after we return from this call and
      * callers should be aware of this limitation.
      */
-    if (cookie.cursor_active)
+    if (cookie.ret_cursor_active)
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
-    if (cookie.txn_active) {
+    if (cookie.ret_txn_active) {
         ret = EBUSY;
         WT_TRET(__wt_verbose_dump_txn(session));
         WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");

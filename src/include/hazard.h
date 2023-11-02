@@ -12,7 +12,7 @@
  *   looking for active hazard pointers.
  */
 struct __wt_hazard_cookie {
-    WT_HAZARD *hp;
+    WT_HAZARD *ret_hp;
     WT_SESSION_IMPL *original_session;
     uint32_t walk_cnt;
     uint32_t max;
