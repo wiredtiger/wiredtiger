@@ -113,17 +113,17 @@ __wt_cursor_checkpoint_id(WT_CURSOR *cursor)
 int
 __wt_cursor_get_details(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, const char *config)
 {
-    WT_CURSOR_BTREE *cbt;    
+    WT_CURSOR_BTREE *cbt;
     WT_ASSERT(CUR2S(cursor), detailsp != NULL);
     WT_ASSERT(CUR2S(cursor), config == NULL);
-    cbt = (WT_CURSOR_BTREE*)cursor;
+    cbt = (WT_CURSOR_BTREE *)cursor;
     if (cbt->checkpoint_txn) {
         detailsp->checkpoint.oldest_timestamp = cbt->checkpoint_txn->checkpoint_oldest_timestamp;
         detailsp->checkpoint.read_timestamp = cbt->checkpoint_txn->checkpoint_read_timestamp;
         detailsp->checkpoint.stable_timestamp = cbt->checkpoint_txn->checkpoint_stable_timestamp;
-        return 0;
+        return (0);
     }
-    return ENODATA;
+    return (ENODATA);
 }
 
 /*
