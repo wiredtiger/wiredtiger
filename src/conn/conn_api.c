@@ -2357,7 +2357,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 }
 
 /*
- * __verbose_dump_session_callback --
+ * __verbose_dump_sessions_callback --
  *     Dump a single session, callback from the session walk. Maintaining a count of internal
  *     sessions and optionally dumping cursor information.
  */
