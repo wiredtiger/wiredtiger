@@ -155,7 +155,8 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, rollback_timestamp);
     __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      "finished rollback to stable on uri %s and has ran for %" PRIu64 " milliseconds", uri, time_diff_ms);
+      "finished rollback to stable on uri %s and has ran for %" PRIu64 " milliseconds", uri,
+      time_diff_ms);
 
     __wt_free(session, config);
     return (ret);
