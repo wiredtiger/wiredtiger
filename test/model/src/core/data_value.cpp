@@ -33,6 +33,10 @@
 #include "model/data_value.h"
 #include "wiredtiger.h"
 
+extern "C" {
+#include "wt_internal.h"
+}
+
 namespace model {
 
 /*
@@ -40,6 +44,74 @@ namespace model {
  *     The "None" value.
  */
 const data_value NONE = data_value::create_none();
+
+/*
+ * item_to_string --
+ *     Unpack a WiredTiger byte buffer into a string. This works because C++ strings allow NULL
+ *     bytes to be included within the string, but this is arguably not the best solution.
+ */
+inline static std::string
+item_to_string(const WT_ITEM &item)
+{
+    return std::string((const char *)item.data, item.size);
+}
+
+/*
+ * data_value::unpack --
+ *     Unpack a WiredTiger buffer into a data value.
+ */
+data_value
+data_value::unpack(const void *buffer, size_t length, const char *format)
+{
+    if (buffer == NULL)
+        throw model_exception("NULL buffer");
+    if (format == NULL)
+        throw model_exception("NULL format");
+
+    if (strlen(format) != 1)
+        throw model_exception("The model does not currently support structs or types with sizes");
+
+    int ret = 0;
+
+    /*
+     * UNPACK_TO_DATA_VALUE --
+     *     Unpack the given raw buffer value into a data_value.
+     */
+#define UNPACK_TO_DATA_VALUE(wt_type, c_type, cast)                               \
+    case wt_type: {                                                               \
+        c_type v;                                                                 \
+        std::string f(1, wt_type);                                                \
+        /* It is okay to use NULL session, as this is just for error handling. */ \
+        ret = __wt_struct_unpack(NULL, buffer, length, f.c_str(), &v);            \
+        if (ret == 0)                                                             \
+            return data_value(cast(v));                                           \
+    }
+
+    switch (format[0]) {
+        UNPACK_TO_DATA_VALUE('b', int8_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE('B', uint8_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE('h', int16_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE('H', uint16_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE('i', int32_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE('I', uint32_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE('l', int32_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE('L', uint32_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE('q', int64_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE('Q', uint64_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE('r', uint64_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE('s', const char *, std::string);
+        UNPACK_TO_DATA_VALUE('S', const char *, std::string);
+        UNPACK_TO_DATA_VALUE('t', uint8_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE('u', WT_ITEM, item_to_string);
+    case 'x':
+        throw model_exception("Type \"x\" is not implemented.");
+    default:
+        throw model_exception("Unknown type.");
+    };
+
+    throw wiredtiger_exception("Cannot unpack value: ", ret);
+#undef UNPACK_TO_DATA_VALUE
+}
 
 /*
  * data_value::wt_type --

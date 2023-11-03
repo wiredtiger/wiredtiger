@@ -79,6 +79,12 @@ public:
     }
 
     /*
+     * data_value::unpack --
+     *     Unpack a WiredTiger buffer into a data value.
+     */
+    static data_value unpack(const void *buffer, size_t length, const char *format);
+
+    /*
      * data_value::none --
      *     Check if this is a None value.
      */

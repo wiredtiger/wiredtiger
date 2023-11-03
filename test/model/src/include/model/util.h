@@ -29,9 +29,14 @@
 #ifndef MODEL_UTIL_H
 #define MODEL_UTIL_H
 
+#include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <variant>
 #include "model/core.h"
+#include "model/data_value.h"
 #include "wiredtiger.h"
 
 namespace model {
@@ -88,6 +93,84 @@ public:
 
 private:
     WT_SESSION *_session;
+};
+
+/*
+ * config_map --
+ *     A configuration map.
+ */
+class config_map {
+    using value_t = std::variant<std::string, std::shared_ptr<config_map>>;
+
+public:
+    /*
+     * config_map::from_string --
+     *     Parse config map from a string.
+     */
+    static config_map from_string(const char *str, const char **end = NULL);
+
+    /*
+     * config_map::from_string --
+     *     Parse config map from a string.
+     */
+    static inline config_map
+    from_string(const std::string &str)
+    {
+        return from_string(str.c_str());
+    }
+
+    /*
+     * config_map::contains --
+     *     Check whether the config map contains the given key.
+     */
+    inline bool
+    contains(const char *key) const noexcept
+    {
+        return _map.find(key) != _map.end();
+    }
+
+    /*
+     * config_map::get_map --
+     *     Get the corresponding config map value. Throw an exception on error.
+     */
+    inline std::shared_ptr<config_map> const
+    get_map(const char *key)
+    {
+        return std::get<std::shared_ptr<config_map>>(_map.find(key)->second);
+    }
+
+    /*
+     * config_map::get_string --
+     *     Get the corresponding string value. Throw an exception on error.
+     */
+    inline std::string
+    get_string(const char *key) const
+    {
+        return std::get<std::string>(_map.find(key)->second);
+    }
+
+    /*
+     * config_map::get_uint64 --
+     *     Get the corresponding integer value. Throw an exception on error.
+     */
+    inline uint64_t
+    get_uint64(const char *key) const
+    {
+        std::istringstream stream(std::get<std::string>(_map.find(key)->second));
+        uint64_t v;
+        stream >> v;
+        return v;
+    }
+
+private:
+    /*
+     * config_map::config_map --
+     *     Create a new instance of the config map.
+     */
+    inline config_map() noexcept {};
+
+private:
+    std::unordered_map<std::string, value_t> _map;
 };
 
 /*
