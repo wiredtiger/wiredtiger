@@ -320,8 +320,8 @@ __hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookie
         ++cookie->walk_cnt;
         if (cookie->ret_hp->ref == cookie->search_ref) {
             WT_STAT_CONN_INCRV(cookie->original_session, cache_hazard_walks, cookie->walk_cnt);
-            if (cookie->session_ret != NULL)
-                *cookie->session_ret = session;
+            if (cookie->ret_session != NULL)
+                *cookie->ret_session = session;
             *exit_walkp = true;
             return (0);
         }
@@ -346,7 +346,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
 
     WT_CLEAR(cookie);
     cookie.original_session = session;
-    cookie.session_ret = sessionp;
+    cookie.ret_session = sessionp;
     cookie.search_ref = ref;
 
     /* If a file can never be evicted, hazard pointers aren't required. */

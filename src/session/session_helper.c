@@ -13,6 +13,9 @@
  *     Walk the connections session array, calling a function for every active session in the array.
  *     Callers can exit the walk early if desired. Arguments to the walk function are provided by a
  *     customizable cookie.
+ *
+ * The walk itself cannot fail, if the callback function can't error out then the call to this
+ *     function should be wrapped in an ignore return macro.
  */
 int
 __wt_session_array_walk(WT_CONNECTION_IMPL *conn,

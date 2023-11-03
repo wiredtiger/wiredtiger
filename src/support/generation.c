@@ -99,7 +99,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 
 /*
  * __gen_drain_callback --
- *     Wait for single session's generation to drain, callback from the session array walk.
+ *     Wait for single session's generation to drain. Callback from the session array walk.
  */
 static int
 __gen_drain_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
@@ -219,7 +219,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
 /*
  * __gen_oldest_callback --
- *     Check a single session's generation to find the oldest, callback from the session array walk.
+ *     Check a single session's generation to find the oldest. Callback from the session array walk.
  */
 static int
 __gen_oldest_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)

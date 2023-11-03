@@ -276,8 +276,7 @@ static int
 __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
 {
     WT_SWEEP_COOKIE *cookie;
-    uint64_t last;
-    uint64_t last_sweep;
+    uint64_t last, last_sweep;
 
     cookie = (WT_SWEEP_COOKIE *)cookiep;
     WT_UNUSED(exit_walkp);
