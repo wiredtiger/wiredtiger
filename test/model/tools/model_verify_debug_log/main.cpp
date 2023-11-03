@@ -32,6 +32,8 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include "wiredtiger.h"
 extern "C" {
@@ -50,12 +52,7 @@ extern char *__wt_optarg;
 /*
  * Configuration.
  */
-/*#define ENV_CONFIG                                            \
-    "cache_size=20M,create,"                                  \
-    "debug_mode=(table_logging=true,checkpoint_retention=5)," \
-    "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(enabled,file_max=10M,remove=true),session_max=100," \
-    "statistics=(all),statistics_log=(wait=1,json,on_close)"*/
+#define ENV_CONFIG "readonly=true,log=(enabled=false)"
 
 /*
  * usage --
@@ -64,7 +61,10 @@ extern char *__wt_optarg;
 static void
 usage(const char *progname)
 {
-    fprintf(stderr, "usage: %s DEBUG_LOG_JSON\n", progname);
+    fprintf(stderr, "usage: %s [OPTIONS] DEBUG_LOG_JSON\n\n", progname);
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  -h HOME    specify the database directory\n");
+    fprintf(stderr, "  -?         show this message\n");
 }
 
 /*
@@ -74,17 +74,21 @@ usage(const char *progname)
 int
 main(int argc, char *argv[])
 {
-    const char *progname;
+    const char *home, *progname;
     int ch, ret;
 
+    home = nullptr;
     progname = argv[0];
 
     /*
      * Parse the command-line arguments.
      */
     __wt_optwt = 1;
-    while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:?")) != EOF)
         switch (ch) {
+        case 'h':
+            home = __wt_optarg;
+            break;
         case '?':
             usage(progname);
             return EXIT_SUCCESS;
@@ -101,18 +105,71 @@ main(int argc, char *argv[])
     const char *debug_log_json = argv[__wt_optind];
 
     /*
-     * Verify.
+     * Open the WiredTiger database to verify.
      */
-    try {
-        ret = EXIT_SUCCESS;
+    WT_CONNECTION *conn;
+    ret = wiredtiger_open(home, nullptr /* event handler */, ENV_CONFIG, &conn);
+    if (ret != 0) {
+        std::cerr << "Cannot open the database: " << wiredtiger_strerror(ret) << std::endl;
+        return EXIT_FAILURE;
+    }
+    model::wiredtiger_connection_guard conn_guard(conn); /* Automatically close on exit. */
 
-        std::cout << "Loading " << debug_log_json << std::endl;
-        model::kv_database db;
-        model::debug_log_parser::parse_json(db, debug_log_json);
+    /*
+     * Get the list of tables.
+     */
+    std::vector<std::string> tables;
+    try {
+        WT_SESSION *session;
+        ret = conn->open_session(conn, nullptr, nullptr, &session);
+        if (ret != 0)
+            throw model::wiredtiger_exception("Cannot open a session: ", ret);
+        model::wiredtiger_session_guard session_guard(session);
+
+        WT_CURSOR *cursor;
+        ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor);
+        if (ret != 0)
+            throw model::wiredtiger_exception("Cannot open a metadata cursor: ", ret);
+        model::wiredtiger_cursor_guard cursor_guard(cursor);
+
+        const char *key;
+        while ((ret = cursor->next(cursor)) == 0) {
+            /* Get the key. */
+            if ((ret = cursor->get_key(cursor, &key)) != 0)
+                throw model::wiredtiger_exception("Cannot get key: ", ret);
+
+            if (strncmp(key, "table:", 6) == 0)
+                tables.push_back(key + 6);
+        }
     } catch (std::exception &e) {
-        std::cerr << "Verification failed: " << e.what() << std::endl;
-        ret = EXIT_FAILURE;
+        std::cerr << "Failed to list the tables: " << e.what() << std::endl;
+        return EXIT_FAILURE;
     }
 
-    return ret;
+    /*
+     * Load the debug log into the model.
+     */
+    model::kv_database db;
+    try {
+        std::cout << "Loading: " << debug_log_json << std::endl;
+        model::debug_log_parser::parse_json(db, debug_log_json);
+    } catch (std::exception &e) {
+        std::cerr << "Failed to load the debug log: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    /*
+     * Verify the database.
+     */
+    try {
+        for (auto &t : tables) {
+            std::cout << "Verifying table: " << t << std::endl;
+            db.table(t)->verify(conn);
+        }
+    } catch (std::exception &e) {
+        std::cerr << "Verification failed: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }

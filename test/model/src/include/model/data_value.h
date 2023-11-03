@@ -85,6 +85,16 @@ public:
     static data_value unpack(const void *buffer, size_t length, const char *format);
 
     /*
+     * data_value::unpack --
+     *     Unpack a WiredTiger buffer into a data value.
+     */
+    inline static data_value
+    unpack(const std::string &str, const char *format)
+    {
+        return unpack(str.c_str(), str.length(), format);
+    }
+
+    /*
      * data_value::none --
      *     Check if this is a None value.
      */

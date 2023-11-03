@@ -58,11 +58,35 @@ from_json(const json &j, debug_log_parser::row_put &out)
  *     Parse the given log entry.
  */
 void
+from_json(const json &j, debug_log_parser::row_remove &out)
+{
+    j.at("fileid").get_to(out.fileid);
+    j.at("key").get_to(out.key);
+}
+
+/*
+ * from_json --
+ *     Parse the given log entry.
+ */
+void
 from_json(const json &j, debug_log_parser::txn_timestamp &out)
 {
     j.at("commit_ts").get_to(out.commit_ts);
     j.at("durable_ts").get_to(out.durable_ts);
     j.at("prepare_ts").get_to(out.prepare_ts);
+}
+
+/*
+ * debug_log_parser::table_by_fileid --
+ *     Find a table by the file ID.
+ */
+kv_table_ptr
+debug_log_parser::table_by_fileid(uint64_t fileid)
+{
+    auto table_itr = _fileid_to_table.find(fileid & (WT_LOGOP_IGNORE - 1));
+    if (table_itr == _fileid_to_table.end())
+        throw model_exception("Unknown file ID: " + std::to_string(fileid));
+    return table_itr->second;
 }
 
 /*
@@ -91,12 +115,16 @@ debug_log_parser::metadata_apply(const row_put &op)
             throw model_exception("The model does not currently support column groups");
 
         std::string source = m->get_string("source");
-        _file_to_colgroup[source] = name;
+        _file_to_colgroup_name[source] = name;
 
-        /* Establish mapping from the file ID to the table name, if possible. */
+        /* Establish mapping from the file ID to the table name and table object, if possible. */
         auto i = _file_to_fileid.find(source);
-        if (i != _file_to_fileid.end())
-            _fileid_to_table[i->second] = name;
+        if (i != _file_to_fileid.end()) {
+            _fileid_to_table_name[i->second] = name;
+            if (!_database.contains_table(name))
+                throw model_exception("The database does not yet contain table " + name);
+            _fileid_to_table[i->second] = _database.table(name);
+        }
     }
 
     /* Special handling for files. */
@@ -105,10 +133,14 @@ debug_log_parser::metadata_apply(const row_put &op)
         _fileid_to_file[id] = key;
         _file_to_fileid[key] = id;
 
-        /* Establish mapping from the file ID to the table name, if possible. */
-        auto i = _file_to_colgroup.find(key);
-        if (i != _file_to_colgroup.end())
-            _fileid_to_table[id] = i->second;
+        /* Establish mapping from the file ID to the table name and table object, if possible. */
+        auto i = _file_to_colgroup_name.find(key);
+        if (i != _file_to_colgroup_name.end()) {
+            _fileid_to_table_name[id] = i->second;
+            if (!_database.contains_table(i->second))
+                throw model_exception("The database does not yet contain table " + i->second);
+            _fileid_to_table[id] = _database.table(i->second);
+        }
     }
 
     /* Special handling for LSM. */
@@ -118,8 +150,10 @@ debug_log_parser::metadata_apply(const row_put &op)
     /* Special handling for tables. */
     if (key.substr(0, 6) == "table:") {
         std::string name = key.substr(6);
-        if (!_database.contains_table(name))
-            _database.create_table(name);
+        if (!_database.contains_table(name)) {
+            kv_table_ptr table = _database.create_table(name);
+            table->set_key_value_format(m->get_string("key_format"), m->get_string("value_format"));
+        }
     }
 }
 
@@ -136,27 +170,38 @@ debug_log_parser::apply(kv_transaction_ptr txn, const row_put &op)
         return;
     }
 
-    /* Find the table name from the file ID. */
-    uint64_t fileid = op.fileid & (WT_LOGOP_IGNORE - 1);
-    auto table_itr = _fileid_to_table.find(fileid);
-    if (table_itr == _fileid_to_table.end())
-        throw model_exception("Unknown file ID: " + std::to_string(fileid));
-    std::string table = table_itr->second;
-
-    /* Find the table's metadata. */
-    auto metadata_itr = _metadata.find("table:" + table);
-    if (metadata_itr == _metadata.end())
-        throw model_exception("No metadata for table: " + table);
-    std::shared_ptr<config_map> table_metadata = metadata_itr->second;
+    /* Find the table. */
+    kv_table_ptr table = table_by_fileid(op.fileid);
 
     /* Parse the key and the value. */
-    data_value key = data_value::unpack(
-      op.key.c_str(), op.key.length(), table_metadata->get_string("key_format").c_str());
-    data_value value = data_value::unpack(
-      op.value.c_str(), op.value.length(), table_metadata->get_string("value_format").c_str());
+    data_value key = data_value::unpack(op.key, table->key_format());
+    data_value value = data_value::unpack(op.value, table->value_format());
 
     /* Perform the operation. */
-    _database.table(table)->insert(txn, key, value);
+    table->insert(txn, key, value);
+}
+
+/*
+ * debug_log_parser::apply --
+ *     Apply the given operation to the model.
+ */
+void
+debug_log_parser::apply(kv_transaction_ptr txn, const row_remove &op)
+{
+    /* Handle metadata operations. */
+    if (op.fileid == 0) {
+        throw model_exception("Unsupported metadata operation: row_remove");
+        return;
+    }
+
+    /* Find the table. */
+    kv_table_ptr table = table_by_fileid(op.fileid);
+
+    /* Parse the key. */
+    data_value key = data_value::unpack(op.key, table->key_format());
+
+    /* Perform the operation. */
+    table->remove(txn, key);
 }
 
 /*
@@ -218,15 +263,17 @@ debug_log_parser::parse_json(kv_database &database, const char *path)
 
                 /* Row-store operations. */
                 if (op_type == "row_modify")
-                    throw model_exception("Unsupported operation.");
+                    throw model_exception("Unsupported operation: " + op_type);
                 if (op_type == "row_put") {
                     parser.apply(txn, op_entry.get<row_put>());
                     continue;
                 }
-                if (op_type == "row_remove")
-                    throw model_exception("Unsupported operation.");
+                if (op_type == "row_remove") {
+                    parser.apply(txn, op_entry.get<row_remove>());
+                    continue;
+                }
                 if (op_type == "row_truncate")
-                    throw model_exception("Unsupported operation.");
+                    throw model_exception("Unsupported operation: " + op_type);
 
                 /* Transaction operations. */
                 if (op_type == "txn_timestamp") {

@@ -42,6 +42,37 @@
 namespace model {
 
 /*
+ * wiredtiger_connection_guard --
+ *     Automatically close the connection on delete.
+ */
+class wiredtiger_connection_guard {
+
+public:
+    /*
+     * wiredtiger_connection_guard::wiredtiger_connection_guard --
+     *     Create a new instance of the guard.
+     */
+    inline wiredtiger_connection_guard(
+      WT_CONNECTION *connection, const char *close_config = nullptr) noexcept
+        : _connection(connection), _close_config(close_config == nullptr ? "" : close_config){};
+
+    /*
+     * wiredtiger_connection_guard::~wiredtiger_connection_guard --
+     *     Destroy the guard.
+     */
+    inline ~wiredtiger_connection_guard()
+    {
+        if (_connection != nullptr)
+            (void)_connection->close(
+              _connection, _close_config.empty() ? nullptr : _close_config.c_str());
+    }
+
+private:
+    WT_CONNECTION *_connection;
+    std::string _close_config;
+};
+
+/*
  * wiredtiger_cursor_guard --
  *     Automatically close the cursor on delete.
  */

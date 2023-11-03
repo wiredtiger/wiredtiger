@@ -78,31 +78,30 @@ data_value::unpack(const void *buffer, size_t length, const char *format)
      *     Unpack the given raw buffer value into a data_value.
      */
 #define UNPACK_TO_DATA_VALUE(wt_type, c_type, cast)                               \
-    case wt_type: {                                                               \
+    case wt_type[0]: {                                                            \
         c_type v;                                                                 \
-        std::string f(1, wt_type);                                                \
         /* It is okay to use NULL session, as this is just for error handling. */ \
-        ret = __wt_struct_unpack(NULL, buffer, length, f.c_str(), &v);            \
+        ret = __wt_struct_unpack(nullptr, buffer, length, wt_type, &v);           \
         if (ret == 0)                                                             \
             return data_value(cast(v));                                           \
     }
 
     switch (format[0]) {
-        UNPACK_TO_DATA_VALUE('b', int8_t, static_cast<int64_t>);
-        UNPACK_TO_DATA_VALUE('B', uint8_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE('h', int16_t, static_cast<int64_t>);
-        UNPACK_TO_DATA_VALUE('H', uint16_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE('i', int32_t, static_cast<int64_t>);
-        UNPACK_TO_DATA_VALUE('I', uint32_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE('l', int32_t, static_cast<int64_t>);
-        UNPACK_TO_DATA_VALUE('L', uint32_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE('q', int64_t, static_cast<int64_t>);
-        UNPACK_TO_DATA_VALUE('Q', uint64_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE('r', uint64_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE('s', const char *, std::string);
-        UNPACK_TO_DATA_VALUE('S', const char *, std::string);
-        UNPACK_TO_DATA_VALUE('t', uint8_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE('u', WT_ITEM, item_to_string);
+        UNPACK_TO_DATA_VALUE("b", int8_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE("B", uint8_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE("h", int16_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE("H", uint16_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE("i", int32_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE("I", uint32_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE("l", int32_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE("L", uint32_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE("q", int64_t, static_cast<int64_t>);
+        UNPACK_TO_DATA_VALUE("Q", uint64_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE("r", uint64_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE("s", const char *, std::string);
+        UNPACK_TO_DATA_VALUE("S", const char *, std::string);
+        UNPACK_TO_DATA_VALUE("t", uint8_t, static_cast<uint64_t>);
+        UNPACK_TO_DATA_VALUE("u", WT_ITEM, item_to_string);
     case 'x':
         throw model_exception("Type \"x\" is not implemented.");
     default:

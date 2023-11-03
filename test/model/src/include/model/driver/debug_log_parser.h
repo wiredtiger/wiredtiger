@@ -54,6 +54,15 @@ public:
     };
 
     /*
+     * debug_log_parser::row_remove --
+     *     The row_put log entry.
+     */
+    struct row_remove {
+        uint64_t fileid;
+        std::string key;
+    };
+
+    /*
      * debug_log_parser::txn_timestamp --
      *     The txn_timestamp log entry.
      */
@@ -87,6 +96,12 @@ public:
      * debug_log_parser::apply --
      *     Apply the given operation to the model.
      */
+    void apply(kv_transaction_ptr txn, const row_remove &op);
+
+    /*
+     * debug_log_parser::apply --
+     *     Apply the given operation to the model.
+     */
     void apply(kv_transaction_ptr txn, const txn_timestamp &op);
 
 protected:
@@ -96,14 +111,21 @@ protected:
      */
     void metadata_apply(const row_put &op);
 
+    /*
+     * debug_log_parser::table_by_fileid --
+     *     Find a table by the file ID.
+     */
+    kv_table_ptr table_by_fileid(uint64_t fileid);
+
 private:
     kv_database &_database;
 
     std::unordered_map<std::string, std::shared_ptr<config_map>> _metadata;
-    std::unordered_map<std::string, std::string> _file_to_colgroup;
+    std::unordered_map<std::string, std::string> _file_to_colgroup_name;
     std::unordered_map<std::string, uint64_t> _file_to_fileid;
     std::unordered_map<uint64_t, std::string> _fileid_to_file;
-    std::unordered_map<uint64_t, std::string> _fileid_to_table;
+    std::unordered_map<uint64_t, std::string> _fileid_to_table_name;
+    std::unordered_map<uint64_t, kv_table_ptr> _fileid_to_table;
 };
 
 } /* namespace model */
