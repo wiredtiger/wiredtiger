@@ -440,7 +440,6 @@ Wundef
 Wuninitialized
 Wunused
 XP
-XXXXXX
 Xorshift
 YCSB
 ZSTD
@@ -1167,6 +1166,7 @@ rw
 rwlock
 sH
 sHQ
+sXXXXXX
 sanitizer
 sanitizers
 scalable

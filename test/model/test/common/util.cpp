@@ -53,11 +53,8 @@ create_tmp_file(const char *dir, const char *prefix, const char *suffix)
     size_t buf_len = dir_len + prefix_len + 6 + suffix_len + 4;
 
     char *buf = (char *)alloca(buf_len);
-    testutil_snprintf(buf, buf_len,
-      "%s%s%s"
-      "XXXXXX"
-      "%s",
-      dir ? dir : "", dir ? DIR_DELIM_STR : "", suffix ? suffix : "");
+    testutil_snprintf(buf, buf_len, "%s%s%sXXXXXX%s", dir ? dir : "", dir ? DIR_DELIM_STR : "",
+      prefix, suffix ? suffix : "");
 
     /* This will also create the file - we only care about a name, but this is ok. */
     int fd = mkstemps(buf, suffix_len);
