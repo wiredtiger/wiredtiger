@@ -77,15 +77,85 @@ from_json(const json &j, debug_log_parser::txn_timestamp &out)
 }
 
 /*
+ * from_debug_log --
+ *     Parse the given debug log entry.
+ */
+int
+from_debug_log(
+  WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, debug_log_parser::row_put &out)
+{
+    int ret;
+    uint32_t fileid;
+    WT_ITEM key;
+    WT_ITEM value;
+
+    if ((ret = __wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value)) != 0)
+        return ret;
+
+    out.fileid = fileid;
+    out.key = std::string((const char *)key.data, key.size);
+    out.value = std::string((const char *)value.data, value.size);
+    return 0;
+}
+
+/*
+ * from_debug_log --
+ *     Parse the given debug log entry.
+ */
+int
+from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
+  debug_log_parser::row_remove &out)
+{
+    int ret;
+    uint32_t fileid;
+    WT_ITEM key;
+
+    if ((ret = __wt_logop_row_remove_unpack(session, pp, end, &fileid, &key)) != 0)
+        return ret;
+
+    out.fileid = fileid;
+    out.key = std::string((const char *)key.data, key.size);
+    return 0;
+}
+
+/*
+ * from_debug_log --
+ *     Parse the given debug log entry.
+ */
+int
+from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
+  debug_log_parser::txn_timestamp &out)
+{
+    int ret;
+    uint64_t time_sec;
+    uint64_t time_nsec;
+    uint64_t commit_ts;
+    uint64_t durable_ts;
+    uint64_t first_commit_ts;
+    uint64_t prepare_ts;
+    uint64_t read_ts;
+
+    if ((ret = __wt_logop_txn_timestamp_unpack(session, pp, end, &time_sec, &time_nsec, &commit_ts,
+           &durable_ts, &first_commit_ts, &prepare_ts, &read_ts)) != 0)
+        return ret;
+
+    out.commit_ts = commit_ts;
+    out.durable_ts = durable_ts;
+    out.prepare_ts = prepare_ts;
+    return 0;
+}
+
+/*
  * debug_log_parser::table_by_fileid --
  *     Find a table by the file ID.
  */
 kv_table_ptr
 debug_log_parser::table_by_fileid(uint64_t fileid)
 {
-    auto table_itr = _fileid_to_table.find(fileid & (WT_LOGOP_IGNORE - 1));
+    uint64_t id = fileid & (WT_LOGOP_IGNORE - 1);
+    auto table_itr = _fileid_to_table.find(id);
     if (table_itr == _fileid_to_table.end())
-        throw model_exception("Unknown file ID: " + std::to_string(fileid));
+        throw model_exception("Unknown file ID: " + std::to_string(id));
     return table_itr->second;
 }
 
@@ -230,11 +300,133 @@ debug_log_parser::apply(kv_transaction_ptr txn, const txn_timestamp &op)
 }
 
 /*
- * debug_log_parser::parse_json --
+ * from_debug_log_helper_args --
+ *     Arguments for the helper function.
+ */
+struct from_debug_log_helper_args {
+    debug_log_parser &parser;
+    kv_database &database;
+};
+
+/*
+ * from_debug_log_helper --
+ *     Parse the debug log into the model - a helper function.
+ */
+static int
+from_debug_log_helper(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
+  void *cookie, int firstrecord)
+{
+    const uint8_t *rec_end, *p;
+    int ret;
+
+    from_debug_log_helper_args &args = *((from_debug_log_helper_args *)cookie);
+
+    /* Get the basic record info, including the record type. */
+    p = WT_LOG_SKIP_HEADER(rawrec->data);
+    rec_end = (const uint8_t *)rawrec->data + rawrec->size;
+    uint32_t rec_type;
+    if ((ret = __wt_logrec_read(session, &p, rec_end, &rec_type)) != 0)
+        return 0;
+
+    /* Process supported record types. */
+    switch (rec_type) {
+    case WT_LOGREC_COMMIT: {
+        /* The commit entry, which contains the list of operations in the transaction. */
+        uint64_t txnid;
+        if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(rec_end, p), &txnid)) != 0)
+            return ret;
+
+        /* Start the transaction. */
+        kv_transaction_ptr txn = args.database.begin_transaction();
+
+        /* Iterate over the list of operations. */
+        const uint8_t **pp = &p;
+        while (*pp < rec_end && **pp) {
+            uint32_t op_type, op_size;
+
+            /* Get the operation record's type and size. */
+            if ((ret = __wt_logop_read(session, pp, rec_end, &op_type, &op_size)) != 0)
+                return ret;
+            const uint8_t *op_end = *pp + op_size;
+
+            /* Parse and apply the operation. */
+            switch (op_type) {
+            case WT_LOGOP_ROW_PUT: {
+                debug_log_parser::row_put v;
+                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
+                    return ret;
+                args.parser.apply(txn, v);
+                break;
+            }
+            case WT_LOGOP_ROW_REMOVE: {
+                debug_log_parser::row_remove v;
+                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
+                    return ret;
+                args.parser.apply(txn, v);
+                break;
+            }
+            case WT_LOGOP_TXN_TIMESTAMP: {
+                debug_log_parser::txn_timestamp v;
+                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
+                    return ret;
+                args.parser.apply(txn, v);
+                break;
+            }
+            default:
+                *pp += op_size;
+                throw model_exception("Unsupported operation type #" + std::to_string(op_type));
+            }
+        }
+
+        if (txn->state() != kv_transaction_state::committed)
+            txn->commit();
+        break;
+    }
+
+    case WT_LOGREC_CHECKPOINT:
+    case WT_LOGREC_FILE_SYNC:
+    case WT_LOGREC_MESSAGE:
+    case WT_LOGREC_SYSTEM:
+        /* Ignored record types. */
+        break;
+
+    default:
+        throw model_exception("Unsupported record type #" + std::to_string(rec_type));
+    }
+
+    return 0;
+}
+
+/*
+ * debug_log_parser::from_debug_log --
+ *     Parse the debug log into the model.
+ */
+void
+debug_log_parser::from_debug_log(kv_database &database, WT_CONNECTION *conn)
+{
+    int ret;
+    WT_SESSION *session;
+
+    ret = conn->open_session(conn, nullptr, nullptr, &session);
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot open a session: ", ret);
+    wiredtiger_session_guard session_guard(session);
+
+    debug_log_parser parser(database);
+    from_debug_log_helper_args args{parser, database};
+
+    ret = __wt_log_scan(
+      (WT_SESSION_IMPL *)session, nullptr, nullptr, WT_LOGSCAN_FIRST, from_debug_log_helper, &args);
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot scan the log: ", ret);
+}
+
+/*
+ * debug_log_parser::from_json --
  *     Parse the debug log JSON file into the model.
  */
 void
-debug_log_parser::parse_json(kv_database &database, const char *path)
+debug_log_parser::from_json(kv_database &database, const char *path)
 {
     debug_log_parser parser(database);
 
@@ -253,7 +445,8 @@ debug_log_parser::parse_json(kv_database &database, const char *path)
 
         std::string log_entry_type = log_entry.at("type").get<std::string>();
 
-        /* The commit entry contains full description of a transaction, including all operations. */
+        /* The commit entry contains full description of a transaction, including all
+         * operations. */
         if (log_entry_type == "commit") {
             kv_transaction_ptr txn = database.begin_transaction();
 

@@ -33,6 +33,7 @@
 #include <unordered_map>
 #include "model/kv_database.h"
 #include "model/util.h"
+#include "wiredtiger.h"
 
 namespace model {
 
@@ -81,10 +82,16 @@ public:
     inline debug_log_parser(kv_database &database) : _database(database) {}
 
     /*
-     * debug_log_parser::parse_json --
+     * debug_log_parser::from_debug_log --
+     *     Parse the debug log into the model.
+     */
+    static void from_debug_log(kv_database &database, WT_CONNECTION *conn);
+
+    /*
+     * debug_log_parser::from_json --
      *     Parse the debug log JSON file into the model.
      */
-    static void parse_json(kv_database &database, const char *path);
+    static void from_json(kv_database &database, const char *path);
 
     /*
      * debug_log_parser::apply --

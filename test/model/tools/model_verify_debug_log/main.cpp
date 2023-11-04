@@ -61,9 +61,10 @@ extern char *__wt_optarg;
 static void
 usage(const char *progname)
 {
-    fprintf(stderr, "usage: %s [OPTIONS] DEBUG_LOG_JSON\n\n", progname);
+    fprintf(stderr, "usage: %s [OPTIONS]\n\n", progname);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -h HOME    specify the database directory\n");
+    fprintf(stderr, "  -j PATH    load the debug log from a JSON file\n");
     fprintf(stderr, "  -?         show this message\n");
 }
 
@@ -74,9 +75,10 @@ usage(const char *progname)
 int
 main(int argc, char *argv[])
 {
-    const char *home, *progname;
+    const char *debug_log_json, *home, *progname;
     int ch, ret;
 
+    debug_log_json = nullptr;
     home = nullptr;
     progname = argv[0];
 
@@ -84,10 +86,13 @@ main(int argc, char *argv[])
      * Parse the command-line arguments.
      */
     __wt_optwt = 1;
-    while ((ch = __wt_getopt(progname, argc, argv, "h:?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:j:?")) != EOF)
         switch (ch) {
         case 'h':
             home = __wt_optarg;
+            break;
+        case 'j':
+            debug_log_json = __wt_optarg;
             break;
         case '?':
             usage(progname);
@@ -97,12 +102,10 @@ main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
     argc -= __wt_optind;
-    if (argc != 1) {
+    if (argc != 0) {
         usage(progname);
         return EXIT_FAILURE;
     }
-
-    const char *debug_log_json = argv[__wt_optind];
 
     /*
      * Open the WiredTiger database to verify.
@@ -131,8 +134,12 @@ main(int argc, char *argv[])
      */
     model::kv_database db;
     try {
-        std::cout << "Loading: " << debug_log_json << std::endl;
-        model::debug_log_parser::parse_json(db, debug_log_json);
+        if (debug_log_json == nullptr)
+            model::debug_log_parser::from_debug_log(db, conn);
+        else {
+            std::cout << "Loading: " << debug_log_json << std::endl;
+            model::debug_log_parser::from_json(db, debug_log_json);
+        }
     } catch (std::exception &e) {
         std::cerr << "Failed to load the debug log: " << e.what() << std::endl;
         return EXIT_FAILURE;

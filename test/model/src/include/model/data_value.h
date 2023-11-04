@@ -95,6 +95,16 @@ public:
     }
 
     /*
+     * data_value::unpack --
+     *     Unpack a WiredTiger buffer into a data value.
+     */
+    inline static data_value
+    unpack(const WT_ITEM &item, const char *format)
+    {
+        return unpack(item.data, item.size, format);
+    }
+
+    /*
      * data_value::none --
      *     Check if this is a None value.
      */

@@ -357,18 +357,23 @@ test_model_basic_wt(void)
     testutil_wiredtiger_open(opts, home, ENV_CONFIG, nullptr, &conn, false, false);
     testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
 
-    /* Print the debug log. */
+    /* Verify using the debug log. */
+    model::kv_database db_from_debug_log;
+    model::debug_log_parser::from_debug_log(db_from_debug_log, conn);
+    testutil_assert(db_from_debug_log.table("table")->verify_noexcept(conn));
+
+    /* Print the debug log to JSON. */
     std::string tmp_json = create_tmp_file(home, "debug-log-", ".json");
     wt_print_debug_log(conn, tmp_json.c_str());
 
-    /* Verify using debug log. */
-    model::kv_database from_debug_log;
-    model::debug_log_parser::parse_json(from_debug_log, tmp_json.c_str());
-    testutil_assert(from_debug_log.table("table")->verify_noexcept(conn));
+    /* Verify using the debug log JSON. */
+    model::kv_database db_from_debug_log_json;
+    model::debug_log_parser::from_json(db_from_debug_log_json, tmp_json.c_str());
+    testutil_assert(db_from_debug_log_json.table("table")->verify_noexcept(conn));
 
     /* Now try to get the verification to fail. */
     wt_remove(session, uri, key2, 1000);
-    testutil_assert(!from_debug_log.table("table")->verify_noexcept(conn));
+    testutil_assert(!db_from_debug_log.table("table")->verify_noexcept(conn));
 
     /* Clean up. */
     testutil_check(session->close(session, nullptr));
