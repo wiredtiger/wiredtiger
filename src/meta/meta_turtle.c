@@ -552,7 +552,8 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
             WT_ERR(__wt_remove_if_exists(session, WT_METAFILE, false));
             WT_ERR(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load = true;
-        } else if (validate_turtle)
+        } else if (validate_turtle && conn->recovery_version != WT_NO_VERSION)
+            //If it has already been checked, there is no need to check it again
             WT_ERR(__wt_turtle_validate_version(session));
     } else
         load = true;
