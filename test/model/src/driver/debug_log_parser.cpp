@@ -45,7 +45,7 @@ namespace model {
  * from_json --
  *     Parse the given log entry.
  */
-void
+static void
 from_json(const json &j, debug_log_parser::row_put &out)
 {
     j.at("fileid").get_to(out.fileid);
@@ -57,7 +57,7 @@ from_json(const json &j, debug_log_parser::row_put &out)
  * from_json --
  *     Parse the given log entry.
  */
-void
+static void
 from_json(const json &j, debug_log_parser::row_remove &out)
 {
     j.at("fileid").get_to(out.fileid);
@@ -68,7 +68,7 @@ from_json(const json &j, debug_log_parser::row_remove &out)
  * from_json --
  *     Parse the given log entry.
  */
-void
+static void
 from_json(const json &j, debug_log_parser::txn_timestamp &out)
 {
     j.at("commit_ts").get_to(out.commit_ts);
@@ -80,7 +80,7 @@ from_json(const json &j, debug_log_parser::txn_timestamp &out)
  * from_debug_log --
  *     Parse the given debug log entry.
  */
-int
+static int
 from_debug_log(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, debug_log_parser::row_put &out)
 {
@@ -102,7 +102,7 @@ from_debug_log(
  * from_debug_log --
  *     Parse the given debug log entry.
  */
-int
+static int
 from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   debug_log_parser::row_remove &out)
 {
@@ -122,7 +122,7 @@ from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
  * from_debug_log --
  *     Parse the given debug log entry.
  */
-int
+static int
 from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   debug_log_parser::txn_timestamp &out)
 {
