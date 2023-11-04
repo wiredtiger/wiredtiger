@@ -120,27 +120,7 @@ main(int argc, char *argv[])
      */
     std::vector<std::string> tables;
     try {
-        WT_SESSION *session;
-        ret = conn->open_session(conn, nullptr, nullptr, &session);
-        if (ret != 0)
-            throw model::wiredtiger_exception("Cannot open a session: ", ret);
-        model::wiredtiger_session_guard session_guard(session);
-
-        WT_CURSOR *cursor;
-        ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor);
-        if (ret != 0)
-            throw model::wiredtiger_exception("Cannot open a metadata cursor: ", ret);
-        model::wiredtiger_cursor_guard cursor_guard(cursor);
-
-        const char *key;
-        while ((ret = cursor->next(cursor)) == 0) {
-            /* Get the key. */
-            if ((ret = cursor->get_key(cursor, &key)) != 0)
-                throw model::wiredtiger_exception("Cannot get key: ", ret);
-
-            if (strncmp(key, "table:", 6) == 0)
-                tables.push_back(key + 6);
-        }
+        tables = model::wt_list_tables(conn);
     } catch (std::exception &e) {
         std::cerr << "Failed to list the tables: " << e.what() << std::endl;
         return EXIT_FAILURE;

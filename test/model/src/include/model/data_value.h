@@ -124,6 +124,18 @@ extern const data_value NONE;
 std::ostream &operator<<(std::ostream &out, const data_value &value);
 
 /*
+ * get_wt_cursor_key --
+ *     Get the key from a WiredTiger cursor.
+ */
+data_value get_wt_cursor_key(WT_CURSOR *cursor);
+
+/*
+ * get_wt_cursor_value --
+ *     Get the value from a WiredTiger cursor.
+ */
+data_value get_wt_cursor_value(WT_CURSOR *cursor);
+
+/*
  * set_wt_cursor_key --
  *     Set the value as WiredTiger cursor key.
  */

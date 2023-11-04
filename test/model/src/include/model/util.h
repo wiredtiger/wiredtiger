@@ -35,6 +35,7 @@
 #include <string>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 #include "model/core.h"
 #include "model/data_value.h"
 #include "wiredtiger.h"
@@ -205,31 +206,6 @@ private:
 };
 
 /*
- * wt_cursor_get_string --
- *     Search in WiredTiger using the provided cursor. Return a string result, or NONE if not found.
- *     Throw an exception on error.
- */
-inline data_value
-wt_cursor_get_string(WT_CURSOR *cursor, const data_value &key)
-{
-    const char *s;
-    int ret;
-
-    set_wt_cursor_key(cursor, key);
-    ret = cursor->search(cursor);
-    if (ret != 0) {
-        if (ret == WT_NOTFOUND)
-            return NONE;
-        throw wiredtiger_exception(cursor->session, ret);
-    }
-
-    ret = cursor->get_value(cursor, &s);
-    if (ret != 0)
-        throw wiredtiger_exception(cursor->session, ret);
-    return data_value(s);
-}
-
-/*
  * wt_cursor_insert --
  *     Insert into WiredTiger using the provided cursor.
  */
@@ -274,6 +250,12 @@ wt_cursor_update(WT_CURSOR *cursor, const data_value &key, const data_value &val
     set_wt_cursor_value(cursor, value);
     return cursor->update(cursor);
 }
+
+/*
+ * wt_list_tables --
+ *     Get the list of WiredTiger tables.
+ */
+std::vector<std::string> wt_list_tables(WT_CONNECTION *conn);
 
 } /* namespace model */
 #endif

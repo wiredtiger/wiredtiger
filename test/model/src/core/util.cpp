@@ -26,9 +26,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <vector>
+
+#include "wiredtiger.h"
+extern "C" {
+#include "wt_internal.h"
+}
 
 #include "model/util.h"
 
@@ -107,6 +113,41 @@ config_map::from_string(const char *str, const char **end)
         *end = p;
 
     return m;
+}
+
+/*
+ * wt_list_tables --
+ *     Get the list of WiredTiger tables.
+ */
+std::vector<std::string>
+wt_list_tables(WT_CONNECTION *conn)
+{
+    int ret;
+    std::vector<std::string> tables;
+
+    WT_SESSION *session;
+    ret = conn->open_session(conn, nullptr, nullptr, &session);
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot open a session: ", ret);
+    wiredtiger_session_guard session_guard(session);
+
+    WT_CURSOR *cursor;
+    ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor);
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot open a metadata cursor: ", ret);
+    wiredtiger_cursor_guard cursor_guard(cursor);
+
+    const char *key;
+    while ((ret = cursor->next(cursor)) == 0) {
+        /* Get the key. */
+        if ((ret = cursor->get_key(cursor, &key)) != 0)
+            throw wiredtiger_exception("Cannot get key: ", ret);
+
+        if (strncmp(key, "table:", 6) == 0)
+            tables.push_back(key + 6);
+    }
+
+    return tables;
 }
 
 } /* namespace model */
