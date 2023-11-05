@@ -271,15 +271,15 @@ __wt_stats_clear(void *stats_arg, int slot)
 /*
  * Construct histogram increment functions to put the passed value into the right bucket. Bucket
  * ranges, represented by various statistics, depend upon whether the passed value is in
- * milliseconds or microseconds. Also values less than a given minimum are ignored and not put in
- * any bucket. This floor value keeps us from having an excessively large smallest values.
+ * milliseconds or microseconds.
  */
-#define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat, min_val)                                         \
+#define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                                                  \
     static inline void __wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
     {                                                                                             \
-        if (msecs < (min_val))                                                                    \
-            return;                                                                               \
-        if (msecs < 50)                                                                           \
+        WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs);                                   \
+        if (msecs < 10)                                                                           \
+            WT_STAT_CONN_INCR(session, stat##_lt10);                                              \
+        else if (msecs < 50)                                                                      \
             WT_STAT_CONN_INCR(session, stat##_lt50);                                              \
         else if (msecs < 100)                                                                     \
             WT_STAT_CONN_INCR(session, stat##_lt100);                                             \
@@ -293,12 +293,13 @@ __wt_stats_clear(void *stats_arg, int slot)
             WT_STAT_CONN_INCR(session, stat##_gt1000);                                            \
     }
 
-#define WT_STAT_USECS_HIST_INCR_FUNC(name, stat, min_val)                                         \
+#define WT_STAT_USECS_HIST_INCR_FUNC(name, stat)                                                  \
     static inline void __wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
     {                                                                                             \
-        if (usecs < (min_val))                                                                    \
-            return;                                                                               \
-        if (usecs < 250)                                                                          \
+        WT_STAT_CONN_INCRV(session, stat##_total_usecs, usecs);                                   \
+        if (usecs < 100)                                                                          \
+            WT_STAT_CONN_INCR(session, stat##_lt100);                                             \
+        else if (usecs < 250)                                                                     \
             WT_STAT_CONN_INCR(session, stat##_lt250);                                             \
         else if (usecs < 500)                                                                     \
             WT_STAT_CONN_INCR(session, stat##_lt500);                                             \
@@ -610,19 +611,23 @@ struct __wt_connection_stats {
     int64_t checkpoint_time_total;
     int64_t checkpoint_obsolete_applied;
     int64_t checkpoint_wait_reduce_dirty;
-    int64_t chunk_cache_spans_chunks_read;
-    int64_t chunk_cache_chunks_evicted;
-    int64_t chunk_cache_exceeded_capacity;
-    int64_t chunk_cache_lookups;
-    int64_t chunk_cache_misses;
-    int64_t chunk_cache_newly_inserted;
-    int64_t chunk_cache_io_failed;
-    int64_t chunk_cache_retries;
-    int64_t chunk_cache_toomany_retries;
-    int64_t chunk_cache_bytes_inuse;
-    int64_t chunk_cache_bytes_inuse_pinned;
-    int64_t chunk_cache_chunks_inuse;
-    int64_t chunk_cache_chunks_pinned;
+    int64_t chunkcache_spans_chunks_read;
+    int64_t chunkcache_chunks_evicted;
+    int64_t chunkcache_exceeded_bitmap_capacity;
+    int64_t chunkcache_exceeded_capacity;
+    int64_t chunkcache_lookups;
+    int64_t chunkcache_chunks_loaded_from_flushed_tables;
+    int64_t chunkcache_metadata_work_units_created;
+    int64_t chunkcache_metadata_work_units_dequeued;
+    int64_t chunkcache_misses;
+    int64_t chunkcache_io_failed;
+    int64_t chunkcache_retries;
+    int64_t chunkcache_toomany_retries;
+    int64_t chunkcache_bytes_inuse;
+    int64_t chunkcache_bytes_inuse_pinned;
+    int64_t chunkcache_chunks_inuse;
+    int64_t chunkcache_created_from_metadata;
+    int64_t chunkcache_chunks_pinned;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
@@ -798,28 +803,36 @@ struct __wt_connection_stats {
     int64_t log_compress_len;
     int64_t log_slot_coalesced;
     int64_t log_close_yields;
+    int64_t perf_hist_fsread_latency_lt10;
     int64_t perf_hist_fsread_latency_lt50;
     int64_t perf_hist_fsread_latency_lt100;
     int64_t perf_hist_fsread_latency_lt250;
     int64_t perf_hist_fsread_latency_lt500;
     int64_t perf_hist_fsread_latency_lt1000;
     int64_t perf_hist_fsread_latency_gt1000;
+    int64_t perf_hist_fsread_latency_total_msecs;
+    int64_t perf_hist_fswrite_latency_lt10;
     int64_t perf_hist_fswrite_latency_lt50;
     int64_t perf_hist_fswrite_latency_lt100;
     int64_t perf_hist_fswrite_latency_lt250;
     int64_t perf_hist_fswrite_latency_lt500;
     int64_t perf_hist_fswrite_latency_lt1000;
     int64_t perf_hist_fswrite_latency_gt1000;
+    int64_t perf_hist_fswrite_latency_total_msecs;
+    int64_t perf_hist_opread_latency_lt100;
     int64_t perf_hist_opread_latency_lt250;
     int64_t perf_hist_opread_latency_lt500;
     int64_t perf_hist_opread_latency_lt1000;
     int64_t perf_hist_opread_latency_lt10000;
     int64_t perf_hist_opread_latency_gt10000;
+    int64_t perf_hist_opread_latency_total_usecs;
+    int64_t perf_hist_opwrite_latency_lt100;
     int64_t perf_hist_opwrite_latency_lt250;
     int64_t perf_hist_opwrite_latency_lt500;
     int64_t perf_hist_opwrite_latency_lt1000;
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
+    int64_t perf_hist_opwrite_latency_total_usecs;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
@@ -897,6 +910,7 @@ struct __wt_connection_stats {
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
+    int64_t application_evict_snapshot_refreshed;
     int64_t application_evict_time;
     int64_t application_cache_time;
     int64_t txn_release_blocked;

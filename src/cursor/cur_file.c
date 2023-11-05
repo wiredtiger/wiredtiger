@@ -12,8 +12,8 @@
  * Define functions that increment histogram statistics for cursor read and write operations
  * latency.
  */
-WT_STAT_USECS_HIST_INCR_FUNC(opread, perf_hist_opread_latency, 100)
-WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
+WT_STAT_USECS_HIST_INCR_FUNC(opread, perf_hist_opread_latency)
+WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
 
 /*
  * Wrapper for substituting checkpoint state when doing checkpoint cursor operations.
@@ -974,7 +974,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     size_t csize;
     bool cacheable;
 
-    WT_STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
+    WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_BTREE);
 
     btree = S2BT(session);
     WT_ASSERT(session, btree != NULL);
