@@ -41,8 +41,12 @@ main(int argc, char *argv[])
     home = example_setup(argc, argv);
 
 #ifdef HAVE_DIAGNOSTIC
-    /* In diagnostic mode diagnostics are always enabled. Attempting to configure them will return an error. */
-    testutil_assert(wiredtiger_open(home, NULL, "create,extra_diagnostics=[key_out_of_order]", &conn) == EINVAL);
+    /*
+     * In diagnostic mode diagnostics are always enabled. Attempting to configure them will return
+     * an error.
+     */
+    testutil_assert(
+      wiredtiger_open(home, NULL, "create,extra_diagnostics=[key_out_of_order]", &conn) == EINVAL);
 #else
     /*! [Configure extra_diagnostics] */
     /* Open a connection to the database, enabling key ordering checks. */
