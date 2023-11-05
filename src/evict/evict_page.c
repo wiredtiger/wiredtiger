@@ -734,10 +734,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (F_ISSET(conn, WT_CONN_IN_MEMORY) && !modified && !closing)
         return (__wt_set_return(session, EBUSY));
 
-    /* Check the current session has the correct isolation level for dirty content. */
-    if (modified && session->txn->isolation != WT_ISO_SNAPSHOT)
-        return (__wt_set_return(session, EBUSY));
-
     /* Check if the page can be evicted. */
     if (!closing) {
         /*
