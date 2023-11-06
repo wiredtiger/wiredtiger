@@ -4,7 +4,7 @@ individual scripts are located in the `gdb_scripts/` and the top level directory
 
 ### Usage
 To loads scripts from within gdb call `source /path/to/load_gdb_scripts.py`.
-If you have compiled WiredTiger with the `-DHAVE_SHARED=1` flag then these scripts 
+If you have compiled WiredTiger with the `-DENABLE_SHARED=1` flag then these scripts 
 will be auto-loaded when gdb is opened.
 
 ### Creating new scripts
