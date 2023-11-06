@@ -601,7 +601,7 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owne
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __curmetadata_close,                            /* close */
-      __wt_cursor_get_details                         /* get_details */
+      __wt_cursor_get_details_notsup                         /* get_details */
     );
     WT_CURSOR *cursor;
     WT_CURSOR_METADATA *mdc;

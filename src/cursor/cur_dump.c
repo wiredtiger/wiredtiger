@@ -416,7 +416,7 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __wt_cursor_reopen_notsup,                    /* reopen */
       __wt_cursor_checkpoint_id,                    /* checkpoint ID */
       __curdump_close,                              /* close */
-      __wt_cursor_get_details                       /* get_details */
+      __wt_cursor_get_details_notsup                       /* get_details */
     );
     WT_CURSOR *cursor;
     WT_CURSOR_DUMP *cdump;
