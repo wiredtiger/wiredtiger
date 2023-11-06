@@ -912,4 +912,6 @@ __wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message)
           WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen, (void*)ref->home);
         __wt_scr_free(session, &tmp);
     }
+    else
+        printf("Something went wrong for message %s, ref->addr is %p\n", message, (void*)ref->addr);
 }
