@@ -6,6 +6,8 @@
 
 import gdb
 
+# FIXME-WT-11929 - Move these type aliases and find_session helper function into their own files so other 
+# scripts can use them.
 SESSION_IMPL_PTR = gdb.lookup_type("WT_SESSION_IMPL").pointer()
 CONN_IMPL_PTR = gdb.lookup_type("WT_CONNECTION_IMPL").pointer()
 

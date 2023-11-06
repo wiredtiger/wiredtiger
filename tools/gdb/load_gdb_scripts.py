@@ -9,7 +9,7 @@
 #         libwiredtiger.so.11.2.0-gdb.py // this script
 # 
 # This file is copied into the build directory and renamed accordingly when we compile 
-# WiredTiger with -DHAVE_SHARED=1.
+# WiredTiger with -DENABLE_SHARED=1.
 # 
 # For more information see https://sourceware.org/gdb/onlinedocs/gdb/objfile_002dgdbdotext-file.html
 
