@@ -58,7 +58,7 @@ __wt_curconfig_open(
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __curconfig_close,                              /* close */
-      __wt_cursor_get_details_notsup                         /* get_details */
+      __wt_cursor_get_details_notsup                  /* get_details */
     );
     WT_CURSOR_CONFIG *cconfig;
     WT_CURSOR *cursor;

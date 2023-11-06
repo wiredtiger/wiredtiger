@@ -1536,8 +1536,8 @@ __wt_cursor_init(
 }
 
 /*
- * __wt_cursor_get_details --
- *     Vast majority of cursor types do not support retrieving contextual details.
+ * __wt_cursor_get_details_notsup --
+ *     The majority of cursor types do not support retrieving contextual details.
  */
 int
 __wt_cursor_get_details_notsup(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, const char *config)
