@@ -1206,6 +1206,7 @@ err:
     WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
     WT_TRET(__wt_tiered_storage_destroy(session, cval.val));
     WT_TRET(__wt_chunkcache_teardown(session));
+    WT_TRET(__wt_chunkcache_metadata_destroy(session));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
@@ -1223,7 +1224,7 @@ err:
         F_SET(conn, WT_CONN_LEAK_MEMORY);
 
     /* Time since the shutdown has started. */
-    __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.shutdown_ms);
+    __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.shutdown_ms);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
       "shutdown was completed successfully and took %" PRIu64 "ms, including %" PRIu64
       "ms for the rollback to stable, and %" PRIu64 "ms for the checkpoint.",
@@ -1321,6 +1322,7 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     session_ret = NULL;
     WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
+    session_ret->name = "connection-open-session";
     *wt_sessionp = &session_ret->iface;
 
 err:
@@ -2776,6 +2778,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
+    WT_VERIFY_OPAQUE_POINTER(WT_CONNECTION_IMPL);
+
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
@@ -2975,7 +2979,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
-    WT_ERR(__wt_chunkcache_setup(session, cfg));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
@@ -3214,6 +3217,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_connection_workers(session, cfg));
 
     /*
+     * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
+     * metadata operation that should be done after metadata, transactions, schema, etc. are all up
+     * and running.
+     */
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
+        WT_ERR(__wt_chunkcache_salvage(session));
+
+    /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
      * metadata table may have been salvaged and eviction has been started and recovery run.
      */
@@ -3237,7 +3248,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     F_SET(session, WT_SESSION_NO_DATA_HANDLES);
 
-    WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
     F_SET(conn, WT_CONN_READY);
     F_CLR(conn, WT_CONN_MINIMAL);
     *connectionp = &conn->iface;

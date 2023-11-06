@@ -425,6 +425,7 @@ WideCharToMultiByte
 WinNT
 WiredTiger
 WiredTiger's
+WiredTigerCC
 WiredTigerCheckpoint
 WiredTigerChunkCache
 WiredTigerHS
@@ -447,11 +448,9 @@ Zstd
 Zstd's
 aa
 aaa
-abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
-abcef
-acstu
+acSstu
 addl
 addr
 addrs
@@ -504,7 +503,6 @@ bitwise
 blk
 blkcache
 blkmod
-blkmods
 bm
 bnd
 bool
@@ -827,6 +825,7 @@ icount
 idlems
 idx
 ie
+iface
 ifdef's
 iiSii
 iiiS
@@ -1156,7 +1155,6 @@ risc
 rl
 rle
 rmw
-rnd
 rng
 rotN
 rotn

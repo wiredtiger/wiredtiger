@@ -227,10 +227,9 @@ class WiredTigerHookManager(object):
             orig_func = getattr(clazz, method_name)
         return orig_func
 
-    def filter_tests(self, tests):
+    def register_skipped_tests(self, tests):
         for hook in self.hooks:
-            tests = hook.filter_tests(tests)
-        return tests
+            hook.register_skipped_tests(tests)
 
     def get_hook_names(self):
         return self.hook_names
@@ -275,9 +274,10 @@ class WiredTigerHookCreator(ABC):
         self.Session = HookCreatorProxy(self.hookmgr, wiredtiger.Session)
         self.Cursor = HookCreatorProxy(self.hookmgr, wiredtiger.Cursor)
 
-    # default version of filter_tests, can be overridden
-    def filter_tests(self, tests):
-        return tests
+    # Default version of register_skipped_tests, can be overridden.
+    # Walks the lists of tests in-place, modifying the tests that should be skipped
+    def register_skipped_tests(self, tests):
+        pass
 
     @abstractmethod
     def setup_hooks(self):
@@ -319,8 +319,12 @@ class WiredTigerHookPlatformAPI(object):
         raise NotImplementedError('getTierCachePercent method not implemented')
 
     def getTierStorageSource(self):
-        """The tier cache percentage generator for this test case."""
+        """The tiered storage source for this test case."""
         raise NotImplementedError('getTierStorageSource method not implemented')
+
+    def getTierStorageSourceConfig(self):
+        """The tiered storage source configuration for this test case."""
+        raise NotImplementedError('getTierStorageSourceConfig method not implemented')
 
 class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
     def tableExists(self, name):
@@ -350,6 +354,10 @@ class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
     # By default, dir_store is the storage source.
     def getTierStorageSource(self):
         return ('dir_store')
+
+    # By default, there is no extra configuration for the storage source.
+    def getTierStorageSourceConfig(self):
+        return None
 
 class MultiPlatformAPI(WiredTigerHookPlatformAPI):
     def __init__(self, platform_apis):
@@ -418,3 +426,12 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
             except NotImplementedError:
                 pass
         raise Exception('getTierStorageSource: no implementation')  # should never happen
+
+    def getTierStorageSourceConfig(self):
+        """The tier storage source configuration for this test case."""
+        for api in self.apis:
+            try:
+                return api.getTierStorageSourceConfig()
+            except NotImplementedError:
+                pass
+        raise Exception('getTierStorageSourceCOnfig: no implementation')  # should never happen
