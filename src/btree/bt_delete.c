@@ -96,6 +96,35 @@
  * deleted, as long as the ref always exists when the internal page is in memory. (It is not written
  * to disk either; internal page reconciliation skips it.)
  */
+/*
+ * __delete_page_diag_log --
+ *   Add some diagnostic information to the write ahead log about decisions
+ *   fast truncate is making.
+ */
+int
+__delete_page_diag_log(WT_SESSION_IMPL *session, WT_REF *ref, char *message, bool locked)
+{
+    WT_BTREE *btree;
+    WT_ITEM *key, *string_key;
+    WT_ROW *rip;
+    WT_UPDATE *upd;
+    uint32_t i;
+
+    btree = S2BT(session);
+
+    if (!locked) {
+        __wt_log_printf("FT: Failed to lock ref for fast truncate %p", ref);
+	return (0);
+    }
+
+    /* Get the first key */
+    WT_ROW_FOREACH(ref->page, rip, i) {
+        WT_RET(__wt_row_leaf_key(session, page, rip, key, false));
+        __wt_key_string(session, key->data, key->size, btree->key_format, key_string);
+	break;
+    }
+    return (__wt_log_printf("FT: %s, first key: %s", message, key_string->data));
+}
 
 /*
  * __wt_delete_page --
@@ -115,6 +144,9 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     if (previous_state == WT_REF_MEM &&
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
+            ret = __delete_page_diag_log(session, ref, "Failed to evict", true);
+	    if (ret == WT_PANIC) /* Ignore all non-fatal errors */
+		    return (ret);
             WT_REF_SET_STATE(ref, previous_state);
             return (0);
         }
