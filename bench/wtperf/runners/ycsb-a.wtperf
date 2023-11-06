@@ -6,7 +6,7 @@ value_sz=1024
 icount=1200000
 run_time=360
 threads=((count=10,reads=1),(count=10,updates=1))
-warmup=120
+warmup=36
 sample_interval=5
 populate_threads=8
 report_interval=5
