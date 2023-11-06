@@ -51,10 +51,9 @@ class test_recovery01(wttest.WiredTigerTestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RECOVERY_PROGRESS')
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all),log=(enabled=true),verbose=(recovery_progress)'
+        config = 'cache_size=50MB,statistics=(all),log=(enabled=true)'
         return config
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
