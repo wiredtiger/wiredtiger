@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -157,6 +157,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
                 WT_ERR(__btree_get_last_recno(session));
         }
     }
+    __wt_page_trace(session, &btree->root, "init-root");
 
     /*
      * Eviction ignores trees until the handle's open flag is set, configure eviction before that
@@ -442,11 +443,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     /*
      * Reconciliation configuration:
-     *	Block compression (all)
-     *	Dictionary compression (variable-length column-store, row-store)
-     *	Page-split percentage
-     *	Prefix compression (row-store)
-     *	Suffix compression (row-store)
+     *  Block compression (all)
+     *  Dictionary compression (variable-length column-store, row-store)
+     *  Page-split percentage
+     *  Prefix compression (row-store)
+     *  Suffix compression (row-store)
      */
     switch (btree->type) {
     case BTREE_COL_FIX:
@@ -476,7 +477,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * wrong, we adjust downward (but we're almost certainly correct, the
      * maximum in-memory images allowed are only 4x the maximum page size,
      * and compression always gives us more than 4x).
-     *	Don't do compression adjustment for fixed-size column store, the
+     *  Don't do compression adjustment for fixed-size column store, the
      * leaf page sizes don't change. (We could adjust internal pages but not
      * internal pages, but that seems an unlikely use case.)
      */
