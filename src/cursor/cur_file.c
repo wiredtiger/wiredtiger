@@ -107,15 +107,17 @@ __wt_cursor_checkpoint_id(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_cursor_get_details --
+ * __curfile_cursor_get_details --
  *     Query detailed information using this cursor instance.
  */
-int
-__wt_cursor_get_details(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, const char *config)
+static int
+__curfile_cursor_get_details(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, const char *config)
 {
     WT_CURSOR_BTREE *cbt;
+
+    WT_UNUSED(config);
     WT_ASSERT(CUR2S(cursor), detailsp != NULL);
-    WT_ASSERT(CUR2S(cursor), config == NULL);
+
     cbt = (WT_CURSOR_BTREE *)cursor;
     if (cbt->checkpoint_txn) {
         detailsp->checkpoint.oldest_timestamp = cbt->checkpoint_txn->checkpoint_oldest_timestamp;
@@ -985,7 +987,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_reopen,                               /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __curfile_close,                                /* close */
-      __wt_cursor_get_details                         /* get_details */
+      __curfile_cursor_get_details                    /* get_details */
     );
     WT_BTREE *btree;
     WT_CONFIG_ITEM cval;

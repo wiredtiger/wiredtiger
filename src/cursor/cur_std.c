@@ -1534,3 +1534,15 @@ __wt_cursor_init(
     *cursorp = (cdump != NULL) ? cdump : cursor;
     return (0);
 }
+
+/*
+ * __wt_cursor_get_details --
+ *     Vast majority of cursor types do not support retrieving contextual details.
+ */
+int
+__wt_cursor_get_details(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, const char *config)
+{
+    WT_UNUSED(detailsp);
+    WT_UNUSED(config);
+    return (__wt_cursor_notsup(cursor));
+}
