@@ -735,11 +735,6 @@ __wt_btcur_prev_on_page(WT_CURSOR_BTREE *cbt)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     bool key_out_of_bounds;
-#ifdef HAVE_DIAGNOSTIC
-    bool inclusive_set;
-
-    inclusive_set = false;
-#endif
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     session = CUR2S(cbt);
@@ -851,6 +846,11 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     size_t total_skipped, skipped;
     uint32_t flags;
     bool key_out_of_bounds, newpage, restart, need_walk;
+#ifdef HAVE_DIAGNOSTIC
+    bool inclusive_set;
+
+    inclusive_set = false;
+#endif
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     need_walk = false;
