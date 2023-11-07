@@ -1129,7 +1129,7 @@ __conn_close_session_callback(
     WT_UNUSED(session);
     WT_UNUSED(exit_walkp);
     WT_UNUSED(cookiep);
-    wt_session = &session->iface;
+    wt_session = &array_session->iface;
     /*
      * Notify the user that we are closing the session handle via the registered close callback.
      */
