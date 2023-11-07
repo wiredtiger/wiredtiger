@@ -19,7 +19,7 @@ struct __wt_generation_cookie {
 };
 
 /*
- * WT_SWEEP_COOKIE --
+ * WT_GENERATION_DRAIN_COOKIE --
  *   State passed through to callbacks during the session walk logic when
  *   performing a generation drain.
  */
