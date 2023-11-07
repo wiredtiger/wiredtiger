@@ -498,6 +498,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
     session->compact->max_time = (uint64_t)cval.val;
     __wt_epoch(session, &session->compact->begin);
+    __wt_epoch(session, &session->compact->last_progress);
 
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a
