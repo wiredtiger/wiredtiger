@@ -806,6 +806,44 @@ retry:
 }
 
 /*
+ * __wt_chunkcache_free_external --
+ *     Find chunks in the chunk cache using object id, and free the chunks.
+ */
+int
+__wt_chunkcache_free_external(
+  WT_SESSION_IMPL *session, uint32_t objectid, wt_off_t offset, uint32_t size)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_CHUNKCACHE_HASHID hash_id;
+    size_t already_read;
+    uint64_t bucket_id;
+    const char *object_name;
+    chunkcache = &S2C(session)->chunkcache;
+    already_read = 0;
+    object_name = NULL;
+
+    WT_RET(
+      __wt_tiered_name(session, session->dhandle, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
+
+    while (already_read < size) {
+        bucket_id = __chunkcache_tmp_hash(
+          chunkcache, &hash_id, object_name, objectid, offset + (wt_off_t)already_read);
+
+        __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+        TAILQ_FOREACH (chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk) {
+            if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
+                already_read += chunk->chunk_size;
+                __chunkcache_free_chunk(session, chunk);
+                __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+                break;
+            }
+        }
+    }
+    return (0);
+}
+
+/*
  * __wt_chunkcache_ingest --
  *     Read all the contents from a file and insert it into the chunkcache.
  */

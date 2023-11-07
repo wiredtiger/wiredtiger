@@ -228,8 +228,17 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
              */
             __wt_page_header_byteswap(buf->mem);
             return (0);
+        } else {
+            /*
+             * If chunk cache is configured we want to account for the race condition where the
+             * chunk cache could have stale content, and therefore a mismatched checksum. We do not
+             * want to fail here, retry the read once.
+             */
+            if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED)) {
+                WT_RET(__wt_chunkcache_free_external(session, objectid, offset, size));
+                WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+            }
         }
-
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             __wt_errx(session,
               "%s: potential hardware corruption, read checksum error for %" PRIu32
