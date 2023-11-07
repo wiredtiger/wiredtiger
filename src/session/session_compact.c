@@ -260,12 +260,13 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 
 /*
  * __compact_checkpoint --
- *     This function waits and triggers a checkpoint.
+ *     This function waits and triggers a checkpoint that can be forced.
  */
 static int
-__compact_checkpoint(WT_SESSION_IMPL *session, const char *cfg)
+__compact_checkpoint(WT_SESSION_IMPL *session, bool force)
 {
-    const char *checkpoint_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), cfg, NULL};
+    const char *checkpoint_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_checkpoint), force ? "force=1" : NULL, NULL};
 
     /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
     WT_RET(__wt_session_compact_check_interrupted(session));
@@ -293,7 +294,7 @@ __compact_worker(WT_SESSION_IMPL *session)
         session->op_handle[i]->compact_skip = false;
 
     /* Perform an initial checkpoint (see this file's leading comment for details). */
-    WT_ERR(__compact_checkpoint(session, NULL));
+    WT_ERR(__compact_checkpoint(session, false));
 
     /*
      * We compact 10% of a file on each pass (but the overall size of the file is decreasing each
@@ -351,8 +352,8 @@ __compact_worker(WT_SESSION_IMPL *session)
             break;
 
         /* Perform two checkpoints (see this file's leading comment for details). */
-        WT_ERR(__compact_checkpoint(session, NULL));
-        WT_ERR(__compact_checkpoint(session, "force=1"));
+        WT_ERR(__compact_checkpoint(session, false));
+        WT_ERR(__compact_checkpoint(session, true));
     }
 
 err:
