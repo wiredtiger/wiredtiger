@@ -570,6 +570,8 @@ extern int __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CUR
 extern int __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
   WT_CURSOR *cursor, const char *cfg[], WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curblock_init(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curbulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool bitmap,
@@ -1869,6 +1871,7 @@ extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern void __wt_connection_destroy(WT_CONNECTION_IMPL *conn);
+extern void __wt_curblock_close(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
 extern void __wt_cursor_get_hash(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup, uint64_t *hash_value);

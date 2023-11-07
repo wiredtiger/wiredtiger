@@ -637,6 +637,9 @@ err:
     if (F_ISSET(cursor, WT_CURSTD_BULK))
         WT_TRET(__wt_curbulk_close(session, (WT_CURSOR_BULK *)cursor));
 
+    if (F_ISSET(cursor, WT_CURSTD_BLOCK))
+        __wt_curblock_close(session, (WT_CURSOR_BLOCK *)cursor);
+
     WT_TRET(__wt_btcur_close(cbt, false));
     /* The URI is owned by the btree handle. */
     cursor->internal_uri = NULL;
@@ -938,8 +941,9 @@ err:
  *     Open a cursor for a given btree handle.
  */
 static int
-__curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], bool bulk,
-  bool bitmap, WT_DATA_HANDLE *hs_dhandle, WT_CKPT_SNAPSHOT *ckpt_snapshot, WT_CURSOR **cursorp)
+__curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], bool block,
+  bool bulk, bool bitmap, WT_DATA_HANDLE *hs_dhandle, WT_CKPT_SNAPSHOT *ckpt_snapshot,
+  WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
@@ -971,7 +975,6 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
-    WT_CURSOR_BULK *cbulk;
     WT_DECL_RET;
     size_t csize;
     bool cacheable;
@@ -981,7 +984,13 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     btree = S2BT(session);
     WT_ASSERT(session, btree != NULL);
 
-    csize = bulk ? sizeof(WT_CURSOR_BULK) : sizeof(WT_CURSOR_BTREE);
+    if (block)
+        csize = sizeof(WT_CURSOR_BLOCK);
+    else if (bulk)
+        csize = sizeof(WT_CURSOR_BULK);
+    else
+        csize = sizeof(WT_CURSOR_BTREE);
+
     cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
 
     WT_RET(__wt_calloc(session, 1, csize, &cbt));
@@ -1011,14 +1020,18 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
         WT_ASSERT(session, ckpt_snapshot->snapshot_txns == NULL);
     }
 
+    if (block) {
+        F_SET(cursor, WT_CURSTD_BLOCK);
+
+        WT_ERR(__wt_curblock_init(session, (WT_CURSOR_BLOCK *)cbt));
+    }
+
     if (bulk) {
         F_SET(cursor, WT_CURSTD_BULK);
 
-        cbulk = (WT_CURSOR_BULK *)cbt;
-
         /* Optionally skip the validation of each bulk-loaded key. */
         WT_ERR(__wt_config_gets_def(session, cfg, "skip_sort_check", 0, &cval));
-        WT_ERR(__wt_curbulk_init(session, cbulk, bitmap, cval.val == 0 ? 0 : 1));
+        WT_ERR(__wt_curbulk_init(session, (WT_CURSOR_BULK *)cbt, bitmap, cval.val == 0 ? 0 : 1));
     }
 
     /*
@@ -1094,10 +1107,10 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     WT_DATA_HANDLE *hs_dhandle;
     WT_DECL_RET;
     uint32_t flags;
-    bool bitmap, bulk, checkpoint_use_history, checkpoint_wait;
+    bool bitmap, block, bulk, checkpoint_use_history, checkpoint_wait;
 
     hs_dhandle = NULL;
-    bitmap = bulk = false;
+    block = bitmap = bulk = false;
     checkpoint_wait = true;
     flags = 0;
 
@@ -1134,6 +1147,9 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     /* Bulk handles require exclusive access. */
     if (bulk)
         LF_SET(WT_BTREE_BULK | WT_DHANDLE_EXCLUSIVE);
+
+    WT_RET(__wt_config_gets_def(session, cfg, "block", 0, &cval));
+    block = cval.val != 0;
 
     /* Find out if we're supposed to avoid opening the history store. */
     WT_RET(__wt_config_gets_def(session, cfg, "checkpoint_use_history", 1, &cval));
@@ -1198,8 +1214,8 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
         ret = __wt_session_get_btree_ckpt(session, uri, cfg, flags, NULL, NULL);
     WT_RET(ret);
 
-    WT_ERR(
-      __curfile_create(session, owner, cfg, bulk, bitmap, hs_dhandle, &ckpt_snapshot, cursorp));
+    WT_ERR(__curfile_create(
+      session, owner, cfg, block, bulk, bitmap, hs_dhandle, &ckpt_snapshot, cursorp));
 
     return (0);
 

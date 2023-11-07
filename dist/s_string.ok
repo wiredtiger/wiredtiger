@@ -604,6 +604,7 @@ csv
 ctime
 ctype
 curbackup
+curblock
 curbulk
 curconfig
 curdump

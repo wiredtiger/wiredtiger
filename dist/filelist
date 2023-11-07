@@ -89,6 +89,7 @@ src/conn/conn_sweep.c
 src/conn/conn_tiered.c
 src/cursor/cur_backup.c
 src/cursor/cur_backup_incr.c
+src/cursor/cur_block.c
 src/cursor/cur_bulk.c
 src/cursor/cur_config.c
 src/cursor/cur_ds.c

@@ -1500,6 +1500,9 @@ methods = {
 'WT_SESSION.log_printf' : Method([]),
 
 'WT_SESSION.open_cursor' : Method(cursor_runtime_config + [
+    Config('block', 'false', r'''
+        configure the block cursor. Enable getting block of key value pairs. Only supports row
+        store and raw data type'''),
     Config('bulk', 'false', r'''
         configure the cursor for bulk-loading, a fast, initial load path (see @ref tune_bulk_load
         for more information). Bulk-load may only be used for newly created objects and

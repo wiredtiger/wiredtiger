@@ -269,6 +269,14 @@ struct __wt_cursor_btree {
     uint32_t flags;
 };
 
+struct __wt_cursor_block {
+    WT_CURSOR_BTREE cbt;
+
+#define MAX_BLOCK_ITEM 100
+    WT_ITEM keys[MAX_BLOCK_ITEM];
+    WT_ITEM values[MAX_BLOCK_ITEM];
+};
+
 struct __wt_cursor_bulk {
     WT_CURSOR_BTREE cbt;
 
