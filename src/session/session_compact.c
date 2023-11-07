@@ -96,7 +96,9 @@
  * file, which would prevent any file truncation.  When the metadata is updated
  * for the second checkpoint, the blocks freed by compaction become available
  * for the third checkpoint, so the third checkpoint's blocks are written
- * towards the beginning of the file, and then the file can be truncated.
+ * towards the beginning of the file, and then the file can be truncated. Since
+ * the second checkpoint made the btree clean, to ensure the third checkpoint
+ * rewrites blocks too, it has to be forced. Otherwise, the btree is skipped.
  */
 
 /*
