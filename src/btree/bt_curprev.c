@@ -851,11 +851,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     size_t total_skipped, skipped;
     uint32_t flags;
     bool key_out_of_bounds, newpage, restart, need_walk;
-#ifdef HAVE_DIAGNOSTIC
-    bool inclusive_set;
-
-    inclusive_set = false;
-#endif
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     need_walk = false;
