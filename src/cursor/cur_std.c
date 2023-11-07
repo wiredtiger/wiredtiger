@@ -914,6 +914,10 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
          * for configurations that only differ by a cursor flag, which we can patch up if we find a
          * matching cursor.
          */
+        WT_RET(__wt_config_gets_def(session, cfg, "block", 0, &cval));
+        if (cval.val)
+            return (WT_NOTFOUND);
+
         WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
         if (cval.val)
             return (WT_NOTFOUND);
