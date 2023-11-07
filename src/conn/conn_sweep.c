@@ -273,7 +273,8 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
  *     Check if a given session hasn't swept. Callback from the session array walk.
  */
 static int
-__sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__sweep_check_session_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
     WT_SWEEP_COOKIE *cookie;
     uint64_t last, last_sweep;
@@ -281,8 +282,8 @@ __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void 
     cookie = (WT_SWEEP_COOKIE *)cookiep;
     WT_UNUSED(exit_walkp);
 
-    last = session->last_cursor_big_sweep;
-    last_sweep = session->last_sweep;
+    last = array_session->last_cursor_big_sweep;
+    last_sweep = array_session->last_sweep;
 
     /*
      * Get the earlier of the two timestamps, as they refer to sweeps of two different data
@@ -298,27 +299,28 @@ __sweep_check_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void 
      * violation.
      */
     if (last + 5 * 60 < cookie->now) {
-        if (!session->sweep_warning_5min) {
-            session->sweep_warning_5min = 1;
-            WT_STAT_CONN_INCR(cookie->original_session, no_session_sweep_5min);
+        if (!array_session->sweep_warning_5min) {
+            array_session->sweep_warning_5min = 1;
+            WT_STAT_CONN_INCR(session, no_session_sweep_5min);
         }
     } else {
-        session->sweep_warning_5min = 0;
+        array_session->sweep_warning_5min = 0;
     }
 
     /*
      * The same for 60 minutes.
      */
     if (last + 60 * 60 < cookie->now) {
-        if (!session->sweep_warning_60min) {
-            session->sweep_warning_60min = 1;
-            WT_STAT_CONN_INCR(cookie->original_session, no_session_sweep_60min);
-            __wt_verbose_warning(cookie->original_session, WT_VERB_DEFAULT,
+        if (!array_session->sweep_warning_60min) {
+            array_session->sweep_warning_60min = 1;
+            WT_STAT_CONN_INCR(session, no_session_sweep_60min);
+            __wt_verbose_warning(session, WT_VERB_DEFAULT,
               "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
-              session->id, (void *)session, session->name == NULL ? "EMPTY" : session->name);
+              array_session->id, (void *)array_session,
+              array_session->name == NULL ? "EMPTY" : array_session->name);
         }
     } else {
-        session->sweep_warning_60min = 0;
+        array_session->sweep_warning_60min = 0;
     }
 
     return (0);
@@ -335,10 +337,8 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
 
     WT_CLEAR(cookie);
     cookie.now = now;
-    cookie.original_session = session;
 
-    WT_IGNORE_RET(
-      __wt_session_array_walk(S2C(session), __sweep_check_session_callback, true, &cookie));
+    WT_IGNORE_RET(__wt_session_array_walk(session, __sweep_check_session_callback, true, &cookie));
 }
 
 /*

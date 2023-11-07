@@ -1100,15 +1100,17 @@ __conn_is_new(WT_CONNECTION *wt_conn)
  *     Rollback a single transaction, callback from the session array walk.
  */
 static int
-__conn_rollback_transaction_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__conn_rollback_transaction_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
     WT_SESSION *wt_session;
 
+    WT_UNUSED(session);
     WT_UNUSED(exit_walkp);
     WT_UNUSED(cookiep);
 
-    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
-        wt_session = &session->iface;
+    if (F_ISSET(array_session->txn, WT_TXN_RUNNING)) {
+        wt_session = &array_session->iface;
         return (wt_session->rollback_transaction(wt_session, NULL));
     }
     return (0);
@@ -1119,20 +1121,23 @@ __conn_rollback_transaction_callback(WT_SESSION_IMPL *session, bool *exit_walkp,
  *     Close a single session, callback from the session array walk.
  */
 static int
-__conn_close_session_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__conn_close_session_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
     WT_SESSION *wt_session;
 
+    WT_UNUSED(session);
     WT_UNUSED(exit_walkp);
     WT_UNUSED(cookiep);
     wt_session = &session->iface;
     /*
      * Notify the user that we are closing the session handle via the registered close callback.
      */
-    if (session->event_handler->handle_close != NULL)
-        WT_RET(session->event_handler->handle_close(session->event_handler, wt_session, NULL));
+    if (array_session->event_handler->handle_close != NULL)
+        WT_RET(array_session->event_handler->handle_close(
+          array_session->event_handler, wt_session, NULL));
 
-    return (__wt_session_close_internal(session));
+    return (__wt_session_close_internal(array_session));
 }
 
 /*
@@ -1173,10 +1178,12 @@ err:
      * transaction in one session could cause trouble when closing a file, even if that session
      * never referenced that file.
      */
-    WT_TRET(__wt_session_array_walk(conn, __conn_rollback_transaction_callback, true, NULL));
+    WT_TRET(__wt_session_array_walk(
+      conn->default_session, __conn_rollback_transaction_callback, true, NULL));
 
     /* Close open, external sessions. */
-    WT_TRET(__wt_session_array_walk(conn, __conn_close_session_callback, true, NULL));
+    WT_TRET(
+      __wt_session_array_walk(conn->default_session, __conn_close_session_callback, true, NULL));
 
     /*
      * Set MINIMAL again and call the event handler so that statistics can monitor any end of
@@ -2362,7 +2369,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
  *     increment the count. Callback from the session walk.
  */
 static int
-__verbose_dump_sessions_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__verbose_dump_sessions_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
     WT_VERBOSE_DUMP_COOKIE *cookie;
 
@@ -2370,12 +2378,12 @@ __verbose_dump_sessions_callback(WT_SESSION_IMPL *session, bool *exit_walkp, voi
     cookie = (WT_VERBOSE_DUMP_COOKIE *)cookiep;
 
     if (F_ISSET(session, WT_SESSION_INTERNAL)) {
-        ++cookie->internal_count;
+        ++cookie->internal_session_count;
         return (0);
     }
 
     /* Dump the session, passing relevant cursor information. */
-    return (__wt_session_dump(session, cookie->caller_session, cookie->show_cursors));
+    return (__wt_session_dump(session, array_session, cookie->show_cursors));
 }
 
 /*
@@ -2389,7 +2397,6 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 
     WT_CLEAR(cookie);
     cookie.show_cursors = show_cursors;
-    cookie.caller_session = session;
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32,
@@ -2399,10 +2406,10 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
      * While the verbose dump doesn't dump internal sessions it returns a count of them so we don't
      * instruct the walk to skip them.
      */
-    WT_RET(__wt_session_array_walk(S2C(session), __verbose_dump_sessions_callback, false, &cookie));
+    WT_RET(__wt_session_array_walk(session, __verbose_dump_sessions_callback, false, &cookie));
 
     if (!show_cursors)
-        WT_RET(__wt_msg(session, "Internal sessions: %" PRIu32, cookie.internal_count));
+        WT_RET(__wt_msg(session, "Internal sessions: %" PRIu32, cookie.internal_session_count));
 
     return (0);
 }

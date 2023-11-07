@@ -13,7 +13,6 @@
  */
 struct __wt_hazard_cookie {
     WT_REF *search_ref;
-    WT_SESSION_IMPL *original_session;
     WT_SESSION_IMPL **ret_session;
     WT_HAZARD *ret_hp;
     uint32_t walk_cnt;

@@ -303,25 +303,26 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
  *     and the hazard pointer. Callback from the session array walk.
  */
 static int
-__hazard_check_callback(WT_SESSION_IMPL *session, bool *exit_walkp, void *cookiep)
+__hazard_check_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
     WT_HAZARD_COOKIE *cookie;
     uint32_t i, hazard_inuse;
 
     cookie = (WT_HAZARD_COOKIE *)cookiep;
-    hazard_get_reference(session, &cookie->ret_hp, &hazard_inuse);
+    hazard_get_reference(array_session, &cookie->ret_hp, &hazard_inuse);
 
     if (hazard_inuse > cookie->max) {
         cookie->max = hazard_inuse;
-        WT_STAT_CONN_SET(cookie->original_session, cache_hazard_max, cookie->max);
+        WT_STAT_CONN_SET(session, cache_hazard_max, cookie->max);
     }
 
     for (i = 0; i < hazard_inuse; ++cookie->ret_hp, ++i) {
         ++cookie->walk_cnt;
         if (cookie->ret_hp->ref == cookie->search_ref) {
-            WT_STAT_CONN_INCRV(cookie->original_session, cache_hazard_walks, cookie->walk_cnt);
+            WT_STAT_CONN_INCRV(session, cache_hazard_walks, cookie->walk_cnt);
             if (cookie->ret_session != NULL)
-                *cookie->ret_session = session;
+                *cookie->ret_session = array_session;
             *exit_walkp = true;
             return (0);
         }
@@ -345,7 +346,6 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
     WT_HAZARD_COOKIE cookie;
 
     WT_CLEAR(cookie);
-    cookie.original_session = session;
     cookie.ret_session = sessionp;
     cookie.search_ref = ref;
 
@@ -359,7 +359,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      * resource generation for the duration of the walk to ensure that doesn't happen.
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
-    WT_IGNORE_RET(__wt_session_array_walk(S2C(session), __hazard_check_callback, false, &cookie));
+    WT_IGNORE_RET(__wt_session_array_walk(session, __hazard_check_callback, false, &cookie));
 
     if (cookie.ret_hp == NULL)
         /*

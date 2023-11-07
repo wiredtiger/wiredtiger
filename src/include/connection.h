@@ -833,8 +833,7 @@ struct __wt_connection_impl {
  *   State passed through to callbacks during the session walk logic when dumping all sessions.
  */
 struct __wt_verbose_dump_cookie {
-    WT_SESSION_IMPL *caller_session;
-    uint32_t internal_count;
+    uint32_t internal_session_count;
     bool show_cursors;
 };
 
@@ -845,5 +844,4 @@ struct __wt_verbose_dump_cookie {
  */
 struct __wt_sweep_cookie {
     uint64_t now;
-    WT_SESSION_IMPL *original_session;
 };

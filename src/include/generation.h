@@ -26,7 +26,6 @@ struct __wt_generation_cookie {
 struct __wt_generation_drain_cookie {
     WT_GENERATION_COOKIE base;
 
-    WT_SESSION_IMPL *original_session;
     struct timespec start;
     uint64_t minutes;
     int pause_cnt;
