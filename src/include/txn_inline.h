@@ -1224,8 +1224,8 @@ retry:
      */
     if (restored_upd != NULL) {
         WT_ASSERT(session, !WT_IS_HS(session->dhandle));
-        cbt->upd_value->buf.data = restored_upd->data;
-        cbt->upd_value->buf.size = restored_upd->size;
+        cbt->upd_value->buf->data = restored_upd->data;
+        cbt->upd_value->buf->size = restored_upd->size;
     } else {
         /*
          * When we inspected the update list we may have seen a tombstone leaving us with a valid
@@ -1242,7 +1242,7 @@ retry:
              * cell unpacking code will always return a correct time window even it returns a
              * WT_RESTART error.
              */
-            ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
+            ret = __wt_value_return_buf(cbt, cbt->ref, cbt->upd_value->buf, &tw);
             if (ret == WT_RESTART) {
                 read_onpage = false;
                 goto retry;
@@ -1257,8 +1257,8 @@ retry:
              */
             if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
               !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
-                cbt->upd_value->buf.data = NULL;
-                cbt->upd_value->buf.size = 0;
+                cbt->upd_value->buf->data = NULL;
+                cbt->upd_value->buf->size = 0;
                 cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
                 WT_TIME_WINDOW_COPY_STOP(&cbt->upd_value->tw, &tw);
                 return (0);
@@ -1275,8 +1275,8 @@ retry:
              */
             if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
                 if (cbt->upd_value->skip_buf) {
-                    cbt->upd_value->buf.data = NULL;
-                    cbt->upd_value->buf.size = 0;
+                    cbt->upd_value->buf->data = NULL;
+                    cbt->upd_value->buf->size = 0;
                 }
                 cbt->upd_value->type = WT_UPDATE_STANDARD;
 
@@ -1290,7 +1290,7 @@ retry:
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
-          cbt->upd_value, &cbt->upd_value->buf));
+          cbt->upd_value, cbt->upd_value->buf));
     }
 
     /*
@@ -1812,8 +1812,8 @@ static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
     if (!upd_value->skip_buf) {
-        upd_value->buf.data = upd->data;
-        upd_value->buf.size = upd->size;
+        upd_value->buf->data = upd->data;
+        upd_value->buf->size = upd->size;
     }
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         upd_value->tw.durable_stop_ts = upd->durable_ts;
@@ -1842,8 +1842,8 @@ __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value)
      * Make sure we don't touch the memory pointers here. If we have some allocated memory, that
      * could come in handy next time we need to write to the buffer.
      */
-    upd_value->buf.data = NULL;
-    upd_value->buf.size = 0;
+    upd_value->buf->data = NULL;
+    upd_value->buf->size = 0;
     WT_TIME_WINDOW_INIT(&upd_value->tw);
     upd_value->type = WT_UPDATE_INVALID;
 }

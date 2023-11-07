@@ -1409,7 +1409,7 @@ struct __wt_update {
  * the read functions can avoid the performance penalty of reconstructing modifies.
  */
 struct __wt_update_value {
-    WT_ITEM buf;
+    WT_ITEM *buf, _buf;
     WT_TIME_WINDOW tw;
     uint8_t type;
     bool skip_buf;

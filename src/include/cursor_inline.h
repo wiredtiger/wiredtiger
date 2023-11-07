@@ -7,6 +7,34 @@
  */
 
 /*
+ * __curfile_check_cbt_txn --
+ *     Enforce restrictions on nesting checkpoint cursors. The only nested cursors we should get to
+ *     from a checkpoint cursor are cursors for the corresponding history store checkpoint.
+ */
+static inline int
+__curfile_check_cbt_txn(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* If not reading a checkpoint, everything's fine. */
+    if (cbt->checkpoint_txn == NULL)
+        return (0);
+
+    /*
+     * It is ok if the current transaction is already a checkpoint transaction. Assert that we are
+     * the history store.
+     */
+    if (F_ISSET(txn, WT_TXN_IS_CHECKPOINT)) {
+        WT_ASSERT(session, WT_IS_HS(cbt->dhandle));
+        WT_ASSERT(session, WT_DHANDLE_IS_CHECKPOINT(cbt->dhandle));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_curhs_get_btree --
  *     Convert a history store cursor to the underlying btree.
  */
@@ -515,5 +543,7 @@ slow: /*
     kb->data = cbt->row_key->data;
     kb->size = cbt->row_key->size;
     cbt->rip_saved = rip;
+
+    F_SET(&cbt->iface, WT_CURSTD_BLOCK_COPY_KEY);
     return (0);
 }

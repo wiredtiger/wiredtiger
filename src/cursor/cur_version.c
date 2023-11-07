@@ -319,7 +319,7 @@ __curversion_next_int(WT_CURSOR *cursor)
          * ignore the overflow removed value here.
          */
         WT_ERR_ERROR_OK(
-          __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &cbt->upd_value->tw),
+          __wt_value_return_buf(cbt, cbt->ref, cbt->upd_value->buf, &cbt->upd_value->tw),
           WT_RESTART, true);
         if (ret == 0) {
             if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
@@ -394,11 +394,11 @@ __curversion_next_int(WT_CURSOR *cursor)
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_modify_apply_item(
-              session, file_cursor->value_format, &cbt->upd_value->buf, hs_value->data));
+              session, file_cursor->value_format, cbt->upd_value->buf, hs_value->data));
         } else {
             WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
-            cbt->upd_value->buf.data = hs_value->data;
-            cbt->upd_value->buf.size = hs_value->size;
+            cbt->upd_value->buf->data = hs_value->data;
+            cbt->upd_value->buf->size = hs_value->size;
         }
         upd_found = true;
     }

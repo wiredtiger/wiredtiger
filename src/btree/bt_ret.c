@@ -316,8 +316,8 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
      * We are here to return a value to the caller. Make sure we don't skip the buf.
      */
     WT_ASSERT(CUR2S(cbt), upd_value->type == WT_UPDATE_STANDARD && !upd_value->skip_buf);
-    cursor->value.data = upd_value->buf.data;
-    cursor->value.size = upd_value->buf.size;
+    cursor->value.data = upd_value->buf->data;
+    cursor->value.size = upd_value->buf->size;
 
     F_SET(cursor, WT_CURSTD_VALUE_INT);
 }

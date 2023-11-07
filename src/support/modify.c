@@ -493,7 +493,7 @@ retry:
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
         WT_ERR_ERROR_OK(
-          __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw), WT_RESTART, true);
+          __wt_value_return_buf(cbt, cbt->ref, upd_value->buf, &tw), WT_RESTART, true);
 
         /*
          * We race with checkpoint reconciliation removing the overflow items. Retry the read as the
@@ -516,12 +516,12 @@ retry:
     } else {
         /* The base update must not be a tombstone. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-        WT_ERR(__wt_buf_set(session, &upd_value->buf, upd->data, upd->size));
+        WT_ERR(__wt_buf_set(session, upd_value->buf, upd->data, upd->size));
     }
     /* Once we have a base item, roll forward through any visible modify updates. */
     while (modifies.size > 0) {
         __wt_update_vector_pop(&modifies, &upd);
-        WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &upd_value->buf, upd->data));
+        WT_ERR(__wt_modify_apply_item(session, cursor->value_format, upd_value->buf, upd->data));
     }
     upd_value->type = WT_UPDATE_STANDARD;
 err:

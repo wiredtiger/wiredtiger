@@ -723,6 +723,121 @@ restart_read_page:
 }
 
 /*
+ * __wt_btcur_prev_on_page --
+ *     Move to the previous record on the same page.
+ */
+int
+__wt_btcur_prev_on_page(WT_CURSOR_BTREE *cbt)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_SESSION_IMPL *session;
+    size_t total_skipped, skipped;
+    bool key_out_of_bounds;
+#ifdef HAVE_DIAGNOSTIC
+    bool inclusive_set;
+
+    inclusive_set = false;
+#endif
+    cursor = &cbt->iface;
+    key_out_of_bounds = false;
+    session = CUR2S(cbt);
+    total_skipped = 0;
+
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+
+    /*
+     * If this is an ordinary transactional cursor, make sure we are set up to read.
+     */
+    if (!WT_READING_CHECKPOINT(session))
+        __wt_txn_cursor_op(session);
+
+    WT_ASSERT(session, cbt->ref != NULL);
+    page = cbt->ref->page;
+    WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
+    WT_ERR(__cursor_row_prev(cbt, false, false, &skipped, &key_out_of_bounds));
+    total_skipped += skipped;
+
+    /*
+     * If we are doing an operation when the cursor has bounds set, we need to check if we have
+     * exited the next function due to the key being out of bounds. If so, we break instead of
+     * walking onto the next page. We're not directly returning here to allow the cursor to be reset
+     * first before we return WT_NOTFOUND.
+     */
+    if (key_out_of_bounds) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+
+    /*
+     * If we saw a lot of deleted records on this page, or we went all the way through a page and
+     * only saw deleted records, try to evict the page when we release it. Otherwise repeatedly
+     * deleting from the beginning of a tree can have quadratic performance. Take care not to force
+     * eviction of pages that are genuinely empty, in new trees.
+     *
+     * A visible stop timestamp could have been treated as a tombstone and accounted in the deleted
+     * count. Such a page might not have any new updates and be clean, but could benefit from
+     * reconciliation getting rid of the obsolete content. Hence mark the page dirty to force it
+     * through reconciliation.
+     */
+    if (page != NULL && cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD) {
+        WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
+        WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+    }
+    cbt->page_deleted_count = 0;
+
+err:
+    if (total_skipped != 0) {
+        if (total_skipped < 100)
+            WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
+        else
+            WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_ge_100);
+    }
+
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_total, total_skipped);
+
+    switch (ret) {
+    case 0:
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * Skip key order check, if next is called after a prev returned a prepare conflict error,
+         * i.e cursor has changed direction at a prepared update, hence current key returned could
+         * be same as earlier returned key.
+         *
+         * eg: Initial data set : (2,3,...10) insert key 1 in a prepare transaction. loop on prev
+         * will return 10,...3,2 and subsequent call to prev will return a prepare conflict. Now if
+         * we call next key 2 will be returned which will be same as earlier returned key.
+         *
+         * Additionally, reset the cursor check when we are using read uncommitted isolation mode
+         * and cross a page boundary. It's possible to see out-of-order keys when the earlier
+         * returned key is removed and new keys are inserted at the end of the page.
+         */
+        ret = __wt_cursor_key_order_check(session, cbt, false);
+#endif
+        break;
+    /*
+     * Cannot reset the cursor when we get not found. We may not be at the end of the table just end
+     * of the page. The block processing api needs the page to be pinned even we return not found.
+     */
+    case WT_NOTFOUND:
+        break;
+    case WT_PREPARE_CONFLICT:
+        /*
+         * If prepare conflict occurs, cursor should not be reset, as current cursor position will
+         * be reused in case of a retry from user.
+         */
+        F_SET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
+        break;
+    default:
+        WT_TRET(__cursor_reset(cbt));
+    }
+    F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
+
+    return (ret);
+}
+
+/*
  * __wt_btcur_prev --
  *     Move to the previous record in the tree.
  */

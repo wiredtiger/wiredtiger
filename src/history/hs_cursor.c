@@ -206,7 +206,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
      * We already have buffers containing the modify values so there's no good reason to allocate an
      * update other than to work with our modify vector implementation.
      */
-    WT_ERR(__wt_buf_set(session, &upd_value->buf, hs_value->data, hs_value->size));
+    WT_ERR(__wt_buf_set(session, upd_value->buf, hs_value->data, hs_value->size));
 skip_buf:
     upd_value->tw.durable_start_ts = durable_timestamp;
     upd_value->tw.start_txn = WT_TXN_NONE;

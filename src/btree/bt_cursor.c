@@ -1239,15 +1239,15 @@ retry:
                 if (btree->type == BTREE_COL_FIX) {
                     cbt->v = 0;
                     cbt->upd_value->type = WT_UPDATE_STANDARD;
-                    cbt->upd_value->buf.data = &cbt->v;
-                    cbt->upd_value->buf.size = 1;
+                    cbt->upd_value->buf->data = &cbt->v;
+                    cbt->upd_value->buf->size = 1;
                     goto duplicate;
                 }
             } else if (__cursor_fix_implicit(btree, cbt)) {
                 cbt->v = 0;
                 cbt->upd_value->type = WT_UPDATE_STANDARD;
-                cbt->upd_value->buf.data = &cbt->v;
-                cbt->upd_value->buf.size = 1;
+                cbt->upd_value->buf->data = &cbt->v;
+                cbt->upd_value->buf->size = 1;
                 goto duplicate;
             }
         }
@@ -2249,7 +2249,9 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     cbt->row_key = &cbt->_row_key;
     cbt->tmp = &cbt->_tmp;
     cbt->modify_update = &cbt->_modify_update;
+    cbt->modify_update->buf = &cbt->modify_update->_buf;
     cbt->upd_value = &cbt->_upd_value;
+    cbt->upd_value->buf = &cbt->upd_value->_buf;
 
     /* Initialize the value. */
     cbt->upd_value->type = WT_UPDATE_INVALID;
@@ -2277,8 +2279,8 @@ __wt_btcur_cache(WT_CURSOR_BTREE *cbt)
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
-    __wt_buf_free(session, &cbt->_modify_update.buf);
-    __wt_buf_free(session, &cbt->_upd_value.buf);
+    __wt_buf_free(session, cbt->_modify_update.buf);
+    __wt_buf_free(session, cbt->_upd_value.buf);
 }
 
 /*
@@ -2304,8 +2306,8 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
-    __wt_buf_free(session, &cbt->_modify_update.buf);
-    __wt_buf_free(session, &cbt->_upd_value.buf);
+    __wt_buf_free(session, cbt->_modify_update.buf);
+    __wt_buf_free(session, cbt->_upd_value.buf);
 #ifdef HAVE_DIAGNOSTIC
     __wt_buf_free(session, &cbt->_lastkey);
 #endif
