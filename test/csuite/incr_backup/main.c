@@ -827,11 +827,10 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     /* Save the rnd state in the seed global variable for error reporting */
     seed = rnd->v;
 
-    preserve = false;
     ncheckpoints = nreopens = 0;
     WT_CLEAR(tinfo);
     memset(&copy_opts, 0, sizeof(copy_opts));
-    copy_opts.preserve = true;
+    copy_opts.preserve = preserve;
     active_files_init(&active);
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
