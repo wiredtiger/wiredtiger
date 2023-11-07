@@ -716,6 +716,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->update_modify_cbt.ref = ref;
     r->update_modify_cbt.iface.value_format = btree->value_format;
     r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
+    r->update_modify_cbt.upd_value->buf = &r->update_modify_cbt.upd_value->_buf;
 
     /* Clear stats related data. */
     r->rec_page_cell_with_ts = false;

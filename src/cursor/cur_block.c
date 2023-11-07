@@ -38,6 +38,10 @@ __curblock_next_raw_n_walk(
         F_CLR(cursor, WT_CURSTD_BLOCK_COPY_KEY);
         cbt->upd_value->buf = &cblock->values[count];
         ret = __wt_btcur_next_on_page(cbt);
+        /*
+         * Ignore prepare conflict and return whatever we got so far. We shall get prepare conflict
+         * again next time we call the api.
+         */
         if (ret == WT_NOTFOUND || ret == WT_PREPARE_CONFLICT) {
             ret = 0;
             break;
@@ -114,6 +118,10 @@ __curblock_prev_raw_n_walk(
         F_CLR(cursor, WT_CURSTD_BLOCK_COPY_KEY);
         cbt->upd_value->buf = &cblock->values[count];
         ret = __wt_btcur_prev_on_page(cbt);
+        /*
+         * Ignore prepare conflict and return whatever we got so far. We shall get prepare conflict
+         * again next time we call the api.
+         */
         if (ret == WT_NOTFOUND || ret == WT_PREPARE_CONFLICT) {
             ret = 0;
             break;
