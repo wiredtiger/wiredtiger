@@ -806,12 +806,12 @@ err:
          * If prepare conflict occurs, cursor should not be reset, as current cursor position will
          * be reused in case of a retry from user.
          */
-        F_SET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
+        F_SET(cbt, WT_CBT_ITERATE_RETRY_PREV);
         break;
     default:
         WT_TRET(__cursor_reset(cbt));
     }
-    F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
+    F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
 
     return (ret);
 }
