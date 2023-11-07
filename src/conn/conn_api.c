@@ -2377,7 +2377,7 @@ __verbose_dump_sessions_callback(
     WT_UNUSED(exit_walkp);
     cookie = (WT_VERBOSE_DUMP_COOKIE *)cookiep;
 
-    if (F_ISSET(session, WT_SESSION_INTERNAL)) {
+    if (F_ISSET(array_session, WT_SESSION_INTERNAL)) {
         ++cookie->internal_session_count;
         return (0);
     }
