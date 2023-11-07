@@ -2279,8 +2279,8 @@ __wt_btcur_cache(WT_CURSOR_BTREE *cbt)
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
-    __wt_buf_free(session, cbt->_modify_update.buf);
-    __wt_buf_free(session, cbt->_upd_value.buf);
+    __wt_buf_free(session, &cbt->_modify_update._buf);
+    __wt_buf_free(session, &cbt->_upd_value._buf);
 }
 
 /*
@@ -2306,8 +2306,8 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
-    __wt_buf_free(session, cbt->_modify_update.buf);
-    __wt_buf_free(session, cbt->_upd_value.buf);
+    __wt_buf_free(session, &cbt->_modify_update._buf);
+    __wt_buf_free(session, &cbt->_upd_value._buf);
 #ifdef HAVE_DIAGNOSTIC
     __wt_buf_free(session, &cbt->_lastkey);
 #endif
