@@ -767,14 +767,12 @@ __wt_btcur_next_on_page(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    size_t total_skipped, skipped;
+    size_t skipped;
     bool key_out_of_bounds;
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     session = CUR2S(cbt);
-    total_skipped = 0;
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
@@ -784,11 +782,10 @@ __wt_btcur_next_on_page(WT_CURSOR_BTREE *cbt)
     if (!WT_READING_CHECKPOINT(session))
         __wt_txn_cursor_op(session);
 
-    WT_ASSERT(session, cbt->ref != NULL);
-    page = cbt->ref->page;
-    WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
+    WT_ASSERT(session,
+      cbt->ref != NULL && cbt->ref->page != NULL && cbt->ref->page->type == WT_PAGE_ROW_LEAF);
+
     WT_ERR(__cursor_row_next(cbt, false, false, &skipped, &key_out_of_bounds));
-    total_skipped += skipped;
 
     /*
      * If we are doing an operation when the cursor has bounds set, we need to check if we have
@@ -819,14 +816,14 @@ __wt_btcur_next_on_page(WT_CURSOR_BTREE *cbt)
     cbt->page_deleted_count = 0;
 
 err:
-    if (total_skipped != 0) {
-        if (total_skipped < 100)
+    if (skipped != 0) {
+        if (skipped < 100)
             WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
         else
             WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_ge_100);
     }
 
-    WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_total, total_skipped);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_total, skipped);
 
     switch (ret) {
     case 0:
