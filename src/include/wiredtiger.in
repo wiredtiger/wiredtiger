@@ -68,7 +68,8 @@ struct __wt_config_parser;
     typedef struct __wt_config_parser WT_CONFIG_PARSER;
 struct __wt_connection;     typedef struct __wt_connection WT_CONNECTION;
 struct __wt_cursor;     typedef struct __wt_cursor WT_CURSOR;
-struct __wt_cursor_details; typedef struct __wt_cursor_details WT_CURSOR_DETAILS;
+struct __wt_cursor_checkpoint_details; typedef struct __wt_cursor_checkpoint_details WT_CURSOR_CHECKPOINT_DETAILS;
+union __wt_cursor_details; typedef union __wt_cursor_details WT_CURSOR_DETAILS;
 struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;
 struct __wt_encryptor;      typedef struct __wt_encryptor WT_ENCRYPTOR;
 struct __wt_event_handler;  typedef struct __wt_event_handler WT_EVENT_HANDLER;
@@ -179,12 +180,14 @@ struct __wt_modify {
 /*!
  * The WT_CURSOR_DETAILS is used to report contextual information from a cursor handle.
  */
-struct __wt_cursor_details {
-    struct {
-        uint64_t oldest_timestamp;
-        uint64_t read_timestamp;
-        uint64_t stable_timestamp;
-    } checkpoint;
+struct __wt_cursor_checkpoint_details {
+    uint64_t oldest_timestamp;
+    uint64_t read_timestamp;
+    uint64_t stable_timestamp;
+};
+
+union __wt_cursor_details {
+    struct __wt_cursor_checkpoint_details checkpoint;
 };
 
 /*!

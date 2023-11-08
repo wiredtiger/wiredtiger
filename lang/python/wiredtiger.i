@@ -64,7 +64,7 @@ from packing import pack, unpack
     typedef unsigned int uint32_t;
 %}
 
-/* Set the input argument to point to a temporary variable */ 
+/* Set the input argument to point to a temporary variable */
 %typemap(in, numinputs=0) WT_CONNECTION ** (WT_CONNECTION *temp = NULL) {
 	$1 = &temp;
 }
@@ -314,10 +314,11 @@ from packing import pack, unpack
 	freeModifyArray($1);
 }
 
-/* 64 bit typemaps. */
+  /* 64 bit typemaps. */
 %typemap(in) uint64_t {
-	$1 = PyLong_AsUnsignedLongLong($input);
+        $1 = PyLong_AsUnsignedLongLong($input);
 }
+
 %typemap(out) uint64_t {
 	$result = PyLong_FromUnsignedLongLong($1);
 }
@@ -330,7 +331,7 @@ from packing import pack, unpack
 %feature("shadow") class::method %{
 	def method(self, *args):
 		'''method(self, config) -> int
-		
+
 		@copydoc class::method'''
 		try:
 			self._freecb()
@@ -370,7 +371,7 @@ DESTRUCTOR(__wt_file_system, fs_terminate)
 %typemap(default) const char *config { $1 = NULL; }
 %typemap(default) WT_CURSOR *to_dup { $1 = NULL; }
 
-/* 
+/*
  * Error returns other than WT_NOTFOUND generate an exception.
  * Use our own exception type, in future tailored to the kind
  * of error.
@@ -907,7 +908,7 @@ typedef int int_void;
 %pythoncode %{
 	def get_key(self):
 		'''get_key(self) -> object
-		
+
 		@copydoc WT_CURSOR::get_key
 		Returns only the first column.'''
 		k = self.get_keys()
@@ -917,7 +918,7 @@ typedef int int_void;
 
 	def get_keys(self):
 		'''get_keys(self) -> (object, ...)
-		
+
 		@copydoc WT_CURSOR::get_key'''
 		if self.is_json:
 			return [self._get_json_key()]
@@ -928,7 +929,7 @@ typedef int int_void;
 
 	def get_value(self):
 		'''get_value(self) -> object
-		
+
 		@copydoc WT_CURSOR::get_value
 		Returns only the first column.'''
 		v = self.get_values()
@@ -938,7 +939,7 @@ typedef int int_void;
 
 	def get_values(self):
 		'''get_values(self) -> (object, ...)
-		
+
 		@copydoc WT_CURSOR::get_value'''
 		if self.is_json:
 			return [self._get_json_value()]
@@ -963,7 +964,7 @@ typedef int int_void;
 
 	def set_key(self, *args):
 		'''set_key(self) -> None
-		
+
 		@copydoc WT_CURSOR::set_key'''
 		if len(args) == 1 and type(args[0]) == tuple:
 			args = args[0]
@@ -978,7 +979,7 @@ typedef int int_void;
 
 	def set_value(self, *args):
 		'''set_value(self) -> None
-		
+
 		@copydoc WT_CURSOR::set_value'''
 		if self.is_json:
 			self._set_value_str(args[0])
@@ -1358,7 +1359,7 @@ writeToPythonStream(const char *streamname, const char *message)
 	strcpy(&msg[msglen], "\n");
 
 	/* Acquire python Global Interpreter Lock. Otherwise can segfault. */
-	SWIG_PYTHON_THREAD_BEGIN_BLOCK; 
+	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
 
 	ret = 1;
 	if ((sys = PyImport_ImportModule("sys")) == NULL)

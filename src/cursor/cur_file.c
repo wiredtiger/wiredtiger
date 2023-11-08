@@ -119,7 +119,7 @@ __curfile_cursor_get_details(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, con
     WT_ASSERT(CUR2S(cursor), detailsp != NULL);
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    if (cbt->checkpoint_txn) {
+    if (cbt != NULL && cbt->checkpoint_txn != NULL) {
         detailsp->checkpoint.oldest_timestamp = cbt->checkpoint_txn->checkpoint_oldest_timestamp;
         detailsp->checkpoint.read_timestamp = cbt->checkpoint_txn->checkpoint_read_timestamp;
         detailsp->checkpoint.stable_timestamp = cbt->checkpoint_txn->checkpoint_stable_timestamp;
