@@ -150,7 +150,7 @@ public:
                      * starting a new one.
                      */
                     if (ret == WT_NOTFOUND)
-                        WT_IGNORE_RET_BOOL(tw->txn.commit());
+                        (void)(tw->txn.commit());
                     else if (ret == WT_ROLLBACK)
                         tw->txn.rollback();
                     else
