@@ -1737,6 +1737,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_INSERT_HEAD *ins_head;
     size_t size;
     int count;
+    size_t mem_split_threshold = 0;
 
     btree = S2BT(session);
 
@@ -1788,7 +1789,8 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
  * are 5 items on the page.
  */
 #define WT_MAX_SPLIT_COUNT 5
-    if (page->memory_footprint > (size_t)btree->maxleafpage * 2) {
+    mem_split_threshold = WT_MIN(btree->maxleafpage * 2, btree->splitmempage);
+    if (page->memory_footprint > mem_split_threshold) {
         for (count = 0, ins = ins_head->head[0]; ins != NULL; ins = ins->next[0]) {
             if (++count < WT_MAX_SPLIT_COUNT)
                 continue;
@@ -1813,7 +1815,8 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
          ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
         count += WT_MIN_SPLIT_MULTIPLIER;
         size += WT_MIN_SPLIT_MULTIPLIER * (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
-        if (count > WT_MIN_SPLIT_COUNT && size > (size_t)btree->maxleafpage) {
+        mem_split_threshold = (size_t)WT_MIN(btree->maxleafpage, btree->splitmempage);
+        if (count > WT_MIN_SPLIT_COUNT && size > mem_split_threshold) {
             WT_STAT_CONN_DATA_INCR(session, cache_inmem_splittable);
             return (true);
         }
