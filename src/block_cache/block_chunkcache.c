@@ -891,7 +891,7 @@ retry:
                     WT_STAT_CONN_INCR(session, chunkcache_spans_chunks_read);
                 already_read += size_copied;
                 remains_to_read -= size_copied;
-                
+
                 break;
             }
         }
