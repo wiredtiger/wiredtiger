@@ -287,4 +287,3 @@ table7.ops.truncate=1
 table7.runs.mirror=1
 table7.runs.source=table
 table7.runs.type=row-store
-
