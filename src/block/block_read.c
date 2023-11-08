@@ -221,6 +221,18 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     check_size = F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP;
     if (swap.checksum == checksum) {
         blk->checksum = 0;
+
+        /*
+         * If chunk cache is configured we want to account for the race condition where the chunk
+         * cache could have stale content, and therefore a mismatched checksum. We do not want to
+         * fail here, free the stale content and read once so we can retry.
+         */
+        if (!__wt_checksum_match(buf->mem, check_size, checksum)) {
+            if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED)) {
+                WT_RET(__wt_chunkcache_free_external(session, block, objectid, offset, size));
+                WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+            }
+        }
         if (__wt_checksum_match(buf->mem, check_size, checksum)) {
             /*
              * Swap the page-header as needed; this doesn't belong here, but it's the best place to
@@ -228,16 +240,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
              */
             __wt_page_header_byteswap(buf->mem);
             return (0);
-        } else {
-            /*
-             * If chunk cache is configured we want to account for the race condition where the
-             * chunk cache could have stale content, and therefore a mismatched checksum. We do not
-             * want to fail here, retry the read once.
-             */
-            if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED)) {
-                WT_RET(__wt_chunkcache_free_external(session, objectid, offset, size));
-                WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
-            }
         }
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             __wt_errx(session,
