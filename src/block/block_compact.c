@@ -72,7 +72,7 @@ __wt_block_compact_get_progress_stats(WT_SESSION_IMPL *session, WT_BM *bm,
  *     Output compact progress message.
  */
 void
-__wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *msg_countp)
+__wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     struct timespec cur_time;
     uint64_t time_diff;
@@ -83,9 +83,9 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *ms
     __wt_epoch(session, &cur_time);
 
     /* Log one progress message every twenty seconds. */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
-    if (time_diff / WT_PROGRESS_MSG_PERIOD > *msg_countp) {
-        ++*msg_countp;
+    time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->last_progress);
+    if (time_diff > WT_PROGRESS_MSG_PERIOD) {
+        session->compact->last_progress = cur_time;
         __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
           " compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, rewritten %" PRIu64
           " pages",
