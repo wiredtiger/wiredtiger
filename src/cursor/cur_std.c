@@ -219,11 +219,13 @@ __wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only)
  *     Unsupported cursor next_raw_n.
  */
 int
-__wt_cursor_next_raw_n_notsup(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_t *n)
+__wt_cursor_next_raw_n_notsup(
+  WT_CURSOR *cursor, size_t n, WT_ITEM **keys, WT_ITEM **values, size_t *n_ret)
 {
+    WT_UNUSED(n);
     WT_UNUSED(keys);
     WT_UNUSED(values);
-    WT_UNUSED(n);
+    WT_UNUSED(n_ret);
 
     return (__wt_cursor_notsup(cursor));
 }
@@ -233,11 +235,13 @@ __wt_cursor_next_raw_n_notsup(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **value
  *     Unsupported cursor prev_raw_n.
  */
 int
-__wt_cursor_prev_raw_n_notsup(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_t *n)
+__wt_cursor_prev_raw_n_notsup(
+  WT_CURSOR *cursor, size_t n, WT_ITEM **keys, WT_ITEM **values, size_t *n_ret)
 {
+    WT_UNUSED(n);
     WT_UNUSED(keys);
     WT_UNUSED(values);
-    WT_UNUSED(n);
+    WT_UNUSED(n_ret);
 
     return (__wt_cursor_notsup(cursor));
 }

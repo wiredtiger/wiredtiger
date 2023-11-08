@@ -373,14 +373,16 @@ struct __wt_cursor {
      * Only row store with raw key value pairs support this api.
      *
      * @param cursor the cursor handle
+     * @param n the maximum number of key value pairs to get
      * @param keys pointer to the array of the keys. len(keys) indicates the
      * maximum number of keys to return.
      * @param values pointer to the array of the values. len(values) must be
      * equal to len(keys).
-     * @param[out] n the number of key value pairs returned
+     * @param[out] n_ret the number of key value pairs returned
      * @errors
      */
-    int __F(next_raw_n)(WT_CURSOR *cursor, WT_ITEM** keys, WT_ITEM** values, size_t *n);
+    int __F(next_raw_n)(
+        WT_CURSOR *cursor, size_t n, WT_ITEM** keys, WT_ITEM** values, size_t *n_ret);
 
     /*!
      * Return the previous record.
@@ -405,14 +407,16 @@ struct __wt_cursor {
      * Only row store with raw key value pairs support this api.
      *
      * @param cursor the cursor handle
+     * @param n the maximum number of key value pairs to get
      * @param keys pointer to the array of the keys. len(keys) indicates the
      * maximum number of keys to return.
      * @param values pointer to the array of the values. len(values) must be
      * equal to len(keys).
-     * @param[out] n the number of key value pairs returned
+     * @param[out] n_ret the number of key value pairs returned
      * @errors
      */
-    int __F(prev_raw_n)(WT_CURSOR *cursor, WT_ITEM** keys, WT_ITEM** values, size_t *n);
+    int __F(prev_raw_n)(
+        WT_CURSOR *cursor, size_t n, WT_ITEM** keys, WT_ITEM** values, size_t *n_ret);
 
     /*!
      * Reset the cursor. Any resources held by the cursor are released,

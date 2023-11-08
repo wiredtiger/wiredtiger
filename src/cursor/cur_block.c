@@ -8,13 +8,19 @@
 
 #include "wt_internal.h"
 
+#define WT_BLOCK_CURSOR_KEY_VALUE_REALLOC(session, n, cblock)                            \
+    do {                                                                                 \
+        WT_ERR(__wt_realloc_def(session, &cblock->key_allocated, n, &cblock->keys));     \
+        WT_ERR(__wt_realloc_def(session, &cblock->value_allocated, n, &cblock->values)); \
+    } while (0)
+
 /*
  * __curblock_next_raw_n_walk --
  *     walk the tree to fill the key value pairs.
  */
 static int
-__curblock_next_raw_n_walk(
-  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_t *n)
+__curblock_next_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n, WT_ITEM **keys,
+  WT_ITEM **values, size_t *n_ret)
 {
     WT_CURSOR_BLOCK *cblock;
     WT_CURSOR_BTREE *cbt;
@@ -25,6 +31,8 @@ __curblock_next_raw_n_walk(
     cbt = (WT_CURSOR_BTREE *)cursor;
     count = 0;
 
+    WT_BLOCK_CURSOR_KEY_VALUE_REALLOC(session, n, cblock);
+
     F_CLR(cursor, WT_CURSTD_BLOCK_COPY_KEY);
     cbt->upd_value->buf = &cblock->values[0];
     WT_ERR(__wt_btcur_next(cbt, false));
@@ -34,7 +42,7 @@ __curblock_next_raw_n_walk(
 
     /* Ignore not found error from this point. */
 
-    for (; count < MAX_BLOCK_ITEM; ++count) {
+    for (; count < n; ++count) {
         F_CLR(cursor, WT_CURSTD_BLOCK_COPY_KEY);
         cbt->upd_value->buf = &cblock->values[count];
         ret = __wt_btcur_next_on_page(cbt);
@@ -53,7 +61,7 @@ __curblock_next_raw_n_walk(
 
     *keys = cblock->keys;
     *values = cblock->values;
-    *n = count;
+    *n_ret = count;
 err:
     cbt->upd_value->buf = &cbt->upd_value->_buf;
     F_CLR(cursor, WT_CURSTD_KEY_SET);
@@ -66,7 +74,7 @@ err:
  *     next_raw_n implementation for block cursor
  */
 static int
-__curblock_next_raw_n(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_t *n)
+__curblock_next_raw_n(WT_CURSOR *cursor, size_t n, WT_ITEM **keys, WT_ITEM **values, size_t *n_ret)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -80,7 +88,7 @@ __curblock_next_raw_n(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
     WT_WITH_CHECKPOINT(
-      session, cbt, ret = __curblock_next_raw_n_walk(session, cursor, keys, values, n));
+      session, cbt, ret = __curblock_next_raw_n_walk(session, cursor, n, keys, values, n_ret));
     WT_ERR(ret);
 
     /* The call maintains a position. */
@@ -95,8 +103,8 @@ err:
  *     walk the tree to fill the key value pairs.
  */
 static int
-__curblock_prev_raw_n_walk(
-  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_t *n)
+__curblock_prev_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n, WT_ITEM **keys,
+  WT_ITEM **values, size_t *n_ret)
 {
     WT_CURSOR_BLOCK *cblock;
     WT_CURSOR_BTREE *cbt;
@@ -107,6 +115,8 @@ __curblock_prev_raw_n_walk(
     cbt = (WT_CURSOR_BTREE *)cursor;
     count = 0;
 
+    WT_BLOCK_CURSOR_KEY_VALUE_REALLOC(session, n, cblock);
+
     F_CLR(cursor, WT_CURSTD_BLOCK_COPY_KEY);
     cbt->upd_value->buf = &cblock->values[0];
     WT_ERR(__wt_btcur_prev(cbt, false));
@@ -114,7 +124,7 @@ __curblock_prev_raw_n_walk(
         WT_ERR(__wt_buf_set(session, &cblock->keys[0], cursor->key.data, cursor->key.size));
     count++;
 
-    for (; count < MAX_BLOCK_ITEM; ++count) {
+    for (; count < n; ++count) {
         F_CLR(cursor, WT_CURSTD_BLOCK_COPY_KEY);
         cbt->upd_value->buf = &cblock->values[count];
         ret = __wt_btcur_prev_on_page(cbt);
@@ -133,7 +143,7 @@ __curblock_prev_raw_n_walk(
 
     *keys = cblock->keys;
     *values = cblock->values;
-    *n = count;
+    *n_ret = count;
 err:
     cbt->upd_value->buf = &cbt->upd_value->_buf;
     F_CLR(cursor, WT_CURSTD_KEY_SET);
@@ -146,7 +156,7 @@ err:
  *     prev_raw_n implementation for block cursor
  */
 static int
-__curblock_prev_raw_n(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_t *n)
+__curblock_prev_raw_n(WT_CURSOR *cursor, size_t n, WT_ITEM **keys, WT_ITEM **values, size_t *n_ret)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -160,7 +170,7 @@ __curblock_prev_raw_n(WT_CURSOR *cursor, WT_ITEM **keys, WT_ITEM **values, size_
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
     WT_WITH_CHECKPOINT(
-      session, cbt, ret = __curblock_prev_raw_n_walk(session, cursor, keys, values, n));
+      session, cbt, ret = __curblock_prev_raw_n_walk(session, cursor, n, keys, values, n_ret));
     WT_ERR(ret);
 
     /* The call maintains a position. */
@@ -193,9 +203,6 @@ __wt_curblock_init(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
     cursor->next_raw_n = __curblock_next_raw_n;
     cursor->prev_raw_n = __curblock_prev_raw_n;
 
-    WT_CLEAR(cblock->keys);
-    WT_CLEAR(cblock->values);
-
 err:
     return (ret);
 }
@@ -207,10 +214,15 @@ err:
 void
 __wt_curblock_close(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
 {
-    size_t i;
+    size_t i, size;
 
-    for (i = 0; i < MAX_BLOCK_ITEM; i++) {
+    size = cblock->key_allocated;
+
+    for (i = 0; i < size; i++) {
         __wt_buf_free(session, &cblock->keys[i]);
         __wt_buf_free(session, &cblock->values[i]);
     }
+
+    __wt_free(session, cblock->keys);
+    __wt_free(session, cblock->values);
 }
