@@ -40,11 +40,11 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
     rows = 10000
 
     format_values = [
-        # ('column', dict(key_format='r', value_format='S'))
-        ('row_string', dict(key_format='S', value_format='S'))
+        ('column', dict(key_format='r', value_format='S')),
+        ('row_string', dict(key_format='S', value_format='S')),
     ]
-    cache_types = []
-    # cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
+
+    cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
     if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
