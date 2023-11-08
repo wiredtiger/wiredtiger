@@ -689,7 +689,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, open_cursor, config, cfg);
-    printf("Opening cursor!!!!!!!!\n");
+
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
      * ready but can be used, then only allow a cursor uri of "statistics:" only. The conditional is

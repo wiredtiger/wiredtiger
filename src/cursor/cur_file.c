@@ -1198,7 +1198,6 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 
     WT_ERR(
       __curfile_create(session, owner, cfg, bulk, bitmap, hs_dhandle, &ckpt_snapshot, cursorp));
-    printf("DONE OPENING BTREE\n");
     return (0);
 
 err:

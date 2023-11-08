@@ -313,7 +313,7 @@ read:
                 WT_RET(__wt_cache_eviction_check(session, true, txn->mod_count == 0, NULL));
             WT_RET(__page_read(session, ref, flags));
 
-            __wt_page_trace(session, ref, "cache-miss");
+            __wt_page_trace(session, ref, "cache-miss", 0);
 
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
@@ -436,7 +436,7 @@ read:
             }
 
 skip_evict:
-            __wt_page_trace(session, ref, "cache-hit");
+            __wt_page_trace(session, ref, "cache-hit", 0);
             /*
              * If we read the page and are configured to not trash the cache, and no other thread
              * has already used the page, set the read generation so the page is evicted soon.

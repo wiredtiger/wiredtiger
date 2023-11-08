@@ -405,10 +405,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     WT_RET_NOTFOUND_OK(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
     if (cval.len == 0) {
         /* We are not opening a checkpoint. This is the simple case; retire it immediately. */
-        printf("SESSION_GET_DHANDLE\n");
         return (__wt_session_get_dhandle(session, uri, NULL, cfg, flags));
     }
-    printf("DONE ---- \n");
     /*
      * Here and below is only for checkpoints.
      *

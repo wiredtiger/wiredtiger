@@ -71,7 +71,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     btree = S2BT(session);
     dhandle = session->dhandle;
 
-    printf("Starting __wt_btree_open\n");
     /*
      * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
      * across a re-open. Clear all flags other than the operation flags (which are set by the
@@ -131,7 +130,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * minimum Btree internal node size.
      */
     btree->block_header = bm->block_header(bm);
-    printf("Inside __wt_btree_open\n");
     /*
      * Open the specified checkpoint unless it's a special command (special commands are responsible
      * for loading their own checkpoints, if any).
@@ -148,7 +146,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
             WT_ERR(__btree_tree_open_empty(session, creation));
         else {
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
-            &btree->root->addr = root_addr;
 
             /* Warm the cache, if possible. */
             WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
@@ -159,8 +156,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
                 WT_ERR(__btree_get_last_recno(session));
         }
     }
-    printf("Further down __wt_btree_open\n");
-    __wt_page_trace(session, &btree->root, "init-root");
 
     /*
      * Eviction ignores trees until the handle's open flag is set, configure eviction before that
@@ -671,6 +666,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 
     /* Finish initializing the root, root reference links. */
     __wt_root_ref_init(session, &btree->root, page, btree->type != BTREE_ROW);
+    __wt_page_trace(session, &btree->root, "init-root", tmp);
 
 err:
     __wt_buf_free(session, &dsk);

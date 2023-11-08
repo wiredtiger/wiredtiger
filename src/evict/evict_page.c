@@ -299,7 +299,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
     }
 
-    __wt_page_trace(session, ref, "evict");
+    __wt_page_trace(session, ref, "evict", 0);
 
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
@@ -898,20 +898,30 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
  *     Print a trace message about the page
  */
 void
-__wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message)
+__wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message, WT_ITEM *root_addr)
 {
     WT_ADDR_COPY addr;
     WT_DECL_ITEM(tmp);
     WT_PAGE *page;
+    const char *addr_str;
 
+    addr_str = NULL;
     page = ref->page;
-    if (__wt_ref_addr_copy(session, ref, &addr) && !__wt_scr_alloc(session, 0, &tmp)){
-        __wt_verbose(session, WT_VERB_CACHE_TRACE, "%s %p addr %s type %s read_gen %"
-          PRIu64 " parent_page %p", message, (void *)page,
-          __wt_addr_string(session, addr.addr, addr.size, tmp),
-          WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen, (void*)ref->home);
-        __wt_scr_free(session, &tmp);
+
+    if (root_addr)
+        addr_str = (char*)root_addr->data;
+
+    if (addr_str == NULL) {
+        if (__wt_ref_addr_copy(session, ref, &addr) && !__wt_scr_alloc(session, 0, &tmp))
+            addr_str = __wt_addr_string(session, addr.addr, addr.size, tmp);
+        else
+            addr_str = "[0: 0-0, 0, 0]";
     }
-    else
-        printf("Something went wrong for message %s, ref->addr is %p\n", message, (void*)ref->addr);
+
+    __wt_verbose(session, WT_VERB_CACHE_TRACE, "%s %p addr %s type %s read_gen %"
+          PRIu64 " parent_page %p", message, (void *)page, addr_str,
+          WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen, (void*)ref->home);
+    if (tmp != NULL)
+        __wt_scr_free(session, &tmp);
+
 }
