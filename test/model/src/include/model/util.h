@@ -29,10 +29,12 @@
 #ifndef MODEL_UTIL_H
 #define MODEL_UTIL_H
 
+#include <cstring>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -204,6 +206,16 @@ private:
 private:
     std::unordered_map<std::string, value_t> _map;
 };
+
+/*
+ * starts_with --
+ *     Check whether the string has the given prefix. (C++ does not have this until C++20.)
+ */
+inline bool
+starts_with(std::string_view str, const char *prefix)
+{
+    return str.compare(0, std::strlen(prefix), prefix) == 0;
+}
 
 /*
  * wt_cursor_insert --

@@ -152,6 +152,7 @@ from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
 kv_table_ptr
 debug_log_parser::table_by_fileid(uint64_t fileid)
 {
+    /* Remove the WT_LOGOP_IGNORE bit from the file ID. */
     uint64_t id = fileid & (WT_LOGOP_IGNORE - 1);
     auto table_itr = _fileid_to_table.find(id);
     if (table_itr == _fileid_to_table.end())
@@ -179,8 +180,8 @@ debug_log_parser::metadata_apply(const row_put &op)
     _metadata[key] = m;
 
     /* Special handling for column groups. */
-    if (key.substr(0, 9) == "colgroup:") {
-        std::string name = key.substr(9);
+    if (starts_with(key, "colgroup:")) {
+        std::string name = key.substr(std::strlen("colgroup:"));
         if (name.find(':') != std::string::npos)
             throw model_exception("The model does not currently support column groups");
 
@@ -198,7 +199,7 @@ debug_log_parser::metadata_apply(const row_put &op)
     }
 
     /* Special handling for files. */
-    if (key.substr(0, 5) == "file:") {
+    if (starts_with(key, "file:")) {
         uint64_t id = m->get_uint64("id");
         _fileid_to_file[id] = key;
         _file_to_fileid[key] = id;
@@ -214,12 +215,12 @@ debug_log_parser::metadata_apply(const row_put &op)
     }
 
     /* Special handling for LSM. */
-    if (key.substr(0, 4) == "lsm:")
+    if (starts_with(key, "lsm:"))
         throw model_exception("The model does not currently support LSM");
 
     /* Special handling for tables. */
-    if (key.substr(0, 6) == "table:") {
-        std::string name = key.substr(6);
+    if (starts_with(key, "table:")) {
+        std::string name = key.substr(std::strlen("table:"));
         if (!_database.contains_table(name)) {
             kv_table_ptr table = _database.create_table(name);
             table->set_key_value_format(m->get_string("key_format"), m->get_string("value_format"));
