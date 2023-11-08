@@ -163,9 +163,9 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 {
     WT_BLOCK_HEADER *blk, swap;
     size_t bufsize, check_size;
-    bool chunkcache_hit;
+    bool chunkcache_hit, checksum_match;
 
-    chunkcache_hit = false;
+    chunkcache_hit = checksum_match = false;
     __wt_verbose_debug2(session, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
 
@@ -227,13 +227,15 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
          * cache could have stale content, and therefore a mismatched checksum. We do not want to
          * fail here, free the stale content and read once so we can retry.
          */
-        if (!__wt_checksum_match(buf->mem, check_size, checksum)) {
+        checksum_match = __wt_checksum_match(buf->mem, check_size, checksum);
+        if (!checksum_match) {
             if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED)) {
                 WT_RET(__wt_chunkcache_free_external(session, block, objectid, offset, size));
                 WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+                checksum_match = __wt_checksum_match(buf->mem, check_size, checksum);
             }
         }
-        if (__wt_checksum_match(buf->mem, check_size, checksum)) {
+        if (checksum_match) {
             /*
              * Swap the page-header as needed; this doesn't belong here, but it's the best place to
              * catch all callers.
