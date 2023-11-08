@@ -897,6 +897,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     WT_DECL_RET;
     uint64_t bucket, overwrite_flag;
     bool have_config;
+    bool is_block;
 
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
         return (WT_NOTFOUND);
@@ -904,6 +905,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     /* If original config string is NULL or "", don't check it. */
     have_config =
       (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL && (cfg[2] != NULL || cfg[1][0] != '\0'));
+    is_block = false;
 
     /* Fast path overwrite configuration */
     if (have_config && cfg[2] == NULL && strcmp(cfg[1], "overwrite=false") == 0) {
@@ -913,15 +915,15 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
         overwrite_flag = WT_CURSTD_OVERWRITE;
 
     if (have_config) {
+        /* We allow block cursor to be cached. */
+        WT_RET(__wt_config_gets_def(session, cfg, "block", 0, &cval));
+        is_block = cval.val != 0;
+
         /*
          * Any cursors that have special configuration cannot be cached. There are some exceptions
          * for configurations that only differ by a cursor flag, which we can patch up if we find a
          * matching cursor.
          */
-        WT_RET(__wt_config_gets_def(session, cfg, "block", 0, &cval));
-        if (cval.val)
-            return (WT_NOTFOUND);
-
         WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
         if (cval.val)
             return (WT_NOTFOUND);
@@ -957,6 +959,10 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     bucket = hash_value & (S2C(session)->hash_size - 1);
     TAILQ_FOREACH (cursor, &session->cursor_cache[bucket], q) {
         if (cursor->uri_hash == hash_value && strcmp(cursor->uri, uri) == 0) {
+            /* Skip any cursor that is not a block cursor. */
+            if (is_block && !F_ISSET(cursor, WT_CURSTD_BLOCK))
+                continue;
+
             if ((ret = cursor->reopen(cursor, false)) != 0) {
                 F_CLR(cursor, WT_CURSTD_CACHEABLE);
                 session->dhandle = NULL;

@@ -181,6 +181,51 @@ err:
 }
 
 /*
+ * __curblock_cleanup --
+ *     cleanup the block cursor resources
+ */
+static inline void
+__curblock_cleanup(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
+{
+    size_t i, size;
+
+    size = cblock->key_allocated;
+
+    for (i = 0; i < size; i++) {
+        __wt_buf_free(session, &cblock->keys[i]);
+        __wt_buf_free(session, &cblock->values[i]);
+    }
+
+    __wt_free(session, cblock->keys);
+    cblock->key_allocated = 0;
+    __wt_free(session, cblock->values);
+    cblock->value_allocated = 0;
+}
+
+/*
+ * __curblock_cache --
+ *     cache implementation for block cursor
+ */
+static int
+__curblock_cache(WT_CURSOR *cursor)
+{
+    WT_CURSOR_BLOCK *cblock;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cblock = (WT_CURSOR_BLOCK *)cursor;
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    session = CUR2S(cursor);
+
+    __curblock_cleanup(session, cblock);
+
+    WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
  * __wt_curblock_init --
  *     Initialize a block cursor.
  */
@@ -202,6 +247,7 @@ __wt_curblock_init(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
 
     cursor->next_raw_n = __curblock_next_raw_n;
     cursor->prev_raw_n = __curblock_prev_raw_n;
+    cursor->cache = __curblock_cache;
 
 err:
     return (ret);
@@ -214,15 +260,5 @@ err:
 void
 __wt_curblock_close(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
 {
-    size_t i, size;
-
-    size = cblock->key_allocated;
-
-    for (i = 0; i < size; i++) {
-        __wt_buf_free(session, &cblock->keys[i]);
-        __wt_buf_free(session, &cblock->values[i]);
-    }
-
-    __wt_free(session, cblock->keys);
-    __wt_free(session, cblock->values);
+    __curblock_cleanup(session, cblock);
 }
