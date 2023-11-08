@@ -241,6 +241,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
             __wt_page_header_byteswap(buf->mem);
             return (0);
         }
+
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             __wt_errx(session,
               "%s: potential hardware corruption, read checksum error for %" PRIu32
