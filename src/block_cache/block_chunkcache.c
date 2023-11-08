@@ -842,6 +842,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
 
     WT_RET(
       __wt_tiered_name(session, session->dhandle, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
+
     /* A block may span two (or more) chunks. Loop until we have read all the data. */
     while (remains_to_read > 0) {
         /* Find the bucket for the chunk containing this offset. */
@@ -890,6 +891,7 @@ retry:
                     WT_STAT_CONN_INCR(session, chunkcache_spans_chunks_read);
                 already_read += size_copied;
                 remains_to_read -= size_copied;
+                
                 break;
             }
         }
