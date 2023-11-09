@@ -32,6 +32,7 @@
 #include <ostream>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "model/core.h"
 #include "wiredtiger.h"
@@ -39,11 +40,17 @@
 namespace model {
 
 /*
+ * byte_vector --
+ *     A vector of arbitrary bytes, used to represent a WT_ITEM.
+ */
+using byte_vector = std::vector<uint8_t>;
+
+/*
  * base_data_value --
  *     The base type for data values, which is an std::variant of all the relevant types that we
  *     support.
  */
-using base_data_value = std::variant<std::monostate, int64_t, uint64_t, std::string>;
+using base_data_value = std::variant<std::monostate, int64_t, uint64_t, std::string, byte_vector>;
 
 /*
  * data_value --
@@ -89,6 +96,16 @@ public:
      *     Unpack a WiredTiger buffer into a data value.
      */
     inline static data_value
+    unpack(const byte_vector &data, const char *format)
+    {
+        return unpack(data.data(), data.size(), format);
+    }
+
+    /*
+     * data_value::unpack --
+     *     Unpack a WiredTiger buffer into a data value.
+     */
+    inline static data_value
     unpack(const std::string &str, const char *format)
     {
         return unpack(str.c_str(), str.length(), format);
@@ -126,6 +143,12 @@ public:
  *     The "None" value.
  */
 extern const data_value NONE;
+
+/*
+ * operator<< --
+ *     Add human-readable output to the stream for a byte vector.
+ */
+std::ostream &operator<<(std::ostream &out, const byte_vector &data);
 
 /*
  * operator<< --

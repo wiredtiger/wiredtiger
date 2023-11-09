@@ -131,7 +131,7 @@ extern char *__wt_optarg;
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(enabled,file_max=10M,remove=false),session_max=%d," \
+    "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
     "statistics=(all),statistics_log=(wait=%d,json,on_close)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \

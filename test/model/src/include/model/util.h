@@ -66,8 +66,7 @@ public:
     inline ~wiredtiger_connection_guard()
     {
         if (_connection != nullptr)
-            (void)_connection->close(
-              _connection, _close_config.empty() ? nullptr : _close_config.c_str());
+            (void)_connection->close(_connection, _close_config.c_str());
     }
 
 private:

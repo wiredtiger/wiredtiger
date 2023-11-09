@@ -199,7 +199,7 @@ debug_log_parser::metadata_apply(const row_put &op)
     }
 
     /* Special handling for files. */
-    if (starts_with(key, "file:")) {
+    else if (starts_with(key, "file:")) {
         uint64_t id = m->get_uint64("id");
         _fileid_to_file[id] = key;
         _file_to_fileid[key] = id;
@@ -215,17 +215,26 @@ debug_log_parser::metadata_apply(const row_put &op)
     }
 
     /* Special handling for LSM. */
-    if (starts_with(key, "lsm:"))
+    else if (starts_with(key, "lsm:"))
         throw model_exception("The model does not currently support LSM");
 
     /* Special handling for tables. */
-    if (starts_with(key, "table:")) {
+    else if (starts_with(key, "table:")) {
         std::string name = key.substr(std::strlen("table:"));
         if (!_database.contains_table(name)) {
             kv_table_ptr table = _database.create_table(name);
             table->set_key_value_format(m->get_string("key_format"), m->get_string("value_format"));
         }
     }
+
+    /* Special handling for the system prefix. */
+    else if (starts_with(key, "system:")) {
+        /* We don't currently need to handle this. */
+    }
+
+    /* Otherwise this is an unsupported URI type. */
+    else
+        throw model_exception("Unsupported metadata URI: " + key);
 }
 
 /*

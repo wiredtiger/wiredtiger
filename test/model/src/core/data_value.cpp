@@ -46,14 +46,14 @@ namespace model {
 const data_value NONE = data_value::create_none();
 
 /*
- * item_to_string --
- *     Unpack a WiredTiger byte buffer into a string. This works because C++ strings allow NULL
- *     bytes to be included within the string, but this is arguably not the best solution.
+ * item_to_byte_vector --
+ *     Unpack a WiredTiger byte buffer into a byte vector.
  */
-inline static std::string
-item_to_string(const WT_ITEM &item)
+inline static byte_vector
+item_to_byte_vector(const WT_ITEM &item)
 {
-    return std::string((const char *)item.data, item.size);
+    const uint8_t *p = (const uint8_t *)item.data;
+    return byte_vector(p, p + item.size);
 }
 
 /*
@@ -101,7 +101,7 @@ data_value::unpack(const void *buffer, size_t length, const char *format)
         UNPACK_TO_DATA_VALUE("s", const char *, std::string);
         UNPACK_TO_DATA_VALUE("S", const char *, std::string);
         UNPACK_TO_DATA_VALUE("t", uint8_t, static_cast<uint64_t>);
-        UNPACK_TO_DATA_VALUE("u", WT_ITEM, item_to_string);
+        UNPACK_TO_DATA_VALUE("u", WT_ITEM, item_to_byte_vector);
     case 'x':
         throw model_exception("Type \"x\" is not implemented.");
     default:
@@ -127,10 +127,29 @@ data_value::wt_type() const
         return "Q";
     else if (std::holds_alternative<std::string>(*this))
         return "S";
+    else if (std::holds_alternative<byte_vector>(*this))
+        return "u";
     else {
         assert(!"Invalid code path unexpected data_value type");
         return ""; /* Make gcc happy. */
     }
+}
+
+/*
+ * operator<< --
+ *     Add human-readable output to the stream for a byte vector.
+ */
+std::ostream &
+operator<<(std::ostream &out, const byte_vector &data)
+{
+    char buf[4];
+    for (size_t i = 0; i < data.size(); i++) {
+        if (i > 0)
+            out << " ";
+        (void)snprintf(buf, sizeof(buf), "%02" PRIx8, data[i]);
+        out << buf;
+    }
+    return out;
 }
 
 /*
@@ -148,6 +167,8 @@ operator<<(std::ostream &out, const data_value &value)
         out << std::get<uint64_t>(value);
     else if (std::holds_alternative<std::string>(value))
         out << std::get<std::string>(value);
+    else if (std::holds_alternative<byte_vector>(value))
+        out << std::get<byte_vector>(value);
     else
         assert(!"Invalid code path unexpected data_value type");
 
@@ -196,7 +217,7 @@ get_wt_cursor_key_or_value(
         GET_DATA_VALUE("s", const char *, std::string);
         GET_DATA_VALUE("S", const char *, std::string);
         GET_DATA_VALUE("t", uint8_t, static_cast<uint64_t>);
-        GET_DATA_VALUE("u", WT_ITEM, item_to_string);
+        GET_DATA_VALUE("u", WT_ITEM, item_to_byte_vector);
     case 'x':
         throw model_exception("Type \"x\" is not implemented.");
     default:
@@ -275,12 +296,12 @@ set_wt_cursor_key_or_value(WT_CURSOR *cursor, void set_fn(WT_CURSOR *cursor, ...
         break;
     }
     case 'u': {
-        if (!std::holds_alternative<std::string>(value))
+        if (!std::holds_alternative<byte_vector>(value))
             throw model_exception("Incompatible data_value type");
         WT_ITEM item;
         memset(&item, 0, sizeof(item));
-        item.data = std::get<std::string>(value).c_str();
-        item.size = std::get<std::string>(value).length();
+        item.data = std::get<byte_vector>(value).data();
+        item.size = std::get<byte_vector>(value).size();
         /*
          * It is safe to pass the pointer to WT_ITEM, because the implementation will only use its
          * data and size fields, without keeping a reference to the actual WT_ITEM.
