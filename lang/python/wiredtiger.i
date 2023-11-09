@@ -170,12 +170,29 @@ from packing import pack, unpack
 	}
 }
 
+%rename (CursorDetailsCheckpoint) __wt_cursor_details_checkpoint;
+%ignore __wt_cursor_details_checkpoint::oldest_timestamp;
+%ignore __wt_cursor_details_checkpoint::read_timestamp;
+%ignore __wt_cursor_details_checkpoint::stable_timestamp;
+
+%extend __wt_cursor_details_checkpoint {
+%pythoncode %{
+	def __init__(self):
+		self.oldest_timestamp = 0
+		self.read_timestamp = 0
+		self.stable_timestamp = 0
+
+	def __repr__(self):
+		return f'CursorDetailsCheckpoint(oldest={self.oldest_timestamp}, read={self.read_timestamp}, stable={self.stable_timestamp})'
+%}
+};
+
 %rename (CursorDetails) __wt_cursor_details;
 %ignore __wt_cursor_details::checkpoint;
 
-%typemap(in, numimputs=0) WT_CURSOR_DETAILS * %{
+%typemap(in, numimputs=0) WT_CURSOR_DETAILS * {
 	$1 = malloc(sizeof(WT_CURSOR_DETAILS));
-%}
+}
 
 %typemap(freearg) WT_CURSOR_DETAILS * {
 	free($1);
@@ -185,22 +202,16 @@ from packing import pack, unpack
 	%append_output(SWIG_NewPointerObj($1, $1_descriptor, SWIG_POINTER_OWN));
 }
 
-%rename (CursorDetailsCheckpoint) __wt_cursor_details_checkpoint;
-%ignore __wt_cursor_details_checkpoint::oldest_timestamp;
-%ignore __wt_cursor_details_checkpoint::read_timestamp;
-%ignore __wt_cursor_details_checkpoint::stable_timestamp;
-
-%extend __wt_cursor_details_checkpoint {
+%extend __wt_cursor_details {
 %pythoncode %{
-	def __init__(self):
-		self.oldest_timestmap = 0
-		self.read_timestamp = 0
-		self.stable_timestamp = 0
+         def __init__(self):
+         	self.checkpoint = CursorDetailsCheckpoint()
 
-	def __repr__(self):
-		return f'CursorDetailsCheckpoint(oldest={self.oldest_timestamp}, read={self.read_timestamp}, stable={self.stable_timestamp})'
+         def __repr__(self):
+         	return 'CursorDetails'
 %}
 };
+
 
 %typemap(argout) (WT_MODIFY *entries_string, int *nentriesp) {
 	int i;

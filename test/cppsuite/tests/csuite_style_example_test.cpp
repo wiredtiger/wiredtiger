@@ -114,9 +114,18 @@ main(int argc, char *argv[])
     testutil_check(insert_session->create(
       insert_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA.c_str()));
 
+    testutil_check(insert_session->checkpoint(insert_session, nullptr));
+
+    const std::string cursor_config = "";
+    WT_CURSOR *ckpt_cursor;
+    testutil_check(insert_session->open_cursor(
+      insert_session, collection_name.c_str(), nullptr, cursor_config.c_str(), &ckpt_cursor));
+    WT_CURSOR_DETAILS details;
+    testutil_check(ckpt_cursor->get_details(ckpt_cursor, &details, nullptr));
+
+
     /* Open different cursors. */
     WT_CURSOR *insert_cursor, *read_cursor;
-    const std::string cursor_config = "";
     testutil_check(insert_session->open_cursor(
       insert_session, collection_name.c_str(), nullptr, cursor_config.c_str(), &insert_cursor));
     testutil_check(read_session->open_cursor(

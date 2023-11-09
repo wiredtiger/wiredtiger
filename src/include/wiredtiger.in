@@ -69,7 +69,7 @@ struct __wt_config_parser;
 struct __wt_connection;     typedef struct __wt_connection WT_CONNECTION;
 struct __wt_cursor;     typedef struct __wt_cursor WT_CURSOR;
 struct __wt_cursor_details_checkpoint; typedef struct __wt_cursor_details_checkpoint WT_CURSOR_DETAILS_CHECKPOINT;
-struct __wt_cursor_details; typedef struct __wt_cursor_details WT_CURSOR_DETAILS;
+union __wt_cursor_details; typedef union __wt_cursor_details WT_CURSOR_DETAILS;
 struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;
 struct __wt_encryptor;      typedef struct __wt_encryptor WT_ENCRYPTOR;
 struct __wt_event_handler;  typedef struct __wt_event_handler WT_EVENT_HANDLER;
@@ -178,12 +178,10 @@ struct __wt_modify {
 #define WT_INTPACK32_MAXSIZE    ((int)sizeof(int32_t) + 1)
 
 struct __wt_cursor_details_checkpoint {
-    uint64_t oldest_timestamp; 
-    uint64_t read_timestamp; 
-    uint64_t stable_timestamp; 
+    uint64_t stable_timestamp;
 };
 
-struct __wt_cursor_details { 
+union __wt_cursor_details {
     struct __wt_cursor_details_checkpoint checkpoint;
 };
 
