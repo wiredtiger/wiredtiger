@@ -225,12 +225,18 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
         /*
          * If chunk cache is configured we want to account for the race condition where the chunk
          * cache could have stale content, and therefore a mismatched checksum. We can also have
-         * data corrupted in the chunkcache. For those scenarios, we do not want to fail here, free
+         * corrupted data in the chunk cache. For those scenarios, we do not want to fail here, free
          * the stale content and read once so we can retry.
          */
         checksum_match = __wt_checksum_match(buf->mem, check_size, checksum);
         if (!checksum_match) {
             if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED)) {
+                __wt_verbose(session, WT_VERB_BLOCK,
+                  "Reloading data due to checksum mismatch for block: %s" PRIu32
+                  ", offset: %" PRIuMAX ", size: %" PRIu32
+                  " with possibly stale or corrupt chunkcache content for object id: %" PRIu32
+                  ". Retrying once.",
+                  block->name, (uintmax_t)offset, size, objectid);
                 WT_RET(__wt_chunkcache_free_external(session, block, objectid, offset, size));
                 WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
                 blk = WT_BLOCK_HEADER_REF(buf->mem);
