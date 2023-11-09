@@ -242,9 +242,6 @@ __wt_curblock_init(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
     if (CUR2BT(cbt)->type != BTREE_ROW)
         WT_ERR_MSG(session, EINVAL, "block cursor only supports row store");
 
-    if (!WT_STREQ(cursor->key_format, "u") || !WT_STREQ(cursor->value_format, "u"))
-        WT_ERR_MSG(session, EINVAL, "block cursor only supports raw format");
-
     cursor->next_raw_n = __curblock_next_raw_n;
     cursor->prev_raw_n = __curblock_prev_raw_n;
     cursor->cache = __curblock_cache;
