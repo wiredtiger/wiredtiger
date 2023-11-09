@@ -328,6 +328,16 @@ wiredtiger_unpack_uint(WT_PACK_STREAM *ps, uint64_t *up)
 }
 
 /*
+ * wiredtiger_unpack_single_int --
+ *     Unpack a single signed integer from a buffer.
+ */
+int
+wiredtiger_unpack_single_int(const void *buffer, size_t size, int64_t *ip)
+{
+    return (__wt_vunpack_int((const uint8_t **)&buffer, size, ip));
+}
+
+/*
  * __wt_ext_pack_start --
  *     WT_EXTENSION.pack_start method.
  */

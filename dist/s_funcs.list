@@ -50,6 +50,7 @@ wiredtiger_struct_unpack
 wiredtiger_test_config_validate
 wiredtiger_unpack_int
 wiredtiger_unpack_item
+wiredtiger_unpack_single_int
 wiredtiger_unpack_start
 wiredtiger_unpack_str
 wiredtiger_unpack_uint

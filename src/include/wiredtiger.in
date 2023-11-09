@@ -3749,6 +3749,17 @@ int wiredtiger_unpack_str(WT_PACK_STREAM *ps, const char **sp)
  */
 int wiredtiger_unpack_uint(WT_PACK_STREAM *ps, uint64_t *up)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
+
+/*!
+ * Unpack an signed integer from a buffer.
+ *
+ * @param buffer the start of the buffer
+ * @param size the size of the buffer
+ * @param[out] ip the unpacked signed integer
+ * @errors
+ */
+int wiredtiger_unpack_single_int(const void *buffer, size_t size, int64_t *ip)
+    WT_ATTRIBUTE_LIBRARY_VISIBLE;
 /*! @} */
 
 /*!
