@@ -59,11 +59,11 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 /*
  * Configuration.
  */
-#define ENV_CONFIG                                            \
-    "cache_size=20M,create,"                                  \
-    "debug_mode=(table_logging=true,checkpoint_retention=5)," \
-    "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(enabled,file_max=10M,remove=true),session_max=100," \
+#define ENV_CONFIG                                             \
+    "cache_size=20M,create,"                                   \
+    "debug_mode=(table_logging=true,checkpoint_retention=5),"  \
+    "eviction_updates_target=20,eviction_updates_trigger=90,"  \
+    "log=(enabled,file_max=10M,remove=false),session_max=100," \
     "statistics=(all),statistics_log=(wait=1,json,on_close)"
 
 /*
