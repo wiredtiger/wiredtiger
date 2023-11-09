@@ -270,31 +270,31 @@ typedef struct {
 
 /*
  * Quiet compiler warnings about unused function parameters and variables, and unused function
- * return values.  The equivalent of WT_ macros.
+ * return values. The equivalent of WT_ macros.
  */
 #define testutil_unused(var) (void)(var)
 #define testutil_not_read(v, val) \
-    do {                    \
-        (v) = (val);        \
-        (void)(v);          \
+    do {                          \
+        (v) = (val);              \
+        (void)(v);                \
     } while (0);
-#define testutil_ignore_ret(call)                \
+#define testutil_ignore_ret(call)          \
     do {                                   \
         uintmax_t __ignored_ret;           \
         __ignored_ret = (uintmax_t)(call); \
-        testutil_unused(__ignored_ret);          \
+        testutil_unused(__ignored_ret);    \
     } while (0)
 #define testutil_ignore_ret_bool(call)  \
-    do {                          \
-        bool __ignored_ret;       \
-        __ignored_ret = (call);   \
+    do {                                \
+        bool __ignored_ret;             \
+        __ignored_ret = (call);         \
         testutil_unused(__ignored_ret); \
     } while (0)
-#define testutil_ignore_ret_ptr(call)    \
-    do {                           \
-        const void *__ignored_ret; \
-        __ignored_ret = (call);    \
-        testutil_unused(__ignored_ret);  \
+#define testutil_ignore_ret_ptr(call)   \
+    do {                                \
+        const void *__ignored_ret;      \
+        __ignored_ret = (call);         \
+        testutil_unused(__ignored_ret); \
     } while (0)
 
 /* Basic constants. */

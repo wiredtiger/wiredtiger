@@ -69,8 +69,8 @@ get_time(char *time_buf, size_t buf_size)
       strftime(time_buf, buf_size, logger::include_date ? "[%Y-%m-%dT%H:%M:%S" : "[%H:%M:%S", tm);
 
     testutil_assert(alloc_size <= buf_size);
-    testutil_ignore_ret(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%" PRIu64 "Z]",
-      (uint64_t)epoch_nanosec % testutil_billion));
+    testutil_ignore_ret(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size,
+      ".%" PRIu64 "Z]", (uint64_t)epoch_nanosec % testutil_billion));
 }
 
 /* Used to print out traces for debugging purpose. */
