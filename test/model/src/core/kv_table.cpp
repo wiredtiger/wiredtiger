@@ -68,6 +68,23 @@ kv_table::get(const data_value &key, timestamp_t timestamp) const
  *     exception on error.
  */
 data_value
+kv_table::get(kv_checkpoint_ptr ckpt, const data_value &key, timestamp_t timestamp) const
+{
+    const kv_table_item *item = item_if_exists(key);
+    if (item == nullptr)
+        return NONE;
+    if (timestamp == k_timestamp_latest)
+        timestamp = ckpt->stable_timestamp() != k_timestamp_none ? ckpt->stable_timestamp() :
+                                                                   k_timestamp_latest;
+    return item->get(ckpt, timestamp);
+}
+
+/*
+ * kv_table::get --
+ *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
+ *     exception on error.
+ */
+data_value
 kv_table::get(kv_transaction_ptr txn, const data_value &key) const
 {
     const kv_table_item *item = item_if_exists(key);
@@ -90,6 +107,31 @@ kv_table::get_ext(const data_value &key, data_value &out, timestamp_t timestamp)
     }
     try {
         out = item->get(timestamp);
+        return out == NONE ? WT_NOTFOUND : 0;
+    } catch (wiredtiger_exception &e) {
+        out = NONE;
+        return e.error();
+    }
+}
+
+/*
+ * kv_table::get_ext --
+ *     Get the value and return the error code instead of throwing an exception.
+ */
+int
+kv_table::get_ext(
+  kv_checkpoint_ptr ckpt, const data_value &key, data_value &out, timestamp_t timestamp) const
+{
+    const kv_table_item *item = item_if_exists(key);
+    if (item == nullptr) {
+        out = NONE;
+        return WT_NOTFOUND;
+    }
+    if (timestamp == k_timestamp_latest)
+        timestamp = ckpt->stable_timestamp() != k_timestamp_none ? ckpt->stable_timestamp() :
+                                                                   k_timestamp_latest;
+    try {
+        out = item->get(ckpt, timestamp);
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;

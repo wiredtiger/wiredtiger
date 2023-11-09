@@ -26,6 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <iomanip>
+#include <sstream>
+
 #include "wiredtiger.h"
 extern "C" {
 #include "test_util.h"
@@ -323,4 +326,99 @@ wt_txn_insert(WT_SESSION *session, const char *uri, const model::data_value &key
     ret = model::wt_cursor_insert(cursor, key, value);
     testutil_check(cursor->close(cursor));
     return ret;
+}
+
+/*
+ * wt_ckpt_get --
+ *     Read from WiredTiger.
+ */
+model::data_value
+wt_ckpt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
+  const char *ckpt_name, model::timestamp_t debug_read_timestamp)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    size_t config_len;
+    const char *value;
+    char buf[64];
+    char *config;
+
+    value = nullptr;
+
+    if (ckpt_name == nullptr)
+        ckpt_name = WT_CHECKPOINT;
+    config_len = 64 + strlen(ckpt_name);
+    config = (char *)alloca(config_len);
+
+    /* Set the checkpoint name. */
+    testutil_snprintf(config, config_len, "checkpoint=%s", ckpt_name);
+
+    /* Set the checkpoint debug read timestamp, if set. */
+    if (debug_read_timestamp != model::k_timestamp_none) {
+        testutil_snprintf(
+          buf, sizeof(buf), ",debug=(checkpoint_read_timestamp=%" PRIx64 ")", debug_read_timestamp);
+        testutil_check(__wt_strcat(config, config_len, buf));
+    }
+
+    testutil_check(session->open_cursor(session, uri, nullptr, config, &cursor));
+
+    model::set_wt_cursor_key(cursor, key);
+    ret = cursor->search(cursor);
+    if (ret != WT_NOTFOUND && ret != WT_ROLLBACK)
+        testutil_check(ret);
+    if (ret == 0)
+        testutil_check(cursor->get_value(cursor, &value));
+
+    model::data_value r = ret == 0 ? model::data_value(value) : model::NONE;
+    testutil_check(cursor->close(cursor));
+    return r;
+}
+
+/*
+ * wt_ckpt_create --
+ *     Create a WiredTiger checkpoint.
+ */
+void
+wt_ckpt_create(WT_SESSION *session, const char *ckpt_name)
+{
+    size_t config_len;
+    char *config;
+
+    if (ckpt_name == nullptr)
+        config = nullptr;
+    else {
+        config_len = 64 + strlen(ckpt_name);
+        config = (char *)alloca(config_len);
+        testutil_snprintf(config, config_len, "name=%s", ckpt_name);
+    }
+
+    testutil_check(session->checkpoint(session, config));
+}
+
+/*
+ * wt_get_stable_timestamp --
+ *     Get the stable timestamp in WiredTiger.
+ */
+model::timestamp_t wt_get_stable_timestamp(WT_CONNECTION *conn)
+{
+    char buf[64];
+    testutil_check(conn->query_timestamp(conn, buf, "get=stable_timestamp"));
+
+    std::istringstream ss(buf);
+    model::timestamp_t t;
+    ss >> std::hex >> t;
+    return t;
+}
+
+/*
+ * wt_set_stable_timestamp --
+ *     Set the stable timestamp in WiredTiger.
+ */
+void
+wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+{
+    char buf[64];
+
+    testutil_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, timestamp);
+    testutil_check(conn->set_timestamp(conn, buf));
 }

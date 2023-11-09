@@ -81,6 +81,11 @@ kv_transaction::commit(timestamp_t commit_timestamp, timestamp_t durable_timesta
     if (durable_timestamp < commit_timestamp)
         throw model_exception("The durable timestamp cannot be older than the commit timestamp");
 
+    /* Validate the durable timestamp against the stable timestamp. */
+    if (durable_timestamp <= _database.stable_timestamp())
+        throw wiredtiger_abort_exception(
+          "The durable timestamp must be after the stable timestamp");
+
     /* Remember the timestamps. */
     _commit_timestamp = commit_timestamp;
     _durable_timestamp = durable_timestamp;
@@ -118,6 +123,11 @@ kv_transaction::prepare(timestamp_t prepare_timestamp)
 
     if (state() != kv_transaction_state::in_progress)
         throw model_exception("The transaction must be in progress");
+
+    /* Validate the prepare timestamp against the stable timestamp. */
+    if (prepare_timestamp <= _database.stable_timestamp())
+        throw wiredtiger_abort_exception(
+          "The prepare timestamp must be after the stable timestamp");
 
     _prepare_timestamp = prepare_timestamp;
 
