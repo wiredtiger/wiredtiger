@@ -4,6 +4,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 # Create the common test utility library for the model.
 add_library(wiredtiger_model_test_common SHARED
+   common/util.cpp
    common/wiredtiger_util.cpp
 )
 target_include_directories(wiredtiger_model_test_common PUBLIC common/include)

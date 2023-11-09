@@ -146,6 +146,12 @@ model::timestamp_t wt_get_stable_timestamp(WT_CONNECTION *conn);
 void wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp);
 
 /*
+ * wt_print_debug_log --
+ *     Print the contents of a debug log to a file.
+ */
+void wt_print_debug_log(WT_CONNECTION *conn, const char *file);
+
+/*
  * wt_model_assert --
  *     Check that the key has the same value in the model as in the database.
  */
