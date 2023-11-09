@@ -67,6 +67,14 @@ kv_transaction::commit(timestamp_t commit_timestamp, timestamp_t durable_timesta
 
     assert_in_progress_or_prepared();
 
+    /* Check if the commit was called without a commit timestamp being set - here or beforehand. */
+    bool without_timestamp =
+      commit_timestamp == k_timestamp_none && _commit_timestamp == k_initial_commit_timestamp;
+
+    /* Update and validate timestamps. */
+    if (commit_timestamp == k_timestamp_none)
+        commit_timestamp = without_timestamp ? k_timestamp_none : _commit_timestamp;
+
     if (txn_state == kv_transaction_state::prepared) {
         if (durable_timestamp == k_timestamp_none)
             throw wiredtiger_abort_exception(
@@ -81,8 +89,9 @@ kv_transaction::commit(timestamp_t commit_timestamp, timestamp_t durable_timesta
     if (durable_timestamp < commit_timestamp)
         throw model_exception("The durable timestamp cannot be older than the commit timestamp");
 
-    /* Validate the durable timestamp against the stable timestamp. */
-    if (durable_timestamp <= _database.stable_timestamp())
+    /* Validate the durable timestamp against the stable timestamp (only if it will be used). */
+    if (!_nontimestamped_updates.empty() && !without_timestamp &&
+      durable_timestamp <= _database.stable_timestamp())
         throw wiredtiger_abort_exception(
           "The durable timestamp must be after the stable timestamp");
 
@@ -180,6 +189,10 @@ kv_transaction::set_commit_timestamp(timestamp_t commit_timestamp)
     if (commit_timestamp == k_initial_commit_timestamp)
         throw model_exception("Invalid commit timestamp");
     assert_in_progress_or_prepared();
+
+    /* Validate the timestamp against the stable timestamp. */
+    if (commit_timestamp <= _database.stable_timestamp())
+        throw wiredtiger_abort_exception("The commit timestamp must be after the stable timestamp");
 
     /*
      * In non-prepared transactions, updates will have the durable timestamp the same as the commit

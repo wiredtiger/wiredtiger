@@ -79,7 +79,8 @@ void wt_txn_begin(
  * wt_txn_commit --
  *     Commit a transaction.
  */
-void wt_txn_commit(WT_SESSION *session, model::timestamp_t commit_timestamp,
+void wt_txn_commit(WT_SESSION *session,
+  model::timestamp_t commit_timestamp = model::k_timestamp_none,
   model::timestamp_t durable_timestamp = model::k_timestamp_none);
 
 /*

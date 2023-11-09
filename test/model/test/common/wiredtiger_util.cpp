@@ -333,11 +333,9 @@ wt_ckpt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
     WT_CURSOR *cursor;
     WT_DECL_RET;
     size_t config_len;
-    const char *value;
     char buf[64];
     char *config;
-
-    value = nullptr;
+    model::data_value out;
 
     if (ckpt_name == nullptr)
         ckpt_name = WT_CHECKPOINT;
@@ -361,11 +359,10 @@ wt_ckpt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
     if (ret != WT_NOTFOUND && ret != WT_ROLLBACK)
         testutil_check(ret);
     if (ret == 0)
-        testutil_check(cursor->get_value(cursor, &value));
+        out = model::get_wt_cursor_value(cursor);
 
-    model::data_value r = ret == 0 ? model::data_value(value) : model::NONE;
     testutil_check(cursor->close(cursor));
-    return r;
+    return ret == 0 ? out : model::NONE;
 }
 
 /*
@@ -393,7 +390,8 @@ wt_ckpt_create(WT_SESSION *session, const char *ckpt_name)
  * wt_get_stable_timestamp --
  *     Get the stable timestamp in WiredTiger.
  */
-model::timestamp_t wt_get_stable_timestamp(WT_CONNECTION *conn)
+model::timestamp_t
+wt_get_stable_timestamp(WT_CONNECTION *conn)
 {
     char buf[64];
     testutil_check(conn->query_timestamp(conn, buf, "get=stable_timestamp"));

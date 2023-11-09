@@ -175,6 +175,11 @@ test_checkpoint(void)
     database.set_stable_timestamp(62);
     model_testutil_assert_exception(txn1->commit(60, 62), model::wiredtiger_abort_exception);
     txn1->rollback();
+
+    txn1 = database.begin_transaction();
+    model_testutil_assert_exception(
+      txn1->set_commit_timestamp(62), model::wiredtiger_abort_exception);
+    txn1->rollback();
 }
 
 /*
