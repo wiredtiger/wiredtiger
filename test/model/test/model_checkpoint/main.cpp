@@ -239,7 +239,7 @@ test_checkpoint_wt(void)
 
     /* Set the stable timestamp and create an unnamed checkpoint. */
     wt_model_set_stable_timestamp_both(15);
-    wt_model_ckpt_create_both();
+    wt_model_ckpt_create_both(nullptr);
 
     /* Add more data. */
     wt_model_txn_begin_both(txn1, session1);
