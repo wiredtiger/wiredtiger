@@ -935,6 +935,9 @@ __wt_chunkcache_free_external(
     already_removed = 0;
     object_name = NULL;
 
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
+        return (ENOTSUP);
+
     /* Only cache read-only tiered objects. */
     if (!block->readonly)
         return (0);

@@ -163,9 +163,9 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 {
     WT_BLOCK_HEADER *blk, swap;
     size_t bufsize, check_size;
-    bool chunkcache_hit, checksum_match;
+    bool checksum_match, chunkcache_hit;
 
-    chunkcache_hit = checksum_match = false;
+    checksum_match = chunkcache_hit = false;
     __wt_verbose_debug2(session, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
 
@@ -224,14 +224,18 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 
         /*
          * If chunk cache is configured we want to account for the race condition where the chunk
-         * cache could have stale content, and therefore a mismatched checksum. We do not want to
-         * fail here, free the stale content and read once so we can retry.
+         * cache could have stale content, and therefore a mismatched checksum. We can also have
+         * data corrupted in the chunkcache. For those scenarios, we do not want to fail here, free
+         * the stale content and read once so we can retry.
          */
         checksum_match = __wt_checksum_match(buf->mem, check_size, checksum);
         if (!checksum_match) {
             if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED)) {
                 WT_RET(__wt_chunkcache_free_external(session, block, objectid, offset, size));
                 WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+                blk = WT_BLOCK_HEADER_REF(buf->mem);
+                __wt_block_header_byteswap_copy(blk, &swap);
+                check_size = F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP;
                 checksum_match = __wt_checksum_match(buf->mem, check_size, checksum);
             }
         }
