@@ -1767,8 +1767,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     int i;
     void *key;
 
-    WT_STAT_CONN_DATA_INCR(session, cache_inmem_split);
-
     page = ref->page;
     right = NULL;
     page_decr = parent_incr = right_incr = 0;
@@ -1981,9 +1979,10 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Split into the parent.
      */
-    if ((ret = __split_parent(session, ref, split_ref, 2, parent_incr, false, true)) == 0)
+    if ((ret = __split_parent(session, ref, split_ref, 2, parent_incr, false, true)) == 0) {
+        WT_STAT_CONN_DATA_INCR(session, cache_inmem_split);
         return (0);
-
+    }
     /*
      * Failure.
      *
