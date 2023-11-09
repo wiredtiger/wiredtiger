@@ -1320,6 +1320,9 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of put bypasses on checkpoint I/O",
   "block-cache: pre-fetch not triggered after single disk read",
   "block-cache: pre-fetch not triggered by page read",
+  "block-cache: pre-fetch not triggered for disk read count",
+  "block-cache: pre-fetch not triggered for internal session",
+  "block-cache: pre-fetch not triggered for same ref",
   "block-cache: pre-fetch page not on disk when reading",
   "block-cache: pre-fetch pages queued",
   "block-cache: pre-fetch pages read in background",
@@ -2028,6 +2031,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bypass_chkpt = 0;
     stats->block_prefetch_disk_one = 0;
     stats->block_prefetch_skipped = 0;
+    stats->block_prefetch_skipped_disk_read_count = 0;
+    stats->block_prefetch_skipped_internal_session = 0;
+    stats->block_prefetch_skipped_same_ref = 0;
     stats->block_prefetch_pages_fail = 0;
     stats->block_prefetch_pages_queued = 0;
     stats->block_prefetch_pages_read = 0;
@@ -2687,6 +2693,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bypass_chkpt += WT_STAT_READ(from, block_cache_bypass_chkpt);
     to->block_prefetch_disk_one += WT_STAT_READ(from, block_prefetch_disk_one);
     to->block_prefetch_skipped += WT_STAT_READ(from, block_prefetch_skipped);
+    to->block_prefetch_skipped_disk_read_count +=
+      WT_STAT_READ(from, block_prefetch_skipped_disk_read_count);
+    to->block_prefetch_skipped_internal_session +=
+      WT_STAT_READ(from, block_prefetch_skipped_internal_session);
+    to->block_prefetch_skipped_same_ref += WT_STAT_READ(from, block_prefetch_skipped_same_ref);
     to->block_prefetch_pages_fail += WT_STAT_READ(from, block_prefetch_pages_fail);
     to->block_prefetch_pages_queued += WT_STAT_READ(from, block_prefetch_pages_queued);
     to->block_prefetch_pages_read += WT_STAT_READ(from, block_prefetch_pages_read);
