@@ -147,6 +147,9 @@ struct __wt_ckpt {
 
     uint64_t sec; /* Wall clock time */
 
+    uint64_t flush_sec; /* Wall clock time for last flush */
+    uint64_t flush_ts;  /* Timestamp of the last flush */
+
     uint64_t size; /* Checkpoint size */
 
     uint64_t write_gen;     /* Write generation */

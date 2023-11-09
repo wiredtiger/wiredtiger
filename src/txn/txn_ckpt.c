@@ -131,7 +131,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                 WT_ERR(__wt_config_getones(session, value, "flush_time", &cval));
 
                 /* If nothing has changed, there's nothing to do. */
-                if (ckpt_time == 0 || (uint64_t)cval.val > ckpt_time) {
+                if (ckpt_time == 0 || (uint64_t)cval.val >= ckpt_time) {
                     WT_STAT_CONN_INCR(session, flush_tier_skipped);
                     continue;
                 }
@@ -1982,12 +1982,13 @@ __checkpoint_lock_dirty_tree(
 
     /*
      * If we decided to skip checkpointing, we need to remove the new checkpoint entry we might have
-     * appended to the list.
+     * appended to the list. Also, if we are adding a new checkpoint, there should only be one new
+     * addition.
      */
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
         WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt) {
-            /* Checkpoint(s) to be added are always at the end of the list. */
-            WT_ASSERT(session, !seen_ckpt_add || F_ISSET(ckpt, WT_CKPT_ADD));
+            /* Checkpoint to be added are always at the end of the list. */
+            WT_ASSERT(session, !seen_ckpt_add || !F_ISSET(ckpt, WT_CKPT_ADD));
             if (F_ISSET(ckpt, WT_CKPT_ADD)) {
                 seen_ckpt_add = true;
                 __wt_meta_checkpoint_free(session, ckpt);

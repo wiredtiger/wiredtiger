@@ -653,8 +653,11 @@ static int
 __meta_ckptlist_allocate_new_ckpt(
   WT_SESSION_IMPL *session, WT_CKPT **ckptbasep, size_t *allocated, const char *config)
 {
+    WT_BTREE *btree;
     WT_CKPT *ckptbase, *ckpt;
+    WT_CONNECTION_IMPL *conn;
     size_t slot;
+    bool flushing;
 
     ckptbase = *ckptbasep;
     slot = 0;
@@ -686,6 +689,18 @@ __meta_ckptlist_allocate_new_ckpt(
 
     ckpt->sec = session->current_ckpt_sec;
     WT_ASSERT(session, ckpt->sec > 0);
+
+    /* Update the time if we are flushing, else keep the previous checkpoint's values. */
+    btree = S2BT(session);
+    conn = S2C(session);
+    flushing = (btree->bm != NULL && btree->bm->switching);
+    if (flushing) {
+        ckpt->flush_sec = conn->flush_most_recent;
+        ckpt->flush_ts = conn->flush_ts;
+    } else {
+        ckpt->flush_sec = (slot == 0) ? 0 : ckptbase[slot - 1].flush_sec;
+        ckpt->flush_ts = (slot == 0) ? 0 : ckptbase[slot - 1].flush_ts;
+    }
 
     /*
      * If we're adding a checkpoint, in general it should be newer than the previous one according
@@ -1284,8 +1299,13 @@ __wt_meta_ckptlist_set(
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
+            break;
+        }
+    /* We can not have more than one new checkpoint getting added. */
+    WT_ASSERT(
+      session, ckpt->name == NULL || (F_ISSET(ckpt, WT_CKPT_ADD) && (ckpt + 1)->name == NULL));
 
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
@@ -1293,7 +1313,8 @@ __wt_meta_ckptlist_set(
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
     if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
-        WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
+        WT_ERR(__wt_tiered_set_metadata(
+          session, (WT_TIERED *)dhandle, buf, (ckpt->name == NULL ? NULL : ckpt)));
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
 err:
