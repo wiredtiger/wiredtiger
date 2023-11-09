@@ -68,7 +68,7 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
     M_W(rnd) = DEFAULT_SEED_W;
     M_Z(rnd) = DEFAULT_SEED_Z;
 
-    WT_WRITE_ONCE(*rnd_state, rnd);
+    *rnd_state = rnd;
 }
 
 /*
@@ -91,7 +91,7 @@ __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
     M_W(rnd) ^= DEFAULT_SEED_W;
     M_Z(rnd) ^= DEFAULT_SEED_Z;
 
-    WT_WRITE_ONCE(*rnd_state, rnd);
+    *rnd_state = rnd;
 }
 
 /*
@@ -124,7 +124,7 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
     rnd.v ^= rnd.v >> 7;
     rnd.v ^= rnd.v << 17;
 
-    WT_WRITE_ONCE(*rnd_state, rnd);
+    *rnd_state = rnd;
 }
 
 /*

@@ -31,19 +31,15 @@
  * same memory location, but to do this safely we need to precisely control how reads to memory are
  * performed. This macro gives us control over this.
  *
- * GCC and Clang have a __typeof__ compiler builtin which allows us to temporarily cast the value
- * being read as a volatile and achieve volatile semantics. For other compilers we'll fall back on
- * inserting a read barrier after the read (our pre-existing implementation) which prevents invented
- * and fused loads for this variable in the code following the expression.
- *
- * FIXME-WT-11718 - Once Windows build machines that support C11 _Generics are available this macro
- * will be updated to use _Generic on all platforms.
+ * To allow this macro to be used in a backwards compatible way it has been implemented using
+ * barriers. Technically this can be achieved by a volatile cast.
  */
-#if defined(__GNUC__) || defined(__clang__)
-#define WT_READ_ONCE(v, val) (v) = (*(volatile __typeof__(val) *)&(val))
-#else
-#define WT_READ_ONCE(v, val) WT_ORDERED_READ(v, val)
-#endif
+#define WT_READ_ONCE(v, val) \
+    do {                     \
+        WT_READ_BARRIER();   \
+        (v) = (val);         \
+        WT_READ_BARRIER();   \
+    } while (0)
 
 /*
  * WT_WRITE_ONCE --
@@ -59,14 +55,16 @@
  *
  * See the read once macro description for more details.
  *
- * FIXME-WT-11718 - Once Windows build machines that support C11 _Generics are available this macro
- * will be updated to use _Generic on all platforms.
+ * To allow this macro to be used in a backwards compatible way it has been implemented using
+ * barriers. Technically this can be achieved by a volatile cast.
  */
-#if defined(__GNUC__) || defined(__clang__)
-#define WT_WRITE_ONCE(v, val) ((*(volatile __typeof__(v) *)&(v)) = (val))
-#else
-#define WT_WRITE_ONCE(v, val) WT_PUBLISH(v, val)
-#endif
+#define WT_WRITE_ONCE(v, val) \
+    do {                      \
+        WT_WRITE_BARRIER();   \
+        (v) = (val);          \
+                              \
+        WT_WRITE_BARRIER();   \
+    } while (0)
 
 /*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
