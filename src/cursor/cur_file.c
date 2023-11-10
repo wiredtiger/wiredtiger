@@ -39,20 +39,20 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100)
         WT_TXN *__saved_txn;                                                                \
         uint64_t __saved_write_gen = (session)->checkpoint_write_gen;                       \
                                                                                             \
-        if ((cbt)->checkpoint_txn != NULL) {                                                \
+        if ((cbt)->checkpoint.txn != NULL) {                                                \
             __saved_txn = (session)->txn;                                                   \
             if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                               \
                 WT_ASSERT(                                                                  \
-                  session, (cbt)->checkpoint_write_gen == (session)->checkpoint_write_gen); \
+                  session, (cbt)->checkpoint.write_gen == (session)->checkpoint_write_gen); \
                 __saved_txn = NULL;                                                         \
             } else {                                                                        \
-                (session)->txn = (cbt)->checkpoint_txn;                                     \
-                if ((cbt)->checkpoint_hs_dhandle != NULL) {                                 \
+                (session)->txn = (cbt)->checkpoint.txn;                                     \
+                if ((cbt)->checkpoint.hs_dhandle != NULL) {                                 \
                     WT_ASSERT(session, (session)->hs_checkpoint == NULL);                   \
-                    (session)->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;    \
+                    (session)->hs_checkpoint = (cbt)->checkpoint.hs_dhandle->checkpoint;    \
                 }                                                                           \
                 __saved_write_gen = (session)->checkpoint_write_gen;                        \
-                (session)->checkpoint_write_gen = (cbt)->checkpoint_write_gen;              \
+                (session)->checkpoint_write_gen = (cbt)->checkpoint.write_gen;              \
             }                                                                               \
         } else                                                                              \
             __saved_txn = NULL;                                                             \
@@ -77,7 +77,7 @@ __curfile_check_cbt_txn(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     txn = session->txn;
 
     /* If not reading a checkpoint, everything's fine. */
-    if (cbt->checkpoint_txn == NULL)
+    if (cbt->checkpoint.txn == NULL)
         return (0);
 
     /*
@@ -103,7 +103,7 @@ __wt_cursor_checkpoint_id(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
 
-    return (cbt->checkpoint_id);
+    return (cbt->checkpoint.checkpoint_id);
 }
 
 /*
@@ -113,13 +113,14 @@ __wt_cursor_checkpoint_id(WT_CURSOR *cursor)
 static int
 __curfile_cursor_get_details(WT_CURSOR *cursor, WT_CURSOR_DETAILS *detailsp, const char *config)
 {
-    /* WT_CURSOR_BTREE *cbt; */
+    WT_CURSOR_BTREE *cbt;
 
     WT_UNUSED(config);
     WT_ASSERT(CUR2S(cursor), detailsp != NULL);
 
-    /* cbt = (WT_CURSOR_BTREE *)cursor; */
-    detailsp->checkpoint.stable_timestamp = 12345;
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    detailsp->checkpoint.checkpoint_id = cbt->checkpoint.checkpoint_id;
+    detailsp->checkpoint.stable_timestamp = cbt->checkpoint.stable_timestamp;
     return (0);
 }
 
@@ -661,14 +662,14 @@ err:
     WT_ASSERT(session, session->dhandle == NULL || session->dhandle->session_inuse > 0);
 
     /* Free any private transaction set up for a checkpoint cursor. */
-    if (cbt->checkpoint_txn != NULL)
-        __wt_txn_close_checkpoint_cursor(session, &cbt->checkpoint_txn);
+    if (cbt->checkpoint.txn != NULL)
+        __wt_txn_close_checkpoint_cursor(session, &cbt->checkpoint.txn);
 
     /* Close any history store handle set up for a checkpoint cursor. */
-    if (cbt->checkpoint_hs_dhandle != NULL) {
+    if (cbt->checkpoint.hs_dhandle != NULL) {
         WT_WITH_DHANDLE(
-          session, cbt->checkpoint_hs_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
-        cbt->checkpoint_hs_dhandle = NULL;
+          session, cbt->checkpoint.hs_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
+        cbt->checkpoint.hs_dhandle = NULL;
     }
 
     __wt_cursor_close(cursor);
@@ -897,10 +898,12 @@ __curfile_setup_checkpoint(WT_CURSOR_BTREE *cbt, const char *cfg[], WT_DATA_HAND
      * write generation we get might be 0 if the global checkpoint is old and didn't contain the
      * information; in that case we'll ignore it.
      */
-    cbt->checkpoint_write_gen = ckpt_snapshot->snapshot_write_gen;
+    cbt->checkpoint.write_gen = ckpt_snapshot->snapshot_write_gen;
 
-    /* Remember the checkpoint ID so it can be returned to the application. */
-    cbt->checkpoint_id = ckpt_snapshot->ckpt_id;
+    /* Remember the checkpoint ID and stable timestamp so they can be returned to the application.
+     */
+    cbt->checkpoint.checkpoint_id = ckpt_snapshot->ckpt_id;
+    cbt->checkpoint.stable_timestamp = ckpt_snapshot->stable_ts;
 
     /*
      * Override the read timestamp if explicitly provided. Otherwise it's the stable timestamp from
@@ -937,14 +940,14 @@ __curfile_setup_checkpoint(WT_CURSOR_BTREE *cbt, const char *cfg[], WT_DATA_HAND
      * store checkpoint cursor, we'll end up not using it, but we can't easily tell from here
      * whether that's the case. Pass in the snapshot info.
      */
-    WT_ERR(__wt_txn_init_checkpoint_cursor(session, ckpt_snapshot, &cbt->checkpoint_txn));
+    WT_ERR(__wt_txn_init_checkpoint_cursor(session, ckpt_snapshot, &cbt->checkpoint.txn));
 
     /*
      * Stow the history store handle on success. (It will be released further up the call chain if
      * we fail.)
      */
     WT_ASSERT(session, ret == 0);
-    cbt->checkpoint_hs_dhandle = hs_dhandle;
+    cbt->checkpoint.hs_dhandle = hs_dhandle;
 
 err:
     return (ret);
@@ -1089,7 +1092,7 @@ err:
          * any history store handle from the cursor before closing.
          */
         cbt->dhandle = NULL;
-        cbt->checkpoint_hs_dhandle = NULL;
+        cbt->checkpoint.hs_dhandle = NULL;
 
         WT_TRET(__curfile_close(cursor));
         *cursorp = NULL;

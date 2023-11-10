@@ -68,8 +68,7 @@ struct __wt_config_parser;
     typedef struct __wt_config_parser WT_CONFIG_PARSER;
 struct __wt_connection;     typedef struct __wt_connection WT_CONNECTION;
 struct __wt_cursor;     typedef struct __wt_cursor WT_CURSOR;
-struct __wt_cursor_details_checkpoint; typedef struct __wt_cursor_details_checkpoint WT_CURSOR_DETAILS_CHECKPOINT;
-union __wt_cursor_details; typedef union __wt_cursor_details WT_CURSOR_DETAILS;
+struct __wt_cursor_details; typedef struct __wt_cursor_details WT_CURSOR_DETAILS;
 struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;
 struct __wt_encryptor;      typedef struct __wt_encryptor WT_ENCRYPTOR;
 struct __wt_event_handler;  typedef struct __wt_event_handler WT_EVENT_HANDLER;
@@ -176,14 +175,6 @@ struct __wt_modify {
  * function will pack single integers into at most this many bytes.
  */
 #define WT_INTPACK32_MAXSIZE    ((int)sizeof(int32_t) + 1)
-
-struct __wt_cursor_details_checkpoint {
-    uint64_t stable_timestamp;
-};
-
-union __wt_cursor_details {
-    struct __wt_cursor_details_checkpoint checkpoint;
-};
 
 /*!
  * A WT_CURSOR handle is the interface to a cursor.
@@ -822,6 +813,24 @@ struct __wt_cursor {
 | WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE)
     uint64_t flags;
 #endif
+};
+
+/*!
+ * Checkpoint details that may be retrieved from a cursor. Only available
+ * through __wt_cursor_details.
+ *
+ * Not declared as a nested structure as that interferes with SWIG parsing.
+ */
+struct __wt_cursor_details_checkpoint {
+    uint64_t checkpoint_id;
+    uint64_t stable_timestamp;
+};
+
+/*!
+ * Details specific to the given cursor type.
+ */
+struct __wt_cursor_details {
+    struct __wt_cursor_details_checkpoint checkpoint;
 };
 
 /*! WT_SESSION::timestamp_transaction_uint timestamp types */

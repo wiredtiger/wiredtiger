@@ -123,7 +123,6 @@ main(int argc, char *argv[])
     WT_CURSOR_DETAILS details;
     testutil_check(ckpt_cursor->get_details(ckpt_cursor, &details, nullptr));
 
-
     /* Open different cursors. */
     WT_CURSOR *insert_cursor, *read_cursor;
     testutil_check(insert_session->open_cursor(

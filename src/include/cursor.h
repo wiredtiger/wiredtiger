@@ -209,18 +209,26 @@ struct __wt_cursor_btree {
     WT_UPDATE_VALUE *upd_value, _upd_value;
 
     /*
-     * Bits used by checkpoint cursor: a private transaction, used to provide the proper read
-     * snapshot; a reference to the corresponding history store checkpoint, which keeps it from
-     * disappearing under us if it's unnamed and also tracks its identity for use in history store
-     * accesses; a write generation, used to override the tree's base write generation in the
-     * unpacking cleanup code; and a checkpoint ID, which is available to applications through an
-     * undocumented interface to allow them to open cursors on multiple files and check if they got
-     * the same checkpoint in all of them.
+     * Data used by checkpoint cursor.
      */
-    WT_TXN *checkpoint_txn;
-    WT_DATA_HANDLE *checkpoint_hs_dhandle;
-    uint64_t checkpoint_write_gen;
-    uint64_t checkpoint_id;
+    struct {
+        /* Private transaction, used to provide the proper read snapshot. */
+        WT_TXN *txn;
+
+        /*
+         * Reference to the corresponding history store checkpoint, which keeps it from disappearing
+         * under us if it's unnamed and also tracks its identity for use in history store accesses.
+         */
+        WT_DATA_HANDLE *hs_dhandle;
+
+        /* Write generation, used to override the tree's base write generation in the unpacking
+         * cleanup code. */
+        uint64_t write_gen;
+
+        /* Available to the application via cursor::get_details() API call. */
+        uint64_t checkpoint_id;
+        wt_timestamp_t stable_timestamp;
+    } checkpoint;
 
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate

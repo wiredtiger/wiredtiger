@@ -1046,8 +1046,8 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
      * name in the session, substitute the one from this cursor. This allows the dump to print from
      * the history store, which otherwise will get skipped.
      */
-    if (cbt->checkpoint_hs_dhandle != NULL && session->hs_checkpoint == NULL) {
-        session->hs_checkpoint = cbt->checkpoint_hs_dhandle->checkpoint;
+    if (cbt->checkpoint.hs_dhandle != NULL && session->hs_checkpoint == NULL) {
+        session->hs_checkpoint = cbt->checkpoint.hs_dhandle->checkpoint;
         did_hs_checkpoint = true;
     }
 

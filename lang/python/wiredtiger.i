@@ -171,19 +171,17 @@ from packing import pack, unpack
 }
 
 %rename (CursorDetailsCheckpoint) __wt_cursor_details_checkpoint;
-%ignore __wt_cursor_details_checkpoint::oldest_timestamp;
-%ignore __wt_cursor_details_checkpoint::read_timestamp;
 %ignore __wt_cursor_details_checkpoint::stable_timestamp;
+%ignore __wt_cursor_details_checkpoint::checkpoint_id;
 
 %extend __wt_cursor_details_checkpoint {
 %pythoncode %{
 	def __init__(self):
-		self.oldest_timestamp = 0
-		self.read_timestamp = 0
 		self.stable_timestamp = 0
+		self.checkpoint_id = 0
 
 	def __repr__(self):
-		return f'CursorDetailsCheckpoint(oldest={self.oldest_timestamp}, read={self.read_timestamp}, stable={self.stable_timestamp})'
+		return f'CursorDetailsCheckpoint(checkpoint_id={self.checkpoint_id}, stable_timestamp={self.stable_timestamp})'
 %}
 };
 
@@ -191,15 +189,22 @@ from packing import pack, unpack
 %ignore __wt_cursor_details::checkpoint;
 
 %typemap(in, numimputs=0) WT_CURSOR_DETAILS * {
-	$1 = malloc(sizeof(WT_CURSOR_DETAILS));
+	if (__wt_calloc_one(NULL, &$1) != 0)
+		SWIG_exception_fail(SWIG_MemoryError, "WT calloc failed");
 }
 
-%typemap(freearg) WT_CURSOR_DETAILS * {
-	free($1);
+%typemap(freearg) (WT_CURSOR_DETAILS *) {
+	__wt_free(NULL, $1);
 }
 
-%typemap(argout) WT_CURSOR_DETAILS *output {
-	%append_output(SWIG_NewPointerObj($1, $1_descriptor, SWIG_POINTER_OWN));
+%typemap(argout) WT_CURSOR_DETAILS * {
+	PyObject *checkpoint = SWIG_NewPointerObj(Py_None, SWIGTYPE_p___wt_cursor_details_checkpoint, SWIG_POINTER_OWN);
+	PyObject_SetAttrString(checkpoint, "checkpoint_id", PyLong_FromUnsignedLongLong((*$1).checkpoint.checkpoint_id));
+	PyObject_SetAttrString(checkpoint, "stable_timestamp", PyLong_FromUnsignedLongLong((*$1).checkpoint.stable_timestamp));
+
+	PyObject *details = SWIG_NewPointerObj(Py_None, $1_descriptor, SWIG_POINTER_OWN);
+	PyObject_SetAttrString(details, "checkpoint", checkpoint);
+	%append_output(details);
 }
 
 %extend __wt_cursor_details {
@@ -208,7 +213,7 @@ from packing import pack, unpack
          	self.checkpoint = CursorDetailsCheckpoint()
 
          def __repr__(self):
-         	return 'CursorDetails'
+         	return f'CursorDetails(checkpoint={self.checkpoint})'
 %}
 };
 
@@ -255,9 +260,9 @@ from packing import pack, unpack
 	for (i = 0; i < *$2; i++) {
 		PyObject *o = PyString_InternFromString(list[i]);
 		PyList_SetItem($result, i, o);
-		free(list[i]);
+		__wt_free(NULL, list[i]);
 	}
-	free(list);
+	__wt_free(NULL, list);
 }
 
 
@@ -781,7 +786,7 @@ typedef int int_void;
 		WT_ITEM k;
 		uint8_t recno_buf[20];
 		size_t size;
-		int ret;
+		WT_DECL_RET;
 		if ((ret = wiredtiger_struct_size($self->session,
 		    &size, "r", recno)) != 0 ||
 		    (ret = wiredtiger_struct_pack($self->session,
@@ -809,7 +814,8 @@ typedef int int_void;
 	/* Don't return values, just throw exceptions on failure. */
 	int_void _get_key(char **datap, int *sizep) {
 		WT_ITEM k;
-		int ret = $self->get_key($self, &k);
+		WT_DECL_RET;
+		ret = $self->get_key($self, &k);
 		if (ret == 0) {
 			*datap = (char *)k.data;
 			*sizep = (int)k.size;
@@ -819,7 +825,8 @@ typedef int int_void;
 
 	int_void _get_json_key(char **charp, int *sizep) {
 		const char *k;
-		int ret = $self->get_key($self, &k);
+		WT_DECL_RET;
+		ret = $self->get_key($self, &k);
 		if (ret == 0) {
 			*charp = (char *)k;
 			*sizep = strlen(k);
@@ -829,7 +836,8 @@ typedef int int_void;
 
 	int_void _get_recno(uint64_t *recnop) {
 		WT_ITEM k;
-		int ret = $self->get_key($self, &k);
+		WT_DECL_RET;
+		ret = $self->get_key($self, &k);
 		if (ret == 0)
 			ret = wiredtiger_struct_unpack($self->session,
 			    k.data, k.size, "q", recnop);
@@ -838,7 +846,8 @@ typedef int int_void;
 
 	int_void _get_raw_key_value(char **key_datap, int *key_sizep, char **value_datap, int *value_sizep) {
 		WT_ITEM k, v;
-		int ret = $self->get_raw_key_value($self, &k, &v);
+		WT_DECL_RET;
+		ret = $self->get_raw_key_value($self, &k, &v);
 		if (ret == 0) {
 			*key_datap = (char *)k.data;
 			*key_sizep = (int)k.size;
@@ -850,7 +859,8 @@ typedef int int_void;
 
 	int_void _get_value(char **datap, int *sizep) {
 		WT_ITEM v;
-		int ret = $self->get_value($self, &v);
+		WT_DECL_RET;
+		ret = $self->get_value($self, &v);
 		if (ret == 0) {
 			*datap = (char *)v.data;
 			*sizep = (int)v.size;
@@ -860,7 +870,8 @@ typedef int int_void;
 
 	int_void _get_json_value(char **charp, int *sizep) {
 		const char *k;
-		int ret = $self->get_value($self, &k);
+		WT_DECL_RET;
+		ret = $self->get_value($self, &k);
 		if (ret == 0) {
 			*charp = (char *)k;
 			*sizep = strlen(k);
@@ -871,7 +882,8 @@ typedef int int_void;
 	int_void _get_version_cursor_value(char **metadatap, int *metadatasizep, char **datap, int *datasizep) {
 		WT_ITEM metadata;
 		WT_ITEM v;
-		int ret = $self->get_value($self, &metadata, &v);
+		WT_DECL_RET;
+		ret = $self->get_value($self, &metadata, &v);
 		if (ret == 0) {
 			*metadatap = (char *)metadata.data;
 			*metadatasizep = (int)metadata.size;
@@ -884,7 +896,7 @@ typedef int int_void;
 	/* compare: special handling. */
 	int _compare(WT_CURSOR *other) {
 		int cmp = 0;
-		int ret = 0;
+		WT_DECL_RET;
 		if (other == NULL) {
 			SWIG_Error(SWIG_NullReferenceError,
 			    "in method 'Cursor_compare', "
@@ -908,7 +920,7 @@ typedef int int_void;
 	/* equals: special handling. */
 	int _equals(WT_CURSOR *other) {
 		int cmp = 0;
-		int ret = 0;
+		WT_DECL_RET;
 		if (other == NULL) {
 			SWIG_Error(SWIG_NullReferenceError,
 			    "in method 'Cursor_equals', "
@@ -927,7 +939,8 @@ typedef int int_void;
 	/* search_near: special handling. */
 	int _search_near() {
 		int cmp = 0;
-		int ret = $self->search_near($self, &cmp);
+		WT_DECL_RET;
+		ret = $self->search_near($self, &cmp);
 		/*
 		 * Map less-than-zero to -1 and greater-than-zero to 1 to avoid
 		 * colliding with other errors.
@@ -1388,7 +1401,7 @@ writeToPythonStream(const char *streamname, const char *message)
 	PyObject *sys, *se, *write_method, *flush_method, *written,
 	    *arglist, *arglist2;
 	char *msg;
-	int ret;
+	WT_DECL_RET;
 	size_t msglen;
 
 	sys = NULL;
@@ -1457,7 +1470,7 @@ pythonMessageCallback(WT_EVENT_HANDLER *handler, WT_SESSION *session,
 static int
 pythonClose(PY_CALLBACK *pcb)
 {
-	int ret;
+	WT_DECL_RET;
 
 	/*
 	 * Ensure the global interpreter lock is held - so that Python
@@ -1481,7 +1494,7 @@ pythonClose(PY_CALLBACK *pcb)
 static int
 sessionCloseHandler(WT_SESSION *session_arg)
 {
-	int ret;
+	WT_DECL_RET;
 	PY_CALLBACK *pcb;
 	WT_SESSION_IMPL *session;
 
@@ -1500,7 +1513,7 @@ sessionCloseHandler(WT_SESSION *session_arg)
 static int
 cursorCloseHandler(WT_CURSOR *cursor)
 {
-	int ret;
+	WT_DECL_RET;
 	PY_CALLBACK *pcb;
 
 	ret = 0;
@@ -1543,7 +1556,7 @@ static int
 pythonCloseCallback(WT_EVENT_HANDLER *handler, WT_SESSION *session,
     WT_CURSOR *cursor)
 {
-	int ret;
+	WT_DECL_RET;
 
 	WT_UNUSED(handler);
 
