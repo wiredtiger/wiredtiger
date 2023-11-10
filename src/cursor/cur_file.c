@@ -39,16 +39,9 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool is_a_block, is_b_block;
 
     cbt = (WT_CURSOR_BTREE *)a;
     CURSOR_API_CALL(a, session, compare, CUR2BT(cbt));
-
-    is_a_block = F_ISSET(a, WT_CURSTD_BLOCK);
-    is_b_block = F_ISSET(b, WT_CURSTD_BLOCK);
-
-    if (is_a_block != is_b_block)
-        WT_ERR_MSG(session, EINVAL, "One of the cursor is a block cursor");
 
     /*
      * Check both cursors are a btree type then call the underlying function, it can handle cursors
@@ -76,16 +69,9 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool is_a_block, is_b_block;
 
     cbt = (WT_CURSOR_BTREE *)a;
     CURSOR_API_CALL(a, session, equals, CUR2BT(cbt));
-
-    is_a_block = F_ISSET(a, WT_CURSTD_BLOCK);
-    is_b_block = F_ISSET(b, WT_CURSTD_BLOCK);
-
-    if (is_a_block != is_b_block)
-        WT_ERR_MSG(session, EINVAL, "One of the cursor is a block cursor");
 
     /*
      * Check both cursors are a btree type then call the underlying function, it can handle cursors
