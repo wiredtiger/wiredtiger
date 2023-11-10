@@ -211,7 +211,7 @@ __curblock_cleanup(WT_SESSION_IMPL *session, WT_CURSOR_BLOCK *cblock)
 {
     size_t i, size;
 
-    size = cblock->key_allocated;
+    size = cblock->key_allocated / sizeof(WT_ITEM);
 
     for (i = 0; i < size; i++) {
         __wt_buf_free(session, &cblock->keys[i]);
