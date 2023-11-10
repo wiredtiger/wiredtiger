@@ -7,9 +7,19 @@ add_library(wiredtiger_model SHARED
     src/core/kv_table_item.cpp
     src/core/kv_table.cpp
     src/core/kv_transaction.cpp
+    src/core/util.cpp
     src/core/verify.cpp
+    src/driver/debug_log_parser.cpp
 )
-target_include_directories(wiredtiger_model PUBLIC src/include)
+
+target_include_directories(
+    wiredtiger_model
+    PUBLIC src/include
+    PRIVATE
+        ${CMAKE_BINARY_DIR}/config
+        ${CMAKE_SOURCE_DIR}/src/include
+        ${CMAKE_SOURCE_DIR}/test/3rdparty
+)
 
 target_compile_options(
     wiredtiger_model
@@ -19,5 +29,6 @@ target_compile_options(
 
 target_link_libraries(wiredtiger_model wt::wiredtiger)
 
-# Build tests.
+# Build the tests and the tools.
 add_subdirectory(test)
+add_subdirectory(tools)
