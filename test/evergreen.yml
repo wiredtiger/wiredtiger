@@ -471,6 +471,7 @@ functions:
           fi
 
           # Push the above-generated commit
+          ${PREPARE_PATH}
           virtualenv -p python3 venv
           source venv/bin/activate
           python -m pip install PyGithub
