@@ -38,6 +38,10 @@ __curblock_next_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n
     WT_ERR(__wt_btcur_next(cbt, false));
     if (F_ISSET(cursor, WT_CURSTD_BLOCK_COPY_KEY))
         WT_ERR(__wt_buf_set(session, &cblock->keys[0], cursor->key.data, cursor->key.size));
+    else {
+        cblock->keys[0].data = cursor->key.data;
+        cblock->keys[0].size = cursor->key.size;
+    }
     count++;
 
     /* Ignore not found error from this point. */
@@ -57,6 +61,10 @@ __curblock_next_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n
         WT_ERR(ret);
         if (F_ISSET(cursor, WT_CURSTD_BLOCK_COPY_KEY))
             WT_ERR(__wt_buf_set(session, &cblock->keys[count], cursor->key.data, cursor->key.size));
+        else {
+            cblock->keys[count].data = cursor->key.data;
+            cblock->keys[count].size = cursor->key.size;
+        }
     }
 
     *keys = cblock->keys;
@@ -82,6 +90,9 @@ __curblock_next_raw_n(WT_CURSOR *cursor, size_t n, WT_ITEM **keys, WT_ITEM **val
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, next_raw_n, CUR2BT(cbt));
+
+    if (n == 0)
+        WT_ERR_MSG(session, EINVAL, "n must be larger than 0");
 
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -122,6 +133,10 @@ __curblock_prev_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n
     WT_ERR(__wt_btcur_prev(cbt, false));
     if (F_ISSET(cursor, WT_CURSTD_BLOCK_COPY_KEY))
         WT_ERR(__wt_buf_set(session, &cblock->keys[0], cursor->key.data, cursor->key.size));
+    else {
+        cblock->keys[0].data = cursor->key.data;
+        cblock->keys[0].size = cursor->key.size;
+    }
     count++;
 
     for (; count < n; ++count) {
@@ -139,6 +154,10 @@ __curblock_prev_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n
         WT_ERR(ret);
         if (F_ISSET(cursor, WT_CURSTD_BLOCK_COPY_KEY))
             WT_ERR(__wt_buf_set(session, &cblock->keys[count], cursor->key.data, cursor->key.size));
+        else {
+            cblock->keys[count].data = cursor->key.data;
+            cblock->keys[count].size = cursor->key.size;
+        }
     }
 
     *keys = cblock->keys;
@@ -164,6 +183,9 @@ __curblock_prev_raw_n(WT_CURSOR *cursor, size_t n, WT_ITEM **keys, WT_ITEM **val
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, next_raw_n, CUR2BT(cbt));
+
+    if (n == 0)
+        WT_ERR_MSG(session, EINVAL, "n must be larger than 0");
 
     WT_ERR(__cursor_copy_release(cursor));
 
