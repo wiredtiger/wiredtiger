@@ -1789,7 +1789,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
  * are 5 items on the page.
  */
 #define WT_MAX_SPLIT_COUNT 5
-    if (page->memory_footprint > btree->maxleafpage * 2) {
+    if (page->memory_footprint > (size_t)btree->maxleafpage * 2) {
         for (count = 0, ins = ins_head->head[0]; ins != NULL; ins = ins->next[0]) {
             if (++count < WT_MAX_SPLIT_COUNT)
                 continue;
