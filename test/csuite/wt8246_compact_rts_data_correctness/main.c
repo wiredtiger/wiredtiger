@@ -252,10 +252,7 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     testutil_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%d", 30);
     testutil_check(conn->set_timestamp(conn, tscfg));
 
-    /*
-     * Remove 1/3 of data from the middle of the key range to let compact relocate blocks from the
-     * end of the file. Checkpoint the changes after the removal.
-     */
+    /* Remove records to give compaction some work to do. */
     remove_records(session, uri, 60);
 
     /*
@@ -388,7 +385,7 @@ populate(WT_SESSION *session, const char *uri)
 
 /*
  * remove_records --
- *     TODO: Add a comment describing this function.
+ *     Remove a third of the records from the start of the key range.
  */
 static void
 remove_records(WT_SESSION *session, const char *uri, int commit_ts)
@@ -401,8 +398,7 @@ remove_records(WT_SESSION *session, const char *uri, int commit_ts)
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
     testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%d", commit_ts);
-    /* Remove 1/3 of the records from the middle of the key range. */
-    for (i = NUM_RECORDS / 3; i < (NUM_RECORDS * 2) / 2; i++) {
+    for (i = 1; i <= NUM_RECORDS / 3; i++) {
         testutil_check(session->begin_transaction(session, NULL));
         cursor->set_key(cursor, i);
         testutil_check(cursor->remove(cursor));
