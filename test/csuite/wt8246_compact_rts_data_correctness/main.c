@@ -41,7 +41,7 @@ static const char compact_file[] = "compact_started";
  */
 static const char conn_config[] =
   "create,cache_size=1GB,timing_stress_for_test=[compact_slow],statistics=(all),statistics_log=("
-  "json,on_close,wait=1)";
+  "json,on_close,wait=1),debug_mode=(background_compact)";
 static char data_str[1024] = "";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=QQQS";
@@ -58,10 +58,9 @@ static void check(WT_SESSION *session, const char *uri, char *value, int commit_
 static void large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts);
 static void populate(WT_SESSION *session, const char *uri);
 static void remove_records(WT_SESSION *session, const char *uri, int commit_ts);
-static void run_compact(WT_SESSION *session, const char *uri);
-static int run_test(bool column_store, const char *uri, bool preserve);
+static int run_test(bool column_store, bool background_compact, const char *uri, bool preserve);
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void workload_compact(const char *, const char *, const char *uri);
+static void workload_compact(const char *, bool, const char *, const char *uri);
 
 /*
  * sig_handler --
@@ -86,30 +85,20 @@ int
 main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
+    int i, j;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
-    testutil_assert(run_test(false, opts->uri, opts->preserve) == EXIT_SUCCESS);
-    testutil_assert(run_test(true, opts->uri, opts->preserve) == EXIT_SUCCESS);
+    for (i = 0; i < 2; ++i) {
+        for (j = 0; j < 2; ++j)
+            testutil_assert(run_test(i % 2, j % 2, opts->uri, opts->preserve) == EXIT_SUCCESS);
+    }
 
     testutil_cleanup(opts);
 
     return (EXIT_SUCCESS);
-}
-
-/*
- * run_compact --
- *     Perform compact operation.
- */
-static void
-run_compact(WT_SESSION *session, const char *uri)
-{
-    printf("Compact start...\n");
-    /* Set a low threshold to ensure compaction runs. */
-    testutil_check(session->compact(session, uri, "free_space_target=1MB"));
-    printf("Compact end...\n");
 }
 
 /*
@@ -119,7 +108,7 @@ run_compact(WT_SESSION *session, const char *uri)
  * database.
  */
 static int
-run_test(bool column_store, const char *uri, bool preserve)
+run_test(bool column_store, bool background_compact, const char *uri, bool preserve)
 {
     struct sigaction sa;
     WT_CONNECTION *conn;
@@ -143,13 +132,21 @@ run_test(bool column_store, const char *uri, bool preserve)
     /* Child. */
     if (pid == 0) {
 
-        workload_compact(home, column_store ? table_config_col : table_config_row, uri);
+        workload_compact(
+          home, background_compact, column_store ? table_config_col : table_config_row, uri);
 
+        printf("Child finished processing...\n");
         /*
-         * We do not expect test to reach here. The child process should have been killed by the
-         * parent process.
+         * When performing foreground compaction, we do not expect test to reach here. The child
+         * process should have been killed by the parent process.
          */
-        printf("Error: child finished processing...\n");
+        if (!background_compact)
+            return (EXIT_FAILURE);
+        /*
+         * When background compaction is enabled, the compact calls enabled the service and returns
+         * straight away to the caller. Give some extra time for the parent to kill the child.
+         */
+        sleep(TIMEOUT);
         return (EXIT_FAILURE);
     }
 
@@ -209,7 +206,8 @@ run_test(bool column_store, const char *uri, bool preserve)
  * about to start.
  */
 static void
-workload_compact(const char *home, const char *table_config, const char *uri)
+workload_compact(
+  const char *home, bool background_compact, const char *table_config, const char *uri)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -256,7 +254,11 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     /* Create the sentinel file to indicate the parent process compaction has started. */
     testutil_sentinel(home, compact_file);
 
-    run_compact(session, uri);
+    printf("%s start...\n", background_compact ? "Background compaction" : "Foreground compaction");
+    /* Set a low threshold to ensure compaction runs. */
+    testutil_check(
+      session->compact(session, background_compact ? NULL : uri, "free_space_target=1MB"));
+    printf("%s end...\n", background_compact ? "Background compaction" : "Foreground compaction");
 }
 
 /*
