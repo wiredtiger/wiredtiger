@@ -192,8 +192,6 @@ run_test(bool column_store, const char *uri, bool preserve)
     check(session, uri, value_b, 40);
     check(session, uri, value_b, 50);
 
-    testutil_check(session->checkpoint(session, NULL));
-
     testutil_check(session->close(session, NULL));
     session = NULL;
 
