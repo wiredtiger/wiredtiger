@@ -113,8 +113,8 @@ static void
 run_compact(WT_SESSION *session, const char *uri)
 {
     printf("Compact start...\n");
-    /* Perform compact operation. */
-    testutil_check(session->compact(session, uri, NULL));
+    /* Set a low threshold to ensure compaction runs. */
+    testutil_check(session->compact(session, uri, "free_space_target=1MB"));
     printf("Compact end...\n");
 }
 
