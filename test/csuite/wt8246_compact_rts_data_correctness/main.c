@@ -103,9 +103,8 @@ main(int argc, char *argv[])
 
 /*
  * run_test --
- *     Child: starts compaction.
- *     Parent: kills the child as soon as the child has started compaction and verifies the unclean
- * database.
+ *     Child: starts compaction. Parent: kills the child as soon as the child has started compaction
+ *     and verifies the unclean database.
  */
 static int
 run_test(bool column_store, bool background_compact, const char *uri, bool preserve)
@@ -120,7 +119,8 @@ run_test(bool column_store, bool background_compact, const char *uri, bool prese
     testutil_work_dir_from_path(
       home, sizeof(home), column_store ? working_dir_col : working_dir_row);
 
-    printf("Work directory: %s\n", home);
+    printf("%s store, %s compaction, work directory: %s.\n", column_store ? "Column" : "Row",
+      background_compact ? "background" : "foreground", home);
     testutil_recreate_dir(home);
 
     /* Fork a child to create tables and perform operations on them. */
@@ -203,7 +203,7 @@ run_test(bool column_store, bool background_compact, const char *uri, bool prese
 /*
  * workload_compact --
  *     Create a table with content that can be compacted. Create a sentinel file when compaction is
- * about to start.
+ *     about to start.
  */
 static void
 workload_compact(
