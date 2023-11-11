@@ -816,10 +816,11 @@ struct __wt_cursor {
 };
 
 /*!
- * Checkpoint details that may be retrieved from a cursor. Only available
- * through __wt_cursor_details.
+ * Checkpoint details. Only accessible through __wt_cursor_details, so
+ * there is no corresponding WT_ typedef.
  *
- * Not declared as a nested structure as that interferes with SWIG parsing.
+ * Not declared as a nested structure in __wt_cursor_details as it is
+ * too difficult to support in SWIG.
  */
 struct __wt_cursor_details_checkpoint {
     uint64_t checkpoint_id;
@@ -827,7 +828,10 @@ struct __wt_cursor_details_checkpoint {
 };
 
 /*!
- * Details specific to the given cursor type.
+ * Details specific to the given cursor type filled in by WT_CURSOR::get_details().
+ *
+ * This is logically a union, but making it one would the create unacceptable
+ * ambiguity in the SWIG argout typemap.
  */
 struct __wt_cursor_details {
     struct __wt_cursor_details_checkpoint checkpoint;

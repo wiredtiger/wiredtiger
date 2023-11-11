@@ -169,55 +169,6 @@ from packing import pack, unpack
 		PyList_SetItem($result, i, o);
 	}
 }
-
-%rename (CursorDetailsCheckpoint) __wt_cursor_details_checkpoint;
-%ignore __wt_cursor_details_checkpoint::stable_timestamp;
-%ignore __wt_cursor_details_checkpoint::checkpoint_id;
-
-%extend __wt_cursor_details_checkpoint {
-%pythoncode %{
-	def __init__(self):
-		self.stable_timestamp = 0
-		self.checkpoint_id = 0
-
-	def __repr__(self):
-		return f'CursorDetailsCheckpoint(checkpoint_id={self.checkpoint_id}, stable_timestamp={self.stable_timestamp})'
-%}
-};
-
-%rename (CursorDetails) __wt_cursor_details;
-%ignore __wt_cursor_details::checkpoint;
-
-%typemap(in, numimputs=0) WT_CURSOR_DETAILS * {
-	if (__wt_calloc_one(NULL, &$1) != 0)
-		SWIG_exception_fail(SWIG_MemoryError, "WT calloc failed");
-}
-
-%typemap(freearg) (WT_CURSOR_DETAILS *) {
-	__wt_free(NULL, $1);
-}
-
-%typemap(argout) WT_CURSOR_DETAILS * {
-	PyObject *checkpoint = SWIG_NewPointerObj(Py_None, SWIGTYPE_p___wt_cursor_details_checkpoint, SWIG_POINTER_OWN);
-	PyObject_SetAttrString(checkpoint, "checkpoint_id", PyLong_FromUnsignedLongLong((*$1).checkpoint.checkpoint_id));
-	PyObject_SetAttrString(checkpoint, "stable_timestamp", PyLong_FromUnsignedLongLong((*$1).checkpoint.stable_timestamp));
-
-	PyObject *details = SWIG_NewPointerObj(Py_None, $1_descriptor, SWIG_POINTER_OWN);
-	PyObject_SetAttrString(details, "checkpoint", checkpoint);
-	%append_output(details);
-}
-
-%extend __wt_cursor_details {
-%pythoncode %{
-         def __init__(self):
-         	self.checkpoint = CursorDetailsCheckpoint()
-
-         def __repr__(self):
-         	return f'CursorDetails(checkpoint={self.checkpoint})'
-%}
-};
-
-
 %typemap(argout) (WT_MODIFY *entries_string, int *nentriesp) {
 	int i;
 
@@ -361,6 +312,55 @@ from packing import pack, unpack
 %typemap(freearg) WT_MODIFY * {
 	freeModifyArray($1);
 }
+
+
+%rename (CursorDetailsCheckpoint) __wt_cursor_details_checkpoint;
+%ignore __wt_cursor_details_checkpoint::stable_timestamp;
+%ignore __wt_cursor_details_checkpoint::checkpoint_id;
+
+%extend __wt_cursor_details_checkpoint {
+%pythoncode %{
+	def __init__(self):
+		self.stable_timestamp = 0
+		self.checkpoint_id = 0
+
+	def __repr__(self):
+		return f'CursorDetailsCheckpoint(checkpoint_id={self.checkpoint_id}, stable_timestamp={self.stable_timestamp})'
+%}
+};
+
+
+%rename (CursorDetails) __wt_cursor_details;
+%ignore __wt_cursor_details::checkpoint;
+
+%typemap(in, numimputs=0) WT_CURSOR_DETAILS * (WT_CURSOR_DETAILS tmp) {
+	$1 = &tmp;
+}
+
+%typemap(argout) WT_CURSOR_DETAILS * {
+	PyObject *checkpoint = SWIG_NewPointerObj(Py_None, SWIGTYPE_p___wt_cursor_details_checkpoint, SWIG_POINTER_OWN);
+	PyObject_SetAttrString(checkpoint, "checkpoint_id", PyLong_FromUnsignedLongLong($1->checkpoint.checkpoint_id));
+	PyObject_SetAttrString(checkpoint, "stable_timestamp", PyLong_FromUnsignedLongLong($1->checkpoint.stable_timestamp));
+
+	PyObject *details = SWIG_NewPointerObj(Py_None, $1_descriptor, SWIG_POINTER_OWN);
+	PyObject_SetAttrString(details, "checkpoint", checkpoint);
+
+	/* Append after the return code in the return tuple. */
+	%append_output(details);
+}
+
+%extend __wt_cursor_details {
+	/* Suppress SWIG false positive warning of a potential memory leak. */
+	~__wt_cursor_details() {}
+
+%pythoncode %{
+	def __init__(self):
+		self.checkpoint = CursorDetailsCheckpoint()
+
+	def __repr__(self):
+		return f'CursorDetails(checkpoint={self.checkpoint})'
+%}
+};
 
   /* 64 bit typemaps. */
 %typemap(in) uint64_t {

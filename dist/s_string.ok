@@ -467,6 +467,7 @@ ap
 api
 arg
 argc
+argout
 args
 argv
 asdf
@@ -1293,6 +1294,7 @@ txnid
 txp
 txt
 typedef
+typemap
 typeof
 uS
 ui
