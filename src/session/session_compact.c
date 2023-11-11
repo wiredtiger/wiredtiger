@@ -97,8 +97,8 @@
  * for the second checkpoint, the blocks freed by compaction become available
  * for the third checkpoint, so the third checkpoint's blocks are written
  * towards the beginning of the file, and then the file can be truncated. Since
- * the second checkpoint made the btree clean, to ensure the third checkpoint
- * rewrites blocks too, it has to be forced. Otherwise, the btree is skipped.
+ * the second checkpoint made the btree clean, mark it as dirty again to ensure
+ * the third checkpoint rewrites blocks too. Otherwise, the btree is skipped.
  */
 
 /*
@@ -262,13 +262,12 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 
 /*
  * __compact_checkpoint --
- *     This function waits and triggers a checkpoint that can be forced.
+ *     This function waits and triggers a checkpoint.
  */
 static int
-__compact_checkpoint(WT_SESSION_IMPL *session, bool force)
+__compact_checkpoint(WT_SESSION_IMPL *session)
 {
-    const char *checkpoint_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_checkpoint), force ? "force=1" : NULL, NULL};
+    const char *checkpoint_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL, NULL};
 
     /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
     WT_RET(__wt_session_compact_check_interrupted(session));
@@ -296,7 +295,7 @@ __compact_worker(WT_SESSION_IMPL *session)
         session->op_handle[i]->compact_skip = false;
 
     /* Perform an initial checkpoint (see this file's leading comment for details). */
-    WT_ERR(__compact_checkpoint(session, false));
+    WT_ERR(__compact_checkpoint(session));
 
     /*
      * We compact 10% of a file on each pass (but the overall size of the file is decreasing each
@@ -353,9 +352,14 @@ __compact_worker(WT_SESSION_IMPL *session)
         if (!another_pass)
             break;
 
-        /* Perform two checkpoints (see this file's leading comment for details). */
-        WT_ERR(__compact_checkpoint(session, false));
-        WT_ERR(__compact_checkpoint(session, true));
+        /*
+         * Perform two checkpoints. Mark the trees impacted by compaction to ensure the last
+         * checkpoint processes them (see this file's leading comment for details).
+         */
+        WT_ERR(__compact_checkpoint(session));
+        for (i = 0; i < session->op_handle_next; ++i)
+            WT_WITH_DHANDLE(session, session->op_handle[i], __wt_tree_modify_set(session));
+        WT_ERR(__compact_checkpoint(session));
     }
 
 err:
