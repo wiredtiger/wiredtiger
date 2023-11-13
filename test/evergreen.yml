@@ -423,6 +423,7 @@ functions:
     - command: shell.exec
       type: setup
       params:
+        working_dir: "wiredtiger"
         shell: bash
         script: |
           # Use a single function to update the documentation of each supported WiredTiger branch.
@@ -449,7 +450,7 @@ functions:
 
             # Synchronize the generated documentation with the current one.
             echo "Synchronizing documentation for branch $branch ..."
-            rsync -avq ../wiredtiger/docs-$branch/ $branch/ --delete
+            rsync -avq ../docs-$branch/ $branch/ --delete
 
             # Commit and push the changes if any.
             if [[ $(git status "$branch" --porcelain) ]]; then
@@ -464,6 +465,7 @@ functions:
     - command: shell.exec
       type: setup
       params:
+        working_dir: "wiredtiger"
         shell: bash
         silent: true
         script: |
@@ -484,7 +486,7 @@ functions:
           export GITHUB_REPO="wiredtiger.github.com"
           export GITHUB_APP_ID="${doc_update_github_app_id}"
           export GITHUB_APP_PRIVATE_KEY="${doc_update_github_app_private_key}"
-          python wiredtiger/test/evergreen/doc_update.py
+          python test/evergreen/doc_update.py
 
   "make check directory":
     command: shell.exec
