@@ -167,8 +167,9 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     bool chunkcache_hit, full_checksum_mismatch;
 
     chunkcache_hit = full_checksum_mismatch = false;
+    check_size = 0;
     failures = 0;
-    max_failures = WT_CHUNKCACHE_CONFIGURED ? 2 : 1;
+    max_failures = F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED) ? 2 : 1;
     __wt_verbose_debug2(session, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
 
