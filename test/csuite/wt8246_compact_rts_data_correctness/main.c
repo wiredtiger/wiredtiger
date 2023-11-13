@@ -245,8 +245,8 @@ workload_compact(
     testutil_check(session->checkpoint(session, "force"));
 
     /* Set a low threshold to ensure compaction runs. */
-    testutil_snprintf(compact_cfg, sizeof(compact_cfg), "%sfree_space_target=1MB",
-      background_compact ? "background=true," : "");
+    testutil_snprintf(compact_cfg, sizeof(compact_cfg), "free_space_target=1MB%s",
+      background_compact ? ",background=true" : "");
 
     /*
      * Because foreground and background compaction behave differently, we don't create the sentinel
