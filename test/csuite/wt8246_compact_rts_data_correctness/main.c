@@ -137,16 +137,9 @@ run_test(bool column_store, bool background_compact, const char *uri, bool prese
 
         printf("Child finished processing...\n");
         /*
-         * When performing foreground compaction, we do not expect test to reach here. The child
-         * process should have been killed by the parent process.
+         * We do not expect test to reach here. The child process should have been killed by the
+         * parent process.
          */
-        if (!background_compact)
-            return (EXIT_FAILURE);
-        /*
-         * When background compaction is enabled, the compact calls enabled the service and returns
-         * straight away to the caller. Give some extra time for the parent to kill the child.
-         */
-        sleep(TIMEOUT);
         return (EXIT_FAILURE);
     }
 
@@ -211,7 +204,7 @@ workload_compact(
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    char tscfg[64];
+    char tscfg[64], compact_cfg[512];
 
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
@@ -251,24 +244,29 @@ workload_compact(
      */
     testutil_check(session->checkpoint(session, "force"));
 
+    /* Set a low threshold to ensure compaction runs. */
+    testutil_snprintf(compact_cfg, sizeof(compact_cfg), "%sfree_space_target=1MB",
+      background_compact ? "background=true," : "");
+
     /*
      * Because foreground and background compaction behave differently, we don't create the sentinel
      * file at the same time for each scenario. In the foreground compaction scenario, the compact
      * API returns once compaction is done, therefore we need to create the sentinel file before
      * compacting the file. On the other hand, when enabling background compaction, the API returns
-     * straight away so we can create the sentinel file once the service has been enabled.
+     * straight away so we can create the sentinel file once the service has been enabled but we
+     * have to wait for some time to make sure compaction started.
      */
     if (!background_compact)
         testutil_sentinel(home, compact_file);
 
     printf(
       "%s starting...\n", background_compact ? "Background compaction" : "Foreground compaction");
-    /* Set a low threshold to ensure compaction runs. */
-    testutil_check(
-      session->compact(session, background_compact ? NULL : uri, "free_space_target=1MB"));
-    if (background_compact)
+    testutil_check(session->compact(session, background_compact ? NULL : uri, compact_cfg));
+    if (background_compact) {
         testutil_sentinel(home, compact_file);
-    else
+        /* Give some time for compaction to start. */
+        sleep(5 * TIMEOUT);
+    } else
         printf("Foreground compaction ended...\n");
 }
 
