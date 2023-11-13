@@ -40,7 +40,6 @@ from wtscenario import make_scenarios
 # but not all deleted keys on-disk version are not visible.
 @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
-    # conn_config = 'cache_size=50MB,statistics=(all),verbose=(all:3)'
     conn_config = 'cache_size=50MB,statistics=(all)'
 
     format_values = [
@@ -53,6 +52,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, nrows):
+            # Avoid a conflict with Txn 1 that inserted this key already.
+            if (i == 5000):
+                continue
             cursor[ds.key(i)] = value
             if i % 101 == 0:
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
@@ -65,8 +67,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         session.begin_transaction()
         for i in range(start_key, start_key + nrows + 1):
             cursor[ds.key(i)] = value
-            # unpin das page
             cursor.reset()
+        # Purposefully insert a key in the middle of the range to ensure we evict all pages.
+        cursor[ds.key(5000)] = value
+        cursor.reset()
         return cursor
 
     def end_large_updates(self, session, cursor, ts):
@@ -79,12 +83,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
         # Evict every 10th key. FUTURE: when that's possible, evict each page exactly once.
         for k in range(lo, hi, 10):
-            # self.prout(f"evict {k}")
             v = evict_cursor[ds.key(k)]
-            # Ignore for now
-            # self.assertEqual(v, value)
             self.assertEqual(evict_cursor.reset(), 0)
-        # evict_cursor.reset()
         self.session.rollback_transaction()
 
     def check(self, session_local, ds, nrows, value, ts):
@@ -98,7 +98,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
     def test_checkpoint(self):
         uri = 'table:checkpoint32'
-        nrows = 1000
+        nrows = 10000
 
         # Create a table.
         ds = SimpleDataSet(
@@ -113,53 +113,45 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +
             ',stable_timestamp=' + self.timestamp_str(5))
 
-        # Write some data at in txn 1 at time 10. Don't commit. Do it at starting after nrows so we don't conflict with txn 2
+        # Write some data at in Txn 1 at time 10 but don't commit yet. 
+        # Write this data starting after nrows so we don't conflict with Txn 2.
         txn1_session = self.conn.open_session()
         c1 = self.start_large_updates(txn1_session, uri, ds, nrows, 1, value_a, 10)
-
-        # start and commit txn 2 at time 20
+        
+        # Start and commit Txn 2 at Time 20
         self.large_updates(uri, ds, nrows, value_b, 20)
 
-        # Start the truncate transaction. snapshot sees txn2 but not txn 1
+        # Start the truncate transaction. Here the snapshot should see Txn 2 but not Txn 1.
         truncate_session = self.conn.open_session()
         truncate_session.begin_transaction()
 
-        # Force free the hazard pointer 
-
-        # Commit txn 1
+        # Commit Txn 1. 
         self.end_large_updates(txn1_session, c1, 10)
 
         # Evict everything at t=30.
         self.evict(ds, 1, nrows + 10, None, 30)
 
-        # Truncate everything, this should be fast truncate following our prior eviction
+        # Truncate everything (this should be fast truncate following our eviction).
         lo_cursor = truncate_session.open_cursor(uri)
         hi_cursor = truncate_session.open_cursor(uri)
 
         lo_cursor.set_key(ds.key(0))
-        hi_cursor.set_key(ds.key(nrows + nrows))
+        hi_cursor.set_key(ds.key(nrows + 100))
         
         truncate_session.truncate(None, lo_cursor, hi_cursor, None)
         truncate_session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
         validate_cursor = self.session.open_cursor(ds.uri)
-        # Search for our keys inserted by txn 1. We expect this to be removed with current behaviour.
+
+        # Search for our keys inserted by Txn 1. We expect these to be removed with current behaviour.
         validate_cursor.set_key(ds.key(nrows))
         self.assertEqual(validate_cursor.search(), 0)
 
         validate_cursor.set_key(ds.key(nrows+1))
         self.assertEqual(validate_cursor.search(), 0)
 
-        validate_cursor.set_key(ds.key(10))
-        self.assertEqual(validate_cursor.search(), -31803)
-
-
-        # validate_cursor.set_key(ds.key(nrows + 2))
-        # self.assertEqual(validate_cursor.search(), 0)
-
-        # stat_cursor = self.session.open_cursor('statistics:', None, None)
-        # fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        # self.assertEqual(fastdelete_pages, 0)
+        validate_cursor.set_key(ds.key(5000))
+        self.assertEqual(validate_cursor.search(), 0)
 
 if __name__ == '__main__':
     wttest.run()
