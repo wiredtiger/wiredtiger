@@ -32,8 +32,10 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 # test_prefetch02.py
-#    Run a scenario which will benefit from pre-fetching and ensure that
-#    pre-fetching is running properly by checking various statistics.
+#    Run multiple scenarios which are expected to benefit from pre-fetching and ensure that
+#    pre-fetching is running properly by checking various statistics. Additionally, run
+#    multiple scenarios which should not trigger pre-fetching and check that these pages are
+#    skipped when deciding whether to pre-fetch the pages.
 
 class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     new_dir = 'new.dir'
@@ -79,8 +81,8 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertGreater(new_prefetch_attempts, prefetch_attempts)
         self.assertGreaterEqual(new_prefetch_pages_read, prefetch_pages_read)
 
-    # Checks that the values of statistics related to pre-fetching activity are zero
-    # and that more pages have been passed over for pre-fetching.
+    # Checks that the values of statistics related to pre-fetching activity are equal to zero,
+    # and that pages are being skipped when deciding whether to pre-fetch the page or not.
     def check_no_prefetching_activity(self, session_name, prefetch_skips):
         new_prefetch_skips = self.get_prefetch_skipped_stat(session_name)
         pages_queued, prefetch_attempts, prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
