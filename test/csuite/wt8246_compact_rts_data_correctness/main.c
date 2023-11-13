@@ -251,14 +251,25 @@ workload_compact(
      */
     testutil_check(session->checkpoint(session, "force"));
 
-    /* Create the sentinel file to indicate the parent process compaction has started. */
-    testutil_sentinel(home, compact_file);
+    /*
+     * Because foreground and background compaction behave differently, we don't create the sentinel
+     * file at the same time for each scenario. In the foreground compaction scenario, the compact
+     * API returns once compaction is done, therefore we need to create the sentinel file before
+     * compacting the file. On the other hand, when enabling background compaction, the API returns
+     * straight away so we can create the sentinel file once the service has been enabled.
+     */
+    if (!background_compact)
+        testutil_sentinel(home, compact_file);
 
-    printf("%s start...\n", background_compact ? "Background compaction" : "Foreground compaction");
+    printf(
+      "%s starting...\n", background_compact ? "Background compaction" : "Foreground compaction");
     /* Set a low threshold to ensure compaction runs. */
     testutil_check(
       session->compact(session, background_compact ? NULL : uri, "free_space_target=1MB"));
-    printf("%s end...\n", background_compact ? "Background compaction" : "Foreground compaction");
+    if (background_compact)
+        testutil_sentinel(home, compact_file);
+    else
+        printf("Foreground compaction ended...\n");
 }
 
 /*
