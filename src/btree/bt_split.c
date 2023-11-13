@@ -908,8 +908,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     uint32_t slots;
     void *p;
 
-    WT_STAT_CONN_DATA_INCR(session, cache_eviction_split_internal);
-
     /* Mark the page dirty. */
     WT_RET(__wt_page_modify_init(session, page));
     __wt_page_modify_set(session, page);
@@ -1038,8 +1036,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5);
 
     /* Split into the parent. */
-    WT_ERR(__split_parent(
-      session, page_ref, alloc_index->index, alloc_index->entries, parent_incr, false, false));
+    if ((ret = __split_parent(session, page_ref, alloc_index->index, alloc_index->entries,
+           parent_incr, false, false)) == 0) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_split_internal);
+    }
 
     /*
      * Confirm the page's index hasn't moved, then update it, which makes the split visible to
@@ -2097,8 +2097,6 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
     size_t parent_incr;
     uint32_t i, new_entries;
 
-    WT_STAT_CONN_DATA_INCR(session, cache_eviction_split_leaf);
-
     page = ref->page;
     mod = page->modify;
     new_entries = mod->mod_multi_entries;
@@ -2117,7 +2115,10 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
      */
-    WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
+    if ((ret = __split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true)) ==
+      0) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_split_leaf);
+    }
 
     /*
      * The split succeeded, we can no longer fail.
