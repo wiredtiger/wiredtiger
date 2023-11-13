@@ -423,7 +423,6 @@ functions:
     - command: shell.exec
       type: setup
       params:
-        working_dir: "wiredtiger"
         shell: bash
         script: |
           # Use a single function to update the documentation of each supported WiredTiger branch.
@@ -450,7 +449,7 @@ functions:
 
             # Synchronize the generated documentation with the current one.
             echo "Synchronizing documentation for branch $branch ..."
-            rsync -avq ../docs-$branch/ $branch/ --delete
+            rsync -aq ../wiredtiger/docs-$branch/ $branch/ --delete
 
             # Commit and push the changes if any.
             if [[ $(git status "$branch" --porcelain) ]]; then
@@ -465,7 +464,6 @@ functions:
     - command: shell.exec
       type: setup
       params:
-        working_dir: "wiredtiger"
         shell: bash
         silent: true
         script: |
@@ -486,7 +484,7 @@ functions:
           export GITHUB_REPO="wiredtiger.github.com"
           export GITHUB_APP_ID="${doc_update_github_app_id}"
           export GITHUB_APP_PRIVATE_KEY="${doc_update_github_app_private_key}"
-          python test/evergreen/doc_update.py
+          python wiredtiger/test/evergreen/doc_update.py
 
   "make check directory":
     command: shell.exec
@@ -950,7 +948,7 @@ functions:
         bucket: build_external
         permissions: public-read
         content_type: application/tar
-        display_name: Artifacts
+        display_name: ${artifacts_name|Artifacts}
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload endian format artifacts":
     - command: s3.put
@@ -3174,6 +3172,15 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger docs"
       - func: "update wiredtiger docs"
+      - func: "upload artifact"
+        vars:
+          artifacts_name: wiredtiger
+      - func: "upload artifact"
+        vars:
+          upload_filename: wiredtiger.github.com.tgz
+          upload_source_dir: wiredtiger.github.com
+          artifacts_name: wiredtiger.github.com
+          postfix: -wiredtiger.github.com
 
   - name: syscall-linux
     commands:

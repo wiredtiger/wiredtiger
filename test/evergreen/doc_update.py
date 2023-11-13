@@ -56,14 +56,11 @@ try:
 except Exception as e:
     sys.exit(e)
 
-# Get an installation access token
 try:
+    # Get an installation access token
     installation_auth = app.get_access_token(installation.id)
-except Exception as e:
-    sys.exit(e)
 
-# Use the token to push the commit
-try:
+    # Use the token to push the commit
     with cwd("wiredtiger.github.com"):
         cmd = f"git push https://'{app_id}:{installation_auth.token}'@github.com/{owner}/{repo}"
         subprocess.run([cmd], shell=True, check=True)
