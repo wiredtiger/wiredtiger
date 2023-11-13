@@ -163,10 +163,12 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 {
     WT_BLOCK_HEADER *blk, swap;
     size_t bufsize, check_size;
-    u_int retries;
-    bool checksum_failed, chunkcache_hit;
+    int failures, max_failures;
+    bool chunkcache_hit, full_checksum_mismatch;
 
-    checksum_failed = chunkcache_hit = false;
+    chunkcache_hit = full_checksum_mismatch = false;
+    failures = 0;
+    max_failures = WT_CHUNKCACHE_CONFIGURED ? 2 : 1;
     __wt_verbose_debug2(session, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
 
@@ -199,31 +201,15 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_RET(__wt_buf_init(session, buf, bufsize));
     buf->size = size;
 
-    /*
-     * If chunk cache is configured we want to account for the race condition where the chunk cache
-     * could have stale content, and therefore a mismatched checksum. We can also have corrupted
-     * data in the chunk cache. For those scenarios, we do not want to fail immediately, so we will
-     * retry one time.
-     */
-    retries = 1;
-    do {
+    while (failures < max_failures) {
+        full_checksum_mismatch = false;
         if (F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED)) {
-            if (checksum_failed) {
-                __wt_verbose(session, WT_VERB_BLOCK,
-                  "Reloading data due to checksum mismatch for block: %s" PRIu32
-                  ", offset: %" PRIuMAX ", size: %" PRIu32
-                  " with possibly stale or corrupt chunkcache content for object id: %" PRIu32
-                  ". Retrying once.",
-                  block->name, (uintmax_t)offset, size, objectid);
-                WT_RET(__wt_chunkcache_free_external(session, block, objectid, offset, size));
-                WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
-                checksum_failed = false;
-            } else {
+            if (failures == 0) {
                 /*
                  * Check if the chunk cache has the needed data. If there is a miss in the chunk
                  * cache, it will read and cache the data. If the chunk cache has exceeded its
                  * configured capacity and is unable to evict chunks quickly enough, it will return
-                 * the error code indicating that it is out of space We do not propagate this error
+                 * the error code indicating that it is out of space. We do not propagate this error
                  * up to our caller; we read the needed data ourselves instead.
                  */
                 WT_RET_ERROR_OK(__wt_chunkcache_get(session, block, objectid, offset, size,
@@ -231,7 +217,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
                   ENOSPC);
             }
         }
-        if (!chunkcache_hit)
+        if (failures > 0 || !chunkcache_hit)
             WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
         /*
@@ -244,14 +230,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
         check_size = F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP;
         if (swap.checksum == checksum) {
             blk->checksum = 0;
-            if (!__wt_checksum_match(buf->mem, check_size, checksum)) {
-                checksum_failed = true;
-
-                /* We only want to retry once, otherwise keep going and error. */
-                if (retries > 0)
-                    continue;
-
-            } else {
+            if (__wt_checksum_match(buf->mem, check_size, checksum)) {
                 /*
                  * Swap the page-header as needed; this doesn't belong here, but it's the best place
                  * to catch all callers.
@@ -259,33 +238,43 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
                 __wt_page_header_byteswap(buf->mem);
                 return (0);
             }
-
-            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                __wt_errx(session,
-                  "%s: potential hardware corruption, read checksum error for %" PRIu32
-                  "B block at offset %" PRIuMAX ": calculated block checksum of %#" PRIx32
-                  " doesn't match expected checksum of %#" PRIx32,
-                  block->name, size, (uintmax_t)offset, __wt_checksum(buf->mem, check_size),
-                  checksum);
-
-        } else {
-            checksum_failed = true;
-
-            /* We only want to retry once, otherwise keep going and error. */
-            if (retries > 0)
-                continue;
+            full_checksum_mismatch = true;
         }
+        failures++;
 
-        if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+        /*
+         * If chunk cache is configured we want to account for the race condition where the chunk
+         * cache could have stale content, and therefore a mismatched checksum. We can also have
+         * corrupted data in the chunk cache. For those scenarios, we do not want to fail
+         * immediately, so we will reload the data and retry one time.
+         */
+        if (failures < max_failures) {
+            __wt_verbose(session, WT_VERB_BLOCK,
+              "Reloading data due to checksum mismatch for block: %s" PRIu32 ", offset: %" PRIuMAX
+              ", size: %" PRIu32
+              " with possibly stale or corrupt chunkcache content for object id: %" PRIu32
+              ". Retrying once.",
+              block->name, (uintmax_t)offset, size, objectid);
+            WT_RET(__wt_chunkcache_free_external(session, block, objectid, offset, size));
+            WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+        }
+    }
+
+    if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
+        if (full_checksum_mismatch)
+            __wt_errx(session,
+              "%s: potential hardware corruption, read checksum error for %" PRIu32
+              "B block at offset %" PRIuMAX ": calculated block checksum of %#" PRIx32
+              " doesn't match expected checksum of %#" PRIx32,
+              block->name, size, (uintmax_t)offset, __wt_checksum(buf->mem, check_size), checksum);
+        else
             __wt_errx(session,
               "%s: potential hardware corruption, read checksum error for %" PRIu32
               "B block at offset %" PRIuMAX ": block header checksum of %#" PRIx32
               " doesn't match expected checksum of %#" PRIx32,
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
-    } while (checksum_failed && retries-- > 0);
-
-    if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         WT_IGNORE_RET(__bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
+    }
 
     /* Panic if a checksum fails during an ordinary read. */
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
