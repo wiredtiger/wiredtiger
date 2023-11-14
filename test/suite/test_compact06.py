@@ -52,7 +52,7 @@ class test_compact06(wttest.WiredTigerTestCase):
                 self.session.compact(None, f'background=false,{item}'),
                 '/configuration cannot be set when disabling the background compaction server/')
 
-        #   3. We cannot enable the background server with an invalid URIs to be excluded.
+        #   3. We cannot exclude invalid URIs when enabling background compaction.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.compact(None, 'background=true,exclude=["file:a"]'), '/can only exclude objects of type "table"/')
 
