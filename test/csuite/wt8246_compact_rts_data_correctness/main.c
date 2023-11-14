@@ -93,6 +93,10 @@ main(int argc, char *argv[])
 
     for (i = 0; i < 2; ++i) {
         for (j = 0; j < 2; ++j)
+            /*
+             * Use i and j to alternate between column/row store and foreground/background
+             * compaction scenarios.
+             */
             testutil_assert(run_test(i, j, opts->uri, opts->preserve) == EXIT_SUCCESS);
     }
 
