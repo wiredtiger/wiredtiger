@@ -484,6 +484,8 @@ functions:
           export GITHUB_REPO="wiredtiger.github.com"
           export GITHUB_APP_ID="${doc_update_github_app_id}"
           export GITHUB_APP_PRIVATE_KEY="${doc_update_github_app_private_key}"
+          # Make sure the below script is called under the "develop" branch.
+          (cd wiredtiger && git checkout develop)
           python wiredtiger/test/evergreen/doc_update.py
 
   "make check directory":
