@@ -694,6 +694,10 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
         WT_ERR_MSG(
           session, EINVAL, "Cannot reconfigure background compaction while it's already running.");
 
+    /* If we haven't changed states, we're done. */
+    if (toggle == running)
+        goto err;
+
     /* Update the excluded tables when the server is turned on. */
     if (toggle) {
         __background_compact_exclude_list_clear(session, false);
