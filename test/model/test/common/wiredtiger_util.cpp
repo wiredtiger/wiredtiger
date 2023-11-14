@@ -330,39 +330,33 @@ model::data_value
 wt_ckpt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
   const char *ckpt_name, model::timestamp_t debug_read_timestamp)
 {
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    size_t config_len;
-    char buf[64];
-    char *config;
-    model::data_value out;
-
     if (ckpt_name == nullptr)
         ckpt_name = WT_CHECKPOINT;
-    config_len = 64 + strlen(ckpt_name);
-    config = (char *)alloca(config_len);
 
     /* Set the checkpoint name. */
-    testutil_snprintf(config, config_len, "checkpoint=%s", ckpt_name);
+    std::ostringstream config_stream;
+    config_stream << "checkpoint=" << ckpt_name;
 
     /* Set the checkpoint debug read timestamp, if set. */
-    if (debug_read_timestamp != model::k_timestamp_none) {
-        testutil_snprintf(
-          buf, sizeof(buf), ",debug=(checkpoint_read_timestamp=%" PRIx64 ")", debug_read_timestamp);
-        testutil_check(__wt_strcat(config, config_len, buf));
-    }
+    if (debug_read_timestamp != model::k_timestamp_none)
+        config_stream << ",debug=(checkpoint_read_timestamp=" << std::hex << debug_read_timestamp
+                      << ")";
 
-    testutil_check(session->open_cursor(session, uri, nullptr, config, &cursor));
+    /* Open the cursor. */
+    std::string config = config_stream.str();
+    WT_CURSOR *cursor;
+    testutil_check(session->open_cursor(session, uri, nullptr, config.c_str(), &cursor));
 
+    /* Do the read. */
     model::set_wt_cursor_key(cursor, key);
-    ret = cursor->search(cursor);
+    int ret = cursor->search(cursor);
     if (ret != WT_NOTFOUND && ret != WT_ROLLBACK)
         testutil_check(ret);
-    if (ret == 0)
-        out = model::get_wt_cursor_value(cursor);
+    model::data_value out = ret == 0 ? model::get_wt_cursor_value(cursor) : model::NONE;
 
+    /* Clean up. */
     testutil_check(cursor->close(cursor));
-    return ret == 0 ? out : model::NONE;
+    return out;
 }
 
 /*
@@ -372,18 +366,13 @@ wt_ckpt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
 void
 wt_ckpt_create(WT_SESSION *session, const char *ckpt_name)
 {
-    size_t config_len;
-    char *config;
+    std::ostringstream config_stream;
 
-    if (ckpt_name == nullptr)
-        config = nullptr;
-    else {
-        config_len = 64 + strlen(ckpt_name);
-        config = (char *)alloca(config_len);
-        testutil_snprintf(config, config_len, "name=%s", ckpt_name);
-    }
+    if (ckpt_name != nullptr)
+        config_stream << "name=" << ckpt_name;
 
-    testutil_check(session->checkpoint(session, config));
+    std::string config = config_stream.str();
+    testutil_check(session->checkpoint(session, config.c_str()));
 }
 
 /*

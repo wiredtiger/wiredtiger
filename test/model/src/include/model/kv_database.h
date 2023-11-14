@@ -80,7 +80,7 @@ public:
      *     Get the checkpoint. Throw an exception if it does not exist.
      */
     inline kv_checkpoint_ptr
-    checkpoint(const std::string &name)
+    checkpoint(const std::string &name) const
     {
         std::lock_guard lock_guard(_checkpoints_lock);
         auto i = _checkpoints.find(name);
@@ -187,10 +187,10 @@ private:
     txn_id_t _last_transaction_id;
     std::unordered_map<txn_id_t, kv_transaction_ptr> _active_transactions;
 
-    std::mutex _checkpoints_lock;
+    mutable std::mutex _checkpoints_lock;
     std::unordered_map<std::string, kv_checkpoint_ptr> _checkpoints;
 
-    std::mutex _timestamps_lock;
+    mutable std::mutex _timestamps_lock;
     timestamp_t _stable_timestamp;
 };
 
