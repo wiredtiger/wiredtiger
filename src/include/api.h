@@ -21,8 +21,9 @@
          * Only a single thread should use this session at a time. It's ok        \
          * (but unexpected) if different threads use the session consecutively,   \
          * but concurrent access is not allowed. Verify this by having the thread \
-         * a lock on first API access. Failing to take the lock implies another   \
-         * thread holds it and we're attempting concurrent access of the session. \
+         * take a lock on first API access. Failing to take the lock implies      \
+         * another thread holds it and we're attempting concurrent access of the  \
+         * session.                                                               \
          *                                                                        \
          * The default session (ID == 0) is an exception where concurrent access  \
          * is allowed. We can also skip taking the lock if we're re-entrant and   \
