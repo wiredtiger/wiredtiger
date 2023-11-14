@@ -419,7 +419,7 @@ functions:
             mv docs docs-$branch
           done
 
-          # Checkout back to the default ("develop") branch
+          # Checkout the default ("develop") branch again to leave wiredtiger/ in the same state we started with
           git checkout develop
 
   "update wiredtiger docs":
