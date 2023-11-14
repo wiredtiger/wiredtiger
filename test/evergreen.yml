@@ -419,6 +419,9 @@ functions:
             mv docs docs-$branch
           done
 
+          # Checkout back to the default ("develop") branch
+          git checkout develop
+
   "update wiredtiger docs":
     - command: shell.exec
       type: setup
@@ -484,7 +487,7 @@ functions:
           export GITHUB_REPO="wiredtiger.github.com"
           export GITHUB_APP_ID="${doc_update_github_app_id}"
           export GITHUB_APP_PRIVATE_KEY="${doc_update_github_app_private_key}"
-          # Make sure the below script is called under the "develop" branch.
+          # Make sure the below script is called under the default ("develop") branch.
           (cd wiredtiger && git checkout develop)
           python wiredtiger/test/evergreen/doc_update.py
 
