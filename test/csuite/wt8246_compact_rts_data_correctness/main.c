@@ -93,7 +93,7 @@ main(int argc, char *argv[])
 
     for (i = 0; i < 2; ++i) {
         for (j = 0; j < 2; ++j)
-            testutil_assert(run_test(i % 2, j % 2, opts->uri, opts->preserve) == EXIT_SUCCESS);
+            testutil_assert(run_test(i, j, opts->uri, opts->preserve) == EXIT_SUCCESS);
     }
 
     testutil_cleanup(opts);
