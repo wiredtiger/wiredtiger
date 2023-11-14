@@ -38,6 +38,7 @@ extern "C" {
 #include "test_util.h"
 }
 
+#include "model/driver/debug_log_parser.h"
 #include "model/test/util.h"
 #include "model/test/wiredtiger_util.h"
 #include "model/kv_database.h"
@@ -296,12 +297,35 @@ test_checkpoint_wt(void)
     wt_model_ckpt_assert(table, uri, "ckpt4", key3);
 
     /* Verify. */
+    wt_model_set_stable_timestamp_both(65); /* Advance the timestamp to the very end. */
     testutil_assert(table->verify_noexcept(conn));
 
     /* Clean up. */
     testutil_check(session->close(session, nullptr));
     testutil_check(session1->close(session1, nullptr));
     testutil_check(session2->close(session2, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+
+    /* Reopen the database. We must do this for debug log printing to work. */
+    testutil_wiredtiger_open(opts, home, ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+
+    /* Verify using the debug log. */
+    model::kv_database db_from_debug_log;
+    model::debug_log_parser::from_debug_log(db_from_debug_log, conn);
+    testutil_assert(db_from_debug_log.table("table")->verify_noexcept(conn));
+
+    /* Print the debug log to JSON. */
+    std::string tmp_json = create_tmp_file(home, "debug-log-", ".json");
+    wt_print_debug_log(conn, tmp_json.c_str());
+
+    /* Verify using the debug log JSON. */
+    model::kv_database db_from_debug_log_json;
+    model::debug_log_parser::from_json(db_from_debug_log_json, tmp_json.c_str());
+    testutil_assert(db_from_debug_log_json.table("table")->verify_noexcept(conn));
+
+    /* Clean up. */
+    testutil_check(session->close(session, nullptr));
     testutil_check(conn->close(conn, nullptr));
 }
 
