@@ -228,6 +228,9 @@ struct __wt_btree {
      */
     WT_SPINLOCK flush_lock; /* Lock to flush the tree's pages */
 
+    uint64_t flush_most_recent_secs;
+    uint64_t flush_most_recent_ts;
+
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.

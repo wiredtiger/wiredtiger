@@ -12,7 +12,6 @@ static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **, int64_t *, uint64_t *);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
-static int __ckpt_parse_time(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, uint64_t *);
 static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *, bool);
 static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 static int __meta_blk_mods_load(WT_SESSION_IMPL *, const char *, WT_CKPT *, WT_CKPT *, bool);
@@ -175,12 +174,12 @@ err:
 }
 
 /*
- * __ckpt_parse_time --
- *     Parse clock time from checkpoint metadata config. This requires special handling because
- *     times are unsigned values and config parsing treats numeric values as signed.
+ * __wt_meta_parse_time --
+ *     Parse clock time from metadata config. This requires special handling because times are
+ *     unsigned values and config parsing treats numeric values as signed.
  */
-static int
-__ckpt_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *config_value, uint64_t *timep)
+int
+__wt_meta_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *config_value, uint64_t *timep)
 {
     char timebuf[64];
 
@@ -239,7 +238,7 @@ __wt_meta_checkpoint_by_name(WT_SESSION_IMPL *session, const char *uri, const ch
             WT_ERR(__wt_config_subgets(session, &v, "write_gen", &a));
             if ((uint64_t)a.val >= conn->base_write_gen) {
                 WT_ERR(__wt_config_subgets(session, &v, "time", &a));
-                WT_ERR(__ckpt_parse_time(session, &a, timep));
+                WT_ERR(__wt_meta_parse_time(session, &a, timep));
             }
             break;
         }
@@ -417,7 +416,7 @@ __ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **name
 
         /* Extract the wall-clock time for matching purposes. */
         WT_ERR(__wt_config_subgets(session, &v, "time", &a));
-        WT_ERR(__ckpt_parse_time(session, &a, &time));
+        WT_ERR(__wt_meta_parse_time(session, &a, &time));
 
         __wt_free(session, *namep);
         WT_ERR(__wt_strndup(session, k.str, k.len, namep));
@@ -653,11 +652,8 @@ static int
 __meta_ckptlist_allocate_new_ckpt(
   WT_SESSION_IMPL *session, WT_CKPT **ckptbasep, size_t *allocated, const char *config)
 {
-    WT_BTREE *btree;
     WT_CKPT *ckptbase, *ckpt;
-    WT_CONNECTION_IMPL *conn;
     size_t slot;
-    bool flushing;
 
     ckptbase = *ckptbasep;
     slot = 0;
@@ -689,18 +685,6 @@ __meta_ckptlist_allocate_new_ckpt(
 
     ckpt->sec = session->current_ckpt_sec;
     WT_ASSERT(session, ckpt->sec > 0);
-
-    /* Update the time if we are flushing, else keep the previous checkpoint's values. */
-    btree = S2BT(session);
-    conn = S2C(session);
-    flushing = (btree->bm != NULL && btree->bm->switching);
-    if (flushing) {
-        ckpt->flush_sec = conn->flush_most_recent;
-        ckpt->flush_ts = conn->flush_ts;
-    } else {
-        ckpt->flush_sec = (slot == 0) ? 0 : ckptbase[slot - 1].flush_sec;
-        ckpt->flush_ts = (slot == 0) ? 0 : ckptbase[slot - 1].flush_ts;
-    }
 
     /*
      * If we're adding a checkpoint, in general it should be newer than the previous one according
@@ -957,7 +941,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ckpt->order = a.val;
 
     WT_RET(__wt_config_subgets(session, v, "time", &a));
-    ret = __ckpt_parse_time(session, &a, &ckpt->sec);
+    ret = __wt_meta_parse_time(session, &a, &ckpt->sec);
     if (ret != 0)
         WT_RET_MSG(session, WT_ERROR, "corrupted time value in checkpoint config");
 
@@ -1299,13 +1283,8 @@ __wt_meta_ckptlist_set(
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
-            break;
-        }
-    /* We can not have more than one new checkpoint getting added. */
-    WT_ASSERT(
-      session, ckpt->name == NULL || (F_ISSET(ckpt, WT_CKPT_ADD) && (ckpt + 1)->name == NULL));
 
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
@@ -1313,8 +1292,7 @@ __wt_meta_ckptlist_set(
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
     if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
-        WT_ERR(__wt_tiered_set_metadata(
-          session, (WT_TIERED *)dhandle, buf, (ckpt->name == NULL ? NULL : ckpt)));
+        WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
 err:
@@ -1717,7 +1695,7 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
         if (ckpttime != NULL) {
             WT_ERR_NOTFOUND_OK(
               __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_TIME, &cval), false);
-            WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
+            WT_ERR(__wt_meta_parse_time(session, &cval, ckpttime));
         }
 
         /*
@@ -1769,7 +1747,7 @@ __meta_retrieve_timestamp(WT_SESSION_IMPL *session, const char *system_uri,
             /* Extract the checkpoint time. */
             WT_ERR_NOTFOUND_OK(
               __wt_config_getones(session, sys_config, WT_SYSTEM_TS_TIME, &cval), false);
-            WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
+            WT_ERR(__wt_meta_parse_time(session, &cval, ckpttime));
         }
     }
 

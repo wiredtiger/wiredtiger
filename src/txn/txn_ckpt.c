@@ -72,6 +72,7 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
 static int
 __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
 {
+    WT_BTREE *btree;
     WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -145,7 +146,10 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
              */
             WT_ERR(__wt_tiered_switch(session, value));
             WT_STAT_CONN_INCR(session, flush_tier_switched);
-            WT_BTREE_CLEAN_CKPT(session, S2BT(session), WT_BTREE_CLEAN_CKPT_NOW);
+            btree = S2BT(session);
+            WT_BTREE_CLEAN_CKPT(session, btree, WT_BTREE_CLEAN_CKPT_NOW);
+            btree->flush_most_recent_secs = session->current_ckpt_sec;
+            btree->flush_most_recent_ts = conn->txn_global.last_ckpt_timestamp;
 
             /*
              * Are we sure the handle wont get closed by the time we gather handles to participate

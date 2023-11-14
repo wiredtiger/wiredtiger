@@ -479,19 +479,26 @@ err:
  *     Generate the tiered metadata information string into the given buffer.
  */
 int
-__wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *buf, WT_CKPT *ckpt)
+__wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *buf)
 {
-    WT_CONNECTION_IMPL *conn;
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
     WT_TIERED_TIERS *t;
     uint32_t i;
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
 
-    conn = S2C(session);
-    __wt_timestamp_to_hex_string((ckpt == NULL ? conn->flush_ts : ckpt->flush_ts), hex_timestamp);
+    dhandle = &tiered->iface;
+    WT_ASSERT_ALWAYS(session, WT_DHANDLE_BTREE(dhandle), "Expected a btree handle");
+    btree = dhandle->handle;
+
+    /*
+     * if the hex timestamp is 0, do we need to save in metadata. example we skip this for:
+     * "meta_ckpt_timestamp" with __meta_sysinfo_remove()
+     */
+    __wt_timestamp_to_hex_string(btree->flush_most_recent_ts, hex_timestamp);
     WT_RET(__wt_buf_catfmt(session, buf,
       ",flush_time=%" PRIu64 ",flush_timestamp=\"%s\",last=%" PRIu32 ",oldest=%" PRIu32 ",tiers=(",
-      (ckpt == NULL ? conn->flush_most_recent : ckpt->flush_sec), hex_timestamp, tiered->current_id,
-      tiered->oldest_id));
+      btree->flush_most_recent_secs, hex_timestamp, tiered->current_id, tiered->oldest_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         t = &tiered->tiers[i];
         __wt_verbose(session, WT_VERB_TIERED,
@@ -522,7 +529,7 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     newconfig = strip = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    WT_ERR(__wt_tiered_set_metadata(session, tiered, tmp, NULL));
+    WT_ERR(__wt_tiered_set_metadata(session, tiered, tmp));
 
     cfg[0] = WT_CONFIG_BASE(session, tiered_meta);
     cfg[1] = orig_config;
