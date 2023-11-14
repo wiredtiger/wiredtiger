@@ -1814,6 +1814,12 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
          ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
         count += WT_MIN_SPLIT_MULTIPLIER;
         size += WT_MIN_SPLIT_MULTIPLIER * (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
+
+        /*
+         * Account for the case where the maximum in-memory page size is configured to be smaller than the
+         * maximum on-disk page size. Even with that configuration it is beneficial to be able to in-memory split
+         * for append workloads, and allow the reconciliation to happen in a background thread.
+         */        
         mem_split_threshold = (size_t)WT_MIN(btree->maxleafpage, btree->splitmempage);
         if (count > WT_MIN_SPLIT_COUNT && size > mem_split_threshold) {
             WT_STAT_CONN_DATA_INCR(session, cache_inmem_splittable);
