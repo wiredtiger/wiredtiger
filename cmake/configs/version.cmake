@@ -2,4 +2,4 @@
     set(WT_VERSION_MAJOR 11)
     set(WT_VERSION_MINOR 2)
     set(WT_VERSION_PATCH 0)
-    set(WT_VERSION_STRING "WiredTiger 11.2.0: (October  6, 2023)")
+    set(WT_VERSION_STRING "WiredTiger 11.2.0: (November 15, 2023)")
