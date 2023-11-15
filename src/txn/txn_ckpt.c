@@ -1759,7 +1759,6 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
      * checkpoint.
      */
     WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
-
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
         /*
          * If we decide to skip checkpointing, clear the delete flag on the checkpoints. The list of
@@ -1912,6 +1911,8 @@ __checkpoint_lock_dirty_tree(
     if (!is_wt_ckpt || is_drop || btree->ckpt_bytes_allocated == 0)
         __wt_meta_saved_ckptlist_free(session);
 
+    /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
+    WT_BTREE_CLEAN_CKPT(session, btree, 0);
     F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
@@ -2070,7 +2071,6 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
-
     if (!btree->modified && !force) {
         deleted = 0;
         WT_CKPT_FOREACH (ckptbase, ckpt) {
