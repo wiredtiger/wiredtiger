@@ -167,7 +167,7 @@ functions:
           ${CMAKE_INSTALL_PREFIX|-DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL} \
           ${CMAKE_PREFIX_PATH|-DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"} \
           ${CMAKE_TOOLCHAIN_FILE|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake} \
-          ${ENABLE_TCMALLOC|}
+          ${ENABLE_TCMALLOC|} \
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
           ${ENABLE_STATIC|} \
@@ -195,7 +195,7 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
-        if [ "${build_variant|}" = "macos-1100" ]; then
+        if [[ "${build_variant|}" =~ "macos-1100" ]]; then
           # For mac builds, we want explicitly tell cmake which python to use, as
           # well as the matching library directory and header files. The find_libpython
           # module gives us the library.
@@ -214,13 +214,18 @@ functions:
              SYSPYDIR=$(dirname $SYSPYLIB)
              NSYSPYLIB=$(ls $SYSPYDIR/lib/libpython*.dylib 2>/dev/null | head -1)
              if [ -f "$NSYSPYLIB" ]; then
-                 SYSPYLIB=$NSYSPYLIB
+               SYSPYLIB=$NSYSPYLIB
              fi
              if [ -d "$SYSPYDIR/Headers" ]; then
-                 SYSPYINCDEF="-DPYTHON_INCLUDE_DIR=$SYSPYDIR/Headers"
+               SYSPYINCDEF="$SYSPYDIR/Headers"
              fi
           fi
-          DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB $SYSPYINCDEF"
+
+          if [ "${build_variant|}" = "macos-1100-arm64" ]; then
+            DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPython3_EXECUTABLE=$SYSPY -DPython3_LIBRARY=$SYSPYLIB -DPython3_INCLUDE_DIR=$SYSPYINCDEF"
+          else
+            DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB -DPYTHON_INCLUDE_DIR=$SYSPYINCDEF"
+          fi
         fi
 
         if [ "$OS" = "Windows_NT" ]; then
@@ -414,6 +419,9 @@ functions:
             mv docs docs-$branch
           done
 
+          # Checkout the default ("develop") branch again to leave wiredtiger/ in the same state we started with
+          git checkout develop
+
   "update wiredtiger docs":
     - command: shell.exec
       type: setup
@@ -444,13 +452,13 @@ functions:
 
             # Synchronize the generated documentation with the current one.
             echo "Synchronizing documentation for branch $branch ..."
-            rsync -avq ../wiredtiger/docs-$branch/ $branch/ --delete
+            rsync -aq ../wiredtiger/docs-$branch/ $branch/ --delete
 
             # Commit and push the changes if any.
             if [[ $(git status "$branch" --porcelain) ]]; then
               git add $branch
               git commit -m "Update auto-generated docs for $branch" \
-                        --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
+                        --author="doc-build-bot <svc-wiredtiger-doc-build@10gen.com>"
             else
               echo "No documentation changes for $branch."
             fi
@@ -470,8 +478,18 @@ functions:
             exit 0
           fi
 
-          cd wiredtiger.github.com
-          git push https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
+          # Push the above-generated commit
+          ${PREPARE_PATH}
+          virtualenv -p python3 venv
+          source venv/bin/activate
+          python -m pip install PyGithub
+          export GITHUB_OWNER="wiredtiger"
+          export GITHUB_REPO="wiredtiger.github.com"
+          export GITHUB_APP_ID="${doc_update_github_app_id}"
+          export GITHUB_APP_PRIVATE_KEY="${doc_update_github_app_private_key}"
+          # Make sure the below script is called under the default ("develop") branch.
+          (cd wiredtiger && git checkout develop)
+          python wiredtiger/test/evergreen/doc_update.py
 
   "make check directory":
     command: shell.exec
@@ -485,6 +503,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build/${directory}
         $CTEST ${extra_args} --output-on-failure 2>&1
+
   "make check all":
     command: shell.exec
     params:
@@ -497,7 +516,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using number of parallel processes '-j ${num_jobs}' for 'make check all'"
-        $CTEST -L check -j ${num_jobs} --output-on-failure ${check_args|} 2>&1
+        $CTEST -L check -j ${num_jobs} --output-on-failure ${extra_args|} 2>&1
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run
@@ -934,7 +953,7 @@ functions:
         bucket: build_external
         permissions: public-read
         content_type: application/tar
-        display_name: Artifacts
+        display_name: ${artifacts_name|Artifacts}
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload endian format artifacts":
     - command: s3.put
@@ -1308,7 +1327,7 @@ variables:
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
 
 
-# Template for Mac tests
+  # Template for Mac tests
   - &mac_test_template
     expansions: &mac_test_template_expansions
       # The cmake toolchain file is set to the mongodb toolchain gcc by default.
@@ -1706,7 +1725,7 @@ tasks:
         vars:
           directory: bench/wtperf
 
-  - name: unittest-test
+  - name: catch2-unittest-test
     tags: ["pull_request"]
     commands:
       - func: "get project"
@@ -1721,9 +1740,9 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            test/unittest/unittests
+            test/unittest/catch2-unittests
 
-  - name: unittest-assertions
+  - name: catch2-unittest-assertions
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1737,7 +1756,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            test/unittest/unittests
+            test/unittest/catch2-unittests
 
   # End of normal make check test tasks
 
@@ -2174,70 +2193,15 @@ tasks:
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
-
-  - name: csuite-incr-backup-test
+  - name: csuite-tests-pull-request
     tags: ["pull_request"]
-    depends_on:
-      - name: compile
     commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
         vars:
-          test_name: incr_backup
-
-  - name: csuite-random-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: random
-
-  - name: csuite-random-abort-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: cmake_build/test/csuite/random_abort/test_random_abort
-          test_binary: random_abort
-
-  - name: csuite-random-directio-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: cmake_build/test/csuite/random_directio/test_random_directio
-          test_binary: random_directio
-
-  - name: csuite-schema-abort-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: cmake_build/test/csuite/schema_abort/test_schema_abort
-          test_binary: schema_abort
-
-  - name: csuite-timestamp-abort-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
-          test_binary: timestamp_abort
+          directory: test/csuite
+          extra_args: -LE "long_running" -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
     commands:
@@ -2258,368 +2222,6 @@ tasks:
 
             ./test_timestamp_abort -PT -Po s3_store
 
-  - name: csuite-timestamp-abort-stress-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite smoke test"
-        vars:
-          test_args: -s -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
-          test_binary: timestamp_abort
-
-  - name: csuite-scope-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: scope
-
-  - name: csuite-truncated-log-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: truncated_log
-
-  - name: csuite-wt1965-col-efficiency-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt1965_col_efficiency
-
-  - name: csuite-wt2403-lsm-workload-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2403_lsm_workload
-
-  - name: csuite-wt2447-join-main-table-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2447_join_main_table
-
-  - name: csuite-wt2695-checksum-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2695_checksum
-
-  - name: csuite-wt2592-join-schema-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2592_join_schema
-
-  - name: csuite-wt2719-reconfig-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2719_reconfig
-
-  - name: csuite-wt2999-join-extractor-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2999_join_extractor
-
-  - name: csuite-wt3120-filesys-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_args: -b $(pwd)
-          test_name: wt3120_filesys
-
-  - name: csuite-wt3135-search-near-collator-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt3135_search_near_collator
-
-  - name: csuite-wt3184-dup-index-collator-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt3184_dup_index_collator
-
-  - name: csuite-wt3363-checkpoint-op-races-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt3363_checkpoint_op_races
-
-  - name: csuite-wt3874-pad-byte-collator-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt3874_pad_byte_collator
-
-  - name: csuite-wt4105-large-doc-small-upd-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt4105_large_doc_small_upd
-
-  - name: csuite-wt4117-checksum-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt4117_checksum
-
-  - name: csuite-wt4156-metadata-salvage-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt4156_metadata_salvage
-
-  - name: csuite-wt4699-json-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt4699_json
-
-  - name: csuite-wt4803-history-store-abort-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt4803_history_store_abort
-
-  - name: csuite-wt4891-meta-ckptlist-get-alloc-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt4891_meta_ckptlist_get_alloc
-
-  - name: csuite-wt6185-modify-ts-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt6185_modify_ts
-
-  - name: csuite-rwlock-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: rwlock
-
-  - name: csuite-wt2246-col-append-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2246_col_append
-
-  - name: csuite-wt2323-join-visibility-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2323_join_visibility
-
-  - name: csuite-wt2535-insert-race-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2535_insert_race
-
-  - name: csuite-wt2834-join-bloom-fix-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt2834_join_bloom_fix
-
-  - name: csuite-wt2909-checkpoint-integrity-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_args: -b $(pwd)
-          test_name: wt2909_checkpoint_integrity
-
-  - name: csuite-wt3338-partial-update-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt3338_partial_update
-
-  - name: csuite-wt4333-handle-locks-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt4333_handle_locks
-
-  - name: csuite-wt6616-checkpoint-oldest-ts-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt6616_checkpoint_oldest_ts
-
-  - name: csuite-wt7989-compact-checkpoint-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt7989_compact_checkpoint
-
-  - name: csuite-wt8057-compact-stress-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt8057_compact_stress
-
-  - name: csuite-wt8246-compact-rts-data-correctness-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt8246_compact_rts_data_correctness
-
-  - name: csuite-wt8659-reconstruct-database-from-logs-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt8659_reconstruct_database_from_logs
-
-  - name: csuite-wt8963-insert-stress-test
-    tags: ["stress-test-1"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "csuite test"
-        vars:
-          test_name: wt8963_insert_stress
-
   - name: csuite-wt8963-insert-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
     commands:
@@ -2631,25 +2233,6 @@ tasks:
         vars:
           test_name: wt8963_insert_stress
 
-  - name: csuite-wt9937-parse-opts-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt9937_parse_opts
-
-  - name: csuite-wt10461-skip-list-stress-test
-    tags: ["stress-test-1"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "csuite test"
-        vars:
-          test_name: wt10461_skip_list_stress
-
   - name: csuite-wt10461-skip-list-stress-test-nonstandalone
     tags: ["stress-test-1"]
     commands:
@@ -2660,27 +2243,6 @@ tasks:
       - func: "csuite test"
         vars:
           test_name: wt10461_skip_list_stress
-
-  - name: csuite-wt10897-compact-quick-interrupt-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt10897_compact_quick_interrupt
-
-  - name: csuite-wt11440-config-check-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "csuite test"
-        vars:
-          test_name: wt11440_config_check
-
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -2855,7 +2417,10 @@ tasks:
               ${python_binary|python3} ../test/suite/run.py -v 4 test_prepare_hs03.py --hook timestamp
             done
 
-  - name: csuite-long-running
+  # csuite-long-running-bucket1 and csuite-long-running-bucket2 test tasks each run half of the long-running tests
+  # so that each test task completes within the 5-hour time limit
+
+  - name: csuite-long-running-bucket1
     # Set 5 hours timeout (60 * 60 * 5)
     exec_timeout_secs: 18000
     commands:
@@ -2863,7 +2428,19 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
-          extra_args: -L long_running
+          # Run the first test, and then every second test
+          extra_args: -L long_running -I 1,,2
+
+  - name: csuite-long-running-bucket2
+    # Set 5 hours timeout (60 * 60 * 5)
+    exec_timeout_secs: 18000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          # Run the second test, and then every second test
+          extra_args: -L long_running -I 2,,2
 
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
@@ -3615,6 +3192,15 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger docs"
       - func: "update wiredtiger docs"
+      - func: "upload artifact"
+        vars:
+          artifacts_name: wiredtiger
+      - func: "upload artifact"
+        vars:
+          upload_filename: wiredtiger.github.com.tgz
+          upload_source_dir: wiredtiger.github.com
+          artifacts_name: wiredtiger.github.com
+          postfix: -wiredtiger.github.com
 
   - name: syscall-linux
     commands:
@@ -3674,7 +3260,7 @@ tasks:
             # Perform the tests to get code coverage metrics for
             . ../test/evergreen/find_cmake.sh
 
-            test/unittest/unittests
+            test/unittest/catch2-unittests
 
             $CTEST -R '(ex_|lsm_workload|filesys|metadata_salvage|col_efficiency|dup_index_collator|compact_quick|test_checkpoint_4_mixed_timestamps|test_checkpoint_6_row_named_prepare|random_directio|scope|join_main_table_row|pad_byte_collator|meta_ckptlist_get_alloc)'
 
@@ -3878,7 +3464,7 @@ tasks:
             # Record the start time, in seconds
             date +%s > ../time.txt
             # Perform the tests to get code coverage metrics for
-            test/unittest/unittests
+            test/unittest/catch2-unittests
             # Record the end time, in seconds
             date +%s >> ../time.txt
       - func: "code coverage analysis"
@@ -3993,7 +3579,7 @@ tasks:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered06
-  - name: s3-tiered-unittest-test
+  - name: s3-tiered-catch2-unittest-test
     tags: ["pull_request", "tiered_unittest"]
     commands:
       - func: "get project"
@@ -4027,7 +3613,7 @@ tasks:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
-  - name: azure-gcp-tiered-unittest-test
+  - name: azure-gcp-tiered-catch2-unittest-test
     tags: ["pull_request", "tiered_unittest"]
     commands:
       - func: "get project"
@@ -5069,6 +4655,12 @@ tasks:
         vars:
           stats_dir: mongo-tests/largescale/many-collection-artifacts/results
           test-name: many-collection-test
+      - func: "upload artifact"
+        vars:
+          upload_filename: many-collection-test.tgz
+          upload_source_dir: mongo-tests/largescale/many-collection-artifacts
+      # Call cleanup function to avoid duplicated artifact upload in the post-task stage.
+      - func: "cleanup"
 
   - name: cyclomatic-complexity
     commands:
@@ -6356,7 +5948,7 @@ buildvariants:
     - name: format-smoke-test
     - name: format-failure-configs-test
     - name: ".data-validation-stress-test"
-    - name: unittest-test
+    - name: catch2-unittest-test
     - name: s3-tiered-storage-extensions-test
     - name: azure-gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
@@ -6365,7 +5957,7 @@ buildvariants:
     - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test-nonstandalone"
-    - name: unittest-assertions
+    - name: catch2-unittest-assertions
     - name: ".tiered_unittest"
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
@@ -6407,7 +5999,7 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: fops
-    - name: unittest-test
+    - name: catch2-unittest-test
     - name: examples-c-test
 
 - name: ubuntu2004-msan
@@ -6425,8 +6017,8 @@ buildvariants:
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
-    # make-check-test task and are covered by the csuite-long-running task.
-    check_args: -LE "cppsuite|long_running"
+    # make-check-test task and are covered by the csuite-long-running-bucket1 & 2 tasks.
+    extra_args: -LE "cppsuite|long_running"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: clang-analyzer
@@ -6438,7 +6030,12 @@ buildvariants:
     - name: format-stress-pull-request-test
     - name: make-check-test
       distros: ubuntu2004-large
-    - name: csuite-long-running
+    - name: csuite-long-running-bucket1
+      # Some of the long-running tests require a large instance to run successfully.
+      distros: ubuntu2004-large
+      batchtime: 1440 # once a day
+    - name: csuite-long-running-bucket2
+      # Some of the long-running tests require a large instance to run successfully.
       distros: ubuntu2004-large
       batchtime: 1440 # once a day
 
@@ -6619,7 +6216,7 @@ buildvariants:
     - name: make-check-test
     - name: ".unit_test"
     - name: fops
-    - name: unittest-test
+    - name: catch2-unittest-test
 
 - <<: *mac_test_template
   name: macos-1100-arm64
