@@ -659,7 +659,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const char *cfg[3] = {NULL, NULL, NULL}, *stripped_config;
-    bool running, toggle;
+    bool running, enable;
 
     conn = S2C(session);
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_compact);
@@ -684,22 +684,22 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     running = conn->background_compact.running;
 
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
-    toggle = cval.val;
+    enable = cval.val;
 
     /* Strip the unused fields from the configuration to check if the configuration has changed. */
     WT_ERR(__wt_config_merge(session, cfg, "background=,exclude=", &stripped_config));
 
     /* The background compact configuration cannot be changed while it's already running. */
-    if (toggle && running && strcmp(stripped_config, conn->background_compact.config) != 0)
+    if (enable && running && strcmp(stripped_config, conn->background_compact.config) != 0)
         WT_ERR_MSG(
           session, EINVAL, "Cannot reconfigure background compaction while it's already running.");
 
     /* If we haven't changed states, we're done. */
-    if (toggle == running)
+    if (enable == running)
         goto err;
 
     /* Update the excluded tables when the server is turned on. */
-    if (toggle) {
+    if (enable) {
         __background_compact_exclude_list_clear(session, false);
         WT_ERR_NOTFOUND_OK(__wt_config_gets(session, cfg, "exclude", &cval), false);
         if (cval.len != 0) {
@@ -724,7 +724,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     }
 
     /* The background compaction has been signalled successfully, update its state. */
-    conn->background_compact.running = toggle;
+    conn->background_compact.running = enable;
     __wt_free(session, conn->background_compact.config);
     conn->background_compact.config = stripped_config;
     conn->background_compact.signalled = true;
