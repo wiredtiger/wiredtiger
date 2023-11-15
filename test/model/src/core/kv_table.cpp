@@ -100,13 +100,8 @@ kv_table::get(kv_transaction_ptr txn, const data_value &key) const
 int
 kv_table::get_ext(const data_value &key, data_value &out, timestamp_t timestamp) const
 {
-    const kv_table_item *item = item_if_exists(key);
-    if (item == nullptr) {
-        out = NONE;
-        return WT_NOTFOUND;
-    }
     try {
-        out = item->get(timestamp);
+        out = get(key, timestamp);
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -122,16 +117,8 @@ int
 kv_table::get_ext(
   kv_checkpoint_ptr ckpt, const data_value &key, data_value &out, timestamp_t timestamp) const
 {
-    const kv_table_item *item = item_if_exists(key);
-    if (item == nullptr) {
-        out = NONE;
-        return WT_NOTFOUND;
-    }
-    if (timestamp == k_timestamp_latest)
-        timestamp = ckpt->stable_timestamp() != k_timestamp_none ? ckpt->stable_timestamp() :
-                                                                   k_timestamp_latest;
     try {
-        out = item->get(ckpt, timestamp);
+        out = get(ckpt, key, timestamp);
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -146,13 +133,8 @@ kv_table::get_ext(
 int
 kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out) const
 {
-    const kv_table_item *item = item_if_exists(key);
-    if (item == nullptr) {
-        out = NONE;
-        return WT_NOTFOUND;
-    }
     try {
-        out = item->get(txn);
+        out = get(txn, key);
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;

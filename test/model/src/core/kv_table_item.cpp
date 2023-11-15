@@ -27,6 +27,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <list>
 #include <sstream>
@@ -235,8 +236,10 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
              * The transaction snapshot includes only committed transactions, so no need to check
              * whether the update is actually committed.
              */
-            if (txn_snapshot->contains(u->txn_id()) && u->durable_timestamp() <= stable_timestamp)
+            if (txn_snapshot->contains(u->txn_id()) && u->durable_timestamp() <= stable_timestamp) {
+                assert(u->committed());
                 return u->value();
+            }
         }
         return NONE;
     }
