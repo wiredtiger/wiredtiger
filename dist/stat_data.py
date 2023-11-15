@@ -430,7 +430,6 @@ conn_stats = [
     ChunkCacheStat('chunkcache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
     ChunkCacheStat('chunkcache_toomany_retries', 'timed out due to too many retries'),
 
-
     ##########################################
     # Cursor operations
     ##########################################
