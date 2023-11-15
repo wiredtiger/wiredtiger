@@ -109,12 +109,10 @@ __bm_checkpoint(
      * happen since eviction is disabled at the moment, and hence we are the exclusive writers.
      */
     if (bm->next_block != NULL) {
-        WT_ASSERT(session, bm->switching);
         __wt_writelock(session, &bm->handle_array_lock);
         bm->prev_block = bm->block;
         bm->block = bm->next_block;
         __wt_writeunlock(session, &bm->handle_array_lock);
-        bm->switching = false;
     }
 
     /*

@@ -1051,7 +1051,6 @@ __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_DECL_RET;
 
     btree = S2BT(session);
     /* If the btree is readonly, there is nothing to do. */
@@ -1063,11 +1062,6 @@ __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
      * being fully opened. That's okay, the btree will be told later about the current object
      * number.
      */
-    if ((bm = btree->bm) == NULL)
-        return (0);
-
-    if ((ret = bm->switch_object(bm, session, objectid)) == 0)
-        bm->switching = true;
-
-    return (ret);
+    bm = btree->bm;
+    return (bm == NULL ? 0 : bm->switch_object(bm, session, objectid));
 }

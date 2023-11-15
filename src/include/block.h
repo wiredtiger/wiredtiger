@@ -238,8 +238,6 @@ struct __wt_bm {
      * There's only a single block manager handle that can be written, all others are checkpoints.
      */
     bool is_live; /* The live system */
-
-    bool switching;
 };
 
 /*
