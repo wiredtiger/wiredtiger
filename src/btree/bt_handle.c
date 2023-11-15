@@ -437,8 +437,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->flush_most_recent_ts = 0;
     ret = __wt_config_gets(session, cfg, "flush_timestamp", &cval);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret == 0)
-        WT_RET(__wt_meta_parse_time(session, &cval, &btree->flush_most_recent_ts));
+    if (ret == 0 && cval.len != 0)
+        WT_RET(__wt_txn_parse_timestamp_raw(
+          session, "flush_timestamp", &btree->flush_most_recent_ts, &cval));
 
     /* Checksums */
     WT_RET(__wt_config_gets(session, cfg, "checksum", &cval));
