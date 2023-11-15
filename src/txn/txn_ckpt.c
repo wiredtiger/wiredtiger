@@ -101,6 +101,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     conn->flush_ckpt_complete = false;
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
+    /* Might not need these */
     conn->flush_most_recent = session->current_ckpt_sec;
     conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
     /*
@@ -141,13 +142,14 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
             WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, 0));
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
-             * the arg is the config string that is currently in the metadata. Also, ensure that
-             * this table participates in the checkpoint process, even if clean.
+             * the arg is the config string that is currently in the metadata. Also, mark the tree
+             * dirty to ensure that this table participates in the checkpoint process, even if
+             * clean.
              */
             WT_ERR(__wt_tiered_switch(session, value));
             WT_STAT_CONN_INCR(session, flush_tier_switched);
+            __wt_tree_modify_set(session);
             btree = S2BT(session);
-            WT_BTREE_CLEAN_CKPT(session, btree, WT_BTREE_CLEAN_CKPT_NOW);
             btree->flush_most_recent_secs = session->current_ckpt_sec;
             btree->flush_most_recent_ts = conn->txn_global.last_ckpt_timestamp;
 
@@ -1758,9 +1760,6 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
      */
     WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
 
-    /* Make sure checkpoint "now" is only set temporarily. We should have cleared it by now. */
-    WT_ASSERT(session, btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_NOW);
-
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
         /*
          * If we decide to skip checkpointing, clear the delete flag on the checkpoints. The list of
@@ -1886,11 +1885,9 @@ __checkpoint_lock_dirty_tree(
      * This is a complicated test to determine if we can avoid the expensive call of getting the
      * list of checkpoints for this file. We want to avoid that for clean files. But on clean files
      * we want to periodically check if we need to delete old checkpoints that may have been in use
-     * by an open cursor. Additionally, the file might be marked to be checkpointed now for whatever
-     * reason, so consider that.
+     * by an open cursor.
      */
-    if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop &&
-      btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_NOW) {
+    if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop) {
         /* In the common case of the timer set forever, don't even check the time. */
         skip_ckpt = true;
         if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
@@ -1915,14 +1912,6 @@ __checkpoint_lock_dirty_tree(
     if (!is_wt_ckpt || is_drop || btree->ckpt_bytes_allocated == 0)
         __wt_meta_saved_ckptlist_free(session);
 
-    /*
-     * If we are considering this btree for a checkpoint, reset the timer and obsolete pages flag. A
-     * clean btree with the timer set to zero will be considered, but could still be skipped from
-     * being checkpointed if there are not many old checkpoints to cleanup. Whereas, if the timer
-     * says checkpoint now, it can not be skipped.
-     */
-    if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_NOW)
-        WT_BTREE_CLEAN_CKPT(session, btree, 0);
     F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
@@ -1986,13 +1975,12 @@ __checkpoint_lock_dirty_tree(
 
     /*
      * If we decided to skip checkpointing, we need to remove the new checkpoint entry we might have
-     * appended to the list. Also, if we are adding a new checkpoint, there should only be one new
-     * addition.
+     * appended to the list.
      */
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
         WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt) {
-            /* Checkpoint to be added are always at the end of the list. */
-            WT_ASSERT(session, !seen_ckpt_add || !F_ISSET(ckpt, WT_CKPT_ADD));
+            /* Checkpoint(s) to be added are always at the end of the list. */
+            WT_ASSERT(session, !seen_ckpt_add || F_ISSET(ckpt, WT_CKPT_ADD));
             if (F_ISSET(ckpt, WT_CKPT_ADD)) {
                 seen_ckpt_add = true;
                 __wt_meta_checkpoint_free(session, ckpt);
@@ -2082,13 +2070,6 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
-
-    /* If the timer has been set to checkpoint "now", we can not skip it. */
-    if (btree->clean_ckpt_timer == WT_BTREE_CLEAN_CKPT_NOW) {
-        /* Do the checks for the old checkpoint deletion and obsolete pages the next time. */
-        WT_BTREE_CLEAN_CKPT(session, btree, 0);
-        return (0);
-    }
 
     if (!btree->modified && !force) {
         deleted = 0;

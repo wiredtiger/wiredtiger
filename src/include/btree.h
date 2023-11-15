@@ -218,7 +218,6 @@ struct __wt_btree {
     } while (0)
 /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
 #define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
-#define WT_BTREE_CLEAN_CKPT_NOW (INT64_MAX - 1)
 #define WT_BTREE_CLEAN_MINUTES 10
     uint64_t clean_ckpt_timer;
 
