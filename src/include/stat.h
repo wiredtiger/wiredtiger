@@ -625,6 +625,7 @@ struct __wt_connection_stats {
     int64_t chunkcache_retries;
     int64_t chunkcache_retries_checksum_mismatch;
     int64_t chunkcache_toomany_retries;
+    int64_t chunkcache_bytes_read_persistent;
     int64_t chunkcache_bytes_inuse;
     int64_t chunkcache_bytes_inuse_pinned;
     int64_t chunkcache_chunks_inuse;

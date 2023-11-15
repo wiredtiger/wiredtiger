@@ -1584,6 +1584,7 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: retried accessing a chunk while I/O was in progress",
   "chunk-cache: retries from a chunk cache checksum mismatch",
   "chunk-cache: timed out due to too many retries",
+  "chunk-cache: total bytes read from persistent content",
   "chunk-cache: total bytes used by the cache",
   "chunk-cache: total bytes used by the cache for pinned chunks",
   "chunk-cache: total chunks held by the chunk cache",
@@ -2276,6 +2277,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->chunkcache_retries = 0;
     stats->chunkcache_retries_checksum_mismatch = 0;
     stats->chunkcache_toomany_retries = 0;
+    stats->chunkcache_bytes_read_persistent = 0;
     stats->chunkcache_bytes_inuse = 0;
     stats->chunkcache_bytes_inuse_pinned = 0;
     stats->chunkcache_chunks_inuse = 0;
@@ -2985,6 +2987,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_retries_checksum_mismatch +=
       WT_STAT_READ(from, chunkcache_retries_checksum_mismatch);
     to->chunkcache_toomany_retries += WT_STAT_READ(from, chunkcache_toomany_retries);
+    to->chunkcache_bytes_read_persistent += WT_STAT_READ(from, chunkcache_bytes_read_persistent);
     to->chunkcache_bytes_inuse += WT_STAT_READ(from, chunkcache_bytes_inuse);
     to->chunkcache_bytes_inuse_pinned += WT_STAT_READ(from, chunkcache_bytes_inuse_pinned);
     to->chunkcache_chunks_inuse += WT_STAT_READ(from, chunkcache_chunks_inuse);

@@ -411,6 +411,7 @@ conn_stats = [
     ##########################################
     ChunkCacheStat('chunkcache_bytes_inuse', 'total bytes used by the cache'),
     ChunkCacheStat('chunkcache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
+    ChunkCacheStat('chunkcache_bytes_read_persistent', 'total bytes read from persistent content'),
     ChunkCacheStat('chunkcache_chunks_evicted', 'chunks evicted'),
     ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
     ChunkCacheStat('chunkcache_chunks_loaded_from_flushed_tables', 'number of chunks loaded from flushed tables in chunk cache'),
