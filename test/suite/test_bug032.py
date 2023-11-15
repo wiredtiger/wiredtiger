@@ -57,7 +57,7 @@ class test_bug032(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, nrows):
-            cursor[ds.key(i)] = value
+            cursor[ds.key(i)] = value + str(i)
                 
         self.session.commit_transaction()
         cursor.close()
