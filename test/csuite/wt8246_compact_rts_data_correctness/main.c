@@ -243,10 +243,10 @@ workload_compact(
     remove_records(session, uri, 60);
 
     /*
-     * Force checkpoint is the first step in the compact operation, we do the same thing here to
-     * save some time in the compact operation.
+     * Checkpoint is the first step in the compact operation, we do the same thing here to save some
+     time in the compact operation.
      */
-    testutil_check(session->checkpoint(session, "force"));
+    testutil_check(session->checkpoint(session, NULL));
 
     /* Set a low threshold to ensure compaction runs. */
     testutil_snprintf(compact_cfg, sizeof(compact_cfg), "free_space_target=1MB%s",
