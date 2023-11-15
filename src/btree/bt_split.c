@@ -1983,6 +1983,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DATA_INCR(session, cache_inmem_split);
         return (0);
     }
+    
     /*
      * Failure.
      *
