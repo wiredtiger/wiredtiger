@@ -481,7 +481,6 @@ struct __wt_connection_impl {
     struct timespec ckpt_prep_end;
     struct timespec ckpt_prep_start;
     struct timespec ckpt_timer_start;
-    struct timespec ckpt_timer_scrub_end;
 
     /* Checkpoint progress message data */
     uint64_t ckpt_progress_msg_count;

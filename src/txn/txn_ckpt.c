@@ -1095,9 +1095,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_verbose_track(session, "starting transaction");
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_START_TXN);
 
-    if (full)
-        __wt_epoch(session, &conn->ckpt_timer_scrub_end);
-
     /*
      * Start the checkpoint for real.
      *
