@@ -325,10 +325,9 @@ from packing import pack, unpack
 		self.checkpoint_id = 0
 
 	def __repr__(self):
-		return f'CursorDetailsCheckpoint(checkpoint_id={self.checkpoint_id}, stable_timestamp={self.stable_timestamp})'
+		return 'CursorDetailsCheckpoint(ckpt_id={self.checkpoint_id}, stable={self.stable_timestamp})'
 %}
 };
-
 
 %rename (CursorDetails) __wt_cursor_details;
 %ignore __wt_cursor_details::checkpoint;
@@ -678,8 +677,8 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 /* Replace get_raw_key_value method with a Python equivalent */
 %ignore __wt_cursor::get_raw_key_value;
 
+/* Suppress as we will define a custom Pythonic wrapper. */
 %ignore __wt_cursor::get_details(WT_CURSOR *, WT_CURSOR_DETAILS *, const char *);
-%rename(_get_details) __wt_cursor::get_details;
 
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
@@ -896,6 +895,10 @@ typedef int int_void;
 		return (ret);
 	}
 
+	int_void _get_details(WT_CURSOR_DETAILS *detailsp, const char *config) {
+		return $self->get_details($self, detailsp, config);
+	}
+
 	/* compare: special handling. */
 	int _compare(WT_CURSOR *other) {
 		int cmp = 0;
@@ -1056,10 +1059,7 @@ typedef int int_void;
 		'''
 		# Configuration is currently not required, nor supported.
 		assert config == None
-		result = self._get_details(None)
-		if len(result) == 1:
-			raise NotImplementedError
-		return result[1]
+		return self._get_details(config)
 
 	def __iter__(self):
 		'''Cursor objects support iteration, equivalent to calling
