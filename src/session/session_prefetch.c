@@ -36,9 +36,14 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     }
 
-    if (session->pf.prefetch_disk_read_count == 1) {
-        WT_STAT_CONN_INCR(session, block_prefetch_disk_one);
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        WT_STAT_CONN_INCR(session, block_prefetch_skipped_internal_page);
+        WT_STAT_CONN_INCR(session, block_prefetch_skipped);
+        return (false);
     }
+
+    if (session->pf.prefetch_disk_read_count == 1)
+        WT_STAT_CONN_INCR(session, block_prefetch_disk_one);
 
     if (session->pf.prefetch_disk_read_count < 2) {
         WT_STAT_CONN_INCR(session, block_prefetch_skipped_disk_read_count);

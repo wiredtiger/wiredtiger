@@ -244,9 +244,10 @@ conn_stats = [
     BlockCacheStat('block_prefetch_pages_queued', 'pre-fetch pages queued'),
     BlockCacheStat('block_prefetch_pages_read', 'pre-fetch pages read in background'),
     BlockCacheStat('block_prefetch_skipped', 'pre-fetch not triggered by page read'),
-    BlockCacheStat('block_prefetch_skipped_disk_read_count', 'pre-fetch not triggered for disk read count'),
-    BlockCacheStat('block_prefetch_skipped_internal_session', 'pre-fetch not triggered for internal session'),
-    BlockCacheStat('block_prefetch_skipped_same_ref', 'pre-fetch not triggered for same ref'),
+    BlockCacheStat('block_prefetch_skipped_disk_read_count', 'pre-fetch not triggered due to disk read count'),
+    BlockCacheStat('block_prefetch_skipped_internal_page', 'pre-fetch not triggered due to internal page'),
+    BlockCacheStat('block_prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
+    BlockCacheStat('block_prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
     BlockCacheStat('block_prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
 
     ##########################################

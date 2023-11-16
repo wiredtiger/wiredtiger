@@ -39,6 +39,7 @@ from wtscenario import make_scenarios
 
 class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     new_dir = 'new.dir'
+    nrows = 100000
     uri = 'file:test_prefetch02'
 
     config_options = [
@@ -100,7 +101,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         s.create(self.uri, 'key_format=i,value_format=i')
         c1 = s.open_cursor(self.uri)
         s.begin_transaction()
-        for i in range(100000):
+        for i in range(self.nrows):
             c1[i] = i
         c1.close()
         s.commit_transaction()
@@ -112,7 +113,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             # Traverse through half the key space and collect pre-fetching statistics. Then, traverse
             # through the rest of the keys and check that the relevant pre-fetching statistics have
             # increased by the end. If pre-fetching is not available, check that we are skipping pages.
-            for i in range(50000):
+            for i in range(self.nrows // 2):
                 ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
             pages_queued, prefetch_attempts, prefetch_pages_read = self.get_prefetch_activity_stats(s)
             prefetch_skips = self.get_prefetch_skipped_stat(s)
