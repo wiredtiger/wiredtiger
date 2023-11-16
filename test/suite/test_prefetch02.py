@@ -110,7 +110,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         s.begin_transaction()
         for i in range(1, self.nrows):
             if self.value_format == '8t':
-                c1[i] = self.nrows // 10000
+                c1[i] = 10000
             else:
                 c1[i] = i
         c1.close()
