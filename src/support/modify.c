@@ -470,8 +470,7 @@ retry:
     __wt_update_vector_init(session, &modifies);
     /* Find a complete update. */
     for (upd = modify; upd != NULL; upd = upd->next) {
-        if (upd->txnid == WT_TXN_ABORTED)
-            continue;
+        WT_ASSERT(session, upd->type != WT_UPDATE_TOMBSTONE);
 
         if (WT_UPDATE_DATA_VALUE(upd))
             break;
