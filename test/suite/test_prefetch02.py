@@ -42,6 +42,12 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     nrows = 100000
     uri = 'file:test_prefetch02'
 
+    format_values = [
+        ('col_var', dict(key_format='r', value_format='i')),
+        ('col_fix', dict(key_format='r', value_format='8t')),
+        ('row_int', dict(key_format='i', value_format='i')),
+    ]
+
     config_options = [
         ('config_a', dict(conn_cfg='prefetch=(available=true,default=true),statistics=(all)', 
                             session_cfg='', prefetch=True)),
@@ -57,7 +63,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         ('verify', dict(prefetch_scenario='verify', scenario_type='verify')),
     ]
 
-    scenarios = make_scenarios(config_options, prefetch_scenarios)
+    scenarios = make_scenarios(format_values, config_options, prefetch_scenarios)
 
     def get_stat(self, stat, session_name):
         stat_cursor = session_name.open_cursor('statistics:')
@@ -98,11 +104,15 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
 
         new_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg)
         s = new_conn.open_session(self.session_cfg)
-        s.create(self.uri, 'key_format=i,value_format=i')
+        s.create(self.uri, 'allocation_size=512,leaf_page_max=512,'
+                        'key_format={},value_format={}'.format(self.key_format, self.value_format))
         c1 = s.open_cursor(self.uri)
         s.begin_transaction()
-        for i in range(self.nrows):
-            c1[i] = i
+        for i in range(1, self.nrows):
+            if self.value_format == '8t':
+                c1[i] = self.nrows // 10000
+            else:
+                c1[i] = i
         c1.close()
         s.commit_transaction()
         s.checkpoint()
