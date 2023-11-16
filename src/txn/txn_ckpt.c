@@ -603,7 +603,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
-    msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_scrub_end);
+    msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
 
     if (msec > conn->ckpt_time_max)
         conn->ckpt_time_max = msec;
@@ -1315,8 +1315,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
 
     if (full) {
-        __checkpoint_stats(session);
-
         /*
          * If timestamps defined the checkpoint's content, set the saved last checkpoint timestamp,
          * otherwise clear it. We clear it for a couple of reasons: applications can query it and we
@@ -1339,6 +1337,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
     }
+    __checkpoint_stats(session);
+    WT_STAT_CONN_INCR(session, checkpoints);
 
 err:
     /*
