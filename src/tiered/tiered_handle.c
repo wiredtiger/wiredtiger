@@ -491,10 +491,6 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
     WT_ASSERT_ALWAYS(session, WT_DHANDLE_BTREE(dhandle), "Expected a btree handle");
     btree = dhandle->handle;
 
-    /*
-     * if the hex timestamp is 0, do we need to save in metadata. example we skip this for:
-     * "meta_ckpt_timestamp" with __meta_sysinfo_remove()
-     */
     __wt_timestamp_to_hex_string(btree->flush_most_recent_ts, hex_timestamp);
     WT_RET(__wt_buf_catfmt(session, buf,
       ",flush_time=%" PRIu64 ",flush_timestamp=\"%s\",last=%" PRIu32 ",oldest=%" PRIu32 ",tiers=(",

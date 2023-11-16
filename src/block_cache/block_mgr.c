@@ -105,22 +105,16 @@ __bm_checkpoint(
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
     /*
-     * We might have postponed a tiered switch to a new file. This is the right time to make that
-     * happen since eviction is disabled at the moment, and hence we are the exclusive writers.
+     * If we postponed switching to a new file, this is the right time to make that happen since
+     * eviction is disabled at the moment and we are the exclusive writers.
      */
     if (bm->next_block != NULL) {
         __wt_writelock(session, &bm->handle_array_lock);
         bm->prev_block = bm->block;
         bm->block = bm->next_block;
+        bm->next_block = NULL;
         __wt_writeunlock(session, &bm->handle_array_lock);
     }
-
-    /*
-     * QUESTIONS: If after this point checkpoint fails - do we switch back to older file? Is the
-     * above block better be after the multi handle check, or possibly before the first switch we
-     * are not multi handle just yet? If we are multi handle, and since all the files marked for
-     * sync are fsync here, does that mean we might fsync the prev_block twice now?
-     */
 
     if (!bm->is_multi_handle)
         return (0);
@@ -227,7 +221,7 @@ __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     /* If we have made a switch from the older file, resolve the older one instead. */
     if (bm->prev_block != NULL) {
         if ((ret = __wt_block_checkpoint_resolve(session, bm->prev_block, failed)) == 0)
-            bm->prev_block = bm->next_block = NULL;
+            bm->prev_block = NULL;
         return (ret);
     } else
         return (__wt_block_checkpoint_resolve(session, bm->block, failed));
@@ -636,17 +630,11 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
     /* This will be the new writable object. Load its checkpoint */
     WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));
 
-    /* The previous object must by synced to disk as part of the next checkpoint. */
-    /*
-     * QUESTION: Do we need this now as we will call bm->sync on this file at the end of global
-     * checkpoint.
-     */
-    current->sync_on_checkpoint = true;
-
     /*
      * We don't do the actual switch just yet. Eviction is active and might write to the file in
-     * parallel. We postpone the switch to be done when the block manager writes the checkpoint.
+     * parallel. We postpone the switch to later when the block manager writes the checkpoint.
      */
+    WT_ASSERT(session, bm->next_block == NULL && bm->prev_block == NULL);
     bm->next_block = block;
 
     return (0);
@@ -672,7 +660,6 @@ static int
 __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
     /* If we have made a switch from the older file, sync the older one instead. */
-    WT_ASSERT(session, bm->prev_block == NULL || block);
     if (bm->prev_block != NULL)
         return (__wt_fsync(session, bm->prev_block->fh, block));
     else

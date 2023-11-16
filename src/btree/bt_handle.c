@@ -427,7 +427,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
 
-    /* Last flush for tiered storage, if applicable. */
+    /* Get the last flush times for tiered storage, if applicable. */
     btree->flush_most_recent_secs = 0;
     ret = __wt_config_gets(session, cfg, "flush_time", &cval);
     WT_RET_NOTFOUND_OK(ret);

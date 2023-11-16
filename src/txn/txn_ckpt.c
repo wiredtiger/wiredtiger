@@ -101,9 +101,8 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     conn->flush_ckpt_complete = false;
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
-    /* Might not need these */
     conn->flush_most_recent = session->current_ckpt_sec;
-    conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
+    conn->flush_ts = conn->txn_global.last_ckpt_timestamp; /* This one might not be needed */
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
      * the user asks for a flush_tier without tiered storage, the loop below is effectively a no-op
@@ -143,8 +142,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
              * the arg is the config string that is currently in the metadata. Also, mark the tree
-             * dirty to ensure that this table participates in the checkpoint process, even if
-             * clean.
+             * dirty to ensure it participates in the checkpoint process, even if clean.
              */
             WT_ERR(__wt_tiered_switch(session, value));
             WT_STAT_CONN_INCR(session, flush_tier_switched);
@@ -152,13 +150,6 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
             btree = S2BT(session);
             btree->flush_most_recent_secs = session->current_ckpt_sec;
             btree->flush_most_recent_ts = conn->txn_global.last_ckpt_timestamp;
-
-            /*
-             * Are we sure the handle wont get closed by the time we gather handles to participate
-             * in the checkpoint. This call itself should not close the handle, but can sweep server
-             * come in and close the btree? We do prevent sweep from racing with checkpoint, but at
-             * what stage?
-             */
             WT_ERR(__wt_session_release_dhandle(session));
         }
     }
@@ -1539,7 +1530,15 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
         WT_WITH_CHECKPOINT_LOCK(session, ret = __txn_checkpoint_wrapper(session, cfg));
     else
         WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret, ret = __txn_checkpoint_wrapper(session, cfg));
+    /*
+     * If this checkpoint is flushing objects, a failure can leave a tree's block manager pointing
+     * to incorrect blocks. Currently we can not recover from this situation. Panic!
+     */
+    if (ret != 0 && flush)
+        WT_IGNORE_RET(
+          __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
     WT_ERR(ret);
+
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
 err:
