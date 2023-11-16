@@ -419,6 +419,9 @@ functions:
             mv docs docs-$branch
           done
 
+          # Checkout the default ("develop") branch again to leave wiredtiger/ in the same state we started with
+          git checkout develop
+
   "update wiredtiger docs":
     - command: shell.exec
       type: setup
@@ -484,6 +487,8 @@ functions:
           export GITHUB_REPO="wiredtiger.github.com"
           export GITHUB_APP_ID="${doc_update_github_app_id}"
           export GITHUB_APP_PRIVATE_KEY="${doc_update_github_app_private_key}"
+          # Make sure the below script is called under the default ("develop") branch.
+          (cd wiredtiger && git checkout develop)
           python wiredtiger/test/evergreen/doc_update.py
 
   "make check directory":
@@ -5961,6 +5966,14 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-test
+    - name: csuite-long-running-bucket1
+      # Some of the long-running tests require a large instance to run successfully.
+      distros: ubuntu2004-large
+      batchtime: 1440 # once a day
+    - name: csuite-long-running-bucket2
+      # Some of the long-running tests require a large instance to run successfully.
+      distros: ubuntu2004-large
+      batchtime: 1440 # once a day
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -6025,14 +6038,16 @@ buildvariants:
     - name: format-stress-pull-request-test
     - name: make-check-test
       distros: ubuntu2004-large
-    - name: csuite-long-running-bucket1
-      # Some of the long-running tests require a large instance to run successfully.
-      distros: ubuntu2004-large
-      batchtime: 1440 # once a day
-    - name: csuite-long-running-bucket2
-      # Some of the long-running tests require a large instance to run successfully.
-      distros: ubuntu2004-large
-      batchtime: 1440 # once a day
+      # FIXME-WT-11989 Long running test may timeout with sanitizers.
+    # - name: csuite-long-running-bucket1
+    #   # Some of the long-running tests require a large instance to run successfully.
+    #   distros: ubuntu2004-large
+    #   batchtime: 1440 # once a day
+      # FIXME-WT-11989 Long running test may timeout with sanitizers.
+    # - name: csuite-long-running-bucket2
+    #   # Some of the long-running tests require a large instance to run successfully.
+    #   distros: ubuntu2004-large
+    #   batchtime: 1440 # once a day
 
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
