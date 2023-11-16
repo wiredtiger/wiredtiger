@@ -362,7 +362,7 @@ from packing import pack, unpack
 %}
 };
 
-  /* 64 bit typemaps. */
+/* 64 bit typemaps. */
 %typemap(in) uint64_t {
         $1 = PyLong_AsUnsignedLongLong($input);
 }
@@ -677,6 +677,9 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 
 /* Replace get_raw_key_value method with a Python equivalent */
 %ignore __wt_cursor::get_raw_key_value;
+
+%ignore __wt_cursor::get_details(WT_CURSOR *, WT_CURSOR_DETAILS *, const char *);
+%rename(_get_details) __wt_cursor::get_details;
 
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
@@ -1045,6 +1048,18 @@ typedef int int_void;
 			# Keep the Python string pinned
 			self._value = pack(self.value_format, *args)
 			self._set_value(self._value)
+
+	def get_details(self, config = None):
+		'''get_details(self, config) -> CursorDetails
+
+		@copydoc WT_CURSOR::get_details
+		'''
+		# Configuration is currently not required, nor supported.
+		assert config == None
+		result = self._get_details(None)
+		if len(result) == 1:
+			raise NotImplementedError
+		return result[1]
 
 	def __iter__(self):
 		'''Cursor objects support iteration, equivalent to calling

@@ -221,8 +221,10 @@ struct __wt_cursor_btree {
          */
         WT_DATA_HANDLE *hs_dhandle;
 
-        /* Write generation, used to override the tree's base write generation in the unpacking
-         * cleanup code. */
+        /*
+         * Write generation, used to override the tree's base write generation in the unpacking
+         * cleanup code.
+         */
         uint64_t write_gen;
 
         /* Available to the application via cursor::get_details() API call. */
