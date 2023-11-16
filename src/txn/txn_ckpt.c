@@ -530,7 +530,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
     /* Set the dirty trigger to the target value. */
     cache->eviction_scrub_target = cache->eviction_checkpoint_target;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)cache->eviction_scrub_target);
 
     /* Wait while the dirty level is going down. */
     for (;;) {
