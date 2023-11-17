@@ -1735,9 +1735,8 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_BTREE *btree;
     WT_INSERT *ins;
     WT_INSERT_HEAD *ins_head;
-    size_t size;
+    size_t size, mem_split_threshold;
     int count;
-    size_t mem_split_threshold = 0;
 
     btree = S2BT(session);
 
