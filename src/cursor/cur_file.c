@@ -580,7 +580,9 @@ __curfile_reserve(WT_CURSOR *cursor)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
+    cbt->flags |= 0x400;
     WT_ERR(__wt_btcur_reserve(cbt));
+    cbt->flags &= ~((uint32_t)0x400);
 
     /*
      * Reserve maintains a position and key, which doesn't match the library API, where reserve

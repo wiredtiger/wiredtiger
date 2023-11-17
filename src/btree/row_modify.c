@@ -240,6 +240,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             for (i = 0; i < skipdepth; i++)
                 ins->next[i] = cbt->next_stack[i];
 
+        WT_ASSERT(session, modify_type != WT_UPDATE_RESERVE);
+
         /* Insert the WT_INSERT structure. */
         WT_ERR(__wt_insert_serial(
           session, page, cbt->ins_head, cbt->ins_stack, &ins, ins_size, skipdepth, exclusive));

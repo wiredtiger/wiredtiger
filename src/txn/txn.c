@@ -1184,6 +1184,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     if (!commit) {
         upd->txnid = WT_TXN_ABORTED;
+        /* upd->flags |= 0x80; */
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
         return;
     }
@@ -1779,6 +1780,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  */
                 if (upd->type == WT_UPDATE_RESERVE) {
                     upd->txnid = WT_TXN_ABORTED;
+                    /* TODO it's this one */
+                    /* upd->flags |= 0x80; */
                     break;
                 }
 
@@ -2045,6 +2048,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (upd->type == WT_UPDATE_RESERVE) {
                 upd->txnid = WT_TXN_ABORTED;
+                /* upd->flags |= 0x80; */
                 __wt_txn_op_free(session, op);
                 break;
             }
@@ -2164,6 +2168,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                     break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
                 upd->txnid = WT_TXN_ABORTED;
+                upd->flags |= 0x80;
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
