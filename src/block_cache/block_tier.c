@@ -186,7 +186,7 @@ err:
 }
 
 /*
- * __wt_blkcache_get_read_handle
+ * __wt_blkcache_get_read_handle --
  *     Update block handle when a read operation begins.
  */
 void

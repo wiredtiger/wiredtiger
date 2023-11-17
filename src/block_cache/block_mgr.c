@@ -720,7 +720,7 @@ __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool do_block)
 }
 
 /*
- * __wt_blkcache_sweep_handles
+ * __wt_blkcache_sweep_handles --
  *     Free blocks from the manager's handle array if possible.
  */
 int
