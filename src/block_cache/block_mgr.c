@@ -100,8 +100,8 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_BLOCK *block;
     WT_DECL_RET;
-    int fsync_ret;
     u_int i;
+    int fsync_ret;
     bool found;
     bool last_release;
     bool need_sweep;
