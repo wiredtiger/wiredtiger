@@ -154,6 +154,27 @@ err:
 }
 
 /*
+ * __tier_release_local_object --
+ *     We no longer need the local object that was recently flushed to the cloud. Allow it to be
+ *     removed.
+ */
+static int
+__tier_release_local_object(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+
+    dhandle = &tiered->iface;
+    btree = dhandle->handle;
+    bm = btree->bm;
+
+    WT_WITH_DHANDLE(session, dhandle, ret = bm->switch_object_complete(bm, session, id));
+    return (ret);
+}
+
+/*
  * __tier_do_operation --
  *     Perform one iteration of copying newly flushed objects to shared storage or post-flush
  *     processing.
@@ -221,6 +242,10 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
               session, &tiered->iface, 0, WT_TIERED_NAME_SKIP_PREFIX, &sp_obj_name));
             WT_ERR_ERROR_OK(
               __wt_chunkcache_ingest(session, local_name, sp_obj_name, id), ENOSPC, false);
+
+            /* We can now release the local object. */
+            WT_ERR(__tier_release_local_object(session, tiered, id));
+
             /*
              * After successful flushing, push a work unit to perform whatever post-processing the
              * shared storage wants to do for this object. Note that this work unit is unrelated to

@@ -405,6 +405,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
         break;
     case WT_DHANDLE_TYPE_TIERED:
+        WT_TRET(__wt_btree_close(session));
         WT_TRET(__wt_tiered_close(session, (WT_TIERED *)dhandle, final));
         F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
         break;
