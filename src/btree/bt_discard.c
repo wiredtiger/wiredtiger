@@ -48,6 +48,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
         !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
     __wt_page_out(session, &ref->page);
+    __wt_free(session, ref->ta);
 }
 
 /*
@@ -337,6 +338,9 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
 
     /* Free any backing fast-truncate memory. */
     __wt_free(session, ref->page_del);
+
+    /* Free any backing timestamp information. */
+    __wt_free(session, ref->ta);
 
     __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
 }

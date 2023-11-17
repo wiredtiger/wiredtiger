@@ -650,6 +650,7 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
          * fast-delete state for the page.
          */
         if (page_del != NULL && F_ISSET(home->dsk, WT_PAGE_FT_UPDATE)) {
+            WT_ASSERT(session, ref->ta == NULL);
             WT_RET(__wt_calloc_one(session, &ref->page_del));
             *ref->page_del = *page_del;
         }

@@ -616,6 +616,9 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     /* Free any backing fast-truncate memory. */
     __wt_free(session, ref->page_del);
 
+    /* Free any backing timestamp information. */
+    __wt_free(session, ref->ta);
+
     /* Free the backing block and address. */
     WT_TRET(__wt_ref_block_free(session, ref));
 

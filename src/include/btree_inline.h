@@ -2289,6 +2289,7 @@ __wt_btcur_skip_page(
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
     uint8_t previous_state;
+    bool clean_page;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -2296,6 +2297,7 @@ __wt_btcur_skip_page(
     *skipp = false; /* Default to reading */
 
     btree = S2BT(session);
+    clean_page = false;
 
     /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
     if (btree->type == BTREE_COL_FIX)
@@ -2336,20 +2338,19 @@ __wt_btcur_skip_page(
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
+        WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
         goto unlock;
     }
 
-    /*
-     * Look at the disk address, if it exists, and if the page is unmodified. We must skip this test
-     * if the page has been modified since it was reconciled, since neither the delete information
-     * nor the timestamp information is necessarily up to date.
-     */
-    if ((previous_state == WT_REF_DISK ||
-          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
-      __wt_ref_addr_copy(session, ref, &addr)) {
+    if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))
+        clean_page = true;
+
+    /* Look at the disk address, if it exists. */
+    if ((previous_state == WT_REF_DISK || clean_page) && __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
+            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
             goto unlock;
         }
 
@@ -2357,12 +2358,17 @@ __wt_btcur_skip_page(
          * Otherwise, check the timestamp information. We base this decision on the aggregate stop
          * point added to the page during the last reconciliation.
          */
-        if (addr.ta.newest_stop_txn != WT_TXN_MAX && addr.ta.newest_stop_ts != WT_TS_MAX &&
+        if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
-            goto unlock;
+            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
         }
+    } else if (clean_page && ref->ta != NULL &&
+      __wt_txn_snap_min_visible(session, ref->ta->newest_stop_txn, ref->ta->newest_stop_ts,
+        ref->ta->newest_stop_durable_ts)) {
+        *skipp = true;
+        WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_inmem_del_page_skip);
     }
 
 unlock:
