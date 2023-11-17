@@ -43,7 +43,6 @@ from wtscenario import make_scenarios
 # - Truncate reads the aggregated timestamp of the page (id 20) and determines it is visible. 
 #   The page is truncated even though it contains updates from txn1 which is not visible to the 
 #   truncate operation.
-@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_bug032(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
