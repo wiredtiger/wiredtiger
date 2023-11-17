@@ -736,8 +736,8 @@ __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
     /*
      * This function may be called when the reader count for a block has been observed at zero. Grab
      * the lock and check again to see if we can remove any block from our list. If the count for a
-     * block ahd been zero and other readers got references in the meantime, the last of those
-     * readers will have another chance to free it.
+     * block was zero and is now not zero, because other readers got references in the meantime, the
+     * last of those readers will have another chance to free it.
      */
     __wt_writelock(session, &bm->handle_array_lock);
     for (i = 0; i < bm->handle_array_next; ++i) {
