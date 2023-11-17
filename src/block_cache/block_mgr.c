@@ -116,8 +116,8 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
      * written.
      *
      * We don't hold the handle array lock across fsync calls since those could be slow and that
-     * would block a concurrent thread opening a new block handle. To guard against the the block
-     * being swept, we retain a read reference during the sync.
+     * would block a concurrent thread opening a new block handle. To guard against the block being
+     * swept, we retain a read reference during the sync.
      */
     do {
         found = false;
