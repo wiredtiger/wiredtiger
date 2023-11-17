@@ -21,6 +21,15 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/test/3rdparty
 )
 
+target_include_directories(
+    wiredtiger_model
+    PUBLIC src/include
+    PRIVATE
+        ${CMAKE_BINARY_DIR}/config
+        ${CMAKE_SOURCE_DIR}/src/include
+        ${CMAKE_SOURCE_DIR}/test/3rdparty
+)
+
 target_compile_options(
     wiredtiger_model
     PUBLIC -std=c++17

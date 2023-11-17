@@ -1576,12 +1576,15 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: could not allocate due to exceeding capacity",
   "chunk-cache: lookups",
   "chunk-cache: number of chunks loaded from flushed tables in chunk cache",
+  "chunk-cache: number of metadata inserts/deletes dropped by the worker thread",
   "chunk-cache: number of metadata inserts/deletes pushed to the worker thread",
   "chunk-cache: number of metadata inserts/deletes read by the worker thread",
   "chunk-cache: number of misses",
   "chunk-cache: number of times a read from storage failed",
   "chunk-cache: retried accessing a chunk while I/O was in progress",
+  "chunk-cache: retries from a chunk cache checksum mismatch",
   "chunk-cache: timed out due to too many retries",
+  "chunk-cache: total bytes read from persistent content",
   "chunk-cache: total bytes used by the cache",
   "chunk-cache: total bytes used by the cache for pinned chunks",
   "chunk-cache: total chunks held by the chunk cache",
@@ -1873,7 +1876,6 @@ static const char *const __stats_connection_desc[] = {
   "thread-state: active filesystem fsync calls",
   "thread-state: active filesystem read calls",
   "thread-state: active filesystem write calls",
-  "thread-yield: application thread snapshot refreshed for eviction",
   "thread-yield: application thread time evicting (usecs)",
   "thread-yield: application thread time waiting for cache (usecs)",
   "thread-yield: connection close blocked waiting for transaction state stabilization",
@@ -2266,12 +2268,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->chunkcache_exceeded_capacity = 0;
     stats->chunkcache_lookups = 0;
     stats->chunkcache_chunks_loaded_from_flushed_tables = 0;
+    stats->chunkcache_metadata_work_units_dropped = 0;
     stats->chunkcache_metadata_work_units_created = 0;
     stats->chunkcache_metadata_work_units_dequeued = 0;
     stats->chunkcache_misses = 0;
     stats->chunkcache_io_failed = 0;
     stats->chunkcache_retries = 0;
+    stats->chunkcache_retries_checksum_mismatch = 0;
     stats->chunkcache_toomany_retries = 0;
+    stats->chunkcache_bytes_read_persistent = 0;
     stats->chunkcache_bytes_inuse = 0;
     stats->chunkcache_bytes_inuse_pinned = 0;
     stats->chunkcache_chunks_inuse = 0;
@@ -2559,7 +2564,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing thread_fsync_active */
     /* not clearing thread_read_active */
     /* not clearing thread_write_active */
-    stats->application_evict_snapshot_refreshed = 0;
     stats->application_evict_time = 0;
     stats->application_cache_time = 0;
     stats->txn_release_blocked = 0;
@@ -2969,6 +2973,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_lookups += WT_STAT_READ(from, chunkcache_lookups);
     to->chunkcache_chunks_loaded_from_flushed_tables +=
       WT_STAT_READ(from, chunkcache_chunks_loaded_from_flushed_tables);
+    to->chunkcache_metadata_work_units_dropped +=
+      WT_STAT_READ(from, chunkcache_metadata_work_units_dropped);
     to->chunkcache_metadata_work_units_created +=
       WT_STAT_READ(from, chunkcache_metadata_work_units_created);
     to->chunkcache_metadata_work_units_dequeued +=
@@ -2976,7 +2982,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_misses += WT_STAT_READ(from, chunkcache_misses);
     to->chunkcache_io_failed += WT_STAT_READ(from, chunkcache_io_failed);
     to->chunkcache_retries += WT_STAT_READ(from, chunkcache_retries);
+    to->chunkcache_retries_checksum_mismatch +=
+      WT_STAT_READ(from, chunkcache_retries_checksum_mismatch);
     to->chunkcache_toomany_retries += WT_STAT_READ(from, chunkcache_toomany_retries);
+    to->chunkcache_bytes_read_persistent += WT_STAT_READ(from, chunkcache_bytes_read_persistent);
     to->chunkcache_bytes_inuse += WT_STAT_READ(from, chunkcache_bytes_inuse);
     to->chunkcache_bytes_inuse_pinned += WT_STAT_READ(from, chunkcache_bytes_inuse_pinned);
     to->chunkcache_chunks_inuse += WT_STAT_READ(from, chunkcache_chunks_inuse);
@@ -3284,8 +3293,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
     to->thread_read_active += WT_STAT_READ(from, thread_read_active);
     to->thread_write_active += WT_STAT_READ(from, thread_write_active);
-    to->application_evict_snapshot_refreshed +=
-      WT_STAT_READ(from, application_evict_snapshot_refreshed);
     to->application_evict_time += WT_STAT_READ(from, application_evict_time);
     to->application_cache_time += WT_STAT_READ(from, application_cache_time);
     to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
