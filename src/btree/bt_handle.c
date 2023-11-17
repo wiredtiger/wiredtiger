@@ -1058,6 +1058,13 @@ __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
         return (0);
 
     /*
+     * We can not switch for a tree that is still open for bulk insertion. We fake a checkpoint for
+     * such an object.
+     */
+    WT_ASSERT_ALWAYS(session, !btree->original,
+      "Can't schedule a tiered switch for a tree that is still open for bulk load.");
+
+    /*
      * When initially opening a tiered Btree, a tier switch is done internally without the btree
      * being fully opened. That's okay, the btree will be told later about the current object
      * number.

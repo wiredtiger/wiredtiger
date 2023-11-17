@@ -114,6 +114,8 @@ __bm_checkpoint(
         bm->block = bm->next_block;
         bm->next_block = NULL;
         __wt_writeunlock(session, &bm->handle_array_lock);
+        __wt_verbose(session, WT_VERB_TIERED, "block manager switched from %s to %s",
+          bm->prev_block->name, bm->block->name);
     }
 
     if (!bm->is_multi_handle)
@@ -624,8 +626,8 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 
     WT_RET(__wt_blkcache_get_handle(session, bm, objectid, false, &block));
 
-    __wt_verbose(
-      session, WT_VERB_TIERED, "block manager switching from %s to %s", current->name, block->name);
+    __wt_verbose(session, WT_VERB_TIERED, "block manager scheduling a switch from %s to %s",
+      current->name, block->name);
 
     /* This will be the new writable object. Load its checkpoint */
     WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));
@@ -659,6 +661,13 @@ __bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object
 static int
 __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
+    /*
+     * If a tiered switch was scheduled, it should have happened by now. If we somehow miss it, we
+     * will leave a dangling switch. Tiered server would attempt to flush an active file in such a
+     * case.
+     */
+    WT_ASSERT_ALWAYS(session, bm->next_block == NULL, "Somehow missed switching the block");
+
     /* If we have made a switch from the older file, sync the older one instead. */
     if (bm->prev_block != NULL)
         return (__wt_fsync(session, bm->prev_block->fh, block));

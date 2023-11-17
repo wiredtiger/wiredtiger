@@ -142,12 +142,18 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
              * the arg is the config string that is currently in the metadata. Also, mark the tree
-             * dirty to ensure it participates in the checkpoint process, even if clean.
+             * dirty to ensure it participates in the checkpoint process, even if clean. Skip the
+             * trees still open for bulk insertion, we fake checkpoints for them.
              */
+            btree = S2BT(session);
+            if (btree->original) {
+                WT_STAT_CONN_INCR(session, flush_tier_skipped);
+                WT_ERR(__wt_session_release_dhandle(session));
+                continue;
+            }
             WT_ERR(__wt_tiered_switch(session, value));
             WT_STAT_CONN_INCR(session, flush_tier_switched);
             __wt_tree_modify_set(session);
-            btree = S2BT(session);
             btree->flush_most_recent_secs = session->current_ckpt_sec;
             btree->flush_most_recent_ts = conn->txn_global.last_ckpt_timestamp;
             WT_ERR(__wt_session_release_dhandle(session));
