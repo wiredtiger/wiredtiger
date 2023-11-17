@@ -344,9 +344,10 @@ __compact_worker(WT_SESSION_IMPL *session)
                 ret = 0;
                 another_pass = true;
 
-                __wt_verbose_info(session, WT_VERB_COMPACT, "%s",
-                  "Data handle compaction failed with EBUSY but the cache is not stuck. "
-                  "Will give it another go.");
+                __wt_verbose_info(session, WT_VERB_COMPACT,
+                  "The compaction of the data handle %s returned EBUSY due to in-progress "
+                  "conflicting checkpoint. Compaction of this data handle will be retried.",
+                  session->op_handle[i]->name);
             }
         }
         if (!another_pass)
