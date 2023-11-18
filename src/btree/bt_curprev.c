@@ -767,7 +767,23 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
      * bounds, continue the prev traversal logic.
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER) && !WT_CURSOR_IS_POSITIONED(cbt)) {
-        WT_ERR(__wt_btcur_bounds_position(session, cbt, false, &need_walk));
+        ret = __wt_btcur_bounds_position(session, cbt, false, &need_walk);
+        /*
+         * If we get a prepare conflict we need to setup the correct retry flags in the case of
+         * row-store. Column-store doesn't require this as it always uses insert lists. If we don't
+         * set the appropriate flags we'll walk past the prepared update and violate prepared
+         * transaction semantics.
+         *
+         * We can use the cursor b-tree information to determine whether we are positioned on an
+         * insert list or a row. If an insert list is present then we ignore the on-page object.
+         */
+        if (ret == WT_PREPARE_CONFLICT && CUR2BT(cursor)->type == BTREE_ROW) {
+            if (cbt->ins != NULL)
+                cbt->iter_retry = WT_CBT_RETRY_INSERT;
+            else
+                cbt->iter_retry = WT_CBT_RETRY_PAGE;
+        }
+        WT_ERR(ret);
         if (!need_walk) {
             __wt_value_return(cbt, cbt->upd_value);
             goto done;
