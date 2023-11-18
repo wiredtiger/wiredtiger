@@ -30,6 +30,7 @@
 #define MODEL_CORE_H
 
 #include <limits>
+#include <stdexcept>
 #include "wiredtiger.h"
 
 /* Redefine important WiredTiger internal constants, if they are not already available. */
@@ -101,8 +102,37 @@ using txn_id_t = uint64_t;
  */
 constexpr txn_id_t k_txn_none = std::numeric_limits<txn_id_t>::min();
 
+/*
+ * k_txn_max --
+ *     The maximum ID.
+ */
+constexpr txn_id_t k_txn_max = std::numeric_limits<txn_id_t>::max() - 10;
+
 /* Verify that model's constants are numerically equal to WiredTiger's constants. */
 static_assert(k_txn_none == WT_TXN_NONE);
+/* We will check k_txn_max in the .cpp file, as we don't have the right imports. */
+
+/*
+ * write_gen_t --
+ *     The write generation number.
+ */
+using write_gen_t = uint64_t;
+
+/*
+ * k_write_gen_none --
+ *     No write generation.
+ */
+constexpr write_gen_t k_write_gen_none = std::numeric_limits<write_gen_t>::min();
+
+/*
+ * k_write_gen_first --
+ *     The first (initial) write generation.
+ */
+constexpr write_gen_t k_write_gen_first = k_write_gen_none + 1;
+
+/* Verify that model's constants are numerically equal to WiredTiger's constants. */
+static_assert(k_write_gen_none == 0);
+static_assert(k_write_gen_first == 1);
 
 /*
  * model_exception --

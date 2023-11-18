@@ -127,9 +127,10 @@ test_checkpoint(void)
     testutil_assert(table->get(ckpt1, key2, 15) == model::NONE);
     testutil_assert(table->get(ckpt1, key3, 15) == model::NONE);
 
-    /* Add two more keys; check that only that committed data are included. */
+    /* Add two more keys; check that only that the latest committed data are included. */
     txn1 = database.begin_transaction();
     txn2 = database.begin_transaction();
+    testutil_check(table->insert(txn1, key4, value3));
     testutil_check(table->insert(txn1, key4, value4));
     testutil_check(table->insert(txn2, key5, value5));
     txn1->commit(40);
@@ -139,6 +140,13 @@ test_checkpoint(void)
     testutil_assert(table->get(ckpt2, key4) == value4);
     testutil_assert(table->get(ckpt2, key5) == model::NONE);
     txn2->commit(50);
+
+    /* Check contains_any. */
+    testutil_assert(!table->contains_any(ckpt2, key4, value1));
+    testutil_assert(!table->contains_any(ckpt2, key4, value2));
+    testutil_assert(table->contains_any(ckpt2, key4, value3));
+    testutil_assert(table->contains_any(ckpt2, key4, value4));
+    testutil_assert(!table->contains_any(ckpt2, key5, value5));
 
     /* Test with prepared transactions. */
     txn1 = database.begin_transaction();
@@ -260,9 +268,10 @@ test_checkpoint_wt(void)
     wt_model_ckpt_assert(table, uri, "ckpt1", key2, 15);
     wt_model_ckpt_assert(table, uri, "ckpt1", key3, 15);
 
-    /* Add two more keys; check that only that committed data are included. */
+    /* Add two more keys; check that only that the latest committed data are included. */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_begin_both(txn2, session2);
+    wt_model_txn_insert_both(table, uri, txn1, session1, key4, value3);
     wt_model_txn_insert_both(table, uri, txn1, session1, key4, value4);
     wt_model_txn_insert_both(table, uri, txn2, session2, key5, value5);
     wt_model_txn_commit_both(txn1, session1, 40);
@@ -300,6 +309,12 @@ test_checkpoint_wt(void)
     wt_model_set_stable_timestamp_both(65); /* Advance the timestamp to the very end. */
     testutil_assert(table->verify_noexcept(conn));
 
+    /* Verify checkpoints. */
+    testutil_assert(table->verify_noexcept(conn, database.checkpoint("ckpt1")));
+    testutil_assert(table->verify_noexcept(conn, database.checkpoint("ckpt2")));
+    testutil_assert(table->verify_noexcept(conn, database.checkpoint("ckpt3")));
+    testutil_assert(table->verify_noexcept(conn, database.checkpoint("ckpt4")));
+
     /* Clean up. */
     testutil_check(session->close(session, nullptr));
     testutil_check(session1->close(session1, nullptr));
@@ -323,6 +338,26 @@ test_checkpoint_wt(void)
     model::kv_database db_from_debug_log_json;
     model::debug_log_parser::from_json(db_from_debug_log_json, tmp_json.c_str());
     testutil_assert(db_from_debug_log_json.table("table")->verify_noexcept(conn));
+
+    /* Verify checkpoints. */
+    testutil_assert(db_from_debug_log.table("table")->verify_noexcept(
+      conn, db_from_debug_log.checkpoint("ckpt1")));
+    testutil_assert(db_from_debug_log.table("table")->verify_noexcept(
+      conn, db_from_debug_log.checkpoint("ckpt2")));
+    testutil_assert(db_from_debug_log.table("table")->verify_noexcept(
+      conn, db_from_debug_log.checkpoint("ckpt3")));
+    testutil_assert(db_from_debug_log.table("table")->verify_noexcept(
+      conn, db_from_debug_log.checkpoint("ckpt4")));
+
+    /* Verify checkpoints - using the debug log JSON. */
+    testutil_assert(db_from_debug_log_json.table("table")->verify_noexcept(
+      conn, db_from_debug_log_json.checkpoint("ckpt1")));
+    testutil_assert(db_from_debug_log_json.table("table")->verify_noexcept(
+      conn, db_from_debug_log_json.checkpoint("ckpt2")));
+    testutil_assert(db_from_debug_log_json.table("table")->verify_noexcept(
+      conn, db_from_debug_log_json.checkpoint("ckpt3")));
+    testutil_assert(db_from_debug_log_json.table("table")->verify_noexcept(
+      conn, db_from_debug_log_json.checkpoint("ckpt4")));
 
     /* Clean up. */
     testutil_check(session->close(session, nullptr));
