@@ -324,8 +324,7 @@ __wt_conn_cache_pool_destroy(WT_SESSION_IMPL *session)
         __wt_spin_unlock(session, &cp->cache_pool_lock);
 
         FLD_CLR_ATOMIC_16(cache->pool_flags_atomic, WT_CACHE_POOL_RUN);
-        if (cp->cache_pool_cond != NULL)
-            __wt_cond_signal(session, cp->cache_pool_cond);
+        __wt_cond_signal(session, cp->cache_pool_cond);
         WT_TRET(__wt_thread_join(session, &cache->cp_tid));
 
         WT_TRET(__wt_session_close_internal(cache->cp_session));

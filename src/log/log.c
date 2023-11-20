@@ -1965,14 +1965,13 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
     WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);
 
     WT_ASSERT(session, slot != log->active_slot);
-    if (log->log_write_cond != NULL)
-        __wt_cond_signal(session, log->log_write_cond);
+    __wt_cond_signal(session, log->log_write_cond);
     F_CLR_ATOMIC_16(slot, WT_SLOT_FLUSH);
 
     /*
      * Signal the close thread if needed.
      */
-    if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH) && conn->log_file_cond != NULL)
+    if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH))
         __wt_cond_signal(session, conn->log_file_cond);
 
     if (F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC_DIRTY) && !F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC) &&
