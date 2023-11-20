@@ -134,6 +134,27 @@ struct __wt_verbose_multi_category {
 #define WT_VERBOSE_ISSET(session, category) \
     WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_LEVEL_DEFAULT)
 
+/* get the verbosity level for a given category. */
+#define WT_GET_VERBOSE_LEVEL(session, category, ret)                         \
+    do {                                                                     \
+        ret = S2C(session)->verbose[category];                               \
+    } while (0)
+
+/* Save the original level, and set new level  */
+#define WT_VERBOSE_SAVE(session, verbose_tmp, category, level)                \
+    do {                                                                      \
+        WT_GET_VERBOSE_LEVEL(session, category, ret);                         \
+        verbose_tmp[category] = ret;                                          \
+        WT_SET_VERBOSE_LEVEL(session, category, level);                       \
+    } while (0)
+
+/* Restore the original level  */
+#define WT_VERBOSE_RESTORE(session, verbose_tmp, category)                    \
+        do {                                                                  \
+            WT_GET_VERBOSE_LEVEL(session, category, ret);                     \
+            WT_SET_VERBOSE_LEVEL(session, category, verbose_tmp[category]);   \
+        } while (0)
+
 /*
  * __wt_verbose_level --
  *     Display a verbose message considering a category and a verbosity level.
