@@ -127,6 +127,8 @@ struct __wt_chunkcache_hashid;
 typedef struct __wt_chunkcache_hashid WT_CHUNKCACHE_HASHID;
 struct __wt_chunkcache_intermediate_hash;
 typedef struct __wt_chunkcache_intermediate_hash WT_CHUNKCACHE_INTERMEDIATE_HASH;
+struct __wt_chunkcache_metadata_work_unit;
+typedef struct __wt_chunkcache_metadata_work_unit WT_CHUNKCACHE_METADATA_WORK_UNIT;
 struct __wt_chunkcache_pinned_list;
 typedef struct __wt_chunkcache_pinned_list WT_CHUNKCACHE_PINNED_LIST;
 struct __wt_ckpt;
@@ -233,8 +235,16 @@ struct __wt_file_handle_win;
 typedef struct __wt_file_handle_win WT_FILE_HANDLE_WIN;
 struct __wt_fstream;
 typedef struct __wt_fstream WT_FSTREAM;
+struct __wt_generation_cookie;
+typedef struct __wt_generation_cookie WT_GENERATION_COOKIE;
+struct __wt_generation_drain_cookie;
+typedef struct __wt_generation_drain_cookie WT_GENERATION_DRAIN_COOKIE;
 struct __wt_hazard;
 typedef struct __wt_hazard WT_HAZARD;
+struct __wt_hazard_array;
+typedef struct __wt_hazard_array WT_HAZARD_ARRAY;
+struct __wt_hazard_cookie;
+typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
 struct __wt_ikey;
 typedef struct __wt_ikey WT_IKEY;
 struct __wt_import_entry;
@@ -343,6 +353,8 @@ struct __wt_rollback_to_stable;
 typedef struct __wt_rollback_to_stable WT_ROLLBACK_TO_STABLE;
 struct __wt_row;
 typedef struct __wt_row WT_ROW;
+struct __wt_rts_cookie;
+typedef struct __wt_rts_cookie WT_RTS_COOKIE;
 struct __wt_rwlock;
 typedef struct __wt_rwlock WT_RWLOCK;
 struct __wt_salvage_cookie;
@@ -367,10 +379,14 @@ struct __wt_split_page_hist;
 typedef struct __wt_split_page_hist WT_SPLIT_PAGE_HIST;
 struct __wt_stash;
 typedef struct __wt_stash WT_STASH;
+struct __wt_sweep_cookie;
+typedef struct __wt_sweep_cookie WT_SWEEP_COOKIE;
 struct __wt_table;
 typedef struct __wt_table WT_TABLE;
 struct __wt_thread;
 typedef struct __wt_thread WT_THREAD;
+struct __wt_thread_check;
+typedef struct __wt_thread_check WT_THREAD_CHECK;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
 struct __wt_tiered;
@@ -405,6 +421,8 @@ struct __wt_update_value;
 typedef struct __wt_update_value WT_UPDATE_VALUE;
 struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
+struct __wt_verbose_dump_cookie;
+typedef struct __wt_verbose_dump_cookie WT_VERBOSE_DUMP_COOKIE;
 struct __wt_verbose_multi_category;
 typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
 struct __wt_verify_info;
@@ -476,6 +494,8 @@ typedef uint64_t wt_timestamp_t;
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
+#include "generation.h"
+#include "hazard.h"
 #include "log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */

@@ -29,6 +29,8 @@
 #ifndef MODEL_TEST_UTIL_H
 #define MODEL_TEST_UTIL_H
 
+#include <string>
+
 extern "C" {
 #include "test_util.h"
 }
@@ -45,5 +47,11 @@ extern "C" {
     } catch (...) {                                                                             \
         testutil_die(0, #call " did not throw " #exception "; it threw a different exception"); \
     }
+
+/*
+ * create_tmp_file --
+ *     Create an empty temporary file and return its name.
+ */
+std::string create_tmp_file(const char *dir, const char *prefix, const char *suffix = nullptr);
 
 #endif

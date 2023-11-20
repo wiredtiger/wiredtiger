@@ -235,8 +235,8 @@ __session_clear(WT_SESSION_IMPL *session)
      */
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
-    session->hazard_inuse = 0;
-    session->nhazard = 0;
+    session->hazards.inuse = 0;
+    session->hazards.num_active = 0;
 }
 
 /*
@@ -396,6 +396,10 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
 
+#ifdef HAVE_DIAGNOSTIC
+    __wt_spin_destroy(session, &session->thread_check.lock);
+#endif
+
     /*
      * Sessions are re-used, clear the structure: the clear sets the active field to 0, which will
      * exclude the hazard array from review by the eviction thread. Because some session fields are
@@ -412,8 +416,8 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * not be at the end of the array, step toward the beginning of the array until we reach an
      * active session.
      */
-    while (conn->sessions[conn->session_cnt - 1].active == 0)
-        if (--conn->session_cnt == 0)
+    while (WT_CONN_SESSIONS_GET(conn)[conn->session_array.cnt - 1].active == 0)
+        if (--conn->session_array.cnt == 0)
             break;
 
     __wt_spin_unlock(session, &conn->api_lock);
@@ -2504,6 +2508,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;
 
+    WT_VERIFY_OPAQUE_POINTER(WT_SESSION_IMPL);
+
     *sessionp = NULL;
 
     session = conn->default_session;
@@ -2518,21 +2524,22 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_ASSERT(session, !F_ISSET(conn, WT_CONN_CLOSING));
 
     /* Find the first inactive session slot. */
-    for (session_ret = conn->sessions, i = 0; i < conn->session_size; ++session_ret, ++i)
+    for (session_ret = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.size;
+         ++session_ret, ++i)
         if (!session_ret->active)
             break;
-    if (i == conn->session_size)
+    if (i == conn->session_array.size)
         WT_ERR_MSG(session, WT_ERROR,
           "out of sessions, configured for %" PRIu32 " (including internal sessions)",
-          conn->session_size);
+          conn->session_array.size);
 
     /*
      * If the active session count is increasing, update it. We don't worry about correcting the
      * session count on error, as long as we don't mark this session as active, we'll clean it up on
      * close.
      */
-    if (i >= conn->session_cnt) /* Defend against off-by-one errors. */
-        conn->session_cnt = i + 1;
+    if (i >= conn->session_array.cnt) /* Defend against off-by-one errors. */
+        conn->session_array.cnt = i + 1;
 
     /* Find the set of methods appropriate to this session. */
     if (F_ISSET(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))
@@ -2547,6 +2554,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 #ifdef HAVE_UNITTEST_ASSERTS
     session_ret->unittest_assert_hit = false;
     memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
+#endif
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__wt_spin_init(session, &session_ret->thread_check.lock, "thread check lock"));
 #endif
 
     /*
@@ -2591,10 +2602,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * access to it isn't serialized. Allocate the first time we open this session.
      */
     if (WT_SESSION_FIRST_USE(session_ret)) {
-        WT_ERR(__wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazard));
-        session_ret->hazard_size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        session_ret->hazard_inuse = 0;
-        session_ret->nhazard = 0;
+        WT_ERR(
+          __wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazards.arr));
+        session_ret->hazards.size = WT_SESSION_INITIAL_HAZARD_SLOTS;
+        session_ret->hazards.inuse = 0;
+        session_ret->hazards.num_active = 0;
     }
 
     /*
@@ -2632,12 +2644,14 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      */
     WT_PUBLISH(session_ret->active, 1);
 
-    WT_STATIC_ASSERT(offsetof(WT_SESSION_IMPL, iface) == 0);
     *sessionp = session_ret;
 
     WT_STAT_CONN_INCR(session, session_open);
 
 err:
+#ifdef HAVE_DIAGNOSTIC
+    __wt_spin_destroy(session, &session->thread_check.lock);
+#endif
     __wt_spin_unlock(session, &conn->api_lock);
     return (ret);
 }

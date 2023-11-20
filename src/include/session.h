@@ -31,6 +31,23 @@ struct __wt_hazard {
 };
 
 /*
+ * WT_HAZARD_ARRAY --
+ *   An array of all hazard pointers held by the session.
+ *   New hazard pointers are added on a first-fit basis, and on removal their entry
+ *   in the array is set to null. As such this array may contain holes.
+ */
+struct __wt_hazard_array {
+/* The hazard pointer array grows as necessary, initialize with 250 slots. */
+#define WT_SESSION_INITIAL_HAZARD_SLOTS 250
+
+    wt_shared WT_HAZARD *arr; /* The hazard pointer array */
+    wt_shared uint32_t inuse; /* Number of array slots potentially in-use. We only need to iterate
+                                 this many slots to find all active pointers */
+    wt_shared uint32_t num_active; /* Number of array slots containing an active hazard pointer */
+    uint32_t size;                 /* Allocated size of the array */
+};
+
+/*
  * WT_PREFETCH --
  *	Pre-fetch structure containing useful information for pre-fetch.
  */
@@ -142,12 +159,14 @@ struct __wt_session_impl {
     u_int scratch_alloc;   /* Currently allocated */
     size_t scratch_cached; /* Scratch bytes cached */
 #ifdef HAVE_DIAGNOSTIC
-    /*
-     * Variables used to look for violations of the contract that a session is only used by a single
-     * session at once.
-     */
-    wt_shared volatile uintmax_t api_tid;
-    wt_shared volatile uint32_t api_enter_refcnt;
+
+    /* Enforce the contract that a session is only used by a single thread at a time. */
+    struct __wt_thread_check {
+        WT_SPINLOCK lock;
+        uintmax_t owning_thread;
+        uint32_t entry_count;
+    } thread_check;
+
     /*
      * It's hard to figure out from where a buffer was allocated after it's leaked, so in diagnostic
      * mode we track them; DIAGNOSTIC can't simply add additional fields to WT_ITEM structures
@@ -336,19 +355,11 @@ struct __wt_session_impl {
  * Hazard information persists past session close because it's accessed by threads of control other
  * than the thread owning the session.
  *
- * Use the non-NULL state of the hazard field to know if the session has previously been
+ * Use the non-NULL state of the hazard array to know if the session has previously been
  * initialized.
  */
-#define WT_SESSION_FIRST_USE(s) ((s)->hazard == NULL)
-
-/*
- * The hazard pointer array grows as necessary, initialize with 250 slots.
- */
-#define WT_SESSION_INITIAL_HAZARD_SLOTS 250
-    wt_shared uint32_t hazard_size;  /* Allocated size of the Hazard pointer array */
-    wt_shared uint32_t hazard_inuse; /* Number of hazard pointer array slots potentially in-use */
-    wt_shared uint32_t nhazard;      /* Number of hazard pointer array slots actively in-use */
-    wt_shared WT_HAZARD *hazard;     /* Hazard pointer array */
+#define WT_SESSION_FIRST_USE(s) ((s)->hazards.arr == NULL)
+    WT_HAZARD_ARRAY hazards;
 
     /*
      * Operation tracking.

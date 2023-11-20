@@ -95,6 +95,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET ex_extra_diagnostics
+    SOURCES ex_extra_diagnostics.c
+    DIR_NAME ex_extra_diagnostics
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_extra_diagnostics>/WT_HOME>
+)
+
+define_c_test(
     TARGET ex_file_system
     SOURCES ex_file_system.c
     DIR_NAME ex_file_system

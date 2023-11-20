@@ -169,7 +169,7 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, conn->session_array.cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -242,7 +242,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, conn->session_array.cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -344,7 +344,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, conn->session_array.cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
@@ -386,7 +386,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
          */
         if ((id = s->pinned_id) != WT_TXN_NONE && WT_TXNID_LT(id, oldest_id)) {
             oldest_id = id;
-            oldest_session = &conn->sessions[i];
+            oldest_session = &WT_CONN_SESSIONS_GET(conn)[i];
         }
     }
 
@@ -2173,7 +2173,8 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 
     /* Allocate the WT_TXN structure, including a variable length array of snapshot information. */
     WT_RET(__wt_calloc(session, 1,
-      sizeof(WT_TXN) + sizeof(txn->snapshot[0]) * S2C(session)->session_size, &session_ret->txn));
+      sizeof(WT_TXN) + sizeof(txn->snapshot[0]) * S2C(session)->session_array.size,
+      &session_ret->txn));
     txn = session_ret->txn;
     txn->snapshot = txn->__snapshot;
     txn->id = WT_TXN_NONE;
@@ -2399,9 +2400,9 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
     WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
 
-    WT_RET(__wt_calloc_def(session, conn->session_size, &txn_global->txn_shared_list));
+    WT_RET(__wt_calloc_def(session, conn->session_array.size, &txn_global->txn_shared_list));
 
-    for (i = 0, s = txn_global->txn_shared_list; i < conn->session_size; i++, s++)
+    for (i = 0, s = txn_global->txn_shared_list; i < conn->session_array.size; i++, s++)
         s->id = s->metadata_pinned = s->pinned_id = WT_TXN_NONE;
 
     return (0);
@@ -2500,7 +2501,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
 
             /* Time since the shutdown RTS has started. */
-            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.rts_ms);
+            __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.rts_ms);
             if (ret != 0)
                 __wt_verbose_notice(session, WT_VERB_RTS,
                   WT_RTS_VERB_TAG_SHUTDOWN_RTS
@@ -2531,7 +2532,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             WT_TRET(__wt_session_close_internal(s));
 
             /* Time since the shutdown checkpoint has started. */
-            __wt_timer_evaluate(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
+            __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
               "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
               conn->shutdown_timeline.checkpoint_ms);
@@ -2714,7 +2715,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_txn_shared.pinned_id));
     WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txn_shared.id));
 
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_ORDERED_READ(session_cnt, conn->session_array.cnt);
     WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
     WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
 
@@ -2729,7 +2730,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
         /* Skip sessions with no active transaction */
         if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
             continue;
-        sess = &conn->sessions[i];
+        sess = &WT_CONN_SESSIONS_GET(conn)[i];
         WT_RET(__wt_msg(session,
           "ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s", id,
           s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));

@@ -96,7 +96,9 @@
  * file, which would prevent any file truncation.  When the metadata is updated
  * for the second checkpoint, the blocks freed by compaction become available
  * for the third checkpoint, so the third checkpoint's blocks are written
- * towards the beginning of the file, and then the file can be truncated.
+ * towards the beginning of the file, and then the file can be truncated. Since
+ * the second checkpoint made the btree clean, mark it as dirty again to ensure
+ * the third checkpoint rewrites blocks too. Otherwise, the btree is skipped.
  */
 
 /*
@@ -215,6 +217,7 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    char interrupt_msg[128];
     bool background_compaction;
 
     background_compaction = false;
@@ -223,13 +226,10 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     /* If compaction has been interrupted, we return WT_ERROR to the caller. */
     if (session == conn->background_compact.session) {
         background_compaction = true;
-        /* Only check for interruption when the connection is not being opened/closed. */
-        if (!F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL)) {
-            __wt_spin_lock(session, &conn->background_compact.lock);
-            if (!conn->background_compact.running)
-                ret = WT_ERROR;
-            __wt_spin_unlock(session, &conn->background_compact.lock);
-        }
+        __wt_spin_lock(session, &conn->background_compact.lock);
+        if (!conn->background_compact.running)
+            ret = WT_ERROR;
+        __wt_spin_unlock(session, &conn->background_compact.lock);
     } else if (session->event_handler->handle_general != NULL) {
         ret = session->event_handler->handle_general(
           session->event_handler, &conn->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
@@ -238,8 +238,19 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     }
 
     if (ret != 0) {
-        __wt_verbose_warning(session, WT_VERB_COMPACT, "%s interrupted by application",
-          background_compaction ? "background compact" : "compact");
+        WT_RET(__wt_snprintf(interrupt_msg, sizeof(interrupt_msg), "%s interrupted by application",
+          background_compaction ? "background compact" : "compact"));
+        /*
+         * Always log a warning when:
+         * - Interrupting foreground compaction
+         * - Interrupting background compaction and the connection is not being closed/open.
+         * Otherwise, it is expected to potentially interrupt background compaction and should not
+         * be exposed as a warning.
+         */
+        if (!background_compaction || !F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL))
+            __wt_verbose_warning(session, WT_VERB_COMPACT, "%s", interrupt_msg);
+        else
+            __wt_verbose(session, WT_VERB_COMPACT, "%s", interrupt_msg);
         return (ret);
     }
 
@@ -251,17 +262,12 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 
 /*
  * __compact_checkpoint --
- *     This function does wait and force checkpoint.
+ *     This function waits and triggers a checkpoint.
  */
 static int
 __compact_checkpoint(WT_SESSION_IMPL *session)
 {
-    /*
-     * Force compaction checkpoints: we don't want to skip it because the work we need to have done
-     * is done in the underlying block manager.
-     */
-    const char *checkpoint_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL};
+    const char *checkpoint_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL, NULL};
 
     /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
     WT_RET(__wt_session_compact_check_interrupted(session));
@@ -288,9 +294,7 @@ __compact_worker(WT_SESSION_IMPL *session)
     for (i = 0; i < session->op_handle_next; ++i)
         session->op_handle[i]->compact_skip = false;
 
-    /*
-     * Perform an initial checkpoint (see this file's leading comment for details).
-     */
+    /* Perform an initial checkpoint (see this file's leading comment for details). */
     WT_ERR(__compact_checkpoint(session));
 
     /*
@@ -349,9 +353,12 @@ __compact_worker(WT_SESSION_IMPL *session)
             break;
 
         /*
-         * Perform two checkpoints (see this file's leading comment for details).
+         * Perform two checkpoints. Mark the trees impacted by compaction to ensure the last
+         * checkpoint processes them (see this file's leading comment for details).
          */
         WT_ERR(__compact_checkpoint(session));
+        for (i = 0; i < session->op_handle_next; ++i)
+            WT_WITH_DHANDLE(session, session->op_handle[i], __wt_tree_modify_set(session));
         WT_ERR(__compact_checkpoint(session));
     }
 
@@ -489,6 +496,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
     session->compact->max_time = (uint64_t)cval.val;
     __wt_epoch(session, &session->compact->begin);
+    session->compact->last_progress = session->compact->begin;
 
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a

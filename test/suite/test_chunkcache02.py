@@ -26,8 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sys
+import os
 import random
+import sys
 import threading
 import time
 import wiredtiger, wttest
@@ -98,8 +99,8 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
-        # Assert the new chunks are ingested. 
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_loaded_from_flushed_tables), 0)
+        # Assert the new chunks are ingested.
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
 
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()
@@ -122,5 +123,5 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             thread.join()
 
         # Check relevant chunkcache stats.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_inuse), 0)
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunk_cache_chunks_evicted), 0)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse), 0)
+        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_evicted), 0)
