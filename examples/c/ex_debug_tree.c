@@ -32,7 +32,7 @@
 
 static const char *home;
 
-#define MAX_TEST_KV_NUM 20000
+#define MAX_TEST_KV_NUM 1000
 
 static void
 debug_tree_example(void)
@@ -56,7 +56,7 @@ debug_tree_example(void)
 
     /*! [access example table create] */
     error_check(session->create(
-      session, "table:debug_tree", "memory_page_max=21K, key_format=q,value_format=u"));
+      session, "table:debug_tree", "memory_page_max=2K, key_format=q,value_format=u"));
     /*! [access example table create] */
 
     /*! [access example cursor open] */
@@ -67,21 +67,11 @@ debug_tree_example(void)
     for (i = 0; i < MAX_TEST_KV_NUM; i++) {
         cursor->set_key(cursor, i);
 
-        value_item.data = "old value #####################################################";
+        value_item.data = "value #####################################################";
         value_item.size = strlen(value_item.data);
 
         cursor->set_value(cursor, &value_item);
         error_check(cursor->insert(cursor));
-    }
-
-    /* update */
-    for (i = 0; i < MAX_TEST_KV_NUM; i++) {
-        cursor->set_key(cursor, i);
-
-        value_item.data = "new value #####################################################";
-        value_item.size = strlen(value_item.data);
-        cursor->set_value(cursor, &value_item);
-        error_check(cursor->update(cursor));
     }
 
     error_check(cursor->reset(cursor));
