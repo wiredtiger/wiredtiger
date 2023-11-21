@@ -29,7 +29,8 @@
 
 /*
  * testutil_backup_create_full --
- *     Perform a full backup.
+ *     Perform a full backup. Optionally return the number of files copied through the output
+ *     parameter.
  */
 void
 testutil_backup_create_full(WT_CONNECTION *conn, const char *home_dir, const char *backup_dir,
@@ -78,7 +79,9 @@ testutil_backup_create_full(WT_CONNECTION *conn, const char *home_dir, const cha
 
 /*
  * testutil_backup_create_incremental --
- *     Perform an incremental backup.
+ *     Perform an incremental backup. Optionally return the relevant statistics (number of files,
+ *     number of ranges, and number of unmodified files) through the corresponding output
+ *     parameters.
  */
 void
 testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
@@ -89,7 +92,7 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
     WT_SESSION *session;
     ssize_t rdsize;
     uint64_t offset, size, type;
-    int rfd, ret, wfd, nfiles, nranges, nunmodified;
+    int ret, rfd, wfd, nfiles, nranges, nunmodified;
     char buf[4096];
     char copy_from[PATH_MAX], copy_to[PATH_MAX];
     char *filename;

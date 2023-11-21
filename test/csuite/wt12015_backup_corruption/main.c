@@ -70,9 +70,37 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static const char *env_config;
 
 /*
+ * Error handling.
+ */
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
+static WT_EVENT_HANDLER child_event_handler = {handle_error, NULL, NULL, NULL, NULL};
+
+/*
  * Other constants.
  */
 #define EXPECT_ABORT "expect_abort"
+
+#define SCENARIO_TEST_BACKUP 1
+#define SCENARIO_TEST_FORCE_STOP 2
+
+/*
+ * handle_error --
+ *     Function to handle errors.
+ */
+static int
+handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+{
+    (void)(handler);
+    (void)(session);
+    (void)(error);
+
+    /* Ignore the abort message if we expect the test to abort. */
+    if (testutil_exists(NULL, EXPECT_ABORT))
+        if (strstr(errmsg, "aborting WiredTiger library") != NULL)
+            return (0);
+
+    return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
+}
 
 /*
  * handler_sigchld --
@@ -252,11 +280,11 @@ do_work_after_failure(bool backup_from_min)
 }
 
 /*
- * run_test1 --
+ * run_test_backup --
  *     Run a test with incremental backup.
  */
 static void
-run_test1(void)
+run_test_backup(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -270,7 +298,8 @@ run_test1(void)
 
     if (pid == 0) { /* Child. */
         testutil_recreate_dir(WT_HOME_DIR);
-        testutil_wiredtiger_open(opts, WT_HOME_DIR, env_config, NULL, &conn, false, false);
+        testutil_wiredtiger_open(
+          opts, WT_HOME_DIR, env_config, &child_event_handler, &conn, false, false);
         testutil_check(conn->open_session(conn, NULL, NULL, &session));
         testutil_check(session->create(session, TABLE_URI, TABLE_CONFIG));
 
@@ -303,11 +332,11 @@ run_test1(void)
 }
 
 /*
- * run_test2 --
+ * run_test_force_stop --
  *     Run a test with force stop.
  */
 static void
-run_test2(void)
+run_test_force_stop(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -321,7 +350,8 @@ run_test2(void)
 
     if (pid == 0) { /* Child. */
         testutil_recreate_dir(WT_HOME_DIR);
-        testutil_wiredtiger_open(opts, WT_HOME_DIR, env_config, NULL, &conn, false, false);
+        testutil_wiredtiger_open(
+          opts, WT_HOME_DIR, env_config, &child_event_handler, &conn, false, false);
         testutil_check(conn->open_session(conn, NULL, NULL, &session));
         testutil_check(session->create(session, TABLE_URI, TABLE_CONFIG));
 
@@ -369,7 +399,8 @@ usage(void)
 
 /*
  * main --
- *     The entry point for the test.
+ *     The entry point for the test. The test checks that WiredTiger handles backup IDs correctly if
+ *     it crashes during the checkpoint, right before the turtle file rename.
  */
 int
 main(int argc, char *argv[])
@@ -423,10 +454,10 @@ main(int argc, char *argv[])
     testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
     /* Run the tests. */
-    if (scenario == 0 || scenario == 1)
-        run_test1();
-    if (scenario == 0 || scenario == 2)
-        run_test2();
+    if (scenario == 0 || scenario == SCENARIO_TEST_BACKUP)
+        run_test_backup();
+    if (scenario == 0 || scenario == SCENARIO_TEST_FORCE_STOP)
+        run_test_force_stop();
 
     /*
      * Clean up.

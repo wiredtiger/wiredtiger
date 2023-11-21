@@ -475,8 +475,8 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     }
 
     /*
-     * FIXME-PM-2711 Replace this debug option with the corresponding failpoint once this project is
-     * completed.
+     * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
+     * is completed.
      */
     if ((ret = __wt_config_getones(
            session, config, "debug.checkpoint_fail_before_turtle_update", &cval)) == 0) {

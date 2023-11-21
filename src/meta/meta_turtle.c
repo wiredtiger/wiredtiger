@@ -712,9 +712,9 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
       "major=%d,minor=%d,patch=%d\n%s\n%s\n",
       WT_METADATA_VERSION_STR, version, WT_METADATA_VERSION, vmajor, vminor, vpatch, key, value));
 
-    /* FIXME-PM-2711 Replace this with a proper failpoint once the framework is available. */
+    /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
     if (F_ISSET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE))
-        abort();
+        __wt_abort(session);
 
     /* Flush the stream and rename the file into place. */
     ret = __wt_sync_and_rename(session, &fs, WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE);
