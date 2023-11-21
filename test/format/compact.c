@@ -63,6 +63,11 @@ background_compact(void *arg)
         if (g.workers_finished)
             break;
 
+        /*
+         * The API supports enabling or disabling the background compact server multiple times
+         * in a row. Randomly pick whether we are enabling or disabling to cover all state
+         * changes.
+         */
         if (mmrand(&g.extra_rnd, 0, 1))
             testutil_snprintf(config_buf, sizeof(config_buf),
               "background=true,free_space_target=%" PRIu32 "MB",

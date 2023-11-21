@@ -301,7 +301,11 @@ public:
           LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
 
         while (tw->running()) {
-
+            /*
+             * The API supports enabling or disabling the background compact server multiple times
+             * in a row. Randomly pick whether we are enabling or disabling to cover all state
+             * changes.
+             */
             std::string compact_cfg = random_generator::instance().generate_bool() ?
               "background=true,free_space_target=" + std::to_string(tw->free_space_target_mb) +
                 "MB" :
