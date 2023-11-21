@@ -1546,8 +1546,8 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
+  "checkpoint: number of checkpoints started by api",
   "checkpoint: number of checkpoints started by compaction",
-  "checkpoint: number of checkpoints started by session",
   "checkpoint: number of files synced",
   "checkpoint: number of handles visited after writes complete",
   "checkpoint: number of history store pages caused to be reconciled",
@@ -1565,7 +1565,11 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: prepare total time (msecs)",
   "checkpoint: progress state",
   "checkpoint: scrub dirty target",
+  "checkpoint: scrub max time (msecs)",
+  "checkpoint: scrub min time (msecs)",
+  "checkpoint: scrub most recent time (msecs)",
   "checkpoint: scrub time (msecs)",
+  "checkpoint: scrub total time (msecs)",
   "checkpoint: stop timing stress active",
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",
@@ -2238,8 +2242,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_handle_skipped = 0;
     stats->checkpoint_handle_walked = 0;
     /* not clearing checkpoint_time_recent */
+    stats->checkpoints_api = 0;
     stats->checkpoints_compact = 0;
-    stats->checkpoints_session = 0;
     stats->checkpoint_sync = 0;
     stats->checkpoint_presync = 0;
     stats->checkpoint_hs_pages_reconciled = 0;
@@ -2256,8 +2260,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_prep_recent */
     /* not clearing checkpoint_prep_total */
     /* not clearing checkpoint_state */
-    /* not clearing checkpoint_scrub_target */
+    /* not clearing checkpoint_scrub_dirty_target */
+    /* not clearing checkpoint_scrub_max */
+    /* not clearing checkpoint_scrub_min */
+    /* not clearing checkpoint_scrub_recent */
     /* not clearing checkpoint_scrub_time */
+    /* not clearing checkpoint_scrub_total */
     /* not clearing checkpoint_stop_stress_active */
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
@@ -2940,8 +2948,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_skipped += WT_STAT_READ(from, checkpoint_handle_skipped);
     to->checkpoint_handle_walked += WT_STAT_READ(from, checkpoint_handle_walked);
     to->checkpoint_time_recent += WT_STAT_READ(from, checkpoint_time_recent);
+    to->checkpoints_api += WT_STAT_READ(from, checkpoints_api);
     to->checkpoints_compact += WT_STAT_READ(from, checkpoints_compact);
-    to->checkpoints_session += WT_STAT_READ(from, checkpoints_session);
     to->checkpoint_sync += WT_STAT_READ(from, checkpoint_sync);
     to->checkpoint_presync += WT_STAT_READ(from, checkpoint_presync);
     to->checkpoint_hs_pages_reconciled += WT_STAT_READ(from, checkpoint_hs_pages_reconciled);
@@ -2959,8 +2967,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_prep_recent += WT_STAT_READ(from, checkpoint_prep_recent);
     to->checkpoint_prep_total += WT_STAT_READ(from, checkpoint_prep_total);
     to->checkpoint_state += WT_STAT_READ(from, checkpoint_state);
-    to->checkpoint_scrub_target += WT_STAT_READ(from, checkpoint_scrub_target);
+    to->checkpoint_scrub_dirty_target += WT_STAT_READ(from, checkpoint_scrub_dirty_target);
+    to->checkpoint_scrub_max += WT_STAT_READ(from, checkpoint_scrub_max);
+    to->checkpoint_scrub_min += WT_STAT_READ(from, checkpoint_scrub_min);
+    to->checkpoint_scrub_recent += WT_STAT_READ(from, checkpoint_scrub_recent);
     to->checkpoint_scrub_time += WT_STAT_READ(from, checkpoint_scrub_time);
+    to->checkpoint_scrub_total += WT_STAT_READ(from, checkpoint_scrub_total);
     to->checkpoint_stop_stress_active += WT_STAT_READ(from, checkpoint_stop_stress_active);
     to->checkpoints_total_failed += WT_STAT_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_READ(from, checkpoints_total_succeed);

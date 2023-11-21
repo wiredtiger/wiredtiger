@@ -468,7 +468,13 @@ struct __wt_connection_impl {
     uint64_t ckpt_skip;       /* Checkpoint handles skipped */
     uint64_t ckpt_skip_time;  /* Checkpoint skipped handles gather time */
     uint64_t ckpt_usecs;      /* Checkpoint timer */
-    uint64_t ckpt_prep_max;   /* Checkpoint prepare time min/max */
+
+    uint64_t ckpt_srcub_max; /* Checkpoint srcub time min/max */
+    uint64_t ckpt_srcub_min;
+    uint64_t ckpt_srcub_recent; /* Checkpoint srcub time recent/total */
+    uint64_t ckpt_srcub_total;
+
+    uint64_t ckpt_prep_max; /* Checkpoint prepare time min/max */
     uint64_t ckpt_prep_min;
     uint64_t ckpt_prep_recent; /* Checkpoint prepare time recent/total */
     uint64_t ckpt_prep_total;
@@ -481,6 +487,7 @@ struct __wt_connection_impl {
     struct timespec ckpt_prep_end;
     struct timespec ckpt_prep_start;
     struct timespec ckpt_timer_start;
+    struct timespec ckpt_timer_scrub_end;
 
     /* Checkpoint progress message data */
     uint64_t ckpt_progress_msg_count;

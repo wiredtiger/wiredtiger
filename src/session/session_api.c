@@ -2370,8 +2370,8 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    WT_STAT_CONN_INCR(session, checkpoints);
     session = (WT_SESSION_IMPL *)wt_session;
+    WT_STAT_CONN_INCR(session, checkpoints_api);
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RUNNING);
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, checkpoint, config, cfg);
 

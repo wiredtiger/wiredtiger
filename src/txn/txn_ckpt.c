@@ -500,8 +500,6 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     double current_dirty, prev_dirty;
     uint64_t bytes_written_start, bytes_written_total;
     uint64_t cache_size, max_write;
-    uint64_t time_start, time_stop;
-    uint64_t total_ms;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -510,7 +508,6 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     if (cache->eviction_checkpoint_target < DBL_EPSILON)
         return;
 
-    time_start = __wt_clock(session);
     bytes_written_start = cache->bytes_written;
 
     /*
@@ -530,7 +527,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
     /* Set the dirty trigger to the target value. */
     cache->eviction_scrub_target = cache->eviction_checkpoint_target;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)cache->eviction_scrub_target);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_dirty_target, (int64_t)cache->eviction_scrub_target);
 
     /* Wait while the dirty level is going down. */
     for (;;) {
@@ -552,10 +549,6 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
         if (bytes_written_total > max_write)
             break;
     }
-
-    time_stop = __wt_clock(session);
-    total_ms = WT_CLOCKDIFF_MS(time_stop, time_start);
-    WT_STAT_CONN_SET(session, checkpoint_scrub_time, total_ms);
 }
 
 /*
@@ -611,6 +604,16 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
         conn->ckpt_time_min = msec;
     conn->ckpt_time_recent = msec;
     conn->ckpt_time_total += msec;
+
+    /* Compute timer statistics for the srcub. */
+    msec = WT_TIMEDIFF_MS(conn->ckpt_timer_scrub_end, conn->ckpt_timer_start);
+
+    if (msec > conn->ckpt_srcub_max)
+        conn->ckpt_srcub_max = msec;
+    if (msec < conn->ckpt_srcub_min)
+        conn->ckpt_srcub_min = msec;
+    conn->ckpt_srcub_recent = msec;
+    conn->ckpt_srcub_total += msec;
 
     /* Compute timer statistics for the checkpoint prepare. */
     msec = WT_TIMEDIFF_MS(conn->ckpt_prep_end, conn->ckpt_prep_start);
@@ -1095,6 +1098,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_verbose_track(session, "starting transaction");
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_START_TXN);
 
+    if (full)
+        __wt_epoch(session, &conn->ckpt_timer_scrub_end);
+
     /*
      * Start the checkpoint for real.
      *
@@ -1138,7 +1144,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * new to be written in the checkpoint.
      */
     cache->eviction_scrub_target = 0.0;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_dirty_target, 0);
 
     /* Tell logging that we have started a database checkpoint. */
     if (full && logging)
@@ -1366,7 +1372,7 @@ err:
         WT_TRET(__wt_meta_track_off(session, false, failed));
 
     cache->eviction_scrub_target = 0.0;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_dirty_target, 0);
 
     if (F_ISSET(txn, WT_TXN_RUNNING)) {
         /*
