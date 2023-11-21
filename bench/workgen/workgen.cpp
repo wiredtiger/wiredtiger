@@ -1368,7 +1368,7 @@ ThreadRunner::cross_check(std::vector<ThreadRunner> &runners)
 int
 ThreadRunner::run()
 {
-    int ret;
+    int ret = 0;
     ThreadOptions *options = &_thread->options;
     std::string name = options->name;
 
@@ -1607,7 +1607,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
 int
 ThreadRunner::op_run_setup(Operation *op)
 {
-    int ret;
+    int ret = 0;
 
     if (_throttle != nullptr) {
         while (_throttle_ops >= _throttle_limit && !_in_transaction && !_stop) {
@@ -1723,6 +1723,7 @@ ThreadRunner::op_run(Operation *op)
     track = nullptr;
     cursor = nullptr;
     own_cursor = false;
+    ret = 0;
     retry_op = true;
 
     switch (op->_optype) {
@@ -3168,7 +3169,7 @@ WorkloadRunner::~WorkloadRunner()
 int
 WorkloadRunner::run(WT_CONNECTION *conn)
 {
-    int ret;
+    int ret = 0;
     WorkloadOptions *options = &_workload->options;
 
     _wt_home = conn->get_home(conn);
@@ -3300,7 +3301,7 @@ WorkloadRunner::final_report(timespec &totalsecs)
 int
 WorkloadRunner::run_all(WT_CONNECTION *conn)
 {
-    int ret;
+    int ret = 0;
 
     // Register signal handlers for SIGINT (Ctrl-C) and SIGTERM.
     std::signal(SIGINT, signal_handler);
