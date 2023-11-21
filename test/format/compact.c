@@ -64,9 +64,8 @@ background_compact(void *arg)
             break;
 
         /*
-         * The API supports enabling or disabling the background compact server multiple times
-         * in a row. Randomly pick whether we are enabling or disabling to cover all state
-         * changes.
+         * The API supports enabling or disabling the background compact server multiple times in a
+         * row. Randomly pick whether we are enabling or disabling to cover all state changes.
          */
         if (mmrand(&g.extra_rnd, 0, 1))
             testutil_snprintf(config_buf, sizeof(config_buf),
