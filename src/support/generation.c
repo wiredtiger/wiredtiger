@@ -110,7 +110,7 @@ __gen_drain_callback(
     WT_GENERATION_DRAIN_COOKIE *cookie;
     uint64_t time_diff_ms, v;
 #ifdef HAVE_DIAGNOSTIC
-    WT_VERBOSE_LEVEL verbose_tmp[WT_VERB_NUM_CATEGORIES];
+    WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
 #endif
 
     cookie = (WT_GENERATION_DRAIN_COOKIE *)cookiep;
@@ -136,13 +136,13 @@ __gen_drain_callback(
              */
             if (cookie->verbose_timeout_flags == true) {
                 if (cookie->base.which == WT_GEN_EVICT) {
-                    WT_VERBOSE_RESTORE(session, verbose_tmp, WT_VERB_EVICT);
-                    WT_VERBOSE_RESTORE(session, verbose_tmp, WT_VERB_EVICTSERVER);
-                    WT_VERBOSE_RESTORE(session, verbose_tmp, WT_VERB_EVICT_STUCK);
+                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICT);
+                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICTSERVER);
+                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICT_STUCK);
                 } else if (cookie->base.which == WT_GEN_CHECKPOINT) {
-                    WT_VERBOSE_RESTORE(session, verbose_tmp, WT_VERB_CHECKPOINT);
-                    WT_VERBOSE_RESTORE(session, verbose_tmp, WT_VERB_CHECKPOINT_CLEANUP);
-                    WT_VERBOSE_RESTORE(session, verbose_tmp, WT_VERB_CHECKPOINT_PROGRESS);
+                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_CHECKPOINT);
+                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_CHECKPOINT_CLEANUP);
+                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_CHECKPOINT_PROGRESS);
                 }
             }
 #endif
@@ -192,15 +192,18 @@ __gen_drain_callback(
               (conn->gen_drain_timeout_ms < 20 ||
                 time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
                 if (cookie->base.which == WT_GEN_EVICT) {
-                    WT_VERBOSE_SAVE(session, verbose_tmp, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SAVE(session, verbose_tmp, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SAVE(session, verbose_tmp, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
+                    WT_VERBOSE_SAVE(session, verbose_orig_level, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+                    WT_VERBOSE_SAVE(
+                      session, verbose_orig_level, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+                    WT_VERBOSE_SAVE(
+                      session, verbose_orig_level, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
                 } else if (cookie->base.which == WT_GEN_CHECKPOINT) {
-                    WT_VERBOSE_SAVE(session, verbose_tmp, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
                     WT_VERBOSE_SAVE(
-                      session, verbose_tmp, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1);
+                      session, verbose_orig_level, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
                     WT_VERBOSE_SAVE(
-                      session, verbose_tmp, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
+                      session, verbose_orig_level, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1);
+                    WT_VERBOSE_SAVE(
+                      session, verbose_orig_level, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
                 }
                 cookie->verbose_timeout_flags = true;
                 /* Now we have enabled more logs, spin another time to get some information. */
