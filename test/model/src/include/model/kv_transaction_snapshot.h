@@ -47,16 +47,17 @@ class kv_transaction_snapshot {
 
 public:
     /*
-     * kv_transaction_snapshot::kv_transaction_snapshot --
-     *     Create a new instance of the snapshot based on what to exclude.
-     */
-    inline kv_transaction_snapshot() {}
-
-    /*
      * kv_transaction_snapshot::contains --
      *     Check whether the given update belongs to the snapshot.
      */
     virtual bool contains(const kv_update &update) const noexcept = 0;
+
+protected:
+    /*
+     * kv_transaction_snapshot::kv_transaction_snapshot --
+     *     Create a new instance of the snapshot.
+     */
+    inline kv_transaction_snapshot(){};
 };
 
 /*
@@ -80,7 +81,7 @@ public:
      * kv_transaction_snapshot_by_exclusion::contains --
      *     Check whether the given update belongs to the snapshot.
      */
-    virtual bool contains(const kv_update &update) const noexcept;
+    virtual bool contains(const kv_update &update) const noexcept override;
 
 private:
     txn_id_t _exclude_after;
@@ -110,7 +111,7 @@ public:
      * kv_transaction_snapshot_wt::contains --
      *     Check whether the given update belongs to the snapshot.
      */
-    virtual bool contains(const kv_update &update) const noexcept;
+    virtual bool contains(const kv_update &update) const noexcept override;
 
 private:
     txn_id_t _min_id, _max_id;
