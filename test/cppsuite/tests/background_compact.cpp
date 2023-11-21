@@ -300,12 +300,9 @@ public:
         logger::log_msg(
           LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
 
-        bool enabled = false;
-
         while (tw->running()) {
-            enabled = !enabled;
 
-            std::string compact_cfg = enabled ?
+            std::string compact_cfg = random_generator::instance().generate_bool() ?
               "background=true,free_space_target=" + std::to_string(tw->free_space_target_mb) +
                 "MB" :
               "background=false";
