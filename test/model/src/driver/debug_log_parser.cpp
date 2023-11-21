@@ -426,9 +426,11 @@ debug_log_parser::commit_transaction(kv_transaction_ptr txn)
 
     /* Process the checkpoint metadata, if there are any associated with the transaction. */
     auto i = _txn_ckpt_metadata.find(txn->id());
-    if (i != _txn_ckpt_metadata.end())
+    if (i != _txn_ckpt_metadata.end()) {
         for (auto p : i->second)
             metadata_checkpoint_apply(p.first, p.second);
+        _txn_ckpt_metadata.erase(i);
+    }
 }
 
 /*
