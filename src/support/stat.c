@@ -1568,6 +1568,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: scrub time (msecs)",
   "checkpoint: stop timing stress active",
   "checkpoint: total time (msecs)",
+  "checkpoint: transaction checkpoint tree duration (usecs)",
   "checkpoint: transaction checkpoints due to obsolete pages",
   "checkpoint: wait cycles while cache dirty level is decreasing",
   "chunk-cache: aggregate number of spanned chunks on read",
@@ -1936,7 +1937,6 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
-  "transaction: transaction checkpoint tree duration (usecs)",
   "transaction: transaction range of IDs currently pinned",
   "transaction: transaction range of IDs currently pinned by a checkpoint",
   "transaction: transaction range of timestamps currently pinned",
@@ -2258,6 +2258,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_scrub_time */
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_time_total */
+    stats->checkpoint_tree_duration = 0;
     stats->checkpoint_obsolete_applied = 0;
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->chunkcache_spans_chunks_read = 0;
@@ -2617,7 +2618,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable_upd = 0;
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
-    stats->txn_ckpt_tree_duration = 0;
     /* not clearing txn_pinned_range */
     /* not clearing txn_pinned_checkpoint_range */
     /* not clearing txn_pinned_timestamp */
@@ -2959,6 +2959,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_scrub_time += WT_STAT_READ(from, checkpoint_scrub_time);
     to->checkpoint_stop_stress_active += WT_STAT_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_time_total += WT_STAT_READ(from, checkpoint_time_total);
+    to->checkpoint_tree_duration += WT_STAT_READ(from, checkpoint_tree_duration);
     to->checkpoint_obsolete_applied += WT_STAT_READ(from, checkpoint_obsolete_applied);
     to->checkpoint_wait_reduce_dirty += WT_STAT_READ(from, checkpoint_wait_reduce_dirty);
     to->chunkcache_spans_chunks_read += WT_STAT_READ(from, chunkcache_spans_chunks_read);
@@ -3344,7 +3345,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable_upd += WT_STAT_READ(from, txn_set_ts_stable_upd);
     to->txn_begin += WT_STAT_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_READ(from, txn_hs_ckpt_duration);
-    to->txn_ckpt_tree_duration += WT_STAT_READ(from, txn_ckpt_tree_duration);
     to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
     to->txn_pinned_checkpoint_range += WT_STAT_READ(from, txn_pinned_checkpoint_range);
     to->txn_pinned_timestamp += WT_STAT_READ(from, txn_pinned_timestamp);
