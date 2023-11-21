@@ -1153,6 +1153,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     tsp.tv_nsec = 0;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
 
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_CKPT_TREE);
+
     time_start_ckpt_tree = __wt_clock(session);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
     time_stop_ckpt_tree = __wt_clock(session);
