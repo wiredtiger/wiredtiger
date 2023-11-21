@@ -260,12 +260,11 @@ run_test1(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    pid_t parent_pid, pid;
+    pid_t pid;
     int status;
 
     printf("\n%s: Test crashing during checkpoint after incremental backup\n", __func__);
 
-    parent_pid = getpid();
     testutil_remove(EXPECT_ABORT);
     testutil_assert_errno((pid = fork()) >= 0);
 
@@ -312,12 +311,11 @@ run_test2(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    pid_t parent_pid, pid;
+    pid_t pid;
     int status;
 
     printf("\n%s: Test crashing during force-stop after incremental backup\n", __func__);
 
-    parent_pid = getpid();
     testutil_remove(EXPECT_ABORT);
     testutil_assert_errno((pid = fork()) >= 0);
 
