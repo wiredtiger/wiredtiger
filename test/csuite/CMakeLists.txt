@@ -415,3 +415,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt11878_capacity_server
+    SOURCES wt11878_capacity_server/main.c
+    DIR_NAME wt11878
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
