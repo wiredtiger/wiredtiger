@@ -403,8 +403,10 @@ conn_stats = [
     CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_total', 'total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
-    CheckpointStat('checkpoints', 'number of checkpoints started'),
+    CheckpointStat('checkpoints_session', 'number of checkpoints started by session'),
     CheckpointStat('checkpoints_compact', 'number of checkpoints started by compaction'),
+    CheckpointStat('checkpoints_total_failed', 'total failed number of checkpoints'),
+    CheckpointStat('checkpoints_total_succeed', 'total succeed number of checkpoints'),
 
     ##########################################
     # Chunk cache statistics
