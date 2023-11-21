@@ -172,6 +172,39 @@ public:
      */
     kv_transaction_snapshot_ptr txn_snapshot(txn_id_t do_not_exclude = k_txn_none);
 
+    /*
+     * kv_database::clear --
+     *     Clear the contents of the database.
+     */
+    void clear();
+
+    /*
+     * kv_database::crash --
+     *     Simulate crashing the database.
+     */
+    inline void
+    crash(bool crash = false)
+    {
+        restart(true);
+    }
+
+    /*
+     * kv_database::restart --
+     *     Simulate restarting the database - either a clean restart or crash and recovery.
+     */
+    void restart(bool crash = false);
+
+    /*
+     * kv_database::rollback_to_stable --
+     *     Roll back the database to the latest stable timestamp. This simulates the runtime flavor
+     *     of rollback to stable.
+     */
+    inline void
+    rollback_to_stable()
+    {
+        rollback_to_stable(_stable_timestamp);
+    }
+
 protected:
     /*
      * kv_database::txn_snapshot --
@@ -179,11 +212,38 @@ protected:
      */
     kv_transaction_snapshot_ptr txn_snapshot_nolock(txn_id_t do_not_exclude = k_txn_none);
 
+    /*
+     * kv_database::clear_nolock --
+     *     Clear the contents of the database, assuming the relevant locks are already held.
+     */
+    void clear_nolock();
+
+    /*
+     * kv_database::rollback_all_nolock --
+     *     Rollback all transactions, assuming the relevant locks are already held.
+     */
+    void rollback_all_nolock();
+
+    /*
+     * kv_database::rollback_to_stable --
+     *     Roll back the database to the latest stable timestamp and transaction snapshot.
+     */
+    void rollback_to_stable(timestamp_t timestamp,
+      kv_transaction_snapshot_ptr snapshot = kv_transaction_snapshot_ptr(nullptr));
+
+    /*
+     * kv_database::rollback_to_stable_nolock --
+     *     Roll back the database to the latest stable timestamp and transaction snapshot, but
+     *     without locking.
+     */
+    void rollback_to_stable_nolock(timestamp_t timestamp,
+      kv_transaction_snapshot_ptr snapshot = kv_transaction_snapshot_ptr(nullptr));
+
 private:
-    mutable std::mutex _tables_lock;
+    mutable std::recursive_mutex _tables_lock;
     std::unordered_map<std::string, kv_table_ptr> _tables;
 
-    mutable std::mutex _transactions_lock;
+    mutable std::recursive_mutex _transactions_lock;
     txn_id_t _last_transaction_id;
     std::unordered_map<txn_id_t, kv_transaction_ptr> _active_transactions;
 

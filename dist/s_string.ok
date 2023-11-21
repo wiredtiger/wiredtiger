@@ -360,6 +360,7 @@ StoreLoad
 StoreStore
 Su
 Subdirectory
+Subprocess
 TAILQ
 TCMalloc
 TESTUTIL
@@ -1186,6 +1187,7 @@ setvbuf
 sfence
 shareability
 sig
+sigchld
 signalled
 sii
 sizeof
