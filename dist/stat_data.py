@@ -396,7 +396,6 @@ conn_stats = [
     CheckpointStat('checkpoint_scrub_min', 'scrub min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_recent', 'scrub most recent time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_dirty_target', 'scrub dirty target', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_scrub_time', 'scrub time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_total', 'scrub total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_skipped', 'checkpoints skipped because database was clean'),
     CheckpointStat('checkpoint_state', 'progress state', 'no_clear,no_scale'),

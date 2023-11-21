@@ -609,7 +609,6 @@ struct __wt_connection_stats {
     int64_t checkpoint_scrub_max;
     int64_t checkpoint_scrub_min;
     int64_t checkpoint_scrub_recent;
-    int64_t checkpoint_scrub_time;
     int64_t checkpoint_scrub_total;
     int64_t checkpoint_stop_stress_active;
     int64_t checkpoints_total_failed;

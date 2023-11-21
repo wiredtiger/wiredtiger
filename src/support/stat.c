@@ -1568,7 +1568,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: scrub max time (msecs)",
   "checkpoint: scrub min time (msecs)",
   "checkpoint: scrub most recent time (msecs)",
-  "checkpoint: scrub time (msecs)",
   "checkpoint: scrub total time (msecs)",
   "checkpoint: stop timing stress active",
   "checkpoint: total failed number of checkpoints",
@@ -2264,7 +2263,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_scrub_max */
     /* not clearing checkpoint_scrub_min */
     /* not clearing checkpoint_scrub_recent */
-    /* not clearing checkpoint_scrub_time */
     /* not clearing checkpoint_scrub_total */
     /* not clearing checkpoint_stop_stress_active */
     stats->checkpoints_total_failed = 0;
@@ -2971,7 +2969,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_scrub_max += WT_STAT_READ(from, checkpoint_scrub_max);
     to->checkpoint_scrub_min += WT_STAT_READ(from, checkpoint_scrub_min);
     to->checkpoint_scrub_recent += WT_STAT_READ(from, checkpoint_scrub_recent);
-    to->checkpoint_scrub_time += WT_STAT_READ(from, checkpoint_scrub_time);
     to->checkpoint_scrub_total += WT_STAT_READ(from, checkpoint_scrub_total);
     to->checkpoint_stop_stress_active += WT_STAT_READ(from, checkpoint_stop_stress_active);
     to->checkpoints_total_failed += WT_STAT_READ(from, checkpoints_total_failed);
