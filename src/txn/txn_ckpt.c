@@ -1159,6 +1159,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
     WT_STAT_CONN_SET(session, txn_ckpt_tree_duration, ckpt_tree_duration_usecs);
 
+    __checkpoint_verbose_track(session, "transaction checkpoint tree");
+
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
 

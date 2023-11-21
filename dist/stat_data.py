@@ -680,7 +680,7 @@ conn_stats = [
     ##########################################
     TxnStat('txn_begin', 'transaction begins'),
     TxnStat('txn_commit', 'transactions committed'),
-    TxnStat('txn_ckpt_tree_duration', 'transaction checkpoint tree file duration (usecs)'),
+    TxnStat('txn_ckpt_tree_duration', 'transaction checkpoint tree duration (usecs)'),
     TxnStat('txn_hs_ckpt_duration', 'transaction checkpoint history store file duration (usecs)'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_range', 'transaction range of IDs currently pinned', 'no_clear,no_scale'),

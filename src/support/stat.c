@@ -1936,7 +1936,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
-  "transaction: transaction checkpoint tree file duration (usecs)",
+  "transaction: transaction checkpoint tree duration (usecs)",
   "transaction: transaction range of IDs currently pinned",
   "transaction: transaction range of IDs currently pinned by a checkpoint",
   "transaction: transaction range of timestamps currently pinned",
