@@ -150,9 +150,11 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
 
                 /* Copy the range. */
                 tmp = dcalloc(1, size);
-                rdsize = pread(rfd, tmp, (size_t)size, (wt_off_t)offset);
+                testutil_assert_errno(lseek(rfd, (wt_off_t)offset, SEEK_SET) >= 0);
+                rdsize = read(rfd, tmp, (size_t)size);
                 testutil_assert(rdsize >= 0);
-                testutil_assert(pwrite(wfd, tmp, (size_t)rdsize, (wt_off_t)offset) == rdsize);
+                testutil_assert_errno(lseek(wfd, (wt_off_t)offset, SEEK_SET) >= 0);
+                testutil_assert_errno(write(wfd, tmp, (size_t)rdsize) == rdsize);
                 free(tmp);
 
                 nranges++;
