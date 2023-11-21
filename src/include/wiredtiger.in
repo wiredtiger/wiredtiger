@@ -6018,10 +6018,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_SCRUB_TIME		1266
 /*! checkpoint: stop timing stress active */
 #define	WT_STAT_CONN_CHECKPOINT_STOP_STRESS_ACTIVE	1267
+/*! checkpoint: time spent on all-tree checkpoint work (usecs) */
+#define	WT_STAT_CONN_CHECKPOINT_TREE_DURATION		1268
 /*! checkpoint: total time (msecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TIME_TOTAL		1268
-/*! checkpoint: transaction checkpoint tree duration (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TREE_DURATION		1269
+#define	WT_STAT_CONN_CHECKPOINT_TIME_TOTAL		1269
 /*! checkpoint: transaction checkpoints due to obsolete pages */
 #define	WT_STAT_CONN_CHECKPOINT_OBSOLETE_APPLIED	1270
 /*! checkpoint: wait cycles while cache dirty level is decreasing */
