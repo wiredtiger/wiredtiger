@@ -605,7 +605,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_prep_recent;
     int64_t checkpoint_prep_total;
     int64_t checkpoint_state;
-    int64_t checkpoint_scrub_dirty_target;
+    int64_t checkpoint_scrub_target;
     int64_t checkpoint_scrub_max;
     int64_t checkpoint_scrub_min;
     int64_t checkpoint_scrub_recent;

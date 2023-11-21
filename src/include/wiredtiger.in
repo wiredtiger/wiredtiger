@@ -6013,7 +6013,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: progress state */
 #define	WT_STAT_CONN_CHECKPOINT_STATE			1264
 /*! checkpoint: scrub dirty target */
-#define	WT_STAT_CONN_CHECKPOINT_SCRUB_DIRTY_TARGET	1265
+#define	WT_STAT_CONN_CHECKPOINT_SCRUB_TARGET		1265
 /*! checkpoint: scrub max time (msecs) */
 #define	WT_STAT_CONN_CHECKPOINT_SCRUB_MAX		1266
 /*! checkpoint: scrub min time (msecs) */

@@ -2259,7 +2259,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_prep_recent */
     /* not clearing checkpoint_prep_total */
     /* not clearing checkpoint_state */
-    /* not clearing checkpoint_scrub_dirty_target */
+    /* not clearing checkpoint_scrub_target */
     /* not clearing checkpoint_scrub_max */
     /* not clearing checkpoint_scrub_min */
     /* not clearing checkpoint_scrub_recent */
@@ -2965,7 +2965,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_prep_recent += WT_STAT_READ(from, checkpoint_prep_recent);
     to->checkpoint_prep_total += WT_STAT_READ(from, checkpoint_prep_total);
     to->checkpoint_state += WT_STAT_READ(from, checkpoint_state);
-    to->checkpoint_scrub_dirty_target += WT_STAT_READ(from, checkpoint_scrub_dirty_target);
+    to->checkpoint_scrub_target += WT_STAT_READ(from, checkpoint_scrub_target);
     to->checkpoint_scrub_max += WT_STAT_READ(from, checkpoint_scrub_max);
     to->checkpoint_scrub_min += WT_STAT_READ(from, checkpoint_scrub_min);
     to->checkpoint_scrub_recent += WT_STAT_READ(from, checkpoint_scrub_recent);

@@ -527,7 +527,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
     /* Set the dirty trigger to the target value. */
     cache->eviction_scrub_target = cache->eviction_checkpoint_target;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_dirty_target, (int64_t)cache->eviction_scrub_target);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)cache->eviction_scrub_target);
 
     /* Wait while the dirty level is going down. */
     for (;;) {
@@ -1144,7 +1144,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * new to be written in the checkpoint.
      */
     cache->eviction_scrub_target = 0.0;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_dirty_target, 0);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
 
     /* Tell logging that we have started a database checkpoint. */
     if (full && logging)
@@ -1372,7 +1372,7 @@ err:
         WT_TRET(__wt_meta_track_off(session, false, failed));
 
     cache->eviction_scrub_target = 0.0;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_dirty_target, 0);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
 
     if (F_ISSET(txn, WT_TXN_RUNNING)) {
         /*
