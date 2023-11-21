@@ -30,6 +30,7 @@ __curblock_next_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n
     cblock = (WT_CURSOR_BLOCK *)cursor;
     cbt = (WT_CURSOR_BTREE *)cursor;
     count = 0;
+    *n_ret = 0;
 
     WT_BLOCK_CURSOR_KEY_VALUE_REALLOC(session, n, cblock);
 
@@ -125,6 +126,7 @@ __curblock_prev_raw_n_walk(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t n
     cblock = (WT_CURSOR_BLOCK *)cursor;
     cbt = (WT_CURSOR_BTREE *)cursor;
     count = 0;
+    *n_ret = 0;
 
     WT_BLOCK_CURSOR_KEY_VALUE_REALLOC(session, n, cblock);
 
