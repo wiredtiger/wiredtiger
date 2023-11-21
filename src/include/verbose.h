@@ -135,17 +135,16 @@ struct __wt_verbose_multi_category {
     WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_LEVEL_DEFAULT)
 
 /* Set the verbose level and save the previous value. */
-#define WT_VERBOSE_SAVE(session, verbose_tmp, category, level)   \
-    do {                                                         \
-        verbose_tmp[category] = S2C(session)->verbose[category]; \
-        WT_SET_VERBOSE_LEVEL(session, category, level);          \
+#define WT_VERBOSE_SET_AND_SAVE(session, verbose_orig_level, category, level) \
+    do {                                                                      \
+        verbose_orig_level[category] = S2C(session)->verbose[category];       \
+        WT_SET_VERBOSE_LEVEL(session, category, level);                       \
     } while (0)
 
 /* Restore the original level  */
-#define WT_VERBOSE_RESTORE(session, verbose_tmp, category)              \
-    do {                                                                \
-        verbose_tmp[category] = S2C(session)->verbose[category];        \
-        WT_SET_VERBOSE_LEVEL(session, category, verbose_tmp[category]); \
+#define WT_VERBOSE_RESTORE(session, verbose_orig_level, category)              \
+    do {                                                                       \
+        WT_SET_VERBOSE_LEVEL(session, category, verbose_orig_level[category]); \
     } while (0)
 
 /*

@@ -192,17 +192,18 @@ __gen_drain_callback(
               (conn->gen_drain_timeout_ms < 20 ||
                 time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
                 if (cookie->base.which == WT_GEN_EVICT) {
-                    WT_VERBOSE_SAVE(session, verbose_orig_level, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SAVE(
+                    WT_VERBOSE_SET_AND_SAVE(
+                      session, verbose_orig_level, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+                    WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SAVE(
+                    WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
                 } else if (cookie->base.which == WT_GEN_CHECKPOINT) {
-                    WT_VERBOSE_SAVE(
+                    WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SAVE(
+                    WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SAVE(
+                    WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
                 }
                 cookie->verbose_timeout_flags = true;
