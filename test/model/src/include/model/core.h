@@ -31,6 +31,7 @@
 
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include "wiredtiger.h"
 
 /* Redefine important WiredTiger internal constants, if they are not already available. */
@@ -110,7 +111,8 @@ constexpr txn_id_t k_txn_max = std::numeric_limits<txn_id_t>::max() - 10;
 
 /* Verify that model's constants are numerically equal to WiredTiger's constants. */
 static_assert(k_txn_none == WT_TXN_NONE);
-/* We will check k_txn_max in the .cpp file, as we don't have the right imports. */
+static_assert(k_txn_max == UINT64_MAX - 10);
+/* We will check k_txn_max again in the .cpp file, as we don't have the right imports. */
 
 /*
  * write_gen_t --
