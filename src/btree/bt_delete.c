@@ -14,11 +14,11 @@
  * This file contains most of the code that allows WiredTiger to delete pages of data without
  * reading them into the cache. (This feature is currently only available for row-store objects.)
  *
- * The way cursor truncate works in a row-store object is it explicitly reads the first and last
+ * The way session truncate works in a row-store object is it explicitly reads the first and last
  * pages of the truncate range, then walks the tree with a flag so the tree walk code skips reading
  * eligible pages within the range and instead just marks them as deleted, by changing their WT_REF
- * state to WT_REF_DELETED. Pages ineligible for this fast path include pages already in the cache,
- * having overflow items, or requiring history store records. Ineligible pages are read and have
+ * state to WT_REF_DELETED. Pages ineligible for this fast path include pages that are already in the cache and can not be evicted, records in the pages that are not visible to the transaction, 
+ * pages containing overflow items, pages containing prepared values, or pages that belong to FLCS trees. Ineligible pages are read and have
  * their rows updated/deleted individually. The transaction for the delete operation is stored in
  * memory referenced by the WT_REF.ft_info.del field.
  *
@@ -31,7 +31,7 @@
  * was read and each individual row deleted, exactly as would have happened if the page had been in
  * the cache all along.
  *
- * There's an additional complication to support rollback of the page delete. When the page was
+ * There's an additional complication to support transaction rollback of the page delete. When the page was
  * marked deleted, a pointer to the WT_REF was saved in the deleting session's transaction list and
  * the delete is unrolled by resetting the WT_REF_DELETED state back to WT_REF_DISK. However, if the
  * page has been instantiated by some reading thread, that's not enough, each individual row on the
@@ -114,8 +114,9 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         goto err;
     if (addr.ta.prepare)
         goto err;
-    if (!__wt_txn_visible(session, addr.ta.newest_txn,
-          WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
+    if (!__wt_txn_snap_min_visible(session, addr.ta.newest_txn,
+        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts),
+        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
         goto err;
 
     /*
