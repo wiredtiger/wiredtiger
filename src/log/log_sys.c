@@ -27,16 +27,19 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_INCR_BACKUP))
         return (0);
 
+    /* Set up the system log record itself. */
     rectype = WT_LOGREC_SYSTEM;
     fmt = WT_UNCHECKED_STRING(I);
-
-    WT_ASSERT(session, F_ISSET(conn, WT_CONN_INCR_BACKUP));
     WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
     WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
-
     WT_ERR(
       __wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt, rectype));
     logrec->size += recsize;
+
+    /*
+     * Now set up the log operation component. The pack function will grow the log record buffer as
+     * necessary.
+     */
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
         if (F_ISSET(blk, WT_BLKINCR_VALID))
