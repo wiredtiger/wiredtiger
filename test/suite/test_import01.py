@@ -74,18 +74,16 @@ class test_import_base(wttest.WiredTigerTestCase):
             else:
                 self.check_record(uri, keys[i], values[i])
 
-    # The ID and checkpoint information can be different between configs, remove it. Everything else
-    # should be the same.
+    # We know the ID can be different between configs, so just remove it from comparison.
+    # Everything else should be the same.
     def config_compare(self, aconf, bconf):
         a = re.sub('id=\d+,?', '', aconf)
-        a = re.sub('checkpoint=\(.*?\)+,?', '', a)
+        a = (re.sub('\w+=\(.*?\)+,?', '', a).strip(',').split(',') +
+             re.findall('\w+=\(.*?\)+', a))
         b = re.sub('id=\d+,?', '', bconf)
-        b = re.sub('checkpoint=\(.*?\)+,?', '', b)
-        a = a.split(',')
-        b = b.split(',')
-        a.sort()
-        b.sort()
-        self.assertTrue(a == b)
+        b = (re.sub('\w+=\(.*?\)+,?', '', b).strip(',').split(',') +
+             re.findall('\w+=\(.*?\)+', b))
+        self.assertTrue(a.sort() == b.sort())
 
     # Populate a database with N tables, each having M rows.
     def populate(self, ntables, nrows):
