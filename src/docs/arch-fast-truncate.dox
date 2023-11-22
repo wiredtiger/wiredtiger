@@ -345,8 +345,8 @@ reading them into memory.
 The address cell type must be \c WT_ADDR_LEAF_NO, rather than \c WT_ADDR_LEAF, where
 overflow items may exist.
 - Pages that contain prepared values.
-- Pages where the newest transaction ID or timestamp on the page is not visible in all concurrent 
-transactions in the system.
+- Pages where the newest transaction ID or timestamp on the page is not visible in all the
+concurrent transactions in the system.
 
 If the page passes these checks, we mark its parent dirty, initialize the \c page_del
 structure, add a \c WT_TXN_OP_REF_DELETE operation to the current transaction (except if
