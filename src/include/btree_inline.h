@@ -2289,7 +2289,7 @@ __wt_btcur_skip_page(
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
     uint8_t previous_state;
-    bool clean_page;
+    bool clean_page, page_locked;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -2297,7 +2297,7 @@ __wt_btcur_skip_page(
     *skipp = false; /* Default to reading */
 
     btree = S2BT(session);
-    clean_page = false;
+    clean_page = page_locked = false;
 
     /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
     if (btree->type == BTREE_COL_FIX)
@@ -2342,8 +2342,19 @@ __wt_btcur_skip_page(
         goto unlock;
     }
 
-    if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))
+    if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page)) {
+        /*
+         * Lock the page to prevent concurrent checkpoint reconciliation on the same page while we
+         * verify whether the page may be skipped or not.
+         */
+        if (ref->page->modify != NULL) {
+            if (WT_PAGE_TRYLOCK(session, ref->page) != 0)
+                goto unlock;
+            page_locked = true;
+        }
+
         clean_page = true;
+    }
 
     /* Look at the disk address, if it exists. */
     if ((previous_state == WT_REF_DISK || clean_page) && __wt_ref_addr_copy(session, ref, &addr)) {
@@ -2364,12 +2375,15 @@ __wt_btcur_skip_page(
             *skipp = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
         }
-    } else if (clean_page && ref->ta != NULL &&
-      __wt_txn_snap_min_visible(session, ref->ta->newest_stop_txn, ref->ta->newest_stop_ts,
-        ref->ta->newest_stop_durable_ts)) {
+    } else if (page_locked && ref->page->modify->ta != NULL &&
+      __wt_txn_snap_min_visible(session, ref->page->modify->ta->newest_stop_txn,
+        ref->page->modify->ta->newest_stop_ts, ref->page->modify->ta->newest_stop_durable_ts)) {
         *skipp = true;
         WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_inmem_del_page_skip);
     }
+
+    if (page_locked)
+        WT_PAGE_UNLOCK(session, ref->page);
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);

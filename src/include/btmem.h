@@ -431,6 +431,9 @@ struct __wt_page_modify {
     /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
 
+    /* Aggregated timestamp information. */
+    WT_TIME_AGGREGATE *ta;
+
     /*
      * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
      * set until the page is reconciled successfully; this indicates that the page_del information
@@ -1118,8 +1121,6 @@ struct __wt_ref {
      */
     wt_shared WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
-    wt_shared WT_TIME_AGGREGATE *ta; /* Reconciled page time aggregate information. */
-
 #ifdef HAVE_REF_TRACK
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures, but we want to retain ref
@@ -1156,9 +1157,9 @@ struct __wt_ref {
  * inserted padding which would break the world.
  */
 #ifdef HAVE_REF_TRACK
-#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 56
+#define WT_REF_SIZE 48
 #endif
 
 /* A macro wrapper allowing us to remember the callers code location */

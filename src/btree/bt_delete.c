@@ -184,7 +184,6 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
     /* Allocate and initialize the page-deleted structure. */
-    WT_ASSERT(session, ref->ta == NULL);
     WT_ERR(__wt_calloc_one(session, &ref->page_del));
     ref->page_del->previous_ref_state = previous_state;
 

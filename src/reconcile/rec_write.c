@@ -2392,9 +2392,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      */
     WT_RET(__wt_ovfl_track_wrapup(session, page));
 
-    /* Free the obsolete time aggregate information if exists. */
-    __wt_free(session, ref->ta);
-
     /*
      * This page may have previously been reconciled, and that information is now about to be
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
@@ -2444,6 +2441,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
+    __wt_free(session, mod->ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
@@ -2504,6 +2502,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(__rec_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
         mod->rec_result = WT_PM_REC_REPLACE;
@@ -2571,9 +2570,8 @@ split:
     }
 
     if (WT_TIME_AGGREGATE_HAS_STOP(&stop_ta)) {
-        WT_ASSERT(session, ref->page_del == NULL);
-        WT_RET(__wt_calloc_one(session, &ref->ta));
-        *ref->ta = stop_ta;
+        WT_RET(__wt_calloc_one(session, &mod->ta));
+        *mod->ta = stop_ta;
     }
 
     return (0);
