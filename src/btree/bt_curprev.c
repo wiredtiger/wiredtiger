@@ -778,6 +778,11 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          * insert list or a row. If an insert list is present then we ignore the on-page object.
          */
         if (ret == WT_PREPARE_CONFLICT && CUR2BT(cursor)->type == BTREE_ROW) {
+            /*
+             * We should only get a prepare conflict from the cursor valid call, in that case need
+             * walk would be false.
+             */
+            WT_ASSERT(session, !need_walk);
             if (cbt->ins != NULL)
                 cbt->iter_retry = WT_CBT_RETRY_INSERT;
             else

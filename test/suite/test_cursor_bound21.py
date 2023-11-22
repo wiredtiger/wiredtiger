@@ -35,8 +35,6 @@ from wtbound import bound_base
 #
 # test_cursor_bound21.py
 class test_cursor_bound21(bound_base):
-    conn_config = 'cache_size=2MB,eviction=(threads_max=1)'
-
     key_formats = [
         ('string', dict(key_format='S')),
         ('var', dict(key_format='r')),
@@ -45,7 +43,6 @@ class test_cursor_bound21(bound_base):
     ]
 
     scenarios = make_scenarios(key_formats)
-
 
     def test_cursor_bound_bug(self):
         uri = "table:test_cursor_bound_bug"
