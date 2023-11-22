@@ -83,7 +83,7 @@ class test_import_base(wttest.WiredTigerTestCase):
         b = re.sub('id=\d+,?', '', bconf)
         b = (re.sub('\w+=\(.*?\)+,?', '', b).strip(',').split(',') +
              re.findall('\w+=\(.*?\)+', b))
-        self.assertTrue(a.sort() == b.sort())
+        self.assertTrue(sorted(a) == sorted(b))
 
     # Populate a database with N tables, each having M rows.
     def populate(self, ntables, nrows):
