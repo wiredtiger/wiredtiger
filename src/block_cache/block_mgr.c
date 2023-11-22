@@ -663,8 +663,8 @@ __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
     /*
      * If a tiered switch was scheduled, it should have happened by now. If we somehow miss it, we
-     * will leave a dangling switch. Tiered server would attempt to flush an active file in such a
-     * case.
+     * will leave a dangling switch. Tiered server might incorrectly attempt to flush an active file
+     * in such a case.
      */
     WT_ASSERT_ALWAYS(session, bm->next_block == NULL, "Somehow missed switching the block");
 
