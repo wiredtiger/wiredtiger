@@ -137,7 +137,6 @@ class test_cursor_bound21(bound_base):
         cursor2.set_key(self.gen_key(1))
         cursor2.bound("bound=lower,inclusive=false")
 
-        self.session.breakpoint()
         assert(cursor2.next() == 0)
         self.session.commit_transaction('commit_timestamp=6,durable_timestamp=6')
 
@@ -153,7 +152,6 @@ class test_cursor_bound21(bound_base):
 
         # When we walk next here we should walk to key 4 but receive a prepare conflict.
         try:
-            self.session.breakpoint()
             ret = cursor2.next()
             assert(ret != wiredtiger.WT_NOTFOUND)
         except WiredTigerError as e:
@@ -170,7 +168,52 @@ class test_cursor_bound21(bound_base):
         else:
             assert(str(cursor2.get_key().decode()) == self.gen_key(4))
 
+    def test_missing_bound_key_prepare(self):
+        uri = "table:test_not_inclusive_bound"
+        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        value1 = 'abc'
+        value2 = 'def'
+        value3 = 'ghi'
+        value4 = 'jkl'
+        self.session.create(uri, create_params)
+        cursor = self.session.open_cursor(uri)
 
+        session2 = self.setUpSessionOpen(self.conn)
+        session2.create(uri, create_params)
+        cursor2 = session2.open_cursor(uri)
+
+        # Insert the keys: 1, 6, 10
+        cursor[self.gen_key(1)] = value1
+        cursor[self.gen_key(5)] = value2
+        cursor[self.gen_key(10)] = value3
+        # Prepare the key: 4
+        self.session.begin_transaction()
+        cursor[self.gen_key(4)] = value4
+        self.session.prepare_transaction('prepare_timestamp=5')
+
+        # Set bounds between 1 and 4.
+        cursor2.set_key(self.gen_key(2))
+        cursor2.bound("bound=lower")
+
+        # When we walk next here we should walk to key 4 but receive a prepare conflict. Try 3
+        # times.
+        for i in range(0, 3):
+            try:
+                ret = cursor2.next()
+                assert(ret != wiredtiger.WT_NOTFOUND)
+            except WiredTigerError as e:
+                if wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
+                    pass
+                else:
+                    raise (e)
+
+        # Commit the transaction.
+        self.session.commit_transaction('commit_timestamp=6,durable_timestamp=6')
+        assert(cursor2.next() == 0)
+        if (self.key_format != 'u'):
+            assert(cursor2.get_key() == self.gen_key(4))
+        else:
+            assert(str(cursor2.get_key().decode()) == self.gen_key(4))
 
 if __name__ == '__main__':
     wttest.run()
