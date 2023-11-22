@@ -76,7 +76,7 @@ class test_compact06(wttest.WiredTigerTestCase):
         #   6. Disable the background compaction server.
         self.session.compact(None, 'background=false')
 
-        # Background compaction may be have been inspecting a table when disabled which is
+        # Background compaction may have been inspecting a table when disabled which is
         # considered as an interruption, ignore that message.
         self.ignoreStdoutPatternIfExists('background compact interrupted by application')
 
