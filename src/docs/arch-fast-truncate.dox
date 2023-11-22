@@ -33,7 +33,7 @@ The \c page_del field of a \c WT_REF, if not \c NULL, contains information about
 transaction that deleted the page.
 Its type is \c WT_PAGE_DELETED.
 The \c page_del can be thought of a special kind of update, as they contain roughly the same
-information as an update and is treated the exactly same way but on a per page basis.
+information as an update and is treated the exact same way but on a per page basis.
 
 The \c page_del field can be \c NULL; this means that the prior data on the page is all
 obsolete and nobody can see it.
@@ -255,8 +255,8 @@ updates created by instantiation will be left in memory in the usual way.
 Eviction of the child is blocked in these circumstances.)
 
 There is an edge case where special steps are needed when reconciling an internal page. The case
-happens when the parent page is being checkpointing and a truncated child page has been instantiated
-after it has been reconciled already. The checkpoint will to refer to the original on-disk page before it 
+happens when the parent page is being checkpointed and a truncated child page has been instantiated
+after it has been reconciled already. The checkpoint will refer to the original on-disk page before it 
 was instantiated, any updates to the instantiated page will not be visible to the checkpoint. 
 The checkpoint will write out the deletion information along with the address.
 
