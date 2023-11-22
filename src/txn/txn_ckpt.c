@@ -143,7 +143,8 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
              * the arg is the config string that is currently in the metadata. Also, mark the tree
              * dirty to ensure it participates in the checkpoint process, even if clean. Skip the
-             * trees still open for bulk insertion, we fake checkpoints for them.
+             * trees still open for bulk insertion, we fake checkpoints for them, i.e. we never
+             * really write a checkpoint to the disk - so no point switching just yet.
              */
             btree = S2BT(session);
             if (btree->original) {
