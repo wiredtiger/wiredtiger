@@ -19,10 +19,10 @@
  * the range and instead just marks them as deleted, by changing their WT_REF state to
  * WT_REF_DELETED. Pages ineligible for this fast path ("fast-truncate" or "fast-delete") include
  * pages that are already in the cache and can not be evicted, records in the pages that are
- * not visible to the transaction, page containing overflow items, pages containing prepared values,
- * or pages that belong to FLCS trees. Ineligible pages are read and have their rows updated/deleted
- * individually ("slow-truncate"). The transaction for the delete operation is stored in memory
- * referenced by the WT_REF.page_del field.
+ * not visible to the transaction, pages containing overflow items, pages containing prepared
+ * values, or pages that belong to FLCS trees. Ineligible pages are read and have their rows
+ * updated/deleted individually ("slow-truncate"). The transaction for the delete operation is
+ * stored in memory referenced by the WT_REF.page_del field.
  *
  * Future cursor walks of the tree will skip the deleted page based on the transaction stored for
  * the delete, but it gets more complicated if a read is done using a random key, or a cursor walk
@@ -34,7 +34,7 @@
  * would have happened if the page had been in the cache all along.
  *
  * There's an additional complication to support transaction rollback of the page delete. When the
- * age was marked deleted, a pointer to the WT_REF was saved in the deleting session's transaction
+ * page was marked deleted, a pointer to the WT_REF was saved in the deleting session's transaction
  * list and the delete is unrolled by resetting the WT_REF_DELETED state back to WT_REF_DISK.
  * However, if the page has been instantiated by some reading thread, that's not enough; each
  * individual row on the page must have the delete operation reset. If the page split, the WT_UPDATE
