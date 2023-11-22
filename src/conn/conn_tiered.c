@@ -115,6 +115,7 @@ __tier_flush_meta(
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_UNUSED(conn); /* Avoid "unused variable" warnings in non-debug builds. */
 
     newconfig = obj_value = NULL;
     WT_ERR(__wt_meta_track_on(session));
