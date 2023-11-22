@@ -9,11 +9,50 @@
 #include "wt_internal.h"
 
 /*
- * __wt_log_system_record --
+ * __wt_log_system_backup_id --
+ *     Write a system log record for the incremental backup IDs.
+ */
+int
+__wt_log_system_backup_id(WT_SESSION_IMPL *session)
+{
+    WT_BLKINCR *blk;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(logrec);
+    WT_DECL_RET;
+    size_t recsize;
+    uint32_t i, rectype;
+    const char *fmt;
+
+    conn = S2C(session);
+    rectype = WT_LOGREC_SYSTEM;
+    fmt = WT_UNCHECKED_STRING();
+
+    WT_ASSERT(session, F_ISSET(conn, WT_CONN_INCR_BACKUP));
+    WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
+    WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
+
+    /*
+    WT_ERR(
+      __wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt, rectype));
+*/
+    logrec->size += (uint32_t)recsize;
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk = &conn->incr_backups[i];
+        if (F_ISSET(blk, WT_BLKINCR_INUSE))
+            WT_ERR(__wt_logop_backup_id_pack(session, logrec, i, blk->granularity, blk->id_str));
+    }
+    WT_ERR(__wt_log_write(session, logrec, NULL, 0));
+err:
+    __wt_logrec_free(session, &logrec);
+    return (ret);
+}
+
+/*
+ * __wt_log_system_prevlsn --
  *     Write a system log record for the previous LSN.
  */
 int
-__wt_log_system_record(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
+__wt_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
 {
     WT_DECL_ITEM(logrec_buf);
     WT_DECL_RET;
@@ -71,11 +110,11 @@ err:
 }
 
 /*
- * __wt_log_recover_system --
+ * __wt_log_recover_prevlsn --
  *     Process a system log record for the previous LSN in recovery.
  */
 int
-__wt_log_recover_system(
+__wt_log_recover_prevlsn(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp)
 {
     WT_DECL_RET;

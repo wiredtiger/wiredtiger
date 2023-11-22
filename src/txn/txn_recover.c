@@ -102,6 +102,55 @@ __recovery_cursor(
 }
 
 /*
+ * __txn_backup_id_apply --
+ *     Apply a backup ID record during recovery.
+ */
+static int
+__txn_backup_id_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
+{
+    WT_BLKINCR *blk;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    uint64_t granularity;
+    uint32_t index, optype, opsize;
+    const char *id_str;
+
+    session = r->session;
+    conn = S2C(session);
+
+    while (*pp < end && **pp) {
+        WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
+        end = *pp + opsize;
+        /* If it is not a backup id system operation type, we're done. */
+        if (optype != WT_LOGOP_BACKUP_ID) {
+            *pp += opsize;
+            goto done;
+        }
+
+        WT_ERR(__wt_logop_backup_id_unpack(session, pp, end, &index, &granularity, &id_str));
+        /*
+         * Set up incremental information from the record. Only record information for as many slots
+         * as this system accepts. There could be a future change that allows additional incremental
+         * identifiers that this system cannot handle.
+         */
+        if (index < WT_BLKINCR_MAX) {
+            blk = &conn->incr_backups[index];
+            blk->granularity = granularity;
+            WT_ERR(__wt_strndup(session, id_str, strlen(id_str), &blk->id_str));
+            F_SET(conn, WT_CONN_INCR_BACKUP);
+        }
+        *pp = end;
+    }
+done:
+    return (0);
+err:
+    __wt_err(session, ret, "backup id apply failed during recovery: at LSN %" PRIu32 "%" PRIu32,
+      lsnp->l.file, lsnp->l.offset);
+    return (ret);
+}
+
+/*
  * Helper to a cursor if this operation is to be applied during recovery.
  */
 #define GET_RECOVERY_CURSOR(session, r, lsnp, fileid, cp)                  \
@@ -384,11 +433,14 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
         if (r->metadata_only)
             WT_RET(__wt_txn_checkpoint_logread(session, &p, end, &r->ckpt_lsn));
         break;
-
     case WT_LOGREC_COMMIT:
         if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid_unused)) != 0)
             WT_RET_MSG(session, ret, "txn_log_recover: unpack failure");
         WT_RET(__txn_commit_apply(r, lsnp, &p, end));
+        break;
+    case WT_LOGREC_SYSTEM:
+        if (r->metadata_only)
+            WT_RET(__txn_backup_id_apply(r, lsnp, &p, end));
         break;
     }
 

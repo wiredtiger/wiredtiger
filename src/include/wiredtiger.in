@@ -5333,6 +5333,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 /*! Diagnostic: transaction timestamps */
 #define WT_LOGOP_TXN_TIMESTAMP  (WT_LOGOP_IGNORE | 11)
+/*! Incremental backup IDs. */
+#define WT_LOGOP_BACKUP_ID 12
 /*! @} */
 
 /*******************************************

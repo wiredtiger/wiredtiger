@@ -352,9 +352,9 @@ struct __wt_log_desc {
                          * NOTE: We bumped the log version from 2 to 3 to make it convenient for
                          * MongoDB to detect users accidentally running old binaries on a newer
                          * release. There are no actual log file format changes in versions 2
-                         * through 5.
+                         * through 5. Version 6 introduces the backup ID record.
                          */
-#define WT_LOG_VERSION 5
+#define WT_LOG_VERSION 6
     uint16_t version;  /* 04-05: Log version */
     uint16_t unused;   /* 06-07: Unused */
     uint64_t log_size; /* 08-15: Log file size */
@@ -374,6 +374,7 @@ struct __wt_log_desc {
 #define WT_LOG_V3_VERSION ((WT_VERSION){3, 1, 0})
 #define WT_LOG_V4_VERSION ((WT_VERSION){3, 3, 0})
 #define WT_LOG_V5_VERSION ((WT_VERSION){10, 0, 0})
+#define WT_LOG_V6_VERSION ((WT_VERSION){11, 3, 0})
 
 /*
  * __wt_log_desc_byteswap --
