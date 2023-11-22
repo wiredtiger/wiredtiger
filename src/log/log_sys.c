@@ -24,21 +24,22 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
     const char *fmt;
 
     conn = S2C(session);
+    if (!F_ISSET(conn, WT_CONN_INCR_BACKUP))
+        return (0);
+
     rectype = WT_LOGREC_SYSTEM;
-    fmt = WT_UNCHECKED_STRING();
+    fmt = WT_UNCHECKED_STRING(I);
 
     WT_ASSERT(session, F_ISSET(conn, WT_CONN_INCR_BACKUP));
     WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
     WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
-    /*
     WT_ERR(
       __wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt, rectype));
-*/
-    logrec->size += (uint32_t)recsize;
+    logrec->size += recsize;
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-        if (F_ISSET(blk, WT_BLKINCR_INUSE))
+        if (F_ISSET(blk, WT_BLKINCR_VALID))
             WT_ERR(__wt_logop_backup_id_pack(session, logrec, i, blk->granularity, blk->id_str));
     }
     WT_ERR(__wt_log_write(session, logrec, NULL, 0));
