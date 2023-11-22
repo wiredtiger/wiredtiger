@@ -64,7 +64,7 @@ Apart from instantiated pages, whose state is \c WT_REF_MEM (see @ref
 ft_instantiated_pages below) the \c page_del field will be \c NULL.
 
 Because locking the ref is expensive, and visibility checks are expensive as well, we want
-to avoid doing either unnecessarily. Consequently many of the places in the system that lock the 
+to avoid doing either unnecessarily. Consequently many of the places in the system that lock the
 ref to examine the deletion information will discard it right away if they find the deletion has
 become globally visible. Therefore it is possible that a truncated page with null \c page_del may
 still have an on-disk image and an address.
@@ -78,7 +78,7 @@ truncated twice, the already-deleted pages will be skipped over the second time.
 See @ref ft_truncate.
 
 For the visibility of deleted pages, they still "exist" in the sense that the \c WT_REF remains, and
-any searches within the btree that lead to its portion of the namespace will still land on it. In 
+any searches within the btree that lead to its portion of the namespace will still land on it. In
 this case we trigger page instantiation. See @ref ft_instantiated.
 
 @section ft_instantiated_pages Instantiated Pages
@@ -256,8 +256,8 @@ Eviction of the child is blocked in these circumstances.)
 
 There is an edge case where special steps are needed when reconciling an internal page. The case
 happens when the parent page is being checkpointed and a truncated child page has been instantiated
-after it has been reconciled already. The checkpoint will refer to the original on-disk page before it 
-was instantiated, any updates to the instantiated page will not be visible to the checkpoint. 
+after it has been reconciled already. The checkpoint will refer to the original on-disk page before it
+was instantiated, any updates to the instantiated page will not be visible to the checkpoint.
 The checkpoint will write out the deletion information along with the address.
 
 Note that in all these cases "visible" and "globally visible" do not include prepared
