@@ -97,14 +97,16 @@ class test_chunkcache06(wttest.WiredTigerTestCase):
         self.session.checkpoint('flush_tier=(enabled)')
 
         self.close_conn()
+
+        # Damage the underlying file while WT isn't running.
         self.corrupt_random_chunk_cache_data()
+
         self.reopen_conn()
 
         # Assert the chunks are read back in on startup.
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_read_persistent), 0)
 
-        # Check that our data is all intact.
+        # Check that our data is all intact, despite having to reload chunks.
         ds.check()
-
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_retries_checksum_mismatch), 0)
