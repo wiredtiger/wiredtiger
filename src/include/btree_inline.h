@@ -2382,10 +2382,10 @@ __wt_btcur_skip_page(
         WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_inmem_del_page_skip);
     }
 
+unlock:
     if (page_locked)
         WT_PAGE_UNLOCK(session, ref->page);
 
-unlock:
     WT_REF_UNLOCK(ref, previous_state);
     return (0);
 }
