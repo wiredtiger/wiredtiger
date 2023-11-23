@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wiredtiger, wttest, unittest
 from wiredtiger import wiredtiger_strerror, WT_PREPARE_CONFLICT, WiredTigerError
 from wtscenario import make_scenarios
 from wtbound import bound_base
@@ -66,12 +66,12 @@ class test_cursor_bound21(bound_base):
         cursor2.set_key(self.gen_key(1))
         cursor2.bound("bound=lower")
 
-        # Walk the cursor next 3 times, we should only receive a prepare conflict, WT_NOTFOUND is a
-        # bug.
+        # Walk the cursor next 3 times, we should only receive a prepare conflict, any other outcome
+        # is a bug.
         for i in range(0 ,3):
             try:
                 ret = cursor2.next()
-                assert(ret != wiredtiger.WT_NOTFOUND)
+                assert(False)
             except WiredTigerError as e:
                 if wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
                     pass
@@ -98,9 +98,8 @@ class test_cursor_bound21(bound_base):
         cursor2.bound("bound=upper")
         for i in range(0 ,3):
             try:
-                self.session.breakpoint()
                 ret = cursor2.prev()
-                assert(ret != wiredtiger.WT_NOTFOUND)
+                assert(False)
             except WiredTigerError as e:
                 if wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
                     pass
@@ -152,8 +151,8 @@ class test_cursor_bound21(bound_base):
 
         # When we walk next here we should walk to key 4 but receive a prepare conflict.
         try:
-            ret = cursor2.next()
-            assert(ret != wiredtiger.WT_NOTFOUND)
+            cursor2.next()
+            assert(False)
         except WiredTigerError as e:
             if wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
                 pass
@@ -200,7 +199,7 @@ class test_cursor_bound21(bound_base):
         for i in range(0, 3):
             try:
                 ret = cursor2.next()
-                assert(ret != wiredtiger.WT_NOTFOUND)
+                assert(False)
             except WiredTigerError as e:
                 if wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
                     pass

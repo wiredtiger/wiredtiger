@@ -805,23 +805,27 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
         ret = __wt_btcur_bounds_position(session, cbt, true, &need_walk);
         /*
          * If we get a prepare conflict we need to setup the correct retry flags in the case of
-         * row-store. Column-store doesn't require this as it always uses insert lists. If we don't
-         * set the appropriate flags we'll walk past the prepared update and violate prepared
-         * transaction semantics.
+         * row-store. If we don't set the appropriate flags we'll walk past the prepared update and
+         * violate prepared transaction semantics. We can use the cursor b-tree information to
+         * determine whether we are positioned on an insert list or a row. If an insert list is
+         * present then we ignore the on-page object.
          *
-         * We can use the cursor b-tree information to determine whether we are positioned on an
-         * insert list or a row. If an insert list is present then we ignore the on-page object.
+         * Column-store doesn't require flags as it always uses insert lists, however the column
+         * store restart logic skips updating the cursor recno, so we need to set that here.
          */
-        if (ret == WT_PREPARE_CONFLICT && CUR2BT(cursor)->type == BTREE_ROW) {
-            /*
-             * We should only get a prepare conflict from the cursor valid call, in that case need
-             * walk would be false.
-             */
-            WT_ASSERT(session, !need_walk);
-            if (cbt->ins != NULL)
-                cbt->iter_retry = WT_CBT_RETRY_INSERT;
-            else
-                cbt->iter_retry = WT_CBT_RETRY_PAGE;
+        if (ret == WT_PREPARE_CONFLICT) {
+            if (CUR2BT(cursor)->type == BTREE_ROW) {
+                /*
+                 * We should only get a prepare conflict from the cursor valid call, in that case
+                 * need walk would be false.
+                 */
+                WT_ASSERT(session, !need_walk);
+                if (cbt->ins != NULL)
+                    cbt->iter_retry = WT_CBT_RETRY_INSERT;
+                else
+                    cbt->iter_retry = WT_CBT_RETRY_PAGE;
+            } else
+                __cursor_set_recno(cbt, cbt->recno);
         }
         WT_ERR(ret);
         if (!need_walk) {
