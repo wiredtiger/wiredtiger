@@ -293,6 +293,10 @@ run_test_backup(void)
 
     printf("\n%s: Test crashing during checkpoint after incremental backup\n", __func__);
 
+    /* Execute the test scenario in its own directory. */
+    testutil_mkdir("test_backup");
+    testutil_check(chdir("test_backup"));
+
     testutil_remove(EXPECT_ABORT);
     testutil_assert_errno((pid = fork()) >= 0);
 
@@ -329,6 +333,9 @@ run_test_backup(void)
 
     /* Do more work, create another backup, and verify it. */
     do_work_after_failure(true);
+
+    /* Go out of the test scenario directory. */
+    testutil_check(chdir(".."));
 }
 
 /*
@@ -344,6 +351,10 @@ run_test_force_stop(void)
     int status;
 
     printf("\n%s: Test crashing during force-stop after incremental backup\n", __func__);
+
+    /* Execute the test scenario in its own directory. */
+    testutil_mkdir("test_force_stop");
+    testutil_check(chdir("test_force_stop"));
 
     testutil_remove(EXPECT_ABORT);
     testutil_assert_errno((pid = fork()) >= 0);
@@ -381,6 +392,9 @@ run_test_force_stop(void)
 
     /* Do more work, create another backup, and verify it. */
     do_work_after_failure(false);
+
+    /* Go out of the test scenario directory. */
+    testutil_check(chdir(".."));
 }
 
 /*
