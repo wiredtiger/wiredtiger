@@ -33,8 +33,8 @@ The chunk cache could contain a considerable quantity of content. This
 content would typically be on-disk, meaning it can be persisted across
 WiredTiger restarts. Doing this saves the user time (due to reduced latency
 when accessing data from disk, compared to networked block storage) and
-money (as these block storage accesses are often associated with a monetary
-API usage cost).
+resources (as these block storage accesses are often associated with an API
+usage cost).
 
 This persistence is implemented with an additional WiredTiger internal file,
 named WiredTigerCC (where "CC" stands for "chunk cache"). This maintains the
