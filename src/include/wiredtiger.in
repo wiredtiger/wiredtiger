@@ -6018,7 +6018,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_SCRUB_TIME		1266
 /*! checkpoint: stop timing stress active */
 #define	WT_STAT_CONN_CHECKPOINT_STOP_STRESS_ACTIVE	1267
-/*! checkpoint: time spent on all-tree checkpoint work (usecs) */
+/*! checkpoint: time spent on per-tree checkpoint work (usecs) */
 #define	WT_STAT_CONN_CHECKPOINT_TREE_DURATION		1268
 /*! checkpoint: total time (msecs) */
 #define	WT_STAT_CONN_CHECKPOINT_TIME_TOTAL		1269

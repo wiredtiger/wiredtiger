@@ -1567,7 +1567,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: scrub dirty target",
   "checkpoint: scrub time (msecs)",
   "checkpoint: stop timing stress active",
-  "checkpoint: time spent on all-tree checkpoint work (usecs)",
+  "checkpoint: time spent on per-tree checkpoint work (usecs)",
   "checkpoint: total time (msecs)",
   "checkpoint: transaction checkpoints due to obsolete pages",
   "checkpoint: wait cycles while cache dirty level is decreasing",
