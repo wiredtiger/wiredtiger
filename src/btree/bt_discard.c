@@ -137,6 +137,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
         __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
 
+    __wt_spin_destroy(session, &page->page_lock);
     __wt_overwrite_and_free(session, page);
 }
 
@@ -235,7 +236,6 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     __wt_free(session, page->modify->ovfl_track);
     __wt_free(session, page->modify->inst_updates);
-    __wt_spin_destroy(session, &page->modify->page_lock);
 
     __wt_free(session, page->modify);
 }

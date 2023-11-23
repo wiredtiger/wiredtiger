@@ -184,7 +184,7 @@ __reconcile_post_wrapup(
     btree = S2BT(session);
 
     /* Ensure that we own the lock before unlocking the page, as we unlock it unconditionally. */
-    WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &page->page_lock);
 
     page->modify->flags = 0;
 
@@ -255,7 +255,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     page = ref->page;
 
     if (*page_lockedp)
-        WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
+        WT_ASSERT_SPINLOCK_OWNED(session, &page->page_lock);
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);

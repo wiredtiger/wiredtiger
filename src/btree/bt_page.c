@@ -62,6 +62,13 @@ __wt_page_alloc(
 
     WT_RET(__wt_calloc(session, 1, size, &page));
 
+    /* Initialize the spinlock for the page. */
+    ret = __wt_spin_init(session, &page->page_lock, "btree page");
+    if (ret != 0) {
+        __wt_free(session, page);
+        return (ret);
+    }
+
     page->type = type;
     page->read_gen = WT_READGEN_NOTSET;
 
@@ -95,6 +102,7 @@ err:
                     __wt_free(session, pindex->index[i]);
                 __wt_free(session, pindex);
             }
+            __wt_spin_destroy(session, &page->page_lock);
             __wt_free(session, page);
             return (ret);
         }

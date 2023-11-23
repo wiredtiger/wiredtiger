@@ -1552,13 +1552,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     if (__wt_off_page(page, addr)) {
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
         copy->type = addr->type;
-        /*
-         * FIXME-WT-11062 - We've checked that ref->addr is non-null a few lines above and we only
-         * enter this function when the page is on-disk or clean. However, it is possible that once
-         * we've entered this function the page gets dirtied *and* reconciled. If this happens for a
-         * page with rec_result == 0 we will free the addr being copied - possibly after the null
-         * check above - and this function will attempt to copy from freed memory.
-         */
+
         WT_ASSERT(session, *(void *volatile *)&ref->addr != NULL);
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
@@ -2289,6 +2283,7 @@ __wt_btcur_skip_page(
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
     uint8_t previous_state;
+    bool page_locked;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -2296,6 +2291,7 @@ __wt_btcur_skip_page(
     *skipp = false; /* Default to reading */
 
     btree = S2BT(session);
+    page_locked = false;
 
     /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
     if (btree->type == BTREE_COL_FIX)
@@ -2339,14 +2335,22 @@ __wt_btcur_skip_page(
         goto unlock;
     }
 
+    if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page)) {
+        /*
+         * Lock the page to prevent concurrent checkpoint reconciliation on the same page while we
+         * verify whether the page may be skipped or not.
+         */
+        if (WT_PAGE_TRYLOCK(session, ref->page) != 0)
+            goto unlock;
+        page_locked = true;
+    }
+
     /*
      * Look at the disk address, if it exists, and if the page is unmodified. We must skip this test
      * if the page has been modified since it was reconciled, since neither the delete information
      * nor the timestamp information is necessarily up to date.
      */
-    if ((previous_state == WT_REF_DISK ||
-          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
-      __wt_ref_addr_copy(session, ref, &addr)) {
+    if ((previous_state == WT_REF_DISK || page_locked) && __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
@@ -2366,6 +2370,8 @@ __wt_btcur_skip_page(
     }
 
 unlock:
+    if (page_locked)
+        WT_PAGE_UNLOCK(session, ref->page);
     WT_REF_UNLOCK(ref, previous_state);
     return (0);
 }
