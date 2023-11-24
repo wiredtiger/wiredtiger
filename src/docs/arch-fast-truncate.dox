@@ -32,8 +32,8 @@ readers.
 The \c page_del field of a \c WT_REF, if not \c NULL, contains information about the
 transaction that deleted the page.
 Its type is \c WT_PAGE_DELETED.
-The \c page_del can be thought of a special kind of update, as they contain roughly the same
-information as an update and is treated the exact same way but on a per page basis.
+The \c page_del can be thought of as a special kind of update, as they contain roughly the same
+information as an update and is treated the same way but on a per page basis.
 
 The \c page_del field can be \c NULL; this means that the prior data on the page is all
 obsolete and nobody can see it.
@@ -63,8 +63,7 @@ locking was \c WT_REF_DELETED.
 Apart from instantiated pages, whose state is \c WT_REF_MEM (see @ref
 ft_instantiated_pages below) the \c page_del field will be \c NULL.
 
-Because locking the ref is expensive, and visibility checks are expensive as well, we want
-to avoid doing either unnecessarily. Consequently many of the places in the system that lock the
+Locking the ref and visibility checks are expensive, we want to avoid doing either unnecessarily. Consequently many of the places in the system that lock the
 ref to examine the deletion information will discard it right away if they find the deletion has
 become globally visible. Therefore it is possible that a truncated page with null \c page_del may
 still have an on-disk image and an address.
