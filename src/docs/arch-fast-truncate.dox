@@ -78,7 +78,7 @@ See @ref ft_truncate.
 
 For the visibility of deleted pages, they still "exist" in the sense that the \c WT_REF remains, and
 any searches within the btree that lead to its portion of the namespace will still land on it. In
-this case we trigger page instantiation. See @ref ft_instantiated.
+this case we trigger page instantiation. See @ref ft_instantiation.
 
 @section ft_instantiated_pages Instantiated Pages
 
