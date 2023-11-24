@@ -55,13 +55,13 @@ __block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
 
 /*
  * __block_off_srch --
- *     Search a by-offset skiplist (either the primary by-offset list, or the by-offset list
- *     referenced by a size entry), for the specified offset.
+ *     Search a by-offset skiplist and get the penultimate WT_EXT (either the primary by-offset list, 
+ *     or the by-offset list referenced by a size entry), for the specified offset.
  */
 static inline void
-__block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
+__block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off, WT_EXT **penultimate_ext)
 {
-    WT_EXT **extp;
+    WT_EXT **extp, *ext_tmp;
     int i;
 
     /*
@@ -74,11 +74,20 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
      * the skip_off flag is set, offset the skiplist array by the depth specified in this particular
      * structure.
      */
-    for (i = WT_SKIP_MAXDEPTH - 1, extp = &head[i]; i >= 0;)
-        if (*extp != NULL && (*extp)->off < off)
+    ext_tmp = NULL;
+    for (i = WT_SKIP_MAXDEPTH - 1, extp = &head[i]; i >= 0;) {
+        if (*extp != NULL && (*extp)->off < off) {
+            ext_tmp = *extp;
             extp = &(*extp)->next[i + (skip_off ? (*extp)->depth : 0)];
-        else
+        } else {
             stack[i--] = extp--;
+        }
+    }
+    
+    if (penultimate_ext != NULL)
+        *penultimate_ext = ext_tmp;
+
+    return;
 }
 
 /*
@@ -100,7 +109,7 @@ __block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
         return (false);
 
     /* Build a stack for the offset we want. */
-    __block_off_srch(head, ext->off, stack, false);
+    __block_off_srch(head, ext->off, stack, false, NULL);
     return (true);
 }
 
@@ -194,7 +203,7 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
         /*
          * Insert the new WT_EXT structure into the size element's offset skiplist.
          */
-        __block_off_srch(szp->off, ext->off, astack, true);
+        __block_off_srch(szp->off, ext->off, astack, true, NULL);
         for (i = 0; i < ext->depth; ++i) {
             ext->next[i + ext->depth] = *astack[i];
             *astack[i] = ext;
@@ -207,7 +216,7 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
 #endif
 
     /* Insert the new WT_EXT structure into the offset skiplist. */
-    __block_off_srch(el->off, ext->off, astack, false);
+    __block_off_srch(el->off, ext->off, astack, false, NULL);
     for (i = 0; i < ext->depth; ++i) {
         ext->next[i] = *astack[i];
         *astack[i] = ext;
@@ -331,12 +340,12 @@ static int
 __block_off_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, WT_EXT **extp)
 {
-    WT_EXT *ext, **astack[WT_SKIP_MAXDEPTH];
+    WT_EXT *ext, *penultimate_ext, **astack[WT_SKIP_MAXDEPTH];
     WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
     u_int i;
 
     /* Find and remove the record from the by-offset skiplist. */
-    __block_off_srch(el->off, off, astack, false);
+    __block_off_srch(el->off, off, astack, false, &penultimate_ext);
     ext = *astack[0];
     if (ext == NULL || ext->off != off)
         goto corrupt;
@@ -352,7 +361,7 @@ __block_off_remove(
         szp = *sstack[0];
         if (szp == NULL || szp->size != ext->size)
             WT_RET_PANIC(session, EINVAL, "extent not found in by-size list during remove");
-        __block_off_srch(szp->off, off, astack, true);
+        __block_off_srch(szp->off, off, astack, true, NULL);
         ext = *astack[0];
         if (ext == NULL || ext->off != off)
             goto corrupt;
@@ -384,8 +393,9 @@ __block_off_remove(
         *extp = ext;
 
     /* Update the cached end-of-list. */
-    if (el->last == ext)
-        el->last = NULL;
+    if (el->last == ext) {
+        el->last = penultimate_ext;
+    }
 
     return (0);
 
@@ -1433,7 +1443,7 @@ __ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
 void
 __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 {
-    __block_off_srch(head, off, stack, skip_off);
+    __block_off_srch(head, off, stack, skip_off, NULL);
 }
 
 bool
