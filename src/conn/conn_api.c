@@ -1197,6 +1197,8 @@ err:
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
+    WT_TRET(__wt_prefetch_destroy(session));
+
     /*
      * There should be no active transactions running now. Therefore, it's safe for operations to
      * proceed without doing snapshot visibility checks.

@@ -2023,11 +2023,13 @@ err:
 
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[0]->ref_ikey);
+        WT_ASSERT(session, !F_ISSET(split_ref[0], WT_REF_FLAG_PREFETCH));
         __wt_free(session, split_ref[0]);
     }
     if (split_ref[1] != NULL) {
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[1]->ref_ikey);
+        WT_ASSERT(session, !F_ISSET(split_ref[1], WT_REF_FLAG_PREFETCH));
         __wt_free(session, split_ref[1]);
     }
     if (right != NULL) {
@@ -2145,7 +2147,7 @@ err:
          */
         __wt_page_modify_set(session, page);
     }
-
+    WT_ASSERT(session, !F_ISSET(*ref_new, WT_REF_FLAG_PREFETCH));
     __wt_free(session, ref_new);
     return (ret);
 }
@@ -2285,6 +2287,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     if (!F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_SCRUB) || multi->supd_restore)
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
     __wt_ref_out(session, ref);
+    ref->flags |= 0x20;
 
     /* Swap the new page into place. */
     ref->page = new->page;

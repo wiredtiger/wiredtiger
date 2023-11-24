@@ -100,6 +100,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
               F_ISSET(dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
                 __wt_page_can_evict(session, ref, NULL));
             __wt_ref_out(session, ref);
+            ref->flags |= 0x10;
             break;
         case WT_SYNC_CHECKPOINT:
         case WT_SYNC_WRITE_LEAVES:

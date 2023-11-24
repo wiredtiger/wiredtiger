@@ -903,6 +903,9 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
         return (0);
     }
 
+    /* Ensure that the pre-fetch queue is drained. */
+    WT_ERR(__wt_conn_prefetch_clear_tree(session, false));
+
     /*
      * Ensure no new pages from the file will be queued for eviction after this point, then clear
      * any existing LRU eviction walk for the file.

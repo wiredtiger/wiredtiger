@@ -3287,7 +3287,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_CONNECTION.open_session",
     "cache_cursors=true,cache_max_wait_ms=0,"
     "debug=(release_evict_page=false),ignore_cache_size=false,"
-    "isolation=snapshot,prefetch=(enabled=false)",
+    "isolation=snapshot,prefetch=(enabled=true)",
     confchk_WT_CONNECTION_open_session, 6, confchk_WT_CONNECTION_open_session_jump},
   {"WT_CONNECTION.query_timestamp", "get=all_durable", confchk_WT_CONNECTION_query_timestamp, 1,
     confchk_WT_CONNECTION_query_timestamp_jump},
@@ -3413,7 +3413,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.reconfigure",
     "cache_cursors=true,cache_max_wait_ms=0,"
     "debug=(release_evict_page=false),ignore_cache_size=false,"
-    "isolation=snapshot,prefetch=(enabled=false)",
+    "isolation=snapshot,prefetch=(enabled=true)",
     confchk_WT_SESSION_reconfigure, 6, confchk_WT_SESSION_reconfigure_jump},
   {"WT_SESSION.rename", "", NULL, 0, NULL}, {"WT_SESSION.reset", "", NULL, 0, NULL},
   {"WT_SESSION.reset_snapshot", "", NULL, 0, NULL},
@@ -3617,7 +3617,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
     "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
-    "prefetch=(available=false,default=false),readonly=false,"
+    "prefetch=(available=true,default=true),readonly=false,"
     "salvage=false,session_max=100,session_scratch_max=2MB,"
     "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
     "reserve=0,size=500MB),statistics=none,statistics_log=(json=false"
@@ -3666,7 +3666,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
     "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
-    "prefetch=(available=false,default=false),readonly=false,"
+    "prefetch=(available=true,default=true),readonly=false,"
     "salvage=false,session_max=100,session_scratch_max=2MB,"
     "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
     "reserve=0,size=500MB),statistics=none,statistics_log=(json=false"
@@ -3714,7 +3714,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",worker_thread_max=4),mmap=true,mmap_all=false,"
     "multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
-    "prefetch=(available=false,default=false),readonly=false,"
+    "prefetch=(available=true,default=true),readonly=false,"
     "salvage=false,session_max=100,session_scratch_max=2MB,"
     "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
     "reserve=0,size=500MB),statistics=none,statistics_log=(json=false"
@@ -3761,7 +3761,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",worker_thread_max=4),mmap=true,mmap_all=false,"
     "multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
-    "prefetch=(available=false,default=false),readonly=false,"
+    "prefetch=(available=true,default=true),readonly=false,"
     "salvage=false,session_max=100,session_scratch_max=2MB,"
     "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
     "reserve=0,size=500MB),statistics=none,statistics_log=(json=false"

@@ -298,6 +298,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     if (ref == NULL)
         return;
 
+    WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
     /*
      * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
      * page or a leaf page, to catch any we've missed.

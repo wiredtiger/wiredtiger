@@ -383,6 +383,7 @@ struct __wt_connection_stats {
     int64_t block_prefetch_skipped_disk_read_count;
     int64_t block_prefetch_skipped_internal_page;
     int64_t block_prefetch_skipped_internal_session;
+    int64_t block_prefetch_skipped_special_handle;
     int64_t block_prefetch_pages_fail;
     int64_t block_prefetch_pages_queued;
     int64_t block_prefetch_pages_read;

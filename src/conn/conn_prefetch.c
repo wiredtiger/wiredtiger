@@ -82,6 +82,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     while (F_ISSET(conn, WT_CONN_PREFETCH_RUN)) {
+        __wt_sleep(0, 5000);
         /*
          * Wait and cycle if there aren't any pages on the queue. It would be nice if this was
          * interrupt driven, but for now just backoff and re-check.
@@ -102,6 +103,8 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         --conn->prefetch_queue_count;
         WT_ASSERT_ALWAYS(session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH),
           "Any ref on the pre-fetch queue needs to have the pre-fetch flag set");
+        WT_ASSERT_ALWAYS(session, pe->ref->unused[0] == 0xfa, "face0");
+        WT_ASSERT_ALWAYS(session, pe->ref->unused[1] == 0xce, "face1");
         __wt_spin_unlock(session, &conn->prefetch_lock);
         locked = false;
 
@@ -143,17 +146,56 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     pe->first_home = ref->home;
     pe->dhandle = session->dhandle;
     __wt_spin_lock(session, &conn->prefetch_lock);
-    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+
+    /*
+     * Don't add refs from trees that have eviction disabled since they are probably being closed,
+     * also never add the same ref twice. These checks needs to be carried out while holding the
+     * pre-fetch lock - which is why they are internal to the push function.
+     */
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET(ref, WT_REF_FLAG_PREFETCH))
         ret = EBUSY;
     else {
-        F_SET(ref, WT_REF_FLAG_PREFETCH);
+        F_SET(pe->ref, WT_REF_FLAG_PREFETCH);
         TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
         ++conn->prefetch_queue_count;
+        ref->unused[0] = 0xfa;
+        ref->unused[1] = 0xce;
     }
     __wt_spin_unlock(session, &conn->prefetch_lock);
 
     if (ret != 0)
         __wt_free(session, pe);
+    return (ret);
+}
+
+int
+__wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_PREFETCH_QUEUE_ENTRY *pe, *pe_tmp;
+    int items_removed;
+
+    conn = S2C(session);
+    dhandle = session->dhandle;
+    items_removed = 0;
+
+    WT_ASSERT_ALWAYS(session, all || dhandle != NULL, "blah");
+
+    __wt_spin_lock(session, &conn->prefetch_lock);
+    TAILQ_FOREACH_SAFE(pe, &conn->pfqh, q, pe_tmp)
+    {
+        if (all || pe->dhandle == dhandle) {
+            TAILQ_REMOVE(&conn->pfqh, pe, q);
+            F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
+            __wt_free(session, pe);
+            --conn->prefetch_queue_count;
+            items_removed++;
+        }
+    }
+    __wt_spin_unlock(session, &conn->prefetch_lock);
+
     return (ret);
 }
 
@@ -165,13 +207,30 @@ int
 __wt_prefetch_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_PREFETCH_QUEUE_ENTRY *pe, *pe_tmp;
+    int items_removed;
 
     conn = S2C(session);
+    items_removed = 0;
 
     if (!F_ISSET(conn, WT_CONN_PREFETCH_RUN))
         return (0);
 
     F_CLR(conn, WT_CONN_PREFETCH_RUN);
+
+    __wt_spin_lock(session, &conn->prefetch_lock);
+
+    TAILQ_FOREACH_SAFE(pe, &conn->pfqh, q, pe_tmp)
+    {
+        TAILQ_REMOVE(&conn->pfqh, pe, q);
+        F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
+        __wt_free(session, pe);
+        --conn->prefetch_queue_count;
+        items_removed++;
+    }
+
+    WT_ASSERT(session, conn->prefetch_queue_count == 0);
+    __wt_spin_unlock(session, &conn->prefetch_lock);
 
     __wt_writelock(session, &conn->prefetch_threads.lock);
 
