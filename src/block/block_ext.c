@@ -402,7 +402,7 @@ int
 __wt_block_off_remove_overlap(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT *before, *after, *ext;
+    WT_EXT *before, *after, *before_ext, *after_ext;
     wt_off_t a_off, a_size, b_off, b_size;
 
     WT_ASSERT(session, off != WT_BLOCK_INVALID_OFFSET);
@@ -412,15 +412,15 @@ __wt_block_off_remove_overlap(
 
     /* If "before" or "after" overlaps, retrieve the overlapping entry. */
     if (before != NULL && before->off + before->size > off) {
-        WT_RET(__block_off_remove(session, block, el, before->off, &ext));
+        WT_RET(__block_off_remove(session, block, el, before->off, &before_ext));
 
         /* Calculate overlapping extents. */
-        a_off = ext->off;
-        a_size = off - ext->off;
+        a_off = before_ext->off;
+        a_size = off - before_ext->off;
         b_off = off + size;
-        b_size = ext->size - (a_size + size);
+        b_size = before_ext->size - (a_size + size);
     } else if (after != NULL && off + size > after->off) {
-        WT_RET(__block_off_remove(session, block, el, after->off, &ext));
+        WT_RET(__block_off_remove(session, block, el, after->off, &after_ext));
 
         /*
          * Calculate overlapping extents. There's no initial overlap since the after extent
@@ -429,7 +429,7 @@ __wt_block_off_remove_overlap(
         a_off = WT_BLOCK_INVALID_OFFSET;
         a_size = 0;
         b_off = off + size;
-        b_size = ext->size - (b_off - ext->off);
+        b_size = after_ext->size - (b_off - after_ext->off);
     } else
         return (WT_NOTFOUND);
 
@@ -438,23 +438,25 @@ __wt_block_off_remove_overlap(
      * (we know there's no need to merge).
      */
     if (a_size != 0) {
-        ext->off = a_off;
-        ext->size = a_size;
-        WT_RET(__block_ext_insert(session, el, ext));
-        ext = NULL;
+        before->off = a_off;
+        before->size = a_size;
+        WT_RET(__block_ext_insert(session, el, before));
+        before = NULL;
     }
+    
     if (b_size != 0) {
-        if (ext == NULL)
-            WT_RET(__block_off_insert(session, el, b_off, b_size));
-        else {
-            ext->off = b_off;
-            ext->size = b_size;
-            WT_RET(__block_ext_insert(session, el, ext));
-            ext = NULL;
-        }
+        after_ext->off = b_off;
+        after_ext->size = b_size;
+        WT_RET(__block_ext_insert(session, el, after_ext));
+        after_ext = NULL;
     }
-    if (ext != NULL)
-        __wt_block_ext_free(session, ext);
+    
+    if (before_ext != NULL)
+        __wt_block_ext_free(session, before_ext);
+
+    if (after_ext != NULL && after_ext != before_ext)
+        __wt_block_ext_free(session, after_ext);
+
     return (0);
 }
 
