@@ -48,6 +48,9 @@ class test_chunkcache06(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def conn_config(self):
+        if sys.byteorder != 'little':
+            return ''
+
         if not os.path.exists('bucket6'):
             os.mkdir('bucket6')
 

@@ -48,6 +48,9 @@ class test_chunkcache05(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def conn_config(self):
+        if sys.byteorder != 'little':
+            return ''
+
         if not os.path.exists('bucket5'):
             os.mkdir('bucket5')
 
@@ -69,7 +72,7 @@ class test_chunkcache05(wttest.WiredTigerTestCase):
     def test_chunkcache05(self):
         # This test only makes sense on-disk, and WT's filesystem layer doesn't support mmap on
         # big-endian platforms.
-        if sys.byteorder == 'little':
+        if sys.byteorder != 'little':
             return
 
         ds = SimpleDataSet(self, self.uri, self.rows, key_format=self.key_format, value_format=self.value_format)
