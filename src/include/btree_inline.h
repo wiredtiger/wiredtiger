@@ -1967,6 +1967,9 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
+    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+        return (false);
+
     return (true);
 }
 
