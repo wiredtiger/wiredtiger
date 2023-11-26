@@ -402,6 +402,7 @@ int
 __wt_block_off_remove_overlap(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
+    WT_DECL_RET;
     WT_EXT *before, *after, *ext;
     wt_off_t a_off, a_size, b_off, b_size;
 
@@ -411,7 +412,15 @@ __wt_block_off_remove_overlap(
     __block_off_srch_pair(el, off, &before, &after);
 
     /* If "before" or "after" overlaps, retrieve the overlapping entry. */
-    if (before != NULL && before->off + before->size >= off + size) {
+    if (before != NULL && before->off + before->size > off) {
+        if (before->off + before->size < off + size) {
+            __wt_verbose_error(session, WT_VERB_BLOCK,
+              "block off remove out of bounds befor=[%" PRIu64 ", %" PRIu64 "], off:size=[%" PRIu64
+              ", %" PRIu64 "]",
+              (uint64_t)before->off, (uint64_t)before->size, (uint64_t)off, (uint64_t)size);
+            WT_ERR_PANIC(session, EINVAL, "block off remove out of bounds");
+        }
+
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
         /* Calculate overlapping extents. */
@@ -419,7 +428,15 @@ __wt_block_off_remove_overlap(
         a_size = off - ext->off;
         b_off = off + size;
         b_size = ext->size - (a_size + size);
-    } else if (after != NULL && off + size > after->off && off + size <= after->off + after->off) {
+    } else if (after != NULL && off + size > after->off) {
+        if (off != after->off || off + size > after->off + after->size) {
+            __wt_verbose_error(session, WT_VERB_BLOCK,
+              "block off remove out of bounds after=[%" PRIu64 ", %" PRIu64 "], off:size=[%" PRIu64
+              ", %" PRIu64 "]",
+              (uint64_t)after->off, (uint64_t)after->size, (uint64_t)off, (uint64_t)size);
+            WT_ERR_PANIC(session, EINVAL, "block off remove out of bounds");
+        }
+
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
         /*
@@ -432,7 +449,6 @@ __wt_block_off_remove_overlap(
         b_size = ext->size - (b_off - ext->off);
     } else
         return (WT_NOTFOUND);
-
 
     /*
      * If there are overlaps, insert the item; re-use the extent structure and save the allocation
@@ -457,6 +473,9 @@ __wt_block_off_remove_overlap(
     if (ext != NULL)
         __wt_block_ext_free(session, ext);
     return (0);
+
+err:
+    return (ret);
 }
 
 /*
