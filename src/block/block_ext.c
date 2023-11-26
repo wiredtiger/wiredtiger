@@ -402,7 +402,6 @@ int
 __wt_block_off_remove_overlap(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_DECL_RET;
     WT_EXT *before, *after, *ext;
     wt_off_t a_off, a_size, b_off, b_size;
 
@@ -429,7 +428,7 @@ __wt_block_off_remove_overlap(
     } else if (after != NULL && off + size > after->off) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
         if (off != ext->off || off + size > ext->off + ext->size) {
-           WT_BLOCK_RET(session, block, EINVAL,
+            WT_BLOCK_RET(session, block, EINVAL,
               "block off remove, after=[%" PRIu64 ", %" PRIu64 "]  overlaps with off:size=[%" PRIu64
               ", %" PRIu64 "]",
               (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
@@ -469,9 +468,6 @@ __wt_block_off_remove_overlap(
     if (ext != NULL)
         __wt_block_ext_free(session, ext);
     return (0);
-
-err:
-    return (ret);
 }
 
 /*
