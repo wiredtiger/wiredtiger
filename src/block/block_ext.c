@@ -415,11 +415,10 @@ __wt_block_off_remove_overlap(
     if (before != NULL && before->off + before->size > off) {
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
         if (ext->off + ext->size < off + size) {
-            __wt_verbose_error(session, WT_VERB_BLOCK,
-              "block off remove out of bounds befor=[%" PRIu64 ", %" PRIu64 "], off:size=[%" PRIu64
+            WT_BLOCK_RET(session, block, EINVAL,
+              "block off remove, befor=[%" PRIu64 ", %" PRIu64 "] overlaps with off:size=[%" PRIu64
               ", %" PRIu64 "]",
               (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
-            WT_ERR_PANIC(session, EINVAL, "block off remove out of bounds");
         }
 
         /* Calculate overlapping extents. */
@@ -430,11 +429,10 @@ __wt_block_off_remove_overlap(
     } else if (after != NULL && off + size > after->off) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
         if (off != ext->off || off + size > ext->off + ext->size) {
-            __wt_verbose_error(session, WT_VERB_BLOCK,
-              "block off remove out of bounds after=[%" PRIu64 ", %" PRIu64 "], off:size=[%" PRIu64
+           WT_BLOCK_RET(session, block, EINVAL,
+              "block off remove, after=[%" PRIu64 ", %" PRIu64 "]  overlaps with off:size=[%" PRIu64
               ", %" PRIu64 "]",
               (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
-            WT_ERR_PANIC(session, EINVAL, "block off remove out of bounds");
         }
 
         /*
