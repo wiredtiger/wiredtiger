@@ -413,15 +413,14 @@ __wt_block_off_remove_overlap(
 
     /* If "before" or "after" overlaps, retrieve the overlapping entry. */
     if (before != NULL && before->off + before->size > off) {
-        if (before->off + before->size < off + size) {
+        WT_RET(__block_off_remove(session, block, el, before->off, &ext));
+        if (ext->off + ext->size < off + size) {
             __wt_verbose_error(session, WT_VERB_BLOCK,
               "block off remove out of bounds befor=[%" PRIu64 ", %" PRIu64 "], off:size=[%" PRIu64
               ", %" PRIu64 "]",
-              (uint64_t)before->off, (uint64_t)before->size, (uint64_t)off, (uint64_t)size);
+              (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
             WT_ERR_PANIC(session, EINVAL, "block off remove out of bounds");
         }
-
-        WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
         /* Calculate overlapping extents. */
         a_off = ext->off;
@@ -429,15 +428,14 @@ __wt_block_off_remove_overlap(
         b_off = off + size;
         b_size = ext->size - (a_size + size);
     } else if (after != NULL && off + size > after->off) {
-        if (off != after->off || off + size > after->off + after->size) {
+        WT_RET(__block_off_remove(session, block, el, after->off, &ext));
+        if (off != ext->off || off + size > ext->off + ext->size) {
             __wt_verbose_error(session, WT_VERB_BLOCK,
               "block off remove out of bounds after=[%" PRIu64 ", %" PRIu64 "], off:size=[%" PRIu64
               ", %" PRIu64 "]",
-              (uint64_t)after->off, (uint64_t)after->size, (uint64_t)off, (uint64_t)size);
+              (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
             WT_ERR_PANIC(session, EINVAL, "block off remove out of bounds");
         }
-
-        WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
         /*
          * Calculate overlapping extents. There's no initial overlap since the after extent
