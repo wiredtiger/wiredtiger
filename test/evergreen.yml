@@ -5854,7 +5854,7 @@ buildvariants:
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: compile
-    - name: make-check
+    - name: make-check-test
     - name: unit-test-extra-long
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
@@ -5897,7 +5897,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
     - name: compile
-    - name: make-check
+    - name: make-check-test
     - name: unit-test
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
@@ -5926,7 +5926,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
     - name: compile
-    - name: make-check
+    - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
@@ -5960,7 +5960,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
     - name: compile
-    - name: make-check
+    - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
@@ -5978,7 +5978,7 @@ buildvariants:
     unit_test_hook: --hook nonstandalone
   tasks:
     - name: compile
-    - name: make-check
+    - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
