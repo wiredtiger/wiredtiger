@@ -5884,7 +5884,7 @@ buildvariants:
       distros: ubuntu2004-medium
 
 - name: ubuntu2004-nonstandalone-release
-  display_name: "Ubuntu 20.04 Nonstandalone Release"
+  display_name: "Ubuntu 20.04 Nonstandalone (Release Build)"
   run_on:
   - ubuntu2004-small
   expansions:
@@ -5940,7 +5940,7 @@ buildvariants:
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
 - name: ubuntu2004-nonstandalone-arm64-release
-  display_name: Ubuntu 20.04 Stress tests (ARM64, Release, Nonstandalone)
+  display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build, Nonstandalone)
   run_on:
   - ubuntu2004-arm64-small
   expansions:
@@ -5963,7 +5963,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
 
 - name: amazon2-arm64-nonstandalone
-  display_name: "Amazon Linux 2 ARM64"
+  display_name: "Amazon Linux 2 ARM64 Nonstandalone"
   run_on:
   - amazon2-arm64-small
   batchtime: 1440 # 24 hours
