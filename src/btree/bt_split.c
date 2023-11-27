@@ -1192,9 +1192,6 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
         /* Encourage races. */
         __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7);
 
-        /* Page locks live in the modify structure. */
-        WT_RET(__wt_page_modify_init(session, parent));
-
         if (trylock)
             WT_RET(WT_PAGE_TRYLOCK(session, parent));
         else

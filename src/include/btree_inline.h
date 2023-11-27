@@ -2337,8 +2337,8 @@ __wt_btcur_skip_page(
 
     if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page)) {
         /*
-         * Lock the page to prevent concurrent checkpoint reconciliation on the same page while we
-         * verify whether the page may be skipped or not.
+         * Lock the page to prevent concurrent checkpoint reconciliation. Reconciliation can free
+         * the ref addr while we're accessing its delete and timestamp information.
          */
         if (WT_PAGE_TRYLOCK(session, ref->page) != 0)
             goto unlock;
