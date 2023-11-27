@@ -46,7 +46,7 @@ def tiered_config(home):
     if not os.path.isdir(bucket_path):
         os.mkdir(bucket_path)
 
-# Set up the WiredTiger connection
+# Set up the WiredTiger connection.
 context = Context()
 wt_builddir = os.getenv('WT_BUILDDIR')
 if not wt_builddir:
@@ -63,7 +63,7 @@ table = Table(tname)
 table.options.key_size = 20
 table.options.value_size = 100
 
-# Populate phase
+# Populate phase.
 insert_ops = Operation(Operation.OP_INSERT, table)
 insert_thread = Thread(insert_ops * 100000)
 populate_workload = Workload(context, insert_thread * 40)
@@ -72,12 +72,12 @@ s.checkpoint()
 s.checkpoint('flush_tier=(enabled)')
 assert ret == 0, ret
 
-# Reopen the connection and reconfigure
+# Reopen the connection and reconfigure.
 conn.close()
 conn = context.wiredtiger_open(chunkcache_config)
 s = conn.open_session()
 
-# Read into the chunk cache 
+# Read into the chunk cache.
 read_op = Operation(Operation.OP_SEARCH, table)
 read_thread = Thread(read_op * 100000)
 read_workload = Workload(context, read_thread * 40)
@@ -86,7 +86,7 @@ read_workload.options.report_interval = 1
 ret = read_workload.run(conn)
 assert ret == 0, ret
 
-# Check relevant stats
+# Check relevant stats.
 assert get_stat(s, wiredtiger.stat.conn.chunkcache_chunks_inuse) > 0
 
 # Close the connection.
