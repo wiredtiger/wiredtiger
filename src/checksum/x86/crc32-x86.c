@@ -85,18 +85,19 @@ __wt_checksum_hw(const void *chunk, size_t len)
 
 #if defined(_M_AMD64)
 /*
- * __wt_checksum_hw --
- *     Return a checksum for a chunk of memory, computed in hardware using 8 byte steps.
+ * __wt_checksum_with_seed_hw --
+ *     Return a checksum for a chunk of memory, computed in hardware using 8 byte steps. Start with
+ *     the given seed.
  */
 static uint32_t
-__wt_checksum_hw(const void *chunk, size_t len)
+__wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
 {
     uint32_t crc;
     size_t nqwords;
     const uint8_t *p;
     const uint64_t *p64;
 
-    crc = 0xffffffff;
+    crc = ~seed;
 
     /* Checksum one byte at a time to the first 4B boundary. */
     for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len) {
@@ -117,6 +118,16 @@ __wt_checksum_hw(const void *chunk, size_t len)
     }
 
     return (~crc);
+}
+
+/*
+ * __wt_checksum_hw --
+ *     Return a checksum for a chunk of memory, computed in hardware using 8 byte steps.
+ */
+static uint32_t
+__wt_checksum_hw(const void *chunk, size_t len)
+{
+    return (__wt_checksum_with_seed_hw(0, chunk, len));
 }
 #endif
 #endif
