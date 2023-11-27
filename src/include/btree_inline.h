@@ -1874,8 +1874,10 @@ static inline bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
     WT_PAGE *page;
+    WT_PAGE_INDEX *pindex;
     WT_PAGE_MODIFY *mod;
     bool modified;
+    uint32_t i;
 
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
@@ -1967,9 +1969,21 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
-    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
-        return (false);
-
+    switch (page->type) {
+        case WT_PAGE_COL_INT:
+        case WT_PAGE_ROW_INT:
+            for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i) {
+                if (F_ISSET(pindex->index[i], WT_REF_FLAG_PREFETCH))
+                    return (false);
+            }
+            break;
+        case WT_PAGE_COL_FIX:
+        case WT_PAGE_COL_VAR:
+        case WT_PAGE_ROW_LEAF:
+            if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+                return (false);
+            break;
+    }
     return (true);
 }
 

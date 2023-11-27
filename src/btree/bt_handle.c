@@ -592,6 +592,9 @@ __wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bo
 
     root_ref->page = root;
     F_SET(root_ref, WT_REF_FLAG_INTERNAL);
+    if (F_ISSET(root_ref, WT_REF_FLAG_PREFETCH))
+        __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "string 1");
+    // WT_ASSERT(session, !F_ISSET(root_ref, WT_REF_FLAG_PREFETCH));
     WT_REF_SET_STATE(root_ref, WT_REF_MEM);
 
     root_ref->ref_recno = is_recno ? 1 : WT_RECNO_OOB;

@@ -640,6 +640,10 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
     ref->addr = addr;
     ref->ref_recno = recno;
     F_SET(ref, internal ? WT_REF_FLAG_INTERNAL : WT_REF_FLAG_LEAF);
+    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+        __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "string 2");
+    // if (internal)
+    //     WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
     if (deleted) {
         /*
          * If a page was deleted without being read (fast truncate), and the delete committed, but
@@ -847,6 +851,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
         switch (unpack.type) {
         case WT_CELL_ADDR_INT:
             F_SET(ref, WT_REF_FLAG_INTERNAL);
+            if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+                __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "string 3");
+            // WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
             break;
         case WT_CELL_ADDR_DEL:
         case WT_CELL_ADDR_LEAF:

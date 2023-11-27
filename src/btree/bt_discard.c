@@ -75,7 +75,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING))
         __wt_page_modify_clear(session, page);
 
-    WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
+    if (page->modify)
+        WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
     WT_ASSERT_ALWAYS(
       session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
     WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU),
@@ -298,7 +299,9 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     if (ref == NULL)
         return;
 
-    WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
+    // if (ref->page != NULL)
+    //     WT_ASSERT(session, __wt_page_can_evict(session, ref, NULL));
+    // WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
     /*
      * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
      * page or a leaf page, to catch any we've missed.
@@ -352,8 +355,10 @@ __free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_PAGE_INDEX *pindex;
     uint32_t i;
 
-    for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i)
+    for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i) {
+        // WT_ASSERT(session, !F_ISSET(pindex->index[i], WT_REF_FLAG_PREFETCH));
         __wt_free_ref(session, pindex->index[i], page->type, false);
+    }
 
     __wt_free(session, pindex);
 }

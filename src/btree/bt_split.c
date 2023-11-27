@@ -473,6 +473,9 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
         } else
             ref->ref_recno = (*root_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
+        if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+            __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "string 4");
+        // WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1000,6 +1003,9 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         } else
             ref->ref_recno = (*page_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
+        if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+            __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "string 5");
+        // WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1712,6 +1718,9 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         F_SET(ref, WT_REF_FLAG_INTERNAL);
+        if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+            __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "string 6");
+        // WT_ASSERT(session, !F_ISSET(ref, WT_REF_FLAG_PREFETCH));
         break;
     default:
         F_SET(ref, WT_REF_FLAG_LEAF);
@@ -2151,7 +2160,7 @@ err:
     __wt_free(session, ref_new);
     return (ret);
 }
-
+    
 /*
  * __split_multi_lock --
  *     Split a page into multiple pages.

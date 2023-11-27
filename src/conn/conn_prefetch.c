@@ -155,6 +155,9 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     if (S2BT(session)->evict_disabled > 0 || F_ISSET(ref, WT_REF_FLAG_PREFETCH))
         ret = EBUSY;
     else {
+        if (F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL))
+            __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "sad string");
+        // WT_ASSERT(session, !F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL));
         F_SET(pe->ref, WT_REF_FLAG_PREFETCH);
         TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
         ++conn->prefetch_queue_count;

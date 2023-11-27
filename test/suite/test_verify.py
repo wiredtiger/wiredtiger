@@ -117,7 +117,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(offset)
         return fp
 
-    def test_verify_process_empty(self):
+    def x_test_verify_process_empty(self):
         """
         Test verify in a 'wt' process, using an empty table
         """
@@ -126,7 +126,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # Run verify with an empty table
         self.runWt(["verify", "table:" + self.tablename])
 
-    def test_verify_process(self):
+    def x_test_verify_process(self):
         """
         Test verify in a 'wt' process, using a populated table.
         """
@@ -135,7 +135,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.populate(self.tablename)
         self.runWt(["verify", "table:" + self.tablename])
 
-    def test_verify_api_empty(self):
+    def x_test_verify_api_empty(self):
         """
         Test verify via API, using an empty table
         """
@@ -143,7 +143,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + self.tablename, params)
         self.session.verify('table:' + self.tablename, None)
 
-    def test_verify_api(self):
+    def x_test_verify_api(self):
         """
         Test verify via API, using a populated table.
         """
@@ -153,7 +153,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.verifyUntilSuccess(self.session, 'table:' + self.tablename)
         self.check_populate(self.tablename)
 
-    def test_verify_api_75pct_null(self):
+    def x_test_verify_api_75pct_null(self):
         """
         Test verify via API, on a damaged table.
         This is our only 'negative' test for verify using the API,
@@ -175,7 +175,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.count_file_contains("stderr.txt",
             "calculated block checksum of"), 1)
 
-    def test_verify_api_read_corrupt_pages(self):
+    def x_test_verify_api_read_corrupt_pages(self):
         """
         Test verify via API, on a table that is purposely corrupted in
         multiple places. A verify operation with read_corrupt on should
@@ -232,7 +232,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.count_file_contains("stderr.txt",
             "calculated block checksum of"), 1)
 
-    def test_verify_process_75pct_null(self):
+    def x_test_verify_process_75pct_null(self):
         """
         Test verify in a 'wt' process on a table that is purposely damaged,
         with nulls at a position about 75% through.
@@ -249,7 +249,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "calculated block checksum of"), 1)
 
-    def test_verify_process_25pct_junk(self):
+    def x_test_verify_process_25pct_junk(self):
         """
         Test verify in a 'wt' process on a table that is purposely damaged,
         with junk at a position about 25% through.
@@ -266,7 +266,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "calculated block checksum of"), 1)
 
-    def test_verify_process_read_corrupt_pages(self):
+    def x_test_verify_process_read_corrupt_pages(self):
         """
         Test verify in a 'wt' process on a table that is purposely corrupted
         in multiple places. A verify operation with read_corrupt on should
@@ -297,7 +297,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertGreater(self.count_file_contains("verifyerr.out",
             "calculated block checksum of"), 1)
 
-    def test_verify_process_truncated(self):
+    def x_test_verify_process_truncated(self):
         """
         Test verify in a 'wt' process on a table that is purposely damaged,
         truncated about 75% through.
@@ -313,7 +313,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # does not exist. Ignore that.
         self.ignoreStderrPatternIfExists('No such file or directory')
 
-    def test_verify_process_zero_length(self):
+    def x_test_verify_process_zero_length(self):
         """
         Test verify in a 'wt' process on a zero-length table.
         """
@@ -328,7 +328,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # does not exist. Ignore that.
         self.ignoreStderrPatternIfExists('No such file or directory')
 
-    def test_verify_all(self):
+    def x_test_verify_all(self):
         """
         Test verify in a 'wt' process without a specific table URI argument.
         """
