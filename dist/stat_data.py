@@ -402,6 +402,7 @@ conn_stats = [
     CheckpointStat('checkpoint_time_min', 'min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_total', 'total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_tree_duration', 'time spent on per-tree checkpoint work (usecs)'),
     CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
     CheckpointStat('checkpoints', 'number of checkpoints started'),
     CheckpointStat('checkpoints_compact', 'number of checkpoints started by compaction'),
@@ -411,6 +412,7 @@ conn_stats = [
     ##########################################
     ChunkCacheStat('chunkcache_bytes_inuse', 'total bytes used by the cache'),
     ChunkCacheStat('chunkcache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
+    ChunkCacheStat('chunkcache_bytes_read_persistent', 'total bytes read from persistent content'),
     ChunkCacheStat('chunkcache_chunks_evicted', 'chunks evicted'),
     ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
     ChunkCacheStat('chunkcache_chunks_loaded_from_flushed_tables', 'number of chunks loaded from flushed tables in chunk cache'),
@@ -422,8 +424,10 @@ conn_stats = [
     ChunkCacheStat('chunkcache_lookups', 'lookups'),
     ChunkCacheStat('chunkcache_metadata_work_units_created', 'number of metadata inserts/deletes pushed to the worker thread'),
     ChunkCacheStat('chunkcache_metadata_work_units_dequeued', 'number of metadata inserts/deletes read by the worker thread'),
+    ChunkCacheStat('chunkcache_metadata_work_units_dropped', 'number of metadata inserts/deletes dropped by the worker thread'),
     ChunkCacheStat('chunkcache_misses', 'number of misses'),
     ChunkCacheStat('chunkcache_retries', 'retried accessing a chunk while I/O was in progress'),
+    ChunkCacheStat('chunkcache_retries_checksum_mismatch', 'retries from a chunk cache checksum mismatch'),
     ChunkCacheStat('chunkcache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
     ChunkCacheStat('chunkcache_toomany_retries', 'timed out due to too many retries'),
 
@@ -720,7 +724,6 @@ conn_stats = [
     ##########################################
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
     YieldStat('application_evict_time', 'application thread time evicting (usecs)'),
-    YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
     YieldStat('dhandle_lock_blocked', 'data handle lock yielded'),

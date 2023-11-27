@@ -146,7 +146,7 @@ __chunkcache_drop_queued_work(WT_SESSION_IMPL *session)
 
     --conn->chunkcache_queue_len;
 
-    /* FIXME-WT-11726 Add statistic. */
+    WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_dropped);
 
     __wt_free(session, entry);
 }
@@ -917,6 +917,58 @@ retry:
 }
 
 /*
+ * __wt_chunkcache_free_external --
+ *     Find chunks in the chunk cache using object id, and free the chunks.
+ */
+int
+__wt_chunkcache_free_external(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, uint32_t size)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
+    WT_CHUNKCACHE_HASHID hash_id;
+    size_t already_removed;
+    uint64_t bucket_id;
+    const char *object_name;
+
+    chunkcache = &S2C(session)->chunkcache;
+    already_removed = 0;
+    object_name = NULL;
+
+    if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
+        return (ENOTSUP);
+
+    /* Only cache read-only tiered objects. */
+    if (!block->readonly)
+        return (0);
+
+    WT_RET(
+      __wt_tiered_name(session, session->dhandle, 0, WT_TIERED_NAME_SKIP_PREFIX, &object_name));
+
+    /* A block may span multiple chunks, loop until we have removed all the data. */
+    while (already_removed < size) {
+        bucket_id = __chunkcache_tmp_hash(
+          chunkcache, &hash_id, object_name, objectid, offset + (wt_off_t)already_removed);
+
+        /* If a chunk is matched, remove it from the bucket queue and free the chunk. */
+        __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk, chunk_tmp)
+        {
+            if (__hash_id_eq(&chunk->hash_id, &hash_id)) {
+                already_removed += chunk->chunk_size;
+                TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
+                __delete_update_stats(session, chunk);
+                __chunkcache_free_chunk(session, chunk);
+                break;
+            }
+        }
+        __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_chunkcache_ingest --
  *     Read all the contents from a file and insert it into the chunkcache.
  */
@@ -1082,6 +1134,7 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
       "new chunk instantiated from metadata during startup: %s(%u), offset=%" PRId64 ", size=%lu",
       (char *)name, id, newchunk->chunk_offset, newchunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunkcache_created_from_metadata);
+    WT_STAT_CONN_INCRV(session, chunkcache_bytes_read_persistent, chunk_size);
     __insert_update_stats(session, newchunk);
 
     if (0) {

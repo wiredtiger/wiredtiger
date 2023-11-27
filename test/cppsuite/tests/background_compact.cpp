@@ -150,7 +150,7 @@ public:
                      * starting a new one.
                      */
                     if (ret == WT_NOTFOUND)
-                        WT_IGNORE_RET_BOOL(tw->txn.commit());
+                        testutil_ignore_ret_bool(tw->txn.commit());
                     else if (ret == WT_ROLLBACK)
                         tw->txn.rollback();
                     else
@@ -300,12 +300,13 @@ public:
         logger::log_msg(
           LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
 
-        bool enabled = false;
-
         while (tw->running()) {
-            enabled = !enabled;
-
-            std::string compact_cfg = enabled ?
+            /*
+             * The API supports enabling or disabling the background compact server multiple times
+             * in a row. Randomly pick whether we are enabling or disabling to cover all state
+             * changes.
+             */
+            std::string compact_cfg = random_generator::instance().generate_bool() ?
               "background=true,free_space_target=" + std::to_string(tw->free_space_target_mb) +
                 "MB" :
               "background=false";
