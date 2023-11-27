@@ -5951,12 +5951,6 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
-    - name: ".stress-test-1-nonstandalone"
-    - name: ".stress-test-2-nonstandalone"
-    - name: ".stress-test-3-nonstandalone"
-    - name: ".stress-test-4-nonstandalone"
-    - name: ".stress-test-no-barrier-nonstandalone"
-    - name: format-abort-recovery-stress-test-nonstandalone
 
 - name: cppsuite-stress-tests-ubuntu
   display_name: "Cppsuite Stress Tests Ubuntu 20.04"
@@ -6158,11 +6152,6 @@ buildvariants:
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
     - name: chunkcache-test
-    - name: compile-nonstandalone
-    - name: make-check-nonstandalone
-    - name: unit-test-nonstandalone
-    - name: unit-test-extra-long-nonstandalone
-      distros: ubuntu2004-arm64-large
     - name: memory-model-test
       batchtime: 40320 # 28 days
     - name: ".workgen-test"
@@ -6325,7 +6314,9 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    # This isn't normally used in cppsuite
+    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
     - name: ".stress-test-1-nonstandalone"
@@ -6336,24 +6327,103 @@ buildvariants:
     - name: format-abort-recovery-stress-test-nonstandalone
     - name: ".cppsuite-stress-test-nonstandalone"
       distros: ubuntu2004-medium
-    - name: ".stress-test-1-nonstandalone"
-      vars:
-        CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    - name: ".stress-test-2-nonstandalone"
-      vars:
-        CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    - name: format-abort-recovery-stress-test-nonstandalone
-      vars:
-        CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    - name: compile-nonstandalone
-      vars:
-        CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    - name: make-check-nonstandalone
-      vars:
-        CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    - name: unit-test-nonstandalone
-      vars:
-        CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
-      
+- name: ubuntu2004-nonstandalone-release"
+  display_name: "Ubuntu 20.04 Nonstandalone Release"
+  run_on:
+  - ubuntu2004-small
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+  tasks:
+    - name: ".stress-test-1-nonstandalone"
+      distros: ubuntu2004-test
+    - name: ".stress-test-2-nonstandalone"
+      distros: ubuntu2004-test
+    - name: format-abort-recovery-stress-test-nonstandalone
+      distros: ubuntu2004-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+
+# When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
+# fails to load and resolve its dependency.
+- name: ubuntu2004-nonstandalone-arm64
+  display_name: Ubuntu 20.04 Stress tests (ARM64, Nonstandalone)
+  run_on:
+  - ubuntu2004-arm64-small
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+  tasks:
+    - name: ".stress-test-1-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-2-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-3-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-4-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-no-barrier-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: format-abort-recovery-stress-test-nonstandalone
+      distros: ubuntu2004-arm64-large
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
+      distros: ubuntu2004-arm64-large
+    - name: ".cppsuite-stress-test-nonstandalone"
+      distros: ubuntu2004-arm64-large
     
+
+# When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
+# fails to load and resolve its dependency.
+- name: ubuntu2004-nonstandalone-arm64-release
+  display_name: Ubuntu 20.04 Stress tests (ARM64, Release, Nonstandalone)
+  run_on:
+  - ubuntu2004-arm64-small
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+  tasks:
+    - name: ".stress-test-1-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-2-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-3-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-4-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: ".stress-test-no-barrier-nonstandalone"
+      distros: ubuntu2004-arm64-large
+    - name: format-abort-recovery-stress-test-nonstandalone
+      distros: ubuntu2004-arm64-large
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
+      distros: ubuntu2004-arm64-large
+
+- name: amazon2-arm64-nonstandalone
+  display_name: "Amazon Linux 2 ARM64"
+  run_on:
+  - amazon2-arm64-small
+  batchtime: 1440 # 24 hours
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: "Unix Makefiles"
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+  tasks:
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
+      distros: amazon2-arm64-large
