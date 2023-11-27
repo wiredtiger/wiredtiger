@@ -1388,7 +1388,7 @@ check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, boo
 
     for (index = 0; index < original_bitmap->size && (*ok); index++) {
         /* Detect bits that were (incorrectly) changed from 1 in the original to 0 in the new */
-        partial_result = (*original_ptr ^ *new_ptr) & *original_ptr;
+        partial_result = *original_ptr & ~(*new_ptr);
 
         if (partial_result != 0)
             *ok = false;
