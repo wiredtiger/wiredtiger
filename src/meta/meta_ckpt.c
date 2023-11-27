@@ -1309,14 +1309,14 @@ static int
 get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *output_item)
 {
     WT_CONFIG blkconf;
-    WT_CONFIG_ITEM blocks, key, value, blocks_key, blocks_value;
+    WT_CONFIG_ITEM blocks, key, backup_config_value, blocks_key, blocks_value;
     WT_CURSOR *metadata_cursor;
     WT_DECL_RET;
     char *file_config;
 
     WT_CLEAR(blocks);
     WT_CLEAR(key);
-    WT_CLEAR(value);
+    WT_CLEAR(backup_config_value);
     WT_CLEAR(blocks_key);
     WT_CLEAR(blocks_value);
     WT_CLEAR(*output_item);
@@ -1329,18 +1329,23 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *
     metadata_cursor->set_key(metadata_cursor, uri);
     WT_ERR(metadata_cursor->search(metadata_cursor));
     WT_ERR(metadata_cursor->get_value(metadata_cursor, &file_config));
-    WT_ERR(__wt_config_getones(session, file_config, "checkpoint_backup_info", &value));
+    WT_ERR(__wt_config_getones(session, file_config, "checkpoint_backup_info", &backup_config_value));
 
-    if ((value.len > 0) && (value.type == WT_CONFIG_ITEM_STRUCT)) {
-        __wt_config_subinit(session, &blkconf, &value);
+    if ((backup_config_value.len > 0) && (backup_config_value.type == WT_CONFIG_ITEM_STRUCT)) {
+        __wt_config_subinit(session, &blkconf, &backup_config_value);
+
+        /* Loop through the incremental backup blocks data looking for the correct id */
         while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
             if (blocks_value.len > 0) {
-                if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
-                    ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
-                    if ((ret == 0) && (blocks.len > 0)) {
-                        ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
-                        break;
-                    }
+                /* Have we found the blocks data for the correct key (which has id 'id')? */
+                if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len) == 0)
+                    continue; /* Keep searching */
+
+                /* We've found the right blocks so read the bit pattern into output_item */
+                ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
+                if ((ret == 0) && (blocks.len > 0)) {
+                    ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
+                    break;
                 }
             }
         }
