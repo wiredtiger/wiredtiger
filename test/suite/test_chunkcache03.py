@@ -89,7 +89,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         uris = self.pinned_uris + ["table:chunkcache03", "table:chunkcache04"]
         ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in uris]
 
-        # Insert data in four tables.
+        # Insert data into four tables.
         for i, dataset in enumerate(ds):
             dataset.populate()
             self.insert(uris[i], dataset)
