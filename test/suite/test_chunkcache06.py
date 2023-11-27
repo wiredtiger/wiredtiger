@@ -106,8 +106,10 @@ class test_chunkcache06(wttest.WiredTigerTestCase):
 
         self.reopen_conn()
 
-        # Assert the chunks are read back in on startup.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
+        # Assert the chunks are read back in on startup. Wait for the stats to indicate
+        # that it's done the work.
+        while self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata) == 0:
+            pass
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_read_persistent), 0)
 
         # Check that our data is all intact, despite having to reload chunks.
