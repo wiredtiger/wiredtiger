@@ -581,7 +581,7 @@ __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)
     size_t nqwords;
     const uint8_t *p;
 
-    crc = seed;
+    crc = ~seed;
 
     /* Checksum one byte at a time to the first 4B boundary. */
     for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len)
@@ -633,5 +633,5 @@ __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)
 uint32_t
 __wt_checksum_sw(const void *chunk, size_t len)
 {
-    return (__wt_checksum_with_seed_sw(0xffffffff, chunk, len));
+    return (__wt_checksum_with_seed_sw(0, chunk, len));
 }

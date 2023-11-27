@@ -33,16 +33,41 @@
 
 /*
  * check --
- *     TODO: Add a comment describing this function.
+ *     Error if two given checksum values do not match to one another.
  */
 static inline void
-check(uint32_t hw, uint32_t sw, size_t len, const char *msg)
+check(uint32_t checksum1, uint32_t checksum2, size_t len, const char *msg)
 {
-    testutil_checkfmt(hw == sw ? 0 : 1,
-      "%s checksum mismatch of %" WT_SIZET_FMT " bytes: %#08x != %#08x\n", msg, len, hw, sw);
+    testutil_checkfmt(checksum1 == checksum2 ? 0 : 1,
+      "%s checksum mismatch of %" WT_SIZET_FMT " bytes: %#08x != %#08x\n", msg, len, checksum1,
+      checksum2);
 }
 
 #define DATASIZE (128 * 1024)
+
+/*
+ * cumulative_checksum --
+ *     Return the checksum of the data calculated cumulatively over the chunk sizes. Needs an
+ *     initial checksum function to begin the calculation and a seed checksum function to carry on.
+ */
+static inline uint32_t
+cumulative_checksum(uint32_t (*checksum_fn)(const void *, size_t),
+  uint32_t (*checksum_seed_fn)(uint32_t, const void *, size_t), size_t chunk_len, uint8_t *data,
+  size_t len)
+{
+    uint32_t checksum, chunks, i;
+
+    testutil_check(chunk_len <= len && chunk_len != 0 ? 0 : 1);
+    chunks = len / chunk_len;
+    checksum = checksum_fn(data, chunk_len);
+    for (i = 1; i < chunks; i++)
+        checksum = checksum_seed_fn(checksum, data + (i * chunk_len), chunk_len);
+    /* The last remaining bytes, less than a chunk. */
+    if (len - (i * chunk_len) != 0)
+        checksum = checksum_seed_fn(checksum, data + (i * chunk_len), len - (i * chunk_len));
+
+    return (checksum);
+}
 
 /*
  * main --
@@ -53,10 +78,13 @@ main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
     WT_RAND_STATE rnd;
-    size_t len;
+    size_t chunk_len, len;
+    uint32_t (*hw_checksum_fn)(const void *, size_t);
+    uint32_t (*hw_checksum_seed_fn)(uint32_t, const void *, size_t);
+    uint32_t cumulative_hw, cumulative_sw;
     uint32_t hw, sw;
     uint8_t *data;
-    u_int i, j;
+    u_int i, j, k;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -70,6 +98,10 @@ main(int argc, char *argv[])
 
     /* Allocate aligned memory for the data. */
     data = dcalloc(DATASIZE, sizeof(uint8_t));
+
+    /* Also refers to the hardware checksum functions where available. */
+    hw_checksum_fn = wiredtiger_crc32c_func();
+    hw_checksum_seed_fn = wiredtiger_crc32c_with_seed_func();
 
     /*
      * Some simple known checksums.
@@ -85,18 +117,46 @@ main(int argc, char *argv[])
     check(hw, (uint32_t)0xf16177d2, len, "nul x2: hardware");
     sw = __wt_checksum_sw(data, len);
     check(sw, (uint32_t)0xf16177d2, len, "nul x2: software");
+    cumulative_hw = cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, 1, data, len);
+    check(cumulative_hw, (uint32_t)0xf16177d2, len, "(cumulative calculation) nul x2: hardware");
+    cumulative_sw = cumulative_checksum(__wt_checksum_sw, __wt_checksum_with_seed_sw, 1, data, len);
+    check(cumulative_sw, (uint32_t)0xf16177d2, len, "(cumulative calculation) nul x2: software");
 
     len = 3;
     hw = __wt_checksum(data, len);
     check(hw, (uint32_t)0x6064a37a, len, "nul x3: hardware");
     sw = __wt_checksum_sw(data, len);
     check(sw, (uint32_t)0x6064a37a, len, "nul x3: software");
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_hw =
+          cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, chunk_len, data, len);
+        check(
+          cumulative_hw, (uint32_t)0x6064a37a, len, "(cumulative calculation) nul x3: hardware");
+    }
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_sw =
+          cumulative_checksum(__wt_checksum_sw, __wt_checksum_with_seed_sw, chunk_len, data, len);
+        check(
+          cumulative_sw, (uint32_t)0x6064a37a, len, "(cumulative calculation) nul x3: software");
+    }
 
     len = 4;
     hw = __wt_checksum(data, len);
     check(hw, (uint32_t)0x48674bc7, len, "nul x4: hardware");
     sw = __wt_checksum_sw(data, len);
     check(sw, (uint32_t)0x48674bc7, len, "nul x4: software");
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_hw =
+          cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, chunk_len, data, len);
+        check(
+          cumulative_hw, (uint32_t)0x48674bc7, len, "(cumulative calculation) nul x4: hardware");
+    }
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_sw =
+          cumulative_checksum(__wt_checksum_sw, __wt_checksum_with_seed_sw, chunk_len, data, len);
+        check(
+          cumulative_sw, (uint32_t)0x48674bc7, len, "(cumulative calculation) nul x4: software");
+    }
 
     len = strlen("123456789");
     memcpy(data, "123456789", len);
@@ -104,6 +164,18 @@ main(int argc, char *argv[])
     check(hw, (uint32_t)0xe3069283, len, "known string #1: hardware");
     sw = __wt_checksum_sw(data, len);
     check(sw, (uint32_t)0xe3069283, len, "known string #1: software");
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_hw =
+          cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, chunk_len, data, len);
+        check(cumulative_hw, (uint32_t)0xe3069283, len,
+          "(cumulative calculation) known string #1: hardware");
+    }
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_sw =
+          cumulative_checksum(__wt_checksum_sw, __wt_checksum_with_seed_sw, chunk_len, data, len);
+        check(cumulative_sw, (uint32_t)0xe3069283, len,
+          "(cumulative calculation) known string #1: software");
+    }
 
     len = strlen("The quick brown fox jumps over the lazy dog");
     memcpy(data, "The quick brown fox jumps over the lazy dog", len);
@@ -111,6 +183,18 @@ main(int argc, char *argv[])
     check(hw, (uint32_t)0x22620404, len, "known string #2: hardware");
     sw = __wt_checksum_sw(data, len);
     check(sw, (uint32_t)0x22620404, len, "known string #2: software");
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_hw =
+          cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, chunk_len, data, len);
+        check(cumulative_hw, (uint32_t)0x22620404, len,
+          "(cumulative calculation) known string #2: hardware");
+    }
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_sw =
+          cumulative_checksum(__wt_checksum_sw, __wt_checksum_with_seed_sw, chunk_len, data, len);
+        check(cumulative_sw, (uint32_t)0x22620404, len,
+          "(cumulative calculation) known string #2: software");
+    }
 
     /*
      * Offset the string by 1 to ensure the hardware code handles unaligned reads.
@@ -119,6 +203,18 @@ main(int argc, char *argv[])
     check(hw, (uint32_t)0xae11f7f5, len, "known string #2: hardware");
     sw = __wt_checksum_sw(data + 1, len - 1);
     check(sw, (uint32_t)0xae11f7f5, len, "known string #2: software");
+    for (chunk_len = 1; chunk_len < len - 1; chunk_len++) {
+        cumulative_hw =
+          cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, chunk_len, data + 1, len - 1);
+        check(cumulative_hw, (uint32_t)0xae11f7f5, len,
+          "(cumulative calculation) known string #2: hardware");
+    }
+    for (chunk_len = 1; chunk_len < len - 1; chunk_len++) {
+        cumulative_sw = cumulative_checksum(
+          __wt_checksum_sw, __wt_checksum_with_seed_sw, chunk_len, data + 1, len - 1);
+        check(cumulative_sw, (uint32_t)0xae11f7f5, len,
+          "(cumulative calculation) known string #2: software");
+    }
 
     /*
      * Checksums of power-of-two data chunks.
@@ -129,6 +225,17 @@ main(int argc, char *argv[])
         hw = __wt_checksum(data, len);
         sw = __wt_checksum_sw(data, len);
         check(hw, sw, len, "random power-of-two");
+
+        /* Check cumulative checksum over the chunks of random size. Do this a few times. */
+        for (k = 0; k < 10; k++) {
+            chunk_len = (__wt_random(&rnd) % len) + 1; /* Avoid 0 sized chunks. */
+            cumulative_hw =
+              cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, chunk_len, data, len);
+            cumulative_sw = cumulative_checksum(
+              __wt_checksum_sw, __wt_checksum_with_seed_sw, chunk_len, data, len);
+            check(cumulative_hw, hw, len, "(cumulative calculation) random power-of-two: hardware");
+            check(cumulative_sw, sw, len, "(cumulative calculation) random power-of-two: software");
+        }
 
         len *= 2;
         if (len > DATASIZE)
@@ -145,6 +252,17 @@ main(int argc, char *argv[])
         hw = __wt_checksum(data, len);
         sw = __wt_checksum_sw(data, len);
         check(hw, sw, len, "random");
+
+        /* Check cumulative checksum over the chunks of random size. Do this a few times. */
+        for (k = 0; k < 10; k++) {
+            chunk_len = (__wt_random(&rnd) % len) + 1; /* Avoid 0 sized chunks. */
+            cumulative_hw =
+              cumulative_checksum(hw_checksum_fn, hw_checksum_seed_fn, chunk_len, data, len);
+            cumulative_sw = cumulative_checksum(
+              __wt_checksum_sw, __wt_checksum_with_seed_sw, chunk_len, data, len);
+            check(cumulative_hw, hw, len, "(cumulative calculation) random: hardware");
+            check(cumulative_sw, sw, len, "(cumulative calculation) random: software");
+        }
     }
 
     free(data);
