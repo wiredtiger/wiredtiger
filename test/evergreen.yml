@@ -2080,16 +2080,6 @@ tasks:
 
             ./test_timestamp_abort -PT -Po s3_store
 
-  - name: csuite-wt10461-skip-list-stress-test-nonstandalone
-    tags: ["stress-test-1"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-      - func: "csuite test"
-        vars:
-          test_name: wt10461_skip_list_stress
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -3719,125 +3709,6 @@ tasks:
         vars:
           run_test_checkpoint_args: -x -s 7
 
-  - name: data-validation-stress-test-checkpoint-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x
-
-  - name: data-validation-stress-test-checkpoint-no-timestamp-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x -s 1
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -s 1
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x -s 2
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x -s 3
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -s 3
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x -s 4
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x -s 5
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -s 5
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x -s 6
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7-nonstandalone
-    tags: ["data-validation-stress-test-nonstandalone"]
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          dependent_task: compile-nonstandalone
-          run_test_checkpoint_args: -x -s 7
-
   - name: format-failure-configs-test
     depends_on:
     - name: compile
@@ -4117,22 +3988,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
-      - func: "format test script"
-        vars:
-          format_test_script_args: -a -t 30
-
-  - name: format-abort-recovery-stress-test-nonstandalone
-    commands:
-      # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
-      # run longer.
-      - command: timeout.update
-        params:
-          exec_timeout_secs: 3600
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "format test script"
         vars:
           format_test_script_args: -a -t 30
@@ -6054,7 +5909,7 @@ buildvariants:
     - name: make-check-nonstandalone
     - name: unit-test-extra-long
       distros: ubuntu2004-large
-    - name: ".data-validation-stress-test-nonstandalone"
+    - name: ".data-validation-stress-test"
   
 - name: ubuntu2004-nonstandalone-stress
   display_name: "Ubuntu 20.04 Nonstandalone Stress"
