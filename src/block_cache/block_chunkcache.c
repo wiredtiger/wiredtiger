@@ -62,7 +62,7 @@ __chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
 
 /*
  * __set_bit_index --
- *     Allocate a specific bit from the chunk usage map.
+ *     Allocate a specific bit from the chunk usage bitmap.
  */
 static inline int
 __set_bit_index(WT_SESSION_IMPL *session, size_t bit_index)
@@ -153,8 +153,8 @@ __chunkcache_drop_queued_work(WT_SESSION_IMPL *session)
 
 /*
  * __chunkcache_metadata_queue_internal --
- *     Allocate an entry, populate it, and insert it into the queue of chunks to write to chunkcache
- *     metadata.
+ *     Allocate an entry, populate it, and insert it into the queue of chunks to write to chunk
+ *     cache metadata.
  */
 static int
 __chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, const char *name,
@@ -303,6 +303,16 @@ __chunkcache_memory_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
         WT_RET(__wt_malloc(session, chunk->chunk_size, &chunk->chunk_memory));
     else {
+
+        /*
+         * A scenario can occur (although unlikely and unintended) where the chunk size is much
+         * bigger than the file size. In this case a no space error may return after writing to the
+         * chunk cache file, for example when we have a configured chunk size of 100MB, and file
+         * size of 1MB, and a capacity of 1GB. With this we can calculate we can only fit 10 chunks
+         * into the capacity, leaving us with 10 spaces on the bitmap. As one chunk can only hold
+         * one file, this means we have only 10MB of data get used and the remaining space goes
+         * unused.
+         */
         if ((ret = __chunkcache_bitmap_alloc(session, &bit_index)) == ENOSPC) {
             WT_STAT_CONN_INCR(session, chunkcache_exceeded_bitmap_capacity);
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
@@ -396,7 +406,7 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t siz
     /*
      * Convert the block offset to the offset of the enclosing chunk. The chunk storage area is
      * broken into equally sized chunks of a configured size. We calculate the offset of the chunk
-     * into which the block's offset falls. This offset is crucial as chunks are equally sized and
+     * into where the block's offset falls. This offset is crucial as chunks are equally sized and
      * not necessarily a multiple of a block. A block may start in one chunk and end in another or
      * even span multiple chunks if the chunk size is configured to be much smaller than the block
      * size (we hope that never happens). In the allocation function we don't care about the block's
@@ -451,7 +461,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         __wt_free(session, chunk->chunk_memory);
     else {
         /*
-         * Push the removal into the work queue so it can get removed from the chunkcache metadata.
+         * Push the removal into the work queue so it can get removed from the chunk cache metadata.
          */
         WT_IGNORE_RET(__chunkcache_metadata_queue_delete(session, chunk));
 
@@ -485,9 +495,9 @@ __chunkcache_tmp_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
      * The hashing situation is a little complex. We want to construct hashes as we iterate over the
      * chunks we add/remove, and these hashes consist of an object name, object ID, and offset. But
      * to hash these, the bytes need to be contiguous in memory. Having the object name as a
-     * fixed-size character array would work, but it would need to be large, and that would waste a
-     * lot of space most of the time. The alternative would be to allocate a new structure just for
-     * hashing purposes, but then we're allocating/freeing on the hot path.
+     * fixed-size character array would work, but that needs to be large, and would waste a lot of
+     * space most of the time. Another alternative is to allocate a new structure just for hashing
+     * purposes, but then we're allocating/freeing on the hot path.
      *
      * Instead, we hash the object name separately, then bundle that hash into a temporary (stack
      * allocated) structure with the object ID and offset. Then, we hash that intermediate
@@ -553,7 +563,7 @@ __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
  * __chunkcache_eviction_thread --
  *     Periodically sweep the cache and evict chunks with a zero access count.
  *
- * This strategy is similar to the clock eviction algorithm, which is an approximates LRU.
+ * This strategy is a clock eviction algorithm, which is an approximation of LRU.
  */
 static WT_THREAD_RET
 __chunkcache_eviction_thread(void *arg)
@@ -766,7 +776,7 @@ __chunkcache_unpin_old_versions(WT_SESSION_IMPL *session, const char *sp_obj_nam
     /* Optimization: check if the file contains objects in the pinned list, otherwise skip. */
     if (__name_in_pinned_list(session, sp_obj_name)) {
         /*
-         * Loop through the entire chunkcache and search for matching objects from the file and
+         * Loop through the entire chunk cache and search for matching objects from the file and
          * clear the pinned flag.
          */
         for (i = 0; i < chunkcache->hashtable_size; i++) {
@@ -970,7 +980,7 @@ __wt_chunkcache_free_external(
 
 /*
  * __wt_chunkcache_ingest --
- *     Read all the contents from a file and insert it into the chunkcache.
+ *     Read all the contents from a file and insert it into the chunk cache.
  */
 int
 __wt_chunkcache_ingest(
