@@ -2222,17 +2222,6 @@ tasks:
 
             ./test_timestamp_abort -PT -Po s3_store
 
-  - name: csuite-wt8963-insert-stress-test-nonstandalone
-    tags: ["stress-test-1-nonstandalone"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-      - func: "csuite test"
-        vars:
-          test_name: wt8963_insert_stress
-
   - name: csuite-wt10461-skip-list-stress-test-nonstandalone
     tags: ["stress-test-1"]
     commands:
@@ -4066,23 +4055,6 @@ tasks:
           times: 1       # No of times to run the loop
           no_of_procs: 10 # No of processes to run in the background
 
-  - name: checkpoint-stress-test-nonstandalone
-    tags: ["stress-test-1-nonstandalone"]
-    exec_timeout_secs: 86400
-    commands:
-      - command: timeout.update
-        params:
-          timeout_secs: 86400
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-      - func: "checkpoint stress test"
-        vars:
-          times: 1       # No of times to run the loop
-          no_of_procs: 10 # No of processes to run in the background
-
   - name: skiplist-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 3600 # 1 hour
@@ -4116,26 +4088,6 @@ tasks:
             ${PREPARE_TEST_ENV}
             ${python_binary|python3} chunkcache_simple.py
 
-  - name: skiplist-stress-test-nonstandalone
-    tags: ["stress-test-1-nonstandalone"]
-    exec_timeout_secs: 3600 # 1 hour
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            for i in $(seq 5); do
-                ${python_binary|python3} skiplist_stress.py
-            done
-
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
     # Set 5 hours timeout (60 * 60 * 5)
@@ -4143,17 +4095,6 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - func: "split stress test"
-
-  - name: split-stress-test-nonstandalone
-    tags: ["stress-test-1-nonstandalone"]
-    # Set 5 hours timeout (60 * 60 * 5)
-    exec_timeout_secs: 18000
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "split stress test"
 
   - name: model-test
@@ -4212,18 +4153,6 @@ tasks:
   - <<: *format-stress-test
     name: format-stress-test-4
     tags: ["stress-test-4"]
-  - <<: *format-stress-test-nonstandalone
-    name: format-stress-test-1-nonstandalone
-    tags: ["stress-test-1-nonstandalone"]
-  - <<: *format-stress-test-nonstandalone
-    name: format-stress-test-2-nonstandalone
-    tags: ["stress-test-2-nonstandalone"]
-  - <<: *format-stress-test-nonstandalone
-    name: format-stress-test-3-nonstandalone
-    tags: ["stress-test-3-nonstandalone"]
-  - <<: *format-stress-test-nonstandalone
-    name: format-stress-test-4-nonstandalone
-    tags: ["stress-test-4-nonstandalone"]
   - <<: *format-stress-sanitizer-ppc-test
     name: format-stress-sanitizer-ppc-test-1
     tags: ["stress-test-ppc-1"]
@@ -4263,15 +4192,6 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
-  - <<: *recovery-stress-test-nonstandalone
-    name: recovery-stress-test-1-nonstandalone
-    tags: ["stress-test-1-nonstandalone"]
-  - <<: *recovery-stress-test-nonstandalone
-    name: recovery-stress-test-2-nonstandalone
-    tags: ["stress-test-2-nonstandalone"]
-  - <<: *recovery-stress-test-nonstandalone
-    name: recovery-stress-test-3-nonstandalone
-    tags: ["stress-test-3-nonstandalone"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -4281,20 +4201,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-      - func: "format test script"
-        vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
-
-  - name: format-stress-test-no-barrier-nonstandalone
-    tags: ["stress-test-no-barrier-nonstandalone"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -4336,21 +4242,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-      - func: "recovery stress test script"
-        vars:
-          times: 25
-
-  - name: recovery-stress-test-no-barrier-nonstandalone
-    tags: ["stress-test-no-barrier-nonstandalone"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
           CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       - func: "recovery stress test script"
@@ -6319,12 +6210,12 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
-    - name: ".stress-test-1-nonstandalone"
-    - name: ".stress-test-2-nonstandalone"
-    - name: ".stress-test-3-nonstandalone"
-    - name: ".stress-test-4-nonstandalone"
-    - name: ".stress-test-no-barrier-nonstandalone"
-    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-3"
+    - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
+    - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test-nonstandalone"
       distros: ubuntu2004-medium
 
@@ -6338,11 +6229,11 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
-    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-1"
       distros: ubuntu2004-test
-    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-2"
       distros: ubuntu2004-test
-    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
@@ -6360,17 +6251,17 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
-    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-2"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-3-nonstandalone"
+    - name: ".stress-test-3"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-4-nonstandalone"
+    - name: ".stress-test-4"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: ".stress-test-no-barrier"
       distros: ubuntu2004-arm64-large
-    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
@@ -6393,17 +6284,17 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
-    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-2"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-3-nonstandalone"
+    - name: ".stress-test-3"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-4-nonstandalone"
+    - name: ".stress-test-4"
       distros: ubuntu2004-arm64-large
-    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: ".stress-test-no-barrier"
       distros: ubuntu2004-arm64-large
-    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
