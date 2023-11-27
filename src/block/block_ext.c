@@ -463,7 +463,8 @@ __wt_block_off_remove_overlap(
  *     Extend the file to allocate space.
  */
 static inline int
-__block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
+__block_extend(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t *offp, wt_off_t size)
 {
     /*
      * Callers of this function are expected to have already acquired any locks required to extend
@@ -487,8 +488,8 @@ __block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off
     block->size += size;
 
     WT_STAT_DATA_INCR(session, block_extension);
-    __wt_verbose(session, WT_VERB_BLOCK, "file extend %" PRIdMAX "-%" PRIdMAX, (intmax_t)*offp,
-      (intmax_t)(*offp + size));
+    __wt_verbose(session, WT_VERB_BLOCK, "%s: file extend %" PRIdMAX "-%" PRIdMAX, el->name,
+      (intmax_t)*offp, (intmax_t)(*offp + size));
 
     return (0);
 }
@@ -501,6 +502,7 @@ int
 __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
 {
     WT_EXT *ext, **estack[WT_SKIP_MAXDEPTH];
+    WT_EXTLIST *el;
     WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
 
     /* The live lock must be locked. */
@@ -539,8 +541,9 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
         __block_size_srch(block->live.avail.sz, size, sstack);
         if ((szp = *sstack[0]) == NULL) {
 append:
-            WT_RET(__block_extend(session, block, offp, size));
-            WT_RET(__block_append(session, block, &block->live.alloc, *offp, (wt_off_t)size));
+            el = &block->live.alloc;
+            WT_RET(__block_extend(session, block, el, offp, size));
+            WT_RET(__block_append(session, block, el, *offp, (wt_off_t)size));
             return (0);
         }
 
