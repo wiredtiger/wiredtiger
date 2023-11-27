@@ -153,11 +153,13 @@ functions:
         ninja -j$(nproc --all) install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
+    type: setup
     params:
       working_dir: "wiredtiger"
       shell: bash
       script: |
         set -o errexit
+        set -o verbose
         ${PREPARE_PATH}
         # Not setting verbose mode as we have sensitive keys that could be logged.
 
@@ -270,6 +272,7 @@ functions:
         ${python_binary|python3} ../test/evergreen/python_version_check.py -v -c ./CMakeCache.txt -s ${python_config_search_string}
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
+    type: setup
     params:
       working_dir: "wiredtiger"
       shell: bash
@@ -5876,10 +5879,11 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
+    - name: compile
     - name: ".cppsuite-stress-test"
       distros: ubuntu2004-medium
 
-- name: ubuntu2004-nonstandalone-release"
+- name: ubuntu2004-nonstandalone-release
   display_name: "Ubuntu 20.04 Nonstandalone Release"
   run_on:
   - ubuntu2004-small
@@ -5899,7 +5903,7 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: unit-test
-
+    
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
 - name: ubuntu2004-nonstandalone-arm64
@@ -5932,7 +5936,6 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: ".cppsuite-stress-test"
       distros: ubuntu2004-arm64-large
-    
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
@@ -5941,7 +5944,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-small
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -5950,12 +5953,6 @@ buildvariants:
     - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
     - name: ".stress-test-2"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-3"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-4"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-no-barrier"
       distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
