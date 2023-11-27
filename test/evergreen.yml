@@ -5906,6 +5906,7 @@ buildvariants:
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: compile
+    - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-extra-long
       distros: ubuntu2004-large
@@ -5947,6 +5948,7 @@ buildvariants:
       distros: ubuntu2004-test
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
+    - name: compile
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -5975,6 +5977,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
+    - name: compile
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -6008,6 +6011,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
+    - name: compile
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -6025,6 +6029,7 @@ buildvariants:
     cmake_generator: "Unix Makefiles"
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
+    - name: compile
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
