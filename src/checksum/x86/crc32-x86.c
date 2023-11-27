@@ -111,11 +111,15 @@ __wt_checksum_hw(const void *chunk, size_t len)
 #endif
 
 extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+extern uint32_t __wt_checksum_with_seed_sw(uint32_t, const void *chunk, size_t len);
 #if defined(__GNUC__)
 extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
   __attribute__((visibility("default")));
+extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_t)
+  __attribute__((visibility("default")));
 #else
 extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_t);
 #endif
 
 /*
@@ -161,5 +165,52 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 #endif
 #else
     return (crc32c_func = __wt_checksum_sw);
+#endif
+}
+
+/*
+ * wiredtiger_crc32c_with_seed_func --
+ *     WiredTiger: detect CRC hardware and return the checksum function that accepts a starting
+ *     seed.
+ */
+uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_t)
+{
+    static uint32_t (*crc32c_func)(uint32_t, const void *, size_t);
+#if !defined(HAVE_NO_CRC32_HARDWARE)
+#if (defined(__amd64) || defined(__x86_64))
+    unsigned int eax, ebx, ecx, edx;
+#endif
+#endif
+
+    /*
+     * This function calls slow hardware functions; if the application doesn't realize that, they
+     * may call it repeatedly rather than caching the result.
+     */
+    if (crc32c_func != NULL)
+        return (crc32c_func);
+
+#if !defined(HAVE_NO_CRC32_HARDWARE)
+#if (defined(__amd64) || defined(__x86_64))
+    __asm__ __volatile__("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(1));
+
+#define CPUID_ECX_HAS_SSE42 (1 << 20)
+    if (ecx & CPUID_ECX_HAS_SSE42)
+        return (crc32c_func = __wt_checksum_with_seed_sw); /* change this to hardware later */
+    return (crc32c_func = __wt_checksum_with_seed_sw);
+
+#elif defined(_M_AMD64)
+    int cpuInfo[4];
+
+    __cpuid(cpuInfo, 1);
+
+#define CPUID_ECX_HAS_SSE42 (1 << 20)
+    if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
+        return (crc32c_func = __wt_checksum_with_seed_sw); /* change this to hardware later */
+    return (crc32c_func = __wt_checksum_with_seed_sw);
+#else
+    return (crc32c_func = __wt_checksum_with_seed_sw);
+#endif
+#else
+    return (crc32c_func = __wt_checksum_with_seed_sw);
 #endif
 }
