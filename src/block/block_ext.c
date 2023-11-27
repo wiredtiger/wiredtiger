@@ -555,17 +555,18 @@ append:
     /* If doing a partial allocation, adjust the record and put it back. */
     if (ext->size > size) {
         __wt_verbose(session, WT_VERB_BLOCK,
-          "allocate %" PRIdMAX " from range %" PRIdMAX "-%" PRIdMAX ", range shrinks to %" PRIdMAX
-          "-%" PRIdMAX,
-          (intmax_t)size, (intmax_t)ext->off, (intmax_t)(ext->off + ext->size),
-          (intmax_t)(ext->off + size), (intmax_t)(ext->off + size + ext->size - size));
+          "%s: allocate %" PRIdMAX " from range %" PRIdMAX "-%" PRIdMAX
+          ", range shrinks to %" PRIdMAX "-%" PRIdMAX,
+          block->live.avail.name, (intmax_t)size, (intmax_t)ext->off,
+          (intmax_t)(ext->off + ext->size), (intmax_t)(ext->off + size),
+          (intmax_t)(ext->off + size + ext->size - size));
 
         ext->off += size;
         ext->size -= size;
         WT_RET(__block_ext_insert(session, &block->live.avail, ext));
     } else {
-        __wt_verbose(session, WT_VERB_BLOCK, "allocate range %" PRIdMAX "-%" PRIdMAX,
-          (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
+        __wt_verbose(session, WT_VERB_BLOCK, "%s: allocate range %" PRIdMAX "-%" PRIdMAX,
+          block->live.avail.name, (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
 
         __wt_block_ext_free(session, ext);
     }
@@ -604,7 +605,7 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     if (objectid != block->objectid)
         return (0);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
+    __wt_verbose(session, WT_VERB_BLOCK, "block free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
       (intmax_t)offset, (intmax_t)size);
 
 #ifdef HAVE_DIAGNOSTIC
