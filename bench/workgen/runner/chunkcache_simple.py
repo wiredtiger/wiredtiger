@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# Run a simple workload on the chunkcache using insert and read. First insert data onto the table,
-# reopen the connection and configure the chunkcache. Perform reads to update the chunkcache.
+# Run a simple workload on the chunk cache using insert and read. First insert data onto the table,
+# reopen the connection and configure the chunk cache. Perform reads to update the chunk cache.
 
 from runner import *
 from wiredtiger import *
@@ -77,7 +77,7 @@ conn.close()
 conn = context.wiredtiger_open(chunkcache_config)
 s = conn.open_session()
 
-# Read into the chunkcache 
+# Read into the chunk cache 
 read_op = Operation(Operation.OP_SEARCH, table)
 read_thread = Thread(read_op * 100000)
 read_workload = Workload(context, read_thread * 40)

@@ -33,7 +33,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 '''
-- Evaluate chunkcache performance both in-memory and on-disk, to test the functionality of pinned chunks.
+- Evaluate chunk cache performance both in-memory and on-disk, to test the functionality of pinned chunks.
 - Verify the functionality of reconfiguring pinned configurations.
 '''
 class test_chunkcache03(wttest.WiredTigerTestCase):

@@ -90,7 +90,7 @@ class test_chunkcache04(wttest.WiredTigerTestCase):
         # As we have not flushed yet, assert we have no newly inserted chunks.
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
 
-        # Flush the unpinned tables into the chunkcache
+        # Flush the unpinned tables into the chunk cache
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
@@ -108,7 +108,7 @@ class test_chunkcache04(wttest.WiredTigerTestCase):
             dataset.populate()
             self.insert(self.pinned_uris[i], dataset)
 
-        # Flush the pinned tables into the chunkcache
+        # Flush the pinned tables into the chunk cache
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
@@ -126,7 +126,7 @@ class test_chunkcache04(wttest.WiredTigerTestCase):
         cursor1 = self.session.open_cursor(self.pinned_uris[1])
         cursor1[ds2[1].key(2)] = 'bar'
 
-        # Flush the pinned tables into the chunkcache
+        # Flush the pinned tables into the chunk cache
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 

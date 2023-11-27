@@ -17,7 +17,7 @@
 /* The maximum number of metadata entries to write out per server wakeup. */
 #define WT_CHUNKCACHE_METADATA_MAX_WORK 1000
 
-/* Different types of chunkcache metadata operations. */
+/* Different types of chunk cache metadata operations. */
 #define WT_CHUNKCACHE_METADATA_WORK_DEL 1
 #define WT_CHUNKCACHE_METADATA_WORK_INS 2
 

@@ -316,7 +316,7 @@ __chunkcache_memory_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         if ((ret = __chunkcache_bitmap_alloc(session, &bit_index)) == ENOSPC) {
             WT_STAT_CONN_INCR(session, chunkcache_exceeded_bitmap_capacity);
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
-              "chunkcache bitmap exceeded capacity of %" PRIu64
+              "chunk cache bitmap exceeded capacity of %" PRIu64
               " bytes "
               "with %" PRIu64 " bytes in use and the chunk size of %" PRIu64 " bytes",
               chunkcache->capacity, chunkcache->bytes_used, (uint64_t)chunk->chunk_size);
@@ -349,7 +349,7 @@ __chunkcache_can_admit_new_chunk(WT_SESSION_IMPL *session, size_t chunk_size)
 
     WT_STAT_CONN_INCR(session, chunkcache_exceeded_capacity);
     __wt_verbose(session, WT_VERB_CHUNKCACHE,
-      "chunkcache exceeded capacity of %" PRIu64
+      "chunk cache exceeded capacity of %" PRIu64
       " bytes "
       "with %" PRIu64 " bytes in use and the chunk size of %" PRIu64 " bytes",
       chunkcache->capacity, chunkcache->bytes_used, (uint64_t)chunk_size);
@@ -691,7 +691,7 @@ err:
 
 /*
  * __chunkcache_insert --
- *     Insert chunk into the chunkcache.
+ *     Insert chunk into the chunk cache.
  */
 static int
 __chunkcache_insert(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t size,
@@ -753,7 +753,7 @@ __chunkcache_read_into_chunk(
      */
     WT_PUBLISH(new_chunk->valid, true);
 
-    /* Push the chunk into the work queue so it can get written to the chunkcache metadata. */
+    /* Push the chunk into the work queue so it can get written to the chunk cache metadata. */
     if (chunkcache->type == WT_CHUNKCACHE_FILE)
         WT_RET(__chunkcache_metadata_queue_insert(session, new_chunk));
 
