@@ -82,6 +82,17 @@ __wt_crc32c_le(unsigned int crc, const unsigned char *buf, size_t len)
 DEFINE_CRC32_VX(__wt_crc32c_le_vx, __wt_crc32c_le_vgfm_16, __wt_crc32c_le)
 
 /*
+ * __wt_checksum_with_seed_hw --
+ *     Return a checksum for a chunk of memory, computed in hardware using 8 byte steps. Start with
+ *     the given seed.
+ */
+static uint32_t
+__wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
+{
+    return (__wt_crc32c_le_vx(seed, chunk, len));
+}
+
+/*
  * __wt_checksum_hw --
  *     WiredTiger: return a checksum for a chunk of memory.
  */
@@ -155,7 +166,7 @@ uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_
 #if defined(__linux__) && !defined(HAVE_NO_CRC32_HARDWARE)
     caps = getauxval(AT_HWCAP);
     if (caps & HWCAP_S390_VX)
-        return (crc32c_func = __wt_checksum_with_seed_sw); /* change this to hardware later */
+        return (crc32c_func = __wt_checksum_with_seed_hw);
     else
         return (crc32c_func = __wt_checksum_with_seed_sw);
 #else
