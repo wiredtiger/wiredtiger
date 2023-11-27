@@ -3909,7 +3909,7 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
  * return value should be cached by the caller for repeated use. This version returns a function
  * that accepts a starting seed value for the CRC.
  *
- * @snippet ex_all.c Checksum a buffer
+ * @snippet ex_all.c Checksum a large buffer in chunks
  *
  * @returns a pointer to a function that takes a starting seed, a buffer and length and returns the
  * CRC32C checksum

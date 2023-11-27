@@ -1373,5 +1373,23 @@ main(int argc, char *argv[])
         (void)crc32c;
     }
 
+    {
+        const char *buffer = "some other larger string";
+        size_t chunk1, chunk2, chunk3;
+        /*! [Checksum a large buffer in chunks] */
+        uint32_t crc32c, (*func)(const void *, size_t);
+        uint32_t (*func_with_seed)(uint32_t, const void *, size_t);
+        func = wiredtiger_crc32c_func();
+        func_with_seed = wiredtiger_crc32c_with_seed_func();
+        chunk1 = strlen("some ");
+        chunk2 = strlen("other larger ");
+        chunk3 = strlen("string");
+        crc32c = func(buffer, chunk1);
+        crc32c = func_with_seed(crc32c, buffer + chunk1, chunk2);
+        crc32c = func_with_seed(crc32c, buffer + chunk1 + chunk2, chunk3);
+        /*! [Checksum a large buffer in chunks] */
+        (void)crc32c;
+    }
+
     return (EXIT_SUCCESS);
 }
