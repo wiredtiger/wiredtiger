@@ -590,12 +590,13 @@ struct __wt_connection_impl {
 #define WT_CONN_LOG_ENABLED 0x004u         /* Logging is enabled */
 #define WT_CONN_LOG_EXISTED 0x008u         /* Log files found */
 #define WT_CONN_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x020u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x040u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x080u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x100u  /* Recovery failed */
-#define WT_CONN_LOG_REMOVE 0x200u          /* Removal is enabled */
-#define WT_CONN_LOG_ZERO_FILL 0x400u       /* Manually zero files */
+#define WT_CONN_LOG_INCR_BACKUP 0x020u     /* Incremental backup log required */
+#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
+#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
+#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
+#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
+#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
+#define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */
     WT_CONDVAR *log_cond;                  /* Log server wait mutex */

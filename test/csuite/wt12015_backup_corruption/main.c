@@ -433,8 +433,7 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
 
     env_config = ENV_CONFIG_DEFAULT;
-    /* FIXME-WT-11669 Enable the tests by setting the following variable to 0. */
-    scenario = -1;
+    scenario = 0;
 
     /* Parse the command-line arguments. */
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);

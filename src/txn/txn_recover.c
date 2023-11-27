@@ -132,13 +132,16 @@ __txn_backup_id_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
         /*
          * Set up incremental information from the record. Only record information for as many slots
          * as this system accepts. There could be a future change that allows additional incremental
-         * identifiers that this system cannot handle.
+         * identifiers that this system cannot handle. A log record is written when a force stop
+         * happens and indicates the entries are empty. That is indicated by the out of range
+         * granularity.
          */
-        if (index < WT_BLKINCR_MAX) {
+        if (granularity != UINT64_MAX && index < WT_BLKINCR_MAX) {
             blk = &conn->incr_backups[index];
             blk->granularity = granularity;
             WT_ERR(__wt_strndup(session, id_str, strlen(id_str), &blk->id_str));
             F_SET(conn, WT_CONN_INCR_BACKUP);
+            FLD_SET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
         }
         *pp = end;
     }

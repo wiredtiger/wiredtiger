@@ -24,9 +24,17 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
     const char *fmt;
 
     conn = S2C(session);
-    if (!F_ISSET(conn, WT_CONN_INCR_BACKUP))
+    /* If we're not logging or incremental backup isn't turned on, we're done. */
+    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
+      !FLD_ISSET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP))
         return (0);
 
+    /*
+     * We use the WT_CONN_LOG_INCR_BACKUP flag and not WT_CONN_INCR_BACKUP. The logging flag
+     * indicates we need to write the log record. We may have to do that even if connection
+     * incremental backup is not enabled because it could be checkpoint and switch after a force
+     * stop.
+     */
     /* Set up the system log record itself. */
     rectype = WT_LOGREC_SYSTEM;
     fmt = WT_UNCHECKED_STRING(I);
@@ -42,8 +50,15 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
      */
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
+        /*
+         * If incremental backup has been used write a log record. If the slot is not valid, either
+         * it hasn't yet been used or it is empty after a force stop, write a record with no string
+         * and a granularity that is out of range.
+         */
         if (F_ISSET(blk, WT_BLKINCR_VALID))
             WT_ERR(__wt_logop_backup_id_pack(session, logrec, i, blk->granularity, blk->id_str));
+        else
+            WT_ERR(__wt_logop_backup_id_pack(session, logrec, i, UINT64_MAX, NULL));
     }
     WT_ERR(__wt_log_write(session, logrec, NULL, 0));
 err:

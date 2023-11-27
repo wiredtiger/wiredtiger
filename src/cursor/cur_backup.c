@@ -75,6 +75,7 @@ __wt_backup_open(WT_SESSION_IMPL *session)
          */
         blkincr = &conn->incr_backups[i++];
         F_SET(conn, WT_CONN_INCR_BACKUP);
+        FLD_SET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
         WT_ERR(__wt_strndup(session, k.str, k.len, &blkincr->id_str));
         WT_ERR(__wt_config_subgets(session, &v, "granularity", &b));
         /*
@@ -192,6 +193,7 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 static int
 __curbackup_close(WT_CURSOR *cursor)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -200,6 +202,7 @@ __curbackup_close(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 err:
 
+    conn = S2C(session);
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP)) {
         __wt_verbose(
           session, WT_VERB_BACKUP, "%s", "Releasing resources from forced stop incremental");
@@ -217,9 +220,12 @@ err:
         const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL};
 
         /* Mark the connection modified to make sure a checkpoint happens even on an idle system. */
-        S2C(session)->modified = true;
+        conn->modified = true;
         WT_TRET(__wt_txn_checkpoint(session, cfg, true));
     }
+    /* Clear the flag on force stop after the completion of the checkpoint. */
+    if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP))
+        FLD_CLR(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
 
     /*
      * When starting a hot backup, we serialize hot backup cursors and set the connection's
@@ -491,6 +497,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      */
     WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "incremental.enabled", &cval));
     if (cval.val) {
+        /* Granularity can only be set once at the beginning */
         if (!F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
             WT_RET(__wt_config_gets(session, cfg, "incremental.granularity", &cval));
             if (conn->incr_granularity != 0)
@@ -499,8 +506,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             __wt_verbose(session, WT_VERB_BACKUP, "Backup config set granularity value %" PRIu64,
               conn->incr_granularity);
         }
-        /* Granularity can only be set once at the beginning */
         F_SET(conn, WT_CONN_INCR_BACKUP);
+        FLD_SET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
         incremental_config = true;
     }
 
