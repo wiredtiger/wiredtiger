@@ -1003,6 +1003,10 @@ done:
     if (hs_exists) {
         WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
         WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
+
+        /* The statistics server is already running, make sure we don't race. */
+        WT_WRITE_BARRIER();
+        F_SET(conn, WT_CONN_HS_OPEN);
     }
 
     /*
