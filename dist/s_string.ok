@@ -734,6 +734,7 @@ fclose
 fcntl
 fd
 fdatasync
+fe
 fextend
 ffc
 fff
