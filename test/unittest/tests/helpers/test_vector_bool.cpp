@@ -46,6 +46,11 @@ TEST_CASE("Vector bool: test conversions", "[vector]")
     test_hex_conversion({true, true, false, true}, "b");
     test_hex_conversion({true, true, true, true}, "f");
 
+    test_hex_conversion({false, false, false, false, true, false, false, false}, "10");
+    test_hex_conversion({true, false, false, false, false, false, false, false}, "01");
+    test_hex_conversion({false, false, true, true, true, true, false, false}, "3c");
+    test_hex_conversion({true, true, false, false, false, false, true, true}, "c3");
+
     test_hex_conversion(
       {true, true, true, true, false, true, true, false, true, false, false, false}, "16f");
 
@@ -57,15 +62,33 @@ TEST_CASE("Vector bool: test conversions", "[vector]")
 
 TEST_CASE("Vector bool: test operations", "[vector]")
 {
-    std::vector<bool> v1(vector_bool_from_hex_string("16f"));
-    std::vector<bool> v2(vector_bool_from_hex_string("abcd"));
+    SECTION("Test 1")
+    {
+        std::vector<bool> v1(vector_bool_from_hex_string("16f"));
+        std::vector<bool> v2(vector_bool_from_hex_string("abcd"));
 
-    REQUIRE(get_true_count(v1) == 7);
-    REQUIRE(get_true_count(v2) == 10);
+        REQUIRE(get_true_count(v1) == 7);
+        REQUIRE(get_true_count(v2) == 10);
 
-    std::vector<bool> v_and(v1 & v2);
-    std::vector<bool> v_xor(v1 ^ v2);
+        std::vector<bool> v_and(v1 & v2);
+        std::vector<bool> v_xor(v1 ^ v2);
 
-    REQUIRE(v_and == vector_bool_from_hex_string("014d"));
-    REQUIRE(v_xor == vector_bool_from_hex_string("aaa2"));
+        REQUIRE(v_and == vector_bool_from_hex_string("014d"));
+        REQUIRE(v_xor == vector_bool_from_hex_string("aaa2"));
+    }
+
+    SECTION("Test 2")
+    {
+        std::vector<bool> v1(vector_bool_from_hex_string("1"));
+        std::vector<bool> v2(vector_bool_from_hex_string("ff"));
+
+        REQUIRE(get_true_count(v1) == 1);
+        REQUIRE(get_true_count(v2) == 8);
+
+        std::vector<bool> v_and(v1 & v2);
+        std::vector<bool> v_xor(v1 ^ v2);
+
+        REQUIRE(v_and == vector_bool_from_hex_string("01"));
+        REQUIRE(v_xor == vector_bool_from_hex_string("fe"));
+    }
 }
