@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -73,7 +74,13 @@ config_map::from_string(const char *str, const char **end)
             /* Handle keys. */
             if (!in_quotes && c == '=')
                 in_key = false;
-            else
+            else if (!in_quotes && c == ',') {
+                /* Empty value. */
+                if (!key_buf.str().empty()) {
+                    m._map[key_buf.str()] = "";
+                    key_buf.str("");
+                }
+            } else
                 key_buf << c;
         } else {
             /* Handle nested config maps. */
@@ -154,8 +161,11 @@ config_map::parse_array(const char *str, const char **end)
 
         /* We found the end of the value. */
         if (c == ',') {
-            v->push_back(buf.str());
-            buf.str("");
+            std::string s = buf.str();
+            if (!s.empty()) {
+                v->push_back(s);
+                buf.str("");
+            }
         }
         /* Else we just get the next character. */
         else
@@ -167,7 +177,7 @@ config_map::parse_array(const char *str, const char **end)
         throw model_exception("Unmatched quotes within a configuration string");
     std::string last = buf.str();
     if (!last.empty())
-        v->push_back(buf.str());
+        v->push_back(last);
 
     /* Handle the end of the array. */
     if (end != nullptr)
@@ -183,12 +193,8 @@ config_map
 config_map::merge(const config_map &a, const config_map &b)
 {
     config_map m;
-
-    for (auto &p : a._map)
-        m._map[p.first] = p.second;
-    for (auto &p : b._map)
-        m._map[p.first] = p.second;
-
+    std::merge(a._map.begin(), a._map.end(), b._map.begin(), b._map.end(),
+      std::inserter(m._map, m._map.begin()));
     return m;
 }
 

@@ -29,6 +29,7 @@
 #ifndef MODEL_KV_TRANSACTION_SNAPSHOT_H
 #define MODEL_KV_TRANSACTION_SNAPSHOT_H
 
+#include <algorithm>
 #include <memory>
 #include <unordered_set>
 #include <vector>
@@ -103,8 +104,8 @@ public:
       txn_id_t snapshot_max, const std::vector<uint64_t> &snapshots)
         : _min_id(snapshot_min), _max_id(snapshot_max), _write_gen(write_gen)
     {
-        for (uint64_t t : snapshots)
-            _include_ids.insert(t);
+        std::copy(
+          snapshots.begin(), snapshots.end(), std::inserter(_include_ids, _include_ids.begin()));
     }
 
     /*

@@ -102,11 +102,6 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
     kv_table_verify_cursor model_cursor = _table.verify_cursor();
     model_cursor.set_checkpoint(ckpt);
 
-    /* Create the WiredTiger cursor config. */
-    std::string cursor_config;
-    if (ckpt)
-        cursor_config += std::string("checkpoint=") + ckpt->name();
-
     try {
         /* Get the database cursor. */
         ret = connection->open_session(connection, nullptr, nullptr, &session);
@@ -116,6 +111,10 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
         /* Automatically close the session at the end of the block. */
         wiredtiger_session_guard session_guard(session);
 
+        /* Create the WiredTiger cursor config and open the cursor. */
+        std::string cursor_config;
+        if (ckpt)
+            cursor_config += std::string("checkpoint=") + ckpt->name();
         std::string uri = std::string("table:") + _table.name();
         ret =
           session->open_cursor(session, uri.c_str(), nullptr, cursor_config.c_str(), &wt_cursor);

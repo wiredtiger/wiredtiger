@@ -177,15 +177,15 @@ kv_table_item::contains_any(const data_value &value, kv_transaction_snapshot_ptr
     i--;
 
     /* Skip any updates that are not visible due to the stable timestamp or the snapshot. */
-    auto visible = [&](const std::shared_ptr<kv_update> &u) -> bool {
+    auto update_visible = [&](const std::shared_ptr<kv_update> &u) -> bool {
         return (!txn_snapshot || txn_snapshot->contains(*u)) &&
           u->durable_timestamp() <= stable_timestamp;
     };
     for (;;) {
         const std::shared_ptr<kv_update> &u = *i;
 
-        /* Check the snapshot and the timestamp. */
-        if (visible(u))
+        /* Check the update's visibility. */
+        if (update_visible(u))
             break;
 
         /* Otherwise go to the previous update (unless we are already at the beginning). */
@@ -200,7 +200,7 @@ kv_table_item::contains_any(const data_value &value, kv_transaction_snapshot_ptr
         const std::shared_ptr<kv_update> &u = *i;
 
         /* Found one! */
-        if (visible(u) && u->value() == value)
+        if (update_visible(u) && u->value() == value)
             return true;
 
         /* Otherwise go to the previous update (unless we are already at the beginning). */

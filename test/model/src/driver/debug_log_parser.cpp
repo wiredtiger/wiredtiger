@@ -307,6 +307,9 @@ debug_log_parser::metadata_checkpoint_apply(
     /* Get the transaction snapshot. */
     kv_transaction_snapshot_ptr snapshot;
     if (config->contains("snapshot_min")) {
+        if (!config->contains("snapshot_max"))
+            throw model_exception(
+              "The checkpoint metadata contain snapshot_min but not snapshot_max");
         txn_id_t snapshot_min = config->get_uint64("snapshot_min");
         txn_id_t snapshot_max = config->get_uint64("snapshot_max");
         std::shared_ptr<std::vector<uint64_t>> snapshot_ids;
@@ -316,11 +319,9 @@ debug_log_parser::metadata_checkpoint_apply(
             snapshot_ids = std::make_shared<std::vector<uint64_t>>();
         snapshot = std::make_shared<kv_transaction_snapshot_wt>(
           write_gen, snapshot_min, snapshot_max, *snapshot_ids);
-    } else {
-        std::vector<uint64_t> snapshot_ids;
+    } else
         snapshot = std::make_shared<kv_transaction_snapshot_wt>(
-          write_gen, k_txn_max, k_txn_max, snapshot_ids);
-    }
+          write_gen, k_txn_max, k_txn_max, std::vector<uint64_t>());
 
     /* Create the checkpoint. */
     _database.create_checkpoint(name.c_str(), snapshot, stable_timestamp);
@@ -420,8 +421,13 @@ debug_log_parser::begin_transaction(const debug_log_parser::commit_header &op)
 void
 debug_log_parser::commit_transaction(kv_transaction_ptr txn)
 {
-    /* Commit the transaction if has not yet been committed. */
-    if (txn->state() != kv_transaction_state::committed)
+    kv_transaction_state txn_state = txn->state();
+    if (txn_state != kv_transaction_state::in_progress &&
+      txn_state != kv_transaction_state::prepared && txn_state != kv_transaction_state::committed)
+        throw model_exception("The transaction is in an unexpected state");
+
+    /* Commit the transaction if it has not yet been committed. */
+    if (txn_state != kv_transaction_state::committed)
         txn->commit();
 
     /* Process the checkpoint metadata, if there are any associated with the transaction. */
