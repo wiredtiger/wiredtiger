@@ -1329,7 +1329,8 @@ get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *
     metadata_cursor->set_key(metadata_cursor, uri);
     WT_ERR(metadata_cursor->search(metadata_cursor));
     WT_ERR(metadata_cursor->get_value(metadata_cursor, &file_config));
-    WT_ERR(__wt_config_getones(session, file_config, "checkpoint_backup_info", &backup_config_value));
+    WT_ERR(
+      __wt_config_getones(session, file_config, "checkpoint_backup_info", &backup_config_value));
 
     if ((backup_config_value.len > 0) && (backup_config_value.type == WT_CONFIG_ITEM_STRUCT)) {
         __wt_config_subinit(session, &blkconf, &backup_config_value);
