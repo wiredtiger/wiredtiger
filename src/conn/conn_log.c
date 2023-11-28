@@ -604,7 +604,7 @@ __log_file_server(void *arg)
          *
          * The read from log close file handle is ordered with respect to the log close lsn. We
          * write to it in the order log close lsn, then log close file handle. As such we need to
-         * read from it in that order. We are not protected by an address dependency in this
+         * read from it the reverse order. We are not protected by an address dependency in this
          * context.
          */
         WT_ORDERED_READ(close_fh, log->log_close_fh);
