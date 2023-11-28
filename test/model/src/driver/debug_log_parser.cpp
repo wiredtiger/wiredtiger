@@ -266,6 +266,19 @@ debug_log_parser::metadata_apply(kv_transaction_ptr txn, const row_put &op)
 
         /* Handle checkpoints. */
         else if (starts_with(key, "system:checkpoint") || starts_with(key, "system:oldest")) {
+            /*
+             * WiredTiger uses the following naming conventions:
+             *     - system:checkpoint, system:checkpoint_snapshot, system:oldest, etc., for
+             *       nameless checkpoints
+             *     - system:checkpoint.NAME, system:checkpoint_snapshot.NAME, etc., for named
+             *       checkpoints
+             *
+             * We don't need to handle these kinds of metadata differently as the config strings
+             * within them have different names, so we just build one unified configuration map from
+             * all of them.
+             */
+
+            /* If this is a named checkpoint, the name follows the '.' character. */
             size_t p = key.find('.');
             std::string ckpt_name = p == std::string::npos ? WT_CHECKPOINT : key.substr(p + 1);
 
