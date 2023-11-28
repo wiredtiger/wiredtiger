@@ -36,13 +36,10 @@ from wiredtiger import stat
 # test_checkpoint31.py
 #
 # Test that skipping in-memory reconciled deleted pages as part of the tree walk.
-
-class test_checkpoint(wttest.WiredTigerTestCase):
+class test_checkpoint31(wttest.WiredTigerTestCase):
 
     format_values = [
-    # FLCS doesn't support skipping pages based on aggregated time window.
-    #    ('column-fix', dict(key_format='r', value_format='8t',
-    #        extraconfig=',allocation_size=512,leaf_page_max=512')),
+        # FLCS doesn't support skipping pages based on aggregated time.
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
@@ -98,7 +95,6 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         # Now read the removed data.
-        self.session.breakpoint()
         self.check(ds, 0, value_a)
 
         # Get the new in-memory delete page skip statistic value.

@@ -2344,8 +2344,8 @@ __wt_btcur_skip_page(
 
     if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page)) {
         /*
-         * Lock the page to prevent concurrent checkpoint reconciliation on the same page while we
-         * verify whether the page may be skipped or not.
+         * Lock the page to prevent concurrent checkpoint reconciliation while we verify the page.
+         * This can also block the insert operation that needs exclusive access to the page.
          */
         if (ref->page->modify != NULL) {
             if (WT_PAGE_TRYLOCK(session, ref->page) != 0)
