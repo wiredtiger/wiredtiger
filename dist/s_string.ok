@@ -449,8 +449,10 @@ Zstd
 Zstd's
 aa
 aaa
+abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
+abcef
 acSstu
 addl
 addr
@@ -504,6 +506,7 @@ bitwise
 blk
 blkcache
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -1157,6 +1160,7 @@ risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
