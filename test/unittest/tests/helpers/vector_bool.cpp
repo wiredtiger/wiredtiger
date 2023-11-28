@@ -35,17 +35,19 @@ vector_bool_to_hex_string(std::vector<bool> const &vector_bool)
     std::string result;
 
     auto iter = vector_bool.cbegin();
+    int bit_count = 0;
+    int hex_digit_value = 0;
     while (iter != vector_bool.cend()) {
-        int bit_count = 0;
-        int hex_digit_value = 0;
-        while ((bit_count < 4) && (iter != vector_bool.cend())) {
-            int bit = *iter++;
-            hex_digit_value |= (bit & 1) << bit_count;
-            bit_count++;
+        int bit = *iter++;
+        hex_digit_value |= (bit & 1) << bit_count;
+        bit_count++;
+        if (bit_count == 4) {
+            char hex_digit = 0;
+            std::to_chars(&hex_digit, &hex_digit + 1, hex_digit_value, 16);
+            result.push_back(hex_digit);
+            bit_count = 0;
+            hex_digit_value = 0;
         }
-        char hex_digit = 0;
-        std::to_chars(&hex_digit, &hex_digit + 1, hex_digit_value, 16);
-        result.push_back(hex_digit);
     }
 
     std::reverse(result.begin(), result.end());
