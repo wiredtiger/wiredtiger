@@ -21,9 +21,11 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     size_t recsize;
     uint32_t i, rectype;
+    char nul;
     const char *fmt;
 
     conn = S2C(session);
+    nul = '\0';
     /* If we're not logging or incremental backup isn't turned on, we're done. */
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
       !FLD_ISSET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP))
@@ -55,10 +57,12 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
          * it hasn't yet been used or it is empty after a force stop, write a record with no string
          * and a granularity that is out of range.
          */
-        if (F_ISSET(blk, WT_BLKINCR_VALID))
+        if (F_ISSET(blk, WT_BLKINCR_VALID)) {
+            WT_ASSERT(session, conn->incr_granularity != 0);
+            WT_ASSERT(session, blk->granularity == conn->incr_granularity);
             WT_ERR(__wt_logop_backup_id_pack(session, logrec, i, blk->granularity, blk->id_str));
-        else
-            WT_ERR(__wt_logop_backup_id_pack(session, logrec, i, UINT64_MAX, NULL));
+        } else
+            WT_ERR(__wt_logop_backup_id_pack(session, logrec, i, UINT64_MAX, &nul));
     }
     WT_ERR(__wt_log_write(session, logrec, NULL, 0));
 err:

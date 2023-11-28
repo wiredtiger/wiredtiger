@@ -375,6 +375,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     /* Free anything that was there. */
     __wt_free(session, blk->id_str);
     WT_ERR(__wt_strndup(session, cval->str, cval->len, &blk->id_str));
+    blk->granularity = conn->incr_granularity;
     /*
      * Get the most recent checkpoint name. For now just use the one that is part of the metadata.
      * We only care whether or not a checkpoint exists, so immediately free it.
