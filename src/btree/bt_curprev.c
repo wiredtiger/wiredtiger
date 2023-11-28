@@ -948,6 +948,11 @@ err:
         /*
          * If prepare conflict occurs, cursor should not be reset unless they have bounds, as the
          * current cursor position will be reused in case of a retry from user.
+         *
+         * Bounded cursors don't lose their bounds if the reset call is internal, per the API.
+         * Additionally by resetting the cursor here we have a slightly different semantic to a
+         * traditional prepare conflict. We are giving up the page which may allow to be evicted but
+         * for the purposes of the bounded cursor this should be fine.
          */
         if (WT_CURSOR_BOUNDS_SET(cursor))
             WT_TRET(__cursor_reset(cbt));
