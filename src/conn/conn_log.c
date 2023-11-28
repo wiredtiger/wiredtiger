@@ -601,8 +601,14 @@ __log_file_server(void *arg)
         /*
          * If there is a log file to close, make sure any outstanding write operations have
          * completed, then fsync and close it.
+         *
+         * The read from log close file handle is ordered with respect to the log close lsn. We
+         * write to it in the order log close lsn, then log close file handle. As such we need to
+         * read from it in that order. We are not protected by an address dependency in this
+         * context.
          */
-        if ((close_fh = log->log_close_fh) != NULL) {
+        WT_ORDERED_READ(close_fh, log->log_close_fh);
+        if (close_fh != NULL) {
             WT_ERR(__wt_log_extract_lognum(session, close_fh->name, &filenum));
             /*
              * The closing file handle should have a correct close LSN.
