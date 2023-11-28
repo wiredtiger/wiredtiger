@@ -605,15 +605,15 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn->ckpt_time_recent = msec;
     conn->ckpt_time_total += msec;
 
-    /* Compute timer statistics for the srcub. */
+    /* Compute timer statistics for the scrub. */
     msec = WT_TIMEDIFF_MS(conn->ckpt_timer_scrub_end, conn->ckpt_timer_start);
 
-    if (msec > conn->ckpt_srcub_max)
-        conn->ckpt_srcub_max = msec;
-    if (msec < conn->ckpt_srcub_min)
-        conn->ckpt_srcub_min = msec;
-    conn->ckpt_srcub_recent = msec;
-    conn->ckpt_srcub_total += msec;
+    if (msec > conn->ckpt_scrub_max)
+        conn->ckpt_scrub_max = msec;
+    if (msec < conn->ckpt_scrub_min)
+        conn->ckpt_scrub_min = msec;
+    conn->ckpt_scrub_recent = msec;
+    conn->ckpt_scrub_total += msec;
 
     /* Compute timer statistics for the checkpoint prepare. */
     msec = WT_TIMEDIFF_MS(conn->ckpt_prep_end, conn->ckpt_prep_start);
