@@ -216,7 +216,7 @@ struct __wt_bm {
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
     WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
-    WT_BLOCK *prev_block; /* If a tier switch was done, this was the older file. */
+    WT_BLOCK *prev_block; /* If a tier switch was done, this was the old file. */
 
     void *map; /* Mapped region */
     size_t maplen;

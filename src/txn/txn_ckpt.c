@@ -88,6 +88,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     cursor = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
 
     /*
      * For supporting splits and merge:
@@ -97,11 +98,11 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
      * - Move the objects.
      */
     conn->flush_state = 0;
-
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     conn->flush_ckpt_complete = false;
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->flush_most_recent = session->current_ckpt_sec;
+    /* Storing the last flush timestamp here for the future and for debugging. */
+    conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
      * the user asks for a flush_tier without tiered storage, the loop below is effectively a no-op

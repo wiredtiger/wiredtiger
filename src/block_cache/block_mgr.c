@@ -104,11 +104,15 @@ __bm_checkpoint(
 
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
+    if (!bm->is_multi_handle)
+        return (0);
+
     /*
-     * If we postponed switching to a new file, this is the right time to make that happen since
-     * eviction is disabled at the moment and we are the exclusive writers.
+     * For tiered tables, if we postponed switching to a new file, this is the right time to make
+     * that happen since eviction is disabled at the moment and we are the exclusive writers.
      */
     if (bm->next_block != NULL) {
+        WT_ASSERT(session, bm->prev_block == NULL);
         __wt_writelock(session, &bm->handle_array_lock);
         bm->prev_block = bm->block;
         bm->block = bm->next_block;
@@ -118,8 +122,6 @@ __bm_checkpoint(
           bm->prev_block->name, bm->block->name);
     }
 
-    if (!bm->is_multi_handle)
-        return (0);
     /*
      * For tiered tables, we need to fsync any previous active files to ensure the full checkpoint
      * is persisted. We wait until now because there may have been in-progress writes to old files.
@@ -666,7 +668,7 @@ __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
      * will leave a dangling switch. Tiered server might incorrectly attempt to flush an active file
      * in such a case.
      */
-    WT_ASSERT_ALWAYS(session, bm->next_block == NULL, "Somehow missed switching the block");
+    WT_ASSERT_ALWAYS(session, bm->next_block == NULL, "Missed switching the local file");
 
     /* If we have made a switch from the older file, sync the older one instead. */
     if (bm->prev_block != NULL)

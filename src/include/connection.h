@@ -577,6 +577,7 @@ struct __wt_connection_impl {
     bool flush_ckpt_complete;        /* Checkpoint after flush completed */
     uint64_t flush_most_recent;      /* Clock value of last flush_tier */
     uint32_t flush_state;            /* State of last flush tier */
+    wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
 
     WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunkcache metadata server thread session */
     wt_thread_t chunkcache_metadata_tid;          /* Chunkcache metadata thread */
