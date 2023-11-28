@@ -41,19 +41,13 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None, None)
 
         self.session.begin_transaction()
-        cursor.set_key('1')
-        cursor.set_value('10')
-        cursor.insert()
-        cursor.set_key('2')
-        cursor.set_value('20')
-        cursor.insert()
+        cursor['1'] = '10'
+        cursor['2'] = '20'
         self.session.prepare_transaction('prepare_timestamp=10')
         self.session.commit_transaction('commit_timestamp=14,durable_timestamp=18')
 
         self.session.begin_transaction()
-        cursor.set_key('2')
-        cursor.set_value('21')
-        cursor.insert()
+        cursor['2'] = '21'
         self.session.prepare_transaction('prepare_timestamp=20')
         self.session.commit_transaction('commit_timestamp=24,durable_timestamp=28')
 
