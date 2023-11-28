@@ -415,7 +415,7 @@ __wt_block_off_remove_overlap(
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
         if (ext->off + ext->size < off + size) {
             WT_BLOCK_RET(session, block, EINVAL,
-              "block off remove, befor=[%" PRIu64 ", %" PRIu64 "] overlaps with off:size=[%" PRIu64
+              "block off remove, before=[%" PRIu64 ", %" PRIu64 "] overlaps with off:size=[%" PRIu64
               ", %" PRIu64 "]",
               (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
         }
