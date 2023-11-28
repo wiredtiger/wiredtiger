@@ -16,6 +16,8 @@ vector_bool_from_hex_string(std::string const &hex_str)
 {
     std::vector<bool> result;
 
+    // Reverse iterate through the hex string.
+    // We start with the last character as that contains the least significant bits.
     for (auto iter = hex_str.crbegin(); iter != hex_str.crend(); ++iter) {
         int value_of_hex_char = std::stoi(std::string(1, *iter), nullptr, 16);
         result.push_back((value_of_hex_char & 1) != 0);
