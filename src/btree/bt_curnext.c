@@ -983,8 +983,8 @@ err:
         break;
     case WT_PREPARE_CONFLICT:
         /*
-         * If prepare conflict occurs, cursor should not be reset unless they have bounds, as
-         * the current cursor position will be reused in case of a retry from user.
+         * If prepare conflict occurs, cursor should not be reset unless they have bounds, as the
+         * current cursor position will be reused in case of a retry from user.
          */
         if (WT_CURSOR_BOUNDS_SET(cursor))
             WT_TRET(__cursor_reset(cbt));
