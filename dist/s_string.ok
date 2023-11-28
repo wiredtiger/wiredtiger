@@ -1191,6 +1191,7 @@ setvbuf
 sfence
 shareability
 sig
+sigchld
 signalled
 sii
 sizeof
