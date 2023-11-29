@@ -167,20 +167,20 @@ static const char *const __stats_dsrc_desc[] = {
   "compression: block written was too small to compress",
   "compression: compressed blocks read",
   "compression: compressed blocks read with compression ratio greater than 64",
+  "compression: compressed blocks read with compression ratio smaller than  2",
+  "compression: compressed blocks read with compression ratio smaller than  4",
+  "compression: compressed blocks read with compression ratio smaller than  8",
   "compression: compressed blocks read with compression ratio smaller than 16",
-  "compression: compressed blocks read with compression ratio smaller than 2",
   "compression: compressed blocks read with compression ratio smaller than 32",
-  "compression: compressed blocks read with compression ratio smaller than 4",
   "compression: compressed blocks read with compression ratio smaller than 64",
-  "compression: compressed blocks read with compression ratio smaller than 8",
   "compression: compressed blocks written",
   "compression: compressed blocks written with compression ratio greater than 64",
+  "compression: compressed blocks written with compression ratio smaller than  2",
+  "compression: compressed blocks written with compression ratio smaller than  4",
+  "compression: compressed blocks written with compression ratio smaller than  8",
   "compression: compressed blocks written with compression ratio smaller than 16",
-  "compression: compressed blocks written with compression ratio smaller than 2",
   "compression: compressed blocks written with compression ratio smaller than 32",
-  "compression: compressed blocks written with compression ratio smaller than 4",
   "compression: compressed blocks written with compression ratio smaller than 64",
-  "compression: compressed blocks written with compression ratio smaller than 8",
   "compression: compressed page maximum internal page size prior to compression",
   "compression: compressed page maximum leaf page size prior to compression ",
   "cursor: Total number of entries skipped by cursor next calls",
@@ -504,20 +504,20 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->compress_write_too_small = 0;
     stats->compress_read = 0;
     stats->compress_read_ratio_hist_max = 0;
-    stats->compress_read_ratio_hist_16 = 0;
     stats->compress_read_ratio_hist_2 = 0;
-    stats->compress_read_ratio_hist_32 = 0;
     stats->compress_read_ratio_hist_4 = 0;
-    stats->compress_read_ratio_hist_64 = 0;
     stats->compress_read_ratio_hist_8 = 0;
+    stats->compress_read_ratio_hist_16 = 0;
+    stats->compress_read_ratio_hist_32 = 0;
+    stats->compress_read_ratio_hist_64 = 0;
     stats->compress_write = 0;
     stats->compress_write_ratio_hist_max = 0;
-    stats->compress_write_ratio_hist_16 = 0;
     stats->compress_write_ratio_hist_2 = 0;
-    stats->compress_write_ratio_hist_32 = 0;
     stats->compress_write_ratio_hist_4 = 0;
-    stats->compress_write_ratio_hist_64 = 0;
     stats->compress_write_ratio_hist_8 = 0;
+    stats->compress_write_ratio_hist_16 = 0;
+    stats->compress_write_ratio_hist_32 = 0;
+    stats->compress_write_ratio_hist_64 = 0;
     /* not clearing compress_precomp_intl_max_page_size */
     /* not clearing compress_precomp_leaf_max_page_size */
     stats->cursor_next_skip_total = 0;
@@ -827,20 +827,20 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->compress_write_too_small += from->compress_write_too_small;
     to->compress_read += from->compress_read;
     to->compress_read_ratio_hist_max += from->compress_read_ratio_hist_max;
-    to->compress_read_ratio_hist_16 += from->compress_read_ratio_hist_16;
     to->compress_read_ratio_hist_2 += from->compress_read_ratio_hist_2;
-    to->compress_read_ratio_hist_32 += from->compress_read_ratio_hist_32;
     to->compress_read_ratio_hist_4 += from->compress_read_ratio_hist_4;
-    to->compress_read_ratio_hist_64 += from->compress_read_ratio_hist_64;
     to->compress_read_ratio_hist_8 += from->compress_read_ratio_hist_8;
+    to->compress_read_ratio_hist_16 += from->compress_read_ratio_hist_16;
+    to->compress_read_ratio_hist_32 += from->compress_read_ratio_hist_32;
+    to->compress_read_ratio_hist_64 += from->compress_read_ratio_hist_64;
     to->compress_write += from->compress_write;
     to->compress_write_ratio_hist_max += from->compress_write_ratio_hist_max;
-    to->compress_write_ratio_hist_16 += from->compress_write_ratio_hist_16;
     to->compress_write_ratio_hist_2 += from->compress_write_ratio_hist_2;
-    to->compress_write_ratio_hist_32 += from->compress_write_ratio_hist_32;
     to->compress_write_ratio_hist_4 += from->compress_write_ratio_hist_4;
-    to->compress_write_ratio_hist_64 += from->compress_write_ratio_hist_64;
     to->compress_write_ratio_hist_8 += from->compress_write_ratio_hist_8;
+    to->compress_write_ratio_hist_16 += from->compress_write_ratio_hist_16;
+    to->compress_write_ratio_hist_32 += from->compress_write_ratio_hist_32;
+    to->compress_write_ratio_hist_64 += from->compress_write_ratio_hist_64;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
     to->compress_precomp_leaf_max_page_size += from->compress_precomp_leaf_max_page_size;
     to->cursor_next_skip_total += from->cursor_next_skip_total;
@@ -1156,20 +1156,20 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->compress_write_too_small += WT_STAT_READ(from, compress_write_too_small);
     to->compress_read += WT_STAT_READ(from, compress_read);
     to->compress_read_ratio_hist_max += WT_STAT_READ(from, compress_read_ratio_hist_max);
-    to->compress_read_ratio_hist_16 += WT_STAT_READ(from, compress_read_ratio_hist_16);
     to->compress_read_ratio_hist_2 += WT_STAT_READ(from, compress_read_ratio_hist_2);
-    to->compress_read_ratio_hist_32 += WT_STAT_READ(from, compress_read_ratio_hist_32);
     to->compress_read_ratio_hist_4 += WT_STAT_READ(from, compress_read_ratio_hist_4);
-    to->compress_read_ratio_hist_64 += WT_STAT_READ(from, compress_read_ratio_hist_64);
     to->compress_read_ratio_hist_8 += WT_STAT_READ(from, compress_read_ratio_hist_8);
+    to->compress_read_ratio_hist_16 += WT_STAT_READ(from, compress_read_ratio_hist_16);
+    to->compress_read_ratio_hist_32 += WT_STAT_READ(from, compress_read_ratio_hist_32);
+    to->compress_read_ratio_hist_64 += WT_STAT_READ(from, compress_read_ratio_hist_64);
     to->compress_write += WT_STAT_READ(from, compress_write);
     to->compress_write_ratio_hist_max += WT_STAT_READ(from, compress_write_ratio_hist_max);
-    to->compress_write_ratio_hist_16 += WT_STAT_READ(from, compress_write_ratio_hist_16);
     to->compress_write_ratio_hist_2 += WT_STAT_READ(from, compress_write_ratio_hist_2);
-    to->compress_write_ratio_hist_32 += WT_STAT_READ(from, compress_write_ratio_hist_32);
     to->compress_write_ratio_hist_4 += WT_STAT_READ(from, compress_write_ratio_hist_4);
-    to->compress_write_ratio_hist_64 += WT_STAT_READ(from, compress_write_ratio_hist_64);
     to->compress_write_ratio_hist_8 += WT_STAT_READ(from, compress_write_ratio_hist_8);
+    to->compress_write_ratio_hist_16 += WT_STAT_READ(from, compress_write_ratio_hist_16);
+    to->compress_write_ratio_hist_32 += WT_STAT_READ(from, compress_write_ratio_hist_32);
+    to->compress_write_ratio_hist_64 += WT_STAT_READ(from, compress_write_ratio_hist_64);
     to->compress_precomp_intl_max_page_size +=
       WT_STAT_READ(from, compress_precomp_intl_max_page_size);
     to->compress_precomp_leaf_max_page_size +=
