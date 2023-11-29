@@ -1411,6 +1411,8 @@ struct __wt_session {
      * default empty.}
      * @config{free_space_target, minimum amount of space recoverable for compaction to proceed., an
      * integer greater than or equal to \c 1MB; default \c 20MB.}
+     * @config{run_once, configure background compaction server to run once., a boolean flag;
+     * default \c false.}
      * @config{timeout, maximum amount of time to allow for compact in seconds.  The actual amount
      * of time spent in compact may exceed the configured value.  A value of zero disables the
      * timeout., an integer; default \c 1200.}
