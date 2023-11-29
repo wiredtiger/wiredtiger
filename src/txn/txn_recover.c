@@ -750,12 +750,6 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
                     WT_ERR(wt_session->salvage(wt_session, WT_HS_URI, NULL));
                 } else
                     WT_ERR(ret);
-            } else {
-                /*
-                 * To access the history store file later, set up the connection with the HS open
-                 * flag.
-                 */
-                F_SET(conn, WT_CONN_HS_OPEN);
             }
         } else {
             /*
