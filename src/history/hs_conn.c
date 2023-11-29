@@ -142,8 +142,6 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
 
     WT_RET(__wt_hs_config(session, cfg));
 
-    /* The statistics server is already running, make sure we don't race. */
-    WT_WRITE_BARRIER();
     F_SET(conn, WT_CONN_HS_OPEN);
 
     return (0);

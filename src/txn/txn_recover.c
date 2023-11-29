@@ -751,9 +751,6 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
                 } else
                     WT_ERR(ret);
             } else {
-                /* The statistics server is already running, make sure we don't race. */
-                WT_WRITE_BARRIER();
-
                 /*
                  * To access the history store file later, set up the connection with the HS open
                  * flag.
