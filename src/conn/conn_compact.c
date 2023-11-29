@@ -465,6 +465,14 @@ __background_compact_server(void *arg)
              * have been parsed.
              */
             if (uri->size == 0 || full_iteration) {
+                /* If the server was configured to run once, after a full iteration, we are done. */
+                if (full_iteration && conn->background_compact.run_once) {
+                    __wt_spin_lock(session, &conn->background_compact.lock);
+                    conn->background_compact.running = false;
+                    running = false;
+                    WT_STAT_CONN_SET(session, background_compact_running, running);
+                    __wt_spin_unlock(session, &conn->background_compact.lock);
+                }
                 full_iteration = false;
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
