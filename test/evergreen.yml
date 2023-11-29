@@ -2243,6 +2243,17 @@ tasks:
       - func: "csuite test"
         vars:
           test_name: wt10461_skip_list_stress
+
+  - name: csuite-wt12015-backup-corruption-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt12015_backup_corruption
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -3825,16 +3836,6 @@ tasks:
         vars:
           config: ../../../test/format/CONFIG.mirror
           trace_args: -T all
-
-  # FIXME-WT-11606 Remove this temporary task.
-  - name: format-11507-test
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -c ../../../test/format/failure_configs/CONFIG.WT-11507 -t 360 -T all
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
@@ -6078,8 +6079,6 @@ buildvariants:
     additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    # FIXME-WT-11606 Remove this temporary task.
-    - name: format-11507-test
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
@@ -6113,8 +6112,6 @@ buildvariants:
     additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    # FIXME-WT-11606 Remove this temporary task.
-    - name: format-11507-test
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
