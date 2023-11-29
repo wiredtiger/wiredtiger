@@ -184,11 +184,8 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
     conn = S2C(session);
 
     /* Right now the only system record we care about is the backup id. Skip anything else. */
-    __wt_errx(session, "BACKUP_APPLY: called pp %p end %p", (void *)*pp, (void *)end);
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
     end = *pp + opsize;
-    __wt_errx(session, "BACKUP_APPLY: top loop pp %p end %p type %d (%d) opsize %d", (void *)*pp,
-      (void *)end, (int)optype, WT_LOGOP_BACKUP_ID, (int)opsize);
     /* If it is not a backup id system operation type, we're done. */
     if (optype != WT_LOGOP_BACKUP_ID) {
         *pp += opsize;
