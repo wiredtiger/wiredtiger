@@ -58,7 +58,7 @@ cumulative_checksum(uint32_t (*checksum_fn)(const void *, size_t),
     uint64_t chunks, i;
     uint32_t checksum;
 
-    testutil_check(chunk_len <= len && chunk_len != 0 ? 0 : 1);
+    testutil_assert(chunk_len <= len && chunk_len != 0);
     chunks = len / chunk_len;
     checksum = checksum_fn(data, chunk_len);
     for (i = 1; i < chunks; i++)

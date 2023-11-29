@@ -1374,11 +1374,12 @@ main(int argc, char *argv[])
     }
 
     {
-        const char *buffer = "some other larger string";
         size_t chunk1, chunk2, chunk3;
         /*! [Checksum a large buffer in chunks] */
         uint32_t crc32c, (*func)(const void *, size_t);
         uint32_t (*func_with_seed)(uint32_t, const void *, size_t);
+        const char *buffer = "some other larger string";
+
         func = wiredtiger_crc32c_func();
         func_with_seed = wiredtiger_crc32c_with_seed_func();
         chunk1 = strlen("some ");
