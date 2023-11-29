@@ -305,13 +305,16 @@ __chunkcache_memory_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     else {
 
         /*
-         * A scenario can occur (although unlikely and unintended) where the chunk size is much
-         * bigger than the file size. In this case a no space error may return after writing to the
-         * chunk cache file, for example when we have a configured chunk size of 100MB, and file
-         * size of 1MB, and a capacity of 1GB. With this we can calculate we can only fit 10 chunks
-         * into the capacity, leaving us with 10 spaces on the bitmap. As one chunk can only hold
-         * one file, this means we have only 10MB of data get used and the remaining space goes
-         * unused.
+         * It is possible to accidentally configure the chunk size to significantly exceed the size
+         * of some files. This can result in a "no space" (ENOSPC) error after attempting to write
+         * to the chunk cache file, even when the full chunk cache capacity has not been used.
+         *
+         * For instance, if we have a configured chunk size of 100MB, a file size of 1MB, and a
+         * capacity of 1GB, we can calculate that only 10 chunks (1GB/100MB) can fit within the
+         * available capacity, leaving us with 10 spaces in the bitmap. Since each chunk can
+         * accommodate content from only one file, this means that for 10 chunks (100MB each) only
+         * 10MB (1MB file per chunk) of data is utilized, while the remaining chunk cache capacity
+         * (990MB) remains unused.
          */
         if ((ret = __chunkcache_bitmap_alloc(session, &bit_index)) == ENOSPC) {
             WT_STAT_CONN_INCR(session, chunkcache_exceeded_bitmap_capacity);
@@ -406,7 +409,7 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t siz
     /*
      * Convert the block offset to the offset of the enclosing chunk. The chunk storage area is
      * broken into equally sized chunks of a configured size. We calculate the offset of the chunk
-     * into where the block's offset falls. This offset is crucial as chunks are equally sized and
+     * into which the block's offset falls. This offset is crucial as chunks are equally sized and
      * not necessarily a multiple of a block. A block may start in one chunk and end in another or
      * even span multiple chunks if the chunk size is configured to be much smaller than the block
      * size (we hope that never happens). In the allocation function we don't care about the block's
