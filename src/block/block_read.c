@@ -217,7 +217,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
                   ENOSPC);
             }
         }
-        if (failures > 0 || !chunkcache_hit) {
+        if (!chunkcache_hit || failures > 0) {
             __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
             WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
         }
