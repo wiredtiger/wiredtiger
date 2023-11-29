@@ -820,19 +820,26 @@ dsrc_stats = [
     ##########################################
     # Compression statistics
     ##########################################
-    CompressStat('compress_hist_ratio_2', 'number of blocks with compress ratio smaller than 2'),
-    CompressStat('compress_hist_ratio_4', 'number of blocks with compress ratio smaller than 4'),
-    CompressStat('compress_hist_ratio_8', 'number of blocks with compress ratio smaller than 8'),
-    CompressStat('compress_hist_ratio_16', 'number of blocks with compress ratio smaller than 16'),
-    CompressStat('compress_hist_ratio_32', 'number of blocks with compress ratio smaller than 32'),
-    CompressStat('compress_hist_ratio_64', 'number of blocks with compress ratio smaller than 64'),
-    CompressStat('compress_hist_ratio_max', 'number of blocks with compress ratio greater than 64'),
     CompressStat('compress_precomp_intl_max_page_size', 'compressed page maximum internal page size prior to compression', 'no_clear,no_scale,size'),
     CompressStat('compress_precomp_leaf_max_page_size', 'compressed page maximum leaf page size prior to compression ', 'no_clear,no_scale,size'),
-    CompressStat('compress_read', 'compressed pages read'),
-    CompressStat('compress_write', 'compressed pages written'),
-    CompressStat('compress_write_fail', 'page written failed to compress'),
-    CompressStat('compress_write_too_small', 'page written was too small to compress'),
+    CompressStat('compress_read', 'compressed blocks read'),
+    CompressStat('compress_read_ratio_hist_2', 'compressed blocks read with compression ratio smaller than 2'),
+    CompressStat('compress_read_ratio_hist_4', 'compressed blocks read with compression ratio smaller than 4'),
+    CompressStat('compress_read_ratio_hist_8', 'compressed blocks read with compression ratio smaller than 8'),
+    CompressStat('compress_read_ratio_hist_16', 'compressed blocks read with compression ratio smaller than 16'),
+    CompressStat('compress_read_ratio_hist_32', 'compressed blocks read with compression ratio smaller than 32'),
+    CompressStat('compress_read_ratio_hist_64', 'compressed blocks read with compression ratio smaller than 64'),
+    CompressStat('compress_read_ratio_hist_max', 'compressed blocks read with compression ratio greater than 64'),
+    CompressStat('compress_write', 'compressed blocks written'),
+    CompressStat('compress_write_ratio_hist_2', 'compressed blocks written with compression ratio smaller than 2'),
+    CompressStat('compress_write_ratio_hist_4', 'compressed blocks written with compression ratio smaller than 4'),
+    CompressStat('compress_write_ratio_hist_8', 'compressed blocks written with compression ratio smaller than 8'),
+    CompressStat('compress_write_ratio_hist_16', 'compressed blocks written with compression ratio smaller than 16'),
+    CompressStat('compress_write_ratio_hist_32', 'compressed blocks written with compression ratio smaller than 32'),
+    CompressStat('compress_write_ratio_hist_64', 'compressed blocks written with compression ratio smaller than 64'),
+    CompressStat('compress_write_ratio_hist_max', 'compressed blocks written with compression ratio greater than 64'),
+    CompressStat('compress_write_fail', 'block written failed to compress'),
+    CompressStat('compress_write_too_small', 'block written was too small to compress'),
 
     ##########################################
     # Cursor operations
