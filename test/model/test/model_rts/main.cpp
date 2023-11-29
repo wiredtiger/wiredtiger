@@ -95,6 +95,13 @@ test_rts(void)
     /* Transactions. */
     model::kv_transaction_ptr txn1, txn2;
 
+    /* Test RTS before setting the stable timestamp. */
+    txn1 = database.begin_transaction();
+    testutil_check(table->insert(txn1, key1, value1));
+    txn1->commit(15);
+    database.rollback_to_stable();
+    testutil_assert(table->get(key1) == model::NONE);
+
     /* Add some data. */
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key1, value1));
@@ -103,9 +110,8 @@ test_rts(void)
     testutil_check(table->insert(txn1, key2, value2));
     txn1->commit(20);
 
-    /* Create an unnamed checkpoint, restart, and verify. */
+    /* Set the stable timestamp, do RTS, and verify. */
     database.set_stable_timestamp(15);
-    database.create_checkpoint();
     database.rollback_to_stable();
     testutil_assert(table->get(key1) == value1);
     testutil_assert(table->get(key2) == model::NONE);
@@ -157,6 +163,13 @@ test_rts_wt(void)
     testutil_check(
       session->create(session, uri, "key_format=S,value_format=S,log=(enabled=false)"));
 
+    /* Test RTS before setting the stable timestamp. */
+    wt_model_txn_begin_both(txn1, session1);
+    wt_model_txn_insert_both(table, uri, txn1, session1, key1, value1);
+    wt_model_txn_commit_both(txn1, session1, 15);
+    wt_model_rollback_to_stable_both();
+    wt_model_assert(table, uri, key1);
+
     /* Add some data. */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_insert_both(table, uri, txn1, session1, key1, value1);
@@ -165,9 +178,8 @@ test_rts_wt(void)
     wt_model_txn_insert_both(table, uri, txn1, session1, key2, value2);
     wt_model_txn_commit_both(txn1, session1, 20);
 
-    /* Create an unnamed checkpoint, restart, and verify. */
+    /* Set the stable timestamp, do RTS, and verify. */
     wt_model_set_stable_timestamp_both(15);
-    wt_model_ckpt_create_both(nullptr);
     wt_model_rollback_to_stable_both();
     wt_model_assert(table, uri, key1);
     wt_model_assert(table, uri, key2);
@@ -182,6 +194,9 @@ test_rts_wt(void)
     testutil_check(session1->close(session1, nullptr));
     testutil_check(session2->close(session2, nullptr));
     testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
 }
 
 /*
@@ -263,6 +278,9 @@ test_restart_wt1(void)
     testutil_check(session->close(session, nullptr));
     testutil_check(session1->close(session1, nullptr));
     testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
 }
 
 /*
@@ -346,6 +364,9 @@ test_restart_wt2(void)
     testutil_check(session->close(session, nullptr));
     testutil_check(session1->close(session1, nullptr));
     testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
 }
 
 /*
@@ -458,6 +479,9 @@ test_restart_wt3(void)
     testutil_check(session->close(session, nullptr));
     testutil_check(session1->close(session1, nullptr));
     testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
 }
 
 /*
@@ -522,6 +546,9 @@ test_crash_wt1(void)
     /* Clean up. */
     testutil_check(session->close(session, nullptr));
     testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
 }
 
 /*
@@ -600,6 +627,9 @@ test_crash_wt2(void)
     testutil_check(session->close(session, nullptr));
     testutil_check(session1->close(session1, nullptr));
     testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
 }
 
 /*
@@ -706,6 +736,9 @@ test_crash_wt3(void)
     testutil_check(session->close(session, nullptr));
     testutil_check(session1->close(session1, nullptr));
     testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
 }
 
 /*

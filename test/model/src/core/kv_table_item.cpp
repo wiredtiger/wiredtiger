@@ -379,8 +379,8 @@ kv_table_item::rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot
          *   2. It is a prepared transaction.
          *   3. Its durable timestamp is after the stable timestamp.
          */
-        if ((snapshot && !snapshot->contains(u->txn_id())) ||
-          (state == kv_transaction_state::prepared) || (u->durable_timestamp() > timestamp)) {
+        if ((snapshot && !snapshot->contains(*u)) || (state == kv_transaction_state::prepared) ||
+          (u->durable_timestamp() > timestamp)) {
             /* Need to remove the transaction object, so that we don't leak memory. */
             (*i)->remove_txn();
             i = _updates.erase(i);

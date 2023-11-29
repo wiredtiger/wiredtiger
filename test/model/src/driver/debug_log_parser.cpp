@@ -56,6 +56,21 @@ from_json(const json &j, debug_log_parser::commit_header &out)
  *     Parse the given log entry.
  */
 static void
+from_json(const json &j, debug_log_parser::prev_lsn &out)
+{
+    const json &prev_lsn = j.at("prev_lsn");
+    if (!prev_lsn.is_array() || prev_lsn.size() != 2)
+        throw model_exception("The \"prev_lsn\" entry is not an array of size 2");
+
+    out.fileid = prev_lsn.at(0);
+    out.offset = prev_lsn.at(1);
+}
+
+/*
+ * from_json --
+ *     Parse the given log entry.
+ */
+static void
 from_json(const json &j, debug_log_parser::row_put &out)
 {
     j.at("fileid").get_to(out.fileid);
@@ -102,6 +117,25 @@ from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
         return ret;
 
     out.txnid = txnid;
+    return 0;
+}
+
+/*
+ * from_debug_log --
+ *     Parse the given debug log entry.
+ */
+static int
+from_debug_log(
+  WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, debug_log_parser::prev_lsn &out)
+{
+    int ret;
+    WT_LSN prev_lsn;
+
+    if ((ret = __wt_logop_prev_lsn_unpack(session, pp, end, &prev_lsn)) != 0)
+        return ret;
+
+    out.fileid = prev_lsn.l.file;
+    out.offset = prev_lsn.l.offset;
     return 0;
 }
 
@@ -413,6 +447,18 @@ debug_log_parser::apply(kv_transaction_ptr txn, const txn_timestamp &op)
 }
 
 /*
+ * debug_log_parser::apply --
+ *     Apply the given operation to the model.
+ */
+void
+debug_log_parser::apply(const prev_lsn &op)
+{
+    /* We find this record when the database starts up. */
+    if (op.fileid == 1 && op.offset == 0)
+        _database.start();
+}
+
+/*
  * debug_log_parser::begin_transaction --
  *     Begin a transaction.
  */
@@ -536,10 +582,39 @@ from_debug_log_helper(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, W
         break;
     }
 
+    case WT_LOGREC_SYSTEM: {
+        const uint8_t **pp = &p;
+
+        /* The system entry, which contains the list of system-level operations. */
+        while (*pp < rec_end && **pp) {
+            uint32_t op_type, op_size;
+
+            /* Get the operation record's type and size. */
+            if ((ret = __wt_logop_read(session, pp, rec_end, &op_type, &op_size)) != 0)
+                return ret;
+            const uint8_t *op_end = *pp + op_size;
+
+            /* Parse and apply the operation. */
+            switch (op_type) {
+            case WT_LOGOP_PREV_LSN: {
+                debug_log_parser::prev_lsn v;
+                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
+                    return ret;
+                args.parser.apply(v);
+                break;
+            }
+            default:
+                *pp += op_size;
+                /* Silently ignore unsupported operations. */
+            }
+        }
+
+        break;
+    }
+
     case WT_LOGREC_CHECKPOINT:
     case WT_LOGREC_FILE_SYNC:
     case WT_LOGREC_MESSAGE:
-    case WT_LOGREC_SYSTEM:
         /* Ignored record types. */
         break;
 
@@ -572,6 +647,9 @@ debug_log_parser::from_debug_log(kv_database &database, WT_CONNECTION *conn)
       (WT_SESSION_IMPL *)session, nullptr, nullptr, WT_LOGSCAN_FIRST, from_debug_log_helper, &args);
     if (ret != 0)
         throw wiredtiger_exception("Cannot scan the log: ", ret);
+
+    /* Simulate the database starting up. */
+    database.start();
 }
 
 /*
@@ -644,13 +722,33 @@ debug_log_parser::from_json(kv_database &database, const char *path)
             continue;
         }
 
+        /* Handle the relevant system entries. */
+        if (log_entry_type == "system") {
+
+            /* Replay all supported system operations. */
+            for (auto &op_entry : log_entry.at("ops")) {
+                std::string op_type = op_entry.at("optype").get<std::string>();
+
+                /* Previous LSN. */
+                if (op_type == "prev_lsn") {
+                    parser.apply(op_entry.get<prev_lsn>());
+                    continue;
+                }
+            }
+
+            continue;
+        }
+
         /* Ignore these fields. */
         if (log_entry_type == "checkpoint" || log_entry_type == "file_sync" ||
-          log_entry_type == "message" || log_entry_type == "system")
+          log_entry_type == "message")
             continue;
 
         throw model_exception("Unsupported log entry type \"" + log_entry_type + "\"");
     }
+
+    /* Simulate the database starting up. */
+    database.start();
 }
 
 } /* namespace model */

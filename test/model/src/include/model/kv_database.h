@@ -190,7 +190,7 @@ public:
      *     Simulate crashing the database.
      */
     inline void
-    crash(bool crash = false)
+    crash()
     {
         restart(true);
     }
@@ -200,6 +200,19 @@ public:
      *     Simulate restarting the database - either a clean restart or crash and recovery.
      */
     void restart(bool crash = false);
+
+    /*
+     * kv_database::start --
+     *     Simulate starting WiredTiger.
+     */
+    inline void
+    start()
+    {
+        std::lock_guard lock_guard1(_tables_lock);
+        std::lock_guard lock_guard2(_transactions_lock);
+        std::lock_guard lock_guard3(_checkpoints_lock);
+        start_nolock();
+    }
 
     /*
      * kv_database::rollback_to_stable --
@@ -245,6 +258,12 @@ protected:
      */
     void rollback_to_stable_nolock(timestamp_t timestamp,
       kv_transaction_snapshot_ptr snapshot = kv_transaction_snapshot_ptr(nullptr));
+
+    /*
+     * kv_database::start_nolock --
+     *     Simulate starting WiredTiger, assuming the locks are held.
+     */
+    void start_nolock();
 
 private:
     mutable std::recursive_mutex _tables_lock;

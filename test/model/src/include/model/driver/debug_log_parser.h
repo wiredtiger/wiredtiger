@@ -53,6 +53,15 @@ public:
     };
 
     /*
+     * debug_log_parser::prev_lsn --
+     *     The prev_lsn log entry.
+     */
+    struct prev_lsn {
+        uint64_t fileid;
+        uint64_t offset;
+    };
+
+    /*
      * debug_log_parser::row_put --
      *     The row_put log entry.
      */
@@ -121,6 +130,12 @@ public:
      *     Apply the given operation to the model.
      */
     void apply(kv_transaction_ptr txn, const txn_timestamp &op);
+
+    /*
+     * debug_log_parser::apply --
+     *     Apply the given operation to the model.
+     */
+    void apply(const prev_lsn &op);
 
     /*
      * debug_log_parser::begin_transaction --

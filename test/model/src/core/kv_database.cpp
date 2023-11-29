@@ -241,17 +241,9 @@ kv_database::restart(bool crash)
     if (!crash)
         create_checkpoint();
 
-    /* If there is no nameless checkpoint, we have an empty table. */
+    /* Start WiredTiger. */
     std::lock_guard lock_guard3(_checkpoints_lock);
-    auto i = _checkpoints.find(std::string(WT_CHECKPOINT));
-    if (i == _checkpoints.end()) {
-        clear_nolock();
-        return;
-    }
-
-    /* Otherwise recover using rollback to stable. */
-    kv_checkpoint_ptr ckpt = i->second;
-    rollback_to_stable_nolock(ckpt->stable_timestamp(), ckpt->snapshot());
+    start_nolock();
 }
 
 /*
@@ -280,6 +272,31 @@ kv_database::rollback_to_stable_nolock(timestamp_t timestamp, kv_transaction_sna
 
     for (auto &p : _tables)
         p.second->rollback_to_stable(timestamp, snapshot);
+}
+
+/*
+ * kv_database::start_nolock --
+ *     Simulate starting WiredTiger, assuming the locks are held.
+ */
+void
+kv_database::start_nolock()
+{
+    /* If there is no nameless checkpoint, we have an empty table. */
+    auto i = _checkpoints.find(std::string(WT_CHECKPOINT));
+    if (i == _checkpoints.end()) {
+        clear_nolock();
+        return;
+    }
+
+    /* Otherwise recover using rollback to stable using the checkpoint. */
+    kv_checkpoint_ptr ckpt = i->second;
+
+    /* If the checkpoint does not have a stable timestamp, do not use it during RTS. */
+    timestamp_t t = ckpt->stable_timestamp();
+    if (t == k_timestamp_none)
+        t = k_timestamp_latest;
+
+    rollback_to_stable_nolock(t, ckpt->snapshot());
 }
 
 } /* namespace model */
