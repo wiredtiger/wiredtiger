@@ -698,8 +698,14 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (enable == running)
         goto err;
 
-    /* Update the excluded tables when the server is turned on. */
+    /* Update the background compaction settings when the server is turned on. */
     if (enable) {
+
+        /* The background compaction server can be configured to run once. */
+        WT_ERR(__wt_config_getones(session, stripped_config, "run_once", &cval));
+        conn->background_compact.run_once = cval.val;
+
+        /* Process excluded tables. */
         __background_compact_exclude_list_clear(session, false);
         WT_ERR_NOTFOUND_OK(__wt_config_gets(session, cfg, "exclude", &cval), false);
         if (cval.len != 0) {
