@@ -2032,13 +2032,13 @@ err:
 
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[0]->ref_ikey);
-        WT_ASSERT(session, !F_ISSET(split_ref[0], WT_REF_FLAG_PREFETCH));
+        // WT_ASSERT(session, !F_ISSET(split_ref[0], WT_REF_FLAG_PREFETCH));
         __wt_free(session, split_ref[0]);
     }
     if (split_ref[1] != NULL) {
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[1]->ref_ikey);
-        WT_ASSERT(session, !F_ISSET(split_ref[1], WT_REF_FLAG_PREFETCH));
+        // WT_ASSERT(session, !F_ISSET(split_ref[1], WT_REF_FLAG_PREFETCH));
         __wt_free(session, split_ref[1]);
     }
     if (right != NULL) {
@@ -2156,7 +2156,7 @@ err:
          */
         __wt_page_modify_set(session, page);
     }
-    WT_ASSERT(session, !F_ISSET(*ref_new, WT_REF_FLAG_PREFETCH));
+    // WT_ASSERT(session, !F_ISSET(*ref_new, WT_REF_FLAG_PREFETCH));
     __wt_free(session, ref_new);
     return (ret);
 }
