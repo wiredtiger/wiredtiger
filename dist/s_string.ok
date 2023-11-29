@@ -202,6 +202,7 @@ Kounavis
 LANGID
 LF
 LLVMFuzzerTestOneInput
+LOGOP
 LOGREC
 LOGSCAN
 LRU
@@ -622,6 +623,7 @@ curstd
 curtable
 curversion
 cust
+customizable
 customp
 cv
 cx
@@ -825,6 +827,7 @@ icount
 idlems
 idx
 ie
+iface
 ifdef's
 iiSii
 iiiS
@@ -1166,6 +1169,7 @@ rw
 rwlock
 sH
 sHQ
+sXXXXXX
 sanitizer
 sanitizers
 scalable
@@ -1182,6 +1186,7 @@ setvbuf
 sfence
 shareability
 sig
+sigchld
 signalled
 sii
 sizeof

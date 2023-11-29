@@ -156,10 +156,9 @@ __chunkcache_metadata_pop_work(WT_SESSION_IMPL *session, WT_CHUNKCACHE_METADATA_
     if ((*entryp = TAILQ_FIRST(&conn->chunkcache_metadataqh)) != NULL) {
         TAILQ_REMOVE(&conn->chunkcache_metadataqh, *entryp, q);
         --conn->chunkcache_queue_len;
+        WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_dequeued);
     }
     __wt_spin_unlock(session, &conn->chunkcache_metadata_lock);
-
-    WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_dequeued);
 }
 
 /*
@@ -266,17 +265,16 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
     /* Retrieve the chunk cache metadata config, and ensure it matches our startup config. */
     ret = __chunkcache_get_metadata_config(session, &metadata_config);
     if (ret == WT_NOTFOUND) {
-        WT_RET(__chunkcache_create_metadata_file(
+        WT_ERR(__chunkcache_create_metadata_file(
           session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
         __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "created chunkcache metadata file");
+        ret = 0;
     } else if (ret == 0) {
-        WT_RET(__chunkcache_verify_metadata_config(session, metadata_config, chunkcache->capacity,
+        WT_ERR(__chunkcache_verify_metadata_config(session, metadata_config, chunkcache->capacity,
           chunkcache->hashtable_size, chunkcache->chunk_size));
         __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "reused chunkcache metadata file");
-    } else {
-        WT_RET(ret);
     }
-    __wt_free(session, metadata_config);
+    WT_ERR(ret);
 
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHUNKCACHE_METADATA);
 
@@ -298,6 +296,7 @@ err:
         FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHUNKCACHE_METADATA);
         WT_TRET(__wt_chunkcache_metadata_destroy(session));
     }
+    __wt_free(session, metadata_config);
 
     return (ret);
 }
