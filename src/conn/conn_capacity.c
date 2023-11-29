@@ -54,7 +54,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
         if (total != 0 && total < chunkcache)
             WT_RET_MSG(session, EINVAL,
               "chunk cache I/O capacity value %" PRIu64 " below total %" PRIu64, chunkcache, total);
-        if (total != 0 && (chunkcache - total) < WT_THROTTLE_MIN)
+        if (total != 0 && (total - chunkcache) < WT_THROTTLE_MIN)
             WT_RET_MSG(session, EINVAL,
               "chunk cache I/O capacity value %" PRIu64
               " leaves insufficient capacity for other subsystems (total %" PRIu64
