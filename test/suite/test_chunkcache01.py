@@ -40,7 +40,7 @@ def get_stat(session, stat):
 
     return val
 
-# These raise an exception since they doesn't have access to assertGreater and friends.
+# These raise an exception since they don't have access to assertGreater and friends.
 def stat_assert_equal(session, stat, expected):
     val = get_stat(session, stat)
     if val != expected:
