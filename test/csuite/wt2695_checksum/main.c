@@ -79,9 +79,11 @@ main(int argc, char *argv[])
     uint32_t (*hw_checksum_seed_fn)(uint32_t, const void *, size_t);
     uint32_t cumulative_hw, cumulative_sw;
     uint32_t hw, sw;
-    uint8_t *data;
+    uint8_t *data, *data_ff_p;
+    uint8_t data_ff[9] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
     u_int i, j, k;
 
+    data_ff_p = &data_ff[0];
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
@@ -152,6 +154,54 @@ main(int argc, char *argv[])
 #if !defined(__s390x__)
         check(
           cumulative_sw, (uint32_t)0x48674bc7, len, "(cumulative calculation) nul x4: software");
+#endif
+    }
+
+    len = 1;
+    hw = __wt_checksum(data_ff_p, len);
+    check(hw, (uint32_t)0xff000000, len, "0xff x1: hardware");
+    sw = __wt_checksum_sw(data_ff_p, len);
+    check(sw, (uint32_t)0xff000000, len, "0xff x1: software");
+
+    len = 2;
+    hw = __wt_checksum(data_ff_p, len);
+    check(hw, (uint32_t)0xffff0000, len, "0xff x2: hardware");
+    sw = __wt_checksum_sw(data_ff_p, len);
+    check(sw, (uint32_t)0xffff0000, len, "0xff x2: software");
+
+    len = 3;
+    hw = __wt_checksum(data_ff_p, len);
+    check(hw, (uint32_t)0xffffff00, len, "0xff x3: hardware");
+    sw = __wt_checksum_sw(data_ff_p, len);
+    check(sw, (uint32_t)0xffffff00, len, "0xff x3: software");
+
+    len = 4;
+    hw = __wt_checksum(data_ff_p, len);
+    check(hw, (uint32_t)0xffffffff, len, "0xff x4: hardware");
+    sw = __wt_checksum_sw(data_ff_p, len);
+    check(sw, (uint32_t)0xffffffff, len, "0xff x4: software");
+
+    len = 5;
+    hw = __wt_checksum(data_ff_p, len);
+    check(hw, (uint32_t)0x5282acae, len, "0xff x5: hardware");
+    sw = __wt_checksum_sw(data_ff_p, len);
+    check(sw, (uint32_t)0x5282acae, len, "0xff x5: software");
+
+    len = 9;
+    hw = __wt_checksum(data_ff_p, len);
+    check(hw, (uint32_t)0xe80f2564, len, "0xff x9: hardware");
+    sw = __wt_checksum_sw(data_ff_p, len);
+    check(sw, (uint32_t)0xe80f2564, len, "0xff x9: software");
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_hw = cumulative_checksum(hw_checksum_seed_fn, chunk_len, data_ff_p, len);
+        check(
+          cumulative_hw, (uint32_t)0xe80f2564, len, "(cumulative calculation) 0xff x9: hardware");
+    }
+    for (chunk_len = 1; chunk_len < len; chunk_len++) {
+        cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data_ff_p, len);
+#if !defined(__s390x__)
+        check(
+          cumulative_sw, (uint32_t)0xe80f2564, len, "(cumulative calculation) 0xff x9: software");
 #endif
     }
 
