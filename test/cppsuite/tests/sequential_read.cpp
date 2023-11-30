@@ -46,9 +46,6 @@ public:
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
-        const uint64_t MAX_ROLLBACKS = 100;
-        uint32_t rollback_retries = 0;
-
         /* In this test we use single thread. */
         testutil_assert(tc->thread_count == 1);
 
@@ -74,7 +71,7 @@ public:
                 if (ret != 0)
                     return;
                 c->get_key(c, &key);
-                c->get_value(c, &key);
+                c->get_value(c, &value);
             }
         }
 
