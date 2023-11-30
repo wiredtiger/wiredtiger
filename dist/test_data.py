@@ -243,6 +243,8 @@ test_config = [
         The duration that the test run will last''', min=0, max=1000000),
     Config('enable_logging', 'false', r'''
         Enables write ahead logs''', type='boolean'),
+    Config('prefix_compression_enabled', 'false', r'''
+        Enable prefix compression'''),
     Config('reverse_collator', 'false', r'''
         Configure the database files to use the reverse collator.''', type='boolean'),
     Config('statistics_config', '', r'''

@@ -2213,6 +2213,28 @@ tasks:
           test_config_filename: configs/sequential_read_block.txt
           test_name: sequential_read
 
+  - name: cppsuite-sequential-read-prefix-compression-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/sequential_read_prefix_compression.txt
+          test_name: sequential_read
+  
+  - name: cppsuite-sequential-read-prefix-compression-block-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/sequential_read_prefix_compression_block.txt
+          test_name: sequential_read
+
   # End of cppsuite test tasks.
   # Start of csuite test tasks
   - name: csuite-tests-pull-request

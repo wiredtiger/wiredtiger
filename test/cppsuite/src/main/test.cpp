@@ -49,8 +49,8 @@ test::test(const test_args &args) : _args(args)
         delete metrics_monitor_cfg;
 
     _database.set_timestamp_manager(_timestamp_manager);
-    _database.set_create_config(
-      _config->get_bool(COMPRESSION_ENABLED), _config->get_bool(REVERSE_COLLATOR));
+    _database.set_create_config(_config->get_bool(COMPRESSION_ENABLED),
+      _config->get_bool(REVERSE_COLLATOR), _config->get_bool(PREFIX_COMPRESSION_ENABLED));
 
     /* Update the component list with the enabled ones. */
     _components.push_back(_workload_manager);

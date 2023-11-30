@@ -1,4 +1,5 @@
 cache_size_mb=1024,
+prefix_compression_enabled=true,
 workload_manager=
 (
     populate_config=

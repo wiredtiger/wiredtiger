@@ -96,6 +96,7 @@ extern const std::string STATISTICS_LOG;
  */
 #define BLKCMP_PFX "block_compressor="
 #define SNAPPY_BLK BLKCMP_PFX "snappy"
+#define PREFIX_COMPRESSION "prefix_compression=true"
 #define EXTPATH "../../ext/"
 #ifndef EXTSUBPATH
 #define EXTSUBPATH ".libs/"
