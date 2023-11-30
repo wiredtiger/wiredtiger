@@ -286,7 +286,7 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'sequential_read' : Method(test_config + [
-        Config("block_read", False, r'''
-        Enable block read''')]),
+        Config("block_read", 'false', r'''
+        Enable block read''', type='boolean')]),
     'test_template' : Method(test_config),
 }

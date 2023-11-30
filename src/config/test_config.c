@@ -936,7 +936,7 @@ static const uint8_t confchk_search_near_03_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0
 static const WT_CONFIG_CHECK confchk_sequential_read[] = {
   {"background_compact_debug_mode", "boolean", NULL, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_BOOLEAN, INT64_MIN, INT64_MAX, NULL},
-  {"block_read", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN,
+  {"block_read", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, INT64_MIN,
     INT64_MAX, NULL},
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 0,
     INT64_MAX, NULL},
@@ -1427,7 +1427,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
     confchk_search_near_03, 14, confchk_search_near_03_jump},
   {"sequential_read",
-    "background_compact_debug_mode=false,block_read=,"
+    "background_compact_debug_mode=false,block_read=false,"
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
     "duration_seconds=0,enable_logging=false,"
     "metrics_monitor=(cache_hs_insert=(max=1,min=0,postrun=false,"
