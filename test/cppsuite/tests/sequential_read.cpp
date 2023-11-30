@@ -76,7 +76,6 @@ public:
         }
 
         tc->txn.rollback();
-        return;
     }
 
 private:
