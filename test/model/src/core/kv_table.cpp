@@ -49,6 +49,20 @@ kv_table::contains_any(const data_value &key, const data_value &value, timestamp
 }
 
 /*
+ * kv_table::contains_any --
+ *     Check whether the table contains the given key-value pair. If there are multiple values
+ *     associated with the given timestamp, return true if any of them match.
+ */
+bool
+kv_table::contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data_value &value) const
+{
+    const kv_table_item *item = item_if_exists(key);
+    if (item == nullptr)
+        return false;
+    return item->contains_any(ckpt, value);
+}
+
+/*
  * kv_table::get --
  *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
  *     exception on error.
@@ -73,9 +87,6 @@ kv_table::get(kv_checkpoint_ptr ckpt, const data_value &key, timestamp_t timesta
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    if (timestamp == k_timestamp_latest)
-        timestamp = ckpt->stable_timestamp() != k_timestamp_none ? ckpt->stable_timestamp() :
-                                                                   k_timestamp_latest;
     return item->get(ckpt, timestamp);
 }
 
@@ -270,6 +281,29 @@ void
 kv_table::rollback_updates(const data_value &key, txn_id_t txn_id)
 {
     item(key).rollback_updates(txn_id);
+}
+
+/*
+ * kv_table::clear --
+ *     Clear the contents of the table.
+ */
+void
+kv_table::clear()
+{
+    std::lock_guard lock_guard(_lock);
+    _data.clear();
+}
+
+/*
+ * kv_table::rollback_to_stable --
+ *     Roll back the database table to the latest stable timestamp and transaction snapshot.
+ */
+void
+kv_table::rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot_ptr snapshot)
+{
+    std::lock_guard lock_guard(_lock);
+    for (auto &p : _data)
+        p.second.rollback_to_stable(timestamp, snapshot);
 }
 
 /*

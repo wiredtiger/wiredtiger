@@ -48,6 +48,9 @@ class test_chunkcache05(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def conn_config(self):
+        if sys.byteorder != 'little':
+            return ''
+
         if not os.path.exists('bucket5'):
             os.mkdir('bucket5')
 
@@ -69,7 +72,7 @@ class test_chunkcache05(wttest.WiredTigerTestCase):
     def test_chunkcache05(self):
         # This test only makes sense on-disk, and WT's filesystem layer doesn't support mmap on
         # big-endian platforms.
-        if sys.byteorder == 'little':
+        if sys.byteorder != 'little':
             return
 
         ds = SimpleDataSet(self, self.uri, self.rows, key_format=self.key_format, value_format=self.value_format)
@@ -79,15 +82,17 @@ class test_chunkcache05(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_read_persistent), 0)
 
-        # Flush the tables into the chunkcache
+        # Flush the tables into the chunk cache.
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
         self.close_conn()
         self.reopen_conn()
 
-        # Assert the chunks are read back in on startup.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
+        # Assert the chunks are read back in on startup. Wait for the stats to indicate
+        # that it's done the work.
+        while self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata) == 0:
+            pass
         self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_read_persistent), 0)
 
         # Check that our data is all intact.

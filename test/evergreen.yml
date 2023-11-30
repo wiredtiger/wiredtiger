@@ -2061,6 +2061,16 @@ tasks:
 
             ./test_timestamp_abort -PT -Po s3_store
 
+  - name: csuite-wt12015-backup-corruption-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt12015_backup_corruption
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
