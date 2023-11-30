@@ -39,8 +39,8 @@ extern "C" {
 }
 
 /*
- * in_subprocess_abort --
- *     Run the following code in a subprocess.
+ * in_subprocess --
+ *     Run the following code in a subprocess, and exit normally at the end.
  */
 #define in_subprocess                                   \
     for (subprocess_helper __sh;; __sh.exit_if_child()) \
@@ -51,7 +51,7 @@ extern "C" {
 
 /*
  * in_subprocess_abort --
- *     Run the following code in a subprocess - and abort at the end.
+ *     Run the following code in a subprocess, and abort at the end.
  */
 #define in_subprocess_abort                              \
     for (subprocess_helper __sh;; __sh.abort_if_child()) \

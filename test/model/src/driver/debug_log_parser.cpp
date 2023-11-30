@@ -453,7 +453,7 @@ debug_log_parser::apply(kv_transaction_ptr txn, const txn_timestamp &op)
 void
 debug_log_parser::apply(const prev_lsn &op)
 {
-    /* We find this record when the database starts up. */
+    /* We find this record when the database starts up, either normally or after a crash. */
     if (op.fileid == 1 && op.offset == 0)
         _database.start();
 }
@@ -525,7 +525,7 @@ from_debug_log_helper(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, W
     rec_end = (const uint8_t *)rawrec->data + rawrec->size;
     uint32_t rec_type;
     if ((ret = __wt_logrec_read(session, &p, rec_end, &rec_type)) != 0)
-        return 0;
+        return ret;
 
     /* Process supported record types. */
     switch (rec_type) {
@@ -627,7 +627,9 @@ from_debug_log_helper(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, W
 
 /*
  * debug_log_parser::from_debug_log --
- *     Parse the debug log into the model.
+ *     Parse the debug log into the model. This function must be called after opening the database
+ *     but before performing any writes, because otherwise the debug log may not contain records of
+ *     the most recent operations.
  */
 void
 debug_log_parser::from_debug_log(kv_database &database, WT_CONNECTION *conn)
@@ -648,13 +650,20 @@ debug_log_parser::from_debug_log(kv_database &database, WT_CONNECTION *conn)
     if (ret != 0)
         throw wiredtiger_exception("Cannot scan the log: ", ret);
 
-    /* Simulate the database starting up. */
+    /*
+     * Simulate the database starting up. As this function is called right after the database
+     * started prior to verification, WiredTiger would have had run rollback to stable by now, even
+     * though we would not see it in the debug log. So simulate the database startup, as it has
+     * already happened.
+     */
     database.start();
 }
 
 /*
  * debug_log_parser::from_json --
- *     Parse the debug log JSON file into the model.
+ *     Parse the debug log JSON file into the model. The input debug log must be printed to JSON
+ *     after opening the database but before performing any writes, because it may otherwise miss
+ *     most recent operations.
  */
 void
 debug_log_parser::from_json(kv_database &database, const char *path)
@@ -747,7 +756,16 @@ debug_log_parser::from_json(kv_database &database, const char *path)
         throw model_exception("Unsupported log entry type \"" + log_entry_type + "\"");
     }
 
-    /* Simulate the database starting up. */
+    /*
+     * Simulate the database starting up.
+     *
+     * There are two cases, both of which require us to do this:
+     *     - If the database is not running while we are loading the model, it will start before the
+     *       verification and run rollback to stable. So do that here in anticipation.
+     *     - If the database has just started prior to loading the model, it would have had run
+     *       rollback to stable by now, but we would not have seen the corresponding log record, so
+     *       simulate the database startup now as it has already happened.
+     */
     database.start();
 }
 

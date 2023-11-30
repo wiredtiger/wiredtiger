@@ -174,25 +174,14 @@ kv_database::txn_snapshot_nolock(txn_id_t do_not_exclude)
 }
 
 /*
- * kv_database::clear --
- *     Clear the contents of the database.
- */
-void
-kv_database::clear()
-{
-    std::lock_guard lock_guard1(_tables_lock);
-    std::lock_guard lock_guard2(_transactions_lock);
-
-    clear_nolock();
-}
-
-/*
  * kv_database::clear_nolock --
  *     Clear the contents of the database, assuming the relevant locks are already held.
  */
 void
 kv_database::clear_nolock()
 {
+    /* Requires: tables lock, transactions lock. */
+
     /*
      * Roll back all active transactions. We cannot just clear the table of active transactions, as
      * that would result in a memory leak due to circular dependencies between updates and

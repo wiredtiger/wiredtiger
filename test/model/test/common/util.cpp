@@ -89,11 +89,14 @@ verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing)
     for (auto &t : tables)
         testutil_assert(db_from_debug_log.table(t.c_str())->verify_noexcept(conn));
 
-    /* Print the debug log to JSON. */
+    /*
+     * Print the debug log to JSON. Note that the debug log has not changed from above, because each
+     * database can be opened by only one WiredTiger instance at a time.
+     */
     std::string tmp_json = create_tmp_file(home, "debug-log-", ".json");
     wt_print_debug_log(conn, tmp_json.c_str());
 
-    /* Verify using the debug log JSON. */
+    /* Verify again using the debug log JSON. */
     model::kv_database db_from_debug_log_json;
     model::debug_log_parser::from_json(db_from_debug_log_json, tmp_json.c_str());
     for (auto &t : tables)

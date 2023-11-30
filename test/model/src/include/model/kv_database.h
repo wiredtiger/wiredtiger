@@ -180,12 +180,6 @@ public:
     kv_transaction_snapshot_ptr txn_snapshot(txn_id_t do_not_exclude = k_txn_none);
 
     /*
-     * kv_database::clear --
-     *     Clear the contents of the database.
-     */
-    void clear();
-
-    /*
      * kv_database::crash --
      *     Simulate crashing the database.
      */
@@ -266,15 +260,27 @@ protected:
     void start_nolock();
 
 private:
+    /*
+     * Locking order: If you need to acquire more than one lock at a time, acquire locks in the
+     * order in which they are declared in this file to avoid deadlocks. For example, the tables
+     * lock must be acquired before the transactions lock.
+     */
+
+    /*
+     * Tables and transactions locks must be recursive, because simulating database restart needs to
+     * acquire them before calling rollback to abort active transactions - and rollback also needs
+     * to acquire both of these locks.
+     */
+
     mutable std::recursive_mutex _tables_lock;
-    std::unordered_map<std::string, kv_table_ptr> _tables;
+    std::unordered_map<std::string, kv_table_ptr> _tables; /* Maps table names to their objects. */
 
     mutable std::recursive_mutex _transactions_lock;
     txn_id_t _last_transaction_id;
     std::unordered_map<txn_id_t, kv_transaction_ptr> _active_transactions;
 
     mutable std::mutex _checkpoints_lock;
-    std::unordered_map<std::string, kv_checkpoint_ptr> _checkpoints;
+    std::unordered_map<std::string, kv_checkpoint_ptr> _checkpoints; /* Key: checkpoint name. */
 
     mutable std::mutex _timestamps_lock;
     timestamp_t _stable_timestamp;
