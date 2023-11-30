@@ -44,6 +44,7 @@
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
 #include "reverse_split.cpp"
+#include "sequential_read.cpp"
 #include "test_template.cpp"
 
 extern "C" {
@@ -159,6 +160,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         operations_test(args).run();
     else if (test_name == "reverse_split")
         reverse_split(args).run();
+    else if (test_name == "sequential_read")
+        sequential_read(args).run();
     else if (test_name == "test_template")
         test_template(args).run();
     else {
@@ -187,7 +190,7 @@ main(int argc, char *argv[])
     const std::vector<std::string> all_tests = {"background_compact", "bounded_cursor_perf",
       "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
       "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
-      "hs_cleanup", "operations_test", "reverse_split", "test_template"};
+      "hs_cleanup", "operations_test", "reverse_split", "sequential_read", "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);

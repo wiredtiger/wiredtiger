@@ -62,7 +62,7 @@ public:
                 WT_ITEM *keys;
                 WT_ITEM *values;
                 size_t nret;
-                auto ret = c->next_raw_n(c, 100, &keys, &values, &ret);
+                auto ret = c->next_raw_n(c, 100, &keys, &values, &nret);
                 if (ret != 0)
                     return;
             }
@@ -82,5 +82,5 @@ public:
     }
 
 private:
-    bool block_read = false;
+    bool _block_read = false;
 };
