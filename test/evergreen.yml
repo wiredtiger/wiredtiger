@@ -662,9 +662,9 @@ functions:
           threads_command="-j ${num_jobs}"
         fi
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} $threads_command 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
         fi
 
   "code coverage analysis":
@@ -2184,24 +2184,6 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --hook tiered --hook timestamp --random-sample 20
-
-  - name: unit-test-hook-nonstandalone
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 --hook nonstandalone
-  
-  - name: unit-test-hook-nonstandalone-extra-long
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 --hook nonstandalone --extra-long
 
   # The test_prepare_hs03.py test, when run with timestamp hooks, is run multiple times to facilitate
   # catching intermittent problems in the test.
@@ -5863,6 +5845,7 @@ buildvariants:
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+    unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: compile
@@ -5889,7 +5872,8 @@ buildvariants:
     - name: format-abort-recovery-stress-test
     - name: compile
     - name: ".cppsuite-stress-test"
-      distros: ubuntu2004-medium
+      batchtime: 720 # 12 hours
+      distros: ubuntu2004-medium # We run on medium as small has too small a disk
 
 - name: ubuntu2004-release-nonstandalone
   display_name: "Ubuntu 20.04 (Nonstandalone, Release Build)"
@@ -5898,8 +5882,9 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo / 2`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+    unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: ".stress-test-1"
       distros: ubuntu2004-test
@@ -5920,34 +5905,30 @@ buildvariants:
     additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+    unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: compile
     - name: make-check-test
     - name: unit-test-hook-nonstandalone
     - name: unit-test-hook-nonstandalone-extra-long
       distros: ubuntu2004-arm64-large
-
-- name: ubuntu2004-arm64-nonstandalone-stress
-  display_name: Ubuntu 20.04 Stress tests (ARM64, Nonstandalone)
-  run_on:
-  - ubuntu2004-arm64-large
-  expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-  tasks:
     - name: ".stress-test-1"
+      distros: ubuntu2004-arm64-large
     - name: ".stress-test-2"
+      distros: ubuntu2004-arm64-large
     - name: ".stress-test-3"
+      distros: ubuntu2004-arm64-large
     - name: ".stress-test-4"
+      distros: ubuntu2004-arm64-large
     - name: ".stress-test-no-barrier"
+      distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
+      distros: ubuntu2004-arm64-large
     - name: ".cppsuite-stress-test"
-    - name: compile
+      distros: ubuntu2004-arm64-large
 
 - name: ubuntu2004-arm64-release-nonstandalone
-  display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build, Nonstandalone)
+  display_name: Ubuntu 20.04 (ARM64, Release Build, Nonstandalone)
   run_on:
   - ubuntu2004-arm64-small
   expansions:
@@ -5955,6 +5936,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+    unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
@@ -5978,6 +5960,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+    unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: compile
     - name: make-check-test
