@@ -5860,7 +5860,7 @@ buildvariants:
     - name: ".pull_request !.pull_request_compilers"
     - name: compile
     - name: make-check-test
-    - name: unit-test-hook-nonstandalone-extra-long
+    - name: unit-test-extra-long
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
   
@@ -5904,7 +5904,7 @@ buildvariants:
       distros: ubuntu2004-test
     - name: compile
     - name: make-check-test
-    - name: unit-test-hook-nonstandalone
+    - name: unit-test
     
 - name: ubuntu2004-arm64-nonstandalone
   display_name: Ubuntu 20.04 (ARM64, Nonstandalone)
@@ -5919,8 +5919,8 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test-hook-nonstandalone
-    - name: unit-test-hook-nonstandalone-extra-long
+    - name: unit-test
+    - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
     - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
@@ -5956,8 +5956,8 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: compile
     - name: make-check-test
-    - name: unit-test-hook-nonstandalone
-    - name: unit-test-hook-nonstandalone-extra-long
+    - name: unit-test
+    - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
 
 - name: amazon2-arm64-nonstandalone
@@ -5974,6 +5974,6 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test-hook-nonstandalone
-    - name: unit-test-hook-nonstandalone-extra-long
+    - name: unit-test
+    - name: unit-test-extra-long
       distros: amazon2-arm64-large
