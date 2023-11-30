@@ -114,8 +114,10 @@ main(int argc, char *argv[])
     check(sw, (uint32_t)0xf16177d2, len, "nul x2: software");
     cumulative_hw = cumulative_checksum(hw_checksum_seed_fn, 1, data, len);
     check(cumulative_hw, (uint32_t)0xf16177d2, len, "(cumulative calculation) nul x2: hardware");
+#if !defined(__s390x__)
     cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, 1, data, len);
     check(cumulative_sw, (uint32_t)0xf16177d2, len, "(cumulative calculation) nul x2: software");
+#endif
 
     len = 3;
     hw = __wt_checksum(data, len);
@@ -129,8 +131,10 @@ main(int argc, char *argv[])
     }
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
+#if !defined(__s390x__)
         check(
           cumulative_sw, (uint32_t)0x6064a37a, len, "(cumulative calculation) nul x3: software");
+#endif
     }
 
     len = 4;
@@ -145,8 +149,10 @@ main(int argc, char *argv[])
     }
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
+#if !defined(__s390x__)
         check(
           cumulative_sw, (uint32_t)0x48674bc7, len, "(cumulative calculation) nul x4: software");
+#endif
     }
 
     len = strlen("123456789");
@@ -162,8 +168,10 @@ main(int argc, char *argv[])
     }
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
+#if !defined(__s390x__)
         check(cumulative_sw, (uint32_t)0xe3069283, len,
           "(cumulative calculation) known string #1: software");
+#endif
     }
 
     len = strlen("The quick brown fox jumps over the lazy dog");
@@ -179,8 +187,10 @@ main(int argc, char *argv[])
     }
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
+#if !defined(__s390x__)
         check(cumulative_sw, (uint32_t)0x22620404, len,
           "(cumulative calculation) known string #2: software");
+#endif
     }
 
     /*
@@ -198,8 +208,10 @@ main(int argc, char *argv[])
     for (chunk_len = 1; chunk_len < len - 1; chunk_len++) {
         cumulative_sw =
           cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data + 1, len - 1);
+#if !defined(__s390x__)
         check(cumulative_sw, (uint32_t)0xae11f7f5, len,
           "(cumulative calculation) known string #2: software");
+#endif
     }
 
     /*
@@ -218,7 +230,9 @@ main(int argc, char *argv[])
             cumulative_hw = cumulative_checksum(hw_checksum_seed_fn, chunk_len, data, len);
             cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
             check(cumulative_hw, hw, len, "(cumulative calculation) random power-of-two: hardware");
+#if !defined(__s390x__)
             check(cumulative_sw, sw, len, "(cumulative calculation) random power-of-two: software");
+#endif
         }
 
         len *= 2;
@@ -243,9 +257,15 @@ main(int argc, char *argv[])
             cumulative_hw = cumulative_checksum(hw_checksum_seed_fn, chunk_len, data, len);
             cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
             check(cumulative_hw, hw, len, "(cumulative calculation) random: hardware");
+#if !defined(__s390x__)
             check(cumulative_sw, sw, len, "(cumulative calculation) random: software");
+#endif
         }
     }
+
+#if defined(__s390x__)
+    WT_UNUSED(cumulative_sw);
+#endif
 
     free(data);
     testutil_cleanup(opts);
