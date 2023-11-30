@@ -283,5 +283,8 @@ methods = {
         Number of threads that execute search near calls.''')]),
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
+    'sequential_read' : Method(test_config + [
+        Config("block_read", False, r'''
+        Enable block read''')]),
     'test_template' : Method(test_config),
 }

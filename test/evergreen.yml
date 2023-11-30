@@ -2191,6 +2191,28 @@ tasks:
           test_config_filename: configs/bounded_cursor_perf_stress.txt
           test_name: bounded_cursor_perf
 
+  - name: cppsuite-sequential-read-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/sequential_read_default.txt
+          test_name: sequential_read
+
+  - name: cppsuite-sequential-read-block-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/sequential_read_block.txt
+          test_name: sequential_read
+
   # End of cppsuite test tasks.
   # Start of csuite test tasks
   - name: csuite-tests-pull-request

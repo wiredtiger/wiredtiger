@@ -1,0 +1,17 @@
+block_read=true,
+cache_size_mb=1024,
+workload_manager=
+(
+    populate_config=
+    (
+        collection_count=100,
+        key_count_per_collection=1000000,
+        thread_count=10,
+        key_size=10,
+        value_size=1000
+    ),
+    read_config=
+    (
+        thread_count=1
+    )
+)
