@@ -38,6 +38,22 @@ class test_compact06(wttest.WiredTigerTestCase):
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
         stat_cursor.close()
         return compact_running
+
+    def turn_off_bg_compact(self):
+        self.session.compact(None, 'background=false')
+        compact_running = self.get_bg_compaction_running()
+        while compact_running:
+            time.sleep(1)
+            compact_running = self.get_bg_compaction_running()
+        self.assertEqual(compact_running, 0)
+
+    def turn_on_bg_compact(self, config):
+        self.session.compact(None, config)
+        compact_running = self.get_bg_compaction_running()
+        while not compact_running:
+            time.sleep(1)
+            compact_running = self.get_bg_compaction_running()
+        self.assertEqual(compact_running, 1)
     
     def test_background_compact_api(self):
         # We cannot trigger the background compaction on a specific API. Note that the URI is
@@ -59,14 +75,7 @@ class test_compact06(wttest.WiredTigerTestCase):
             '/can only exclude objects of type "table"/')
 
         # Enable the background compaction server.
-        self.session.compact(None, 'background=true')
-
-        # Wait for the background server to wake up.
-        compact_running = self.get_bg_compaction_running()
-        while not compact_running:
-            time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 1)
+        self.turn_on_bg_compact('background=true')
 
         # We cannot reconfigure the background server.
         for item in items:
@@ -75,7 +84,7 @@ class test_compact06(wttest.WiredTigerTestCase):
                 '/Cannot reconfigure background compaction while it\'s already running/')
 
         # Disable the background compaction server.
-        self.session.compact(None, 'background=false')
+        self.turn_off_bg_compact()
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
