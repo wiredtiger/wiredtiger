@@ -213,6 +213,10 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     if (compact_stat == NULL)
         return (true);
 
+    /* If we are running once, force compaction on the file. */
+    if (conn->background_compact.run_once)
+        return (true);
+
     /* Proceed with compaction when the file has not been compacted for some time. */
     cur_time = __wt_clock(session);
     if (WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >=
