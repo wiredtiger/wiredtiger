@@ -153,7 +153,6 @@ functions:
         ninja -j$(nproc --all) install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
-    type: setup
     params:
       working_dir: "wiredtiger"
       shell: bash
@@ -271,7 +270,6 @@ functions:
         ${python_binary|python3} ../test/evergreen/python_version_check.py -v -c ./CMakeCache.txt -s ${python_config_search_string}
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
-    type: setup
     params:
       working_dir: "wiredtiger"
       shell: bash
@@ -664,9 +662,9 @@ functions:
           threads_command="-j ${num_jobs}"
         fi
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_hook} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_hook} $threads_command 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} $threads_command 2>&1
         fi
 
   "code coverage analysis":
@@ -2186,6 +2184,24 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --hook tiered --hook timestamp --random-sample 20
+
+  - name: unit-test-hook-nonstandalone
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --hook nonstandalone
+  
+  - name: unit-test-hook-nonstandalone-extra-long
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --hook nonstandalone --extra-long
 
   # The test_prepare_hs03.py test, when run with timestamp hooks, is run multiple times to facilitate
   # catching intermittent problems in the test.
@@ -5839,7 +5855,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
-  display_name: "Ubuntu 20.04 Nonstandalone"
+  display_name: "Ubuntu 20.04 (Nonstandalone)"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -5847,22 +5863,20 @@ buildvariants:
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-    unit_test_hook: --hook nonstandalone
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: compile
     - name: make-check-test
-    - name: unit-test-extra-long
+    - name: unit-test-hook-nonstandalone-extra-long
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
   
-- name: ubuntu2004-nonstandalone-stress
-  display_name: "Ubuntu 20.04 Nonstandalone Stress tests"
+- name: ubuntu2004-stress-nonstandalone
+  display_name: "Ubuntu 20.04 Stress tests (Nonstandalone)"
   run_on:
-  - ubuntu2004-test
+  - ubuntu2004-small
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    # This isn't normally used in cppsuite
     additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -5877,16 +5891,15 @@ buildvariants:
     - name: ".cppsuite-stress-test"
       distros: ubuntu2004-medium
 
-- name: ubuntu2004-nonstandalone-release
-  display_name: "Ubuntu 20.04 Nonstandalone (Release Build)"
+- name: ubuntu2004-release-nonstandalone
+  display_name: "Ubuntu 20.04 (Nonstandalone, Release Build)"
   run_on:
   - ubuntu2004-small
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-    unit_test_hook: --hook nonstandalone
   tasks:
     - name: ".stress-test-1"
       distros: ubuntu2004-test
@@ -5896,12 +5909,10 @@ buildvariants:
       distros: ubuntu2004-test
     - name: compile
     - name: make-check-test
-    - name: unit-test
+    - name: unit-test-hook-nonstandalone
     
-# When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
-# fails to load and resolve its dependency.
-- name: ubuntu2004-nonstandalone-arm64
-  display_name: Ubuntu 20.04 Stress tests (ARM64, Nonstandalone)
+- name: ubuntu2004-arm64-nonstandalone
+  display_name: Ubuntu 20.04 (ARM64, Nonstandalone)
   run_on:
   - ubuntu2004-arm64-small
   expansions:
@@ -5909,29 +5920,33 @@ buildvariants:
     additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-    unit_test_hook: --hook nonstandalone
   tasks:
-    - name: ".stress-test-1"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-2"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-3"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-4"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-no-barrier"
-      distros: ubuntu2004-arm64-large
-    - name: format-abort-recovery-stress-test
-      distros: ubuntu2004-arm64-large
     - name: compile
     - name: make-check-test
-    - name: unit-test
-    - name: unit-test-extra-long
-      distros: ubuntu2004-arm64-large
-    - name: ".cppsuite-stress-test"
+    - name: unit-test-hook-nonstandalone
+    - name: unit-test-hook-nonstandalone-extra-long
       distros: ubuntu2004-arm64-large
 
-- name: ubuntu2004-nonstandalone-arm64-release
+- name: ubuntu2004-arm64-nonstandalone-stress
+  display_name: Ubuntu 20.04 Stress tests (ARM64, Nonstandalone)
+  run_on:
+  - ubuntu2004-arm64-large
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-3"
+    - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
+    - name: format-abort-recovery-stress-test
+    - name: ".cppsuite-stress-test"
+    - name: compile
+
+- name: ubuntu2004-arm64-release-nonstandalone
   display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build, Nonstandalone)
   run_on:
   - ubuntu2004-arm64-small
@@ -5940,7 +5955,6 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-    unit_test_hook: --hook nonstandalone
   tasks:
     - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
@@ -5950,8 +5964,8 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: compile
     - name: make-check-test
-    - name: unit-test
-    - name: unit-test-extra-long
+    - name: unit-test-hook-nonstandalone
+    - name: unit-test-hook-nonstandalone-extra-long
       distros: ubuntu2004-arm64-large
 
 - name: amazon2-arm64-nonstandalone
@@ -5964,10 +5978,9 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-    unit_test_hook: --hook nonstandalone
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test
-    - name: unit-test-extra-long
+    - name: unit-test-hook-nonstandalone
+    - name: unit-test-hook-nonstandalone-extra-long
       distros: amazon2-arm64-large
