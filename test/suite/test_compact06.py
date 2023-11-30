@@ -33,6 +33,8 @@ from wiredtiger import stat
 # test_compact06.py
 # Test background compaction API usage.
 class test_compact06(wttest.WiredTigerTestCase):
+    configuration_items = ['exclude=["table:a.wt"]', 'free_space_target=10MB', 'timeout=60']
+
     def get_bg_compaction_running(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
@@ -47,8 +49,7 @@ class test_compact06(wttest.WiredTigerTestCase):
             '/Background compaction does not work on specific URIs/')
             
         # We cannot set other configurations while turning off the background server.
-        items = ['exclude=["table:a.wt"]', 'free_space_target=10MB', 'timeout=60']
-        for item in items:
+        for item in self.configuration_items:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
                 self.session.compact(None, f'background=false,{item}'),
                 '/configuration cannot be set when disabling the background compaction server/')
@@ -69,7 +70,7 @@ class test_compact06(wttest.WiredTigerTestCase):
         self.assertEqual(compact_running, 1)
 
         # We cannot reconfigure the background server.
-        for item in items:
+        for item in self.configuration_items:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
                 self.session.compact(None, f'background=true,{item}'),
                 '/Cannot reconfigure background compaction while it\'s already running/')
