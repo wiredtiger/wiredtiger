@@ -1267,7 +1267,8 @@ err:
  *     Extracts the blkmod info in a checkpoint into a bitmap in a WT_ITEM.
  */
 static int
-__ckpt_extract_blkmod_bitmap(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *id, WT_ITEM *output_bitmap)
+__ckpt_extract_blkmod_bitmap(
+  WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *id, WT_ITEM *output_bitmap)
 {
     WT_BLOCK_MODS *blk;
     u_int i;
@@ -1433,9 +1434,8 @@ __wt_meta_ckptlist_set(
                     if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
                         continue;
 
-                    WT_ERR(
-                      __ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str,
-                        &checkpoint_blkmods_buffer));
+                    WT_ERR(__ckpt_extract_blkmod_bitmap(
+                      session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
 
                     WT_ERR(__get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
                     if (file_blkmods_buffer.size > 0 && checkpoint_blkmods_buffer.size > 0) {
