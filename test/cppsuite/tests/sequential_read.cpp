@@ -61,7 +61,7 @@ public:
                 size_t nret;
                 auto ret = c->next_raw_n(c, 100, &keys, &values, &nret);
                 if (ret != 0)
-                    return;
+                    break;
             }
         } else {
             while (true) {
@@ -69,12 +69,13 @@ public:
                 WT_ITEM value;
                 auto ret = c->next(c);
                 if (ret != 0)
-                    return;
+                    break;
                 c->get_key(c, &key);
                 c->get_value(c, &value);
             }
         }
 
+        tc->txn.rollback();
         return;
     }
 
