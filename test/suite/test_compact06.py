@@ -69,9 +69,10 @@ class test_compact06(wttest.WiredTigerTestCase):
         self.assertEqual(compact_running, 1)
 
         #   5. We cannot reconfigure the background server.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.compact(None, 'background=true,free_space_target=10MB'),
-            '/Cannot reconfigure background compaction while it\'s already running/')
+        for item in items:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, f'background=true,{item}'),
+                '/Cannot reconfigure background compaction while it\'s already running/')
 
         #   6. Disable the background compaction server.
         self.session.compact(None, 'background=false')
