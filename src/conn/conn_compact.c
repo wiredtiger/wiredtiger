@@ -706,7 +706,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (enable == running)
         goto err;
 
-    /* Update the background compaction settings when the server is turned on. */
+    /* Update the background compaction settings when the server is enabled. */
     if (enable) {
 
         /* The background compaction server can be configured to run once. */
