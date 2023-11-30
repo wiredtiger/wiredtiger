@@ -104,6 +104,10 @@ __recovery_cursor(
 }
 
 #if 0
+/*
+ * __dump_backup --
+ *     Print out the current state of the in-memory incremental backup structure.
+ */
 static int
 __dump_backup(WT_SESSION_IMPL *session, const char *msg)
 {
