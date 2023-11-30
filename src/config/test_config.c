@@ -229,8 +229,8 @@ static const uint8_t confchk_insert_config_subconfigs_jump[WT_CONFIG_JUMP_TABLE_
 static const WT_CONFIG_CHECK confchk_populate_config_subconfigs[] = {
   {"collection_count", "int", NULL, "min=0,max=200000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
     0, 200000, NULL},
-  {"key_count_per_collection", "int", NULL, "min=0,max=1000000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 0, 1000000, NULL},
+  {"key_count_per_collection", "int", NULL, "min=0,max=1000000000", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 0, 1000000000, NULL},
   {"key_size", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 1, INT64_MAX,
     NULL},
   {"thread_count", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, INT64_MIN,

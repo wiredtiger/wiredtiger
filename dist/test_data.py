@@ -69,7 +69,7 @@ populate_config = record_config + [
     Config('collection_count', 1, r'''
         The number of collections the workload generator operates over''', min=0, max=200000),
     Config('key_count_per_collection', 0, r'''
-        The number of keys to be operated on per collection''', min=0, max=1000000),
+        The number of keys to be operated on per collection''', min=0, max=1000000000),
     Config('thread_count', 1, r'''
         The number of worker threads to use while populating the database.''')
 ]
