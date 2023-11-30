@@ -43,7 +43,8 @@ TEST_CASE("CRC calculations: crc32c", "[crc32c]")
     REQUIRE(crc32c(lots_of_data.c_str(), lots_of_data.length()) == 0x47a00ee5);
 
     // Compute CRC in chunks
-    auto crc_val = crc32c(lots_of_data.c_str(), chunk.length());
+    uint32_t crc_val = 0;
+    crc_val = crc32c_with_seed(crc_val, lots_of_data.c_str(), chunk.length());
     for (int i = 0; i < 10; i++) {
         uint64_t size = chunk.length() * (uint64_t)pow(2, i);
         crc_val = crc32c_with_seed(crc_val, lots_of_data.c_str() + size, size);

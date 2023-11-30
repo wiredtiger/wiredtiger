@@ -2254,6 +2254,15 @@ tasks:
         vars:
           test_name: wt12015_backup_corruption
 
+  - name: csuite-wt2695-checksum-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt2695_checksum
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -5958,6 +5967,7 @@ buildvariants:
     - name: model-test
     - name: csuite-long-running
       batchtime: 1440 # once a day
+    - name: csuite-wt2695-checksum-test
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -6207,6 +6217,7 @@ buildvariants:
     - name: ".unit_test"
     - name: fops
     - name: catch2-unittest-test
+    - name: csuite-wt2695-checksum-test
 
 - <<: *mac_test_template
   name: macos-1100-arm64
@@ -6260,6 +6271,7 @@ buildvariants:
     - name: generate-datafile-big-endian
     - name: verify-datafile-big-endian
     - name: verify-datafile-from-little-endian
+    - name: csuite-wt2695-checksum-test
 
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
@@ -6282,6 +6294,7 @@ buildvariants:
     - name: format-wtperf-test
     - name: ".stress-test-ppc-1"
     - name: ".stress-test-ppc-2"
+    - name: csuite-wt2695-checksum-test
 
 - name: rhel8-zseries
   display_name: "~ RHEL8 zSeries"
@@ -6299,6 +6312,7 @@ buildvariants:
     - name: ".stress-test-zseries-1"
     - name: ".stress-test-zseries-2"
     - name: ".stress-test-zseries-3"
+    - name: csuite-wt2695-checksum-test
 
 - name: ubuntu2004-arm64
   display_name: "~ Ubuntu 20.04 ARM64"
@@ -6337,6 +6351,7 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-test
+    - name: csuite-wt2695-checksum-test
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
@@ -6369,6 +6384,7 @@ buildvariants:
     - name: unit-test-nonstandalone
     - name: unit-test-extra-long-nonstandalone
       distros: amazon2-arm64-large
+    - name: csuite-wt2695-checksum-test
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
