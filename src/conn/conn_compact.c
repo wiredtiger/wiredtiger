@@ -694,7 +694,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
     enable = cval.val;
 
-    /* Strip the unused fields from the configuration to check if the configuration has changed. */
+    /* Strip the toggle field from the configuration to check if the configuration has changed. */
     WT_ERR(__wt_config_merge(session, cfg, "background=", &stripped_config));
 
     /* The background compact configuration cannot be changed while it's already running. */

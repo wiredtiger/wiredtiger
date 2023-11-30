@@ -26,38 +26,44 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_TEST_UTIL_H
-#define MODEL_TEST_UTIL_H
+#include "model/kv_transaction_snapshot.h"
+#include "model/kv_update.h"
 
-#include <string>
+namespace model {
 
-extern "C" {
-#include "test_util.h"
+/*
+ * kv_transaction_snapshot_by_exclusion::contains --
+ *     Check whether the given update belongs to the snapshot.
+ */
+bool
+kv_transaction_snapshot_by_exclusion::contains(const kv_update &update) const noexcept
+{
+    if (update.txn_id() > _exclude_after)
+        return false;
+    return _exclude_ids.find(update.txn_id()) == _exclude_ids.end();
 }
 
 /*
- * model_testutil_assert_exception --
- *     Assert that the given exception is thrown.
+ * kv_transaction_snapshot_wt::contains --
+ *     Check whether the given update belongs to the snapshot.
  */
-#define model_testutil_assert_exception(call, exception)                                        \
-    try {                                                                                       \
-        call;                                                                                   \
-        testutil_die(0, #call " did not throw " #exception);                                    \
-    } catch (exception &) {                                                                     \
-    } catch (...) {                                                                             \
-        testutil_die(0, #call " did not throw " #exception "; it threw a different exception"); \
-    }
+bool
+kv_transaction_snapshot_wt::contains(const kv_update &update) const noexcept
+{
+    /* First, compare the base generation numbers to see if we are in the right restart cycle. */
+    write_gen_t update_write_gen = update.wt_base_write_gen();
+    if (update_write_gen < _write_gen)
+        return true;
+    if (update_write_gen > _write_gen)
+        return false;
 
-/*
- * create_tmp_file --
- *     Create an empty temporary file and return its name.
- */
-std::string create_tmp_file(const char *dir, const char *prefix, const char *suffix = nullptr);
+    /* ...because only then the transaction IDs are meaningful. */
+    txn_id_t txn_id = update.wt_txn_id();
+    if (txn_id >= _max_id) /* Max is exclusive. */
+        return false;
+    if (txn_id < _min_id)
+        return true;
+    return _include_ids.find(txn_id) != _include_ids.end();
+}
 
-/*
- * verify_using_debug_log --
- *     Verify the database using the debug log. Try both the regular and the JSON version.
- */
-void verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing = false);
-
-#endif
+} /* namespace model */
