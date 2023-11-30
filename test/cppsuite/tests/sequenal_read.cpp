@@ -32,14 +32,6 @@
 
 using namespace test_harness;
 
-/*
- * Here we want to age out entire pages, i.e. the stop time pair on a page should be globally
- * visible. To do so we'll update ranges of keys with increasing timestamps which will age out the
- * pre-existing data. It may not trigger a cleanup on the data file but should result in data
- * getting cleaned up from the history store.
- *
- * This is then tracked using the associated statistic which can be found in the metrics_monitor.
- */
 class sequential_read : public test {
 public:
     sequential_read(const test_args &args) : test(args)
