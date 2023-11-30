@@ -2,11 +2,13 @@ project(wiredtiger_model CXX)
 
 # Create a model library.
 add_library(wiredtiger_model SHARED
+    src/core/core.cpp
     src/core/data_value.cpp
     src/core/kv_database.cpp
     src/core/kv_table_item.cpp
     src/core/kv_table.cpp
     src/core/kv_transaction.cpp
+    src/core/kv_transaction_snapshot.cpp
     src/core/util.cpp
     src/core/verify.cpp
     src/driver/debug_log_parser.cpp
