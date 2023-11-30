@@ -35,6 +35,12 @@ from wiredtiger import stat
 class test_compact06(wttest.WiredTigerTestCase):
     configuration_items = ['exclude=["table:a.wt"]', 'free_space_target=10MB', 'timeout=60']
 
+    def get_bg_compaction_files_skipped(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        skipped = stat_cursor[stat.conn.background_compact_skipped][2]
+        stat_cursor.close()
+        return skipped
+
     def get_bg_compaction_running(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
@@ -81,12 +87,18 @@ class test_compact06(wttest.WiredTigerTestCase):
         # Disable the background compaction server.
         self.turn_off_bg_compact()
 
+        # The background compaction should have tried to compact the HS.
+        assert self.get_bg_compaction_files_skipped() == 0
+
         # Enable background and configure it to run once.
         self.session.compact(None, 'background=true,run_once=true')
 
         # Ensure background compaction stops by itself.
         while self.get_bg_compaction_running():
             time.sleep(1)
+
+        # When running once, background compaction should not skip files.
+        assert self.get_bg_compaction_files_skipped() == 0
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
