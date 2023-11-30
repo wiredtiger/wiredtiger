@@ -721,10 +721,6 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
             }
             WT_ERR_NOTFOUND_OK(ret, false);
         }
-
-        /* We can now strip the exclude list from the configuration as it is no longer relevant. */
-        __wt_free(session, stripped_config);
-        WT_ERR(__wt_config_merge(session, cfg, "background=,exclude=", &stripped_config));
     }
 
     /* The background compaction has been signalled successfully, update its state. */
