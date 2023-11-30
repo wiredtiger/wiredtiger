@@ -47,8 +47,8 @@ class test_compact06(wttest.WiredTigerTestCase):
             compact_running = self.get_bg_compaction_running()
         self.assertEqual(compact_running, 0)
 
-    def turn_on_bg_compact(self, config):
-        self.session.compact(None, config)
+    def turn_on_bg_compact(self, config=''):
+        self.session.compact(None, f'background=true,{config}')
         compact_running = self.get_bg_compaction_running()
         while not compact_running:
             time.sleep(1)
@@ -75,7 +75,7 @@ class test_compact06(wttest.WiredTigerTestCase):
             '/can only exclude objects of type "table"/')
 
         # Enable the background compaction server.
-        self.turn_on_bg_compact('background=true')
+        self.turn_on_bg_compact()
 
         # We cannot reconfigure the background server.
         for item in items:
@@ -85,6 +85,15 @@ class test_compact06(wttest.WiredTigerTestCase):
 
         # Disable the background compaction server.
         self.turn_off_bg_compact()
+
+        # Enable background and configure it to run once.
+        self.session.compact(None, 'background=true,run_once=true')
+
+        # Ensure background compaction stops by itself.
+        compact_running = self.get_bg_compaction_running()
+        while compact_running:
+            time.sleep(1)
+            compact_running = self.get_bg_compaction_running()
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
