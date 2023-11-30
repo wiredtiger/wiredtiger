@@ -43,19 +43,13 @@ class test_compact06(wttest.WiredTigerTestCase):
 
     def turn_off_bg_compact(self):
         self.session.compact(None, 'background=false')
-        compact_running = self.get_bg_compaction_running()
-        while compact_running:
+        while self.get_bg_compaction_running():
             time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 0)
 
     def turn_on_bg_compact(self, config=''):
         self.session.compact(None, f'background=true,{config}')
-        compact_running = self.get_bg_compaction_running()
-        while not compact_running:
+        while not self.get_bg_compaction_running():
             time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 1)
     
     def test_background_compact_api(self):
         # We cannot trigger the background compaction on a specific API. Note that the URI is
@@ -91,11 +85,8 @@ class test_compact06(wttest.WiredTigerTestCase):
         self.session.compact(None, 'background=true,run_once=true')
 
         # Ensure background compaction stops by itself.
-        compact_running = self.get_bg_compaction_running()
-        while compact_running:
+        while self.get_bg_compaction_running():
             time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 0)
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
