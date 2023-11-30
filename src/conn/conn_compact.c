@@ -698,7 +698,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (enable == running)
         goto err;
 
-    /* Update the excluded tables when the server is turned on. */
+    /* Update the excluded tables when the server is enabled. */
     if (enable) {
         __background_compact_exclude_list_clear(session, false);
         WT_ERR_NOTFOUND_OK(__wt_config_gets(session, cfg, "exclude", &cval), false);
