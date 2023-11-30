@@ -26,38 +26,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_TEST_UTIL_H
-#define MODEL_TEST_UTIL_H
-
-#include <string>
+#include "model/core.h"
 
 extern "C" {
-#include "test_util.h"
+#include "wt_internal.h"
 }
 
-/*
- * model_testutil_assert_exception --
- *     Assert that the given exception is thrown.
- */
-#define model_testutil_assert_exception(call, exception)                                        \
-    try {                                                                                       \
-        call;                                                                                   \
-        testutil_die(0, #call " did not throw " #exception);                                    \
-    } catch (exception &) {                                                                     \
-    } catch (...) {                                                                             \
-        testutil_die(0, #call " did not throw " #exception "; it threw a different exception"); \
-    }
+namespace model {
 
-/*
- * create_tmp_file --
- *     Create an empty temporary file and return its name.
- */
-std::string create_tmp_file(const char *dir, const char *prefix, const char *suffix = nullptr);
+/* Finish checking WiredTiger's constants. */
+static_assert(k_txn_max == WT_TXN_MAX);
 
-/*
- * verify_using_debug_log --
- *     Verify the database using the debug log. Try both the regular and the JSON version.
- */
-void verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing = false);
-
-#endif
+} /* namespace model */

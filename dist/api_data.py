@@ -739,6 +739,10 @@ connection_runtime_config = [
             decisions about what subsystems are throttled, and in what proportion, are made
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
+        Config('chunk_cache', '0', r'''
+            number of bytes per second available to the chunk cache. The minimum non-zero setting
+            is 1MB.''',
+            min='0', max='1TB'),
         ]),
     Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a
@@ -1105,6 +1109,9 @@ session_config = [
         configure debug specific behavior on a session. Generally only used for internal testing
         purposes.''',
         type='category', subconfig=[
+        Config('checkpoint_fail_before_turtle_update', 'false', r'''
+            Fail before writing a turtle file at the end of a checkpoint.''',
+            type='boolean'),
         Config('release_evict_page', 'false', r'''
             Configure the session to evict the page when it is released and no longer needed.''',
             type='boolean'),
