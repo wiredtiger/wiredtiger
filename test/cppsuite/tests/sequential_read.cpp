@@ -60,22 +60,26 @@ public:
                 WT_ITEM *values;
                 size_t nret;
                 auto ret = c->next_raw_n(c, 100, &keys, &values, &nret);
-                if (ret != 0)
+                if (ret == WT_NOTFOUND)
                     break;
+                testutil_assert(ret == 0);
             }
         } else {
             while (true) {
                 WT_ITEM key;
                 WT_ITEM value;
                 auto ret = c->next(c);
-                if (ret != 0)
+                if (ret == WT_NOTFOUND)
                     break;
+                testutil_assert(ret == 0);
                 c->get_key(c, &key);
                 c->get_value(c, &value);
             }
         }
 
         tc->txn.rollback();
+        logger::log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} completed.");
     }
 
 private:
