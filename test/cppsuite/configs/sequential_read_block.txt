@@ -1,5 +1,5 @@
 block_read=true,
-cache_size_mb=1024,
+cache_size_mb=2048,
 workload_manager=
 (
     populate_config=

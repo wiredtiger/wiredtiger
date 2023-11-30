@@ -1,4 +1,4 @@
-cache_size_mb=1024,
+cache_size_mb=2048,
 prefix_compression_enabled=true,
 workload_manager=
 (
