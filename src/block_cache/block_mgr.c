@@ -102,9 +102,7 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
     WT_DECL_RET;
     u_int i;
     int fsync_ret;
-    bool found;
-    bool last_release;
-    bool need_sweep;
+    bool found, last_release, need_sweep;
 
     need_sweep = false;
 
@@ -648,7 +646,7 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
     WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));
 
     /*
-     * The previous object must by synced to disk as part of the next checkpoint. Until that next
+     * The previous object must be synced to disk as part of the next checkpoint. Until that next
      * checkpoint completes, we may be writing into more than one block, and any sync at the block
      * manager level must take that until account.
      */
@@ -736,8 +734,8 @@ __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
     /*
      * This function may be called when the reader count for a block has been observed at zero. Grab
      * the lock and check again to see if we can remove any block from our list. If the count for a
-     * block was zero and is now not zero, because other readers got references in the meantime, the
-     * last of those readers will have another chance to free it.
+     * block is not zero, other readers have references at this time. The last of those readers will
+     * have another chance to free it.
      */
     __wt_writelock(session, &bm->handle_array_lock);
     for (i = 0; i < bm->handle_array_next; ++i) {
