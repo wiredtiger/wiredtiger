@@ -4,11 +4,11 @@ workload_manager=
 (
     populate_config=
     (
-        collection_count=100,
+        collection_count=1,
         key_count_per_collection=1000000,
-        thread_count=10,
-        key_size=10,
-        value_size=1000
+        thread_count=1,
+        key_size=100,
+        value_size=100
     ),
     read_config=
     (
