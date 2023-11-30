@@ -36,7 +36,7 @@ class sequential_read : public test {
 public:
     sequential_read(const test_args &args) : test(args)
     {
-        _block_read = _config->get_int("block_read");
+        _block_read = _config->get_bool("block_read");
         init_operation_tracker();
     }
 
