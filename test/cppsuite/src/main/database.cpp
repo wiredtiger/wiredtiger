@@ -126,11 +126,12 @@ database::set_operation_tracker(operation_tracker *op_tracker)
 
 void
 database::set_create_config(
-  bool use_compression, bool use_reverse_collator, bool prefix_compression)
+  bool use_compression, bool use_reverse_collator, bool prefix_compression_enabled)
 {
     _collection_create_config = DEFAULT_FRAMEWORK_SCHEMA;
     _collection_create_config += use_compression ? std::string(SNAPPY_BLK) + "," : "";
     _collection_create_config += use_reverse_collator ? std::string(REVERSE_COL_CFG) + "," : "";
-    _collection_create_config += prefix_compression ? std::string(PREFIX_COMPRESSION) + "," : "";
+    _collection_create_config +=
+      prefix_compression_enabled ? std::string(PREFIX_COMPRESSION) + "," : "";
 }
 } // namespace test_harness

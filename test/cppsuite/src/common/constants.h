@@ -65,6 +65,7 @@ extern const std::string OP_RATE;
 extern const std::string OPS_PER_TRANSACTION;
 extern const std::string POPULATE_CONFIG;
 extern const std::string POSTRUN_STATISTICS;
+extern const std::string PREFIX_COMPRESSION_ENABLED;
 extern const std::string READ_OP_CONFIG;
 extern const std::string REMOVE_OP_CONFIG;
 extern const std::string REVERSE_COLLATOR;
