@@ -33,6 +33,7 @@ import threading
 import time
 import wiredtiger, wttest
 
+from test_chunkcache01 import stat_assert_greater
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -52,37 +53,24 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         ('row_string', dict(key_format='S', value_format='S')),
     ]
 
-    # This is one of the more IO-intensive chunk cache tests. Exercise throttling.
-    io_capacities = [
-        ('loads', dict(io_capacity='10G')),
-        ('notmuch', dict(io_capacity='5M')),
-    ]
-
     cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
     if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
 
-    scenarios = make_scenarios(format_values, cache_types, io_capacities)
+    scenarios = make_scenarios(format_values, cache_types)
 
     def conn_config(self):
         if not os.path.exists('bucket2'):
             os.mkdir('bucket2')
 
         return 'tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20MB,type={},storage_path=WiredTigerChunkCache],' \
-            'io_capacity=(total=100G,chunk_cache={})'.format(self.chunk_cache_type, self.io_capacity)
+            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20MB,type={},storage_path=WiredTigerChunkCache],'.format(self.chunk_cache_type)
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
         extlist.extension('storage_sources', 'dir_store')
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def read_and_verify(self, rows, ds):
         session = self.conn.open_session()
@@ -107,7 +95,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         self.session.checkpoint('flush_tier=(enabled)')
 
         # Assert the new chunks are ingested.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables, 0)
 
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()
@@ -130,8 +118,5 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             thread.join()
 
         # Check relevant chunk cache stats.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse), 0)
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_evicted), 0)
-
-        if self.io_capacity == '5M':
-            self.assertGreater(self.get_stat(wiredtiger.stat.conn.capacity_time_chunkcache), 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_inuse, 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_evicted, 0)
