@@ -69,6 +69,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
 
     def get_stat(self, stat):
+        time.sleep(0.5) # Try to avoid race conditions.
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
         stat_cursor.close()
@@ -113,7 +114,6 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
             self.read_and_verify(uris[i], ds[i])
 
         # Assert pinned/unpinned stats.
-        time.sleep(0.5)
         total_chunks = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse)
         pinned_chunks = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_pinned)
         self.assertGreater(total_chunks, 0)

@@ -70,6 +70,7 @@ class test_chunkcache04(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
 
     def get_stat(self, stat):
+        time.sleep(0.5) # Try to avoid race conditions.
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
         stat_cursor.close()
@@ -100,7 +101,6 @@ class test_chunkcache04(wttest.WiredTigerTestCase):
         stat_assert_equal(self.session, wiredtiger.stat.conn.chunkcache_chunks_pinned, 0)
 
         # Assert the new chunks are ingested.
-        time.sleep(0.5)
         first_ingest = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables)
         self.assertGreater(first_ingest, 0)
 
@@ -116,7 +116,6 @@ class test_chunkcache04(wttest.WiredTigerTestCase):
         self.session.checkpoint('flush_tier=(enabled)')
 
         # Assert the new chunks are ingested.
-        time.sleep(0.5)
         second_ingest = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables)
         self.assertGreater(second_ingest, first_ingest)
 
@@ -135,7 +134,6 @@ class test_chunkcache04(wttest.WiredTigerTestCase):
         self.session.checkpoint('flush_tier=(enabled)')
 
         # Assert another set of ingests took place.
-        time.sleep(0.5)
         total_ingest = self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables)
         self.assertGreater(total_ingest, second_ingest)
 
