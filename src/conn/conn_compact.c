@@ -497,9 +497,11 @@ __background_compact_server(void *arg)
         running = conn->background_compact.running;
         if (conn->background_compact.signalled) {
             /* If configured to run once, start from the beginning. */
-            if (running && conn->background_compact.run_once)
+            if (conn->background_compact.run_once) {
+                WT_ASSERT(session, running);
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
+            }
             conn->background_compact.signalled = false;
             WT_STAT_CONN_SET(session, background_compact_running, running);
         }
