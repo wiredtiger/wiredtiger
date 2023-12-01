@@ -77,6 +77,13 @@ __btcur_bounds_search_near_reposition(
 
     if (key_out_of_bounds) {
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
+        /*
+         * The cursor search near operation will position the cursor with the perspective of chosen
+         * lower bound or upper bound. (The exact argument will also follow the same perspective).
+         * Fortunately at this point, we already know where the lower bound key or upper bound key
+         * will be relatively to the search key, and we can calculate the exact argument and fix it
+         * up once we return a record.
+         */
         *reposition_exactp = upper ? -1 : 1;
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_near_repositioned_cursor);
     }
@@ -980,7 +987,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     WT_SESSION_IMPL *session;
     int exact, bounds_reposition_exact;
     bool valid;
+#ifdef HAVE_DIAGNOSTIC
+    int diagnostic_exact;
 
+    diagnostic_exact = 0;
+#endif
     bounds_reposition_exact = 0;
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -1058,6 +1069,20 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         if (WT_CURSOR_BOUNDS_SET(cursor) && bounds_reposition_exact != 0)
             exact = bounds_reposition_exact;
 
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * Make sure that we have landed at the correct point with the repositioned bounded cursor
+         * key relative to the search key.
+         */
+        if (WT_CURSOR_BOUNDS_SET(cursor) && bounds_reposition_exact != 0) {
+            if (btree->type == BTREE_ROW)
+                WT_ERR(__wt_compare(
+                  session, btree->collator, &cursor->key, &state.key, &diagnostic_exact));
+            else
+                diagnostic_exact = cbt->recno < state.recno ? -1 : 1;
+        }
+        WT_ASSERT(session, diagnostic_exact == bounds_reposition_exact);
+#endif
     } else if (__cursor_fix_implicit(btree, cbt)) {
         cbt->recno = cursor->recno;
         cbt->v = 0;
