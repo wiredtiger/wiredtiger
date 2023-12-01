@@ -459,9 +459,17 @@ __background_compact_server(void *arg)
 
     for (;;) {
 
+        /* If the server is configured to run once, stop it after a full iteration. */
+        if (full_iteration && conn->background_compact.run_once) {
+            __wt_spin_lock(session, &conn->background_compact.lock);
+            conn->background_compact.running = false;
+            running = false;
+            WT_STAT_CONN_SET(session, background_compact_running, running);
+            __wt_spin_unlock(session, &conn->background_compact.lock);
+        }
+
         /* When the entire metadata file has been parsed, take a break or wait until signalled. */
         if (full_iteration || !running) {
-
             /*
              * In order to always try to parse all the candidates present in the metadata file even
              * though the compaction server may be stopped at random times, only set the URI to the
@@ -469,14 +477,6 @@ __background_compact_server(void *arg)
              * have been parsed.
              */
             if (uri->size == 0 || full_iteration) {
-                /* If the server was configured to run once, after a full iteration, we are done. */
-                if (full_iteration && conn->background_compact.run_once) {
-                    __wt_spin_lock(session, &conn->background_compact.lock);
-                    conn->background_compact.running = false;
-                    running = false;
-                    WT_STAT_CONN_SET(session, background_compact_running, running);
-                    __wt_spin_unlock(session, &conn->background_compact.lock);
-                }
                 full_iteration = false;
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
