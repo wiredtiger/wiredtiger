@@ -28,7 +28,7 @@ contain content from a single file (so the chunk containing the end of the
 file is still an entire chunk, even if only a single byte is needed for the
 file content).
 
-The chunk cache resides on-disk, and can generate a lot of IO so should be
+The chunk cache resides on-disk and can generate a lot of IO, so should be
 kept on a different disk to WiredTiger's home directory. The cache can reuse
 content between WiredTiger restarts, but the content can be invalidated by
 upgrading WiredTiger or salvaging the database.
@@ -81,12 +81,6 @@ run, a WiredTiger upgrade changes the metadata format, or when any of the
 chunk cache capacity, chunk size, or number of buckets is changed.
 
 @section troubleshooting Troubleshooting
-
-The chunk cache never contains the only copy of data. As such, it is always
-safe to delete both the chunk cache backing file, and the associated
-metadata in \c WiredTigerCC.wt. This will not result in data loss, but note
-that tiered storage performance will be significantly degraded until the
-cache is repopulated.
 
 It is possible for content in the chunk cache to become outdated.
 WiredTiger's in-built data validation can detect this, and retry a read
