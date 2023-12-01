@@ -1275,13 +1275,9 @@ __ckpt_extract_blkmod_bitmap(
 
     WT_CLEAR(*output_bitmap);
 
-    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
-        if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
-            continue;
-
-        if (strcmp(id, blk->id_str) == 0)
+    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
+        if (F_ISSET(blk, WT_BLOCK_MODS_VALID) && strcmp(id, blk->id_str) == 0)
             WT_RET(__wt_buf_set(session, output_bitmap, blk->bitstring.data, blk->bitstring.size));
-    }
 
     return (0);
 }
