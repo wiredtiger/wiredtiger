@@ -882,7 +882,7 @@ retry:
                  * access count would have been incremented on it when it was newly inserted to
                  * avoid eviction before the chunk is accessed. So we are giving two access counts
                  * to newly inserted chunks. Additionally, cap the access count to optimize the
-                 * eviction process. This capping helps in particularly focusing on evicting older
+                 * eviction process. This capping helps particularly in focusing on evicting older
                  * and potentially obsolete chunks, while retaining the more recently accessed ones.
                  */
                 if (chunk->access_count < WT_CHUNK_ACCESS_CAP_LIMIT)
