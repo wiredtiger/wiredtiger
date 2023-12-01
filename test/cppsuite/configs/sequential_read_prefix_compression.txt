@@ -5,7 +5,7 @@ workload_manager=
     populate_config=
     (
         collection_count=1,
-        key_count_per_collection=1000000000,
+        key_count_per_collection=10000000,
         thread_count=1,
         key_size=100,
         value_size=100
