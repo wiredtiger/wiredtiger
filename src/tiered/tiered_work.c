@@ -87,8 +87,7 @@ __tiered_push_work_internal(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
     __wt_spin_unlock(session, &conn->tiered_lock);
     __tiered_flush_state(session, entry->type, true);
-    if (conn->tiered_cond != NULL)
-        __wt_cond_signal(session, conn->tiered_cond);
+    __wt_cond_signal(session, conn->tiered_cond);
     return;
 }
 
@@ -186,8 +185,7 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
 
         __wt_spin_unlock(session, &conn->tiered_lock);
         if (found) {
-            if (conn->tiered_cond != NULL)
-                __wt_cond_signal(session, conn->tiered_cond);
+            __wt_cond_signal(session, conn->tiered_cond);
             __wt_sleep(0, 10 * WT_THOUSAND);
             __wt_epoch(session, &now);
         }

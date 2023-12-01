@@ -58,8 +58,7 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
         else {
-            if (conn->tiered_cond != NULL)
-                __wt_cond_signal(session, conn->tiered_cond);
+            __wt_cond_signal(session, conn->tiered_cond);
             __wt_cond_wait(session, conn->flush_cond, 200, NULL);
         }
     }

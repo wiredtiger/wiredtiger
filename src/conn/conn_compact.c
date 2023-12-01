@@ -729,8 +729,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     conn->background_compact.config = stripped_config;
     stripped_config = NULL;
     conn->background_compact.signalled = true;
-    if (conn->background_compact.cond != NULL)
-        __wt_cond_signal(session, conn->background_compact.cond);
+    __wt_cond_signal(session, conn->background_compact.cond);
 
 err:
     __wt_free(session, stripped_config);

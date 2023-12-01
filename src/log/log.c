@@ -163,8 +163,7 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
          * This may not be initialized if we are starting at an older log file version. So only
          * signal if valid.
          */
-        if (conn->log_wrlsn_cond != NULL)
-            __wt_cond_signal(session, conn->log_wrlsn_cond);
+        __wt_cond_signal(session, conn->log_wrlsn_cond);
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
         else
@@ -285,8 +284,7 @@ __log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, 
         WT_ASSIGN_LSN(&log->sync_lsn, min_lsn);
         WT_STAT_CONN_INCR(session, log_sync);
         WT_STAT_CONN_INCRV(session, log_sync_duration, fsync_duration_usecs);
-        if (log->log_sync_cond != NULL)
-            __wt_cond_signal(session, log->log_sync_cond);
+        __wt_cond_signal(session, log->log_sync_cond);
     }
 err:
     if (use_own_fh && log_fh != NULL)
@@ -363,8 +361,7 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
      * into a later log file and there should be a log file ready to close.
      */
     while (log->sync_lsn.l.file < min_lsn->l.file) {
-        if (S2C(session)->log_file_cond != NULL)
-            __wt_cond_signal(session, S2C(session)->log_file_cond);
+        __wt_cond_signal(session, S2C(session)->log_file_cond);
         __wt_cond_wait(session, log->log_sync_cond, 10 * WT_THOUSAND, NULL);
     }
     __wt_spin_lock(session, &log->log_sync_lock);
@@ -1162,8 +1159,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         __wt_log_wrlsn(session, NULL);
         if (++yield_cnt % WT_THOUSAND == 0) {
             __wt_spin_unlock(session, &log->log_slot_lock);
-            if (conn->log_file_cond != NULL)
-                __wt_cond_signal(session, conn->log_file_cond);
+            __wt_cond_signal(session, conn->log_file_cond);
             __wt_spin_lock(session, &log->log_slot_lock);
         }
         if (++yield_cnt > WT_THOUSAND * 10)
