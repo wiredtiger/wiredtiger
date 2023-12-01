@@ -163,7 +163,8 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
          * This may not be initialized if we are starting at an older log file version. So only
          * signal if valid.
          */
-        __wt_cond_signal(session, conn->log_wrlsn_cond);
+        if (conn->log_wrlsn_cond != NULL)
+            __wt_cond_signal(session, conn->log_wrlsn_cond);
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
         else
