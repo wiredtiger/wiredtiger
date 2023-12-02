@@ -39,6 +39,8 @@
 
 namespace model {
 
+class kv_table;
+
 /*
  * kv_table_item --
  *     The value part of a key-value pair, together with its metadata and previous versions.
@@ -155,6 +157,19 @@ public:
         if (!txn)
             throw model_exception("Null transaction");
         return get(txn->snapshot(), txn->id(), txn->read_timestamp());
+    }
+
+    /*
+     * kv_table_item::get_latest --
+     *     Get the corresponding value, but ignore the transaction's read timestamp. Return NONE if
+     *     not found. Throw an exception on error.
+     */
+    inline data_value
+    get_latest(kv_transaction_ptr txn) const
+    {
+        if (!txn)
+            throw model_exception("Null transaction");
+        return get(txn->snapshot(), txn->id(), k_timestamp_latest);
     }
 
     /*
