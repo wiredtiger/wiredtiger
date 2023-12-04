@@ -527,7 +527,10 @@ backup_delete_old_backups(int retain)
 
         __wt_qsort(indexes, (size_t)count, sizeof(*indexes), __int_comparator);
 #if 1
-        /* FIXME-WT-12074 Remove this ifdef once the race condition in that ticket is resolved. */
+        /*
+         * FIXME-WT-12074 Remove this short circuit and restore the loop once the race condition in
+         * the ticket is resolved.
+         */
         WT_UNUSED(buf);
         done = true;
 #else
