@@ -100,7 +100,6 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_BLOCK *block;
     WT_DECL_RET;
-    u_int i;
     int fsync_ret;
     bool found, last_release, need_sweep;
 
@@ -121,13 +120,11 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
         found = false;
         block = NULL;
         __wt_readlock(session, &bm->handle_array_lock);
-        for (i = 0; i < bm->handle_array_next; ++i) {
-            block = bm->handle_array[i];
+        TAILQ_FOREACH (block, &bm->tiered_block_qh, tieredq)
             if (block->sync_on_checkpoint) {
                 found = true;
                 break;
             }
-        }
         if (found)
             __wt_blkcache_get_read_handle(block);
         __wt_readunlock(session, &bm->handle_array_lock);
@@ -300,8 +297,8 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
 {
+    WT_BLOCK *block, *tblock;
     WT_DECL_RET;
-    u_int i;
 
     if (bm == NULL) /* Safety check */
         return (0);
@@ -315,11 +312,10 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
          *
          * We don't need to explicitly close the active handle; it is also in the handle array.
          */
-        for (i = 0; i < bm->handle_array_next; ++i)
-            WT_TRET(__wt_bm_close_block(session, bm->handle_array[i]));
+        TAILQ_FOREACH_SAFE(block, &bm->tiered_block_qh, tieredq, tblock)
+        WT_TRET(__wt_bm_close_block(session, block));
 
         __wt_rwlock_destroy(session, &bm->handle_array_lock);
-        __wt_free(session, bm->handle_array);
     }
 
     __wt_overwrite_and_free(session, bm);
@@ -724,10 +720,8 @@ __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool do_block)
 int
 __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
 {
-    WT_BLOCK *block;
+    WT_BLOCK *block, *tblock;
     WT_DECL_RET;
-    size_t nbytes;
-    u_int i;
 
     WT_ASSERT(session, bm->is_multi_handle);
 
@@ -738,23 +732,15 @@ __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
      * have another chance to free it.
      */
     __wt_writelock(session, &bm->handle_array_lock);
-    for (i = 0; i < bm->handle_array_next; ++i) {
-        block = bm->handle_array[i];
-        if (block->read_count == 0 && __wt_block_eligible_for_sweep(bm, block)) {
-            /* We cannot close the active handle. */
-            WT_ASSERT(session, block != bm->block);
-            WT_TRET(__wt_bm_close_block(session, block));
 
-            /*
-             * To fill the hole just created, shift the rest of the array down. Adjust the loop
-             * index so we'll continue just where we left off.
-             */
-            nbytes = (bm->handle_array_next - i - 1) * sizeof(bm->handle_array[0]);
-            memmove(&bm->handle_array[i], &bm->handle_array[i + 1], nbytes);
-            --bm->handle_array_next;
-            --i;
-        }
+    TAILQ_FOREACH_SAFE(block, &bm->tiered_block_qh, tieredq, tblock)
+    if (block->read_count == 0 && __wt_block_eligible_for_sweep(bm, block)) {
+        /* We cannot close the active handle. */
+        WT_ASSERT(session, block != bm->block);
+        TAILQ_REMOVE(&bm->tiered_block_qh, block, tieredq);
+        WT_TRET(__wt_bm_close_block(session, block));
     }
+
     __wt_writeunlock(session, &bm->handle_array_lock);
 
     return (ret);
@@ -948,13 +934,9 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
         bm->is_multi_handle = true;
         WT_ERR(__wt_rwlock_init(session, &bm->handle_array_lock));
 
-        /* Allocate space to store the handle (do first for simpler cleanup). */
-        WT_ERR(__wt_realloc_def(
-          session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
-
-        /* Open the active file, and save in array */
+        /* Open the active file, and save in list */
         WT_ERR(__wt_blkcache_tiered_open(session, uri, 0, &bm->block));
-        bm->handle_array[bm->handle_array_next++] = bm->block;
+        TAILQ_INSERT_HEAD(&bm->tiered_block_qh, bm->block, tieredq);
     }
 
     *bmp = bm;
