@@ -335,14 +335,6 @@ __block_off_remove(
     WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
     u_int i;
 
-    /* Find and remove the record from the by-offset skiplist. */
-    __block_off_srch(el->off, off, astack, false);
-    ext = *astack[0];
-    if (ext == NULL || ext->off != off)
-        goto corrupt;
-    for (i = 0; i < ext->depth; ++i)
-        *astack[i] = ext->next[i];
-
     /*
      * Find and remove the record from the size's offset skiplist; if that empties the by-size
      * skiplist entry, remove it as well.
@@ -373,6 +365,14 @@ __block_off_remove(
         WT_ASSERT(session, not_null == false);
     }
 #endif
+
+    /* Find and remove the record from the by-offset skiplist. */
+    __block_off_srch(el->off, off, astack, false);
+    ext = *astack[0];
+    if (ext == NULL || ext->off != off)
+        goto corrupt;
+    for (i = 0; i < ext->depth; ++i)
+        *astack[i] = ext->next[i];
 
     --el->entries;
     el->bytes -= (uint64_t)ext->size;
