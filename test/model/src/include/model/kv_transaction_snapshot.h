@@ -100,8 +100,8 @@ public:
      * kv_transaction_snapshot_wt::kv_transaction_snapshot_wt --
      *     Create a new instance of the snapshot.
      */
-    inline kv_transaction_snapshot_wt(int seq_number, write_gen_t write_gen, txn_id_t snapshot_min,
-      txn_id_t snapshot_max, const std::vector<uint64_t> &snapshots)
+    inline kv_transaction_snapshot_wt(uint64_t seq_number, write_gen_t write_gen,
+      txn_id_t snapshot_min, txn_id_t snapshot_max, const std::vector<uint64_t> &snapshots)
         : _seq_number(seq_number), _min_id(snapshot_min), _max_id(snapshot_max),
           _write_gen(write_gen)
     {
@@ -116,7 +116,7 @@ public:
     virtual bool contains(const kv_update &update) const noexcept override;
 
 private:
-    int _seq_number;
+    uint64_t _seq_number;
     txn_id_t _min_id, _max_id;
     write_gen_t _write_gen;
 

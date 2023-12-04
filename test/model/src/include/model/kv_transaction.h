@@ -231,7 +231,7 @@ public:
      *     This can be done only before the first update is added to the transaction.
      */
     inline void
-    set_wt_metadata(txn_id_t wt_id, write_gen_t wt_base_write_gen, int wt_ckpt_seq_number)
+    set_wt_metadata(txn_id_t wt_id, write_gen_t wt_base_write_gen, uint64_t wt_ckpt_seq_number)
     {
         std::lock_guard lock_guard(_lock);
         if (!_updates.empty())
@@ -265,7 +265,7 @@ public:
      * kv_transaction::wt_ckpt_seq_number --
      *     Get the WiredTiger checkpoint's sequence number, if available.
      */
-    inline int
+    inline uint64_t
     wt_ckpt_seq_number() const
     {
         return _wt_ckpt_seq_number;
@@ -299,7 +299,7 @@ private:
     /* Transaction information for updates imported from WiredTiger's debug log. */
     txn_id_t _wt_id;
     write_gen_t _wt_base_write_gen;
-    int _wt_ckpt_seq_number;
+    uint64_t _wt_ckpt_seq_number;
 };
 
 /*

@@ -39,8 +39,6 @@
 
 namespace model {
 
-class kv_table;
-
 /*
  * kv_table_item --
  *     The value part of a key-value pair, together with its metadata and previous versions.

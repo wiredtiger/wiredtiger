@@ -338,7 +338,7 @@ public:
      */
     inline void
     set_wt_transaction_metadata(
-      txn_id_t wt_txn_id, write_gen_t wt_base_write_gen, int wt_ckpt_seq_number)
+      txn_id_t wt_txn_id, write_gen_t wt_base_write_gen, uint64_t wt_ckpt_seq_number)
     {
         _wt_txn_id = wt_txn_id;
         _wt_base_write_gen = wt_base_write_gen;
@@ -369,7 +369,7 @@ public:
      * kv_update::wt_ckpt_seq_number --
      *     Get the checkpoint's sequence number, if available.
      */
-    inline int
+    inline uint64_t
     wt_ckpt_seq_number() const
     {
         return _wt_ckpt_seq_number;
@@ -393,7 +393,7 @@ private:
     /* Transaction information for updates imported from WiredTiger's debug log. */
     txn_id_t _wt_txn_id;
     write_gen_t _wt_base_write_gen;
-    int _wt_ckpt_seq_number;
+    uint64_t _wt_ckpt_seq_number;
 };
 
 } /* namespace model */

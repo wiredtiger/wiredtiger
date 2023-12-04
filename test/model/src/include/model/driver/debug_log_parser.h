@@ -187,7 +187,7 @@ private:
     write_gen_t _base_write_gen;
 
     /* The number of checkpoints so far. */
-    int _ckpt_count;
+    uint64_t _ckpt_count;
 
     /* Place for accumulating checkpoint metadata: TXN ID -> checkpoint name -> config map. */
     std::unordered_map<txn_id_t, std::unordered_map<std::string, std::shared_ptr<config_map>>>

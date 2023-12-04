@@ -103,7 +103,7 @@ kv_transaction::commit(timestamp_t commit_timestamp, timestamp_t durable_timesta
     _durable_timestamp = durable_timestamp;
 
     /* Fix commit timestamps. */
-    for (auto &u : _nontimestamped_updates)
+    for (const auto &u : _nontimestamped_updates)
         _database.table(u->table_name())
           ->fix_timestamps(u->key(), _id, commit_timestamp, durable_timestamp);
 
@@ -137,7 +137,7 @@ kv_transaction::prepare(timestamp_t prepare_timestamp)
         throw model_exception("The transaction must be in progress");
 
     /* Ensure that the transaction does not include updates to non-timestamped tables. */
-    for (auto &u : _updates)
+    for (const auto &u : _updates)
         if (!_database.table(u->table_name())->timestamped())
             throw wiredtiger_exception(
               "Transaction prepare is not supported on logged tables or tables without timestamps",

@@ -102,7 +102,7 @@ test_checkpoint(void)
     testutil_check(table->insert(txn1, key2, value2));
     txn1->commit(20);
 
-    /* Create a named and an unnamed checkpoint. */
+    /* Create a named checkpoint. */
     model::kv_checkpoint_ptr ckpt1 = database.create_checkpoint("ckpt1");
 
     /* Set the stable timestamp and create an unnamed checkpoint. */
@@ -519,7 +519,7 @@ test_checkpoint_logged(void)
     testutil_check(table->insert(txn1, key2, value2));
     txn1->commit(20);
 
-    /* Create a named and an unnamed checkpoint. */
+    /* Create a named checkpoint. */
     model::kv_checkpoint_ptr ckpt1 = database.create_checkpoint("ckpt1");
 
     /* Set the stable timestamp and create an unnamed checkpoint. */
