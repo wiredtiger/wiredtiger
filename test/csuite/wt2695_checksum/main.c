@@ -116,6 +116,7 @@ main(int argc, char *argv[])
     cumulative_hw = cumulative_checksum(hw_checksum_seed_fn, 1, data, len);
     check(cumulative_hw, (uint32_t)0xf16177d2, len, "(cumulative calculation) nul x2: hardware");
 #if !defined(__s390x__)
+    /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
     cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, 1, data, len);
     check(cumulative_sw, (uint32_t)0xf16177d2, len, "(cumulative calculation) nul x2: software");
 #endif
@@ -133,6 +134,7 @@ main(int argc, char *argv[])
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
 #if !defined(__s390x__)
+        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
         check(
           cumulative_sw, (uint32_t)0x6064a37a, len, "(cumulative calculation) nul x3: software");
 #endif
@@ -151,6 +153,7 @@ main(int argc, char *argv[])
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
 #if !defined(__s390x__)
+        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
         check(
           cumulative_sw, (uint32_t)0x48674bc7, len, "(cumulative calculation) nul x4: software");
 #endif
@@ -199,6 +202,7 @@ main(int argc, char *argv[])
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data_ff, len);
 #if !defined(__s390x__)
+        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
         check(
           cumulative_sw, (uint32_t)0xe80f2564, len, "(cumulative calculation) 0xff x9: software");
 #endif
@@ -218,6 +222,7 @@ main(int argc, char *argv[])
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
 #if !defined(__s390x__)
+        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
         check(cumulative_sw, (uint32_t)0xe3069283, len,
           "(cumulative calculation) known string #1: software");
 #endif
@@ -237,6 +242,7 @@ main(int argc, char *argv[])
     for (chunk_len = 1; chunk_len < len; chunk_len++) {
         cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
 #if !defined(__s390x__)
+        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
         check(cumulative_sw, (uint32_t)0x22620404, len,
           "(cumulative calculation) known string #2: software");
 #endif
@@ -258,6 +264,7 @@ main(int argc, char *argv[])
         cumulative_sw =
           cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data + 1, len - 1);
 #if !defined(__s390x__)
+        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
         check(cumulative_sw, (uint32_t)0xae11f7f5, len,
           "(cumulative calculation) known string #2: software");
 #endif
@@ -280,6 +287,7 @@ main(int argc, char *argv[])
             cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
             check(cumulative_hw, hw, len, "(cumulative calculation) random power-of-two: hardware");
 #if !defined(__s390x__)
+            /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
             check(cumulative_sw, sw, len, "(cumulative calculation) random power-of-two: software");
 #endif
         }
@@ -307,6 +315,7 @@ main(int argc, char *argv[])
             cumulative_sw = cumulative_checksum(__wt_checksum_with_seed_sw, chunk_len, data, len);
             check(cumulative_hw, hw, len, "(cumulative calculation) random: hardware");
 #if !defined(__s390x__)
+            /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
             check(cumulative_sw, sw, len, "(cumulative calculation) random: software");
 #endif
         }

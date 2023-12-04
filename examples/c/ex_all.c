@@ -1375,7 +1375,7 @@ main(int argc, char *argv[])
 
     {
         size_t chunk1, chunk2, chunk3;
-        /*! [Checksum a large buffer in chunks] */
+        /*! [Checksum a large buffer in smaller pieces] */
         uint32_t crc32c, (*func_with_seed)(uint32_t, const void *, size_t);
         const char *buffer = "some other larger string";
 
@@ -1387,7 +1387,7 @@ main(int argc, char *argv[])
         crc32c = func_with_seed(crc32c, buffer, chunk1);
         crc32c = func_with_seed(crc32c, buffer + chunk1, chunk2);
         crc32c = func_with_seed(crc32c, buffer + chunk1 + chunk2, chunk3);
-        /*! [Checksum a large buffer in chunks] */
+        /*! [Checksum a large buffer in smaller pieces] */
         (void)crc32c;
     }
 
