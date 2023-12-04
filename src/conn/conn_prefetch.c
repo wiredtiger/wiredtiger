@@ -108,7 +108,15 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         __wt_spin_unlock(session, &conn->prefetch_lock);
         locked = false;
 
-        WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
+        /*
+         * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted
+         * block, stop using prefetch. Some of the guarantees about ref and page freeing are
+         * ignored in that case, which can invalidate entries on the prefetch queue.
+         * Don't prefetch fast deleted pages - they have special performance and visibility
+         * considerations associated with them.
+         */
+        if (!F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION) && pe->ref->page_del != NULL)
+            WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
         /*
          * It probably isn't strictly necessary to re-acquire the lock to reset the flag, but other
          * flag accesses do need to lock, so it's better to be consistent.
