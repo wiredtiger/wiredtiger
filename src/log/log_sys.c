@@ -19,6 +19,7 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(logrec);
     WT_DECL_RET;
+    WT_LOG *log;
     size_t recsize;
     uint32_t i, rectype;
     char nul;
@@ -26,9 +27,15 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     nul = '\0';
-    /* If we're not logging or incremental backup isn't turned on, we're done. */
+    /*
+     * If we're not logging or incremental backup isn't turned on or this version doesn't support
+     * the system log record, we're done.
+     */
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
       !FLD_ISSET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP))
+        return (0);
+    log = conn->log;
+    if (log->log_version < WT_LOG_VERSION_SYSTEM)
         return (0);
 
     /*

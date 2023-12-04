@@ -103,10 +103,6 @@ __logmgr_get_log_version(WT_VERSION version)
         return (3);
     else if (__wt_version_lt(version, WT_LOG_V5_VERSION))
         return (4);
-#if 0
-    else if (__wt_version_lt(version, WT_LOG_V6_VERSION))
-        return (5);
-#endif
     else
         return (WT_LOG_VERSION);
 }
