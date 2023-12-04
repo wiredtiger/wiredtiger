@@ -41,6 +41,7 @@ class test_config04(wttest.WiredTigerTestCase):
     M = K * K
     G = K * M
     T = K * G
+
     # Each test needs to set up its connection in its own way,
     # so override these methods to do nothing
     def setUpConnectionOpen(self, dir):
