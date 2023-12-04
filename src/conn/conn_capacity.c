@@ -126,7 +126,8 @@ __capacity_server(void *arg)
             if (cap->written < cap->threshold)
                 continue;
         } else {
-            if (now - last_time < cap->fsync_backgroud_period && cap->written < cap->threshold)
+            if (WT_CLOCKDIFF_SEC(now, last_time) < cap->fsync_backgroud_period &&
+              cap->written < cap->threshold)
                 continue;
         }
 

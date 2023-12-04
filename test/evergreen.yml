@@ -3806,6 +3806,7 @@ tasks:
             ${python_binary|python3} ../test/suite/run.py test_home 2>&1
             ${python_binary|python3} ../test/suite/run.py test_hs06 2>&1
             ${python_binary|python3} ../test/suite/run.py test_huffman01 2>&1
+            ${python_binary|python3} ../test/suite/run.py test_io_catacity01 2>&1
             ${python_binary|python3} ../test/suite/run.py test_import08 2>&1
             ${python_binary|python3} ../test/suite/run.py test_index02 2>&1
             ${python_binary|python3} ../test/suite/run.py test_inmem02 2>&1
