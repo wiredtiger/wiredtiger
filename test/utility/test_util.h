@@ -269,6 +269,38 @@ typedef struct {
     testutil_check(__wt_snprintf_len_set(out, size, retsizep, __VA_ARGS__))
 
 /*
+ * Quiet compiler warnings about unused function parameters and variables, and unused function
+ * return values. The equivalent of WT_ macros.
+ */
+#define testutil_unused(var) (void)(var)
+#define testutil_not_read(v, val) \
+    do {                          \
+        (v) = (val);              \
+        (void)(v);                \
+    } while (0);
+#define testutil_ignore_ret(call)          \
+    do {                                   \
+        uintmax_t __ignored_ret;           \
+        __ignored_ret = (uintmax_t)(call); \
+        testutil_unused(__ignored_ret);    \
+    } while (0)
+#define testutil_ignore_ret_bool(call)  \
+    do {                                \
+        bool __ignored_ret;             \
+        __ignored_ret = (call);         \
+        testutil_unused(__ignored_ret); \
+    } while (0)
+#define testutil_ignore_ret_ptr(call)   \
+    do {                                \
+        const void *__ignored_ret;      \
+        __ignored_ret = (call);         \
+        testutil_unused(__ignored_ret); \
+    } while (0)
+
+/* Basic constants. */
+#define testutil_billion (1000000000)
+
+/*
  * WT_OP_CHECKPOINT_WAIT --
  *	If an operation returns EBUSY checkpoint and retry.
  */
@@ -471,6 +503,12 @@ void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
 bool testutil_is_dir_store(TEST_OPTS *);
+void testutil_backup_create_full(
+  WT_CONNECTION *, const char *, const char *, const char *, bool, uint32_t, int *);
+void testutil_backup_create_incremental(WT_CONNECTION *, const char *, const char *, const char *,
+  const char *, const char *, bool, int *, int *, int *);
+void testutil_backup_force_stop(WT_SESSION *);
+void testutil_backup_force_stop_conn(WT_CONNECTION *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_clean_test_artifacts(const char *);
 void testutil_cleanup(TEST_OPTS *);

@@ -26,14 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sys, platform
+import os, sys, time
 import wiredtiger, wttest
 
+from test_chunkcache01 import stat_assert_greater
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 '''
-- Evaluate chunkcache performance both in-memory and on-disk, to test the functionality of pinned chunks.
+- Evaluate chunk cache performance both in-memory and on-disk, to test the functionality of pinned chunks.
 - Verify the functionality of reconfiguring pinned configurations.
 '''
 class test_chunkcache03(wttest.WiredTigerTestCase):
@@ -68,6 +69,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
 
     def get_stat(self, stat):
+        time.sleep(0.5) # Try to avoid race conditions.
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
         stat_cursor.close()
@@ -86,14 +88,10 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_value(), str(i) * 100)
 
     def test_chunkcache03(self):
-
-        if platform.system() == 'Darwin':
-            self.skipTest("FIXME-WT-11865 - Uninitialised lock on macos")
-
         uris = self.pinned_uris + ["table:chunkcache03", "table:chunkcache04"]
         ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in uris]
 
-        # Insert data in four tables.
+        # Insert data into four tables.
         for i, dataset in enumerate(ds):
             dataset.populate()
             self.insert(uris[i], dataset)
@@ -101,15 +99,15 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
-        # Assert the new chunks are ingested. 
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
+        # Assert the new chunks are ingested.
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables, 0)
 
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()
 
         # Ensure chunks are read from metadata in type=FILE case.
         if self.chunk_cache_type == "FILE":
-            self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
+            stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_created_from_metadata, 0)
 
         # For the type=DRAM case read manually to cache the chunks.
         for i in range(0, 4):

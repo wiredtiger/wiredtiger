@@ -26,17 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sys, platform
+import os
 import random
+import sys
 import threading
 import time
 import wiredtiger, wttest
 
+from test_chunkcache01 import stat_assert_greater
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 '''
-Testing chunkcache in-memory and on-disk.
+Testing chunk cache in-memory and on-disk.
 
 Create a multithreaded environment to allow for the allocation and deallocation of bits
 in the bitmap (for the on-disk case) and chunks.
@@ -70,12 +72,6 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('storage_sources', 'dir_store')
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def read_and_verify(self, rows, ds):
         session = self.conn.open_session()
         cursor = session.open_cursor(self.uri)
@@ -86,10 +82,6 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_value(), str(key) * self.rows)
 
     def test_chunkcache02(self):
-
-        if platform.system() == 'Darwin':
-            self.skipTest("FIXME-WT-11865 - Uninitialised lock on macos")
-
         ds = SimpleDataSet(
             self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
@@ -102,8 +94,8 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
 
-        # Assert the new chunks are ingested. 
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
+        # Assert the new chunks are ingested.
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables, 0)
 
         # Reopen wiredtiger to migrate all data to disk.
         self.reopen_conn()
@@ -125,6 +117,6 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         for thread in threads:
             thread.join()
 
-        # Check relevant chunkcache stats.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_inuse), 0)
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_evicted), 0)
+        # Check relevant chunk cache stats.
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_inuse, 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_evicted, 0)

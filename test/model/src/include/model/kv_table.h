@@ -68,6 +68,56 @@ public:
     }
 
     /*
+     * kv_table::set_key_value_format --
+     *     Set the key and value format of the table. This is not actually used by the model itself,
+     *     but it is useful when interacting with WiredTiger.
+     */
+    inline void
+    set_key_value_format(const char *key_format, const char *value_format) noexcept
+    {
+        _key_format = key_format;
+        _value_format = value_format;
+    }
+
+    /*
+     * kv_table::set_key_value_format --
+     *     Set the key and value format of the table. This is not actually used by the model itself,
+     *     but it is useful when interacting with WiredTiger.
+     */
+    inline void
+    set_key_value_format(const std::string &key_format, const std::string &value_format) noexcept
+    {
+        _key_format = key_format;
+        _value_format = value_format;
+    }
+
+    /*
+     * kv_table::key_format --
+     *     Return the key format of the table. This is returned as a C pointer, which has lifetime
+     *     that ends when the key format changes, or when this object is destroyed.
+     */
+    inline const char *
+    key_format() const
+    {
+        if (_key_format.empty())
+            throw model_exception("The key format was not set");
+        return _key_format.c_str();
+    }
+
+    /*
+     * kv_table::value_format --
+     *     Return the value format of the table. This is returned as a C pointer, which has lifetime
+     *     that ends when the key format changes, or when this object is destroyed.
+     */
+    inline const char *
+    value_format() const
+    {
+        if (_value_format.empty())
+            throw model_exception("The value format was not set");
+        return _value_format.c_str();
+    }
+
+    /*
      * kv_table::contains_any --
      *     Check whether the table contains the given key-value pair. If there are multiple values
      *     associated with the given timestamp, return true if any of them match.
@@ -76,11 +126,26 @@ public:
       timestamp_t timestamp = k_timestamp_latest) const;
 
     /*
+     * kv_table::contains_any --
+     *     Check whether the table contains the given key-value pair. If there are multiple values
+     *     associated with the given timestamp, return true if any of them match.
+     */
+    bool contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data_value &value) const;
+
+    /*
      * kv_table::get --
      *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
      *     exception on error.
      */
     data_value get(const data_value &key, timestamp_t timestamp = k_timestamp_latest) const;
+
+    /*
+     * kv_table::get --
+     *     Get the value. Return a copy of the value if is found, or NONE if not found. Throw an
+     *     exception on error.
+     */
+    data_value get(kv_checkpoint_ptr ckpt, const data_value &key,
+      timestamp_t timestamp = k_timestamp_latest) const;
 
     /*
      * kv_table::get --
@@ -95,6 +160,13 @@ public:
      */
     int get_ext(
       const data_value &key, data_value &out, timestamp_t timestamp = k_timestamp_latest) const;
+
+    /*
+     * kv_table::get_ext --
+     *     Get the value and return the error code instead of throwing an exception.
+     */
+    int get_ext(kv_checkpoint_ptr ckpt, const data_value &key, data_value &out,
+      timestamp_t timestamp = k_timestamp_latest) const;
 
     /*
      * kv_table::get_ext --
@@ -158,24 +230,38 @@ public:
       bool overwrite = true);
 
     /*
+     * kv_table::clear --
+     *     Clear the contents of the table.
+     */
+    void clear();
+
+    /*
+     * kv_table::rollback_to_stable --
+     *     Roll back the database table to the latest stable timestamp and transaction snapshot.
+     */
+    void rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot_ptr snapshot);
+
+    /*
      * kv_table::verify --
      *     Verify the table by comparing a WiredTiger table against the model. Throw an exception on
-     *     verification error.
+     *     verification error. If the checkpoint is specified, verify just that checkpoint.
      */
     inline void
-    verify(WT_CONNECTION *connection)
+    verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr))
     {
-        kv_table_verifier(*this).verify(connection);
+        kv_table_verifier(*this).verify(connection, ckpt);
     }
 
     /*
      * kv_table::verify_noexcept --
-     *     Verify the table by comparing a WiredTiger table against the model.
+     *     Verify the table by comparing a WiredTiger table against the model. If the checkpoint is
+     *     specified, verify just that checkpoint.
      */
     inline bool
-    verify_noexcept(WT_CONNECTION *connection) noexcept
+    verify_noexcept(
+      WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr)) noexcept
     {
-        return kv_table_verifier(*this).verify_noexcept(connection);
+        return kv_table_verifier(*this).verify_noexcept(connection, ckpt);
     }
 
     /*
@@ -226,6 +312,11 @@ protected:
     }
 
 private:
+    std::string _name;
+
+    std::string _key_format;
+    std::string _value_format;
+
     /*
      * This data structure is designed so that the global lock is only necessary for the map
      * operations; it is okay to release the lock while the caller is still operating on the data
@@ -235,7 +326,6 @@ private:
      */
     std::map<data_value, kv_table_item> _data;
     mutable std::mutex _lock;
-    std::string _name;
 };
 
 /*

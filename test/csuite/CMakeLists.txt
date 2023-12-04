@@ -11,6 +11,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt10461_skip_list_stress/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt10461_skip_list_stress>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -100,6 +101,17 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
     ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
+)
+
+define_c_test(
+    TARGET test_timestamp_abort_stress
+    SOURCES timestamp_abort/main.c
+    DIR_NAME timestamp_abort
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
+    ARGUMENTS -s -b $<TARGET_FILE:test_timestamp_abort>_stress
+    DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -134,7 +146,6 @@ define_c_test(
     DIR_NAME wt2403_lsm_workload
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2403_lsm_workload>/WT_HOME>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -150,7 +161,6 @@ define_c_test(
     DIR_NAME wt2323_join_visibility
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2323_join_visibility>/WT_HOME>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -160,7 +170,6 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2535_insert_race/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt2535_insert_race>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -199,7 +208,6 @@ define_c_test(
     SOURCES wt2834_join_bloom_fix/main.c
     DIR_NAME wt2834_join_bloom_fix
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2834_join_bloom_fix>/WT_HOME>
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -212,6 +220,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2909_checkpoint_integrity/smoke.sh
     ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_wt2909_checkpoint_integrity>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -364,6 +373,7 @@ define_c_test(
     DIR_NAME wt8246_compact_rts_data_correctness
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -380,7 +390,6 @@ define_c_test(
     DIR_NAME wt8963_insert_stress
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8963_insert_stress>/WT_HOME>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -403,6 +412,14 @@ define_c_test(
     TARGET test_wt11440_config_check
     SOURCES wt11440_config_check/main.c
     DIR_NAME wt11440_config_check
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt12015_backup_corruption
+    SOURCES wt12015_backup_corruption/main.c
+    DIR_NAME wt12015_backup_corruption
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
