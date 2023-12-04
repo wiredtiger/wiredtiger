@@ -2568,7 +2568,7 @@ static inline void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *
 static inline void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
 
 #ifdef HAVE_UNITTEST
-extern WT_EXT *__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
+extern WT_EXT *__ut_block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
