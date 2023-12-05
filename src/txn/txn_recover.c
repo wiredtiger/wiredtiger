@@ -103,37 +103,6 @@ __recovery_cursor(
     return (0);
 }
 
-#if 0
-/*
- * __dump_backup --
- *     Print out the current state of the in-memory incremental backup structure.
- */
-static int
-__dump_backup(WT_SESSION_IMPL *session, const char *msg)
-{
-    WT_BLKINCR *blk;
-    WT_CONNECTION_IMPL *conn;
-    int i;
-
-    conn = S2C(session);
-    if (!F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
-        WT_RET(__wt_msg(session, "%s: NO backup information exists", msg));
-        return (0);
-    }
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk = &conn->incr_backups[i];
-        if (!F_ISSET(blk, WT_BLKINCR_VALID))
-            WT_RET(__wt_msg(session, "%s: SLOT %d NO backup information exists", msg, i));
-        else {
-            WT_RET(__wt_msg(session, "%s: SLOT %d ID: %s", msg, i, blk->id_str));
-            WT_RET(__wt_msg(
-              session, "    granularity %d flags 0x%x", (int)blk->granularity, (int)blk->flags));
-        }
-    }
-    return (0);
-}
-#endif
-
 /*
  * __txn_backup_post_recovery --
  *     Perform any necessary backup related activity after recovery.
@@ -210,13 +179,8 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
               "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Applying slot %" PRIu32
               " granularity %" PRIu64 " ID string %s",
               lsnp->l.file, lsnp->l.offset, index, granularity, id_str);
-            blk->granularity = granularity;
-            /* For now the granularity is one value in the connection. */
-            conn->incr_granularity = granularity;
-            WT_ERR(__wt_strndup(session, id_str, strlen(id_str), &blk->id_str));
-            F_SET(blk, WT_BLKINCR_VALID);
+            WT_ERR(__wt_backup_set_blkincr(session, index, granularity, id_str, strlen(id_str)));
             r->backup_cleared = true;
-            WT_CONN_SET_INCR_BACKUP(conn);
         } else {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Clearing slot %" PRIu32, lsnp->l.file,
@@ -968,11 +932,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
     conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
-#if 0
-    __wt_verbose_multi(
-      session, WT_VERB_RECOVERY_ALL, "TXN_RECOVER: start %s was_backup %d", conn->home, was_backup);
-    __dump_backup(session, "STARTING");
-#endif
 
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
@@ -1055,9 +1014,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         ret = 0;
     /* We need to do some work after recovering backup information. Do that now. */
     __txn_backup_post_recovery(&r);
-#if 0
-    __dump_backup(session, "AFTER scan");
-#endif
     /*
      * If log scan couldn't find a file we expected to be around, this indicates a corruption of
      * some sort.

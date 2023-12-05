@@ -2120,6 +2120,7 @@ struct __wt_connection {
      *
      * @param connection the connection handle
      * @configstart{WT_CONNECTION.debug_info, see dist/api_data.py}
+     * @config{backup, print incremental backup information., a boolean flag; default \c false.}
      * @config{cache, print cache information., a boolean flag; default \c false.}
      * @config{cursors, print all open cursor information., a boolean flag; default \c false.}
      * @config{handles, print open handles information., a boolean flag; default \c false.}
