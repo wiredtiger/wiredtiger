@@ -143,9 +143,9 @@ __wt_blkcache_get_handle(
      * Check the block handle array for the object. We don't have to check the name because we can
      * only reference objects in our name space.
      */
-    __wt_readlock(session, &bm->handle_array_lock);
+    __wt_readlock(session, &bm->handle_list_lock);
     __blkcache_find_open_handle(bm, objectid, reading, blockp);
-    __wt_readunlock(session, &bm->handle_array_lock);
+    __wt_readunlock(session, &bm->handle_list_lock);
 
     if (*blockp != NULL)
         return (0);
@@ -154,7 +154,7 @@ __wt_blkcache_get_handle(
     WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, &new_handle));
 
     /* We need a write lock to add a new entry to the handle array. */
-    __wt_writelock(session, &bm->handle_array_lock);
+    __wt_writelock(session, &bm->handle_list_lock);
 
     /*
      * Check to see if the object was added while we opened it. If the object was added, we should
@@ -171,7 +171,7 @@ __wt_blkcache_get_handle(
         *blockp = new_handle;
         new_handle = NULL;
     }
-    __wt_writeunlock(session, &bm->handle_array_lock);
+    __wt_writeunlock(session, &bm->handle_list_lock);
 
     if (new_handle != NULL)
         WT_TRET(__wt_bm_close_block(session, new_handle));

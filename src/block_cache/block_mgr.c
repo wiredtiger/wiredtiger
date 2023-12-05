@@ -112,14 +112,14 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
      * the tree have been written and eviction is disabled at this point, so no new data is getting
      * written.
      *
-     * We don't hold the handle array lock across fsync calls since those could be slow and that
+     * We don't hold the handle list lock across fsync calls since those could be slow and that
      * would block a concurrent thread opening a new block handle. To guard against the block being
      * swept, we retain a read reference during the sync.
      */
     do {
         found = false;
         block = NULL;
-        __wt_readlock(session, &bm->handle_array_lock);
+        __wt_readlock(session, &bm->handle_list_lock);
         TAILQ_FOREACH (block, &bm->tiered_block_qh, tieredq)
             if (block->sync_on_checkpoint) {
                 found = true;
@@ -127,7 +127,7 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
             }
         if (found)
             __wt_blkcache_get_read_handle(block);
-        __wt_readunlock(session, &bm->handle_array_lock);
+        __wt_readunlock(session, &bm->handle_list_lock);
 
         if (found) {
             fsync_ret = __wt_fsync(session, block->fh, true);
@@ -308,14 +308,16 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     else {
         /*
          * Higher-level code ensures that we can only have one call to close a block manager. So we
-         * don't need to lock the block handle array here.
+         * don't need to lock the block handle listhere.
          *
-         * We don't need to explicitly close the active handle; it is also in the handle array.
+         * We don't explicitly close the active handle; it is also in the handle list.
          */
         TAILQ_FOREACH_SAFE(block, &bm->tiered_block_qh, tieredq, tblock)
-        WT_TRET(__wt_bm_close_block(session, block));
+        {
+            WT_TRET(__wt_bm_close_block(session, block));
+        }
 
-        __wt_rwlock_destroy(session, &bm->handle_array_lock);
+        __wt_rwlock_destroy(session, &bm->handle_list_lock);
     }
 
     __wt_overwrite_and_free(session, bm);
@@ -657,9 +659,9 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
      * the WT_BM it copied, but it would be worth thinking through those scenarios in detail to be
      * sure there aren't any races.
      */
-    __wt_writelock(session, &bm->handle_array_lock);
+    __wt_writelock(session, &bm->handle_list_lock);
     bm->block = block;
-    __wt_writeunlock(session, &bm->handle_array_lock);
+    __wt_writeunlock(session, &bm->handle_list_lock);
 
     return (0);
 }
@@ -715,7 +717,7 @@ __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool do_block)
 
 /*
  * __wt_blkcache_sweep_handles --
- *     Free blocks from the manager's handle array if possible.
+ *     Free blocks from the manager's handle list if possible.
  */
 int
 __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
@@ -731,17 +733,19 @@ __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
      * block is not zero, other readers have references at this time. The last of those readers will
      * have another chance to free it.
      */
-    __wt_writelock(session, &bm->handle_array_lock);
+    __wt_writelock(session, &bm->handle_list_lock);
 
     TAILQ_FOREACH_SAFE(block, &bm->tiered_block_qh, tieredq, tblock)
-    if (block->read_count == 0 && __wt_block_eligible_for_sweep(bm, block)) {
-        /* We cannot close the active handle. */
-        WT_ASSERT(session, block != bm->block);
-        TAILQ_REMOVE(&bm->tiered_block_qh, block, tieredq);
-        WT_TRET(__wt_bm_close_block(session, block));
+    {
+        if (block->read_count == 0 && __wt_block_eligible_for_sweep(bm, block)) {
+            /* We cannot close the active handle. */
+            WT_ASSERT(session, block != bm->block);
+            TAILQ_REMOVE(&bm->tiered_block_qh, block, tieredq);
+            WT_TRET(__wt_bm_close_block(session, block));
+        }
     }
 
-    __wt_writeunlock(session, &bm->handle_array_lock);
+    __wt_writeunlock(session, &bm->handle_list_lock);
 
     return (ret);
 }
@@ -932,7 +936,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
           false, allocsize, &bm->block));
     } else {
         bm->is_multi_handle = true;
-        WT_ERR(__wt_rwlock_init(session, &bm->handle_array_lock));
+        WT_ERR(__wt_rwlock_init(session, &bm->handle_list_lock));
 
         /* Open the active file, and save in list */
         WT_ERR(__wt_blkcache_tiered_open(session, uri, 0, &bm->block));
@@ -943,7 +947,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
     return (0);
 
 err:
-    __wt_rwlock_destroy(session, &bm->handle_array_lock);
+    __wt_rwlock_destroy(session, &bm->handle_list_lock);
     __wt_free(session, bm);
     return (ret);
 }
