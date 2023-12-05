@@ -289,6 +289,16 @@ struct __wt_name_flag {
     } while (0)
 
 /*
+ * Set all flags related to incremental backup in one macro. The flags do get individually cleared
+ * at different times so there is no corresponding macro for clearing.
+ */
+#define WT_CONN_SET_INCR_BACKUP(conn)                        \
+    do {                                                     \
+        F_SET((conn), WT_CONN_INCR_BACKUP);                  \
+        FLD_SET((conn)->log_flags, WT_CONN_LOG_INCR_BACKUP); \
+    } while (0)
+
+/*
  * WT_BACKUP_TARGET --
  *	A target URI entry indicating this URI should be restored during a partial backup.
  */

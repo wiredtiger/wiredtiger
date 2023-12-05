@@ -74,8 +74,7 @@ __wt_backup_open(WT_SESSION_IMPL *session)
          * general configuration in the global table.
          */
         blkincr = &conn->incr_backups[i++];
-        F_SET(conn, WT_CONN_INCR_BACKUP);
-        FLD_SET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
+        WT_CONN_SET_INCR_BACKUP(conn);
         WT_ERR(__wt_strndup(session, k.str, k.len, &blkincr->id_str));
         WT_ERR(__wt_config_subgets(session, &v, "granularity", &b));
         /*
@@ -507,8 +506,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             __wt_verbose(session, WT_VERB_BACKUP, "Backup config set granularity value %" PRIu64,
               conn->incr_granularity);
         }
-        F_SET(conn, WT_CONN_INCR_BACKUP);
-        FLD_SET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
+        WT_CONN_SET_INCR_BACKUP(conn);
         incremental_config = true;
     }
 

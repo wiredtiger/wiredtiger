@@ -215,9 +215,8 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
             conn->incr_granularity = granularity;
             WT_ERR(__wt_strndup(session, id_str, strlen(id_str), &blk->id_str));
             F_SET(blk, WT_BLKINCR_VALID);
-            F_SET(conn, WT_CONN_INCR_BACKUP);
             r->backup_cleared = true;
-            FLD_SET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
+            WT_CONN_SET_INCR_BACKUP(conn);
         } else {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Clearing slot %" PRIu32, lsnp->l.file,
