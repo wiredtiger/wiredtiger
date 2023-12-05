@@ -78,11 +78,10 @@ __btcur_bounds_search_near_reposition(
     if (key_out_of_bounds) {
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
         /*
-         * The cursor search near operation will position the cursor with the perspective of chosen
-         * lower bound or upper bound. (The exact argument will also follow the same perspective).
-         * Fortunately at this point, we already know where the lower bound key or upper bound key
-         * will be relatively to the search key, and we can calculate the exact argument and fix it
-         * up once we return a record.
+         * Given that we have positioned the cursor on either of the upper or lower bounds we can
+         * determine the "exact" return argument. If we positioned at the upper bound then any key
+         * we find must be less than or equal to that bound which is guaranteed to be less than the
+         * original search near key. The reverse holds true for the lower bound.
          */
         *reposition_exactp = upper ? -1 : 1;
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_near_repositioned_cursor);
