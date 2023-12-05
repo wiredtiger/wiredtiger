@@ -1539,11 +1539,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_modify_block --
+ * __txn_modify_block --
  *     Check if the current transaction can modify an item.
  */
 static inline int
-__wt_txn_modify_block(
+__txn_modify_block(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
 {
     WT_DECL_ITEM(buf);
@@ -1664,7 +1664,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      * operating on the metadata table.
      */
     if (txn->isolation == WT_ISO_SNAPSHOT && !WT_IS_METADATA(cbt->dhandle))
-        WT_RET(__wt_txn_modify_block(session, cbt, upd, prev_tsp));
+        WT_RET(__txn_modify_block(session, cbt, upd, prev_tsp));
 
     /*
      * Prepending a tombstone to another tombstone indicates remove of a non-existent key and that
