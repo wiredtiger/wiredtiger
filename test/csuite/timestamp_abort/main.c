@@ -527,14 +527,6 @@ backup_delete_old_backups(int retain)
             break;
 
         __wt_qsort(indexes, (size_t)count, sizeof(*indexes), __int_comparator);
-#if 1
-        /*
-         * FIXME-WT-12074 Remove this short circuit and restore the loop once the race condition in
-         * the ticket is resolved.
-         */
-        WT_UNUSED(buf);
-        done = true;
-#else
         for (i = 0; i < count - retain; i++) {
             if (indexes[i] == last_full)
                 continue;
@@ -548,7 +540,6 @@ backup_delete_old_backups(int retain)
             testutil_remove(todir);
             ndeleted++;
         }
-#endif
     } while (!done);
 
     printf("Deleted %d old backup%s\n", ndeleted, ndeleted == 1 ? "" : "s");
