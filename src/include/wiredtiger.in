@@ -2485,6 +2485,16 @@ struct __wt_connection {
     int __F(reconfigure)(WT_CONNECTION *connection, const char *config);
 
     /*!
+     * The configure string of the connection.
+     *
+     * @snippet ex_all.c Get the configure string
+     *
+     * @param connection the connection handle
+     * @returns a pointer to a string naming the configure string
+     */
+    const char * __F(get_configure)(WT_CONNECTION *connection);
+
+    /*!
      * The home directory of the connection.
      *
      * @snippet ex_all.c Get the database home directory
