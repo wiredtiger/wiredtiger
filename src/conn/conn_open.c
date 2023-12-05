@@ -101,7 +101,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
-    /* The eviction server must behind __wt_evict_destroy, see WT-11878 */
+    /* The capacity server can only be shut down after all I/O is complete. */
     WT_TRET(__wt_capacity_server_destroy(session));
 
     /* There should be no more file opens after this point. */
