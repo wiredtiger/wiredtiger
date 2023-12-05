@@ -11,14 +11,13 @@
 #include <charconv>
 #include <iostream>
 
-
 /*
  * This file contains helper functions to manipulate std::vector<bool> objects.
  *
  * These functions consider the first (with index 0) bool to be the least significant bit
  *
- * std::vector<bool> v1 {false, false, false, true} creates a vector using list initialisation
- * with each bool in the vector initialised in order from the first (0th) element to the last.
+ * std::vector<bool> v1 {false, false, false, true} creates a vector using list initialization
+ * with each bool in the vector initialized in order from the first (0th) element to the last.
  * In this example, the vector will contain four bool values such that
  *   v1[0] == false
  *   v1[1] == false
@@ -29,7 +28,6 @@
  * See https://en.cppreference.com/w/cpp/container/vector/vector and
  * https://en.cppreference.com/w/cpp/language/list_initialization
  */
-
 
 /*
  * vector_bool_from_hex_string()
@@ -155,14 +153,12 @@ operator^(std::vector<bool> const &a, std::vector<bool> const &b)
     return result;
 }
 
-
 void
 trim_most_significant_false_values(std::vector<bool> &vector_bool)
 {
     while (!vector_bool.empty() && !vector_bool.back())
         vector_bool.pop_back();
 }
-
 
 unsigned
 get_true_count(std::vector<bool> const &vector_bool)

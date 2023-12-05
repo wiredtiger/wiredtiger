@@ -20,7 +20,6 @@ test_binary_conversion(std::vector<bool> const &vec, std::string const &binary_s
     REQUIRE(vec2 == vec);
 }
 
-
 void
 test_hex_conversion(std::vector<bool> const &vec, std::string const &hex_str)
 {
@@ -30,16 +29,15 @@ test_hex_conversion(std::vector<bool> const &vec, std::string const &hex_str)
     REQUIRE(converted_vec == vec);
 }
 
-
-TEST_CASE("Vector bool: test bit initialisation", "[vector]")
+TEST_CASE("Vector bool: test bit initialization", "[vector]")
 {
-    std::vector<bool> v1 {false, false, false, true};
+    std::vector<bool> v1{false, false, false, true};
     REQUIRE(v1[0] == false);
     REQUIRE(v1[1] == false);
     REQUIRE(v1[2] == false);
     REQUIRE(v1[3] == true);
 
-    std::vector<bool> v2 {false, false, false, false, false, false, false, true};
+    std::vector<bool> v2{false, false, false, false, false, false, false, true};
     REQUIRE(v2[0] == false);
     REQUIRE(v2[1] == false);
     REQUIRE(v2[2] == false);
@@ -50,16 +48,14 @@ TEST_CASE("Vector bool: test bit initialisation", "[vector]")
     REQUIRE(v2[7] == true);
 }
 
-
 TEST_CASE("Vector bool: test conversions", "[vector]")
 {
     /*
-     * Note: in the following tests, the std::vector<bool> is initialised least significant bit
+     * Note: in the following tests, the std::vector<bool> is initialized least significant bit
      * first (so the first bool is stored in the 0th element of the vector) whereas the binary and
-     * hex strings are written most significant bit/nibble first, as usual.
-     * This means that the vector initialisation and the binary/hex value may appear to be
-     * in the opposite order, however they are actually in the same order as the following tests
-     * demonstrate.
+     * hex strings are written most significant bit/nibble first, as usual. This means that the
+     * vector initialization and the binary/hex value may appear to be in the opposite order,
+     * however they are actually in the same order as the following tests demonstrate.
      */
 
     test_binary_conversion({false}, "0");
@@ -101,7 +97,6 @@ TEST_CASE("Vector bool: test conversions", "[vector]")
     REQUIRE_THROWS_AS(vector_bool_from_binary_string("qwerty"), std::invalid_argument);
     REQUIRE_THROWS_AS(vector_bool_from_hex_string("qwerty"), std::invalid_argument);
 }
-
 
 TEST_CASE("Vector bool: test operations", "[vector]")
 {
