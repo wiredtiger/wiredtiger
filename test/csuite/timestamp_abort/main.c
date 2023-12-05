@@ -537,7 +537,7 @@ backup_delete_old_backups(int retain)
              * the verify function doesn't attempt to open a partial database.
              */
             testutil_check(rename(fromdir, todir));
-            testutil_remove(new);
+            testutil_remove(todir);
             ndeleted++;
         }
     } while (!done);
