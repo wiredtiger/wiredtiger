@@ -490,7 +490,7 @@ backup_delete_old_backups(int retain)
     DIR *d;
     size_t len;
     int count, i, indexes[256], last_full, ndeleted;
-    char buf[256], new[256];
+    char fromdir[256], todir[256];
     bool done;
 
     last_full = 0;
@@ -530,13 +530,13 @@ backup_delete_old_backups(int retain)
         for (i = 0; i < count - retain; i++) {
             if (indexes[i] == last_full)
                 continue;
-            testutil_snprintf(buf, sizeof(buf), BACKUP_BASE "%d", indexes[i]);
-            testutil_snprintf(new, sizeof(new), BACKUP_OLD "%d", indexes[i]);
+            testutil_snprintf(fromdir, sizeof(fromdir), BACKUP_BASE "%d", indexes[i]);
+            testutil_snprintf(todir, sizeof(todir), BACKUP_OLD "%d", indexes[i]);
             /*
              * First rename the directory so that if the child process is killed during the remove
-             * the verify function doesn't find a partial database.
+             * the verify function doesn't attempt to open a partial database.
              */
-            testutil_check(rename(buf, new));
+            testutil_check(rename(fromdir, todir));
             testutil_remove(new);
             ndeleted++;
         }
