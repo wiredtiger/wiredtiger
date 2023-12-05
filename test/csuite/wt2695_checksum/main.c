@@ -38,7 +38,7 @@
 static inline void
 check(uint32_t checksum1, uint32_t checksum2, size_t len, const char *msg)
 {
-    testutil_checkfmt(checksum1 == checksum2 ? 0 : 1,
+    testutil_assertfmt(checksum1 == checksum2,
       "%s checksum mismatch of %" WT_SIZET_FMT " bytes: %#08x != %#08x\n", msg, len, checksum1,
       checksum2);
 }
