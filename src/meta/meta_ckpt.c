@@ -1319,9 +1319,8 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
         /* Loop through the incremental backup blocks data looking for the correct id */
         while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
             if (blocks_value.len > 0) {
-                /* Have we found the blocks data for the correct key (which has id 'id')? */
                 if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len) == 0)
-                    continue; /* Keep searching */
+                    continue;
 
                 /* We've found the right blocks so read the bit pattern into output_item */
                 ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
@@ -1329,6 +1328,7 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
                     ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
                     break;
                 }
+                WT_ERR_NOTFOUND_OK(ret, false);
             }
         }
     }
@@ -1337,7 +1337,7 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
         ret = 0;
 
 err:
-    WT_RET(metadata_cursor->close(metadata_cursor));
+    WT_TRET(metadata_cursor->close(metadata_cursor));
 
     return (ret);
 }
