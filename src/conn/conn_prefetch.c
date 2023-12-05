@@ -143,7 +143,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     pe->first_home = ref->home;
     pe->dhandle = session->dhandle;
     __wt_spin_lock(session, &conn->prefetch_lock);
-    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+    if (F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH))
         ret = EBUSY;
     else {
         F_SET(ref, WT_REF_FLAG_PREFETCH);
@@ -158,6 +158,39 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_conn_prefetch_clear_tree --
+ *     Clear pages from the pre-fetch queue, either all pages on the queue or pages from the current
+ *     btree - depending on input parameters.
+ */
+int
+__wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_PREFETCH_QUEUE_ENTRY *pe, *pe_tmp;
+
+    conn = S2C(session);
+    dhandle = session->dhandle;
+
+    WT_ASSERT_ALWAYS(session, all || dhandle != NULL,
+      "Pre-fetch needs to save a valid dhandle when clearing the queue for a btree");
+
+    __wt_spin_lock(session, &conn->prefetch_lock);
+    TAILQ_FOREACH_SAFE(pe, &conn->pfqh, q, pe_tmp)
+    {
+        if (all || pe->dhandle == dhandle) {
+            TAILQ_REMOVE(&conn->pfqh, pe, q);
+            F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
+            __wt_free(session, pe);
+            --conn->prefetch_queue_count;
+        }
+    }
+    __wt_spin_unlock(session, &conn->prefetch_lock);
+
+    return (0);
+}
+
+/*
  * __wt_prefetch_destroy --
  *     Destroy the pre-fetch threads.
  */
@@ -165,6 +198,7 @@ int
 __wt_prefetch_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
 
     conn = S2C(session);
 
@@ -173,9 +207,12 @@ __wt_prefetch_destroy(WT_SESSION_IMPL *session)
 
     F_CLR(conn, WT_CONN_PREFETCH_RUN);
 
+    /* Ensure that the pre-fetch queue is drained. */
+    WT_TRET(__wt_conn_prefetch_clear_tree(session, true));
+
     __wt_writelock(session, &conn->prefetch_threads.lock);
 
     WT_RET(__wt_thread_group_destroy(session, &conn->prefetch_threads));
 
-    return (0);
+    return (ret);
 }
