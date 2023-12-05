@@ -40,14 +40,14 @@ class test_compact06(wttest.WiredTigerTestCase):
         compact_running = stat_cursor[stat.conn.background_compact_running][2]
         stat_cursor.close()
         return compact_running
-    
+
     def test_background_compact_api(self):
         # We cannot trigger the background compaction on a specific API. Note that the URI is not
         # relevant here, the corresponding table does not need to exist for this check.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.compact("file:123", 'background=true'),
             '/Background compaction does not work on specific URIs/')
-            
+
         # We cannot set other configurations while turning off the background server.
         for item in self.configuration_items:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:

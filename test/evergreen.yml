@@ -1326,7 +1326,6 @@ variables:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
 
-
   # Template for Mac tests
   - &mac_test_template
     expansions: &mac_test_template_expansions
@@ -1407,7 +1406,6 @@ variables:
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
-
 
   - &race-condition-stress-sanitizer-test
     exec_timeout_secs: 25200
@@ -2612,7 +2610,6 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: --hook nonstandalone -v 2 -b 3/12
-
 
   - name: unit-test-nonstandalone-bucket04
     tags: ["python", "pull_request"]
@@ -4724,7 +4721,6 @@ tasks:
         vars:
           test-name: small-lsm.wtperf
 
-
   - name: perf-test-medium-lsm
     tags: ["lsm-perf"]
     depends_on:
@@ -5592,7 +5588,6 @@ tasks:
         vars:
           test-name: chunk-cache-reads-base.wtperf
 
-
     ###########################################
     #        Performance Long Tests           #
     ###########################################
@@ -6099,7 +6094,6 @@ buildvariants:
     # - name: format-tiered-test
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
-
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.

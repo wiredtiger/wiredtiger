@@ -197,7 +197,7 @@ conn_stats = [
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
     ConnStat('time_travel', 'detected system time went backwards'),
     ConnStat('write_io', 'total write I/Os'),
-    
+
     ##########################################
     # Background compaction statistics
     ##########################################
