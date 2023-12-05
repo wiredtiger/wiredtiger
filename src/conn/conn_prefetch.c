@@ -143,7 +143,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     pe->first_home = ref->home;
     pe->dhandle = session->dhandle;
     __wt_spin_lock(session, &conn->prefetch_lock);
-    if (F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH))
+    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
         ret = EBUSY;
     else {
         F_SET(ref, WT_REF_FLAG_PREFETCH);
@@ -185,6 +185,7 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
             --conn->prefetch_queue_count;
         }
     }
+    WT_ASSERT(session, conn->prefetch_queue_count == 0);
     __wt_spin_unlock(session, &conn->prefetch_lock);
 
     return (0);
