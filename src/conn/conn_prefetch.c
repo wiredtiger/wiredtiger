@@ -112,7 +112,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * stop using prefetch. Some of the guarantees about ref and page freeing are ignored in
          * that case, which can invalidate entries on the prefetch queue.
          */
-        if (!F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))
+        if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION))
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
 
         /*
