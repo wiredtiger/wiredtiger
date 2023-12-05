@@ -1197,7 +1197,7 @@ err:
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
-    /* Shut down prefetching - it should not operate while closing the connection. */
+    /* Shut down pre-fetching - it should not operate while closing the connection. */
     WT_TRET(__wt_prefetch_destroy(session));
 
     /*
