@@ -619,6 +619,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
     if (!F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
         cache->flags = 0;
+        __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_update_work: WT_CONN_EVICTION_RUN not set%s", "");
         return (false);
     }
 
@@ -696,6 +697,9 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /* Update the global eviction state. */
     cache->flags = flags;
 
+    __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_update_work: flags = 0x%08x   | 0x%X = 0x%X",
+        flags, WT_CACHE_EVICT_ALL | WT_CACHE_EVICT_URGENT, flags & (WT_CACHE_EVICT_ALL | WT_CACHE_EVICT_URGENT));
+
     return (F_ISSET(cache, WT_CACHE_EVICT_ALL | WT_CACHE_EVICT_URGENT));
 }
 
@@ -748,8 +752,10 @@ __evict_pass(WT_SESSION_IMPL *session)
          */
         WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
-        if (!__evict_update_work(session))
+        if (!__evict_update_work(session)) {
+            __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_pass: __evict_update_work returned false%s", "");
             break;
+        }
 
         __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
           "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64,
@@ -771,8 +777,10 @@ __evict_pass(WT_SESSION_IMPL *session)
             !__evict_queue_empty(cache->evict_urgent_queue, false)))
             WT_RET(__evict_lru_pages(session, true));
 
-        if (cache->pass_intr != 0)
+        if (cache->pass_intr != 0) {
+            __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_pass: cache->pass_intr = %u", cache->pass_intr);
             break;
+        }
 
         /*
          * If we're making progress, keep going; if we're not making any progress at all, mark the
@@ -814,6 +822,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 
             WT_STAT_CONN_INCR(session, cache_eviction_slow);
             __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "unable to reach eviction goal");
+            __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_pass: eviction_progress stopped. loop=%u evict_aggressive_score=%u",
+              loop, cache->evict_aggressive_score);
             break;
         }
         if (cache->evict_aggressive_score > 0)
@@ -821,6 +831,8 @@ __evict_pass(WT_SESSION_IMPL *session)
         loop = 0;
         eviction_progress = cache->eviction_progress;
     }
+    __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_pass: loop break. loop=%u cache->pass_intr=%u",
+        loop, cache->pass_intr);
     return (0);
 }
 
@@ -838,6 +850,8 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
+
+    __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: %s", "walk clear");
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
     if (session->dhandle == cache->walk_tree)
@@ -1734,6 +1748,70 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __debug_row_skip --
+ *     Dump an insert list.
+ */
+// static int
+// __debug_row_skip_session(WT_SESSION_IMPL *session, WT_INSERT_HEAD *head)
+// {
+//     WT_INSERT *ins;
+
+//     session = ds->session;
+
+//     WT_SKIP_FOREACH (ins, head) {
+//         WT_RET(__debug_item_key(ds, "insert", WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
+//         WT_RET(__debug_update(ds, ins->upd, false));
+
+//         if (!WT_IS_HS(session->dhandle) && ds->hs_cursor != NULL) {
+//             WT_RET(__wt_buf_set(session, ds->key, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
+//             WT_RET(__debug_hs_key(ds));
+//         }
+//     }
+//     return (0);
+// }
+
+
+/* Borrowed from __debug_page_row_leaf */
+static const char *
+__debug_get_first_key_in_page(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_ROW *rip;
+    uint32_t i;
+    //static char buf[1000];
+    WT_ITEM key;//, t1;
+
+    /*
+     * Dump any K/V pairs inserted into the page before the first from-disk key on the page.
+     */
+    // if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
+    //     if (__debug_row_skip(session, insert)) return "?1";
+
+    /* Dump the page's K/V pairs. */
+    WT_ROW_FOREACH (page, rip, i) {
+        if (__wt_row_leaf_key(session, page, rip, &key, false)) return "?2";
+        // return __wt_key_string(session, key.data, key.size, "K", &t1);
+        return key.data;
+    }
+    return "empty";
+}
+
+// static const char *
+// __debug_get_first_key_in_page(WT_REF *ref)
+// {
+//     // static char buf[100];
+//     void *keyp;
+//     size_t size;
+
+//     __wt_ref_key(ref->page, ref, &keyp, &size);
+//     return keyp;
+//     // if (size > 99) size = 99;
+//     // memcpy(buf, keyp, size);
+//     // buf[size] = 0;
+
+//     // return buf;
+// }
+
+/*
  * __evict_walk_tree --
  *     Get a few page eviction candidates from a single underlying file.
  */
@@ -1832,6 +1910,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_dirty);
     } else
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_both_clean_and_dirty);
+
+    __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: walk start from: %p key %s",
+        btree->evict_ref, btree->evict_ref ? __debug_get_first_key_in_page(session, btree->evict_ref->page) : "");
 
     if (btree->evict_ref == NULL) {
         WT_STAT_CONN_INCR(session, cache_eviction_walk_from_root);
@@ -1964,6 +2045,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         modified = __wt_page_is_modified(page);
         page->evict_pass_gen = cache->evict_pass_gen;
 
+        __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: consider: %p, size %" WT_SIZET_FMT ", index %u, key %s",
+          (void *)page,
+          page->memory_footprint, ref->pindex_hint, __debug_get_first_key_in_page(session, page));
+
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_seen++;
@@ -2092,6 +2177,9 @@ fast:
           page->memory_footprint);
     }
     WT_RET_NOTFOUND_OK(ret);
+
+    __wt_verbose(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: walk end: %p num %u key %s",
+        ref, (u_int)(evict - start), ref ? __debug_get_first_key_in_page(session, ref->page) : "");
 
     *slotp += (u_int)(evict - start);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
