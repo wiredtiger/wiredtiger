@@ -105,8 +105,6 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         __wt_spin_unlock(session, &conn->prefetch_lock);
         locked = false;
 
-        WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
-
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
          * stop using prefetch. Some of the guarantees about ref and page freeing are ignored in
