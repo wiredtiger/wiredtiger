@@ -1,6 +1,7 @@
 project(libtest C)
 
 set(sources
+    backup.c
     file.c
     lazyfs.c
     misc.c

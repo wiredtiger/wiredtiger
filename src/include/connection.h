@@ -22,6 +22,8 @@ struct __wt_process {
 /* Checksum functions */
 #define __wt_checksum(chunk, len) __wt_process.checksum(chunk, len)
     uint32_t (*checksum)(const void *, size_t);
+#define __wt_checksum_with_seed(seed, chunk, len) __wt_process.checksum_with_seed(seed, chunk, len)
+    uint32_t (*checksum_with_seed)(uint32_t, const void *, size_t);
 
 #define WT_TSC_DEFAULT_RATIO 1.0
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
@@ -322,7 +324,7 @@ struct __wt_connection_impl {
 
     WT_SPINLOCK api_lock;                 /* Connection API spinlock */
     WT_SPINLOCK checkpoint_lock;          /* Checkpoint spinlock */
-    WT_SPINLOCK chunkcache_metadata_lock; /* Chunkcache metadata spinlock */
+    WT_SPINLOCK chunkcache_metadata_lock; /* Chunk cache metadata spinlock */
     WT_RWLOCK debug_log_retention_lock;   /* Log retention reconfiguration lock */
     WT_SPINLOCK fh_lock;                  /* File handle queue spinlock */
     WT_SPINLOCK flush_tier_lock;          /* Flush tier spinlock */
@@ -380,7 +382,7 @@ struct __wt_connection_impl {
 
     WT_FH *lock_fh; /* Lock file handle */
 
-    /* Locked: chunkcache metadata work queue (and length counter). */
+    /* Locked: chunk cache metadata work queue (and length counter). */
     TAILQ_HEAD(__wt_chunkcache_metadata_qh, __wt_chunkcache_metadata_work_unit)
     chunkcache_metadataqh;
     int chunkcache_queue_len;
@@ -468,7 +470,13 @@ struct __wt_connection_impl {
     uint64_t ckpt_skip;       /* Checkpoint handles skipped */
     uint64_t ckpt_skip_time;  /* Checkpoint skipped handles gather time */
     uint64_t ckpt_usecs;      /* Checkpoint timer */
-    uint64_t ckpt_prep_max;   /* Checkpoint prepare time min/max */
+
+    uint64_t ckpt_scrub_max; /* Checkpoint scrub time min/max */
+    uint64_t ckpt_scrub_min;
+    uint64_t ckpt_scrub_recent; /* Checkpoint scrub time recent/total */
+    uint64_t ckpt_scrub_total;
+
+    uint64_t ckpt_prep_max; /* Checkpoint prepare time min/max */
     uint64_t ckpt_prep_min;
     uint64_t ckpt_prep_recent; /* Checkpoint prepare time recent/total */
     uint64_t ckpt_prep_total;
@@ -579,10 +587,10 @@ struct __wt_connection_impl {
     uint32_t flush_state;            /* State of last flush tier */
     wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
 
-    WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunkcache metadata server thread session */
-    wt_thread_t chunkcache_metadata_tid;          /* Chunkcache metadata thread */
-    bool chunkcache_metadata_tid_set;             /* Chunkcache metadata thread set */
-    WT_CONDVAR *chunkcache_metadata_cond;         /* Chunkcache metadata wait mutex */
+    WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunk cache metadata server thread session */
+    wt_thread_t chunkcache_metadata_tid;          /* Chunk cache metadata thread */
+    bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
+    WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
