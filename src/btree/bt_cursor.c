@@ -984,14 +984,13 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    int exact, bounds_reposition_exact;
+    int bounds_reposition_exact, exact;
     bool valid;
 
-    bounds_reposition_exact = 0;
+    bounds_reposition_exact = exact = 0;
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
     session = CUR2S(cbt);
-    exact = 0;
     valid = false;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
@@ -1055,14 +1054,9 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * If that fails, quit, there's no record to return.
      */
     if (valid) {
-        exact = cbt->compare;
+        /* If the bounded cursor logic repositioned the cursor override exact. */
+        exact = bounds_reposition_exact != 0 ? bounds_reposition_exact : cbt->compare;
         WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
-        /*
-         * The returned value of exact must reflect the comparison between the found key and the
-         * original search key, not the repositioned bounds key.
-         */
-        if (WT_CURSOR_BOUNDS_SET(cursor) && bounds_reposition_exact != 0)
-            exact = bounds_reposition_exact;
     } else if (__cursor_fix_implicit(btree, cbt)) {
         cbt->recno = cursor->recno;
         cbt->v = 0;
