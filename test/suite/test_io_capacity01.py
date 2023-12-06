@@ -96,7 +96,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         # Close the initial connection. We will be opening new connections for this test.
         self.close_conn()
 
-        #only insert 1 data, the write bytes is well below 1000 1M
+        #only insert 1 data, the write bytes is well below 1M
         #If the written conditions are not met fsync_backgroud_period_sec, force backgroud fsync
         insert_count = 1
         value_size = 1024
