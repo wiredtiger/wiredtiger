@@ -2229,7 +2229,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
-          extra_args: -L long_running
+          extra_args: -L long_running -j ${num_jobs}
 
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
