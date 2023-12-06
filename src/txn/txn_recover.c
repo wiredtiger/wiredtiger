@@ -187,8 +187,8 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
             WT_CLEAR(*blk);
         }
     } else
-        __wt_verbose_multi(
-          session, WT_VERB_RECOVERY_ALL, "Ignoring unknown backup ID index %" PRIu32, index);
+        __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+          "Ignoring out-of-range (%d) backup ID index %" PRIu32, WT_BLKINCR_MAX, index);
 
 done:
     return (0);
