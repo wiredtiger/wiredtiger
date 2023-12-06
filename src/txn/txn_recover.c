@@ -33,12 +33,12 @@ typedef struct {
     WT_LSN max_ckpt_lsn; /* Maximum checkpoint LSN seen. */
     WT_LSN max_rec_lsn;  /* Maximum recovery LSN seen. */
 
-    bool backup_only;    /* Set to only recover backup. */
-    bool missing;        /* Were there missing files? */
-    bool metadata_only;  /*
-                          * Set during the first recovery pass,
-                          * when only the metadata is recovered.
-                          */
+    bool backup_only;   /* Set to only recover backup. */
+    bool missing;       /* Were there missing files? */
+    bool metadata_only; /*
+                         * Set during the first recovery pass,
+                         * when only the metadata is recovered.
+                         */
 } WT_RECOVERY;
 
 /*
