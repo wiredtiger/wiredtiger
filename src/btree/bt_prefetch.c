@@ -96,13 +96,6 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     WT_STAT_CONN_INCR(session, block_prefetch_pages_read);
 
-    /*
-     * If pre-fetching for a checkpoint handle, ensure the page-in checkpoint reader visibility
-     * check isn't worried about our visibility setup.
-     */
-    if (WT_READING_CHECKPOINT(session))
-        F_SET(session->txn, WT_TXN_IS_CHECKPOINT);
-
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
         WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
         WT_ERR(__wt_page_release(session, pe->ref, 0));
@@ -110,6 +103,5 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
         ret = WT_ERROR;
 
 err:
-    F_CLR(session->txn, WT_TXN_IS_CHECKPOINT);
     return (ret);
 }
