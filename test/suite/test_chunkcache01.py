@@ -41,11 +41,13 @@ def get_stat(session, stat):
 # unless the condition is met. Raises an exception since it doesn't have
 # access to assertGreater and friends.
 def stat_cond_timeout(session, stat, cond):
-    start = time.perf_counter()
+    start = time.time()
     val = get_stat(session, stat)
+    elapsed = 0
     iterations = 0
-    while (not cond(val)) and (start < 10 or iterations < 10000):
+    while (not cond(val)) and (elapsed < 10 or iterations < 10000):
         val = get_stat(session, stat)
+        elapsed = time.time() - start
         iterations += 1
 
     if not cond(val):
