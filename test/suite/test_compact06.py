@@ -47,6 +47,12 @@ class test_compact06(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return compact_running
 
+    def get_bg_compaction_success(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        skipped = stat_cursor[stat.conn.background_compact_success][2]
+        stat_cursor.close()
+        return skipped
+
     def turn_off_bg_compact(self):
         self.session.compact(None, 'background=false')
         while self.get_bg_compaction_running():
@@ -89,9 +95,16 @@ class test_compact06(wttest.WiredTigerTestCase):
 
         # The background compaction should have tried to compact the HS.
         assert self.get_bg_compaction_files_skipped() == 0
+        assert self.get_bg_compaction_success() == 1
 
-        # Enable background and configure it to run once.
+        # Enable background and configure it to run once. Don't use the helper function as the
+        # server may go to sleep before we have the time to check it is actually running.
         self.session.compact(None, 'background=true,run_once=true')
+
+        # Wait for background compaction to process the HS table. Even though there is no work to
+        # do, it is considered as a success.
+        while self.get_bg_compaction_success() == 1:
+            time.sleep(1)
 
         # Ensure background compaction stops by itself.
         while self.get_bg_compaction_running():
@@ -99,6 +112,15 @@ class test_compact06(wttest.WiredTigerTestCase):
 
         # When running once, background compaction should not skip files.
         assert self.get_bg_compaction_files_skipped() == 0
+        assert self.get_bg_compaction_success() == 2
+
+        # Enable the server again but with default options, the HS should be skipped.
+        self.turn_on_bg_compact()
+
+        while self.get_bg_compaction_files_skipped() != 1:
+            time.sleep(1)
+
+        self.turn_off_bg_compact()
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
