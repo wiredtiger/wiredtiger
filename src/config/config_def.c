@@ -285,7 +285,7 @@ static const uint8_t
     0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_io_capacity_subconfigs[] = {
-  {"fsync_backgroud_period_sec", "int", NULL, "min=0,max=60", NULL, 0, NULL,
+  {"fsync_background_period_sec", "int", NULL, "min=0,max=60", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_INT, 0, 60, NULL},
   {"total", "int", NULL, "min=0,max=1TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 0,
     1LL * WT_TERABYTE, NULL},
@@ -3319,7 +3319,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "extra_diagnostics=[],file_manager=(close_handle_minimum=250,"
     "close_idle_time=30,close_scan_interval=10),"
     "generation_drain_timeout_ms=240000,history_store=(file_max=0),"
-    "io_capacity=(fsync_backgroud_period_sec=0,total=0),"
+    "io_capacity=(fsync_background_period_sec=0,total=0),"
     "json_output=[],log=(archive=true,os_cache_dirty_pct=0,"
     "prealloc=true,remove=true,zero_fill=false),"
     "lsm_manager=(merge=true,worker_thread_max=4),"
@@ -3620,7 +3620,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
     "history_store=(file_max=0),in_memory=false,"
-    "io_capacity=(fsync_backgroud_period_sec=0,total=0),"
+    "io_capacity=(fsync_background_period_sec=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
     "path=\".\",prealloc=true,recover=on,remove=true,zero_fill=false)"
@@ -3670,7 +3670,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
     "history_store=(file_max=0),in_memory=false,"
-    "io_capacity=(fsync_backgroud_period_sec=0,total=0),"
+    "io_capacity=(fsync_background_period_sec=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
     "path=\".\",prealloc=true,recover=on,remove=true,zero_fill=false)"
@@ -3719,7 +3719,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
     "history_store=(file_max=0),"
-    "io_capacity=(fsync_backgroud_period_sec=0,total=0),"
+    "io_capacity=(fsync_background_period_sec=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
     "path=\".\",prealloc=true,recover=on,remove=true,zero_fill=false)"
@@ -3767,7 +3767,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
     "history_store=(file_max=0),"
-    "io_capacity=(fsync_backgroud_period_sec=0,total=0),"
+    "io_capacity=(fsync_background_period_sec=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
     "path=\".\",prealloc=true,recover=on,remove=true,zero_fill=false)"

@@ -739,9 +739,9 @@ connection_runtime_config = [
             decisions about what subsystems are throttled, and in what proportion, are made
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
-        Config('fsync_backgroud_period_sec', '0', r'''
-            max waiting period for fsync background, If the written threshold are not met for
-            ertain time, force to running the fysnc background.''',
+        Config('fsync_background_period_sec', '0', r'''
+            max waiting period for background fsync. If the written threshold is not met in this time, 
+            a background fsync is done.''',
             min='0', max='60'),
         ]),
     Config('json_output', '[]', r'''

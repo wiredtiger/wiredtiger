@@ -14,7 +14,7 @@ typedef enum {
     WT_THROTTLE_READ        /* Read throttle */
 } WT_THROTTLE_TYPE;
 
-#define WT_FSYNC_BACKGROUD_PERIOD_SEC 60 /* Config max fysnc backgroud period time(sec) */
+#define WT_FSYNC_BACKGROUD_PERIOD_SEC 60 /* Config max fsync backgroud period time(sec) */
 
 #define WT_THROTTLE_MIN WT_MEGABYTE /* Config minimum size */
 
