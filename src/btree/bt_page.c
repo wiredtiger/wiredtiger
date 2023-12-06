@@ -1077,9 +1077,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
              * the value is globally visible at the point in time where we read the page into cache.
              * Pages from checkpoint-related files that have been pushed onto the pre-fetch queue
              * will be comprised of data that is globally visible, and so the reader thread which
-             * attempts to populate the page into cache can skip the visible all check.
+             * attempts to read the page into cache can skip the visible all check.
              */
-            if (!btree->huffman_value && !F_ISSET(session, WT_SESSION_PREFETCH) &&
+            if (!btree->huffman_value &&
+              !(WT_READING_CHECKPOINT(session) && F_ISSET(session, WT_SESSION_PREFETCH)) &&
               (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
                 (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
                   __wt_txn_tw_start_visible_all(session, &unpack.tw))))
