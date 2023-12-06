@@ -35,10 +35,10 @@ import time
 
 import random
 import string
- 
+
 # test_io_capacity_01.py
-#   Verify max waiting period for fsync background, If the written threshold are not met for
-#   a period of time, force to running the fysnc background.
+#   max waiting period for background fsync. If the written threshold is not met in this time, 
+#   a background fsync is done.
 
 @wttest.skip_for_hook("tiered", "Enabling tiered alters the logs produced by WiredTiger")
 class test_io_capacity_01(wttest.WiredTigerTestCase):
