@@ -1582,6 +1582,8 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: could not allocate due to exceeding capacity",
   "chunk-cache: lookups",
   "chunk-cache: number of chunks loaded from flushed tables in chunk cache",
+  "chunk-cache: number of metadata entries inserted",
+  "chunk-cache: number of metadata entries removed",
   "chunk-cache: number of metadata inserts/deletes dropped by the worker thread",
   "chunk-cache: number of metadata inserts/deletes pushed to the worker thread",
   "chunk-cache: number of metadata inserts/deletes read by the worker thread",
@@ -2280,6 +2282,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->chunkcache_exceeded_capacity = 0;
     stats->chunkcache_lookups = 0;
     stats->chunkcache_chunks_loaded_from_flushed_tables = 0;
+    stats->chunkcache_metadata_inserted = 0;
+    stats->chunkcache_metadata_removed = 0;
     stats->chunkcache_metadata_work_units_dropped = 0;
     stats->chunkcache_metadata_work_units_created = 0;
     stats->chunkcache_metadata_work_units_dequeued = 0;
@@ -2991,6 +2995,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_lookups += WT_STAT_READ(from, chunkcache_lookups);
     to->chunkcache_chunks_loaded_from_flushed_tables +=
       WT_STAT_READ(from, chunkcache_chunks_loaded_from_flushed_tables);
+    to->chunkcache_metadata_inserted += WT_STAT_READ(from, chunkcache_metadata_inserted);
+    to->chunkcache_metadata_removed += WT_STAT_READ(from, chunkcache_metadata_removed);
     to->chunkcache_metadata_work_units_dropped +=
       WT_STAT_READ(from, chunkcache_metadata_work_units_dropped);
     to->chunkcache_metadata_work_units_created +=
