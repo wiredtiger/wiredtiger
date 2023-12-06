@@ -64,9 +64,10 @@ __wt_backup_set_blkincr(
     WT_ASSERT(session, i < WT_BLKINCR_MAX);
     blkincr = &conn->incr_backups[i];
     /*
-     * NOTE: For now the granularity is in the connection because it cannot change. We may be able
-     * to relax that.
+     * NOTE: The granularity exists in the connection because it cannot change today. We may be able
+     * to relax that in the future so we also store it in the blkincr structure.
      */
+    WT_ASSERT(session, conn->incr_granularity == 0 || conn->incr_granularity == granularity);
     blkincr->granularity = conn->incr_granularity = granularity;
     WT_RET(__wt_strndup(session, id, id_len, &blkincr->id_str));
     WT_CONN_SET_INCR_BACKUP(conn);
