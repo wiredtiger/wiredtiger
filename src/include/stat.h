@@ -1166,6 +1166,8 @@ struct __wt_dsrc_stats {
     int64_t checkpoint_obsolete_applied;
     int64_t compress_precomp_intl_max_page_size;
     int64_t compress_precomp_leaf_max_page_size;
+    int64_t compress_write_fail;
+    int64_t compress_write_too_small;
     int64_t compress_read;
     int64_t compress_read_ratio_hist_max;
     int64_t compress_read_ratio_hist_2;
@@ -1182,8 +1184,6 @@ struct __wt_dsrc_stats {
     int64_t compress_write_ratio_hist_16;
     int64_t compress_write_ratio_hist_32;
     int64_t compress_write_ratio_hist_64;
-    int64_t compress_write_fail;
-    int64_t compress_write_too_small;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;

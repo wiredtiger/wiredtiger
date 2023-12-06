@@ -7439,84 +7439,84 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * compression
  */
 #define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2148
-/*! compression: compressed pages read from disk */
-#define	WT_STAT_DSRC_COMPRESS_READ			2149
-/*!
- * compression: compressed pages read from disk with compression ratio
- * greater than 64
- */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_MAX	2150
-/*!
- * compression: compressed pages read from disk with compression ratio
- * smaller than  2
- */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_2		2151
-/*!
- * compression: compressed pages read from disk with compression ratio
- * smaller than  4
- */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_4		2152
-/*!
- * compression: compressed pages read from disk with compression ratio
- * smaller than  8
- */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_8		2153
-/*!
- * compression: compressed pages read from disk with compression ratio
- * smaller than 16
- */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_16	2154
-/*!
- * compression: compressed pages read from disk with compression ratio
- * smaller than 32
- */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_32	2155
-/*!
- * compression: compressed pages read from disk with compression ratio
- * smaller than 64
- */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_64	2156
-/*! compression: compressed pages written to disk */
-#define	WT_STAT_DSRC_COMPRESS_WRITE			2157
-/*!
- * compression: compressed pages written to disk with compression ratio
- * greater than 64
- */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_MAX	2158
-/*!
- * compression: compressed pages written to disk with compression ratio
- * smaller than  2
- */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_2	2159
-/*!
- * compression: compressed pages written to disk with compression ratio
- * smaller than  4
- */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_4	2160
-/*!
- * compression: compressed pages written to disk with compression ratio
- * smaller than  8
- */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_8	2161
-/*!
- * compression: compressed pages written to disk with compression ratio
- * smaller than 16
- */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_16	2162
-/*!
- * compression: compressed pages written to disk with compression ratio
- * smaller than 32
- */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_32	2163
-/*!
- * compression: compressed pages written to disk with compression ratio
- * smaller than 64
- */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64	2164
 /*! compression: page written to disk failed to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2165
+#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2149
 /*! compression: page written to disk was too small to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2166
+#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2150
+/*! compression: pages read from disk */
+#define	WT_STAT_DSRC_COMPRESS_READ			2151
+/*!
+ * compression: pages read from disk with compression ratio greater than
+ * 64
+ */
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_MAX	2152
+/*!
+ * compression: pages read from disk with compression ratio smaller than
+ * 2
+ */
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_2		2153
+/*!
+ * compression: pages read from disk with compression ratio smaller than
+ * 4
+ */
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_4		2154
+/*!
+ * compression: pages read from disk with compression ratio smaller than
+ * 8
+ */
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_8		2155
+/*!
+ * compression: pages read from disk with compression ratio smaller than
+ * 16
+ */
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_16	2156
+/*!
+ * compression: pages read from disk with compression ratio smaller than
+ * 32
+ */
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_32	2157
+/*!
+ * compression: pages read from disk with compression ratio smaller than
+ * 64
+ */
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_64	2158
+/*! compression: pages written to disk */
+#define	WT_STAT_DSRC_COMPRESS_WRITE			2159
+/*!
+ * compression: pages written to disk with compression ratio greater than
+ * 64
+ */
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_MAX	2160
+/*!
+ * compression: pages written to disk with compression ratio smaller than
+ * 2
+ */
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_2	2161
+/*!
+ * compression: pages written to disk with compression ratio smaller than
+ * 4
+ */
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_4	2162
+/*!
+ * compression: pages written to disk with compression ratio smaller than
+ * 8
+ */
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_8	2163
+/*!
+ * compression: pages written to disk with compression ratio smaller than
+ * 16
+ */
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_16	2164
+/*!
+ * compression: pages written to disk with compression ratio smaller than
+ * 32
+ */
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_32	2165
+/*!
+ * compression: pages written to disk with compression ratio smaller than
+ * 64
+ */
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64	2166
 /*! cursor: Total number of entries skipped by cursor next calls */
 #define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2167
 /*! cursor: Total number of entries skipped by cursor prev calls */
