@@ -33,7 +33,6 @@ typedef struct {
     WT_LSN max_ckpt_lsn; /* Maximum checkpoint LSN seen. */
     WT_LSN max_rec_lsn;  /* Maximum recovery LSN seen. */
 
-    bool backup_cleared; /* Set if we cleared backup information. */
     bool backup_only;    /* Set to only recover backup. */
     bool missing;        /* Were there missing files? */
     bool metadata_only;  /*
@@ -180,14 +179,12 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
               " granularity %" PRIu64 " ID string %s",
               lsnp->l.file, lsnp->l.offset, index, granularity, id_str);
             WT_ERR(__wt_backup_set_blkincr(session, index, granularity, id_str, strlen(id_str)));
-            r->backup_cleared = true;
         } else {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Clearing slot %" PRIu32, lsnp->l.file,
               lsnp->l.offset, index);
             /* This is the result of a force stop, clear the entry. */
             WT_CLEAR(*blk);
-            r->backup_cleared = true;
         }
     } else
         __wt_verbose_multi(
