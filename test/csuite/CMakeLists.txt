@@ -28,6 +28,8 @@ define_c_test(
     SOURCES random/main.c
     DIR_NAME random
     DEPENDS "WT_POSIX"
+    # This test takes over 20 minutes under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -261,6 +263,8 @@ define_c_test(
     DIR_NAME wt3338_partial_update
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt3338_partial_update>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over an hour under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -357,6 +361,8 @@ define_c_test(
     DIR_NAME wt7989_compact_checkpoint
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt7989_compact_checkpoint>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over 40 minutes under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -382,6 +388,8 @@ define_c_test(
     DIR_NAME wt8659_reconstruct_database_from_logs
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8659_reconstruct_database_from_logs>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over 20 minutes under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -390,6 +398,8 @@ define_c_test(
     DIR_NAME wt8963_insert_stress
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8963_insert_stress>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over an hour under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
