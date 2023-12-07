@@ -303,7 +303,7 @@ run_test_backup(void)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     pid_t pid;
-    int status;
+    int ret, status;
 
     printf("\n%s: Test crashing during checkpoint after incremental backup\n", __func__);
 
@@ -339,7 +339,8 @@ run_test_backup(void)
     /* Parent. */
 
     /* Wait for the child to die. */
-    testutil_assert(waitpid(pid, &status, 0) > 0);
+    ret = waitpid(pid, &status, 0);
+    testutil_assert(ret != 0 && WIFSIGNALED(status) != 0);
     printf("-- crash --\n");
 
     /* Save the database directory. */
@@ -362,7 +363,7 @@ run_test_force_stop(void)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     pid_t pid;
-    int status;
+    int ret, status;
 
     printf("\n%s: Test crashing during force-stop after incremental backup\n", __func__);
 
@@ -398,7 +399,8 @@ run_test_force_stop(void)
     /* Parent. */
 
     /* Wait for the child to die. */
-    testutil_assert(waitpid(pid, &status, 0) > 0);
+    ret = waitpid(pid, &status, 0);
+    testutil_assert(ret != 0 && WIFSIGNALED(status) != 0);
     printf("-- crash --\n");
 
     /* Save the database directory. */
