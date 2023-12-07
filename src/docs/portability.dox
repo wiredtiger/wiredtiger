@@ -20,7 +20,7 @@ or a
 
 To see a list of the CPU and operating system combinations WiredTiger is currently tested on, please
 visit <a href="https://evergreen.mongodb.com/waterfall/wiredtiger">our test results page</a>. This
-list is determined by the availability of suitable machines, and the lack of an operating system or
-CPU architecture on this page does not make it unsupported.
+list is determined by the availability of suitable machines. The lack of an operating system or CPU
+architecture on this page does not make it unsupported.
 
 */
