@@ -22,6 +22,8 @@ struct __wt_process {
 /* Checksum functions */
 #define __wt_checksum(chunk, len) __wt_process.checksum(chunk, len)
     uint32_t (*checksum)(const void *, size_t);
+#define __wt_checksum_with_seed(seed, chunk, len) __wt_process.checksum_with_seed(seed, chunk, len)
+    uint32_t (*checksum_with_seed)(uint32_t, const void *, size_t);
 
 #define WT_TSC_DEFAULT_RATIO 1.0
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
@@ -83,6 +85,7 @@ struct __wt_background_compact_exclude {
  */
 struct __wt_background_compact {
     bool running;             /* Compaction supposed to run */
+    bool run_once;            /* Background compaction is executed once */
     bool signalled;           /* Compact signalled */
     bool tid_set;             /* Thread set */
     wt_thread_t tid;          /* Thread */
@@ -301,6 +304,13 @@ typedef TAILQ_HEAD(__wt_backuphash, __wt_backup_target) WT_BACKUPHASH;
 extern const WT_NAME_FLAG __wt_stress_types[];
 
 /*
+ * Access the array of all sessions. This field uses the Slotted Array pattern to managed shared
+ * accesses, if you are looking to walk all sessions please consider using the existing session walk
+ * logic. FIXME-WT-10946 - Add link to Slotted Array docs.
+ */
+#define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -315,7 +325,7 @@ struct __wt_connection_impl {
 
     WT_SPINLOCK api_lock;                 /* Connection API spinlock */
     WT_SPINLOCK checkpoint_lock;          /* Checkpoint spinlock */
-    WT_SPINLOCK chunkcache_metadata_lock; /* Chunkcache metadata spinlock */
+    WT_SPINLOCK chunkcache_metadata_lock; /* Chunk cache metadata spinlock */
     WT_RWLOCK debug_log_retention_lock;   /* Log retention reconfiguration lock */
     WT_SPINLOCK fh_lock;                  /* File handle queue spinlock */
     WT_SPINLOCK flush_tier_lock;          /* Flush tier spinlock */
@@ -373,7 +383,7 @@ struct __wt_connection_impl {
 
     WT_FH *lock_fh; /* Lock file handle */
 
-    /* Locked: chunkcache metadata work queue (and length counter). */
+    /* Locked: chunk cache metadata work queue (and length counter). */
     TAILQ_HEAD(__wt_chunkcache_metadata_qh, __wt_chunkcache_metadata_work_unit)
     chunkcache_metadataqh;
     int chunkcache_queue_len;
@@ -422,9 +432,11 @@ struct __wt_connection_impl {
      * that way because we want an easy way for the server thread code to avoid walking the entire
      * array when only a few threads are running.
      */
-    WT_SESSION_IMPL *sessions;      /* Session reference */
-    uint32_t session_size;          /* Session array size */
-    wt_shared uint32_t session_cnt; /* Session count */
+    struct {
+        WT_SESSION_IMPL *__array; /* Session reference. Do not use this field directly. */
+        uint32_t size;            /* Session array size */
+        wt_shared uint32_t cnt;   /* Session count */
+    } session_array;
 
     size_t session_scratch_max; /* Max scratch memory per session */
 
@@ -459,7 +471,13 @@ struct __wt_connection_impl {
     uint64_t ckpt_skip;       /* Checkpoint handles skipped */
     uint64_t ckpt_skip_time;  /* Checkpoint skipped handles gather time */
     uint64_t ckpt_usecs;      /* Checkpoint timer */
-    uint64_t ckpt_prep_max;   /* Checkpoint prepare time min/max */
+
+    uint64_t ckpt_scrub_max; /* Checkpoint scrub time min/max */
+    uint64_t ckpt_scrub_min;
+    uint64_t ckpt_scrub_recent; /* Checkpoint scrub time recent/total */
+    uint64_t ckpt_scrub_total;
+
+    uint64_t ckpt_prep_max; /* Checkpoint prepare time min/max */
     uint64_t ckpt_prep_min;
     uint64_t ckpt_prep_recent; /* Checkpoint prepare time recent/total */
     uint64_t ckpt_prep_total;
@@ -570,10 +588,10 @@ struct __wt_connection_impl {
     uint32_t flush_state;            /* State of last flush tier */
     wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
 
-    WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunkcache metadata server thread session */
-    wt_thread_t chunkcache_metadata_tid;          /* Chunkcache metadata thread */
-    bool chunkcache_metadata_tid_set;             /* Chunkcache metadata thread set */
-    WT_CONDVAR *chunkcache_metadata_cond;         /* Chunkcache metadata wait mutex */
+    WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunk cache metadata server thread session */
+    wt_thread_t chunkcache_metadata_tid;          /* Chunk cache metadata thread */
+    bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
+    WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
@@ -817,4 +835,22 @@ struct __wt_connection_impl {
 #define WT_CONN_WAS_BACKUP 0x20000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
+};
+
+/*
+ * WT_VERBOSE_DUMP_COOKIE --
+ *   State passed through to callbacks during the session walk logic when dumping all sessions.
+ */
+struct __wt_verbose_dump_cookie {
+    uint32_t internal_session_count;
+    bool show_cursors;
+};
+
+/*
+ * WT_SWEEP_COOKIE --
+ *   State passed through to callbacks during the session walk logic when checking for sessions that
+ *   haven't performed a sweep in a long time.
+ */
+struct __wt_sweep_cookie {
+    uint64_t now;
 };

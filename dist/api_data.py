@@ -739,6 +739,10 @@ connection_runtime_config = [
             decisions about what subsystems are throttled, and in what proportion, are made
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
+        Config('chunk_cache', '0', r'''
+            number of bytes per second available to the chunk cache. The minimum non-zero setting
+            is 1MB.''',
+            min='0', max='1TB'),
         ]),
     Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a
@@ -1105,6 +1109,9 @@ session_config = [
         configure debug specific behavior on a session. Generally only used for internal testing
         purposes.''',
         type='category', subconfig=[
+        Config('checkpoint_fail_before_turtle_update', 'false', r'''
+            Fail before writing a turtle file at the end of a checkpoint.''',
+            type='boolean'),
         Config('release_evict_page', 'false', r'''
             Configure the session to evict the page when it is released and no longer needed.''',
             type='boolean'),
@@ -1389,7 +1396,7 @@ methods = {
         enable/disabled the background compaction server.''',
         type='boolean'),
     Config('exclude', '', r'''
-        A list of table objects to be excluded from background compaction. The list is immutable and
+        list of table objects to be excluded from background compaction. The list is immutable and
         only applied when the background compaction gets enabled. The list is not saved between the
         calls and needs to be reapplied each time the service is enabled. The individual objects in
         the list can only be of the \c table: URI type''',
@@ -1397,6 +1404,10 @@ methods = {
     Config('free_space_target', '20MB', r'''
         minimum amount of space recoverable for compaction to proceed''',
         min='1MB'),
+    Config('run_once', 'false', r'''
+        configure background compaction server to run once. In this mode, compaction is always
+        attempted on each table unless explicitly excluded''',
+        type='boolean'),
     Config('timeout', '1200', r'''
         maximum amount of time to allow for compact in seconds. The actual amount of time spent
         in compact may exceed the configured value. A value of zero disables the timeout''',
@@ -1602,6 +1613,9 @@ methods = {
         next_random_sample_size attempts to divide the object into \c next_random_sample_size
         equal-sized pieces, and each retrieval returns a record from one of those pieces. See
         @ref cursor_random for details'''),
+    Config('next_random_seed', '0', r'''
+        configure the cursor to set an initial random seed when using \c next_random configuration.
+        This is used for testing purposes only. See @ref cursor_random for details'''),
     Config('raw', 'false', r'''
         ignore the encodings for the key and value, manage data as if the formats were \c "u".
         See @ref cursor_raw for details''',

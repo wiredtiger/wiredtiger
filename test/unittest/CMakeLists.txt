@@ -42,18 +42,18 @@ else()
     set(UNITTEST_FLAGS -Wno-missing-declarations)
 endif()
 
-create_test_executable(unittests
+create_test_executable(catch2-unittests
     SOURCES ${unittest_sources}
     FLAGS ${UNITTEST_FLAGS}
     CXX
 )
 
 target_compile_options(
-    unittests
+    catch2-unittests
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
-target_link_libraries(unittests Catch2::Catch2)
+target_link_libraries(catch2-unittests Catch2::Catch2)
 
-add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/unittests)
+add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/catch2-unittests)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")

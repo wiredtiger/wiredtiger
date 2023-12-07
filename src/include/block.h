@@ -193,7 +193,7 @@ struct __wt_bm {
     int (*compact_page_rewrite)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
     int (*compact_page_skip)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
     int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
-    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *, u_int *);
+    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
@@ -216,6 +216,8 @@ struct __wt_bm {
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
+    WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
+    WT_BLOCK *prev_block; /* If a tier switch was done, this was the old file. */
 
     void *map; /* Mapped region */
     size_t maplen;
