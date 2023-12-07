@@ -5483,7 +5483,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-cache: pre-fetch not triggered due to special btree handle */
 #define	WT_STAT_CONN_BLOCK_PREFETCH_SKIPPED_SPECIAL_HANDLE	1040
 /*!
- * block-cache: pre-fetch not triggered on internal page. Pre-fetch
+ * block-cache: pre-fetch not triggered on internal page, pre-fetch
  * should only see leaf pages
  */
 #define	WT_STAT_CONN_BLOCK_PREFETCH_SKIPPED_NO_LEAF_PAGE	1041

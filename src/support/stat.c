@@ -1322,7 +1322,7 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: pre-fetch not triggered as there is no valid dhandle",
   "block-cache: pre-fetch not triggered by page read",
   "block-cache: pre-fetch not triggered due to special btree handle",
-  "block-cache: pre-fetch not triggered on internal page. Pre-fetch should only see leaf pages",
+  "block-cache: pre-fetch not triggered on internal page, pre-fetch should only see leaf pages",
   "block-cache: pre-fetch page not on disk when reading",
   "block-cache: pre-fetch pages queued",
   "block-cache: pre-fetch pages read in background",
