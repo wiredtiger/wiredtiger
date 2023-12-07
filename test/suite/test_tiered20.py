@@ -75,11 +75,16 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         else:
             self.session.drop(uri, "force=true")
 
+    # Return True iff the binary file contains the given string.
+    def file_contains(self, fname, match):
+        bmatch = bytes(match, 'ascii')
+        with open(fname, mode='rb') as f:
+            return (f.read().find(bmatch) != -1)
+
     def test_tiered_overwrite(self):
         uri_a = "table:tiereda"
         uri_b = "table:tieredb"
         uri_b_local_file1 = 'tieredb-0000000001.wtobj'
-        uri_b_local_file1_copy = 'tieredb-copy-0000000001.wtobj'
         # This really only applies to dirstore.
         if self.is_tiered_scenario() and self.is_local_storage:
             uri_b_shared_file1 = os.path.join(self.bucket, self.bucket_prefix + uri_b_local_file1)
@@ -89,7 +94,6 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # This test uses a second connection, which is housed in a subdirectory.
         SECOND_DIR = 'SECOND'
         second_b_local_file1 = os.path.join(SECOND_DIR, uri_b_local_file1)
-        second_b_local_file1_copy = os.path.join(SECOND_DIR, uri_b_local_file1_copy)
 
         # We should be able to do this test for any tiered scenario, not just dir_store.
         # Remove this 'if' and comment when FIXME-WT-11004 is finished.
@@ -143,8 +147,9 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # This should not conflict, as nothing has been pushed to the shared storage.
         session1.create(uri_b, "key_format=S,value_format=S")
         session2.create(uri_b, "key_format=S,value_format=S")
+        expected_value = "APPLES_IN_THIS_FILE!" * 1000
         c1 = session1.open_cursor(uri_b)
-        c1["a"] = "a"
+        c1["a"] = expected_value
         c1.close()
         c2 = session2.open_cursor(uri_b)
         c2["a"] = "SOMETHING_VERY_DIFFERENT!" * 1000
@@ -155,21 +160,16 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # Make sure the file systems in the first connection.
         self.assertTrue(os.path.exists(uri_b_local_file1))
 
-        # Do a checkpoint in both connections to get everything to disk, and make
-        # copies of the files we want to compare later.  We can't do this reliably
-        # after the flush_tier, nor compare the files directly then, because
-        # the local files may be removed at any time following the flush_tier.
+        # Do a checkpoint in both connections to get everything to disk.
         session1.checkpoint()
-        shutil.copy(uri_b_local_file1, uri_b_local_file1_copy)
-
         session2.checkpoint()
-        shutil.copy(second_b_local_file1, second_b_local_file1_copy)
 
         # The first flush from the first "system" should succeed
         session1.checkpoint('flush_tier=(enabled,force=true)')
         if self.is_local_storage:   # dir_store
             self.assertTrue(os.path.exists(uri_b_shared_file1))
-            self.assertTrue(filecmp.cmp(uri_b_local_file1_copy, uri_b_shared_file1))
+            self.assertTrue(self.file_contains(uri_b_shared_file1, "APPLES"))
+            self.assertFalse(self.file_contains(uri_b_shared_file1, "DIFFERENT"))
 
         # The second flush from the other "system" should detect the conflict.
         # Normally such a failure would crash Python, but we've changed our
@@ -184,8 +184,8 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # did not overwrite it.
         if self.is_local_storage:   # dir_store
             self.assertTrue(os.path.exists(uri_b_shared_file1))
-            self.assertFalse(filecmp.cmp(second_b_local_file1_copy, uri_b_shared_file1))
-            self.assertTrue(filecmp.cmp(uri_b_local_file1_copy, uri_b_shared_file1))
+            self.assertTrue(self.file_contains(uri_b_shared_file1, "APPLES"))
+            self.assertFalse(self.file_contains(uri_b_shared_file1, "DIFFERENT"))
 
         # We're done with the second connection.
         session2.close()
@@ -202,7 +202,7 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # the data via the cloud.
         self.reopen_conn()
         c1 = self.session.open_cursor(uri_b)
-        self.assertEqual(c1["a"], "a")
+        self.assertEqual(c1["a"], expected_value)
         c1.close()
 
 if __name__ == '__main__':
