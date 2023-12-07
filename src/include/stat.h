@@ -379,6 +379,7 @@ struct __wt_connection_stats {
     int64_t block_cache_bypass_chkpt;
     int64_t block_prefetch_disk_one;
     int64_t block_prefetch_skipped;
+    int64_t block_prefetch_skipped_special_handle;
     int64_t block_prefetch_pages_fail;
     int64_t block_prefetch_pages_queued;
     int64_t block_prefetch_pages_read;
@@ -564,6 +565,7 @@ struct __wt_connection_stats {
     int64_t fsync_all_time;
     int64_t capacity_bytes_read;
     int64_t capacity_bytes_ckpt;
+    int64_t capacity_bytes_chunkcache;
     int64_t capacity_bytes_evict;
     int64_t capacity_bytes_log;
     int64_t capacity_bytes_written;
@@ -573,6 +575,7 @@ struct __wt_connection_stats {
     int64_t capacity_time_evict;
     int64_t capacity_time_log;
     int64_t capacity_time_read;
+    int64_t capacity_time_chunkcache;
     int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_skipped;
     int64_t checkpoint_fsync_post;
@@ -623,6 +626,8 @@ struct __wt_connection_stats {
     int64_t chunkcache_exceeded_capacity;
     int64_t chunkcache_lookups;
     int64_t chunkcache_chunks_loaded_from_flushed_tables;
+    int64_t chunkcache_metadata_inserted;
+    int64_t chunkcache_metadata_removed;
     int64_t chunkcache_metadata_work_units_dropped;
     int64_t chunkcache_metadata_work_units_created;
     int64_t chunkcache_metadata_work_units_dequeued;

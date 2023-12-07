@@ -244,6 +244,7 @@ conn_stats = [
     BlockCacheStat('block_prefetch_pages_queued', 'pre-fetch pages queued'),
     BlockCacheStat('block_prefetch_pages_read', 'pre-fetch pages read in background'),
     BlockCacheStat('block_prefetch_skipped', 'pre-fetch not triggered by page read'),
+    BlockCacheStat('block_prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
     BlockCacheStat('block_prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
 
     ##########################################
@@ -355,12 +356,14 @@ conn_stats = [
     ##########################################
     # Capacity statistics
     ##########################################
+    CapacityStat('capacity_bytes_chunkcache', 'bytes written for chunk cache'),
     CapacityStat('capacity_bytes_ckpt', 'bytes written for checkpoint'),
     CapacityStat('capacity_bytes_evict', 'bytes written for eviction'),
     CapacityStat('capacity_bytes_log', 'bytes written for log'),
     CapacityStat('capacity_bytes_read', 'bytes read'),
     CapacityStat('capacity_bytes_written', 'bytes written total'),
     CapacityStat('capacity_threshold', 'threshold to call fsync'),
+    CapacityStat('capacity_time_chunkcache', 'time waiting for chunk cache IO bandwidth (usecs)'),
     CapacityStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
     CapacityStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
     CapacityStat('capacity_time_log', 'time waiting during logging (usecs)'),
@@ -427,6 +430,8 @@ conn_stats = [
     ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
     ChunkCacheStat('chunkcache_io_failed', 'number of times a read from storage failed'),
     ChunkCacheStat('chunkcache_lookups', 'lookups'),
+    ChunkCacheStat('chunkcache_metadata_inserted', 'number of metadata entries inserted'),
+    ChunkCacheStat('chunkcache_metadata_removed', 'number of metadata entries removed'),
     ChunkCacheStat('chunkcache_metadata_work_units_created', 'number of metadata inserts/deletes pushed to the worker thread'),
     ChunkCacheStat('chunkcache_metadata_work_units_dequeued', 'number of metadata inserts/deletes read by the worker thread'),
     ChunkCacheStat('chunkcache_metadata_work_units_dropped', 'number of metadata inserts/deletes dropped by the worker thread'),

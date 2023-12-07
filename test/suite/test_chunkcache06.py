@@ -29,6 +29,7 @@
 import os, random, sys, time
 import wiredtiger, wttest
 
+from test_chunkcache01 import stat_assert_equal, stat_assert_greater
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -63,12 +64,6 @@ class test_chunkcache06(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('storage_sources', 'dir_store')
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     # Corrupt the chunk cache content in 1-10 places, with a run of 1-100 bytes.
     def corrupt_random_chunk_cache_data(self):
         corruptions = random.randrange(1, 11)
@@ -92,12 +87,15 @@ class test_chunkcache06(wttest.WiredTigerTestCase):
         ds.populate()
 
         # Haven't persisted anything yet - check the stats agree.
-        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata), 0)
-        self.assertEqual(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_read_persistent), 0)
+        stat_assert_equal(self.session, wiredtiger.stat.conn.chunkcache_created_from_metadata, 0)
+        stat_assert_equal(self.session, wiredtiger.stat.conn.chunkcache_bytes_read_persistent, 0)
 
-        # Flush the tables into the chunkcache
+        # Flush the tables into the chunk cache.
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')
+
+        # Make sure we write out the metadata entries we're planning to read back.
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_metadata_inserted, 0)
 
         self.close_conn()
 
@@ -108,10 +106,9 @@ class test_chunkcache06(wttest.WiredTigerTestCase):
 
         # Assert the chunks are read back in on startup. Wait for the stats to indicate
         # that it's done the work.
-        while self.get_stat(wiredtiger.stat.conn.chunkcache_created_from_metadata) == 0:
-            pass
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_read_persistent), 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_created_from_metadata, 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_bytes_read_persistent, 0)
 
         # Check that our data is all intact, despite having to reload chunks.
         ds.check()
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_retries_checksum_mismatch), 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_retries_checksum_mismatch, 0)

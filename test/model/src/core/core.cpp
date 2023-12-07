@@ -26,38 +26,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <wiredtiger_config.h>
-#include <inttypes.h>
-#include <stddef.h>
+#include "model/core.h"
 
-extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
-extern uint32_t __wt_checksum_with_seed_sw(uint32_t, const void *chunk, size_t len);
-
-#if defined(__GNUC__)
-extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
-  __attribute__((visibility("default")));
-extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_t)
-  __attribute__((visibility("default")));
-#else
-extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
-extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_t);
-#endif
-
-/*
- * wiredtiger_crc32c_func --
- *     WiredTiger: detect CRC hardware and return the checksum function.
- */
-uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
-{
-    return (__wt_checksum_sw);
+extern "C" {
+#include "wt_internal.h"
 }
 
-/*
- * wiredtiger_crc32c_with_seed_func --
- *     WiredTiger: detect CRC hardware and return the checksum function that accepts a starting
- *     seed.
- */
-uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_t)
-{
-    return (__wt_checksum_with_seed_sw);
-}
+namespace model {
+
+/* Finish checking WiredTiger's constants. */
+static_assert(k_txn_max == WT_TXN_MAX);
+
+} /* namespace model */
