@@ -966,6 +966,13 @@ run_workload(uint32_t workload_iteration)
      */
     cache_mb = ((32 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 20;
 
+    /*
+     * Do not remove log files when using model verification. The current implementation requires
+     * the debug log to be present from the beginning of time, as it uses it to populate the model.
+     * (To remove this requirement in the future, we could explore the possibility of populating the
+     * model from an earlier checkpoint and then rolling forward using the debug log, just from that
+     * position.)
+     */
     testutil_snprintf(envconf, sizeof(envconf), ENV_CONFIG_BASE, cache_mb,
       verify_model ? "false" : "true", SESSION_MAX, STAT_WAIT);
 
