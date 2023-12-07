@@ -50,8 +50,9 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
          * that page was evicted and now a future page wants to be pre-fetched, this algorithm needs
          * a tweak. It would need to remember which child was last queued and start again from
          * there, rather than this approximation which assumes recently pre-fetched pages are still
-         * in cache. Don't prefetch fast deleted pages - they have special performance and
-         * visibility considerations associated with them.
+         * in cache. Don't prefetch fast deleted pages to avoid wasted effort. We can skip reading
+         * these deleted pages into the cache if the fast truncate information is visibile in the
+         * session transaction snapshot.
          */
         if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
           next_ref->page_del == NULL) {
