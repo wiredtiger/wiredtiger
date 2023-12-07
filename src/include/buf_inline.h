@@ -103,6 +103,9 @@ __wt_buf_setstr(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *s)
 static inline void
 __wt_buf_free(WT_SESSION_IMPL *session, WT_ITEM *buf)
 {
+    if (F_ISSET(buf, WT_ITEM_STACK_ALLOCATED | WT_ITEM_STACK_DECLARED))
+        return;
+
     __wt_free(session, buf->mem);
 
     memset(buf, 0, sizeof(WT_ITEM));
@@ -116,10 +119,26 @@ static inline void
 __wt_scr_free(WT_SESSION_IMPL *session, WT_ITEM **bufp)
 {
     WT_ITEM *buf;
+    WT_STACK_ITEM *stack_item;
 
     if ((buf = *bufp) == NULL)
         return;
     *bufp = NULL;
+
+    if (F_ISSET(buf, WT_ITEM_STACK_ALLOCATED | WT_ITEM_STACK_DECLARED))
+        return;
+
+    WT_ASSERT(session, F_ISSET(buf, WT_ITEM_INUSE));
+
+    if (F_ISSET(buf, WT_ITEM_STACK_SCRATCH)) {
+        /*
+         * Get back the original scratch buffer that was allocated, and fill with this buffer.
+         */
+        stack_item = (WT_STACK_ITEM *)buf;
+        *stack_item->scratch_item = *buf;
+        buf = stack_item->scratch_item;
+        F_CLR(buf, WT_ITEM_STACK_SCRATCH);
+    }
 
     if (session->scratch_cached + buf->memsize >= S2C(session)->session_scratch_max) {
         __wt_free(session, buf->mem);
@@ -130,4 +149,18 @@ __wt_scr_free(WT_SESSION_IMPL *session, WT_ITEM **bufp)
     buf->data = NULL;
     buf->size = 0;
     F_CLR(buf, WT_ITEM_INUSE);
+}
+
+/*
+ * __wt_scr_stack_alloc --
+ *     Scratch buffer allocation function, initially backed by stack memory.
+ */
+static inline void
+__wt_scr_stack_alloc(WT_SESSION_IMPL *session, WT_STACK_ITEM *stack_item, WT_ITEM **scratchp)
+{
+    WT_ASSERT(session, F_ISSET(&stack_item->item, WT_ITEM_STACK_DECLARED));
+
+    F_CLR(&stack_item->item, WT_ITEM_STACK_DECLARED);
+    F_SET(&stack_item->item, WT_ITEM_STACK_ALLOCATED);
+    *scratchp = &stack_item->item;
 }

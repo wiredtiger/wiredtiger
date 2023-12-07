@@ -353,6 +353,21 @@ __wt_string_match(const char *str, const char *bytes, size_t len)
 #define __wt_page_swap(session, held, want, flags) __wt_page_swap_func(session, held, want, flags)
 #endif
 
+/*
+ * A WT_STACK_ITEM can be used to provide initial backing memory for a scratch buffer pointer.
+ * Later, if the item overflows the statically allocated stack memory, a scratch buffer can be
+ * attached.
+ */
+
+struct __wt_stack_item {
+    WT_ITEM item;
+    WT_ITEM *scratch_item;
+};
+
+#define WT_DECL_STACK_ITEM(name, reserved_size) \
+    uint8_t name##_mem[reserved_size];          \
+    WT_STACK_ITEM name = {{NULL, 0, name##_mem, reserved_size, WT_ITEM_STACK_DECLARED}, NULL}
+
 /* Random number generator state. */
 union __wt_rand_state {
     uint64_t v;

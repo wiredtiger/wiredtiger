@@ -16,6 +16,7 @@ int
 __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    WT_STACK_ITEM *stack_item;
     size_t offset;
     bool copy_data;
 
@@ -49,6 +50,21 @@ __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
      * need to grow anything.
      */
     if (size > buf->memsize) {
+        /*
+         * If needed, convert a buffer that is backed by stack memory to be a scratch buffer.
+         */
+        WT_ASSERT_ALWAYS(
+          session, !F_ISSET(buf, WT_ITEM_STACK_DECLARED), "static sized buffer cannot be grown");
+        if (F_ISSET(buf, WT_ITEM_STACK_ALLOCATED)) {
+            stack_item = (WT_STACK_ITEM *)buf;
+            WT_ASSERT(session, stack_item->scratch_item == NULL);
+            WT_RET(__wt_scr_alloc(session, size + 50, &stack_item->scratch_item));
+            WT_RET(__wt_buf_set(session, stack_item->scratch_item, buf->data, buf->size));
+            stack_item->item = *stack_item->scratch_item;
+            F_SET(buf, WT_ITEM_STACK_SCRATCH);
+            return (0);
+        }
+
         if (F_ISSET(buf, WT_ITEM_ALIGNED))
             WT_RET(__wt_realloc_aligned(session, &buf->memsize, size, &buf->mem));
         else
