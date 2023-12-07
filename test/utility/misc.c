@@ -445,8 +445,8 @@ testutil_copy_if_exists(WT_SESSION *session, const char *name)
 
 /*
  * testutil_verify_model --
- *     Run the model verification tool on the database. The database must be closed, and while it
- *     has to be created with debug logging and with log file removal set to false.
+ *     Run the model verification tool on the database. The database must be closed, and it has to
+ *     be created with debug logging and with log file removal set to false.
  */
 void
 testutil_verify_model(TEST_OPTS *opts, const char *home)

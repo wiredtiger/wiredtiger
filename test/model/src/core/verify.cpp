@@ -149,7 +149,7 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
                 std::cout << "Verification: key = " << key << ", value = " << value << std::endl;
             if (!model_cursor.verify_next(key, value)) {
                 std::ostringstream ss;
-                std::pair<data_value, data_value> prev = model_cursor.get_prev();
+                auto prev = model_cursor.get_prev();
                 ss << "\"" << key << "=" << value
                    << "\" is not the next key-value pair in the model; expected "
                    << "\"" << prev.first << "=" << prev.second << "\"";
