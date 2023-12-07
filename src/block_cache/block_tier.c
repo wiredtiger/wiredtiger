@@ -105,7 +105,7 @@ err:
 static void
 __blkcache_find_open_handle(WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK **blockp)
 {
-    WT_BLOCK *block;
+    u_int i;
 
     /* Must be called with minimum of a read lock on bm->handle_array_lock. */
 
@@ -116,9 +116,9 @@ __blkcache_find_open_handle(WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK
         *blockp = bm->block;
     else
         /* Look for matching object in handle array */
-        TAILQ_FOREACH (block, &bm->tiered_block_qh, tieredq)
-            if (block->objectid == objectid) {
-                *blockp = block;
+        for (i = 0; i < bm->handle_array_next; i++)
+            if (bm->handle_array[i]->objectid == objectid) {
+                *blockp = bm->handle_array[i];
                 break;
             }
 
@@ -143,9 +143,9 @@ __wt_blkcache_get_handle(
      * Check the block handle array for the object. We don't have to check the name because we can
      * only reference objects in our name space.
      */
-    __wt_readlock(session, &bm->handle_list_lock);
+    __wt_readlock(session, &bm->handle_array_lock);
     __blkcache_find_open_handle(bm, objectid, reading, blockp);
-    __wt_readunlock(session, &bm->handle_list_lock);
+    __wt_readunlock(session, &bm->handle_array_lock);
 
     if (*blockp != NULL)
         return (0);
@@ -154,7 +154,7 @@ __wt_blkcache_get_handle(
     WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, &new_handle));
 
     /* We need a write lock to add a new entry to the handle array. */
-    __wt_writelock(session, &bm->handle_list_lock);
+    __wt_writelock(session, &bm->handle_array_lock);
 
     /*
      * Check to see if the object was added while we opened it. If the object was added, we should
@@ -164,14 +164,20 @@ __wt_blkcache_get_handle(
     WT_ASSERT(session, *blockp == NULL || *blockp == new_handle);
 
     if (*blockp == NULL) {
+        /* Allocate space to store the new handle and insert it in the array. */
+        WT_ERR(__wt_realloc_def(
+          session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
+
         if (reading)
             __wt_blkcache_get_read_handle(new_handle);
 
-        TAILQ_INSERT_HEAD(&bm->tiered_block_qh, new_handle, tieredq);
+        bm->handle_array[bm->handle_array_next++] = new_handle;
         *blockp = new_handle;
         new_handle = NULL;
     }
-    __wt_writeunlock(session, &bm->handle_list_lock);
+
+err:
+    __wt_writeunlock(session, &bm->handle_array_lock);
 
     if (new_handle != NULL)
         WT_TRET(__wt_bm_close_block(session, new_handle));

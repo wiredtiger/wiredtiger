@@ -223,14 +223,16 @@ struct __wt_bm {
 
     /*
      * For trees, such as tiered tables, that are allowed to have more than one backing file or
-     * object, we maintain a list of the block handles used by the tree. We use a reader-writer
-     * mutex to protect the list. We lock it for reading when looking for a handle in the list and
-     * lock it for writing when adding or removing handles in the list.
+     * object, we maintain an array of the block handles used by the tree. We use a reader-writer
+     * mutex to protect the array. We lock it for reading when looking for a handle in the array and
+     * lock it for writing when adding or removing handles in the array.
      */
     bool is_multi_handle;
-    TAILQ_HEAD(__wt_tiered_block_qh, __wt_block) tiered_block_qh;
-    WT_RWLOCK handle_list_lock; /* Lock for block handle list */
-    uint32_t objectid_complete; /* Local objects at or below this id should be closed */
+    WT_BLOCK **handle_array;       /* Array of block handles */
+    size_t handle_array_allocated; /* Size of handle array */
+    WT_RWLOCK handle_array_lock;   /* Lock for block handle array */
+    u_int handle_array_next;       /* Next open slot */
+    uint32_t objectid_complete;    /* Local objects at or below this id should be closed */
 
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.
@@ -247,9 +249,8 @@ struct __wt_block {
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
 
-    TAILQ_ENTRY(__wt_block) q;       /* Linked list of handles */
-    TAILQ_ENTRY(__wt_block) hashq;   /* Hashed list of handles */
-    TAILQ_ENTRY(__wt_block) tieredq; /* Linked list of tiered handles in block manager */
+    TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
+    TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
 
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
