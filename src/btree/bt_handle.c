@@ -626,6 +626,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_BTREE *btree;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_DECL_STACK_ITEM(tmp_stack, 1024);
     WT_ITEM dsk;
     WT_PAGE *page;
 
@@ -644,7 +645,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
      *
      * Create a printable version of the address to pass to verify.
      */
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    __wt_scr_stack_alloc(session, &tmp_stack, &tmp);
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);

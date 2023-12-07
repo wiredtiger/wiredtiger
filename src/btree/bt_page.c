@@ -822,6 +822,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_ITEM(current);
     WT_DECL_RET;
+    WT_DECL_STACK_ITEM(current_stack, 1024);
     WT_PAGE_INDEX *pindex;
     WT_REF *ref, **refp;
     uint32_t hint;
@@ -829,7 +830,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 
     btree = S2BT(session);
 
-    WT_RET(__wt_scr_alloc(session, 0, &current));
+    __wt_scr_stack_alloc(session, &current_stack, &current);
 
     /*
      * Walk the page, instantiating keys: the page contains sorted key and location cookie pairs.
