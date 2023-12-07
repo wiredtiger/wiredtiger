@@ -1197,6 +1197,9 @@ err:
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
+    /* Shut down pre-fetching - it should not operate while closing the connection. */
+    WT_TRET(__wt_prefetch_destroy(session));
+
     /*
      * There should be no active transactions running now. Therefore, it's safe for operations to
      * proceed without doing snapshot visibility checks.
@@ -1218,7 +1221,6 @@ err:
      * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
     WT_TRET(__wt_background_compact_server_destroy(session));
-    WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */

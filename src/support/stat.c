@@ -1320,6 +1320,7 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of put bypasses on checkpoint I/O",
   "block-cache: pre-fetch not triggered after single disk read",
   "block-cache: pre-fetch not triggered by page read",
+  "block-cache: pre-fetch not triggered due to special btree handle",
   "block-cache: pre-fetch page not on disk when reading",
   "block-cache: pre-fetch pages queued",
   "block-cache: pre-fetch pages read in background",
@@ -1523,6 +1524,7 @@ static const char *const __stats_connection_desc[] = {
   "capacity: background fsync time (msecs)",
   "capacity: bytes read",
   "capacity: bytes written for checkpoint",
+  "capacity: bytes written for chunk cache",
   "capacity: bytes written for eviction",
   "capacity: bytes written for log",
   "capacity: bytes written total",
@@ -1532,6 +1534,7 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during eviction (usecs)",
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
+  "capacity: time waiting for chunk cache IO bandwidth (usecs)",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "checkpoint: checkpoints skipped because database was clean",
   "checkpoint: fsync calls after allocating the transaction ID",
@@ -1582,6 +1585,8 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: could not allocate due to exceeding capacity",
   "chunk-cache: lookups",
   "chunk-cache: number of chunks loaded from flushed tables in chunk cache",
+  "chunk-cache: number of metadata entries inserted",
+  "chunk-cache: number of metadata entries removed",
   "chunk-cache: number of metadata inserts/deletes dropped by the worker thread",
   "chunk-cache: number of metadata inserts/deletes pushed to the worker thread",
   "chunk-cache: number of metadata inserts/deletes read by the worker thread",
@@ -2036,6 +2041,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bypass_chkpt = 0;
     stats->block_prefetch_disk_one = 0;
     stats->block_prefetch_skipped = 0;
+    stats->block_prefetch_skipped_special_handle = 0;
     stats->block_prefetch_pages_fail = 0;
     stats->block_prefetch_pages_queued = 0;
     stats->block_prefetch_pages_read = 0;
@@ -2221,6 +2227,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing fsync_all_time */
     stats->capacity_bytes_read = 0;
     stats->capacity_bytes_ckpt = 0;
+    stats->capacity_bytes_chunkcache = 0;
     stats->capacity_bytes_evict = 0;
     stats->capacity_bytes_log = 0;
     stats->capacity_bytes_written = 0;
@@ -2230,6 +2237,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
+    stats->capacity_time_chunkcache = 0;
     stats->checkpoint_snapshot_acquired = 0;
     stats->checkpoint_skipped = 0;
     stats->checkpoint_fsync_post = 0;
@@ -2280,6 +2288,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->chunkcache_exceeded_capacity = 0;
     stats->chunkcache_lookups = 0;
     stats->chunkcache_chunks_loaded_from_flushed_tables = 0;
+    stats->chunkcache_metadata_inserted = 0;
+    stats->chunkcache_metadata_removed = 0;
     stats->chunkcache_metadata_work_units_dropped = 0;
     stats->chunkcache_metadata_work_units_created = 0;
     stats->chunkcache_metadata_work_units_dequeued = 0;
@@ -2703,6 +2713,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bypass_chkpt += WT_STAT_READ(from, block_cache_bypass_chkpt);
     to->block_prefetch_disk_one += WT_STAT_READ(from, block_prefetch_disk_one);
     to->block_prefetch_skipped += WT_STAT_READ(from, block_prefetch_skipped);
+    to->block_prefetch_skipped_special_handle +=
+      WT_STAT_READ(from, block_prefetch_skipped_special_handle);
     to->block_prefetch_pages_fail += WT_STAT_READ(from, block_prefetch_pages_fail);
     to->block_prefetch_pages_queued += WT_STAT_READ(from, block_prefetch_pages_queued);
     to->block_prefetch_pages_read += WT_STAT_READ(from, block_prefetch_pages_read);
@@ -2929,6 +2941,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->fsync_all_time += WT_STAT_READ(from, fsync_all_time);
     to->capacity_bytes_read += WT_STAT_READ(from, capacity_bytes_read);
     to->capacity_bytes_ckpt += WT_STAT_READ(from, capacity_bytes_ckpt);
+    to->capacity_bytes_chunkcache += WT_STAT_READ(from, capacity_bytes_chunkcache);
     to->capacity_bytes_evict += WT_STAT_READ(from, capacity_bytes_evict);
     to->capacity_bytes_log += WT_STAT_READ(from, capacity_bytes_log);
     to->capacity_bytes_written += WT_STAT_READ(from, capacity_bytes_written);
@@ -2938,6 +2951,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
+    to->capacity_time_chunkcache += WT_STAT_READ(from, capacity_time_chunkcache);
     to->checkpoint_snapshot_acquired += WT_STAT_READ(from, checkpoint_snapshot_acquired);
     to->checkpoint_skipped += WT_STAT_READ(from, checkpoint_skipped);
     to->checkpoint_fsync_post += WT_STAT_READ(from, checkpoint_fsync_post);
@@ -2991,6 +3005,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_lookups += WT_STAT_READ(from, chunkcache_lookups);
     to->chunkcache_chunks_loaded_from_flushed_tables +=
       WT_STAT_READ(from, chunkcache_chunks_loaded_from_flushed_tables);
+    to->chunkcache_metadata_inserted += WT_STAT_READ(from, chunkcache_metadata_inserted);
+    to->chunkcache_metadata_removed += WT_STAT_READ(from, chunkcache_metadata_removed);
     to->chunkcache_metadata_work_units_dropped +=
       WT_STAT_READ(from, chunkcache_metadata_work_units_dropped);
     to->chunkcache_metadata_work_units_created +=
