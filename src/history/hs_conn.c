@@ -92,7 +92,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
         WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val,
           WT_HS_FILE_MIN);
 
-    /* In-memory configuration do not have a history store. */
+    /* The history store is not available for in-memory configurations. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY))
         return (0);
 
@@ -113,7 +113,10 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     btree->file_max = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
 
-    /* To access the history store file later, set up the connection with the HS open flag. */
+    /*
+     * Now that we have the history store's handle, we may set the flag because we know the file is
+     * open.
+     */
     F_SET(conn, WT_CONN_HS_OPEN);
 
 err:
