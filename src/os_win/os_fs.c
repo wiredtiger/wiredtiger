@@ -477,7 +477,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
     if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY)
         goto directory_open;
 
-    win_fh->desired_access = GENERIC_READ;
+    win_fh->desired_access = GENERIC_READ | FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
     if (!LF_ISSET(WT_FS_OPEN_READONLY))
         win_fh->desired_access |= GENERIC_WRITE;
 
