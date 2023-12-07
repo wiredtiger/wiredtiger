@@ -163,14 +163,22 @@ __tier_release_local_object(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    bool release;
 
-    dhandle = &tiered->iface;
-    btree = dhandle->handle;
+    release = false;
+    WT_ERR(__wt_session_get_dhandle(session, tiered->iface.name, NULL, NULL, 0));
+    release = true;
+
+    btree = S2BT(session);
     bm = btree->bm;
 
-    WT_WITH_DHANDLE(session, dhandle, ret = bm->switch_object_complete(bm, session, id));
+    WT_ERR(bm->switch_object_complete(bm, session, id));
+
+err:
+    if (release)
+        WT_TRET(__wt_session_release_dhandle(session));
+
     return (ret);
 }
 
