@@ -108,7 +108,7 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
 
     /*
      * For tiered tables, we need to fsync any previous active files to ensure the full checkpoint
-     * is persisted. We wait until now because there may have been in-progress writes to old files.
+     * is written. We wait until now because there may have been in-progress writes to old files.
      * But now we know those writes must have completed. Checkpoint ensures that all dirty pages of
      * the tree have been written and eviction is disabled at this point, so no new data is getting
      * written.
@@ -134,11 +134,12 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
 
         if (found) {
             fsync_ret = __wt_fsync(session, block->fh, true);
-            if (fsync_ret == 0)
-                block->sync_on_checkpoint = false;
-            WT_TRET(fsync_ret);
-
             __wt_blkcache_release_handle(session, block, &last_release);
+
+            /* Return immediately if the sync failed, we're in trouble. */
+            WT_RET(fsync_ret);
+
+            block->sync_on_checkpoint = false;
 
             /* See if we should try to remove this handle. */
             if (last_release && fsync_ret == 0 && __wt_block_eligible_for_sweep(bm, block))
@@ -699,23 +700,24 @@ __bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object
 }
 
 /*
- * __bm_switch_object_complete --
+ * __bm_switch_object_end --
  *     Complete switching the active handle to a different object.
  */
 static int
-__bm_switch_object_complete(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
+__bm_switch_object_end(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 {
-    bm->objectid_complete = objectid;
+    WT_ASSERT(session, objectid == bm->max_flushed_objectid + 1);
+    bm->max_flushed_objectid = objectid;
 
     return (__wt_blkcache_sweep_handles(session, bm));
 }
 
 /*
- * __bm_switch_object_complete_readonly --
+ * __bm_switch_object_end_readonly --
  *     Complete switching the tiered object; readonly version.
  */
 static int
-__bm_switch_object_complete_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
+__bm_switch_object_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 {
     WT_UNUSED(objectid);
 
@@ -920,7 +922,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
     bm->size = __wt_block_manager_size;
     bm->stat = __bm_stat;
     bm->switch_object = __bm_switch_object;
-    bm->switch_object_complete = __bm_switch_object_complete;
+    bm->switch_object_end = __bm_switch_object_end;
     bm->sync = __bm_sync;
     bm->verify_addr = __bm_verify_addr;
     bm->verify_end = __bm_verify_end;
@@ -943,7 +945,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
         bm->salvage_start = __bm_salvage_start_readonly;
         bm->salvage_valid = __bm_salvage_valid_readonly;
         bm->switch_object = __bm_switch_object_readonly;
-        bm->switch_object = __bm_switch_object_complete_readonly;
+        bm->switch_object = __bm_switch_object_end_readonly;
         bm->sync = __bm_sync_readonly;
         bm->write = __bm_write_readonly;
         bm->write_size = __bm_write_size_readonly;

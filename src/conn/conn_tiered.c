@@ -176,7 +176,7 @@ __tier_release_local_object(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_
     btree = S2BT(session);
     bm = btree->bm;
 
-    WT_ERR(bm->switch_object_complete(bm, session, id));
+    WT_ERR(bm->switch_object_end(bm, session, id));
 
 err:
     if (release)
