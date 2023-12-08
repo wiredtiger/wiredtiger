@@ -32,6 +32,7 @@ find bench dist examples ext src test \
     -name '*.in' -o \
     -name '*.py' -o \
     -name '*.sh' -o \
+    -name '*.yaml' -o \
     -name '*.yml' -o \
     -name 's_*' -o \
     -name 'CONFIG.*' -o \
