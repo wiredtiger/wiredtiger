@@ -766,16 +766,14 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
           _1, _2, _3, _4, _5, _6, _7, _8, _9,_10,_11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \
          _21,_22,_23,_24,_25,_26,_27,_28,_29,_30,_31,_32,_33,_34,_35,_36,_37,_38,_39,_40, \
          _41,_42,_43,_44,_45,_46,_47,_48,_49,_50,_51,_52,_53,_54,_55,_56,_57,_58,_59,_60, \
-         _61,_62,_63,N,...) N \
-// END OF MACRO
+         _61,_62,_63,N,...) N
 #define WT_RSEQ_N() \
          63,62,61,60, \
          59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40, \
          39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20, \
-         19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0 \
-// END OF MACRO
+         19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
 
-// https://stackoverflow.com/questions/74728883/c-preprocessor-concatenate-macro-call-with-token
+/* https://stackoverflow.com/questions/74728883/c-preprocessor-concatenate-macro-call-with-token */
 #define WT_CONCAT(A, B)      WT_CONCAT_(A, B)
 #define WT_CONCAT_(A, B)     A##B
 
@@ -791,7 +789,7 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 #define TYPE_ALIAS__Q   uint
 #define TYPE_ALIAS__r   uint
 /* R -> int64 */
-//#define TYPE_ALIAS_R   int64
+/*#define TYPE_ALIAS_R   int64*/
 /* h i l q -> vint */
 #define TYPE_ALIAS_h   vint
 #define TYPE_ALIAS_i   vint
@@ -822,7 +820,7 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 #define __pack_size__int16_t(X)   __wt_vsize_int(*(X))
 #define __pack_size__int32_t(X)   __wt_vsize_int(*(X))
 #define __pack_size__int64_t(X)   __wt_vsize_int(*(X))
-//#define __pack_size__cstr(X)    strlen(X) + 1
+/*#define __pack_size__cstr(X)    strlen(X) + 1*/
 #define __pack_size__WT_ITEM(X)   (__wt_vsize_uint((X)->size) + (X)->size)
 
 #define __pack_size__2(T1, V1)  __pack_size__##T1(V1)
@@ -842,16 +840,6 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 /*
  * __pack_encode_* functions
  */
-
-// #define __pack_encode__uint8_t   __wt_vpack_uint
-// #define __pack_encode__uint16_t  __wt_vpack_uint
-// #define __pack_encode__uint32_t  __wt_vpack_uint
-// #define __pack_encode__uint64_t  __wt_vpack_uint
-// #define __pack_encode__int8_t    __wt_vpack_int
-// #define __pack_encode__int16_t   __wt_vpack_int
-// #define __pack_encode__int32_t   __wt_vpack_int
-// #define __pack_encode__int64_t   __wt_vpack_int
-
 
 static inline int
 __pack_encode__WT_ITEM(uint8_t **pp, size_t maxlen, WT_ITEM *item)
@@ -874,54 +862,37 @@ __pack_encode__WT_ITEM(uint8_t **pp, size_t maxlen, WT_ITEM *item)
 #define __pack_encode__int64_t(pp, maxlen, x)   __wt_vpack_int(pp, maxlen, *(x))
 
 
-// #define __pack_encode__2(p, end, T1, V1)  do { \
-//         size_t maxlen = (size_t)(end - p); \
-//         WT_SIZE_CHECK_PACK(__pack_size__2(T1, V1), maxlen); \
-//         WT_RET(__pack_encode__##T1(&p, maxlen, V1)); \
-//     } while (0) \
-// // EOM
-
 #define __pack_encode__2(p, end, T1, V1)  \
     /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */ \
     WT_SIZE_CHECK_PACK(1, (size_t)(end-p)); \
-    WT_RET(__pack_encode__##T1(&p, (size_t)(end - p), V1)); \
-// EOM
+    WT_RET(__pack_encode__##T1(&p, (size_t)(end - p), V1));
 #define __pack_encode__4(p, end, T1, V1, T2, V2)  \
     __pack_encode__2(p, end, T1, V1); \
-    __pack_encode__2(p, end, T2, V2); \
-// EOM
+    __pack_encode__2(p, end, T2, V2);
 #define __pack_encode__6(p, end, T1, V1, T2, V2, T3, V3)  \
     __pack_encode__2(p, end, T1, V1); \
-    __pack_encode__4(p, end, T2, V2, T3, V3); \
-// EOM
+    __pack_encode__4(p, end, T2, V2, T3, V3);
 #define __pack_encode__8(p, end, T1, V1, T2, V2, T3, V3, T4, V4)  \
     __pack_encode__4(p, end, T1, V1, T2, V2); \
-    __pack_encode__4(p, end, T3, V3, T4, V4); \
-// EOM
+    __pack_encode__4(p, end, T3, V3, T4, V4);
 #define __pack_encode__10(p, end, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5)  \
     __pack_encode__4(p, end, T1, V1, T2, V2); \
-    __pack_encode__6(p, end, T3, V3, T4, V4, T5, V5); \
-// EOM
+    __pack_encode__6(p, end, T3, V3, T4, V4, T5, V5);
 #define __pack_encode__12(p, end, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6)  \
     __pack_encode__6(p, end, T1, V1, T2, V2, T3, V3); \
-    __pack_encode__6(p, end, T4, V4, T5, V5, T6, V6); \
-// EOM
+    __pack_encode__6(p, end, T4, V4, T5, V5, T6, V6);
 #define __pack_encode__14(p, end, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7)  \
     __pack_encode__6(p, end, T1, V1, T2, V2, T3, V3); \
-    __pack_encode__8(p, end, T4, V4, T5, V5, T6, V6, T7, V7); \
-// EOM
+    __pack_encode__8(p, end, T4, V4, T5, V5, T6, V6, T7, V7);
 #define __pack_encode__16(p, end, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7, T8, V8)  \
     __pack_encode__8(p, end, T1, V1, T2, V2, T3, V3, T4, V4); \
-    __pack_encode__8(p, end, T5, V5, T6, V6, T7, V7, T8, V8); \
-// EOM
+    __pack_encode__8(p, end, T5, V5, T6, V6, T7, V7, T8, V8);
 #define __pack_encode__18(p, end, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9)  \
     __pack_encode__8(p, end, T1, V1, T2, V2, T3, V3, T4, V4); \
-    __pack_encode__10(p, end, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9); \
-// EOM
+    __pack_encode__10(p, end, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9);
 #define __pack_encode__20(p, end, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9, T10, V10)  \
     __pack_encode__10(p, end, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5); \
-    __pack_encode__10(p, end, T6, V6, T7, V7, T8, V8, T9, V9, T10, V10); \
-// EOM
+    __pack_encode__10(p, end, T6, V6, T7, V7, T8, V8, T9, V9, T10, V10);
 
 #define __pack_encode_direct(p, end, ...)   do { WT_CONCAT(__pack_encode__, WT_NARG(__VA_ARGS__))(p, end, __VA_ARGS__) } while (0)
 
@@ -936,8 +907,7 @@ __pack_encode__WT_ITEM(uint8_t **pp, size_t maxlen, WT_ITEM *item)
         WT_SIZE_CHECK_UNPACK(1, maxlen); \
         WT_RET(__wt_vunpack_uint(pp, (maxlen), &v)); \
         *pval = (TYPE)v; \
-    } while (0) \
-// EOM
+    } while (0)
 
 #define __pack_decode__uint8_t    __pack_decode__uintAny
 #define __pack_decode__uint16_t   __pack_decode__uintAny
@@ -950,51 +920,39 @@ __pack_encode__WT_ITEM(uint8_t **pp, size_t maxlen, WT_ITEM *item)
         WT_SIZE_CHECK_UNPACK(pval->size, (size_t)(end - *pp)); \
         pval->data = *pp; \
         *pp += pval->size; \
-    } while (0) \
-// EOM
-
+    } while (0)
 
 #define __pack_decode__2(pp, maxlen, T1, V1)  \
     /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */ \
     WT_SIZE_CHECK_UNPACK(1, maxlen); \
-    __pack_decode__##T1(pp, maxlen, T1, V1); \
-// EOM
+    __pack_decode__##T1(pp, maxlen, T1, V1);
 #define __pack_decode__4(p, maxlen, T1, V1, T2, V2)  \
     __pack_decode__2(p, maxlen, T1, V1); \
-    __pack_decode__2(p, maxlen, T2, V2); \
-// EOM
+    __pack_decode__2(p, maxlen, T2, V2);
 #define __pack_decode__6(p, maxlen, T1, V1, T2, V2, T3, V3)  \
     __pack_decode__2(p, maxlen, T1, V1); \
-    __pack_decode__4(p, maxlen, T2, V2, T3, V3); \
-// EOM
+    __pack_decode__4(p, maxlen, T2, V2, T3, V3);
 #define __pack_decode__8(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4)  \
     __pack_decode__4(p, maxlen, T1, V1, T2, V2); \
-    __pack_decode__4(p, maxlen, T3, V3, T4, V4); \
-// EOM
+    __pack_decode__4(p, maxlen, T3, V3, T4, V4);
 #define __pack_decode__10(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5)  \
     __pack_decode__4(p, maxlen, T1, V1, T2, V2); \
-    __pack_decode__6(p, maxlen, T3, V3, T4, V4, T5, V5); \
-// EOM
+    __pack_decode__6(p, maxlen, T3, V3, T4, V4, T5, V5);
 #define __pack_decode__12(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6)  \
     __pack_decode__6(p, maxlen, T1, V1, T2, V2, T3, V3); \
-    __pack_decode__6(p, maxlen, T4, V4, T5, V5, T6, V6); \
-// EOM
+    __pack_decode__6(p, maxlen, T4, V4, T5, V5, T6, V6);
 #define __pack_decode__14(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7)  \
     __pack_decode__6(p, maxlen, T1, V1, T2, V2, T3, V3); \
-    __pack_decode__8(p, maxlen, T4, V4, T5, V5, T6, V6, T7, V7); \
-// EOM
+    __pack_decode__8(p, maxlen, T4, V4, T5, V5, T6, V6, T7, V7);
 #define __pack_decode__16(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7, T8, V8)  \
     __pack_decode__8(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4); \
-    __pack_decode__8(p, maxlen, T5, V5, T6, V6, T7, V7, T8, V8); \
-// EOM
+    __pack_decode__8(p, maxlen, T5, V5, T6, V6, T7, V7, T8, V8);
 #define __pack_decode__18(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9)  \
     __pack_decode__8(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4); \
-    __pack_decode__10(p, maxlen, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9); \
-// EOM
+    __pack_decode__10(p, maxlen, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9);
 #define __pack_decode__20(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5, T6, V6, T7, V7, T8, V8, T9, V9, T10, V10)  \
     __pack_decode__10(p, maxlen, T1, V1, T2, V2, T3, V3, T4, V4, T5, V5); \
-    __pack_decode__10(p, maxlen, T6, V6, T7, V7, T8, V8, T9, V9, T10, V10); \
-// EOM
+    __pack_decode__10(p, maxlen, T6, V6, T7, V7, T8, V8, T9, V9, T10, V10);
 
 #define __pack_decode_direct(p, maxlen, ...)   do { WT_CONCAT(__pack_decode__, WT_NARG(__VA_ARGS__))(p, maxlen, __VA_ARGS__) } while (0)
 
@@ -1038,8 +996,7 @@ __pack_encode__WT_ITEM(uint8_t **pp, size_t maxlen, WT_ITEM *item)
         WT_UNUSED(session); \
         __pack_decode_direct(pp, size, __VA_ARGS__); \
         return (0); \
-    } \
-// EOM
+    }
 
 
 /*
