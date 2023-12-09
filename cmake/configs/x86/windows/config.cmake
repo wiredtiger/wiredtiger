@@ -24,6 +24,8 @@ add_compile_options(/Gd)
 add_compile_options(/wd4996)
 # Ignore warning about mismatched const qualifiers.
 add_compile_options(/wd4090)
+# Enable preprocessor conformance mode
+add_compile_options(/Zc:preprocessor)
 
 # Disable incremental linking.
 string(APPEND win_link_flags " /INCREMENTAL:NO")
