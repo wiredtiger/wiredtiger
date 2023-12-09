@@ -248,6 +248,7 @@ void
 __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_PAGE *home;
+    uint64_t split_gen;
     void *ref_addr;
 
     /*
@@ -280,9 +281,11 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     if (home == NULL || __wt_off_page(home, ref_addr)) {
-        ((WT_ADDR *)ref_addr)->size = 0;
-        __wt_free(session, ((WT_ADDR *)ref_addr)->addr);
-        __wt_free(session, ref_addr);
+        split_gen = __wt_gen(session, WT_GEN_SPLIT);
+        WT_ASSERT_ALWAYS(session, split_gen != 0, "Must be inside the split generation.");
+        WT_IGNORE_RET(__wt_split_safe_free(
+          session, split_gen, false, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size));
+        WT_IGNORE_RET(__wt_split_safe_free(session, split_gen, false, ref_addr, sizeof(WT_ADDR)));
     }
 }
 

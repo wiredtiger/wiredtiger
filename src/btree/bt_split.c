@@ -30,12 +30,13 @@ typedef enum {
 } WT_SPLIT_ERROR_PHASE;
 
 /*
- * __split_safe_free --
+ * __wt_split_safe_free --
  *     Free a buffer if we can be sure no thread is accessing it, or schedule it to be freed
  *     otherwise.
  */
-static int
-__split_safe_free(WT_SESSION_IMPL *session, uint64_t split_gen, bool exclusive, void *p, size_t s)
+int
+__wt_split_safe_free(
+  WT_SESSION_IMPL *session, uint64_t split_gen, bool exclusive, void *p, size_t s)
 {
     /*
      * We have swapped something in a page: it's only safe to free it if we have exclusive access.
@@ -549,7 +550,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
      */
     WT_SPLIT_PAGE_SAVE_STATE(root, session, root->entries, split_gen);
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
-    WT_TRET(__split_safe_free(session, split_gen, false, pindex, size));
+    WT_TRET(__wt_split_safe_free(session, split_gen, false, pindex, size));
     root_decr += size;
 
     /* Adjust the root's memory footprint. */
@@ -608,7 +609,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
         ikey = __wt_ref_key_instantiated(ref);
         if (ikey != NULL) {
             size = sizeof(WT_IKEY) + ikey->size;
-            WT_TRET(__split_safe_free(session, split_gen, exclusive, ikey, size));
+            WT_TRET(__wt_split_safe_free(session, split_gen, exclusive, ikey, size));
             *decrp += size;
         }
     }
@@ -625,7 +626,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
-    WT_TRET(__split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
+    WT_TRET(__wt_split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);
 
     return (ret);
@@ -834,7 +835,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      */
     WT_SPLIT_PAGE_SAVE_STATE(parent, session, parent_entries, split_gen);
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
-    WT_TRET(__split_safe_free(session, split_gen, exclusive, pindex, size));
+    WT_TRET(__wt_split_safe_free(session, split_gen, exclusive, pindex, size));
     parent_decr += size;
 
     /* Adjust the parent's memory footprint. */
@@ -1085,7 +1086,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
      */
     WT_SPLIT_PAGE_SAVE_STATE(page, session, page->entries, split_gen);
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
-    WT_TRET(__split_safe_free(session, split_gen, false, pindex, size));
+    WT_TRET(__wt_split_safe_free(session, split_gen, false, pindex, size));
     page_decr += size;
 
     /* Adjust the page's memory footprint. */
