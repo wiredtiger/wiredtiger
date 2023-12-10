@@ -372,7 +372,7 @@ read:
 #endif
             if (busy) {
                 WT_STAT_CONN_INCR(session, page_busy_blocked);
-                break;
+                continue;
             }
 
             /*
@@ -497,14 +497,14 @@ skip_evict:
          * We failed to get the page -- yield before retrying, and if we've yielded enough times,
          * start sleeping so we don't burn CPU to no purpose.
          */
-        if (yield_cnt < WT_THOUSAND) {
+        //if (yield_cnt < WT_THOUSAND) {
             if (!stalled) {
                 ++yield_cnt;
-                __wt_yield();
-                continue;
+                //__wt_yield();
+                //continue;
             }
-            yield_cnt = WT_THOUSAND;
-        }
+            //yield_cnt = WT_THOUSAND;
+            //}
 
         /*
          * If stalling and this thread is allowed to do eviction work, check if the cache needs help
@@ -516,7 +516,16 @@ skip_evict:
             if (cache_work)
                 continue;
         }
-        __wt_spin_backoff(&yield_cnt, &sleep_usecs);
+        {
+            long r_;
+            const struct timespec timeout = {
+                .tv_sec = 1,
+                .tv_nsec = 10 * WT_MILLION,
+            };
+            r_ = syscall(SYS_futex, &(ref->state), FUTEX_WAIT_PRIVATE, current_state, &timeout);
+            WT_ASSERT(session, r_ != EINVAL);
+        }
+        //__wt_spin_backoff(&yield_cnt, &sleep_usecs);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
 }

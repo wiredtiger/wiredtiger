@@ -21,7 +21,7 @@ __wt_ref_is_root(WT_REF *ref)
  *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
  */
 static inline bool
-__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_t new_state,
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state, uint32_t new_state,
   const char *func, int line)
 {
     bool cas_result;
@@ -31,7 +31,7 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state,
     WT_UNUSED(func);
     WT_UNUSED(line);
 
-    cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
+    cas_result = __wt_atomic_casv32(&ref->state, old_state, new_state);
 
 #ifdef HAVE_REF_TRACK
     /*
