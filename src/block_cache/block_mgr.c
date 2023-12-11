@@ -706,7 +706,7 @@ __bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object
 static int
 __bm_switch_object_end(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 {
-    WT_ASSERT(session, objectid == bm->max_flushed_objectid + 1);
+    WT_ASSERT(session, bm->max_flushed_objectid == 0 || objectid == bm->max_flushed_objectid + 1);
     bm->max_flushed_objectid = objectid;
 
     return (__wt_blkcache_sweep_handles(session, bm));
