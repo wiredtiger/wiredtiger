@@ -1552,8 +1552,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     if (__wt_off_page(page, addr)) {
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
         copy->type = addr->type;
-
-        WT_ASSERT(session, *(void *volatile *)&ref->addr != NULL);
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
     }
