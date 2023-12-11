@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *  All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -40,7 +40,7 @@
 
 /*
  * WT_PAGE_HEADER --
- *  Blocks have a common header, a WT_PAGE_HEADER structure followed by a
+ *	Blocks have a common header, a WT_PAGE_HEADER structure followed by a
  * block-manager specific structure.
  */
 struct __wt_page_header {
@@ -118,7 +118,7 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 /*
  * WT_PAGE_HEADER_BYTE --
  * WT_PAGE_HEADER_BYTE_SIZE --
- *  The first usable data byte on the block (past the combined headers).
+ *	The first usable data byte on the block (past the combined headers).
  */
 #define WT_PAGE_HEADER_BYTE_SIZE(btree) ((u_int)(WT_PAGE_HEADER_SIZE + (btree)->block_header))
 #define WT_PAGE_HEADER_BYTE(btree, dsk) \
@@ -126,7 +126,7 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 
 /*
  * WT_ADDR --
- *  An in-memory structure to hold a block's location.
+ *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
     WT_TIME_AGGREGATE ta;
@@ -190,10 +190,10 @@ struct __wt_ovfl_reuse {
  * counter to keep the key unique in the case where we have multiple transactions committing at the
  * same timestamp.
  * The value is the WT_UPDATE structure's:
- *  - stop timestamp
- *  - durable timestamp
- *  - update type
- *  - value.
+ * 	- stop timestamp
+ * 	- durable timestamp
+ *	- update type
+ *	- value.
  *
  * As the key for the history store table is different for row- and column-store, we store both key
  * types in a WT_ITEM, building/parsing them in the code, because otherwise we'd need two
@@ -227,7 +227,7 @@ struct __wt_ovfl_reuse {
 
 /*
  * WT_SAVE_UPD --
- *  Unresolved updates found during reconciliation.
+ *	Unresolved updates found during reconciliation.
  */
 struct __wt_save_upd {
     WT_INSERT *ins; /* Insert list reference */
@@ -239,7 +239,7 @@ struct __wt_save_upd {
 
 /*
  * WT_MULTI --
- *  Replacement block information used during reconciliation.
+ *	Replacement block information used during reconciliation.
  */
 struct __wt_multi {
     /*
@@ -294,7 +294,7 @@ struct __wt_ovfl_track {
 
 /*
  * WT_PAGE_MODIFY --
- *  When a page is modified, there's additional information to maintain.
+ *	When a page is modified, there's additional information to maintain.
  */
 struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
@@ -448,13 +448,13 @@ struct __wt_page_modify {
  * The page state is incremented when a page is modified.
  *
  * WT_PAGE_CLEAN --
- *  The page is clean.
+ *	The page is clean.
  * WT_PAGE_DIRTY_FIRST --
- *  The page is in this state after the first operation that marks a
- *  page dirty, or when reconciliation is checking to see if it has
- *  done enough work to be able to mark the page clean.
+ *	The page is in this state after the first operation that marks a
+ *	page dirty, or when reconciliation is checking to see if it has
+ *	done enough work to be able to mark the page clean.
  * WT_PAGE_DIRTY --
- *  Two or more updates have been added to the page.
+ *	Two or more updates have been added to the page.
  */
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
@@ -479,11 +479,11 @@ struct __wt_page_modify {
 
 /*
  * WT_COL_RLE --
- *  Variable-length column-store pages have an array of page entries with
- *  RLE counts greater than 1 when reading the page, so it's not necessary
- *  to walk the page counting records to find a specific entry. We can do a
- *  binary search in this array, then an offset calculation to find the
- *  cell.
+ *	Variable-length column-store pages have an array of page entries with
+ *	RLE counts greater than 1 when reading the page, so it's not necessary
+ *	to walk the page counting records to find a specific entry. We can do a
+ *	binary search in this array, then an offset calculation to find the
+ *	cell.
  */
 WT_PACKED_STRUCT_BEGIN(__wt_col_rle)
     uint64_t recno; /* Record number of first repeat. */
@@ -493,7 +493,7 @@ WT_PACKED_STRUCT_END
 
 /*
  * WT_PAGE_INDEX --
- *  The page index held by each internal page.
+ *	The page index held by each internal page.
  */
 struct __wt_page_index {
     uint32_t entries;
@@ -542,7 +542,7 @@ struct __wt_col_fix_tw {
 #ifdef HAVE_DIAGNOSTIC
 /*
  * WT_SPLIT_HIST --
- *  State information of a split at a single point in time.
+ *	State information of a split at a single point in time.
  */
 struct __wt_split_page_hist {
     const char *name;
@@ -556,7 +556,7 @@ struct __wt_split_page_hist {
 
 /*
  * WT_PAGE --
- *  The WT_PAGE structure describes the in-memory page information.
+ *	The WT_PAGE structure describes the in-memory page information.
  */
 struct __wt_page {
     /* Per page-type information. */
@@ -576,8 +576,8 @@ struct __wt_page {
          * because the array reference is updated atomically, but code
          * reading the fields multiple times would be a very bad idea.
          * Specifically, do not do this:
-         *  WT_REF **refp = page->u.intl__index->index;
-         *  uint32_t entries = page->u.intl__index->entries;
+         *	WT_REF **refp = page->u.intl__index->index;
+         *	uint32_t entries = page->u.intl__index->entries;
          *
          * The field is declared volatile (so the compiler knows not to
          * read it multiple times), and we obscure the field name and
@@ -780,7 +780,7 @@ struct __wt_page {
 
 /*
  * WT_PAGE_DISK_OFFSET, WT_PAGE_REF_OFFSET --
- *  Return the offset/pointer of a pointer/offset in a page disk image.
+ *	Return the offset/pointer of a pointer/offset in a page disk image.
  */
 #define WT_PAGE_DISK_OFFSET(page, p) WT_PTRDIFF32(p, (page)->dsk)
 #define WT_PAGE_REF_OFFSET(page, o) ((void *)((uint8_t *)((page)->dsk) + (o)))
@@ -792,30 +792,30 @@ struct __wt_page {
  * following possible states:
  *
  * WT_PREPARE_INIT:
- *  The initial prepare state of either an update or a page_del structure,
- *  indicating a prepare phase has not started yet.
- *  This state has no impact on the visibility of the update's data.
+ *	The initial prepare state of either an update or a page_del structure,
+ *	indicating a prepare phase has not started yet.
+ *	This state has no impact on the visibility of the update's data.
  *
  * WT_PREPARE_INPROGRESS:
- *  Update is in prepared phase.
+ *	Update is in prepared phase.
  *
  * WT_PREPARE_LOCKED:
- *  State is locked as state transition is in progress from INPROGRESS to
- *  RESOLVED. Any reader of the state needs to wait for state transition to
- *  complete.
+ *	State is locked as state transition is in progress from INPROGRESS to
+ *	RESOLVED. Any reader of the state needs to wait for state transition to
+ *	complete.
  *
  * WT_PREPARE_RESOLVED:
- *  Represents the commit state of the prepared update.
+ *	Represents the commit state of the prepared update.
  *
  * State Transition:
- *  From uncommitted -> prepare -> commit:
- *  INIT --> INPROGRESS --> LOCKED --> RESOLVED
- *  LOCKED will be a momentary phase during timestamp update.
+ * 	From uncommitted -> prepare -> commit:
+ * 	INIT --> INPROGRESS --> LOCKED --> RESOLVED
+ * 	LOCKED will be a momentary phase during timestamp update.
  *
- *  From uncommitted -> prepare -> rollback:
- *  INIT --> INPROGRESS
- *  Prepare state will not be updated during rollback and will continue to
- *  have the state as INPROGRESS.
+ * 	From uncommitted -> prepare -> rollback:
+ * 	INIT --> INPROGRESS
+ * 	Prepare state will not be updated during rollback and will continue to
+ * 	have the state as INPROGRESS.
  */
 
 /* Must be 0, as structures will be default initialized with 0. */
@@ -831,32 +831,32 @@ struct __wt_page {
  * possible states:
  *
  * WT_REF_DISK:
- *  The initial setting before a page is brought into memory, and set as a
- *  result of page eviction; the page is on disk, and must be read into
- *  memory before use.  WT_REF_DISK has a value of 0 (the default state
- *  after allocating cleared memory).
+ *	The initial setting before a page is brought into memory, and set as a
+ *	result of page eviction; the page is on disk, and must be read into
+ *	memory before use.  WT_REF_DISK has a value of 0 (the default state
+ *	after allocating cleared memory).
  *
  * WT_REF_DELETED:
- *  The page is on disk, but has been deleted from the tree; we can delete
- *  row-store and VLCS leaf pages without reading them if they don't
- *  reference overflow items.
+ *	The page is on disk, but has been deleted from the tree; we can delete
+ *	row-store and VLCS leaf pages without reading them if they don't
+ *	reference overflow items.
  *
  * WT_REF_LOCKED:
- *  Locked for exclusive access.  In eviction, this page or a parent has
- *  been selected for eviction; once hazard pointers are checked, the page
- *  will be evicted.  When reading a page that was previously deleted, it
- *  is locked until the page is in memory and the deletion has been
+ *	Locked for exclusive access.  In eviction, this page or a parent has
+ *	been selected for eviction; once hazard pointers are checked, the page
+ *	will be evicted.  When reading a page that was previously deleted, it
+ *	is locked until the page is in memory and the deletion has been
  *      instantiated with tombstone updates. The thread that set the page to
  *      WT_REF_LOCKED has exclusive access; no other thread may use the WT_REF
  *      until the state is changed.
  *
  * WT_REF_MEM:
- *  Set by a reading thread once the page has been read from disk; the page
- *  is in the cache and the page reference is OK.
+ *	Set by a reading thread once the page has been read from disk; the page
+ *	is in the cache and the page reference is OK.
  *
  * WT_REF_SPLIT:
- *  Set when the page is split; the WT_REF is dead and can no longer be
- *  used.
+ *	Set when the page is split; the WT_REF is dead and can no longer be
+ *	used.
  *
  * The life cycle of a typical page goes like this: pages are read into memory
  * from disk and their state set to WT_REF_MEM.  When the page is selected for
@@ -879,7 +879,7 @@ struct __wt_page {
 
 /*
  * WT_PAGE_DELETED --
- *  Information about how they got deleted for deleted pages. This structure records the
+ *	Information about how they got deleted for deleted pages. This structure records the
  *      transaction that deleted the page, plus the state the ref was in when the deletion happened.
  *      This structure is akin to an update but applies to a whole page.
  */
@@ -922,7 +922,7 @@ struct __wt_page_deleted {
 
 /*
  * WT_REF_HIST --
- *  State information of a ref at a single point in time.
+ *	State information of a ref at a single point in time.
  */
 struct __wt_ref_hist {
     WT_SESSION_IMPL *session;
@@ -935,7 +935,7 @@ struct __wt_ref_hist {
 
 /*
  * WT_REF --
- *  A single in-memory page and state information.
+ *	A single in-memory page and state information.
  */
 struct __wt_ref {
     WT_PAGE *page; /* Page */
@@ -1176,10 +1176,10 @@ struct __wt_ref {
  * key is updated atomically, but code that reads the key field multiple times
  * is a very, very bad idea.  Specifically, do not do this:
  *
- *  key = rip->key;
- *  if (key_is_on_page(key)) {
- *      cell = rip->key;
- *  }
+ *	key = rip->key;
+ *	if (key_is_on_page(key)) {
+ *		cell = rip->key;
+ *	}
  *
  * The field is declared volatile (so the compiler knows it shouldn't read it
  * multiple times), and we obscure the field name and use a copy macro in all
@@ -1194,7 +1194,7 @@ struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
 
 /*
  * WT_ROW_FOREACH --
- *  Walk the entries of an in-memory row-store leaf page.
+ *	Walk the entries of an in-memory row-store leaf page.
  */
 #define WT_ROW_FOREACH(page, rip, i) \
     for ((i) = (page)->entries, (rip) = (page)->pg_row; (i) > 0; ++(rip), --(i))
@@ -1204,7 +1204,7 @@ struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
 
 /*
  * WT_ROW_SLOT --
- *  Return the 0-based array offset based on a WT_ROW reference.
+ *	Return the 0-based array offset based on a WT_ROW reference.
  */
 #define WT_ROW_SLOT(page, rip) ((uint32_t)((rip) - (page)->pg_row))
 
@@ -1228,7 +1228,7 @@ struct __wt_col {
 
 /*
  * WT_COL_PTR, WT_COL_PTR_SET --
- *  Return/Set a pointer corresponding to the data offset. (If the item does
+ *	Return/Set a pointer corresponding to the data offset. (If the item does
  * not exist on the page, return a NULL.)
  */
 #define WT_COL_PTR(page, cip) WT_PAGE_REF_OFFSET(page, (cip)->__col_value)
@@ -1236,14 +1236,14 @@ struct __wt_col {
 
 /*
  * WT_COL_FOREACH --
- *  Walk the entries of variable-length column-store leaf page.
+ *	Walk the entries of variable-length column-store leaf page.
  */
 #define WT_COL_FOREACH(page, cip, i) \
     for ((i) = (page)->entries, (cip) = (page)->pg_var; (i) > 0; ++(cip), --(i))
 
 /*
  * WT_COL_SLOT --
- *  Return the 0-based array offset based on a WT_COL reference.
+ *	Return the 0-based array offset based on a WT_COL reference.
  */
 #define WT_COL_SLOT(page, cip) ((uint32_t)((cip) - (page)->pg_var))
 
@@ -1415,7 +1415,7 @@ struct __wt_update_value {
 
 /*
  * WT_MODIFY_UPDATE_MIN/MAX, WT_MODIFY_VECTOR_STACK_SIZE
- *  Limit update chains value to avoid penalizing reads and permit truncation. Having a smaller
+ *	Limit update chains value to avoid penalizing reads and permit truncation. Having a smaller
  * value will penalize the cases when history has to be maintained, resulting in multiplying cache
  * pressure.
  *
@@ -1429,9 +1429,9 @@ struct __wt_update_value {
 
 /*
  * WT_UPDATE_VECTOR --
- *  A resizable array for storing updates. The allocation strategy is similar to that of
- *  llvm::SmallVector<T> where we keep space on the stack for the regular case but fall back to
- *  dynamic allocation as needed.
+ * 	A resizable array for storing updates. The allocation strategy is similar to that of
+ *	llvm::SmallVector<T> where we keep space on the stack for the regular case but fall back to
+ *	dynamic allocation as needed.
  */
 struct __wt_update_vector {
     WT_SESSION_IMPL *session;
@@ -1443,7 +1443,7 @@ struct __wt_update_vector {
 
 /*
  * WT_MODIFY_MEM_FRACTION
- *  Limit update chains to a fraction of the base document size.
+ *	Limit update chains to a fraction of the base document size.
  */
 #define WT_MODIFY_MEM_FRACTION 10
 
@@ -1518,7 +1518,7 @@ struct __wt_insert {
 
 /*
  * WT_INSERT_HEAD --
- *  The head of a skiplist of WT_INSERT items.
+ * 	The head of a skiplist of WT_INSERT items.
  */
 struct __wt_insert_head {
     WT_INSERT *head[WT_SKIP_MAXDEPTH]; /* first item on skiplists */
