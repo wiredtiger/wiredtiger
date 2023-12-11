@@ -754,3 +754,174 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 
     *sizep = curr_size;
 }
+
+
+/*
+ * Define __wt_size_* functions:
+ *
+    static inline int
+    __wt_size_##NAME(WT_SESSION_IMPL *session, size_t *sizep, {TYPE *ARG, ...})
+    {
+        WT_UNUSED(session);
+        *sizep = __pack_size__TYPE(ARG) + ...;
+        return (0);
+    }
+ *
+ */
+
+#define __pack_size__uint8_t(X)   (1)
+#define __pack_size__uint16_t(X)  __wt_vsize_uint(*(X))
+#define __pack_size__uint32_t(X)  __wt_vsize_uint(*(X))
+#define __pack_size__uint64_t(X)  __wt_vsize_uint(*(X))
+#define __pack_size__int8(X)      (1)
+#define __pack_size__int16_t(X)   __wt_vsize_int(*(X))
+#define __pack_size__int32_t(X)   __wt_vsize_int(*(X))
+#define __pack_size__int64_t(X)   __wt_vsize_int(*(X))
+/*#define __pack_size__cstr(X)    strlen(X) + 1*/
+#define __pack_size__WT_ITEM(X)   (__wt_vsize_uint((X)->size) + (X)->size)
+
+#define PACK_TYPEDEF_BEGIN(NAME) \
+    static inline int __pack_size__##NAME(WT_SESSION_IMPL *session, size_t *sizep
+#define PACK_FIELD(PACKTYPE, CTYPE, NAME)   , CTYPE *NAME
+#define PACK_TYPEDEF_END()                  )
+#include "packing_inlide-defs.h"
+#undef PACK_TYPEDEF_BEGIN
+#undef PACK_FIELD
+#undef PACK_TYPEDEF_END
+
+#define PACK_TYPEDEF_BEGIN(NAME) \
+    { \
+        WT_UNUSED(session); \
+        *sizep = 0
+#define PACK_FIELD(PACKTYPE, CTYPE, NAME)  + __pack_size__##CTYPE(NAME);
+#define PACK_TYPEDEF_END()  ; \
+        return (0); \
+    }
+#include "packing_inlide-defs.h"
+#undef PACK_TYPEDEF_BEGIN
+#undef PACK_FIELD
+#undef PACK_TYPEDEF_END
+
+
+/*
+ * Define __wt_pack_* functions:
+ *
+    static inline int
+    __wt_pack_##NAME(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, {TYPE *ARG, ...})
+    {
+        WT_UNUSED(session);
+
+        WT_SIZE_CHECK_PACK(1, (size_t)(end-p));
+        WT_RET(__pack_encode__##TYPE(&p, (size_t)(end - p), ARG));
+        ...
+
+        return (0);
+    }
+ *
+ */
+
+static inline int
+__pack_encode__WT_ITEM(uint8_t **pp, size_t maxlen, WT_ITEM *item)
+{
+    uint8_t *end = *pp + maxlen;
+    WT_RET(__wt_vpack_uint(pp, maxlen, item->size));
+    WT_SIZE_CHECK_PACK(item->size, (size_t)(end - *pp));
+    memcpy(*pp, item->data, item->size);
+    *pp += item->size;
+    return (0);
+}
+#define __pack_encode__uint8_t(pp, maxlen, x)   __wt_vpack_uint(pp, maxlen, *(x))
+#define __pack_encode__uint16_t(pp, maxlen, x)  __wt_vpack_uint(pp, maxlen, *(x))
+#define __pack_encode__uint32_t(pp, maxlen, x)  __wt_vpack_uint(pp, maxlen, *(x))
+#define __pack_encode__uint64_t(pp, maxlen, x)  __wt_vpack_uint(pp, maxlen, *(x))
+#define __pack_encode__int8_t(pp, maxlen, x)    __wt_vpack_int(pp, maxlen, *(x))
+#define __pack_encode__int16_t(pp, maxlen, x)   __wt_vpack_int(pp, maxlen, *(x))
+#define __pack_encode__int32_t(pp, maxlen, x)   __wt_vpack_int(pp, maxlen, *(x))
+#define __pack_encode__int64_t(pp, maxlen, x)   __wt_vpack_int(pp, maxlen, *(x))
+
+#define PACK_TYPEDEF_BEGIN(NAME) \
+    static inline int __wt_pack_##NAME(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end
+#define PACK_FIELD(PACKTYPE, CTYPE, NAME)   , CTYPE *NAME
+#define PACK_TYPEDEF_END()                  )
+#include "packing_inlide-defs.h"
+#undef PACK_TYPEDEF_BEGIN
+#undef PACK_FIELD
+#undef PACK_TYPEDEF_END
+
+#define PACK_TYPEDEF_BEGIN(NAME) \
+    { \
+        WT_UNUSED(session);
+#define PACK_FIELD(PACKTYPE, CTYPE, NAME)  \
+    WT_SIZE_CHECK_PACK(1, (size_t)(end-p)); \
+    WT_RET(__pack_encode__##CTYPE(&p, (size_t)(end - p), NAME));
+#define PACK_TYPEDEF_END()       \
+        return (0); \
+    }
+#include "packing_inlide-defs.h"
+#undef PACK_TYPEDEF_BEGIN
+#undef PACK_FIELD
+#undef PACK_TYPEDEF_END
+
+
+/*
+ * Define __wt_unpack_* functions:
+ *
+    static inline int
+    __wt_unpack_##NAME(WT_SESSION_IMPL *session, const uint8_t **pp, size_t size, {TYPE *ARG, ...})
+    {
+        WT_UNUSED(session);
+
+        __pack_decode_direct(pp, size, __VA_ARGS__);
+        ...
+
+        return (0);
+    }
+ *
+ */
+
+#define __pack_decode__uintAny(pp, maxlen, TYPE, pval)  do { \
+        uint64_t v; \
+        /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */ \
+        WT_SIZE_CHECK_UNPACK(1, maxlen); \
+        WT_RET(__wt_vunpack_uint(pp, (maxlen), &v)); \
+        *pval = (TYPE)v; \
+    } while (0)
+
+#define __pack_decode__uint8_t    __pack_decode__uintAny
+#define __pack_decode__uint16_t   __pack_decode__uintAny
+#define __pack_decode__uint32_t   __pack_decode__uintAny
+#define __pack_decode__uint64_t   __pack_decode__uintAny
+
+#define __pack_decode__WT_ITEM(pp, maxlen, TYPE, pval)  do { \
+        const uint8_t *end = *pp + maxlen; \
+        __pack_decode__uintAny(pp, maxlen, size_t, &pval->size); \
+        WT_SIZE_CHECK_UNPACK(pval->size, (size_t)(end - *pp)); \
+        pval->data = *pp; \
+        *pp += pval->size; \
+    } while (0)
+
+#define PACK_TYPEDEF_BEGIN(NAME) \
+    static inline int __wt_unpack_##NAME(WT_SESSION_IMPL *session, const uint8_t **pp, size_t maxlen
+#define PACK_FIELD(PACKTYPE, CTYPE, NAME)   , CTYPE *NAME
+#define PACK_TYPEDEF_END()                  )
+#include "packing_inlide-defs.h"
+#undef PACK_TYPEDEF_BEGIN
+#undef PACK_FIELD
+#undef PACK_TYPEDEF_END
+
+#define PACK_TYPEDEF_BEGIN(NAME) \
+    { \
+        WT_UNUSED(session);
+#define PACK_FIELD(PACKTYPE, CTYPE, NAME)  \
+    /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */ \
+    WT_SIZE_CHECK_UNPACK(1, maxlen); \
+    __pack_decode__##CTYPE(pp, maxlen, CTYPE, NAME);
+#define PACK_TYPEDEF_END()       \
+        return (0); \
+    }
+#include "packing_inlide-defs.h"
+#undef PACK_TYPEDEF_BEGIN
+#undef PACK_FIELD
+#undef PACK_TYPEDEF_END
+
+
