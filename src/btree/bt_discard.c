@@ -242,8 +242,9 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __ref_addr_safe_free --
- *     Free the ref address if we can be sure no thread is accessing it, or schedule it to be freed
- *     otherwise.
+ *     Any thread that is reviewing the address in a WT_REF, must also be holding a split generation
+ *     to ensure that the page index they are using remains valid. Use that same split generation to
+ *     ensure that the address inside the WT_REF remains valid while it is being reviewed.
  */
 static void
 __ref_addr_safe_free(WT_SESSION_IMPL *session, void *ref_addr)
@@ -252,11 +253,10 @@ __ref_addr_safe_free(WT_SESSION_IMPL *session, void *ref_addr)
     uint64_t split_gen;
 
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
-    WT_ASSERT_ALWAYS(session, split_gen != 0, "Must be inside the split generation.");
-
     WT_TRET(__wt_stash_add(
       session, WT_GEN_SPLIT, split_gen, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size));
     WT_TRET(__wt_stash_add(session, WT_GEN_SPLIT, split_gen, ref_addr, sizeof(WT_ADDR)));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during ref address free"));
