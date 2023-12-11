@@ -2338,6 +2338,7 @@ __wt_btcur_skip_page(
      * if the page has been modified since it was reconciled, since neither the delete information
      * nor the timestamp information is necessarily up to date.
      */
+    WT_ASSERT(session, __wt_gen(session, WT_GEN_SPLIT) != 0);
     if ((previous_state == WT_REF_DISK ||
           (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr)) {
