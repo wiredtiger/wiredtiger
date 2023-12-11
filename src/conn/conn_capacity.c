@@ -42,7 +42,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
           cval.val, WT_THROTTLE_MIN);
     cap->total = total = (uint64_t)cval.val;
 
-    WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_backgroud_period_sec", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_background_period_sec", &cval));
     if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUD_PERIOD_SEC)
         WT_RET_MSG(session, EINVAL,
           "fsync_backgroud_period_sec I/O capacity value %" PRId64 " exceed maxmum %d", cval.val,
