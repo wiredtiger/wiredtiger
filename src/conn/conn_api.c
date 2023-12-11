@@ -1221,7 +1221,6 @@ err:
      * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
     WT_TRET(__wt_background_compact_server_destroy(session));
-    WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
@@ -1288,6 +1287,10 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, debug_info, config, cfg);
+
+    WT_ERR(__wt_config_gets(session, cfg, "backup", &cval));
+    if (cval.val != 0)
+        WT_ERR(__wt_verbose_dump_backup(session));
 
     WT_ERR(__wt_config_gets(session, cfg, "cache", &cval));
     if (cval.val != 0)
