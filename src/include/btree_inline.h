@@ -2289,7 +2289,7 @@ __wt_btcur_skip_page(
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
     uint8_t previous_state;
-    bool clean_page, page_locked;
+    bool clean_page;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -2297,7 +2297,7 @@ __wt_btcur_skip_page(
     *skipp = false; /* Default to reading */
 
     btree = S2BT(session);
-    clean_page = page_locked = false;
+    clean_page = false;
 
     /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
     if (btree->type == BTREE_COL_FIX)
@@ -2342,19 +2342,8 @@ __wt_btcur_skip_page(
         goto unlock;
     }
 
-    if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page)) {
-        /*
-         * Lock the page to prevent concurrent checkpoint reconciliation while we verify the page.
-         * This can also block the insert operation that needs exclusive access to the page.
-         */
-        if (ref->page->modify != NULL) {
-            if (WT_PAGE_TRYLOCK(session, ref->page) != 0)
-                goto unlock;
-            page_locked = true;
-        }
-
+    if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))
         clean_page = true;
-    }
 
     /* Look at the disk address, if it exists. */
     if ((previous_state == WT_REF_DISK || clean_page) && __wt_ref_addr_copy(session, ref, &addr)) {
@@ -2375,7 +2364,7 @@ __wt_btcur_skip_page(
             *skipp = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
         }
-    } else if (page_locked && ref->page->modify->ta != NULL &&
+    } else if (clean_page && ref->page->modify != NULL && ref->page->modify->ta != NULL &&
       __wt_txn_snap_min_visible(session, ref->page->modify->ta->newest_stop_txn,
         ref->page->modify->ta->newest_stop_ts, ref->page->modify->ta->newest_stop_durable_ts)) {
         *skipp = true;
@@ -2383,9 +2372,6 @@ __wt_btcur_skip_page(
     }
 
 unlock:
-    if (page_locked)
-        WT_PAGE_UNLOCK(session, ref->page);
-
     WT_REF_UNLOCK(ref, previous_state);
     return (0);
 }

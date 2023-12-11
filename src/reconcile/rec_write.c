@@ -2349,6 +2349,24 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 }
 
 /*
+ * __rec_page_modify_ta_safe_free --
+ *     Free the page modify ta if we can be sure no thread is accessing it, or schedule it to be
+ *     freed otherwise.
+ */
+static void
+__rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+{
+    WT_DECL_RET;
+    uint64_t split_gen;
+
+    split_gen = __wt_gen(session, WT_GEN_SPLIT);
+    WT_ASSERT_ALWAYS(session, split_gen != 0, "Must be inside the split generation.");
+
+    if (__wt_stash_add(session, WT_GEN_SPLIT, split_gen, ta, sizeof(WT_TIME_AGGREGATE)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during page modify ta free"));
+}
+
+/*
  * __rec_write_wrapup --
  *     Finish the reconciliation.
  */
@@ -2441,7 +2459,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
-    __wt_free(session, mod->ta);
+    __rec_page_modify_ta_safe_free(session, mod->ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
