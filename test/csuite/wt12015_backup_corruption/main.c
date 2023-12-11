@@ -303,7 +303,7 @@ run_test_backup(void)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     pid_t pid;
-    int ret, status;
+    int status;
 
     printf("\n%s: Test crashing during checkpoint after incremental backup\n", __func__);
 
@@ -338,9 +338,12 @@ run_test_backup(void)
 
     /* Parent. */
 
-    /* Wait for the child to die. */
-    ret = waitpid(pid, &status, 0);
-    testutil_assert(ret != 0 && WIFSIGNALED(status) != 0);
+    /*
+     * Wait for the child to die. Depending on when the child died and on what operating system the
+     * call may return the child process ID or an error. If we get an error indication check that it
+     * is an interrupt.
+     */
+    testutil_assert(waitpid(pid, &status, 0) > 0 || errno == EINTR);
     printf("-- crash --\n");
 
     /* Save the database directory. */
