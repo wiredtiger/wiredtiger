@@ -105,7 +105,7 @@ public:
         : _min_id(snapshot_min), _max_id(snapshot_max), _write_gen(write_gen)
     {
         std::copy(
-          snapshots.begin(), snapshots.end(), std::inserter(_include_ids, _include_ids.begin()));
+          snapshots.begin(), snapshots.end(), std::inserter(_exclude_ids, _exclude_ids.begin()));
     }
 
     /*
@@ -118,7 +118,7 @@ private:
     txn_id_t _min_id, _max_id;
     write_gen_t _write_gen;
 
-    std::unordered_set<txn_id_t> _include_ids;
+    std::unordered_set<txn_id_t> _exclude_ids;
 };
 
 /*

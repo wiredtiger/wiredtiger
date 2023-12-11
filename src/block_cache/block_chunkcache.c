@@ -735,6 +735,8 @@ __chunkcache_read_into_chunk(
     /* Make sure the chunk is considered invalid when reading data into it. */
     WT_ASSERT(session, !new_chunk->valid);
 
+    __wt_capacity_throttle(session, new_chunk->chunk_size, WT_THROTTLE_CHUNKCACHE);
+
     /* Read the new chunk. Only one thread would be caching the new chunk. */
     if ((ret = __wt_read(session, fh, new_chunk->chunk_offset, new_chunk->chunk_size,
            new_chunk->chunk_memory)) != 0) {
@@ -886,6 +888,14 @@ retry:
                 readable_in_chunk =
                   (size_t)chunk->chunk_offset + chunk->chunk_size - (size_t)offset;
                 size_copied = WT_MIN(readable_in_chunk, remains_to_read);
+
+                /* Accessing this chunk's data is likely to cause a disk read - throttle. */
+                if (F_ISSET(chunk, WT_CHUNK_FROM_METADATA)) {
+                    __wt_capacity_throttle(session, size_copied, WT_THROTTLE_CHUNKCACHE);
+                    F_CLR(chunk, WT_CHUNK_FROM_METADATA);
+                }
+
+                /* Move the chunk's data to the user. */
                 memcpy((void *)((uint64_t)dst + already_read),
                   chunk->chunk_memory + (offset + (wt_off_t)already_read - chunk->chunk_offset),
                   size_copied);
@@ -1143,6 +1153,7 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
     __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
     WT_ERR(__create_and_populate_chunk(
       session, &newchunk, file_offset, chunk_size, &hash_id, bucket_id));
+    F_SET(newchunk, WT_CHUNK_FROM_METADATA);
 
     /* Get the position of a specific bit index and link the chunk and its memory cached on disk. */
     bit_index = cache_offset / chunkcache->chunk_size;
@@ -1225,6 +1236,10 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
         if (cval.len == 0)
             WT_RET_MSG(session, EINVAL, "chunk cache storage path not provided in the config.");
+
+        if (F_ISSET(S2C(session), WT_CONN_READONLY))
+            WT_RET_MSG(
+              session, EINVAL, "on-disk chunk cache incompatible with read-only connection");
 
         WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
         WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,

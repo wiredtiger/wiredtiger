@@ -37,7 +37,7 @@ import random
 import string
 
 # test_io_capacity_01.py
-#   max waiting period for background fsync. If the written threshold is not met in this time, 
+#   max waiting period for background fsync. If the written threshold is not met in this time,
 #   a background fsync is done.
 
 @wttest.skip_for_hook("tiered", "Enabling tiered alters the logs produced by WiredTiger")
@@ -46,31 +46,31 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
     collection_cfg = 'key_format=q, value_format=S'
     fsync_time = 1
     #set the io_capacity config
-    open_config = 'create, statistics=(all), io_capacity=(' + 'fsync_backgroud_period_sec=' + str(fsync_time) + ', total=1M)'
-    
-    
+    open_config = 'create, statistics=(all), io_capacity=(' + 'fsync_background_period_sec=' + str(fsync_time) + ', total=1M)'
+
+
     def generate_random_string(self, length):
         characters = string.digits
         random_string = ''.join(random.choice(characters) for _ in range(length))
         return random_string
-     
+
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
-        
+
     # The number of written bytes exceeded the threshold.
     def test_io_catacity_written_threshold(self):
         # Close the initial connection. We will be opening new connections for this test.
         self.close_conn()
-        
-        #For a total of 1024 data writes of 1024 bytes each, the total number of bytes written is exactly 1M. 
+
+        #For a total of 1024 data writes of 1024 bytes each, the total number of bytes written is exactly 1M.
         #The reconcile operation will add some additional data to ensure that the "total=1M" is triggered
         insert_count = 1024
         value_size = 1024
         random_string = self.generate_random_string(value_size)
-        
+
         conn = self.wiredtiger_open(self.home, self.open_config)
         self.session = conn.open_session()
         self.session.create(self.uri, self.collection_cfg)
@@ -79,12 +79,12 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
             cursor.set_key(i)
             cursor.set_value(random_string)
             cursor.insert()
-        
-        #Take a checkpoint to ensure that the data is written to the disk     
+
+        #Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
-        
+
         self.assertGreater(self.get_stat(stat.conn.capacity_bytes_written), 0)
-        #backgroud fsync statistics
+        #background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
 
         self.session.create(self.uri, self.collection_cfg)
@@ -92,32 +92,32 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         self.session.close()
 
     # The number of written bytes not exceeded the threshold, but the running period is exceeded
-    def test_io_catacity_fsync_backgroud_period(self):
+    def test_io_catacity_fsync_background_period(self):
         # Close the initial connection. We will be opening new connections for this test.
         self.close_conn()
 
         #only insert 1 data, the write bytes is well below 1M
-        #If the written conditions are not met fsync_backgroud_period_sec, force backgroud fsync
+        #If the written conditions are not met fsync_background_period_sec, force background fsync
         insert_count = 1
         value_size = 1024
         random_string = self.generate_random_string(value_size)
         conn = self.wiredtiger_open(self.home, self.open_config)
-        
+
         self.session = conn.open_session()
-        
+
         self.session.create(self.uri, self.collection_cfg)
         cursor = self.session.open_cursor(self.uri)
         for i in range(insert_count):
             cursor.set_key(i)
             cursor.set_value(random_string)
             cursor.insert()
-        
-        #Take a checkpoint to ensure that the data is written to the disk     
+
+        #Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
-        
+
         time.sleep(self.fsync_time);
         self.assertGreater(self.get_stat(stat.conn.capacity_bytes_written), 0)
-        #backgroud fsync statistics
+        #background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
 
         self.session.create(self.uri, self.collection_cfg)

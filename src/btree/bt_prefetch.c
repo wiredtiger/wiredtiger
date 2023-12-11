@@ -50,9 +50,12 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
          * that page was evicted and now a future page wants to be pre-fetched, this algorithm needs
          * a tweak. It would need to remember which child was last queued and start again from
          * there, rather than this approximation which assumes recently pre-fetched pages are still
-         * in cache.
+         * in cache. Don't prefetch fast deleted pages to avoid wasted effort. We can skip reading
+         * these deleted pages into the cache if the fast truncate information is visible in the
+         * session transaction snapshot.
          */
-        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
+        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
+          next_ref->page_del == NULL) {
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
             if (ret == 0)
                 ++block_preload;
@@ -75,6 +78,7 @@ int
 __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 {
     WT_ADDR_COPY addr;
+    WT_DECL_RET;
 
     if (pe->ref->home != pe->first_home)
         __wt_verbose(
@@ -96,10 +100,11 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
     WT_STAT_CONN_INCR(session, block_prefetch_pages_read);
 
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
-        WT_RET(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
-        WT_RET(__wt_page_release(session, pe->ref, 0));
+        WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
+        WT_ERR(__wt_page_release(session, pe->ref, 0));
     } else
-        return (WT_ERROR);
+        ret = WT_ERROR;
 
-    return (0);
+err:
+    return (ret);
 }

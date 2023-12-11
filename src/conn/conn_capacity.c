@@ -31,7 +31,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CAPACITY *cap;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    uint64_t total;
+    uint64_t chunkcache, total;
 
     conn = S2C(session);
     cap = &conn->capacity;
@@ -43,19 +43,50 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     cap->total = total = (uint64_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_background_period_sec", &cval));
-    if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUD_PERIOD_SEC)
+    if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUND_PERIOD_SEC)
         WT_RET_MSG(session, EINVAL,
-          "fsync_backgroud_period_sec I/O capacity value %" PRId64 " exceed maxmum %d", cval.val,
-          WT_FSYNC_BACKGROUD_PERIOD_SEC);
-    cap->fsync_backgroud_period = (uint64_t)cval.val;
+          "fsync_background_period_sec I/O capacity value %" PRId64 " exceed maxmum %d", cval.val,
+          WT_FSYNC_BACKGROUND_PERIOD_SEC);
+    cap->fsync_background_period = (uint64_t)cval.val;
 
-    if (cap->total == 0 && cap->fsync_backgroud_period != 0) {
+    if (cap->total == 0 && cap->fsync_background_period != 0) {
         WT_RET_MSG(session, EINVAL,
-          "io_capacity.fsync_backgroud_period_sec is valid only when io_capacity.total is greater "
+          "io_capacity.fsync_background_period_sec is valid only when io_capacity.total is greater "
           "than 0");
     }
 
-    if (cap->total != 0) {
+    chunkcache = total = 0;
+    WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
+    if (cval.val != 0) {
+        if (cval.val < WT_THROTTLE_MIN)
+            WT_RET_MSG(session, EINVAL, "total I/O capacity value %" PRId64 " below minimum %d",
+              cval.val, WT_THROTTLE_MIN);
+        total = (uint64_t)cval.val;
+    }
+
+    WT_RET(__wt_config_gets(session, cfg, "io_capacity.chunk_cache", &cval));
+    if (cval.val != 0) {
+        chunkcache = (uint64_t)cval.val;
+        if (chunkcache < WT_THROTTLE_MIN)
+            WT_RET_MSG(session, EINVAL,
+              "chunk cache I/O capacity value %" PRIu64 " below minimum %d", chunkcache,
+              WT_THROTTLE_MIN);
+        if (total < chunkcache)
+            WT_RET_MSG(session, EINVAL,
+              "chunk cache I/O capacity value %" PRIu64 " below total %" PRIu64, chunkcache, total);
+        if ((total - chunkcache) < WT_THROTTLE_MIN)
+            WT_RET_MSG(session, EINVAL,
+              "chunk cache I/O capacity value %" PRIu64
+              " leaves insufficient capacity for other subsystems (total %" PRIu64
+              ", remaining %" PRIu64 ")",
+              chunkcache, total, total - chunkcache);
+        total -= chunkcache;
+    }
+
+    cap = &conn->capacity;
+    cap->chunkcache = chunkcache;
+    cap->total = total;
+    if (total != 0) {
         /*
          * We've been given a total capacity, set the capacity of all the subsystems.
          */
@@ -75,6 +106,9 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
         WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
     } else
         WT_STAT_CONN_SET(session, capacity_threshold, 0);
+
+    if (chunkcache != 0)
+        cap->chunkcache = chunkcache;
 
     return (0);
 }
@@ -122,11 +156,11 @@ __capacity_server(void *arg)
             continue;
 
         now = __wt_clock(session);
-        if (cap->fsync_backgroud_period == 0) {
+        if (cap->fsync_background_period == 0) {
             if (cap->written < cap->threshold)
                 continue;
         } else {
-            if (WT_CLOCKDIFF_SEC(now, last_time) < cap->fsync_backgroud_period &&
+            if (WT_CLOCKDIFF_SEC(now, last_time) < cap->fsync_background_period &&
               cap->written < cap->threshold)
                 continue;
         }
@@ -289,6 +323,50 @@ __capacity_reserve(
 }
 
 /*
+ * __throttle_chunkcache --
+ *     Reserve a time to perform a chunk cache read or write, and wait until then. The chunk cache
+ *     is the only subsystem with a separate IO throttle; ideally future subsystem-specific
+ *     throttles could be combined into this implementation.
+ */
+static void
+__throttle_chunkcache(WT_SESSION_IMPL *session, WT_CAPACITY *cap, uint64_t bytes)
+{
+    struct timespec now;
+    uint64_t capacity, now_ns, *reservation, res_value, sleep_us;
+
+    capacity = cap->chunkcache;
+    reservation = &cap->reservation_chunkcache;
+
+    WT_STAT_CONN_INCRV(session, capacity_bytes_chunkcache, bytes);
+    WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
+
+    if (capacity == 0 || F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        return;
+
+    __capacity_signal(session);
+
+    /* If we get sizes larger than this, later calculations may overflow. */
+    WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
+    WT_ASSERT(session, capacity != 0);
+
+    /* Get the current time in nanoseconds since the epoch. */
+    __wt_epoch(session, &now);
+    now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
+
+    /* Take a reservation for the subsystem. */
+    __capacity_reserve(reservation, bytes, capacity, now_ns, &res_value);
+
+    if (res_value > now_ns) {
+        sleep_us = (res_value - now_ns) / WT_THOUSAND;
+        WT_STAT_CONN_INCRV(session, capacity_time_chunkcache, sleep_us);
+        if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US) {
+            /* Sleep handles large usec values. */
+            __wt_sleep(0, sleep_us);
+        }
+    }
+}
+
+/*
  * __wt_capacity_throttle --
  *     Reserve a time to perform a write operation for the subsystem, and wait until that time. The
  *     concept is that each write to a subsystem reserves a time slot to do its write, and
@@ -316,7 +394,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
     reservation = steal = NULL;
     switch (type) {
     case WT_THROTTLE_CHUNKCACHE:
-        /* At the moment, chunk cache usages are not throttled. */
+        __throttle_chunkcache(session, cap, bytes);
         return;
     case WT_THROTTLE_CKPT:
         capacity = cap->ckpt;
