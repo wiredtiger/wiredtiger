@@ -254,7 +254,7 @@ remove_local_cached_files(const char *home)
 
         ++nmatches;
 
-        testutil_check(sscanf(dir_entry->d_name, "%*[^0-9]%d", &objnum));
+        testutil_assert(sscanf(dir_entry->d_name, "%*[^0-9]%d", &objnum) == 1);
         highest = WT_MAX(highest, objnum);
     }
 
