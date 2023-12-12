@@ -165,7 +165,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             el.off[i] = head[i];
 
-        REQUIRE(__ut_block_off_srch_last(&el, &stack[0]) == nullptr);
+        REQUIRE(__ut_block_off_srch_last(&el, &stack[0], true) == nullptr);
 
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             REQUIRE(stack[i] == &el.off[i]);
@@ -186,7 +186,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             el.off[i] = head[i];
 
-        REQUIRE(__ut_block_off_srch_last(&el, &stack[0]) == el.off[0]);
+        REQUIRE(__ut_block_off_srch_last(&el, &stack[0], true) == el.off[0]);
     }
 
     SECTION("list with identical skip entries returns identical stack entries")
@@ -202,7 +202,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             el.off[i] = head[i];
 
-        WT_IGNORE_RET(__ut_block_off_srch_last(&el, &stack[0]));
+        WT_IGNORE_RET(__ut_block_off_srch_last(&el, &stack[0], true));
 
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             REQUIRE(stack[i] == &el.off[i]->next[i]);
@@ -219,7 +219,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             el.off[i] = head[i];
 
-        WT_IGNORE_RET(__ut_block_off_srch_last(&el, &stack[0]));
+        WT_IGNORE_RET(__ut_block_off_srch_last(&el, &stack[0], true));
 
         REQUIRE(stack[0] == &el.off[2]->next[0]);
         REQUIRE(stack[1] == &el.off[2]->next[1]);
@@ -246,7 +246,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             el.off[i] = head[i];
 
-        REQUIRE(__ut_block_off_srch_last(&el, &stack[0]) == second->_raw);
+        REQUIRE(__ut_block_off_srch_last(&el, &stack[0], true) == second->_raw);
     }
 }
 
@@ -273,7 +273,7 @@ TEST_CASE("Extent Lists: block_off_srch_last_for_mock_ession", "[extent_list]")
     for (i = 0; i < TEST_CYCLES; i++) {
         off = i * TEST_EXT_SIZE;
         REQUIRE(__ut_block_off_insert(session, alloc, off, size) == 0);
-        ext = __ut_block_off_srch_last(alloc, &astack[0]);
+        ext = __ut_block_off_srch_last(alloc, &astack[0], false);
         REQUIRE(ext != NULL);
         REQUIRE(ext->off == off);
         REQUIRE(ext->size == size);
@@ -283,7 +283,7 @@ TEST_CASE("Extent Lists: block_off_srch_last_for_mock_ession", "[extent_list]")
         off = i * TEST_EXT_SIZE;
         ext = &extp;
         REQUIRE(__ut_block_off_remove(session, block, alloc, off, &ext) == 0);
-        ext = __ut_block_off_srch_last(alloc, &astack[0]);
+        ext = __ut_block_off_srch_last(alloc, &astack[0], false);
         if (i > 0) {
             REQUIRE(ext != NULL);
             off = (i - 1) * TEST_EXT_SIZE;

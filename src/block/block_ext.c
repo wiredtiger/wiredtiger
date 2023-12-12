@@ -39,7 +39,7 @@ __block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
     WT_EXT **head;
     int i;
 
-    if (el != NULL && need_traverse == false)
+    if (need_traverse == false && el != NULL && el->last != NULL)
         return (el->last);
 
     last = NULL; /* The list may be empty */
@@ -1458,9 +1458,9 @@ __ut_block_off_remove(
 }
 
 WT_EXT *
-__ut_block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack)
+__ut_block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
 {
-    return (__block_off_srch_last(el, stack, true));
+    return (__block_off_srch_last(el, stack, need_traverse));
 }
 
 void
