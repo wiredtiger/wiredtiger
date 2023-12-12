@@ -42,7 +42,7 @@ __wt_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     F_SET(conn, WT_CONN_PREFETCH_RUN);
 
-    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
+    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL | WT_SESSION_PREFETCH;
     WT_RET(__wt_thread_group_create(session, &conn->prefetch_threads, "prefetch-server", 8, 8,
       session_flags, __wt_prefetch_thread_chk, __wt_prefetch_thread_run, NULL));
 
@@ -175,6 +175,38 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_conn_prefetch_clear_ref --
+ *     Clear a particular ref from the pre-fetch queue if it exists.
+ */
+int
+__wt_conn_prefetch_clear_ref(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_PREFETCH_QUEUE_ENTRY *pe, *pe_tmp;
+
+    conn = S2C(session);
+    dhandle = session->dhandle;
+
+    WT_ASSERT_ALWAYS(session, dhandle != NULL, "blah");
+
+    __wt_spin_lock(session, &conn->prefetch_lock);
+    TAILQ_FOREACH_SAFE(pe, &conn->pfqh, q, pe_tmp)
+    {
+        if (pe->ref == ref) {
+            TAILQ_REMOVE(&conn->pfqh, pe, q);
+            F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
+            __wt_free(session, pe);
+            --conn->prefetch_queue_count;
+        }
+    }
+    __wt_spin_unlock(session, &conn->prefetch_lock);
+
+    return (ret);
+}
+
+/*
  * __wt_conn_prefetch_clear_tree --
  *     Clear pages from the pre-fetch queue, either all pages on the queue or pages from the current
  *     btree - depending on input parameters.
@@ -202,7 +234,8 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
             --conn->prefetch_queue_count;
         }
     }
-    WT_ASSERT(session, conn->prefetch_queue_count == 0);
+    if (all)
+        WT_ASSERT(session, conn->prefetch_queue_count == 0);
     __wt_spin_unlock(session, &conn->prefetch_lock);
 
     return (0);

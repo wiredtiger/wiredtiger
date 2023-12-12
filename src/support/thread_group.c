@@ -181,6 +181,8 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
         WT_ERR(__wt_calloc_one(session, &thread));
         /* Threads get their own session. */
         session_flags = LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
+        if (LF_ISSET(WT_SESSION_PREFETCH))
+            session_flags |= WT_SESSION_PREFETCH;
         WT_ERR(
           __wt_open_internal_session(conn, group->name, false, session_flags, 0, &thread->session));
         if (LF_ISSET(WT_THREAD_PANIC_FAIL))
