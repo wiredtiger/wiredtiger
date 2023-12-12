@@ -1548,9 +1548,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     if (addr == NULL)
         return (false);
 
-    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
-      "Any thread freeing a ref must hold a valid split generation");
-
     /* If off-page, the pointer references a WT_ADDR structure. */
     if (__wt_off_page(page, addr)) {
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
@@ -2339,6 +2336,8 @@ __wt_btcur_skip_page(
      * if the page has been modified since it was reconciled, since neither the delete information
      * nor the timestamp information is necessarily up to date.
      */
+    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
+      "Any thread freeing a ref must hold a valid split generation");
     if ((previous_state == WT_REF_DISK ||
           (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr)) {
