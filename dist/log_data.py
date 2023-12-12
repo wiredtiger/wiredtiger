@@ -28,7 +28,7 @@ class LogRecordType:
 rectypes = [
     # A database-wide checkpoint.
     LogRecordType('checkpoint', 'checkpoint', [
-        ('WT_LSN', 'ckpt_lsn'), ('uint32', 'nsnapshot'), ('item', 'snapshot')]),
+        ('WT_LSN', 'ckpt_lsn'), ('uint32', 'nsnapshot'), ('WT_ITEM', 'snapshot')]),
 
     # Common case: a transaction commit
     LogRecordType('commit', 'transaction commit', [('uint64', 'txnid')]),
@@ -64,21 +64,21 @@ class LogOperationType:
 optypes = [
 # commit operations
     LogOperationType('col_modify', 'column modify',
-        [('uint32_id', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('recno', 'recno'), ('WT_ITEM', 'value')]),
     LogOperationType('col_put', 'column put',
-        [('uint32_id', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('recno', 'recno'), ('WT_ITEM', 'value')]),
     LogOperationType('col_remove', 'column remove',
         [('uint32_id', 'fileid'), ('recno', 'recno')]),
     LogOperationType('col_truncate', 'column truncate',
         [('uint32_id', 'fileid'), ('recno', 'start'), ('recno', 'stop')]),
     LogOperationType('row_modify', 'row modify',
-        [('uint32_id', 'fileid'), ('item', 'key'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('WT_ITEM', 'key'), ('WT_ITEM', 'value')]),
     LogOperationType('row_put', 'row put',
-        [('uint32_id', 'fileid'), ('item', 'key'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('WT_ITEM', 'key'), ('WT_ITEM', 'value')]),
     LogOperationType('row_remove', 'row remove',
-        [('uint32_id', 'fileid'), ('item', 'key')]),
+        [('uint32_id', 'fileid'), ('WT_ITEM', 'key')]),
     LogOperationType('row_truncate', 'row truncate',
-        [('uint32_id', 'fileid'), ('item', 'start'), ('item', 'stop'),
+        [('uint32_id', 'fileid'), ('WT_ITEM', 'start'), ('WT_ITEM', 'stop'),
             ('uint32', 'mode')]),
 
 # system operations

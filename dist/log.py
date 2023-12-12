@@ -17,7 +17,7 @@ field_types = {
     'WT_LSN' : ('WT_LSN *', 'II', '[%" PRIu32 ", %" PRIu32 "]',
         'arg.l.file, arg.l.offset', [ '' ], False),
     'string' : ('const char *', 'S', '\\"%s\\"', 'arg', [ '' ], False),
-    'item' : ('WT_ITEM *', 'u', '\\"%s\\"', '(char *)escaped->mem',
+    'WT_ITEM' : ('WT_ITEM *', 'u', '\\"%s\\"', '(char *)escaped->mem',
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
           'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False),
     'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False),
@@ -34,7 +34,7 @@ def cintype(f):
 def couttype(f):
     type = cintype(f)
     # We already have a pointer to a WT_ITEM
-    if f[0] == 'item' or f[0] == 'WT_LSN':
+    if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
         return type
     if type[-1] != '*':
         type += ' '
@@ -43,7 +43,7 @@ def couttype(f):
 def clocaltype(f):
     type = cintype(f)
     # Allocate WT_ITEM and WT_LSN structs on the stack
-    if f[0] in ('item', 'WT_LSN'):
+    if f[0] in ('WT_ITEM', 'WT_LSN'):
         return type[:-2]
     return type
 
