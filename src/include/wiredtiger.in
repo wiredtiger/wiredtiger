@@ -887,7 +887,7 @@ struct __wt_session {
      * pre-fetch future content into the cache., a set of related configuration options defined as
      * follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether pre-fetch is enabled for this
-     * session., a boolean flag; default \c false.}
+     * session., a boolean flag; default \c true.}
      * @config{ ),,}
      * @configend
      * @errors
@@ -2573,7 +2573,7 @@ struct __wt_connection {
      * pre-fetch future content into the cache., a set of related configuration options defined as
      * follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether pre-fetch is enabled for this
-     * session., a boolean flag; default \c false.}
+     * session., a boolean flag; default \c true.}
      * @config{ ),,}
      * @configend
      * @param[out] sessionp the new session handle
@@ -3269,10 +3269,10 @@ struct __wt_connection {
  * pre-fetch future content into the cache., a set of related configuration options defined as
  * follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;available, whether the thread pool for the pre-fetch
- * functionality is started., a boolean flag; default \c false.}
+ * functionality is started., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * default, whether pre-fetch is enabled for all sessions by default., a boolean flag; default \c
- * false.}
+ * true.}
  * @config{ ),,}
  * @config{readonly, open connection in read-only mode.  The database must exist.  All methods that
  * may modify a database are disabled.  See @ref readonly for more information., a boolean flag;
