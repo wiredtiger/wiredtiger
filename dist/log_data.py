@@ -28,7 +28,7 @@ class LogRecordType:
 rectypes = [
     # A database-wide checkpoint.
     LogRecordType('checkpoint', 'checkpoint', [
-        ('WT_LSN', 'ckpt_lsn'), ('uint32', 'nsnapshot'), ('WT_ITEM', 'snapshot')]),
+        ('WT_LSN', 'ckpt_lsn'), ('uint32_t', 'nsnapshot'), ('WT_ITEM', 'snapshot')]),
 
     # Common case: a transaction commit
     LogRecordType('commit', 'transaction commit', [('uint64', 'txnid')]),
@@ -79,14 +79,14 @@ optypes = [
         [('uint32_id', 'fileid'), ('WT_ITEM', 'key')]),
     LogOperationType('row_truncate', 'row truncate',
         [('uint32_id', 'fileid'), ('WT_ITEM', 'start'), ('WT_ITEM', 'stop'),
-            ('uint32', 'mode')]),
+            ('uint32_t', 'mode')]),
 
 # system operations
     LogOperationType('checkpoint_start', 'checkpoint start', []),
     LogOperationType('prev_lsn', 'previous LSN', [('WT_LSN', 'prev_lsn')]),
     # Incremental backup IDs.
     LogOperationType('backup_id', 'incremental backup id', [
-        ('uint32', 'index'), ('uint64', 'granularity'), ('string', 'id')]),
+        ('uint32_t', 'index'), ('uint64', 'granularity'), ('string', 'id')]),
 
 # diagnostic operations
 # Operations used only for diagnostic purposes should be have their type

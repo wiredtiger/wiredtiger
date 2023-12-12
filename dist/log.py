@@ -21,7 +21,7 @@ field_types = {
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
           'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False),
     'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False),
-    'uint32' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False),
+    'uint32_t' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False),
     # The fileid may have the high bit set. Print in both decimal and hex.
     'uint32_id' : ('uint32_t', 'I',
         [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True),
@@ -308,7 +308,6 @@ __wt_logop_%(name)s_unpack(
 \treturn (0);
 }
 ''' % {
-    'name' : optype.name,
     'name' : optype.name,
     'macro' : optype.macro_name(),
     'comma' : ',' if optype.fields else '',
