@@ -69,7 +69,27 @@ public:
      *     Check whether the table contains the given value. If there are multiple values associated
      *     with the given timestamp, return true if any of them match.
      */
-    bool contains_any(const data_value &value, timestamp_t timestamp = k_timestamp_latest) const;
+    inline bool
+    contains_any(const data_value &value, timestamp_t timestamp = k_timestamp_latest) const
+    {
+        return contains_any(value, kv_transaction_snapshot_ptr(nullptr), timestamp);
+    }
+
+    /*
+     * kv_table_item::contains_any --
+     *     Check whether the table contains the given value. If there are multiple values associated
+     *     with the given timestamp, return true if any of them match.
+     */
+    inline bool
+    contains_any(kv_checkpoint_ptr ckpt, const data_value &value) const
+    {
+        if (!ckpt)
+            throw model_exception("Null checkpoint");
+        timestamp_t timestamp = ckpt->stable_timestamp() != k_timestamp_none ?
+          ckpt->stable_timestamp() :
+          k_timestamp_latest;
+        return contains_any(value, ckpt->snapshot(), timestamp, timestamp);
+    }
 
     /*
      * kv_table_item::exists --
@@ -78,11 +98,27 @@ public:
     bool exists() const;
 
     /*
+     * kv_table_item::exists --
+     *     Check whether the latest value exists in the given checkpoint.
+     */
+    bool exists(kv_checkpoint_ptr checkpoint) const;
+
+    /*
+     * kv_table_item::exists_opt --
+     *     Check whether the latest value exists, using the checkpoint if provided.
+     */
+    inline bool
+    exists_opt(kv_checkpoint_ptr checkpoint) const
+    {
+        return checkpoint ? exists(checkpoint) : exists();
+    }
+
+    /*
      * kv_table_item::get --
      *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
      */
     inline data_value
-    get(timestamp_t timestamp) const
+    get(timestamp_t timestamp = k_timestamp_latest) const
     {
         return get(kv_transaction_snapshot_ptr(nullptr), k_txn_none, timestamp);
     }
@@ -92,10 +128,16 @@ public:
      *     Get the corresponding value. Return NONE if not found. Throw an exception on error.
      */
     inline data_value
-    get(kv_checkpoint_ptr ckpt, timestamp_t timestamp) const
+    get(kv_checkpoint_ptr ckpt, timestamp_t timestamp = k_timestamp_latest) const
     {
         if (!ckpt)
             throw model_exception("Null checkpoint");
+
+        /* Get the stable (checkpoint) timestamp, if not overridden by the caller. */
+        if (timestamp == k_timestamp_latest)
+            timestamp = ckpt->stable_timestamp() != k_timestamp_none ? ckpt->stable_timestamp() :
+                                                                       k_timestamp_latest;
+
         /*
          * When using checkpoint cursors, we need to compare the stable timestamp against the
          * durable timestamp, not the commit timestamp.
@@ -116,6 +158,19 @@ public:
     }
 
     /*
+     * kv_table_item::get_latest --
+     *     Get the corresponding value, but ignore the transaction's read timestamp. Return NONE if
+     *     not found. Throw an exception on error.
+     */
+    inline data_value
+    get_latest(kv_transaction_ptr txn) const
+    {
+        if (!txn)
+            throw model_exception("Null transaction");
+        return get(txn->snapshot(), txn->id(), k_timestamp_latest);
+    }
+
+    /*
      * kv_table_item::fix_timestamps --
      *     Fix the commit and durable timestamps for the corresponding update. We need to do this,
      *     because WiredTiger transaction API specifies the commit timestamp after performing the
@@ -129,6 +184,12 @@ public:
      *     Check whether the item has any prepared updates for the given timestamp.
      */
     bool has_prepared(timestamp_t timestamp) const;
+
+    /*
+     * kv_table_item::rollback_to_stable --
+     *     Roll back the table item to the latest stable timestamp and transaction snapshot.
+     */
+    void rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot_ptr snapshot);
 
     /*
      * kv_table_item::rollback_updates --
@@ -149,6 +210,14 @@ protected:
      *     Fail the given update and throw an exception indicating rollback.
      */
     void fail_with_rollback(std::shared_ptr<kv_update> update);
+
+    /*
+     * kv_table_item::contains_any --
+     *     Check whether the table contains the given value. If there are multiple values associated
+     *     with the given timestamp, return true if any of them match.
+     */
+    bool contains_any(const data_value &value, kv_transaction_snapshot_ptr txn_snapshot,
+      timestamp_t read_timestamp, timestamp_t stable_timestamp = k_timestamp_latest) const;
 
     /*
      * kv_table_item::get --

@@ -45,6 +45,23 @@ class debug_log_parser {
 
 public:
     /*
+     * debug_log_parser::commit_header --
+     *     The header for the commit log entry.
+     */
+    struct commit_header {
+        txn_id_t txnid;
+    };
+
+    /*
+     * debug_log_parser::prev_lsn --
+     *     The prev_lsn log entry.
+     */
+    struct prev_lsn {
+        uint64_t fileid;
+        uint64_t offset;
+    };
+
+    /*
      * debug_log_parser::row_put --
      *     The row_put log entry.
      */
@@ -52,15 +69,27 @@ public:
         uint64_t fileid;
         std::string key;
         std::string value;
+
+        /*
+         * debug_log_parser::row_put::row_put --
+         *     Default constructor.
+         */
+        inline row_put() : fileid(0) {}
     };
 
     /*
      * debug_log_parser::row_remove --
-     *     The row_put log entry.
+     *     The row_remove log entry.
      */
     struct row_remove {
         uint64_t fileid;
         std::string key;
+
+        /*
+         * debug_log_parser::row_remove::row_remove --
+         *     Default constructor.
+         */
+        inline row_remove() : fileid(0) {}
     };
 
     /*
@@ -79,17 +108,24 @@ public:
      *     Create a new instance of the parser. Make sure that the database instance outlives the
      *     lifetime of this parser object.
      */
-    inline debug_log_parser(kv_database &database) : _database(database) {}
+    inline debug_log_parser(kv_database &database)
+        : _database(database), _base_write_gen(k_write_gen_first)
+    {
+    }
 
     /*
      * debug_log_parser::from_debug_log --
-     *     Parse the debug log into the model.
+     *     Parse the debug log into the model. This function must be called after opening the
+     *     database but before performing any writes, because otherwise the debug log may not
+     *     contain records of the most recent operations.
      */
     static void from_debug_log(kv_database &database, WT_CONNECTION *conn);
 
     /*
      * debug_log_parser::from_json --
-     *     Parse the debug log JSON file into the model.
+     *     Parse the debug log JSON file into the model. The input debug log must be printed to JSON
+     *     after opening the database but before performing any writes, because it may otherwise
+     *     miss most recent operations.
      */
     static void from_json(kv_database &database, const char *path);
 
@@ -111,12 +147,36 @@ public:
      */
     void apply(kv_transaction_ptr txn, const txn_timestamp &op);
 
+    /*
+     * debug_log_parser::apply --
+     *     Apply the given operation to the model.
+     */
+    void apply(const prev_lsn &op);
+
+    /*
+     * debug_log_parser::begin_transaction --
+     *     Begin a transaction.
+     */
+    kv_transaction_ptr begin_transaction(const commit_header &op);
+
+    /*
+     * debug_log_parser::commit_transaction --
+     *     Commit/finalize a transaction.
+     */
+    void commit_transaction(kv_transaction_ptr txn);
+
 protected:
     /*
      * debug_log_parser::metadata_apply --
      *     Handle the given metadata operation.
      */
-    void metadata_apply(const row_put &op);
+    void metadata_apply(kv_transaction_ptr txn, const row_put &op);
+
+    /*
+     * debug_log_parser::metadata_checkpoint_apply --
+     *     Handle the given checkpoint metadata operation.
+     */
+    void metadata_checkpoint_apply(const std::string &name, std::shared_ptr<config_map> config);
 
     /*
      * debug_log_parser::table_by_fileid --
@@ -127,12 +187,20 @@ protected:
 private:
     kv_database &_database;
 
+    /* Metadata and the relevant indexes. */
     std::unordered_map<std::string, std::shared_ptr<config_map>> _metadata;
     std::unordered_map<std::string, std::string> _file_to_colgroup_name;
     std::unordered_map<std::string, uint64_t> _file_to_fileid;
     std::unordered_map<uint64_t, std::string> _fileid_to_file;
     std::unordered_map<uint64_t, std::string> _fileid_to_table_name;
     std::unordered_map<uint64_t, kv_table_ptr> _fileid_to_table;
+
+    /* The current base write generation. */
+    write_gen_t _base_write_gen;
+
+    /* Place for accumulating checkpoint metadata: TXN ID -> checkpoint name -> config map. */
+    std::unordered_map<txn_id_t, std::unordered_map<std::string, std::shared_ptr<config_map>>>
+      _txn_ckpt_metadata;
 };
 
 } /* namespace model */

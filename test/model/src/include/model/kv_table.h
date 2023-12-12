@@ -43,6 +43,20 @@
 namespace model {
 
 /*
+ * kv_table_config --
+ *     Table configuration.
+ */
+struct kv_table_config {
+    bool log_enabled;
+
+    /*
+     * kv_table_config::kv_table_config --
+     *     Create the default configuration.
+     */
+    inline kv_table_config() : log_enabled(false) {}
+};
+
+/*
  * kv_table --
  *     A database table with key-value pairs.
  */
@@ -53,7 +67,9 @@ public:
      * kv_table::kv_table --
      *     Create a new instance.
      */
-    inline kv_table(const char *name) : _name(name) {}
+    inline kv_table(const char *name, const kv_table_config &config) : _name(name), _config(config)
+    {
+    }
 
     /*
      * kv_table::name --
@@ -118,12 +134,29 @@ public:
     }
 
     /*
+     * kv_table::timestamped --
+     *     Return whether the table uses timestamps.
+     */
+    inline bool
+    timestamped() const noexcept
+    {
+        return !_config.log_enabled;
+    }
+
+    /*
      * kv_table::contains_any --
      *     Check whether the table contains the given key-value pair. If there are multiple values
      *     associated with the given timestamp, return true if any of them match.
      */
     bool contains_any(const data_value &key, const data_value &value,
       timestamp_t timestamp = k_timestamp_latest) const;
+
+    /*
+     * kv_table::contains_any --
+     *     Check whether the table contains the given key-value pair. If there are multiple values
+     *     associated with the given timestamp, return true if any of them match.
+     */
+    bool contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data_value &value) const;
 
     /*
      * kv_table::get --
@@ -223,24 +256,38 @@ public:
       bool overwrite = true);
 
     /*
+     * kv_table::clear --
+     *     Clear the contents of the table.
+     */
+    void clear();
+
+    /*
+     * kv_table::rollback_to_stable --
+     *     Roll back the database table to the latest stable timestamp and transaction snapshot.
+     */
+    void rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot_ptr snapshot);
+
+    /*
      * kv_table::verify --
      *     Verify the table by comparing a WiredTiger table against the model. Throw an exception on
-     *     verification error.
+     *     verification error. If the checkpoint is specified, verify just that checkpoint.
      */
     inline void
-    verify(WT_CONNECTION *connection)
+    verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr))
     {
-        kv_table_verifier(*this).verify(connection);
+        kv_table_verifier(*this).verify(connection, ckpt);
     }
 
     /*
      * kv_table::verify_noexcept --
-     *     Verify the table by comparing a WiredTiger table against the model.
+     *     Verify the table by comparing a WiredTiger table against the model. If the checkpoint is
+     *     specified, verify just that checkpoint.
      */
     inline bool
-    verify_noexcept(WT_CONNECTION *connection) noexcept
+    verify_noexcept(
+      WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr)) noexcept
     {
-        return kv_table_verifier(*this).verify_noexcept(connection);
+        return kv_table_verifier(*this).verify_noexcept(connection, ckpt);
     }
 
     /*
@@ -290,8 +337,33 @@ protected:
         return &i->second;
     }
 
+    /*
+     * kv_table::fix_timestamp --
+     *     Update the given timestamp if necessary, e.g., so that it can be ignored for
+     *     non-timestamped tables.
+     */
+    inline timestamp_t
+    fix_timestamp(timestamp_t t) const noexcept
+    {
+        return timestamped() ? t : k_timestamp_none;
+    }
+
+    /*
+     * kv_table::fix_timestamps --
+     *     Update update timestamps if necessary, e.g., so that it can be ignored for
+     *     non-timestamped tables. Return the update for call chaining.
+     */
+    inline std::shared_ptr<kv_update>
+    fix_timestamps(std::shared_ptr<kv_update> update) const noexcept
+    {
+        if (!timestamped() && update)
+            update->set_timestamps(k_timestamp_none, k_timestamp_none);
+        return update;
+    }
+
 private:
     std::string _name;
+    kv_table_config _config;
 
     std::string _key_format;
     std::string _value_format;
