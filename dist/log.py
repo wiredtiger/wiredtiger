@@ -96,6 +96,48 @@ def n_setup(f):
 def unconditional_hex(f):
     return field_types[f[0]][5]
 
+def struct_size_body(f, var):
+    # if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
+    #     return ''
+    if f[0] == 'WT_ITEM':
+        return '__wt_vsize_uint((%(name)s)->size) + (%(name)s)->size' % {'name' : var}
+    else:
+        return '__wt_vsize_uint(%(name)s)' % {'name' : var}
+
+def struct_pack_body(f, var):
+    # if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
+    #     return ''
+    funcname = '__pack_encode__WT_ITEM' if f[0] == 'WT_ITEM' else '__wt_vpack_uint';
+    return '''
+\tWT_SIZE_CHECK_PACK_PTR(*pp, end);
+\tWT_RET(__pack_encode__%(name)s(&p, WT_PTRDIFF(end, *pp), %(name)s));
+''' % {'funcname': funcname, 'name' : var}
+
+def struct_unpack_body(f, var):
+    # if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
+    #     return ''
+    if f[0] == 'WT_ITEM':
+        return '''
+    do {
+        const uint8_t *end = *pp + maxlen;
+        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
+        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
+        name->data = *pp;
+        *pp += name->size;
+    } while (0);
+''' % {'name' : var}
+    else:
+        return '''
+    do {
+        uint64_t v;
+        /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */
+        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
+        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
+        *%(name)s = (%(type)s)v;
+    } while (0);
+''' % {'type': cintype(f), 'name' : var}
+
+
 # Check for an operation that has a file id type. Redact any user data
 # if the redact flag is set, but print operations for file id 0, known
 # to be the metadata.
@@ -244,11 +286,68 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
 \t__wt_fill_hex(item->data, item->size, (*escapedp)->mem, (*escapedp)->memsize, NULL);
 \treturn (0);
 }
+
+#define WT_SIZE_CHECK_PACK_PTR(p, end) WT_RET_TEST((p) && (end) && (p) < (end), ENOMEM)
+#define WT_SIZE_CHECK_UNPACK_PTR(p, end) WT_RET_TEST((p) && (end) && (p) < (end), EINVAL)
+
+/*
+ * __pack_encode__WT_ITEM --
+ *\tPack a WT_ITEM structure.
+ */
+
+static inline int
+__pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
+{
+    WT_RET(__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item->size));
+    WT_SIZE_CHECK_PACK_PTR(*pp, end);
+    memcpy(*pp, item->data, item->size);
+    *pp += item->size;
+    return (0);
+}
+
 ''')
 
 # Emit code to read, write and print log operations (within a log record)
 for optype in log_data.optypes:
     tfile.write('''
+/*
+ * __wt_struct_size_%(name)s --
+ *\tCalculate the size %(name)s struct.
+ */
+static inline void
+__wt_struct_size_%(name)s(size_t *sizep,
+    %(arg_decls_in)s)
+{
+    *sizep = %(size_body)s;
+    return;
+}
+
+
+/*
+ * __wt_struct_pack_%(name)s --
+ *\tPack the %(name)s struct.
+ */
+static inline int
+__wt_struct_pack_%(name)s(uint8_t *p, uint8_t *end,
+    %(arg_decls_in)s)
+{
+    %(pack_body)s
+    return (0);
+}
+
+/*
+ * __wt_struct_unpack_%(name)s --
+ *\tUnpack the %(name)s struct.
+ */
+static inline int
+__wt_struct_unpack_%(name)s(uint8_t **pp, uint8_t *end,
+    %(arg_decls_in)s)
+{
+    %(unpack_body)s
+    return (0);
+}
+
+
 /*
  * __wt_logop_%(name)s_pack --
  *\tPack the log operation %(name)s.
@@ -256,36 +355,25 @@ for optype in log_data.optypes:
 int
 __wt_logop_%(name)s_pack(
     WT_SESSION_IMPL *session, WT_ITEM *logrec%(comma)s
-    %(arg_decls)s)
+    %(arg_decls_in)s)
 {
 \tsize_t size;
 \tuint32_t optype, recsize;
 
 \toptype = %(macro)s;
-\t__wt_struct_size_%(name)s(session, &size, optype, 0%(pack_args)s);
+\tWT_RET(__wt_struct_size_%(name)s(&size, optype, 0%(pack_args)s));
 
 \t__wt_struct_size_adjust(session, &size);
 \tWT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
 \trecsize = (uint32_t)size;
-\tWT_RET(__wt_struct_pack_%(name)s(session,
+\tWT_RET(__wt_struct_pack_%(name)s(
 \t    (uint8_t *)logrec->data + logrec->size, (uint8_t *)logrec->data + logrec->size + size,
 \t    optype, recsize%(pack_args)s));
 
 \tlogrec->size += (uint32_t)size;
 \treturn (0);
 }
-''' % {
-    'name' : optype.name,
-    'macro' : optype.macro_name(),
-    'comma' : ',' if optype.fields else '',
-    'arg_decls' : ', '.join(
-        '%s%s%s' % (cintype(f), '' if cintype(f)[-1] == '*' else ' ', f[1])
-        for f in optype.fields),
-    'pack_args' : ''.join(', %s' % pack_arg(f) for f in optype.fields),
-    'fmt' : op_pack_fmt(optype),
-})
 
-    tfile.write('''
 /*
  * __wt_logop_%(name)s_unpack --
  *\tUnpack the log operation %(name)s.
@@ -293,13 +381,13 @@ __wt_logop_%(name)s_pack(
 int
 __wt_logop_%(name)s_unpack(
     WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end%(comma)s
-    %(arg_decls)s)
+    %(arg_decls_out)s)
 {
 \tWT_DECL_RET;
 \tconst char *fmt = WT_UNCHECKED_STRING(%(fmt)s);
 \tuint32_t optype, size;
 
-\tif ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
+\tif ((ret = __wt_struct_unpack(*pp, end, fmt,
 \t    &optype, &size%(unpack_args)s)) != 0)
 \t\tWT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 \tWT_ASSERT(session, optype == %(macro)s);
@@ -311,10 +399,17 @@ __wt_logop_%(name)s_unpack(
     'name' : optype.name,
     'macro' : optype.macro_name(),
     'comma' : ',' if optype.fields else '',
-    'arg_decls' : ', '.join(
+    'arg_decls_in' : ', '.join(
+        '%s%s%s' % (cintype(f), '' if cintype(f)[-1] == '*' else ' ', f[1])
+        for f in optype.fields),
+    'arg_decls_out' : ', '.join(
         '%s%sp' % (couttype(f), f[1]) for f in optype.fields),
+    'size_body' : ' + '.join(struct_size_body(f, f[1]) for f in optype.fields),
+    'pack_args' : ''.join(', %s' % pack_arg(f) for f in optype.fields),
+    'pack_body' : ''.join(struct_pack_body(f, f[1]) for f in optype.fields),
     'unpack_args' : ''.join(', %s' % unpack_arg(f) for f in optype.fields),
-    'fmt' : op_pack_fmt(optype)
+    'unpack_body' : ''.join(struct_unpack_body(f, f[1]) for f in optype.fields),
+    'fmt' : op_pack_fmt(optype),
 })
 
     tfile.write('''
