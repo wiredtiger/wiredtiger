@@ -55,8 +55,13 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
             if (ret == 0)
                 ++block_preload;
-            else if (ret != EBUSY)
-                WT_RET(ret);
+            else if (ret != EBUSY) {
+                WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
+                continue;
+            }
+            // WT_RET(ret);
+            // WT-11795 continue if u donht care about performance . this is the tradeoff./ Add a
+            // stat.
         }
     }
     WT_INTL_FOREACH_END;
@@ -80,15 +85,9 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
         __wt_verbose(
           session, WT_VERB_PREFETCH, "The home changed while queued for pre-fetch %s", "");
 
-    if (pe->dhandle == NULL) {
-        WT_STAT_CONN_INCR(session, block_prefetch_skipped_no_valid_dhandle);
-        return (0);
-    }
-
-    if (F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL)) {
-        WT_STAT_CONN_INCR(session, block_prefetch_skipped_no_leaf_page);
-        return (0);
-    }
+    WT_PREFETCH_ASSERT(session, pe->dhandle != NULL, block_prefetch_skipped_no_valid_dhandle);
+    WT_PREFETCH_ASSERT(
+      session, F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL), block_prefetch_skipped_no_leaf_page);
 
     if (pe->ref->state != WT_REF_DISK) {
         WT_STAT_CONN_INCR(session, block_prefetch_pages_fail);
@@ -98,6 +97,8 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
     WT_STAT_CONN_INCR(session, block_prefetch_pages_read);
 
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
+        // WT-11759 - TODO make this a new ticket? what if wer fail between stages of these func
+        // calls?""
         WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
         WT_ERR(__wt_page_release(session, pe->ref, 0));
     } else

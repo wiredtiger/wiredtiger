@@ -1347,11 +1347,13 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of misses",
   "block-cache: number of put bypasses on checkpoint I/O",
   "block-cache: pre-fetch not triggered after single disk read",
+  "block-cache: pre-fetch not triggered as ref on the queue does not have pre-fetch flag set",
   "block-cache: pre-fetch not triggered as there is no valid dhandle",
   "block-cache: pre-fetch not triggered by page read",
   "block-cache: pre-fetch not triggered due to special btree handle",
   "block-cache: pre-fetch not triggered on internal page, pre-fetch should only see leaf pages",
   "block-cache: pre-fetch page not on disk when reading",
+  "block-cache: pre-fetch pages failed to queue",
   "block-cache: pre-fetch pages queued",
   "block-cache: pre-fetch pages read in background",
   "block-cache: pre-fetch triggered by page read",
@@ -2070,11 +2072,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_misses = 0;
     stats->block_cache_bypass_chkpt = 0;
     stats->block_prefetch_disk_one = 0;
+    stats->block_prefetch_skipped_no_flag_set = 0;
     stats->block_prefetch_skipped_no_valid_dhandle = 0;
     stats->block_prefetch_skipped = 0;
     stats->block_prefetch_skipped_special_handle = 0;
     stats->block_prefetch_skipped_no_leaf_page = 0;
     stats->block_prefetch_pages_fail = 0;
+    stats->block_prefetch_page_not_queued = 0;
     stats->block_prefetch_pages_queued = 0;
     stats->block_prefetch_pages_read = 0;
     stats->block_prefetch_attempts = 0;
@@ -2744,6 +2748,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);
     to->block_cache_bypass_chkpt += WT_STAT_READ(from, block_cache_bypass_chkpt);
     to->block_prefetch_disk_one += WT_STAT_READ(from, block_prefetch_disk_one);
+    to->block_prefetch_skipped_no_flag_set +=
+      WT_STAT_READ(from, block_prefetch_skipped_no_flag_set);
     to->block_prefetch_skipped_no_valid_dhandle +=
       WT_STAT_READ(from, block_prefetch_skipped_no_valid_dhandle);
     to->block_prefetch_skipped += WT_STAT_READ(from, block_prefetch_skipped);
@@ -2752,6 +2758,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_prefetch_skipped_no_leaf_page +=
       WT_STAT_READ(from, block_prefetch_skipped_no_leaf_page);
     to->block_prefetch_pages_fail += WT_STAT_READ(from, block_prefetch_pages_fail);
+    to->block_prefetch_page_not_queued += WT_STAT_READ(from, block_prefetch_page_not_queued);
     to->block_prefetch_pages_queued += WT_STAT_READ(from, block_prefetch_pages_queued);
     to->block_prefetch_pages_read += WT_STAT_READ(from, block_prefetch_pages_read);
     to->block_prefetch_attempts += WT_STAT_READ(from, block_prefetch_attempts);
