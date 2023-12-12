@@ -48,10 +48,9 @@ rectypes = [
 ]
 
 class LogOperationType:
-    def __init__(self, name, desc, func_name, fields):
+    def __init__(self, name, desc, fields):
         self.name = name
         self.desc = desc
-        self.func_name = func_name
         self.fields = fields
 
     def macro_name(self):
@@ -64,29 +63,27 @@ class LogOperationType:
 #
 optypes = [
 # commit operations
-    LogOperationType('col_modify', 'column modify', 'col_put',
+    LogOperationType('col_modify', 'column modify',
         [('uint32_id', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
-    LogOperationType('col_put', 'column put', 'col_put',
+    LogOperationType('col_put', 'column put',
         [('uint32_id', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
-    LogOperationType('col_remove', 'column remove', 'col_remove',
+    LogOperationType('col_remove', 'column remove',
         [('uint32_id', 'fileid'), ('recno', 'recno')]),
-    LogOperationType('col_truncate', 'column truncate', 'col_truncate',
+    LogOperationType('col_truncate', 'column truncate',
         [('uint32_id', 'fileid'), ('recno', 'start'), ('recno', 'stop')]),
-    LogOperationType('row_modify', 'row modify', 'row_put',
+    LogOperationType('row_modify', 'row modify',
         [('uint32_id', 'fileid'), ('item', 'key'), ('item', 'value')]),
-    LogOperationType('row_put', 'row put', 'row_put',
+    LogOperationType('row_put', 'row put',
         [('uint32_id', 'fileid'), ('item', 'key'), ('item', 'value')]),
-    LogOperationType('row_remove', 'row remove', 'row_remove',
+    LogOperationType('row_remove', 'row remove',
         [('uint32_id', 'fileid'), ('item', 'key')]),
-    LogOperationType('row_truncate', 'row truncate', 'row_truncate',
+    LogOperationType('row_truncate', 'row truncate',
         [('uint32_id', 'fileid'), ('item', 'start'), ('item', 'stop'),
             ('uint32', 'mode')]),
 
 # system operations
-    LogOperationType('checkpoint_start', 'checkpoint start', 'checkpoint_start',
-        []),
-    LogOperationType('prev_lsn', 'previous LSN', 'prev_lsn',
-        [('WT_LSN', 'prev_lsn')]),
+    LogOperationType('checkpoint_start', 'checkpoint start', []),
+    LogOperationType('prev_lsn', 'previous LSN', [('WT_LSN', 'prev_lsn')]),
     # Incremental backup IDs.
     LogOperationType('backup_id', 'incremental backup id', [
         ('uint32', 'index'), ('uint64', 'granularity'), ('string', 'id')]),
@@ -99,7 +96,7 @@ optypes = [
     # We need to know the base size/type of a 'struct timespec'. Cast its
     # parts to uint64_t and split it into seconds and nanoseconds.
     #
-    LogOperationType('txn_timestamp', 'txn_timestamp', 'txn_timestamp',
+    LogOperationType('txn_timestamp', 'txn_timestamp',
         [('uint64', 'time_sec'), ('uint64', 'time_nsec'),
             ('uint64', 'commit_ts'), ('uint64', 'durable_ts'),
             ('uint64', 'first_commit_ts'), ('uint64', 'prepare_ts'),
