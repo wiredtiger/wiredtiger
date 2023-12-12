@@ -9,8 +9,8 @@
 #include <memory>
 
 #include <catch2/catch.hpp>
-
 #include "wt_internal.h"
+#include "./wrappers/mock_session.h"
 
 struct ExtentWrapper {
     ExtentWrapper(WT_EXT *raw) : _raw(raw) {}
@@ -248,6 +248,54 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
 
         REQUIRE(__ut_block_off_srch_last(&el, &stack[0]) == second->_raw);
     }
+}
+
+TEST_CASE("Extent Lists: block_off_srch_last_for_mock_ession", "[extent_list]")
+{
+    std::shared_ptr<MockSession> mock_session;
+    WT_EXTLIST *alloc;
+    wt_off_t off, size;
+    WT_EXT *ext, extp, **astack[WT_SKIP_MAXDEPTH];
+    WT_BLOCK *block;
+    int i;
+    const char *name = "block_off_srch_last_for_mock_ession";
+
+    mock_session = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    block = mock_session->getWtBlock();
+    alloc = &block->live.avail;
+
+    REQUIRE(__wt_block_extlist_init(session, alloc, name, "test", false) == 0);
+
+#define TEST_EXT_SIZE 4096
+#define TEST_CYCLES 10
+    size = TEST_EXT_SIZE;
+    for (i = 0; i < TEST_CYCLES; i++) {
+        off = i * TEST_EXT_SIZE;
+        REQUIRE(__ut_block_off_insert(session, alloc, off, size) == 0);
+        ext = __ut_block_off_srch_last(alloc, &astack[0]);
+        REQUIRE(ext != NULL);
+        REQUIRE(ext->off == off);
+        REQUIRE(ext->size == size);
+    }
+
+    for (i = TEST_CYCLES - 1; i >= 0; i--) {
+        off = i * TEST_EXT_SIZE;
+        ext = &extp;
+        REQUIRE(__ut_block_off_remove(session, block, alloc, off, &ext) == 0);
+        ext = __ut_block_off_srch_last(alloc, &astack[0]);
+        if (i > 0) {
+            REQUIRE(ext != NULL);
+            off = (i - 1) * TEST_EXT_SIZE;
+            REQUIRE(ext->off == off);
+            REQUIRE(ext->size == size);
+
+        } else {
+            REQUIRE(ext == NULL);
+        }
+    }
+
+    __wt_block_extlist_free(session, alloc);
 }
 
 TEST_CASE("Extent Lists: block_off_srch", "[extent_list]")

@@ -21,6 +21,11 @@ public:
     {
         return _sessionImpl;
     };
+    WT_BLOCK *
+    getWtBlock()
+    {
+        return _block;
+    };
     std::shared_ptr<MockConnection>
     getMockConnection()
     {
@@ -30,13 +35,15 @@ public:
     static std::shared_ptr<MockSession> buildTestMockSession();
 
 private:
-    explicit MockSession(
-      WT_SESSION_IMPL *sessionImpl, std::shared_ptr<MockConnection> mockConnection = nullptr);
+    explicit MockSession(WT_SESSION_IMPL *sessionImpl, WT_BLOCK *block = nullptr,
+      std::shared_ptr<MockConnection> mockConnection = nullptr);
 
     std::shared_ptr<MockConnection> _mockConnection;
 
     // This class is implemented such that it owns, and is responsible for freeing, this pointer
     WT_SESSION_IMPL *_sessionImpl;
+
+    WT_BLOCK *_block;
 };
 
 #endif // WT_MOCK_SESSION_H
