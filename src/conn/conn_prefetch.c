@@ -108,9 +108,13 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
          * stop using prefetch. Some of the guarantees about ref and page freeing are ignored in
-         * that case, which can invalidate entries on the prefetch queue.
+         * that case, which can invalidate entries on the prefetch queue. Don't prefetch fast
+         * deleted pages - they have special performance and visibility considerations associated
+         * with them. Don't prefetch fast deleted pages to avoid wasted effort. We can skip reading
+         * these deleted pages into the cache if the fast truncate information is visible in the
+         * session transaction snapshot.
          */
-        if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION))
+        if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && pe->ref->page_del == NULL)
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
 
         /*
@@ -150,7 +154,13 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     pe->first_home = ref->home;
     pe->dhandle = session->dhandle;
     __wt_spin_lock(session, &conn->prefetch_lock);
-    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+
+    /*
+     * Don't add refs from trees that have eviction disabled since they are probably being closed,
+     * also never add the same ref twice. These checks need to be carried out while holding the
+     * pre-fetch lock - which is why they are internal to the push function.
+     */
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET(ref, WT_REF_FLAG_PREFETCH))
         ret = EBUSY;
     else {
         F_SET(ref, WT_REF_FLAG_PREFETCH);

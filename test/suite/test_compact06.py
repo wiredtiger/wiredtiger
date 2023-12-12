@@ -62,14 +62,14 @@ class test_compact06(wttest.WiredTigerTestCase):
         self.session.compact(None, f'background=true,{config}')
         while not self.get_bg_compaction_running():
             time.sleep(1)
-    
+
     def test_background_compact_api(self):
         # We cannot trigger the background compaction on a specific API. Note that the URI is
         # not relevant here, the corresponding table does not need to exist for this check.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.compact("file:123", 'background=true'),
             '/Background compaction does not work on specific URIs/')
-            
+
         # We cannot set other configurations while turning off the background server.
         for item in self.configuration_items:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
@@ -90,10 +90,14 @@ class test_compact06(wttest.WiredTigerTestCase):
                 self.session.compact(None, f'background=true,{item}'),
                 '/Cannot reconfigure background compaction while it\'s already running/')
 
+        # Wait for background compaction to process the HS.
+        while self.get_bg_compaction_success() == 0:
+            time.sleep(1)
+
         # Disable the background compaction server.
         self.turn_off_bg_compact()
 
-        # The background compaction should have tried to compact the HS.
+        # Background compaction should have tried to compact the HS hence skipped no files.
         assert self.get_bg_compaction_files_skipped() == 0
         assert self.get_bg_compaction_success() == 1
 
