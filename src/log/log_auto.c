@@ -109,12 +109,12 @@ __wt_logop_col_modify_pack(
     uint32_t optype, recsize;
 
     optype = WT_LOGOP_COL_MODIFY;
-    __wt_struct_size_col_put(session, &size, optype, 0, fileid, recno, value);
+    __wt_struct_size_col_modify(session, &size, optype, 0, fileid, recno, value);
 
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
     recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_col_put(session, (uint8_t *)logrec->data + logrec->size,
+    WT_RET(__wt_struct_pack_col_modify(session, (uint8_t *)logrec->data + logrec->size,
       (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, recno, value));
 
     logrec->size += (uint32_t)size;
@@ -409,12 +409,12 @@ __wt_logop_row_modify_pack(
     uint32_t optype, recsize;
 
     optype = WT_LOGOP_ROW_MODIFY;
-    __wt_struct_size_row_put(session, &size, optype, 0, fileid, key, value);
+    __wt_struct_size_row_modify(session, &size, optype, 0, fileid, key, value);
 
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
     recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_row_put(session, (uint8_t *)logrec->data + logrec->size,
+    WT_RET(__wt_struct_pack_row_modify(session, (uint8_t *)logrec->data + logrec->size,
       (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, key, value));
 
     logrec->size += (uint32_t)size;
@@ -867,18 +867,17 @@ int
 __wt_logop_backup_id_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, const char *id)
 {
-    const char *fmt = WT_UNCHECKED_STRING(IIIQS);
     size_t size;
     uint32_t optype, recsize;
 
     optype = WT_LOGOP_BACKUP_ID;
-    WT_RET(__wt_struct_size(session, &size, fmt, optype, 0, index, granularity, id));
+    __wt_struct_size_backup_id(session, &size, optype, 0, index, granularity, id);
 
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
     recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, size, fmt, optype,
-      recsize, index, granularity, id));
+    WT_RET(__wt_struct_pack_backup_id(session, (uint8_t *)logrec->data + logrec->size,
+      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, index, granularity, id));
 
     logrec->size += (uint32_t)size;
     return (0);
