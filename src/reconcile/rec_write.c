@@ -2350,8 +2350,10 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 /*
  * __rec_page_modify_ta_safe_free --
- *     Free the page modify ta if we can be sure no thread is accessing it, or schedule it to be
- *     freed otherwise.
+ *     Any thread that is reviewing the page modify time aggregate in a WT_REF, must also be holding
+ *     a split generation to ensure that the page index they are using remains valid. Use that same
+ *     split generation to ensure that the page modify time aggregate inside the WT_REF remains
+ *     valid while it is being reviewed.
  */
 static void
 __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
@@ -2367,10 +2369,10 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
     *ta = NULL;
 
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
-    WT_ASSERT_ALWAYS(session, split_gen != 0, "Must be inside the split generation.");
 
     if (__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, sizeof(WT_TIME_AGGREGATE)) != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during page modify ta free"));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 }
 
 /*
