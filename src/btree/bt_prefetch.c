@@ -25,49 +25,43 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
     block_preload = 0;
 
-    WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
-      "Pre-fetch starts with a leaf page and reviews the parent");
+    if ((F_ISSET(ref, WT_REF_FLAG_LEAF)) || (__wt_session_gen(session, WT_GEN_SPLIT) != 0)) {
+        session->pf.prefetch_prev_ref = ref;
+        /* Load and decompress a set of pages into the block cache. */
+        WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
+            /* Don't let the pre-fetch queue get overwhelmed. */
+            if (conn->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE ||
+              block_preload > WT_PREFETCH_QUEUE_PER_TRIGGER)
+                break;
 
-    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
-      "Pre-fetch requires a split generation to traverse internal page(s)");
-
-    session->pf.prefetch_prev_ref = ref;
-    /* Load and decompress a set of pages into the block cache. */
-    WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
-        /* Don't let the pre-fetch queue get overwhelmed. */
-        if (conn->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE ||
-          block_preload > WT_PREFETCH_QUEUE_PER_TRIGGER)
-            break;
-
-        /*
-         * Skip queuing pages that are already in cache or are internal. They aren't the pages we
-         * are looking for. This pretty much assumes that all children of an internal page remain in
-         * cache during the scan. If a previous pre-fetch of this internal page read a page in, then
-         * that page was evicted and now a future page wants to be pre-fetched, this algorithm needs
-         * a tweak. It would need to remember which child was last queued and start again from
-         * there, rather than this approximation which assumes recently pre-fetched pages are still
-         * in cache. Don't prefetch fast deleted pages to avoid wasted effort. We can skip reading
-         * these deleted pages into the cache if the fast truncate information is visible in the
-         * session transaction snapshot.
-         */
-        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
-          next_ref->page_del == NULL) {
-            ret = __wt_conn_prefetch_queue_push(session, next_ref);
-            if (ret == 0)
-                ++block_preload;
-            else if (ret != EBUSY) {
-                WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
-                continue;
+            /*
+             * Skip queuing pages that are already in cache or are internal. They aren't the pages
+             * we are looking for. This pretty much assumes that all children of an internal page
+             * remain in cache during the scan. If a previous pre-fetch of this internal page read a
+             * page in, then that page was evicted and now a future page wants to be pre-fetched,
+             * this algorithm needs a tweak. It would need to remember which child was last queued
+             * and start again from there, rather than this approximation which assumes recently
+             * pre-fetched pages are still in cache. Don't prefetch fast deleted pages to avoid
+             * wasted effort. We can skip reading these deleted pages into the cache if the fast
+             * truncate information is visible in the session transaction snapshot.
+             */
+            if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
+              next_ref->page_del == NULL) {
+                ret = __wt_conn_prefetch_queue_push(session, next_ref);
+                if (ret == 0)
+                    ++block_preload;
+                else if (ret != EBUSY) {
+                    WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
+                    continue;
+                }
             }
-            // WT_RET(ret);
-            // WT-11795 continue if u donht care about performance . this is the tradeoff./ Add a
-            // stat.
         }
-    }
-    WT_INTL_FOREACH_END;
+        WT_INTL_FOREACH_END;
 
-    WT_STAT_CONN_INCRV(session, block_prefetch_pages_queued, block_preload);
-    return (0);
+        WT_STAT_CONN_INCRV(session, block_prefetch_pages_queued, block_preload);
+        return (0);
+    } else
+        return (WT_ERROR);
 }
 
 /*
@@ -87,7 +81,7 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     WT_PREFETCH_ASSERT(session, pe->dhandle != NULL, block_prefetch_skipped_no_valid_dhandle);
     WT_PREFETCH_ASSERT(
-      session, F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL), block_prefetch_skipped_no_leaf_page);
+      session, F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL), block_prefetch_skipped_internal_page);
 
     if (pe->ref->state != WT_REF_DISK) {
         WT_STAT_CONN_INCR(session, block_prefetch_pages_fail);
@@ -97,13 +91,12 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
     WT_STAT_CONN_INCR(session, block_prefetch_pages_read);
 
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
-        // WT-11759 - TODO make this a new ticket? what if wer fail between stages of these func
-        // calls?""
         WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
         WT_ERR(__wt_page_release(session, pe->ref, 0));
     } else
         return (WT_ERROR);
 
 err:
+    WT_TRET(__wt_page_release(session, pe->ref, 0));
     return (ret);
 }

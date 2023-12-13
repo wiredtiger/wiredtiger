@@ -440,7 +440,8 @@ __verify_tree(
      * well.
      */
     if (__wt_session_prefetch_check(session, ref))
-        WT_RET(__wt_btree_prefetch(session, ref));
+        WT_PREFETCH_ASSERT(
+          session, __wt_btree_prefetch(session, ref) != WT_ERROR, block_prefetch_failed_start);
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
