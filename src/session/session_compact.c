@@ -295,7 +295,8 @@ __compact_worker(WT_SESSION_IMPL *session)
         session->op_handle[i]->compact_skip = false;
 
     /* Perform an initial checkpoint (see this file's leading comment for details). */
-    WT_ERR(__compact_checkpoint(session));
+    if (session != S2C(session)->background_compact.session)
+        WT_ERR(__compact_checkpoint(session));
 
     /*
      * We compact 10% of a file on each pass (but the overall size of the file is decreasing each
