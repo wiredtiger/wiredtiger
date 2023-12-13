@@ -241,8 +241,13 @@ kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t 
     auto start_iter = start == model::NONE ? _data.begin() : _data.lower_bound(start);
     auto stop_iter = stop == model::NONE ? _data.end() : _data.upper_bound(stop);
 
-    for (auto i = start_iter; i != stop_iter; i++)
-        i->second.add_update(std::move(kv_update(NONE, fix_timestamp(timestamp))), false, false);
+    try {
+        for (auto i = start_iter; i != stop_iter; i++)
+            i->second.add_update(
+              std::move(kv_update(NONE, fix_timestamp(timestamp))), false, false);
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
 
     return 0;
 }
