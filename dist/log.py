@@ -6,50 +6,52 @@ from dist import compare_srcfile, format_srcfile
 # Temporary file.
 tmp_file = '__tmp_log' + str(os.getpid())
 
-# Map log record types to:
-#   0. C type
-#   1. pack type
-#   2. printf format, or a list of printf formats (one regular, and optionally one more for hex)
-#   3. printf arg(s)
-#   4. list of setup functions (one regular, and optionally one more for hex)
-#   5. always include hex (regardless of whether WT_TXN_PRINTLOG_HEX was set)
-#   6. passed by pointer
+class FieldType:
+    def __init__(self, ctype, packtype, printf_fmt, printf_arg, setup, always_hex, byptr):
+        self.ctype = ctype             # C type
+        self.packtype = packtype       # pack type
+        self.printf_fmt = printf_fmt   # printf format or list of printf formats
+        self.printf_arg = printf_arg   # printf arg
+        self.setup = setup             # list of setup functions
+        self.always_hex = always_hex   # always include hex
+        self.byptr = byptr             # passed by pointer
+
 field_types = {
-    'WT_LSN' : ('WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
+    'WT_LSN' : FieldType('WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
         'arg.l.file, arg.l.offset', [ '' ], False, True),
-    'string' : ('char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
-    'WT_ITEM' : ('WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
+    'string' : FieldType('char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
+    'WT_ITEM' : FieldType('WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
           'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False, True),
-    'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False, False),
-    'uint32_t' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False, False),
+    'recno' : FieldType('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False, False),
+    'uint32_t' : FieldType('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False, False),
     # The fileid may have the high bit set. Print in both decimal and hex.
-    'uint32_id' : ('uint32_t', 'I',
+    'uint32_id' : FieldType('uint32_t', 'I',
         [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True, False),
-    'uint64_t' : ('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False, False),
+    'uint64_t' : FieldType('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False, False),
 }
 
 def cintype(f):
-    return field_types[f[0]][0] + ('*' if field_types[f[0]][6] else ' ')
+    return field_types[f[0]].ctype + ('*' if field_types[f[0]].byptr else ' ')
 
 def couttype(f):
-    return field_types[f[0]][0] + '*'
+    return field_types[f[0]].ctype + '*'
 
 def clocaltype(f):
-    return field_types[f[0]][0]
+    return field_types[f[0]].ctype
 
 def escape_decl(fields):
     return '\n\tWT_DECL_ITEM(escaped);' if has_escape(fields) else ''
 
 def has_escape(fields):
     for f in fields:
-        for setup in field_types[f[0]][4]:
+        for setup in field_types[f[0]].setup:
             if 'escaped' in setup:
                 return True
     return False
 
 def pack_fmt(fields):
-    return ''.join(field_types[f[0]][1] for f in fields)
+    return ''.join(field_types[f[0]].packtype for f in fields)
 
 def op_pack_fmt(r):
     return 'II' + pack_fmt(r.fields)
@@ -58,7 +60,7 @@ def rec_pack_fmt(r):
     return 'I' + pack_fmt(r.fields)
 
 def printf_fmt(f, ishex):
-    fmt = field_types[f[0]][2]
+    fmt = field_types[f[0]].printf_fmt
     if type(fmt) is list:
         fmt = fmt[ishex]
     return fmt
@@ -69,7 +71,7 @@ def pack_arg(f):
     return f[1]
 
 def printf_arg(f):
-    arg = field_types[f[0]][3].replace('arg', f[1])
+    arg = field_types[f[0]].printf_arg.replace('arg', f[1])
     return ' ' + arg
 
 def unpack_arg(f):
@@ -78,14 +80,14 @@ def unpack_arg(f):
     return f[1] + 'p'
 
 def printf_setup(f, i, nl_indent):
-    stmt = field_types[f[0]][4][i].replace('arg', f[1])
+    stmt = field_types[f[0]].setup[i].replace('arg', f[1])
     return '' if stmt == '' else stmt + nl_indent
 
 def n_setup(f):
-    return len(field_types[f[0]][4])
+    return len(field_types[f[0]].setup)
 
 def unconditional_hex(f):
-    return field_types[f[0]][5]
+    return field_types[f[0]].always_hex
 
 # Check for an operation that has a file id type. Redact any user data
 # if the redact flag is set, but print operations for file id 0, known
