@@ -223,7 +223,6 @@ lazyfs_unmount(const char *mount_dir, pid_t lazyfs_pid)
 #else
     struct stat sb;
     int status;
-    char buf[PATH_MAX];
 
     /* Check whether the file system is mounted. */
     if (stat(mount_dir, &sb) != 0) {
@@ -236,7 +235,7 @@ lazyfs_unmount(const char *mount_dir, pid_t lazyfs_pid)
 
     /* Unmount. */
     testutil_system("cd '%s' && ./scripts/umount-lazyfs.sh -m \"%s\"", lazyfs_home, mount_dir);
-    
+
     if (lazyfs_pid > 0)
         testutil_assert_errno(waitpid(lazyfs_pid, &status, 0) >= 0);
 #endif
