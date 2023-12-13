@@ -341,9 +341,9 @@ struct Operation {
 // properties are prevented, only existing properties can be set.
 struct ThreadOptions {
     std::string name;
+    std::string session_config;
     double throttle;
     double throttle_burst;
-    std::string session_config;
     bool synchronized;
 
     ThreadOptions();
@@ -439,8 +439,8 @@ struct Transaction {
 struct WorkloadOptions {
     int background_compact;
     int create_count;
-    int create_interval;
     /* Dynamic create/drop options */
+    int create_interval;
     std::string create_prefix;
     int create_target;
     int create_trigger;
