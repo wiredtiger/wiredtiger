@@ -317,7 +317,9 @@ class test_salvage01(wttest.WiredTigerTestCase, suite_subprocess):
         self.damage(self.tablename)
 
         # damage() closed the session/connection, reopen them now.
-        self.open_conn()
+        # Disable pre-fetching on the connection and its sessions as it is
+        # not expected to work correctly with damaged contents.
+        self.open_conn(config='prefetch=(available=false,default=false)')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, None),
             "/read checksum error/")
