@@ -83,16 +83,16 @@ else()
     set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
-# Colorize the CMake error output
+# Colorize the build error output
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    add_compile_options(-fdiagnostics-color=always)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always" CACHE STRING "" FORCE)
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    add_compile_options(-fcolor-diagnostics)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics" CACHE STRING "" FORCE)
 endif()
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-    add_compile_options(-fdiagnostics-color=always)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always" CACHE STRING "" FORCE)
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-    add_compile_options(-fcolor-diagnostics)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics" CACHE STRING "" FORCE)
 endif()
 
 if(ENABLE_STRICT)
