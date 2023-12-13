@@ -276,7 +276,9 @@
 
 /*
  * WT_PREFETCH_ASSERT --
- *  Assert an expression for prefetch if in diagnostic mode or update the relevant statistic.
+ *  Assert an expression for prefetch if in diagnostic mode, or update the relevant statistic if
+ *  not. As pre-fetch is an optional optimsation, we want to avoid crashing the application for
+ *  an error, but instead swallow errors where possible.
  */
 #define WT_PREFETCH_ASSERT(session, exp, stat) \
     do {                                       \

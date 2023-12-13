@@ -25,43 +25,43 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
     block_preload = 0;
 
-    if ((F_ISSET(ref, WT_REF_FLAG_LEAF)) || (__wt_session_gen(session, WT_GEN_SPLIT) != 0)) {
-        session->pf.prefetch_prev_ref = ref;
-        /* Load and decompress a set of pages into the block cache. */
-        WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
-            /* Don't let the pre-fetch queue get overwhelmed. */
-            if (conn->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE ||
-              block_preload > WT_PREFETCH_QUEUE_PER_TRIGGER)
-                break;
+    if (!(F_ISSET(ref, WT_REF_FLAG_LEAF)) || (__wt_session_gen(session, WT_GEN_SPLIT) == 0))
+        return (WT_ERROR);
 
-            /*
-             * Skip queuing pages that are already in cache or are internal. They aren't the pages
-             * we are looking for. This pretty much assumes that all children of an internal page
-             * remain in cache during the scan. If a previous pre-fetch of this internal page read a
-             * page in, then that page was evicted and now a future page wants to be pre-fetched,
-             * this algorithm needs a tweak. It would need to remember which child was last queued
-             * and start again from there, rather than this approximation which assumes recently
-             * pre-fetched pages are still in cache. Don't prefetch fast deleted pages to avoid
-             * wasted effort. We can skip reading these deleted pages into the cache if the fast
-             * truncate information is visible in the session transaction snapshot.
-             */
-            if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
-              next_ref->page_del == NULL) {
-                ret = __wt_conn_prefetch_queue_push(session, next_ref);
-                if (ret == 0)
-                    ++block_preload;
-                else if (ret != EBUSY) {
-                    WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
-                    continue;
-                }
+    session->pf.prefetch_prev_ref = ref;
+    /* Load and decompress a set of pages into the block cache. */
+    WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
+        /* Don't let the pre-fetch queue get overwhelmed. */
+        if (conn->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE ||
+          block_preload > WT_PREFETCH_QUEUE_PER_TRIGGER)
+            break;
+
+        /*
+         * Skip queuing pages that are already in cache or are internal. They aren't the pages we
+         * are looking for. This pretty much assumes that all children of an internal page remain in
+         * cache during the scan. If a previous pre-fetch of this internal page read a page in, then
+         * that page was evicted and now a future page wants to be pre-fetched, this algorithm needs
+         * a tweak. It would need to remember which child was last queued and start again from
+         * there, rather than this approximation which assumes recently pre-fetched pages are still
+         * in cache. Don't prefetch fast deleted pages to avoid wasted effort. We can skip reading
+         * these deleted pages into the cache if the fast truncate information is visible in the
+         * session transaction snapshot.
+         */
+        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
+          next_ref->page_del == NULL) {
+            ret = __wt_conn_prefetch_queue_push(session, next_ref);
+            if (ret == 0)
+                ++block_preload;
+            else if (ret != EBUSY) {
+                WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
+                continue;
             }
         }
-        WT_INTL_FOREACH_END;
+    }
+    WT_INTL_FOREACH_END;
 
-        WT_STAT_CONN_INCRV(session, block_prefetch_pages_queued, block_preload);
-        return (0);
-    } else
-        return (WT_ERROR);
+    WT_STAT_CONN_INCRV(session, block_prefetch_pages_queued, block_preload);
+    return (0);
 }
 
 /*
