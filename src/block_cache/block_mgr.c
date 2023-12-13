@@ -779,6 +779,9 @@ __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
             /*
              * To fill the hole just created, shift the rest of the array down. Adjust the loop
              * index so we'll continue just where we left off.
+             *
+             * FIXME-WT-12028: The set of active handles may be quite large, so the memmove may be
+             * slow. We should consider hash tables to store the handles.
              */
             nbytes = (bm->handle_array_next - i - 1) * sizeof(bm->handle_array[0]);
             memmove(&bm->handle_array[i], &bm->handle_array[i + 1], nbytes);
