@@ -258,7 +258,7 @@ remove_local_cached_files(const char *home)
         highest = WT_MAX(highest, objnum);
     }
 
-    testutil_check(closedir(dir));
+    testutil_assert_errno(closedir(dir));
 
     testutil_snprintf(file_prefix, sizeof(file_prefix), "%s-000", tablename);
     if (highest > 1 && nmatches > 1) {
