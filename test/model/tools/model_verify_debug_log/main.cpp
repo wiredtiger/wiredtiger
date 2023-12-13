@@ -52,7 +52,7 @@ extern char *__wt_optarg;
 /*
  * Configuration.
  */
-#define ENV_CONFIG_DEFAULT "readonly=true,log=(enabled=false)"
+#define ENV_CONFIG_BASE "readonly=true,log=(enabled=false)"
 
 /*
  * usage --
@@ -77,14 +77,15 @@ usage(const char *progname)
 int
 main(int argc, char *argv[])
 {
-    const char *checkpoint, *conn_config, *debug_log_json, *home, *progname;
+    const char *checkpoint, *debug_log_json, *home, *progname;
     int ch, ret;
 
     checkpoint = nullptr;
-    conn_config = ENV_CONFIG_DEFAULT;
     debug_log_json = nullptr;
     home = nullptr;
     progname = argv[0];
+
+    std::string conn_config = ENV_CONFIG_BASE;
 
     /*
      * Parse the command-line arguments.
@@ -93,7 +94,8 @@ main(int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "C:c:h:j:?")) != EOF)
         switch (ch) {
         case 'C':
-            conn_config = __wt_optarg;
+            conn_config += ",";
+            conn_config += __wt_optarg;
             break;
         case 'c':
             checkpoint = __wt_optarg;
@@ -121,7 +123,7 @@ main(int argc, char *argv[])
      * Open the WiredTiger database to verify.
      */
     WT_CONNECTION *conn;
-    ret = wiredtiger_open(home, nullptr /* event handler */, conn_config, &conn);
+    ret = wiredtiger_open(home, nullptr /* event handler */, conn_config.c_str(), &conn);
     if (ret != 0) {
         std::cerr << "Cannot open the database: " << wiredtiger_strerror(ret) << std::endl;
         return EXIT_FAILURE;
