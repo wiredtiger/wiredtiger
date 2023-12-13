@@ -2355,44 +2355,6 @@ static inline int __wt_strcat(char *dest, size_t size, const char *src)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_strdup(WT_SESSION_IMPL *session, const char *str, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_checkpoint(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t rectype, uint32_t file, uint32_t offset, uint32_t nsnapshot, WT_ITEM *snapshot)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_checkpoint_start(
-  WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end, uint32_t rectype, uint32_t recsize)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_col_put(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, uint64_t recno, WT_ITEM *value)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_col_remove(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, uint64_t recno)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_col_truncate(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, uint64_t start, uint64_t stop)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_commit(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t rectype, uint64_t txnid) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_file_sync(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t rectype, uint32_t btree_id, uint32_t checkpoint_start)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_prev_lsn(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t rectype, uint32_t recsize, uint32_t file, uint32_t offset)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_row_put(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_row_remove(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, WT_ITEM *key)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_row_truncate(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_system_record(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t rectype) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_struct_pack_txn_timestamp(WT_SESSION_IMPL *session, uint8_t *p, uint8_t *end,
-  uint32_t optype, uint32_t recsize, uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts,
-  uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_struct_packv(WT_SESSION_IMPL *session, void *buffer, size_t size,
   const char *fmt, va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_struct_sizev(WT_SESSION_IMPL *session, size_t *sizep, const char *fmt,
@@ -2608,33 +2570,6 @@ static inline void __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t
 static inline void __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep);
-static inline void __wt_struct_size_checkpoint(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t rectype, uint32_t file, uint32_t offset, uint32_t nsnapshot, WT_ITEM *snapshot);
-static inline void __wt_struct_size_checkpoint_start(
-  WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype, uint32_t recsize);
-static inline void __wt_struct_size_col_put(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, uint64_t recno, WT_ITEM *value);
-static inline void __wt_struct_size_col_remove(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, uint64_t recno);
-static inline void __wt_struct_size_col_truncate(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, uint64_t start, uint64_t stop);
-static inline void __wt_struct_size_commit(
-  WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype, uint64_t txnid);
-static inline void __wt_struct_size_file_sync(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t rectype, uint32_t btree_id, uint32_t checkpoint_start);
-static inline void __wt_struct_size_prev_lsn(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t rectype, uint32_t recsize, uint32_t file, uint32_t offset);
-static inline void __wt_struct_size_row_put(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, WT_ITEM *key, WT_ITEM *value);
-static inline void __wt_struct_size_row_remove(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, WT_ITEM *key);
-static inline void __wt_struct_size_row_truncate(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t optype, uint32_t recsize, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode);
-static inline void __wt_struct_size_system_record(
-  WT_SESSION_IMPL *session, size_t *sizep, uint32_t rectype);
-static inline void __wt_struct_size_txn_timestamp(WT_SESSION_IMPL *session, size_t *sizep,
-  uint32_t optype, uint32_t recsize, uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts,
-  uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts);
 static inline void __wt_timer_evaluate_ms(
   WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff_ms);
 static inline void __wt_timer_start(WT_SESSION_IMPL *session, WT_TIMER *start_time);

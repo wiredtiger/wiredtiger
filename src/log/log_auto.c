@@ -2,6 +2,50 @@
 
 #include "wt_internal.h"
 
+#define WT_SIZE_CHECK_PACK_PTR(p, end) WT_RET_TEST((p) && (end) && (p) < (end), ENOMEM)
+#define WT_SIZE_CHECK_UNPACK_PTR(p, end) WT_RET_TEST((p) && (end) && (p) < (end), EINVAL)
+
+/*
+ * __pack_encode__WT_ITEM --
+ *     Pack a WT_ITEM structure.
+ */
+
+static inline int
+__pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
+{
+    WT_RET(__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item->size));
+    WT_SIZE_CHECK_PACK(item->size, WT_PTRDIFF(end, *pp));
+    memcpy(*pp, item->data, item->size);
+    *pp += item->size;
+    return (0);
+}
+
+static inline int
+__pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
+{
+    /* Check that there is at least one byte available: the low-level routines treat zero length as
+     * unchecked. */
+    WT_SIZE_CHECK_PACK_PTR(*pp, end);
+    return __wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item);
+}
+
+#define __pack_decode__uintAny(TYPE, pval)                                                     \
+    do {                                                                                       \
+        uint64_t v; /* Check that there is at least one byte available: the low-level routines \
+                       treat zero length as unchecked. */                                      \
+        WT_SIZE_CHECK_UNPACK_PTR(*pp, end);                                                    \
+        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));                               \
+        *(pval) = (TYPE)v;                                                                     \
+    } while (0)
+
+#define __pack_decode__WT_ITEM(TYPE, val)                      \
+    do {                                                       \
+        __pack_decode__uintAny(size_t, &val->size);            \
+        WT_SIZE_CHECK_UNPACK(val->size, WT_PTRDIFF(end, *pp)); \
+        val->data = *pp;                                       \
+        *pp += val->size;                                      \
+    } while (0)
+
 /*
  * __wt_logrec_alloc --
  *     Allocate a new WT_ITEM structure.
@@ -39,11 +83,19 @@ int
 __wt_logrec_read(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
 {
-    uint64_t rectype;
+    __pack_decode__uintAny(uint32_t, rectypep);
+    return (0);
+}
 
-    WT_UNUSED(session);
-    WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &rectype));
-    *rectypep = (uint32_t)rectype;
+/*
+ * __wt_logrec_write --
+ *     Read the record type.
+ */
+int
+__wt_logrec_write(
+  WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
+{
+    WT_RET(__pack_encode__uintAny(pp, end, rectypep));
     return (0);
 }
 
@@ -56,6 +108,22 @@ __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end
   uint32_t *opsizep)
 {
     return (__wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
+    __pack_decode__uintAny(uint32_t, optypep);
+    __pack_decode__uintAny(uint32_t, opsizep);
+    return (0);
+}
+
+/*
+ * __wt_logop_write --
+ *     Write the operation type.
+ */
+int
+__wt_logop_write(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t optype,
+  uint32_t opsize)
+{
+    WT_RET(__pack_encode__uintAny(pp, end, optype));
+    WT_RET(__pack_encode__uintAny(pp, end, opsize));
+    return (0);
 }
 
 /*
@@ -97,27 +165,9 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
     return (0);
 }
 
-#define WT_SIZE_CHECK_PACK_PTR(p, end) WT_RET_TEST((p) && (end) && (p) < (end), ENOMEM)
-#define WT_SIZE_CHECK_UNPACK_PTR(p, end) WT_RET_TEST((p) && (end) && (p) < (end), EINVAL)
-
-/*
- * __pack_encode__WT_ITEM --
- *     Pack a WT_ITEM structure.
- */
-
-static inline int
-__pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
-{
-    WT_RET(__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item->size));
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    memcpy(*pp, item->data, item->size);
-    *pp += item->size;
-    return (0);
-}
-
 /*
  * __wt_struct_size_col_modify --
- *     Calculate the size col_modify struct.
+ *     Calculate size of col_modify struct.
  */
 static inline void
 __wt_struct_size_col_modify(size_t *sizep, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -131,19 +181,14 @@ __wt_struct_size_col_modify(size_t *sizep, uint32_t fileid, uint64_t recno, WT_I
  * __wt_struct_pack_col_modify --
  *     Pack the col_modify struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_col_modify(
   uint8_t *p, uint8_t *end, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__recno(&p, WT_PTRDIFF(end, *pp), recno));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__value(&p, WT_PTRDIFF(end, *pp), value));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__uintAny(&p, end, recno));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, value));
 
     return (0);
 }
@@ -152,36 +197,14 @@ __wt_struct_pack_col_modify(
  * __wt_struct_unpack_col_modify --
  *     Unpack the col_modify struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_col_modify(
-  uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t recno, WT_ITEM *value)
+  const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *recno = (uint64_t)v;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__uintAny(uint64_t, recnop);
+    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
 
     return (0);
 }
@@ -190,21 +213,24 @@ __wt_struct_unpack_col_modify(
  * __wt_logop_col_modify_pack --
  *     Pack the log operation col_modify.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_col_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_COL_MODIFY;
-    WT_RET(__wt_struct_size_col_modify(&size, optype, 0, fileid, recno, value));
-
+    WT_RET(__wt_struct_size_col_modify(&size, fileid, recno, value));
+    size += __wt_vsize_uint(WT_LOGOP_COL_MODIFY) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_col_modify((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, recno, value));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_MODIFY, (uint32_t)size));
+    WT_RET(__wt_struct_pack_col_modify(&buf, end, fileid, recno, value));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -219,12 +245,21 @@ __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIru);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, recnop, valuep)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_col_modify(*pp, end, fileidp, recnop, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_col_modify: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_COL_MODIFY);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -268,7 +303,7 @@ err:
 
 /*
  * __wt_struct_size_col_put --
- *     Calculate the size col_put struct.
+ *     Calculate size of col_put struct.
  */
 static inline void
 __wt_struct_size_col_put(size_t *sizep, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -282,18 +317,13 @@ __wt_struct_size_col_put(size_t *sizep, uint32_t fileid, uint64_t recno, WT_ITEM
  * __wt_struct_pack_col_put --
  *     Pack the col_put struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_col_put(uint8_t *p, uint8_t *end, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__recno(&p, WT_PTRDIFF(end, *pp), recno));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__value(&p, WT_PTRDIFF(end, *pp), value));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__uintAny(&p, end, recno));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, value));
 
     return (0);
 }
@@ -302,36 +332,14 @@ __wt_struct_pack_col_put(uint8_t *p, uint8_t *end, uint32_t fileid, uint64_t rec
  * __wt_struct_unpack_col_put --
  *     Unpack the col_put struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_col_put(
-  uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t recno, WT_ITEM *value)
+  const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *recno = (uint64_t)v;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__uintAny(uint64_t, recnop);
+    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
 
     return (0);
 }
@@ -340,21 +348,24 @@ __wt_struct_unpack_col_put(
  * __wt_logop_col_put_pack --
  *     Pack the log operation col_put.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_col_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_COL_PUT;
-    WT_RET(__wt_struct_size_col_put(&size, optype, 0, fileid, recno, value));
-
+    WT_RET(__wt_struct_size_col_put(&size, fileid, recno, value));
+    size += __wt_vsize_uint(WT_LOGOP_COL_PUT) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_col_put((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, recno, value));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_PUT, (uint32_t)size));
+    WT_RET(__wt_struct_pack_col_put(&buf, end, fileid, recno, value));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -369,12 +380,21 @@ __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIru);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, recnop, valuep)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_col_put(*pp, end, fileidp, recnop, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_col_put: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_COL_PUT);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -418,7 +438,7 @@ err:
 
 /*
  * __wt_struct_size_col_remove --
- *     Calculate the size col_remove struct.
+ *     Calculate size of col_remove struct.
  */
 static inline void
 __wt_struct_size_col_remove(size_t *sizep, uint32_t fileid, uint64_t recno)
@@ -431,15 +451,12 @@ __wt_struct_size_col_remove(size_t *sizep, uint32_t fileid, uint64_t recno)
  * __wt_struct_pack_col_remove --
  *     Pack the col_remove struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_col_remove(uint8_t *p, uint8_t *end, uint32_t fileid, uint64_t recno)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__recno(&p, WT_PTRDIFF(end, *pp), recno));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__uintAny(&p, end, recno));
 
     return (0);
 }
@@ -448,27 +465,13 @@ __wt_struct_pack_col_remove(uint8_t *p, uint8_t *end, uint32_t fileid, uint64_t 
  * __wt_struct_unpack_col_remove --
  *     Unpack the col_remove struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_col_remove(uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t recno)
+__wt_struct_unpack_col_remove(
+  const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *recno = (uint64_t)v;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__uintAny(uint64_t, recnop);
 
     return (0);
 }
@@ -477,21 +480,24 @@ __wt_struct_unpack_col_remove(uint8_t **pp, uint8_t *end, uint32_t fileid, uint6
  * __wt_logop_col_remove_pack --
  *     Pack the log operation col_remove.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_col_remove_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_COL_REMOVE;
-    WT_RET(__wt_struct_size_col_remove(&size, optype, 0, fileid, recno));
-
+    WT_RET(__wt_struct_size_col_remove(&size, fileid, recno));
+    size += __wt_vsize_uint(WT_LOGOP_COL_REMOVE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_col_remove((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, recno));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_REMOVE, (uint32_t)size));
+    WT_RET(__wt_struct_pack_col_remove(&buf, end, fileid, recno));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -506,12 +512,21 @@ __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
   uint32_t *fileidp, uint64_t *recnop)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIr);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, recnop)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_col_remove(*pp, end, fileidp, recnop)) != 0)
         WT_RET_MSG(session, ret, "logop_col_remove: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_COL_REMOVE);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -542,7 +557,7 @@ __wt_logop_col_remove_print(
 
 /*
  * __wt_struct_size_col_truncate --
- *     Calculate the size col_truncate struct.
+ *     Calculate size of col_truncate struct.
  */
 static inline void
 __wt_struct_size_col_truncate(size_t *sizep, uint32_t fileid, uint64_t start, uint64_t stop)
@@ -555,19 +570,14 @@ __wt_struct_size_col_truncate(size_t *sizep, uint32_t fileid, uint64_t start, ui
  * __wt_struct_pack_col_truncate --
  *     Pack the col_truncate struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_col_truncate(
   uint8_t *p, uint8_t *end, uint32_t fileid, uint64_t start, uint64_t stop)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__start(&p, WT_PTRDIFF(end, *pp), start));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__stop(&p, WT_PTRDIFF(end, *pp), stop));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__uintAny(&p, end, start));
+    WT_RET(__pack_encode__uintAny(&p, end, stop));
 
     return (0);
 }
@@ -576,37 +586,14 @@ __wt_struct_pack_col_truncate(
  * __wt_struct_unpack_col_truncate --
  *     Unpack the col_truncate struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_col_truncate(
-  uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t start, uint64_t stop)
+  const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *start = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *stop = (uint64_t)v;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__uintAny(uint64_t, startp);
+    __pack_decode__uintAny(uint64_t, stopp);
 
     return (0);
 }
@@ -615,21 +602,24 @@ __wt_struct_unpack_col_truncate(
  * __wt_logop_col_truncate_pack --
  *     Pack the log operation col_truncate.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_col_truncate_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t start, uint64_t stop)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_COL_TRUNCATE;
-    WT_RET(__wt_struct_size_col_truncate(&size, optype, 0, fileid, start, stop));
-
+    WT_RET(__wt_struct_size_col_truncate(&size, fileid, start, stop));
+    size += __wt_vsize_uint(WT_LOGOP_COL_TRUNCATE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_col_truncate((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, start, stop));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_TRUNCATE, (uint32_t)size));
+    WT_RET(__wt_struct_pack_col_truncate(&buf, end, fileid, start, stop));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -644,12 +634,21 @@ __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
   uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIrr);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, startp, stopp)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_col_truncate(*pp, end, fileidp, startp, stopp)) != 0)
         WT_RET_MSG(session, ret, "logop_col_truncate: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_COL_TRUNCATE);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -682,7 +681,7 @@ __wt_logop_col_truncate_print(
 
 /*
  * __wt_struct_size_row_modify --
- *     Calculate the size row_modify struct.
+ *     Calculate size of row_modify struct.
  */
 static inline void
 __wt_struct_size_row_modify(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -696,18 +695,13 @@ __wt_struct_size_row_modify(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITE
  * __wt_struct_pack_row_modify --
  *     Pack the row_modify struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_row_modify(uint8_t *p, uint8_t *end, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__key(&p, WT_PTRDIFF(end, *pp), key));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__value(&p, WT_PTRDIFF(end, *pp), value));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, key));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, value));
 
     return (0);
 }
@@ -716,35 +710,14 @@ __wt_struct_pack_row_modify(uint8_t *p, uint8_t *end, uint32_t fileid, WT_ITEM *
  * __wt_struct_unpack_row_modify --
  *     Unpack the row_modify struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_row_modify(
-  uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
+  const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__WT_ITEM(WT_ITEM *, keyp);
+    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
 
     return (0);
 }
@@ -753,21 +726,24 @@ __wt_struct_unpack_row_modify(
  * __wt_logop_row_modify_pack --
  *     Pack the log operation row_modify.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_row_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_ROW_MODIFY;
-    WT_RET(__wt_struct_size_row_modify(&size, optype, 0, fileid, key, value));
-
+    WT_RET(__wt_struct_size_row_modify(&size, fileid, key, value));
+    size += __wt_vsize_uint(WT_LOGOP_ROW_MODIFY) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_row_modify((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, key, value));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_MODIFY, (uint32_t)size));
+    WT_RET(__wt_struct_pack_row_modify(&buf, end, fileid, key, value));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -782,12 +758,21 @@ __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIuu);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, keyp, valuep)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_row_modify(*pp, end, fileidp, keyp, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_modify: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_ROW_MODIFY);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -837,7 +822,7 @@ err:
 
 /*
  * __wt_struct_size_row_put --
- *     Calculate the size row_put struct.
+ *     Calculate size of row_put struct.
  */
 static inline void
 __wt_struct_size_row_put(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -851,18 +836,13 @@ __wt_struct_size_row_put(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITEM *
  * __wt_struct_pack_row_put --
  *     Pack the row_put struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_row_put(uint8_t *p, uint8_t *end, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__key(&p, WT_PTRDIFF(end, *pp), key));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__value(&p, WT_PTRDIFF(end, *pp), value));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, key));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, value));
 
     return (0);
 }
@@ -871,35 +851,14 @@ __wt_struct_pack_row_put(uint8_t *p, uint8_t *end, uint32_t fileid, WT_ITEM *key
  * __wt_struct_unpack_row_put --
  *     Unpack the row_put struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_row_put(
-  uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
+  const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__WT_ITEM(WT_ITEM *, keyp);
+    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
 
     return (0);
 }
@@ -908,21 +867,24 @@ __wt_struct_unpack_row_put(
  * __wt_logop_row_put_pack --
  *     Pack the log operation row_put.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_row_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_ROW_PUT;
-    WT_RET(__wt_struct_size_row_put(&size, optype, 0, fileid, key, value));
-
+    WT_RET(__wt_struct_size_row_put(&size, fileid, key, value));
+    size += __wt_vsize_uint(WT_LOGOP_ROW_PUT) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_row_put((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, key, value));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_PUT, (uint32_t)size));
+    WT_RET(__wt_struct_pack_row_put(&buf, end, fileid, key, value));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -937,12 +899,21 @@ __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIuu);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, keyp, valuep)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_row_put(*pp, end, fileidp, keyp, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_put: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_ROW_PUT);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -992,7 +963,7 @@ err:
 
 /*
  * __wt_struct_size_row_remove --
- *     Calculate the size row_remove struct.
+ *     Calculate size of row_remove struct.
  */
 static inline void
 __wt_struct_size_row_remove(size_t *sizep, uint32_t fileid, WT_ITEM *key)
@@ -1005,15 +976,12 @@ __wt_struct_size_row_remove(size_t *sizep, uint32_t fileid, WT_ITEM *key)
  * __wt_struct_pack_row_remove --
  *     Pack the row_remove struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_row_remove(uint8_t *p, uint8_t *end, uint32_t fileid, WT_ITEM *key)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__key(&p, WT_PTRDIFF(end, *pp), key));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, key));
 
     return (0);
 }
@@ -1022,26 +990,13 @@ __wt_struct_pack_row_remove(uint8_t *p, uint8_t *end, uint32_t fileid, WT_ITEM *
  * __wt_struct_unpack_row_remove --
  *     Unpack the row_remove struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_row_remove(uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *key)
+__wt_struct_unpack_row_remove(
+  const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__WT_ITEM(WT_ITEM *, keyp);
 
     return (0);
 }
@@ -1050,20 +1005,23 @@ __wt_struct_unpack_row_remove(uint8_t **pp, uint8_t *end, uint32_t fileid, WT_IT
  * __wt_logop_row_remove_pack --
  *     Pack the log operation row_remove.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_row_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_ROW_REMOVE;
-    WT_RET(__wt_struct_size_row_remove(&size, optype, 0, fileid, key));
-
+    WT_RET(__wt_struct_size_row_remove(&size, fileid, key));
+    size += __wt_vsize_uint(WT_LOGOP_ROW_REMOVE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_row_remove((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, key));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_REMOVE, (uint32_t)size));
+    WT_RET(__wt_struct_pack_row_remove(&buf, end, fileid, key));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -1078,12 +1036,21 @@ __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
   uint32_t *fileidp, WT_ITEM *keyp)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIu);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, keyp)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_row_remove(*pp, end, fileidp, keyp)) != 0)
         WT_RET_MSG(session, ret, "logop_row_remove: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_ROW_REMOVE);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -1125,7 +1092,7 @@ err:
 
 /*
  * __wt_struct_size_row_truncate --
- *     Calculate the size row_truncate struct.
+ *     Calculate size of row_truncate struct.
  */
 static inline void
 __wt_struct_size_row_truncate(
@@ -1140,22 +1107,15 @@ __wt_struct_size_row_truncate(
  * __wt_struct_pack_row_truncate --
  *     Pack the row_truncate struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_row_truncate(
   uint8_t *p, uint8_t *end, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__fileid(&p, WT_PTRDIFF(end, *pp), fileid));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__start(&p, WT_PTRDIFF(end, *pp), start));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__stop(&p, WT_PTRDIFF(end, *pp), stop));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__mode(&p, WT_PTRDIFF(end, *pp), mode));
+    WT_RET(__pack_encode__uintAny(&p, end, fileid));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, start));
+    WT_RET(__pack_encode__WT_ITEM(&p, end, stop));
+    WT_RET(__pack_encode__uintAny(&p, end, mode));
 
     return (0);
 }
@@ -1164,44 +1124,15 @@ __wt_struct_pack_row_truncate(
  * __wt_struct_unpack_row_truncate --
  *     Unpack the row_truncate struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_row_truncate(
-  uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
+__wt_struct_unpack_row_truncate(const uint8_t **pp, const uint8_t *end, uint32_t *fileidp,
+  WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *fileid = (uint32_t)v;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
-
-    do {
-        const uint8_t *end = *pp + maxlen;
-        __pack_decode__uintAny(pp, maxlen, size_t, &name->size);
-        WT_SIZE_CHECK_UNPACK(name->size, (size_t)(end - *pp));
-        name->data = *pp;
-        *pp += name->size;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *mode = (uint32_t)v;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, fileidp);
+    __pack_decode__WT_ITEM(WT_ITEM *, startp);
+    __pack_decode__WT_ITEM(WT_ITEM *, stopp);
+    __pack_decode__uintAny(uint32_t, modep);
 
     return (0);
 }
@@ -1210,21 +1141,24 @@ __wt_struct_unpack_row_truncate(
  * __wt_logop_row_truncate_pack --
  *     Pack the log operation row_truncate.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
   WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_ROW_TRUNCATE;
-    WT_RET(__wt_struct_size_row_truncate(&size, optype, 0, fileid, start, stop, mode));
-
+    WT_RET(__wt_struct_size_row_truncate(&size, fileid, start, stop, mode));
+    size += __wt_vsize_uint(WT_LOGOP_ROW_TRUNCATE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_row_truncate((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, fileid, start, stop, mode));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_TRUNCATE, (uint32_t)size));
+    WT_RET(__wt_struct_pack_row_truncate(&buf, end, fileid, start, stop, mode));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -1239,13 +1173,21 @@ __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
   uint32_t *fileidp, WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIuuI);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, fileidp, startp, stopp, modep)) !=
-      0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_row_truncate(*pp, end, fileidp, startp, stopp, modep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_truncate: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_ROW_TRUNCATE);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -1297,7 +1239,7 @@ err:
 
 /*
  * __wt_struct_size_checkpoint_start --
- *     Calculate the size checkpoint_start struct.
+ *     Calculate size of checkpoint_start struct.
  */
 static inline void
 __wt_struct_size_checkpoint_start(size_t *sizep, )
@@ -1310,6 +1252,7 @@ __wt_struct_size_checkpoint_start(size_t *sizep, )
  * __wt_struct_pack_checkpoint_start --
  *     Pack the checkpoint_start struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_checkpoint_start(uint8_t *p, uint8_t *end, )
 {
@@ -1321,8 +1264,9 @@ __wt_struct_pack_checkpoint_start(uint8_t *p, uint8_t *end, )
  * __wt_struct_unpack_checkpoint_start --
  *     Unpack the checkpoint_start struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_checkpoint_start(uint8_t **pp, uint8_t *end, )
+__wt_struct_unpack_checkpoint_start(const uint8_t **pp, const uint8_t *end, )
 {
 
     return (0);
@@ -1332,20 +1276,23 @@ __wt_struct_unpack_checkpoint_start(uint8_t **pp, uint8_t *end, )
  * __wt_logop_checkpoint_start_pack --
  *     Pack the log operation checkpoint_start.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_CHECKPOINT_START;
-    WT_RET(__wt_struct_size_checkpoint_start(&size, optype, 0));
-
+    WT_RET(__wt_struct_size_checkpoint_start(&size));
+    size += __wt_vsize_uint(WT_LOGOP_CHECKPOINT_START) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_checkpoint_start((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_CHECKPOINT_START, (uint32_t)size));
+    WT_RET(__wt_struct_pack_checkpoint_start(&buf, end));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -1359,12 +1306,21 @@ int
 __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(II);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_checkpoint_start(*pp, end)) != 0)
         WT_RET_MSG(session, ret, "logop_checkpoint_start: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_CHECKPOINT_START);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -1388,7 +1344,7 @@ __wt_logop_checkpoint_start_print(
 
 /*
  * __wt_struct_size_prev_lsn --
- *     Calculate the size prev_lsn struct.
+ *     Calculate size of prev_lsn struct.
  */
 static inline void
 __wt_struct_size_prev_lsn(size_t *sizep, WT_LSN *prev_lsn)
@@ -1401,12 +1357,11 @@ __wt_struct_size_prev_lsn(size_t *sizep, WT_LSN *prev_lsn)
  * __wt_struct_pack_prev_lsn --
  *     Pack the prev_lsn struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_prev_lsn(uint8_t *p, uint8_t *end, WT_LSN *prev_lsn)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__prev_lsn(&p, WT_PTRDIFF(end, *pp), prev_lsn));
+    WT_RET(__pack_encode__uintAny(&p, end, prev_lsn));
 
     return (0);
 }
@@ -1415,18 +1370,11 @@ __wt_struct_pack_prev_lsn(uint8_t *p, uint8_t *end, WT_LSN *prev_lsn)
  * __wt_struct_unpack_prev_lsn --
  *     Unpack the prev_lsn struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_prev_lsn(uint8_t **pp, uint8_t *end, WT_LSN *prev_lsn)
+__wt_struct_unpack_prev_lsn(const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *prev_lsn = (WT_LSN *)v;
-    } while (0);
+    __pack_decode__uintAny(WT_LSN *, prev_lsnp);
 
     return (0);
 }
@@ -1435,21 +1383,23 @@ __wt_struct_unpack_prev_lsn(uint8_t **pp, uint8_t *end, WT_LSN *prev_lsn)
  * __wt_logop_prev_lsn_pack --
  *     Pack the log operation prev_lsn.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_PREV_LSN;
-    WT_RET(__wt_struct_size_prev_lsn(&size, optype, 0, prev_lsn->l.file, prev_lsn->l.offset));
-
+    WT_RET(__wt_struct_size_prev_lsn(&size, prev_lsn->l.file, prev_lsn->l.offset));
+    size += __wt_vsize_uint(WT_LOGOP_PREV_LSN) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_prev_lsn((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, prev_lsn->l.file,
-      prev_lsn->l.offset));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_PREV_LSN, (uint32_t)size));
+    WT_RET(__wt_struct_pack_prev_lsn(&buf, end, prev_lsn->l.file, prev_lsn->l.offset));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -1464,13 +1414,21 @@ __wt_logop_prev_lsn_unpack(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIII);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(
-           *pp, end, fmt, &optype, &size, &prev_lsnp->l.file, &prev_lsnp->l.offset)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_prev_lsn(*pp, end, &prev_lsnp->l.file, &prev_lsnp->l.offset)) != 0)
         WT_RET_MSG(session, ret, "logop_prev_lsn: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_PREV_LSN);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -1496,7 +1454,7 @@ __wt_logop_prev_lsn_print(
 
 /*
  * __wt_struct_size_backup_id --
- *     Calculate the size backup_id struct.
+ *     Calculate size of backup_id struct.
  */
 static inline void
 __wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, const char *id)
@@ -1509,19 +1467,14 @@ __wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, 
  * __wt_struct_pack_backup_id --
  *     Pack the backup_id struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_backup_id(
   uint8_t *p, uint8_t *end, uint32_t index, uint64_t granularity, const char *id)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__index(&p, WT_PTRDIFF(end, *pp), index));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__granularity(&p, WT_PTRDIFF(end, *pp), granularity));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__id(&p, WT_PTRDIFF(end, *pp), id));
+    WT_RET(__pack_encode__uintAny(&p, end, index));
+    WT_RET(__pack_encode__uintAny(&p, end, granularity));
+    WT_RET(__pack_encode__uintAny(&p, end, id));
 
     return (0);
 }
@@ -1530,37 +1483,14 @@ __wt_struct_pack_backup_id(
  * __wt_struct_unpack_backup_id --
  *     Unpack the backup_id struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_backup_id(
-  uint8_t **pp, uint8_t *end, uint32_t index, uint64_t granularity, const char *id)
+__wt_struct_unpack_backup_id(const uint8_t **pp, const uint8_t *end, uint32_t *indexp,
+  uint64_t *granularityp, const char **idp)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *index = (uint32_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *granularity = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *id = (const char *)v;
-    } while (0);
+    __pack_decode__uintAny(uint32_t, indexp);
+    __pack_decode__uintAny(uint64_t, granularityp);
+    __pack_decode__uintAny(const char *, idp);
 
     return (0);
 }
@@ -1569,21 +1499,24 @@ __wt_struct_unpack_backup_id(
  * __wt_logop_backup_id_pack --
  *     Pack the log operation backup_id.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_backup_id_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, const char *id)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_BACKUP_ID;
-    WT_RET(__wt_struct_size_backup_id(&size, optype, 0, index, granularity, id));
-
+    WT_RET(__wt_struct_size_backup_id(&size, index, granularity, id));
+    size += __wt_vsize_uint(WT_LOGOP_BACKUP_ID) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_backup_id((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, index, granularity, id));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_BACKUP_ID, (uint32_t)size));
+    WT_RET(__wt_struct_pack_backup_id(&buf, end, index, granularity, id));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -1598,12 +1531,21 @@ __wt_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const 
   uint32_t *indexp, uint64_t *granularityp, const char **idp)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIIQS);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, indexp, granularityp, idp)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_backup_id(*pp, end, indexp, granularityp, idp)) != 0)
         WT_RET_MSG(session, ret, "logop_backup_id: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_BACKUP_ID);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);
@@ -1632,7 +1574,7 @@ __wt_logop_backup_id_print(
 
 /*
  * __wt_struct_size_txn_timestamp --
- *     Calculate the size txn_timestamp struct.
+ *     Calculate size of txn_timestamp struct.
  */
 static inline void
 __wt_struct_size_txn_timestamp(size_t *sizep, uint64_t time_sec, uint64_t time_nsec,
@@ -1649,32 +1591,19 @@ __wt_struct_size_txn_timestamp(size_t *sizep, uint64_t time_sec, uint64_t time_n
  * __wt_struct_pack_txn_timestamp --
  *     Pack the txn_timestamp struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_txn_timestamp(uint8_t *p, uint8_t *end, uint64_t time_sec, uint64_t time_nsec,
   uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts,
   uint64_t read_ts)
 {
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__time_sec(&p, WT_PTRDIFF(end, *pp), time_sec));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__time_nsec(&p, WT_PTRDIFF(end, *pp), time_nsec));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__commit_ts(&p, WT_PTRDIFF(end, *pp), commit_ts));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__durable_ts(&p, WT_PTRDIFF(end, *pp), durable_ts));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__first_commit_ts(&p, WT_PTRDIFF(end, *pp), first_commit_ts));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__prepare_ts(&p, WT_PTRDIFF(end, *pp), prepare_ts));
-
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    WT_RET(__pack_encode__read_ts(&p, WT_PTRDIFF(end, *pp), read_ts));
+    WT_RET(__pack_encode__uintAny(&p, end, time_sec));
+    WT_RET(__pack_encode__uintAny(&p, end, time_nsec));
+    WT_RET(__pack_encode__uintAny(&p, end, commit_ts));
+    WT_RET(__pack_encode__uintAny(&p, end, durable_ts));
+    WT_RET(__pack_encode__uintAny(&p, end, first_commit_ts));
+    WT_RET(__pack_encode__uintAny(&p, end, prepare_ts));
+    WT_RET(__pack_encode__uintAny(&p, end, read_ts));
 
     return (0);
 }
@@ -1683,74 +1612,19 @@ __wt_struct_pack_txn_timestamp(uint8_t *p, uint8_t *end, uint64_t time_sec, uint
  * __wt_struct_unpack_txn_timestamp --
  *     Unpack the txn_timestamp struct.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_txn_timestamp(uint8_t **pp, uint8_t *end, uint64_t time_sec, uint64_t time_nsec,
-  uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts,
-  uint64_t read_ts)
+__wt_struct_unpack_txn_timestamp(const uint8_t **pp, const uint8_t *end, uint64_t *time_secp,
+  uint64_t *time_nsecp, uint64_t *commit_tsp, uint64_t *durable_tsp, uint64_t *first_commit_tsp,
+  uint64_t *prepare_tsp, uint64_t *read_tsp)
 {
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *time_sec = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *time_nsec = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *commit_ts = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *durable_ts = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *first_commit_ts = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *prepare_ts = (uint64_t)v;
-    } while (0);
-
-    do {
-        uint64_t v;
-        /* Check that there is at least one byte available: the low-level routines treat zero length
-         * as unchecked. */
-        WT_SIZE_CHECK_UNPACK(1, WT_PTRDIFF(end, *pp));
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));
-        *read_ts = (uint64_t)v;
-    } while (0);
+    __pack_decode__uintAny(uint64_t, time_secp);
+    __pack_decode__uintAny(uint64_t, time_nsecp);
+    __pack_decode__uintAny(uint64_t, commit_tsp);
+    __pack_decode__uintAny(uint64_t, durable_tsp);
+    __pack_decode__uintAny(uint64_t, first_commit_tsp);
+    __pack_decode__uintAny(uint64_t, prepare_tsp);
+    __pack_decode__uintAny(uint64_t, read_tsp);
 
     return (0);
 }
@@ -1759,24 +1633,27 @@ __wt_struct_unpack_txn_timestamp(uint8_t **pp, uint8_t *end, uint64_t time_sec, 
  * __wt_logop_txn_timestamp_pack --
  *     Pack the log operation txn_timestamp.
  */
+WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_t time_sec,
   uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
   uint64_t prepare_ts, uint64_t read_ts)
 {
     size_t size;
-    uint32_t optype, recsize;
+    uint32_t optype;
+    uint8_t *buf, *end;
 
     optype = WT_LOGOP_TXN_TIMESTAMP;
-    WT_RET(__wt_struct_size_txn_timestamp(&size, optype, 0, time_sec, time_nsec, commit_ts,
-      durable_ts, first_commit_ts, prepare_ts, read_ts));
-
+    WT_RET(__wt_struct_size_txn_timestamp(
+      &size, time_sec, time_nsec, commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts));
+    size += __wt_vsize_uint(WT_LOGOP_TXN_TIMESTAMP) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack_txn_timestamp((uint8_t *)logrec->data + logrec->size,
-      (uint8_t *)logrec->data + logrec->size + size, optype, recsize, time_sec, time_nsec,
-      commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_TXN_TIMESTAMP, (uint32_t)size));
+    WT_RET(__wt_struct_pack_txn_timestamp(
+      &buf, end, time_sec, time_nsec, commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -1792,13 +1669,22 @@ __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, co
   uint64_t *first_commit_tsp, uint64_t *prepare_tsp, uint64_t *read_tsp)
 {
     WT_DECL_RET;
-    const char *fmt = WT_UNCHECKED_STRING(IIQQQQQQQ);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(*pp, end, fmt, &optype, &size, time_secp, time_nsecp, commit_tsp,
-           durable_tsp, first_commit_tsp, prepare_tsp, read_tsp)) != 0)
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    const uint8_t **pp_orig;
+    pp_orig = pp;
+#endif
+
+    if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+      (ret = __wt_struct_unpack_txn_timestamp(*pp, end, time_secp, time_nsecp, commit_tsp,
+         durable_tsp, first_commit_tsp, prepare_tsp, read_tsp)) != 0)
         WT_RET_MSG(session, ret, "logop_txn_timestamp: unpack failure");
+
     WT_ASSERT(session, optype == WT_LOGOP_TXN_TIMESTAMP);
+#ifdef HAVE_DIAGNOSTIC /* This is when WT_ASSERT is enabled. */
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+#endif
 
     *pp += size;
     return (0);

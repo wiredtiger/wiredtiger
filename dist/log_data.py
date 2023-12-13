@@ -13,12 +13,7 @@ class LogRecordType:
         self.name = name
         self.desc = desc
         self.fields = fields
-
-    def macro_name(self):
-        return 'WT_LOGREC_%s' % self.name.upper()
-
-    def prname(self):
-        return '__logrec_print_' + self.name
+        self.macro_name = 'WT_LOGREC_%s' % name.upper()
 
 #
 # If you add a new record type you must also add its record type value in
@@ -52,9 +47,7 @@ class LogOperationType:
         self.name = name
         self.desc = desc
         self.fields = fields
-
-    def macro_name(self):
-        return 'WT_LOGOP_%s' % self.name.upper()
+        self.macro_name = 'WT_LOGOP_%s' % name.upper()
 
 #
 # If you add a new operation type you must also add its type value in
