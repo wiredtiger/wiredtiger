@@ -228,6 +228,54 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
 }
 
 /*
+ * kv_table::truncate --
+ *     Truncate a key range.
+ */
+int
+kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t timestamp)
+{
+    std::lock_guard lock_guard(_lock);
+    if (start != model::NONE && stop != model::NONE && start > stop)
+        throw model_exception("The start and the stop key are not in the right order");
+
+    auto start_iter = start == model::NONE ? _data.begin() : _data.lower_bound(start);
+    auto stop_iter = stop == model::NONE ? _data.end() : _data.upper_bound(stop);
+
+    for (auto i = start_iter; i != stop_iter; i++)
+        i->second.add_update(std::move(kv_update(NONE, fix_timestamp(timestamp))), false, false);
+
+    return 0;
+}
+
+/*
+ * kv_table::truncate --
+ *     Truncate a key range.
+ */
+int
+kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop)
+{
+    std::lock_guard lock_guard(_lock);
+    if (start != model::NONE && stop != model::NONE && start > stop)
+        throw model_exception("The start and the stop key are not in the right order");
+
+    auto start_iter = start == model::NONE ? _data.begin() : _data.lower_bound(start);
+    auto stop_iter = stop == model::NONE ? _data.end() : _data.upper_bound(stop);
+
+    try {
+        for (auto i = start_iter; i != stop_iter; i++) {
+            std::shared_ptr<kv_update> update =
+              fix_timestamps(std::make_shared<kv_update>(NONE, txn));
+            i->second.add_update(update, false, false);
+            txn->add_update(*this, i->first, update);
+        }
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
+
+    return 0;
+}
+
+/*
  * kv_table::update --
  *     Update a key in the table.
  */

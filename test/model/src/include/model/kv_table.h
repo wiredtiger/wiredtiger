@@ -227,6 +227,19 @@ public:
     int remove(kv_transaction_ptr txn, const data_value &key);
 
     /*
+     * kv_table::truncate --
+     *     Truncate a key range.
+     */
+    int truncate(
+      const data_value &start, const data_value &stop, timestamp_t timestamp = k_timestamp_none);
+
+    /*
+     * kv_table::truncate --
+     *     Truncate a key range.
+     */
+    int truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop);
+
+    /*
      * kv_table::fix_timestamps --
      *     Fix the commit and durable timestamps for the corresponding update. We need to do this,
      *     because WiredTiger transaction API specifies the commit timestamp after performing the
