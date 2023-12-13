@@ -121,7 +121,7 @@ def struct_pack_body(f, var):
     # if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
     #     return ''
     funcname = '__pack_encode__WT_ITEM' if f[0] == 'WT_ITEM' else '__pack_encode__uintAny';
-    return '''\tWT_RET(%(funcname)s(&p, end, %(name)s));
+    return '''\tWT_RET(%(funcname)s(pp, end, %(name)s));
 ''' % {'funcname': funcname, 'name' : var}
 
 def struct_unpack_body(f, var):
@@ -250,19 +250,21 @@ int
 __wt_logrec_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
 {
+\tWT_UNUSED(session);
 \t__pack_decode__uintAny(uint32_t, rectypep);
 \treturn (0);
 }
 
 /*
  * __wt_logrec_write --
- *\tRead the record type.
+ *\tWrite the record type.
  */
 int
 __wt_logrec_write(WT_SESSION_IMPL *session,
-    const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
+    uint8_t **pp, uint8_t *end, uint32_t rectype)
 {
-\tWT_RET(__pack_encode__uintAny(pp, end, rectypep));
+\tWT_UNUSED(session);
+\tWT_RET(__pack_encode__uintAny(pp, end, rectype));
 \treturn (0);
 }
 
@@ -288,9 +290,10 @@ __wt_logop_read(WT_SESSION_IMPL *session,
  */
 int
 __wt_logop_write(WT_SESSION_IMPL *session,
-    const uint8_t **pp, const uint8_t *end,
+    uint8_t **pp, uint8_t *end,
     uint32_t optype, uint32_t opsize)
 {
+\tWT_UNUSED(session);
 \tWT_RET(__pack_encode__uintAny(pp, end, optype));
 \tWT_RET(__pack_encode__uintAny(pp, end, opsize));
 \treturn (0);
@@ -359,7 +362,7 @@ __wt_struct_size_%(name)s(size_t *sizep,
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_pack_%(name)s(uint8_t *p, uint8_t *end,
+__wt_struct_pack_%(name)s(uint8_t **pp, uint8_t *end,
     %(arg_decls_in)s)
 {
     %(pack_body)s
@@ -391,11 +394,9 @@ __wt_logop_%(name)s_pack(
     %(arg_decls_in)s)
 {
 \tsize_t size;
-\tuint32_t optype;
 \tuint8_t *buf, *end;
 
-\toptype = %(macro)s;
-\tWT_RET(__wt_struct_size_%(name)s(&size%(comma)s%(pack_args)s));
+\t__wt_struct_size_%(name)s(&size%(comma)s%(pack_args)s);
 \tsize += __wt_vsize_uint(%(macro)s) + __wt_vsize_uint(0);
 \t__wt_struct_size_adjust(session, &size);
 \tWT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -426,7 +427,7 @@ __wt_logop_%(name)s_unpack(
 #endif
 
 \tif ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
-\t\t\t(ret = __wt_struct_unpack_%(name)s(*pp, end%(comma)s%(unpack_args)s)) != 0)
+\t\t\t(ret = __wt_struct_unpack_%(name)s(pp, end%(comma)s%(unpack_args)s)) != 0)
 \t\tWT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 
 \tWT_ASSERT(session, optype == %(macro)s);
@@ -446,7 +447,7 @@ __wt_logop_%(name)s_unpack(
         for f in optype.fields),
     'arg_decls_out' : ', '.join(
         '%s%sp' % (couttype(f), f[1]) for f in optype.fields),
-    'size_body' : ' + '.join(struct_size_body(f, f[1]) for f in optype.fields),
+    'size_body' : ' + '.join(struct_size_body(f, f[1]) for f in optype.fields) if optype.fields else '0',
     'pack_args' : ', '.join(pack_arg(f) for f in optype.fields),
     'pack_body' : ''.join(struct_pack_body(f, f[1]) for f in optype.fields),
     'unpack_args' : ', '.join(unpack_arg(f) for f in optype.fields),
