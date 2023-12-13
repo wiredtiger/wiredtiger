@@ -26,7 +26,7 @@ rectypes = [
         ('WT_LSN', 'ckpt_lsn'), ('uint32_t', 'nsnapshot'), ('WT_ITEM', 'snapshot')]),
 
     # Common case: a transaction commit
-    LogRecordType('commit', 'transaction commit', [('uint64', 'txnid')]),
+    LogRecordType('commit', 'transaction commit', [('uint64_t', 'txnid')]),
 
     # Mark the start / end of a file sync operation (usually when a file is
     # closed).  These log records aren't required during recovery, but we use
@@ -79,7 +79,7 @@ optypes = [
     LogOperationType('prev_lsn', 'previous LSN', [('WT_LSN', 'prev_lsn')]),
     # Incremental backup IDs.
     LogOperationType('backup_id', 'incremental backup id', [
-        ('uint32_t', 'index'), ('uint64', 'granularity'), ('string', 'id')]),
+        ('uint32_t', 'index'), ('uint64_t', 'granularity'), ('string', 'id')]),
 
 # diagnostic operations
 # Operations used only for diagnostic purposes should be have their type
@@ -90,8 +90,8 @@ optypes = [
     # parts to uint64_t and split it into seconds and nanoseconds.
     #
     LogOperationType('txn_timestamp', 'txn_timestamp',
-        [('uint64', 'time_sec'), ('uint64', 'time_nsec'),
-            ('uint64', 'commit_ts'), ('uint64', 'durable_ts'),
-            ('uint64', 'first_commit_ts'), ('uint64', 'prepare_ts'),
-            ('uint64', 'read_ts')]),
+        [('uint64_t', 'time_sec'), ('uint64_t', 'time_nsec'),
+            ('uint64_t', 'commit_ts'), ('uint64_t', 'durable_ts'),
+            ('uint64_t', 'first_commit_ts'), ('uint64_t', 'prepare_ts'),
+            ('uint64_t', 'read_ts')]),
 ]

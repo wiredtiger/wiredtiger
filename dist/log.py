@@ -13,39 +13,30 @@ tmp_file = '__tmp_log' + str(os.getpid())
 #   3. printf arg(s)
 #   4. list of setup functions (one regular, and optionally one more for hex)
 #   5. always include hex (regardless of whether WT_TXN_PRINTLOG_HEX was set)
+#   6. passed by pointer
 field_types = {
-    'WT_LSN' : ('WT_LSN *', 'II', '[%" PRIu32 ", %" PRIu32 "]',
-        'arg.l.file, arg.l.offset', [ '' ], False),
-    'string' : ('const char *', 'S', '\\"%s\\"', 'arg', [ '' ], False),
-    'WT_ITEM' : ('WT_ITEM *', 'u', '\\"%s\\"', '(char *)escaped->mem',
+    'WT_LSN' : ('WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
+        'arg.l.file, arg.l.offset', [ '' ], False, True),
+    'string' : ('char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
+    'WT_ITEM' : ('WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
-          'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False),
-    'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False),
-    'uint32_t' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False),
+          'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False, True),
+    'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False, False),
+    'uint32_t' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False, False),
     # The fileid may have the high bit set. Print in both decimal and hex.
     'uint32_id' : ('uint32_t', 'I',
-        [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True),
-    'uint64' : ('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False),
+        [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True, False),
+    'uint64_t' : ('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False, False),
 }
 
 def cintype(f):
-    return field_types[f[0]][0]
+    return field_types[f[0]][0] + ('*' if field_types[f[0]][6] else ' ')
 
 def couttype(f):
-    type = cintype(f)
-    # We already have a pointer to a WT_ITEM
-    if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
-        return type
-    if type[-1] != '*':
-        type += ' '
-    return type + '*'
+    return field_types[f[0]][0] + '*'
 
 def clocaltype(f):
-    type = cintype(f)
-    # Allocate WT_ITEM and WT_LSN structs on the stack
-    if f[0] in ('WT_ITEM', 'WT_LSN'):
-        return type[:-2]
-    return type
+    return field_types[f[0]][0]
 
 def escape_decl(fields):
     return '\n\tWT_DECL_ITEM(escaped);' if has_escape(fields) else ''
@@ -348,7 +339,7 @@ for optype in log_data.optypes:
  *\tCalculate size of %(name)s struct.
  */
 static inline void
-__wt_struct_size_%(name)s(size_t *sizep,
+__wt_struct_size_%(name)s(size_t *sizep%(comma)s
     %(arg_decls_in)s)
 {
     *sizep = %(size_body)s;
@@ -362,7 +353,7 @@ __wt_struct_size_%(name)s(size_t *sizep,
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_pack_%(name)s(uint8_t **pp, uint8_t *end,
+__wt_struct_pack_%(name)s(uint8_t **pp, uint8_t *end%(comma)s
     %(arg_decls_in)s)
 {
     %(pack_body)s
@@ -375,7 +366,7 @@ __wt_struct_pack_%(name)s(uint8_t **pp, uint8_t *end,
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_%(name)s(const uint8_t **pp, const uint8_t *end,
+__wt_struct_unpack_%(name)s(const uint8_t **pp, const uint8_t *end%(comma)s
     %(arg_decls_out)s)
 {
     %(unpack_body)s
@@ -449,9 +440,9 @@ __wt_logop_%(name)s_unpack(
         '%s%sp' % (couttype(f), f[1]) for f in optype.fields),
     'size_body' : ' + '.join(struct_size_body(f, f[1]) for f in optype.fields) if optype.fields else '0',
     'pack_args' : ', '.join(pack_arg(f) for f in optype.fields),
-    'pack_body' : ''.join(struct_pack_body(f, f[1]) for f in optype.fields),
+    'pack_body' : ''.join(struct_pack_body(f, f[1]) for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
     'unpack_args' : ', '.join(unpack_arg(f) for f in optype.fields),
-    'unpack_body' : ''.join(struct_unpack_body(f, f[1]) for f in optype.fields),
+    'unpack_body' : ''.join(struct_unpack_body(f, f[1]) for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
     'fmt' : op_pack_fmt(optype),
 })
 

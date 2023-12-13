@@ -1230,7 +1230,7 @@ err:
  *     Calculate size of checkpoint_start struct.
  */
 static inline void
-__wt_struct_size_checkpoint_start(size_t *sizep, )
+__wt_struct_size_checkpoint_start(size_t *sizep)
 {
     *sizep = 0;
     return;
@@ -1242,9 +1242,10 @@ __wt_struct_size_checkpoint_start(size_t *sizep, )
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_pack_checkpoint_start(uint8_t **pp, uint8_t *end, )
+__wt_struct_pack_checkpoint_start(uint8_t **pp, uint8_t *end)
 {
-
+    WT_UNUSED(pp);
+    WT_UNUSED(end);
     return (0);
 }
 
@@ -1254,9 +1255,10 @@ __wt_struct_pack_checkpoint_start(uint8_t **pp, uint8_t *end, )
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_checkpoint_start(const uint8_t **pp, const uint8_t *end, )
+__wt_struct_unpack_checkpoint_start(const uint8_t **pp, const uint8_t *end)
 {
-
+    WT_UNUSED(pp);
+    WT_UNUSED(end);
     return (0);
 }
 
@@ -1441,7 +1443,7 @@ __wt_logop_prev_lsn_print(
  *     Calculate size of backup_id struct.
  */
 static inline void
-__wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, const char *id)
+__wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, char *id)
 {
     *sizep = __wt_vsize_uint(index) + __wt_vsize_uint(granularity) + __wt_vsize_uint(id);
     return;
@@ -1454,7 +1456,7 @@ __wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, 
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_backup_id(
-  uint8_t **pp, uint8_t *end, uint32_t index, uint64_t granularity, const char *id)
+  uint8_t **pp, uint8_t *end, uint32_t index, uint64_t granularity, char *id)
 {
     WT_RET(__pack_encode__uintAny(pp, end, index));
     WT_RET(__pack_encode__uintAny(pp, end, granularity));
@@ -1469,12 +1471,12 @@ __wt_struct_pack_backup_id(
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_backup_id(const uint8_t **pp, const uint8_t *end, uint32_t *indexp,
-  uint64_t *granularityp, const char **idp)
+__wt_struct_unpack_backup_id(
+  const uint8_t **pp, const uint8_t *end, uint32_t *indexp, uint64_t *granularityp, char **idp)
 {
     __pack_decode__uintAny(uint32_t, indexp);
     __pack_decode__uintAny(uint64_t, granularityp);
-    __pack_decode__uintAny(const char *, idp);
+    __pack_decode__uintAny(char *, idp);
 
     return (0);
 }
@@ -1486,7 +1488,7 @@ __wt_struct_unpack_backup_id(const uint8_t **pp, const uint8_t *end, uint32_t *i
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_backup_id_pack(
-  WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, const char *id)
+  WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, char *id)
 {
     size_t size;
     uint8_t *buf, *end;
@@ -1510,7 +1512,7 @@ __wt_logop_backup_id_pack(
  */
 int
 __wt_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-  uint32_t *indexp, uint64_t *granularityp, const char **idp)
+  uint32_t *indexp, uint64_t *granularityp, char **idp)
 {
     WT_DECL_RET;
     uint32_t optype, size;
@@ -1543,7 +1545,7 @@ __wt_logop_backup_id_print(
 {
     uint32_t index;
     uint64_t granularity;
-    const char *id;
+    char *id;
 
     WT_RET(__wt_logop_backup_id_unpack(session, pp, end, &index, &granularity, &id));
 
