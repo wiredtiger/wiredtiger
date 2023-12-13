@@ -528,10 +528,13 @@ test_model_logged_wt(void)
  *     Test truncation.
  */
 static void
-test_model_truncate(void)
+test_model_truncate(bool logging)
 {
     model::kv_database database;
-    model::kv_table_ptr table = database.create_table("table");
+
+    model::kv_table_config table_config;
+    table_config.log_enabled = logging;
+    model::kv_table_ptr table = database.create_table("table", table_config);
 
     /* Populate the table. */
     testutil_check(table->insert(key1, value1, 10));
@@ -592,10 +595,13 @@ test_model_truncate(void)
  *     Test truncation - with WiredTiger.
  */
 static void
-test_model_truncate_wt(void)
+test_model_truncate_wt(bool logging)
 {
     model::kv_database database;
-    model::kv_table_ptr table = database.create_table("table");
+
+    model::kv_table_config table_config;
+    table_config.log_enabled = logging;
+    model::kv_table_ptr table = database.create_table("table", table_config);
 
     /* Create the test's home directory and database. */
     WT_CONNECTION *conn;
@@ -603,11 +609,14 @@ test_model_truncate_wt(void)
     const char *uri = "table:table";
 
     std::string test_home = std::string(home) + DIR_DELIM_STR + "truncate";
+    if (logging)
+        test_home += "-logged";
     testutil_recreate_dir(test_home.c_str());
     testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
     testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
-    testutil_check(
-      session->create(session, uri, "key_format=S,value_format=S,log=(enabled=false)"));
+    std::string config = "key_format=S,value_format=S,log=(enabled=";
+    config += std::string(logging ? "true" : "false") + ")";
+    testutil_check(session->create(session, uri, config.c_str()));
 
     /* Populate the table. */
     wt_model_insert_both(table, uri, key1, value1, 10);
@@ -731,8 +740,10 @@ main(int argc, char *argv[])
         test_model_basic_wt();
         test_model_logged();
         test_model_logged_wt();
-        test_model_truncate();
-        test_model_truncate_wt();
+        test_model_truncate(false);
+        test_model_truncate_wt(false);
+        test_model_truncate(true);
+        test_model_truncate_wt(true);
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;
         ret = EXIT_FAILURE;
