@@ -26,15 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, sys, time, wttest
+import os, re, time, wttest
 from wiredtiger import stat
 from wtbackup import backup_base
 
 # test_compact11.py
-# Verify compaction XXX
+# Verify background compaction and incremental backup behaviour. The block modifications bits in an
+# incremental backup should never be cleared.
 class test_compact11(backup_base):
-    backup_incr = "BACKUP_1"
-    backup_full = "BACKUP_2"
+    backup_incr = "BACKUP_INCR"
+    backup_full = "BACKUP_FULL"
     conn_config = 'cache_size=100MB,statistics=(all)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
     uri_prefix = 'table:test_compact11'
@@ -85,15 +86,10 @@ class test_compact11(backup_base):
         while not self.get_bg_compaction_running():
             time.sleep(0.1)
 
-    def turn_off_bg_compact(self):
-        self.session.compact(None, f'background=false')
-        while self.get_bg_compaction_running():
-            time.sleep(1)
-
     def compare_bitmap(self, orig, new):
         # Compare the bitmaps from the metadata. Once a bit is set, it should never
         # be cleared. But new bits could be set. So the check is only: if the original
-        # bitmap has a bit set then the current bitmap must be set for that bit also. 
+        # bitmap has a bit set then the current bitmap must be set for that bit also.
         #
         # First convert both bitmaps to a binary string, accounting for any possible leading
         # zeroes (that would be truncated off). Then compare bit by bit.
@@ -136,6 +132,7 @@ class test_compact11(backup_base):
         # Write to disk.
         self.session.checkpoint()
 
+        # Take a full backup that will be used for incremental backups later during the test.
         os.mkdir(self.backup_incr)
         self.initial_backup = True
         self.take_full_backup(self.backup_incr)
@@ -154,28 +151,30 @@ class test_compact11(backup_base):
 
         # Write to disk.
         self.session.checkpoint()
+
+        # Generate the bitmaps of each file.
         for uri in files:
             bitmaps.append(self.parse_blkmods(uri))
 
         # Enable background compaction.
         self.turn_on_bg_compact('free_space_target=1MB')
 
-        # Every time compaction makes progress, perform an incremental backup.
+        # Turn on background compaction to allow the bitmap blocks to be modified
+        # from compact operation.
         bytes_recovered = 0
         while self.get_files_compacted(uris) < self.num_tables:
             new_bytes_recovered = self.get_bytes_recovered()
             if new_bytes_recovered != bytes_recovered:
                 self.prout('Compaction has made progress... ')
-                # Update the incremental backup ID from the parent class.
                 bytes_recovered = new_bytes_recovered
-               
+
         assert self.get_files_compacted(uris) == self.num_tables
-        self.turn_off_bg_compact()
         self.prout(f'Compaction has compacted {self.num_tables} tables.')
 
+        # Update the incremental backup ID from the parent class.
         self.bkup_id += 1
         self.take_incr_backup(self.backup_incr)
-        
+
         self.prout('Comparing the original bitmaps with the new ones...')
         for index, uri in enumerate(files):
             new_bitmap = self.parse_blkmods(uri)
