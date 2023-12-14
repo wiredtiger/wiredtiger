@@ -404,7 +404,6 @@ __wt_block_off_remove_overlap(
 {
     WT_EXT *before, *after, *ext;
     wt_off_t a_off, a_size, b_off, b_size;
-    bool err = false;
 
     WT_ASSERT(session, off != WT_BLOCK_INVALID_OFFSET);
 
@@ -415,8 +414,7 @@ __wt_block_off_remove_overlap(
     if (before != NULL && before->off + before->size > off) {
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
-        err = (ext->off + ext->size < off + size) ? true : false;
-        WT_ASSERT_WITH_MSG(session, err, EINVAL,
+        WT_ASSERT_WITH_ERR_MSG(session, ext->off + ext->size >= off + size, EINVAL,
           "block off remove, before=[%" PRIu64 ", %" PRIu64 "] overlaps with off:size=[%" PRIu64
           ", %" PRIu64 "]",
           (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
@@ -429,8 +427,8 @@ __wt_block_off_remove_overlap(
     } else if (after != NULL && off + size > after->off) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
-        err = (off != ext->off || off + size > ext->off + ext->size) ? true : false;
-        WT_ASSERT_WITH_MSG(session, err, EINVAL,
+        WT_ASSERT_WITH_ERR_MSG(session, off == ext->off && off + size <= ext->off + ext->size,
+          EINVAL,
           "block off remove, after=[%" PRIu64 ", %" PRIu64 "] overlaps with off:size=[%" PRIu64
           ", %" PRIu64 "]",
           (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);

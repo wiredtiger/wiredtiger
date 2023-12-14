@@ -208,8 +208,14 @@
 #define WT_ASSERT(session, exp) WT_UNUSED(session)
 #endif
 
+/*
+ * HAVE_DIAGNOSTIC --
+ *  Assert an expression and abort if it fails.
+ *  Besides, print error messages
+ *  Only enabled when compiled with HAVE_DIAGNOSTIC=1.
+ */
 #ifdef HAVE_DIAGNOSTIC
-#define WT_ASSERT_WITH_MSG(session, exp, v, ...)                      \
+#define WT_ASSERT_WITH_ERR_MSG(session, exp, v, ...)                  \
     do {                                                              \
         int __ret = (v);                                              \
         if (UNLIKELY(!(exp))) {                                       \
@@ -218,7 +224,7 @@
         }                                                             \
     } while (0)
 #else
-#define WT_ASSERT_WITH_MSG(session, exp, v, ...) WT_UNUSED(session)
+#define WT_ASSERT_WITH_ERR_MSG(session, exp, v, ...) WT_UNUSED(session)
 #endif
 
 /*
