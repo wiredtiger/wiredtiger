@@ -116,7 +116,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # such that the test can now perform further incremental backups on the directory.
         if os.path.exists(home_incr):
             shutil.rmtree(home_incr)
-            shutil.copytree(self.home_tmp, self.home_incr)
+            shutil.copytree(self.home_tmp, home_incr)
         else:
             os.makedirs(home_incr + '/' + self.logpath)
 

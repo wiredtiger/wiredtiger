@@ -95,8 +95,8 @@ class test_compact11(backup_base):
         # zeroes (that would be truncated off). Then compare bit by bit.
         orig_bits = bin(int('1'+orig, 16))[3:]
         new_bits = bin(int('1'+new, 16))[3:]
-        self.prout("Original bitmap in binary: " + orig_bits)
-        self.prout("Reopened bitmap in binary: " + new_bits)
+        self.pr("Original bitmap in binary: " + orig_bits)
+        self.pr("Reopened bitmap in binary: " + new_bits)
         for o_bit, n_bit in zip(orig_bits, new_bits):
             if o_bit != '0':
                self.assertTrue(n_bit != '0')
@@ -111,7 +111,7 @@ class test_compact11(backup_base):
         self.assertTrue(b)
         # The bitmap string after the = is in group 1.
         blocks = b.group(1)
-        self.prout(f"parse_blkmods for '{uri}': {blocks}")
+        self.pr(f"parse_blkmods for '{uri}': {blocks}")
         return blocks
 
     def test_compact11(self):
@@ -165,17 +165,17 @@ class test_compact11(backup_base):
         while self.get_files_compacted(uris) < self.num_tables:
             new_bytes_recovered = self.get_bytes_recovered()
             if new_bytes_recovered != bytes_recovered:
-                self.prout('Compaction has made progress... ')
+                self.pr('Compaction has made progress... ')
                 bytes_recovered = new_bytes_recovered
 
         assert self.get_files_compacted(uris) == self.num_tables
-        self.prout(f'Compaction has compacted {self.num_tables} tables.')
+        self.pr(f'Compaction has compacted {self.num_tables} tables.')
 
         # Update the incremental backup ID from the parent class.
         self.bkup_id += 1
         self.take_incr_backup(self.backup_incr)
 
-        self.prout('Comparing the original bitmaps with the new ones...')
+        self.pr('Comparing the original bitmaps with the new ones...')
         for index, uri in enumerate(files):
             new_bitmap = self.parse_blkmods(uri)
             self.compare_bitmap(bitmaps[index], new_bitmap)
