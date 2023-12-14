@@ -194,12 +194,11 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
  * __wt_struct_size_col_modify --
  *     Calculate size of col_modify struct.
  */
-static inline void
-__wt_struct_size_col_modify(size_t *sizep, uint32_t fileid, uint64_t recno, WT_ITEM *value)
+static inline size_t
+__wt_struct_size_col_modify(uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    *sizep =
-      __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint(value->size) + value->size;
-    return;
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint(value->size) +
+      value->size;
 }
 
 /*
@@ -246,7 +245,7 @@ __wt_logop_col_modify_pack(
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_col_modify(&size, fileid, recno, value);
+    size = __wt_struct_size_col_modify(fileid, recno, value);
     size += __wt_vsize_uint(WT_LOGOP_COL_MODIFY) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -329,12 +328,11 @@ err:
  * __wt_struct_size_col_put --
  *     Calculate size of col_put struct.
  */
-static inline void
-__wt_struct_size_col_put(size_t *sizep, uint32_t fileid, uint64_t recno, WT_ITEM *value)
+static inline size_t
+__wt_struct_size_col_put(uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    *sizep =
-      __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint(value->size) + value->size;
-    return;
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint(value->size) +
+      value->size;
 }
 
 /*
@@ -381,7 +379,7 @@ __wt_logop_col_put_pack(
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_col_put(&size, fileid, recno, value);
+    size = __wt_struct_size_col_put(fileid, recno, value);
     size += __wt_vsize_uint(WT_LOGOP_COL_PUT) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -464,11 +462,10 @@ err:
  * __wt_struct_size_col_remove --
  *     Calculate size of col_remove struct.
  */
-static inline void
-__wt_struct_size_col_remove(size_t *sizep, uint32_t fileid, uint64_t recno)
+static inline size_t
+__wt_struct_size_col_remove(uint32_t fileid, uint64_t recno)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(recno);
-    return;
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(recno);
 }
 
 /*
@@ -512,7 +509,7 @@ __wt_logop_col_remove_pack(
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_col_remove(&size, fileid, recno);
+    size = __wt_struct_size_col_remove(fileid, recno);
     size += __wt_vsize_uint(WT_LOGOP_COL_REMOVE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -582,11 +579,10 @@ __wt_logop_col_remove_print(
  * __wt_struct_size_col_truncate --
  *     Calculate size of col_truncate struct.
  */
-static inline void
-__wt_struct_size_col_truncate(size_t *sizep, uint32_t fileid, uint64_t start, uint64_t stop)
+static inline size_t
+__wt_struct_size_col_truncate(uint32_t fileid, uint64_t start, uint64_t stop)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(start) + __wt_vsize_uint(stop);
-    return;
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(start) + __wt_vsize_uint(stop);
 }
 
 /*
@@ -633,7 +629,7 @@ __wt_logop_col_truncate_pack(
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_col_truncate(&size, fileid, start, stop);
+    size = __wt_struct_size_col_truncate(fileid, start, stop);
     size += __wt_vsize_uint(WT_LOGOP_COL_TRUNCATE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -705,12 +701,11 @@ __wt_logop_col_truncate_print(
  * __wt_struct_size_row_modify --
  *     Calculate size of row_modify struct.
  */
-static inline void
-__wt_struct_size_row_modify(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
+static inline size_t
+__wt_struct_size_row_modify(uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size +
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size +
       __wt_vsize_uint(value->size) + value->size;
-    return;
 }
 
 /*
@@ -757,7 +752,7 @@ __wt_logop_row_modify_pack(
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_row_modify(&size, fileid, key, value);
+    size = __wt_struct_size_row_modify(fileid, key, value);
     size += __wt_vsize_uint(WT_LOGOP_ROW_MODIFY) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -846,12 +841,11 @@ err:
  * __wt_struct_size_row_put --
  *     Calculate size of row_put struct.
  */
-static inline void
-__wt_struct_size_row_put(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
+static inline size_t
+__wt_struct_size_row_put(uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size +
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size +
       __wt_vsize_uint(value->size) + value->size;
-    return;
 }
 
 /*
@@ -897,7 +891,7 @@ __wt_logop_row_put_pack(
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_row_put(&size, fileid, key, value);
+    size = __wt_struct_size_row_put(fileid, key, value);
     size += __wt_vsize_uint(WT_LOGOP_ROW_PUT) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -986,11 +980,10 @@ err:
  * __wt_struct_size_row_remove --
  *     Calculate size of row_remove struct.
  */
-static inline void
-__wt_struct_size_row_remove(size_t *sizep, uint32_t fileid, WT_ITEM *key)
+static inline size_t
+__wt_struct_size_row_remove(uint32_t fileid, WT_ITEM *key)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size;
-    return;
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size;
 }
 
 /*
@@ -1033,7 +1026,7 @@ __wt_logop_row_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t f
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_row_remove(&size, fileid, key);
+    size = __wt_struct_size_row_remove(fileid, key);
     size += __wt_vsize_uint(WT_LOGOP_ROW_REMOVE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -1114,13 +1107,11 @@ err:
  * __wt_struct_size_row_truncate --
  *     Calculate size of row_truncate struct.
  */
-static inline void
-__wt_struct_size_row_truncate(
-  size_t *sizep, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
+static inline size_t
+__wt_struct_size_row_truncate(uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(start->size) + start->size +
+    return __wt_vsize_uint(fileid) + __wt_vsize_uint(start->size) + start->size +
       __wt_vsize_uint(stop->size) + stop->size + __wt_vsize_uint(mode);
-    return;
 }
 
 /*
@@ -1169,7 +1160,7 @@ __wt_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_row_truncate(&size, fileid, start, stop, mode);
+    size = __wt_struct_size_row_truncate(fileid, start, stop, mode);
     size += __wt_vsize_uint(WT_LOGOP_ROW_TRUNCATE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -1260,11 +1251,10 @@ err:
  * __wt_struct_size_checkpoint_start --
  *     Calculate size of checkpoint_start struct.
  */
-static inline void
-__wt_struct_size_checkpoint_start(size_t *sizep)
+static inline size_t
+__wt_struct_size_checkpoint_start(void)
 {
-    *sizep = 0;
-    return;
+    return 0;
 }
 
 /*
@@ -1304,7 +1294,7 @@ __wt_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_checkpoint_start(&size);
+    size = __wt_struct_size_checkpoint_start();
     size += __wt_vsize_uint(WT_LOGOP_CHECKPOINT_START) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -1366,11 +1356,10 @@ __wt_logop_checkpoint_start_print(
  * __wt_struct_size_prev_lsn --
  *     Calculate size of prev_lsn struct.
  */
-static inline void
-__wt_struct_size_prev_lsn(size_t *sizep, WT_LSN *prev_lsn)
+static inline size_t
+__wt_struct_size_prev_lsn(WT_LSN *prev_lsn)
 {
-    *sizep = __wt_vsize_uint(prev_lsn->l.file) + __wt_vsize_uint(prev_lsn->l.offset);
-    return;
+    return __wt_vsize_uint(prev_lsn->l.file) + __wt_vsize_uint(prev_lsn->l.offset);
 }
 
 /*
@@ -1412,7 +1401,7 @@ __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_prev_lsn(&size, prev_lsn);
+    size = __wt_struct_size_prev_lsn(prev_lsn);
     size += __wt_vsize_uint(WT_LOGOP_PREV_LSN) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -1477,11 +1466,10 @@ __wt_logop_prev_lsn_print(
  * __wt_struct_size_backup_id --
  *     Calculate size of backup_id struct.
  */
-static inline void
-__wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, const char *id)
+static inline size_t
+__wt_struct_size_backup_id(uint32_t index, uint64_t granularity, const char *id)
 {
-    *sizep = __wt_vsize_uint(index) + __wt_vsize_uint(granularity) + strlen(id) + 1;
-    return;
+    return __wt_vsize_uint(index) + __wt_vsize_uint(granularity) + strlen(id) + 1;
 }
 
 /*
@@ -1528,7 +1516,7 @@ __wt_logop_backup_id_pack(
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_backup_id(&size, index, granularity, id);
+    size = __wt_struct_size_backup_id(index, granularity, id);
     size += __wt_vsize_uint(WT_LOGOP_BACKUP_ID) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -1596,15 +1584,13 @@ __wt_logop_backup_id_print(
  * __wt_struct_size_txn_timestamp --
  *     Calculate size of txn_timestamp struct.
  */
-static inline void
-__wt_struct_size_txn_timestamp(size_t *sizep, uint64_t time_sec, uint64_t time_nsec,
-  uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts,
-  uint64_t read_ts)
+static inline size_t
+__wt_struct_size_txn_timestamp(uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts,
+  uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
 {
-    *sizep = __wt_vsize_uint(time_sec) + __wt_vsize_uint(time_nsec) + __wt_vsize_uint(commit_ts) +
+    return __wt_vsize_uint(time_sec) + __wt_vsize_uint(time_nsec) + __wt_vsize_uint(commit_ts) +
       __wt_vsize_uint(durable_ts) + __wt_vsize_uint(first_commit_ts) + __wt_vsize_uint(prepare_ts) +
       __wt_vsize_uint(read_ts);
-    return;
 }
 
 /*
@@ -1662,8 +1648,8 @@ __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_txn_timestamp(
-      &size, time_sec, time_nsec, commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts);
+    size = __wt_struct_size_txn_timestamp(
+      time_sec, time_nsec, commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts);
     size += __wt_vsize_uint(WT_LOGOP_TXN_TIMESTAMP) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));

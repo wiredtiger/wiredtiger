@@ -373,12 +373,10 @@ for optype in log_data.optypes:
  * __wt_struct_size_%(name)s --
  *\tCalculate size of %(name)s struct.
  */
-static inline void
-__wt_struct_size_%(name)s(size_t *sizep%(comma)s
-    %(arg_decls_in)s)
+static inline size_t
+__wt_struct_size_%(name)s(%(arg_decls_in_or_void)s)
 {
-    *sizep = %(size_body)s;
-    return;
+    return %(size_body)s;
 }
 
 
@@ -422,7 +420,7 @@ __wt_logop_%(name)s_pack(
 \tsize_t size;
 \tuint8_t *buf, *end;
 
-\t__wt_struct_size_%(name)s(&size%(comma)s%(pack_args)s);
+\tsize = __wt_struct_size_%(name)s(%(pack_args)s);
 \tsize += __wt_vsize_uint(%(macro)s) + __wt_vsize_uint(0);
 \t__wt_struct_size_adjust(session, &size);
 \tWT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
@@ -470,6 +468,7 @@ __wt_logop_%(name)s_unpack(
     'macro' : optype.macro_name,
     'comma' : ',' if optype.fields else '',
     'arg_decls_in' : ', '.join(f.cindecl for f in optype.fields),
+    'arg_decls_in_or_void' : ', '.join(f.cindecl for f in optype.fields) if optype.fields else 'void',
     'arg_decls_out' : ', '.join(f.coutdecl for f in optype.fields),
     'size_body' : ' + '.join(f.struct_size_body() for f in optype.fields) if optype.fields else '0',
     'pack_args' : ', '.join(f.pack_arg() for f in optype.fields),
