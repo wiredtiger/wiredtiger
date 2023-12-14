@@ -106,7 +106,7 @@ public:
          * debug_log_parser::row_truncate::row_truncate --
          *     Default constructor.
          */
-        inline row_truncate() : fileid(0) {}
+        inline row_truncate() : fileid(0), mode(0) {}
     };
 
     /*

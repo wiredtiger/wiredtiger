@@ -202,7 +202,7 @@ public:
 
     /*
      * kv_table::insert --
-     *     Insert into the table.
+     *     Insert into the table (non-transactional API).
      */
     int insert(const data_value &key, const data_value &value,
       timestamp_t timestamp = k_timestamp_none, bool overwrite = true);
@@ -216,7 +216,7 @@ public:
 
     /*
      * kv_table::remove --
-     *     Delete a value from the table.
+     *     Delete a value from the table (non-transactional API).
      */
     int remove(const data_value &key, timestamp_t timestamp = k_timestamp_none);
 
@@ -228,7 +228,7 @@ public:
 
     /*
      * kv_table::truncate --
-     *     Truncate a key range.
+     *     Truncate a key range (non-transactional API).
      */
     int truncate(
       const data_value &start, const data_value &stop, timestamp_t timestamp = k_timestamp_none);
@@ -256,7 +256,7 @@ public:
 
     /*
      * kv_table::update --
-     *     Update a key in the table.
+     *     Update a key in the table (non-transactional API).
      */
     int update(const data_value &key, const data_value &value,
       timestamp_t timestamp = k_timestamp_none, bool overwrite = true);

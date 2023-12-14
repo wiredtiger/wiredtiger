@@ -433,7 +433,9 @@ debug_log_parser::apply(kv_transaction_ptr txn, const row_put &op)
     data_value value = data_value::unpack(op.value, table->value_format());
 
     /* Perform the operation. */
-    table->insert(txn, key, value);
+    int ret = table->insert(txn, key, value);
+    if (ret != 0)
+        throw wiredtiger_exception(ret);
 }
 
 /*
@@ -444,10 +446,8 @@ void
 debug_log_parser::apply(kv_transaction_ptr txn, const row_remove &op)
 {
     /* Handle metadata operations. */
-    if (op.fileid == 0) {
+    if (op.fileid == 0)
         throw model_exception("Unsupported metadata operation: row_remove");
-        return;
-    }
 
     /* Find the table. */
     kv_table_ptr table = table_by_fileid(op.fileid);
@@ -456,7 +456,9 @@ debug_log_parser::apply(kv_transaction_ptr txn, const row_remove &op)
     data_value key = data_value::unpack(op.key, table->key_format());
 
     /* Perform the operation. */
-    table->remove(txn, key);
+    int ret = table->remove(txn, key);
+    if (ret != 0)
+        throw wiredtiger_exception(ret);
 }
 
 /*
@@ -492,10 +494,8 @@ void
 debug_log_parser::apply(kv_transaction_ptr txn, const row_truncate &op)
 {
     /* Handle metadata operations. */
-    if (op.fileid == 0) {
+    if (op.fileid == 0)
         throw model_exception("Unsupported metadata operation: row_truncate");
-        return;
-    }
 
     /* Find the table. */
     kv_table_ptr table = table_by_fileid(op.fileid);
@@ -510,7 +510,9 @@ debug_log_parser::apply(kv_transaction_ptr txn, const row_truncate &op)
         stop = data_value::unpack(op.stop, table->key_format());
 
     /* Perform the operation. */
-    table->truncate(txn, start, stop);
+    int ret = table->truncate(txn, start, stop);
+    if (ret != 0)
+        throw wiredtiger_exception(ret);
 }
 
 /*

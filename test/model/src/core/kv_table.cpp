@@ -155,7 +155,7 @@ kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out
 
 /*
  * kv_table::insert --
- *     Insert into the table.
+ *     Insert into the table (non-transactional API).
  */
 int
 kv_table::insert(
@@ -190,7 +190,7 @@ kv_table::insert(
 
 /*
  * kv_table::remove --
- *     Delete a value from the table. Return true if the value was deleted.
+ *     Delete a value from the table (non-transactional API).
  */
 int
 kv_table::remove(const data_value &key, timestamp_t timestamp)
@@ -229,7 +229,7 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
 
 /*
  * kv_table::truncate --
- *     Truncate a key range.
+ *     Truncate a key range (non-transactional API).
  */
 int
 kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t timestamp)
@@ -282,7 +282,7 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
 
 /*
  * kv_table::update --
- *     Update a key in the table.
+ *     Update a key in the table (non-transactional API).
  */
 int
 kv_table::update(
