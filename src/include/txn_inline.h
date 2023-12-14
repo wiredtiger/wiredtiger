@@ -1793,8 +1793,9 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
-    WT_ORDERED_READ(prepare_state, upd->prepare_state);
     uint8_t prepare_state;
+
+    WT_ORDERED_READ(prepare_state, upd->prepare_state);
 
     if (!upd_value->skip_buf) {
         upd_value->buf.data = upd->data;
