@@ -952,6 +952,8 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
         b->bytes = tmp.bytes;
         a->entries = b->entries;
         b->entries = tmp.entries;
+        a->last= b->last;
+        b->last = tmp.last;
         for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             a->off[i] = b->off[i];
             b->off[i] = tmp.off[i];
