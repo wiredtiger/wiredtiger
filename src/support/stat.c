@@ -1335,7 +1335,7 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
   "block-cache: could not perform pre-fetch on internal page",
-  "block-cache: could not perform pre-fetch on ref with no pre-fetch flag set",
+  "block-cache: could not perform pre-fetch on ref without the pre-fetch flag set",
   "block-cache: evicted blocks",
   "block-cache: file size causing bypass",
   "block-cache: lookups",

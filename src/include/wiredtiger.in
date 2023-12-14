@@ -5453,8 +5453,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-cache: could not perform pre-fetch on internal page */
 #define	WT_STAT_CONN_BLOCK_PREFETCH_SKIPPED_INTERNAL_PAGE	1025
 /*!
- * block-cache: could not perform pre-fetch on ref with no pre-fetch flag
- * set
+ * block-cache: could not perform pre-fetch on ref without the pre-fetch
+ * flag set
  */
 #define	WT_STAT_CONN_BLOCK_PREFETCH_SKIPPED_NO_FLAG_SET	1026
 /*! block-cache: evicted blocks */

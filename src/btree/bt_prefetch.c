@@ -54,7 +54,6 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
                 ++block_preload;
             else if (ret != EBUSY) {
                 WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
-                continue;
             }
         }
     }

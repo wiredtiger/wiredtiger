@@ -441,7 +441,12 @@ __verify_tree(
      */
     if (__wt_session_prefetch_check(session, ref)) {
         ret = __wt_btree_prefetch(session, ref);
+        /*
+         * It's okay for pre-fetch to fail to start here. We want to assert on an error to gain
+         * diagnostic information, then continue the rest of verify as normal.
+         */
         WT_PREFETCH_ASSERT(session, ret != WT_ERROR, block_prefetch_failed_start);
+        ret = 0;
     }
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
