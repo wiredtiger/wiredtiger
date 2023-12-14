@@ -179,12 +179,14 @@ def printf_line(f, optype, i, ishex):
 #####################################################################
 # Create log_auto.c with handlers for each record / operation type.
 #####################################################################
-f='../src/log/log_auto.c'
-tfile = open(tmp_file, 'w')
 
-tfile.write('/* DO NOT EDIT: automatically built by dist/log.py. */\n')
+def run():
+    f='../src/log/log_auto.c'
+    tfile = open(tmp_file, 'w')
 
-tfile.write('''
+    tfile.write('/* DO NOT EDIT: automatically built by dist/log.py. */\n')
+
+    tfile.write('''
 #include "wt_internal.h"
 
 #define WT_SIZE_CHECK_PACK_PTR(p, end)    WT_RET_TEST(!(p) || !(end) || (p) >= (end), ENOMEM)
@@ -377,9 +379,9 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
 
 ''')
 
-# Emit code to read, write and print log operations (within a log record)
-for optype in log_data.optypes:
-    tfile.write('''
+    # Emit code to read, write and print log operations (within a log record)
+    for optype in log_data.optypes:
+        tfile.write('''
 /*
  * __wt_struct_size_%(name)s --
  *\tCalculate size of %(name)s struct.
@@ -475,21 +477,21 @@ __wt_logop_%(name)s_unpack(
 \treturn (0);
 }
 ''' % {
-    'name' : optype.name,
-    'macro' : optype.macro_name,
-    'comma' : ',' if optype.fields else '',
-    'arg_decls_in' : ', '.join(f.cindecl for f in optype.fields),
-    'arg_decls_in_or_void' : ', '.join(f.cindecl for f in optype.fields) if optype.fields else 'void',
-    'arg_decls_out' : ', '.join(f.coutdecl for f in optype.fields),
-    'size_body' : ' + '.join(f.struct_size_body() for f in optype.fields) if optype.fields else '0',
-    'pack_args' : ', '.join(f.pack_arg() for f in optype.fields),
-    'pack_body' : ''.join(f.struct_pack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
-    'unpack_args' : ', '.join(f.unpack_arg() for f in optype.fields),
-    'unpack_body' : ''.join(f.struct_unpack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
-    'fmt' : op_pack_fmt(optype),
-})
+            'name' : optype.name,
+            'macro' : optype.macro_name,
+            'comma' : ',' if optype.fields else '',
+            'arg_decls_in' : ', '.join(f.cindecl for f in optype.fields),
+            'arg_decls_in_or_void' : ', '.join(f.cindecl for f in optype.fields) if optype.fields else 'void',
+            'arg_decls_out' : ', '.join(f.coutdecl for f in optype.fields),
+            'size_body' : ' + '.join(f.struct_size_body() for f in optype.fields) if optype.fields else '0',
+            'pack_args' : ', '.join(f.pack_arg() for f in optype.fields),
+            'pack_body' : ''.join(f.struct_pack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
+            'unpack_args' : ', '.join(f.unpack_arg() for f in optype.fields),
+            'unpack_body' : ''.join(f.struct_unpack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
+            'fmt' : op_pack_fmt(optype),
+        })
 
-    tfile.write('''
+        tfile.write('''
 /*
  * __wt_logop_%(name)s_print --
  *\tPrint the log operation %(name)s.
@@ -508,23 +510,23 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
 %(arg_fini)s
 }
 ''' % {
-    'name' : optype.name,
-    'comma' : ',' if len(optype.fields) > 0 else '',
-    'arg_ret' : ('\n\tWT_DECL_RET;' if has_escape(optype.fields) else ''),
-    'local_decls' : (('\n' + '\n'.join("\t" + f.clocaldef + ";"
-        for f in optype.fields)) + escape_decl(optype.fields)
-        if optype.fields else ''),
-    'arg_fini' : ('\nerr:\t__wt_scr_free(session, &escaped);\n\treturn (ret);'
-    if has_escape(optype.fields) else '\treturn (0);'),
-    'arg_addrs' : ''.join(', &%s' % f.fieldname for f in optype.fields),
-    'redact' : check_redact(optype),
-    'print_args' : ('\t' + '\n\t'.join(printf_line(f, optype, i, s)
-        for i,f in enumerate(optype.fields) for s in range(0, f.n_setup))
-        if optype.fields else ''),
-})
+            'name' : optype.name,
+            'comma' : ',' if len(optype.fields) > 0 else '',
+            'arg_ret' : ('\n\tWT_DECL_RET;' if has_escape(optype.fields) else ''),
+            'local_decls' : (('\n' + '\n'.join("\t" + f.clocaldef + ";"
+                for f in optype.fields)) + escape_decl(optype.fields)
+                if optype.fields else ''),
+            'arg_fini' : ('\nerr:\t__wt_scr_free(session, &escaped);\n\treturn (ret);'
+            if has_escape(optype.fields) else '\treturn (0);'),
+            'arg_addrs' : ''.join(', &%s' % f.fieldname for f in optype.fields),
+            'redact' : check_redact(optype),
+            'print_args' : ('\t' + '\n\t'.join(printf_line(f, optype, i, s)
+                for i,f in enumerate(optype.fields) for s in range(0, f.n_setup))
+                if optype.fields else ''),
+        })
 
-# Emit the printlog entry point
-tfile.write('''
+    # Emit the printlog entry point
+    tfile.write('''
 /*
  * __wt_txn_op_printlog --
  *\tPrint operation from a log cookie.
@@ -541,17 +543,17 @@ __wt_txn_op_printlog(WT_SESSION_IMPL *session,
 
 \tswitch (optype) {''')
 
-for optype in log_data.optypes:
-    tfile.write('''
+    for optype in log_data.optypes:
+        tfile.write('''
 \tcase %(macro)s:
 \t\tWT_RET(%(print_func)s(session, pp, end, args));
 \t\tbreak;
 ''' % {
-    'macro' : optype.macro_name,
-    'print_func' : '__wt_logop_' + optype.name + '_print',
-})
+        'macro' : optype.macro_name,
+        'print_func' : '__wt_logop_' + optype.name + '_print',
+    })
 
-tfile.write('''
+    tfile.write('''
 \tdefault:\n\t\treturn (__wt_illegal_value(session, optype));
 \t}
 
@@ -559,6 +561,11 @@ tfile.write('''
 }
 ''')
 
-tfile.close()
-format_srcfile(tmp_file)
-compare_srcfile(tmp_file, f)
+    tfile.close()
+    format_srcfile(tmp_file)
+    compare_srcfile(tmp_file, f)
+
+
+if __name__ == "__main__":
+    run()
+
