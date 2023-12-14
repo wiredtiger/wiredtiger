@@ -35,18 +35,6 @@
 #include "model/util.h"
 #include "wiredtiger.h"
 
-/*
- * with_transaction --
- *     Run the following statement within a transaction and clean up afterwards, committing the
- *     transaction if possible, and rolling it back if not.
- */
-#define with_transaction(statement, commit_timestamp)           \
-    {                                                           \
-        kv_transaction_ptr txn = _database.begin_transaction(); \
-        kv_transaction_guard txn_guard(txn, commit_timestamp);  \
-        statement;                                              \
-    }
-
 namespace model {
 
 /*
@@ -176,7 +164,8 @@ int
 kv_table::insert(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    with_transaction(return insert(txn, key, value, overwrite), timestamp);
+    return with_transaction(
+      [&](auto txn) { return insert(txn, key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -204,7 +193,7 @@ kv_table::insert(
 int
 kv_table::remove(const data_value &key, timestamp_t timestamp)
 {
-    with_transaction(return remove(txn, key), timestamp);
+    return with_transaction([&](auto txn) { return remove(txn, key); }, timestamp);
 }
 
 /*
@@ -235,7 +224,7 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
 int
 kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t timestamp)
 {
-    with_transaction(return truncate(txn, start, stop), timestamp);
+    return with_transaction([&](auto txn) { return truncate(txn, start, stop); }, timestamp);
 }
 
 /*
@@ -274,7 +263,8 @@ int
 kv_table::update(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    with_transaction(return update(txn, key, value, overwrite), timestamp);
+    return with_transaction(
+      [&](auto txn) { return update(txn, key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -355,6 +345,20 @@ kv_table_verify_cursor
 kv_table::verify_cursor()
 {
     return std::move(kv_table_verify_cursor(_data));
+}
+
+/*
+ * kv_table::with_transaction --
+ *     Run the following function within a transaction and clean up afterwards, committing the
+ *     transaction if possible, and rolling it back if not.
+ */
+int
+kv_table::with_transaction(std::function<int(kv_transaction_ptr)> fn, timestamp_t commit_timestamp)
+{
+    kv_transaction_ptr txn = _database.begin_transaction();
+    kv_transaction_guard txn_guard(txn, commit_timestamp);
+
+    return fn(txn);
 }
 
 } /* namespace model */

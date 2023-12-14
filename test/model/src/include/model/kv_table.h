@@ -30,6 +30,7 @@
 #define MODEL_KV_TABLE_H
 
 #include <atomic>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <string>
@@ -376,6 +377,13 @@ protected:
             update->set_timestamps(k_timestamp_none, k_timestamp_none);
         return update;
     }
+
+    /*
+     * kv_table::with_transaction --
+     *     Run the following function within a transaction and clean up afterwards, committing the
+     *     transaction if possible, and rolling it back if not.
+     */
+    int with_transaction(std::function<int(kv_transaction_ptr)> fn, timestamp_t commit_timestamp);
 
 private:
     /*
