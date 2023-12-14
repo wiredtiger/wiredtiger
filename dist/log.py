@@ -259,10 +259,11 @@ __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
 \tWT_ITEM *logrec;
 \tWT_LOG *log;
+\tsize_t allocsize;
 
 \tlog = S2C(session)->log;
-\tWT_RET(
-\t    __wt_scr_alloc(session, WT_ALIGN(size + 1, log->allocsize), &logrec));
+\tallocsize = log == NULL ? WT_LOG_ALIGN : log->allocsize;
+\tWT_RET(__wt_scr_alloc(session, WT_ALIGN(size + 1, allocsize), &logrec));
 \tWT_CLEAR(*(WT_LOG_RECORD *)logrec->data);
 \tlogrec->size = offsetof(WT_LOG_RECORD, record);
 
@@ -458,7 +459,7 @@ __wt_logop_%(name)s_unpack(
 \tWT_DECL_RET;
 \tuint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC  /* This is when WT_ASSERT is enabled. */
+#ifdef HAVE_DIAGNOSTIC
 \tconst uint8_t **pp_orig;
 \tpp_orig = pp;
 #endif
@@ -468,7 +469,7 @@ __wt_logop_%(name)s_unpack(
 \t\tWT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 
 \tWT_ASSERT(session, optype == %(macro)s);
-#ifdef HAVE_DIAGNOSTIC  /* This is when WT_ASSERT is enabled. */
+#ifdef HAVE_DIAGNOSTIC
 \tWT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
 #endif
 
