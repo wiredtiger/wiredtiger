@@ -43,6 +43,20 @@
 namespace model {
 
 /*
+ * kv_table_config --
+ *     Table configuration.
+ */
+struct kv_table_config {
+    bool log_enabled;
+
+    /*
+     * kv_table_config::kv_table_config --
+     *     Create the default configuration.
+     */
+    inline kv_table_config() : log_enabled(false) {}
+};
+
+/*
  * kv_table --
  *     A database table with key-value pairs.
  */
@@ -53,7 +67,9 @@ public:
      * kv_table::kv_table --
      *     Create a new instance.
      */
-    inline kv_table(const char *name) : _name(name) {}
+    inline kv_table(const char *name, const kv_table_config &config) : _name(name), _config(config)
+    {
+    }
 
     /*
      * kv_table::name --
@@ -118,6 +134,16 @@ public:
     }
 
     /*
+     * kv_table::timestamped --
+     *     Return whether the table uses timestamps.
+     */
+    inline bool
+    timestamped() const noexcept
+    {
+        return !_config.log_enabled;
+    }
+
+    /*
      * kv_table::contains_any --
      *     Check whether the table contains the given key-value pair. If there are multiple values
      *     associated with the given timestamp, return true if any of them match.
@@ -176,7 +202,7 @@ public:
 
     /*
      * kv_table::insert --
-     *     Insert into the table.
+     *     Insert into the table (non-transactional API).
      */
     int insert(const data_value &key, const data_value &value,
       timestamp_t timestamp = k_timestamp_none, bool overwrite = true);
@@ -190,7 +216,7 @@ public:
 
     /*
      * kv_table::remove --
-     *     Delete a value from the table.
+     *     Delete a value from the table (non-transactional API).
      */
     int remove(const data_value &key, timestamp_t timestamp = k_timestamp_none);
 
@@ -199,6 +225,19 @@ public:
      *     Delete a value from the table.
      */
     int remove(kv_transaction_ptr txn, const data_value &key);
+
+    /*
+     * kv_table::truncate --
+     *     Truncate a key range (non-transactional API).
+     */
+    int truncate(
+      const data_value &start, const data_value &stop, timestamp_t timestamp = k_timestamp_none);
+
+    /*
+     * kv_table::truncate --
+     *     Truncate a key range.
+     */
+    int truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop);
 
     /*
      * kv_table::fix_timestamps --
@@ -217,7 +256,7 @@ public:
 
     /*
      * kv_table::update --
-     *     Update a key in the table.
+     *     Update a key in the table (non-transactional API).
      */
     int update(const data_value &key, const data_value &value,
       timestamp_t timestamp = k_timestamp_none, bool overwrite = true);
@@ -311,8 +350,33 @@ protected:
         return &i->second;
     }
 
+    /*
+     * kv_table::fix_timestamp --
+     *     Update the given timestamp if necessary, e.g., so that it can be ignored for
+     *     non-timestamped tables.
+     */
+    inline timestamp_t
+    fix_timestamp(timestamp_t t) const noexcept
+    {
+        return timestamped() ? t : k_timestamp_none;
+    }
+
+    /*
+     * kv_table::fix_timestamps --
+     *     Update update timestamps if necessary, e.g., so that it can be ignored for
+     *     non-timestamped tables. Return the update for call chaining.
+     */
+    inline std::shared_ptr<kv_update>
+    fix_timestamps(std::shared_ptr<kv_update> update) const noexcept
+    {
+        if (!timestamped() && update)
+            update->set_timestamps(k_timestamp_none, k_timestamp_none);
+        return update;
+    }
+
 private:
     std::string _name;
+    kv_table_config _config;
 
     std::string _key_format;
     std::string _value_format;

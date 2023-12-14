@@ -83,6 +83,13 @@ else()
     set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
+# Colorize the build error output
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    add_compile_options(-fdiagnostics-color=always)
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+    add_compile_options(-fcolor-diagnostics)
+endif()
+
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)

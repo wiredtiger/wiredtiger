@@ -561,7 +561,7 @@ connection_runtime_config = [
         type='category', subconfig=[
         Config('background_compact', 'false', r'''
                if true, background compact aggressively removes compact statistics for a file and
-               decreases the max amount of time a file can be skipped for.''', 
+               decreases the max amount of time a file can be skipped for.''',
                type='boolean'),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
@@ -689,17 +689,17 @@ connection_runtime_config = [
         setting only alters behavior if it is lower than \c eviction_trigger''',
         min=0, max='10TB'),
     Config('extra_diagnostics', '[]', r'''
-        enable additional diagnostics in WiredTiger. These additional diagnostics include 
-        diagnostic assertions that can cause WiredTiger to abort when an invalid state 
+        enable additional diagnostics in WiredTiger. These additional diagnostics include
+        diagnostic assertions that can cause WiredTiger to abort when an invalid state
         is detected.
-        Options are given as a list, such as 
+        Options are given as a list, such as
         <code>"extra_diagnostics=[out_of_order,visibility]"</code>.
-        Choosing \c all enables all assertions. When WiredTiger is compiled with 
+        Choosing \c all enables all assertions. When WiredTiger is compiled with
         \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
         ''',
         type='list', choices=[
-            "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check", 
-            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared", 
+            "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check",
+            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared",
             "slow_operation", "txn_visibility"]),
     Config('file_manager', '', r'''
         control how file handles are managed''',
@@ -1396,7 +1396,7 @@ methods = {
         enable/disabled the background compaction server.''',
         type='boolean'),
     Config('exclude', '', r'''
-        A list of table objects to be excluded from background compaction. The list is immutable and
+        list of table objects to be excluded from background compaction. The list is immutable and
         only applied when the background compaction gets enabled. The list is not saved between the
         calls and needs to be reapplied each time the service is enabled. The individual objects in
         the list can only be of the \c table: URI type''',
@@ -1404,6 +1404,10 @@ methods = {
     Config('free_space_target', '20MB', r'''
         minimum amount of space recoverable for compaction to proceed''',
         min='1MB'),
+    Config('run_once', 'false', r'''
+        configure background compaction server to run once. In this mode, compaction is always
+        attempted on each table unless explicitly excluded''',
+        type='boolean'),
     Config('timeout', '1200', r'''
         maximum amount of time to allow for compact in seconds. The actual amount of time spent
         in compact may exceed the configured value. A value of zero disables the timeout''',
@@ -1916,6 +1920,8 @@ methods = {
 ]),
 
 'WT_CONNECTION.debug_info' : Method([
+    Config('backup', 'false', r'''
+        print incremental backup information''', type='boolean'),
     Config('cache', 'false', r'''
         print cache information''', type='boolean'),
     Config('cursors', 'false', r'''
