@@ -59,13 +59,13 @@ class Field:
 
     def pack_arg(self):
         return self.fieldname
-    def pack_arg__WT_LSN(self):
-        return '%(name)s->l.file, %(name)s->l.offset' % {'name' : self.fieldname}
+    # def pack_arg__WT_LSN(self):
+    #     return '%(name)s->l.file, %(name)s->l.offset' % {'name' : self.fieldname}
 
     def unpack_arg(self):
         return self.fieldname + 'p'
-    def unpack_arg__WT_LSN(self):
-        return '&%(name)sp->l.file, &%(name)sp->l.offset' % {'name' : self.fieldname}
+    # def unpack_arg__WT_LSN(self):
+    #     return '&%(name)sp->l.file, &%(name)sp->l.offset' % {'name' : self.fieldname}
 
     def printf_setup(self, i, nl_indent):
         stmt = self.setup[i].replace('arg', self.fieldname)
@@ -74,23 +74,23 @@ class Field:
     def struct_size_body(self):
         return '__wt_vsize_uint(%s)' % self.fieldname
     def struct_size_body__WT_LSN(self):
-        return '__wt_vsize_LSN(%s)' % self.fieldname
+        return '__wt_vsize_uint(%(name)s->l.file) + __wt_vsize_uint(%(name)s->l.offset)' % {'name' : self.fieldname}
     def struct_size_body__WT_ITEM(self):
         return '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.fieldname}
 
     def struct_pack_body(self):
         return '\tWT_RET(__pack_encode__uintAny(pp, end, %s));\n' % self.fieldname
     def struct_pack_body__WT_LSN(self):
-        return '\tWT_RET(__pack_encode__WT_LSN(pp, end, %s));\n' % self.fieldname
+        return '\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.file));\n\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.offset));\n'  % {'name' : self.fieldname}
     def struct_pack_body__WT_ITEM(self):
         return '\tWT_RET(__pack_encode__WT_ITEM(pp, end, %s));\n' % self.fieldname
 
     def struct_unpack_body(self):
         return '__pack_decode__uintAny(%s, %sp);\n' % (self.cintype, self.fieldname)
     def struct_unpack_body__WT_LSN(self):
-        return '__pack_decode__WT_LSN(%s, %sp);\n' % (self.cintype, self.fieldname)
+        return '__pack_decode__uintAny(uint32_t, &%(name)sp->l.file);__pack_decode__uintAny(uint32_t, &%(name)sp->l.offset);\n' % {'name':self.fieldname}
     def struct_unpack_body__WT_ITEM(self):
-        return '__pack_decode__WT_ITEM(%s, %sp);\n' % (self.cintype, self.fieldname)
+        return '__pack_decode__WT_ITEM(, %sp);\n' % self.fieldname
 
 
 for op in log_data.optypes:

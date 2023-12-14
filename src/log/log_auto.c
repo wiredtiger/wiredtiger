@@ -206,7 +206,7 @@ __wt_struct_unpack_col_modify(
 {
     __pack_decode__uintAny(uint32_t, fileidp);
     __pack_decode__uintAny(uint64_t, recnop);
-    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
+    __pack_decode__WT_ITEM(, valuep);
 
     return (0);
 }
@@ -340,7 +340,7 @@ __wt_struct_unpack_col_put(
 {
     __pack_decode__uintAny(uint32_t, fileidp);
     __pack_decode__uintAny(uint64_t, recnop);
-    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
+    __pack_decode__WT_ITEM(, valuep);
 
     return (0);
 }
@@ -712,8 +712,8 @@ __wt_struct_unpack_row_modify(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(WT_ITEM *, keyp);
-    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
+    __pack_decode__WT_ITEM(, keyp);
+    __pack_decode__WT_ITEM(, valuep);
 
     return (0);
 }
@@ -851,8 +851,8 @@ __wt_struct_unpack_row_put(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(WT_ITEM *, keyp);
-    __pack_decode__WT_ITEM(WT_ITEM *, valuep);
+    __pack_decode__WT_ITEM(, keyp);
+    __pack_decode__WT_ITEM(, valuep);
 
     return (0);
 }
@@ -988,7 +988,7 @@ __wt_struct_unpack_row_remove(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(WT_ITEM *, keyp);
+    __pack_decode__WT_ITEM(, keyp);
 
     return (0);
 }
@@ -1120,8 +1120,8 @@ __wt_struct_unpack_row_truncate(const uint8_t **pp, const uint8_t *end, uint32_t
   WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(WT_ITEM *, startp);
-    __pack_decode__WT_ITEM(WT_ITEM *, stopp);
+    __pack_decode__WT_ITEM(, startp);
+    __pack_decode__WT_ITEM(, stopp);
     __pack_decode__uintAny(uint32_t, modep);
 
     return (0);
@@ -1337,7 +1337,7 @@ __wt_logop_checkpoint_start_print(
 static inline void
 __wt_struct_size_prev_lsn(size_t *sizep, WT_LSN *prev_lsn)
 {
-    *sizep = __wt_vsize_LSN(prev_lsn);
+    *sizep = __wt_vsize_uint(prev_lsn->l.file) + __wt_vsize_uint(prev_lsn->l.offset);
     return;
 }
 
@@ -1349,7 +1349,8 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_prev_lsn(uint8_t **pp, uint8_t *end, WT_LSN *prev_lsn)
 {
-    WT_RET(__pack_encode__WT_LSN(pp, end, prev_lsn));
+    WT_RET(__pack_encode__uintAny(pp, end, prev_lsn->l.file));
+    WT_RET(__pack_encode__uintAny(pp, end, prev_lsn->l.offset));
 
     return (0);
 }
@@ -1362,7 +1363,8 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_prev_lsn(const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
 {
-    __pack_decode__WT_LSN(WT_LSN *, prev_lsnp);
+    __pack_decode__uintAny(uint32_t, &prev_lsnp->l.file);
+    __pack_decode__uintAny(uint32_t, &prev_lsnp->l.offset);
 
     return (0);
 }
@@ -1378,14 +1380,14 @@ __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev
     size_t size;
     uint8_t *buf, *end;
 
-    __wt_struct_size_prev_lsn(&size, prev_lsn->l.file, prev_lsn->l.offset);
+    __wt_struct_size_prev_lsn(&size, prev_lsn);
     size += __wt_vsize_uint(WT_LOGOP_PREV_LSN) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_PREV_LSN, (uint32_t)size));
-    WT_RET(__wt_struct_pack_prev_lsn(&buf, end, prev_lsn->l.file, prev_lsn->l.offset));
+    WT_RET(__wt_struct_pack_prev_lsn(&buf, end, prev_lsn));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -1408,7 +1410,7 @@ __wt_logop_prev_lsn_unpack(
 #endif
 
     if ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
-      (ret = __wt_struct_unpack_prev_lsn(pp, end, &prev_lsnp->l.file, &prev_lsnp->l.offset)) != 0)
+      (ret = __wt_struct_unpack_prev_lsn(pp, end, prev_lsnp)) != 0)
         WT_RET_MSG(session, ret, "logop_prev_lsn: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_PREV_LSN);
