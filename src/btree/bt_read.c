@@ -372,10 +372,9 @@ read:
 #endif
             if (busy) {
                 WT_STAT_CONN_INCR(session, page_busy_blocked);
-                break;
+                continue;
             }
-
-            /*
+             /*
              * If a page has grown too large, we'll try and forcibly evict it before making it
              * available to the caller. There are a variety of cases where that's not possible.
              * Don't involve a thread resolving a transaction in forced eviction, they're usually
@@ -493,18 +492,8 @@ skip_evict:
             return (__wt_illegal_value(session, current_state));
         }
 
-        /*
-         * We failed to get the page -- yield before retrying, and if we've yielded enough times,
-         * start sleeping so we don't burn CPU to no purpose.
-         */
-        if (yield_cnt < WT_THOUSAND) {
-            if (!stalled) {
-                ++yield_cnt;
-                __wt_yield();
-                continue;
-            }
-            yield_cnt = WT_THOUSAND;
-        }
+        if (ref->state != current_state)
+            continue;
 
         /*
          * If stalling and this thread is allowed to do eviction work, check if the cache needs help
@@ -516,7 +505,15 @@ skip_evict:
             if (cache_work)
                 continue;
         }
-        __wt_spin_backoff(&yield_cnt, &sleep_usecs);
+        do {
+            const struct timespec timeout = {
+                .tv_sec = 1,
+                .tv_nsec = 10 * WT_MILLION,
+            };
+            if (ref->state != current_state)
+                continue;
+            syscall(SYS_futex, &(ref->state), FUTEX_WAIT_PRIVATE, current_state, &timeout);
+        } while(0);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
 }

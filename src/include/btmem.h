@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include <sys/syscall.h>
+#include <linux/futex.h>
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -1071,7 +1073,7 @@ struct __wt_ref {
 #define WT_REF_LOCKED 2               /* Page locked for exclusive access */
 #define WT_REF_MEM 3                  /* Page is in cache and valid */
 #define WT_REF_SPLIT 4                /* Parent page split (WT_REF dead) */
-    wt_shared volatile uint8_t state; /* Page state */
+    wt_shared volatile uint32_t state; /* Page state */
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
@@ -1231,10 +1233,15 @@ struct __wt_ref {
     do {                                                          \
         WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
         WT_PUBLISH((ref)->state, s);                              \
+        syscall(SYS_futex, &((ref)->state), FUTEX_WAKE_PRIVATE, INT_MAX); \
     } while (0)
 #else
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
-#define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
+#define WT_REF_SET_STATE(ref, s)                                        \
+          do {                                                          \
+              WT_PUBLISH((ref)->state, s);                              \
+              syscall(SYS_futex, &((ref)->state), FUTEX_WAKE_PRIVATE, INT_MAX); \
+          } while (0)
 #endif
 };
 
