@@ -3269,7 +3269,7 @@ struct __wt_connection {
  * pre-fetch future content into the cache., a set of related configuration options defined as
  * follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;available, whether the thread pool for the pre-fetch
- * functionality is started., a boolean flag; default \c false.}
+ * functionality is started., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * default, whether pre-fetch is enabled for all sessions by default., a boolean flag; default \c
  * false.}

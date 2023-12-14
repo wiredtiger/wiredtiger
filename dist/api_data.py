@@ -1241,7 +1241,7 @@ wiredtiger_open_common =\
         Enable automatic detection of scans by applications, and attempt to pre-fetch future
         content into the cache''',
         type='category', subconfig=[
-        Config('available', 'false', r'''
+        Config('available', 'true', r'''
             whether the thread pool for the pre-fetch functionality is started''',
             type='boolean'),
         Config('default', 'false', r'''
