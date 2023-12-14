@@ -208,6 +208,19 @@
 #define WT_ASSERT(session, exp) WT_UNUSED(session)
 #endif
 
+#ifdef HAVE_DIAGNOSTIC
+#define WT_ASSERT_WITH_MSG(session, exp, v, ...)                      \
+    do {                                                              \
+        int __ret = (v);                                              \
+        if (UNLIKELY(!(exp))) {                                       \
+            __wt_err(session, __ret, __VA_ARGS__);                    \
+            TRIGGER_ABORT(session, exp, "Expression returned false"); \
+        }                                                             \
+    } while (0)
+#else
+#define WT_ASSERT_WITH_MSG(session, exp, v, ...) WT_UNUSED(session)
+#endif
+
 /*
  * WT_ASSERT_OPTIONAL --
  *  Assert an expression if the relevant assertion category is enabled.
