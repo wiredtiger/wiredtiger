@@ -1535,6 +1535,9 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     page = ref->home;
     copy->del_set = false;
 
+    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
+      "Any thread accessing ref address must hold a valid split generation");
+
     /*
      * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
      * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
@@ -2344,8 +2347,6 @@ __wt_btcur_skip_page(
      * if the page has been modified since it was reconciled, since neither the delete information
      * nor the timestamp information is necessarily up to date.
      */
-    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
-      "Any thread freeing a ref must hold a valid split generation");
     if ((previous_state == WT_REF_DISK ||
           (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr)) {

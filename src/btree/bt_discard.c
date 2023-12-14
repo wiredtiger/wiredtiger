@@ -243,8 +243,8 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 /*
  * __ref_addr_safe_free --
  *     Any thread that is reviewing the address in a WT_REF, must also be holding a split generation
- *     to ensure that the page index they are using remains valid. Use that same split generation to
- *     ensure that the address inside the WT_REF remains valid while it is being reviewed.
+ *     to ensure that the page index they are using remains valid. Utilize the same generation type
+ *     to safely free the address once all users of it have left the generation.
  */
 static void
 __ref_addr_safe_free(WT_SESSION_IMPL *session, void *ref_addr)
@@ -252,6 +252,11 @@ __ref_addr_safe_free(WT_SESSION_IMPL *session, void *ref_addr)
     WT_DECL_RET;
     uint64_t split_gen;
 
+    /*
+     * The reading thread is always inside a split generation when it reads the ref, so we make use
+     * of WT_GEN_SPLIT type generation mechanism to protect the address in a WT_REF rather than
+     * creating a whole new generation counter. There are no page splits taking place.
+     */
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     WT_TRET(__wt_stash_add(
       session, WT_GEN_SPLIT, split_gen, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size));
