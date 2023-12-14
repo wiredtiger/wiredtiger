@@ -20,7 +20,7 @@ class FieldType:
 field_types = {
     'WT_LSN' : FieldType('WT_LSN', 'WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
         'arg.l.file, arg.l.offset', [ '' ], False, True),
-    'string' : FieldType('string', 'char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
+    'string' : FieldType('string', 'const char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
     'WT_ITEM' : FieldType('WT_ITEM', 'WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
           'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False, True),
@@ -77,6 +77,8 @@ class Field:
         return '__wt_vsize_uint(%(name)s->l.file) + __wt_vsize_uint(%(name)s->l.offset)' % {'name' : self.fieldname}
     def struct_size_body__WT_ITEM(self):
         return '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.fieldname}
+    def struct_size_body__string(self):
+        return 'strlen(%s) + 1' % self.fieldname
 
     def struct_pack_body(self):
         return '\tWT_RET(__pack_encode__uintAny(pp, end, %s));\n' % self.fieldname
@@ -84,13 +86,17 @@ class Field:
         return '\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.file));\n\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.offset));\n'  % {'name' : self.fieldname}
     def struct_pack_body__WT_ITEM(self):
         return '\tWT_RET(__pack_encode__WT_ITEM(pp, end, %s));\n' % self.fieldname
+    def struct_pack_body__string(self):
+        return '\tWT_RET(__pack_encode__string(pp, end, %s));\n' % self.fieldname
 
     def struct_unpack_body(self):
         return '__pack_decode__uintAny(%s, %sp);\n' % (self.cintype, self.fieldname)
     def struct_unpack_body__WT_LSN(self):
         return '__pack_decode__uintAny(uint32_t, &%(name)sp->l.file);__pack_decode__uintAny(uint32_t, &%(name)sp->l.offset);\n' % {'name':self.fieldname}
     def struct_unpack_body__WT_ITEM(self):
-        return '__pack_decode__WT_ITEM(, %sp);\n' % self.fieldname
+        return '__pack_decode__WT_ITEM(%sp);\n' % self.fieldname
+    def struct_unpack_body__string(self):
+        return '__pack_decode__string(%sp);\n' % self.fieldname
 
 
 for op in log_data.optypes:
@@ -178,6 +184,14 @@ tfile.write('''
  */
 
 static inline int
+__pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
+{
+    /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */
+    WT_SIZE_CHECK_PACK_PTR(*pp, end);
+    return __wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item);
+}
+
+static inline int
 __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 {
     WT_RET(__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item->size));
@@ -188,11 +202,17 @@ __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 }
 
 static inline int
-__pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
+__pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
 {
-    /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    return __wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item);
+    size_t s;
+
+    s = __wt_strnlen(item, WT_PTRDIFF(end, *pp) - 1);
+    WT_SIZE_CHECK_PACK(*pp, s + 1);
+    memcpy(*pp, item, s);
+    *pp += s;
+    **pp = '\\0';
+    *pp += 1;
+    return (0);
 }
 
 #define __pack_decode__uintAny(TYPE, pval)  do { \
@@ -203,11 +223,19 @@ __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
         *(pval) = (TYPE)v; \
     } while (0)
 
-#define __pack_decode__WT_ITEM(TYPE, val)  do { \
+#define __pack_decode__WT_ITEM(val)  do { \
         __pack_decode__uintAny(size_t, &val->size); \
         WT_SIZE_CHECK_UNPACK(val->size, WT_PTRDIFF(end, *pp)); \
         val->data = *pp; \
         *pp += val->size; \
+    } while (0)
+
+#define __pack_decode__string(val)  do { \
+        size_t s; \
+        *val = (const char *)*pp; \
+        s = strlen((const char *)*pp) + 1; \
+        WT_SIZE_CHECK_UNPACK(s, WT_PTRDIFF(end, *pp)); \
+        *pp += s; \
     } while (0)
 
 /*
@@ -398,6 +426,7 @@ __wt_logop_%(name)s_pack(
 \tsize += __wt_vsize_uint(%(macro)s) + __wt_vsize_uint(0);
 \t__wt_struct_size_adjust(session, &size);
 \tWT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
 \tbuf = (uint8_t *)logrec->data + logrec->size;
 \tend = buf + size;
 \tWT_RET(__wt_logop_write(session, &buf, end, %(macro)s, (uint32_t)size));

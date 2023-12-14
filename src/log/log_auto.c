@@ -11,6 +11,15 @@
  */
 
 static inline int
+__pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
+{
+    /* Check that there is at least one byte available: the low-level routines treat zero length as
+     * unchecked. */
+    WT_SIZE_CHECK_PACK_PTR(*pp, end);
+    return __wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item);
+}
+
+static inline int
 __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 {
     WT_RET(__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item->size));
@@ -21,12 +30,17 @@ __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 }
 
 static inline int
-__pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
+__pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
 {
-    /* Check that there is at least one byte available: the low-level routines treat zero length as
-     * unchecked. */
-    WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    return __wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item);
+    size_t s;
+
+    s = __wt_strnlen(item, WT_PTRDIFF(end, *pp) - 1);
+    WT_SIZE_CHECK_PACK(*pp, s + 1);
+    memcpy(*pp, item, s);
+    *pp += s;
+    **pp = '\0';
+    *pp += 1;
+    return (0);
 }
 
 #define __pack_decode__uintAny(TYPE, pval)                                                     \
@@ -38,12 +52,21 @@ __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
         *(pval) = (TYPE)v;                                                                     \
     } while (0)
 
-#define __pack_decode__WT_ITEM(TYPE, val)                      \
+#define __pack_decode__WT_ITEM(val)                            \
     do {                                                       \
         __pack_decode__uintAny(size_t, &val->size);            \
         WT_SIZE_CHECK_UNPACK(val->size, WT_PTRDIFF(end, *pp)); \
         val->data = *pp;                                       \
         *pp += val->size;                                      \
+    } while (0)
+
+#define __pack_decode__string(val)                     \
+    do {                                               \
+        size_t s;                                      \
+        *val = (const char *)*pp;                      \
+        s = strlen((const char *)*pp) + 1;             \
+        WT_SIZE_CHECK_UNPACK(s, WT_PTRDIFF(end, *pp)); \
+        *pp += s;                                      \
     } while (0)
 
 /*
@@ -206,7 +229,7 @@ __wt_struct_unpack_col_modify(
 {
     __pack_decode__uintAny(uint32_t, fileidp);
     __pack_decode__uintAny(uint64_t, recnop);
-    __pack_decode__WT_ITEM(, valuep);
+    __pack_decode__WT_ITEM(valuep);
 
     return (0);
 }
@@ -227,6 +250,7 @@ __wt_logop_col_modify_pack(
     size += __wt_vsize_uint(WT_LOGOP_COL_MODIFY) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_MODIFY, (uint32_t)size));
@@ -340,7 +364,7 @@ __wt_struct_unpack_col_put(
 {
     __pack_decode__uintAny(uint32_t, fileidp);
     __pack_decode__uintAny(uint64_t, recnop);
-    __pack_decode__WT_ITEM(, valuep);
+    __pack_decode__WT_ITEM(valuep);
 
     return (0);
 }
@@ -361,6 +385,7 @@ __wt_logop_col_put_pack(
     size += __wt_vsize_uint(WT_LOGOP_COL_PUT) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_PUT, (uint32_t)size));
@@ -491,6 +516,7 @@ __wt_logop_col_remove_pack(
     size += __wt_vsize_uint(WT_LOGOP_COL_REMOVE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_REMOVE, (uint32_t)size));
@@ -611,6 +637,7 @@ __wt_logop_col_truncate_pack(
     size += __wt_vsize_uint(WT_LOGOP_COL_TRUNCATE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_COL_TRUNCATE, (uint32_t)size));
@@ -712,8 +739,8 @@ __wt_struct_unpack_row_modify(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(, keyp);
-    __pack_decode__WT_ITEM(, valuep);
+    __pack_decode__WT_ITEM(keyp);
+    __pack_decode__WT_ITEM(valuep);
 
     return (0);
 }
@@ -734,6 +761,7 @@ __wt_logop_row_modify_pack(
     size += __wt_vsize_uint(WT_LOGOP_ROW_MODIFY) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_MODIFY, (uint32_t)size));
@@ -851,8 +879,8 @@ __wt_struct_unpack_row_put(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(, keyp);
-    __pack_decode__WT_ITEM(, valuep);
+    __pack_decode__WT_ITEM(keyp);
+    __pack_decode__WT_ITEM(valuep);
 
     return (0);
 }
@@ -873,6 +901,7 @@ __wt_logop_row_put_pack(
     size += __wt_vsize_uint(WT_LOGOP_ROW_PUT) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_PUT, (uint32_t)size));
@@ -988,7 +1017,7 @@ __wt_struct_unpack_row_remove(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(, keyp);
+    __pack_decode__WT_ITEM(keyp);
 
     return (0);
 }
@@ -1008,6 +1037,7 @@ __wt_logop_row_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t f
     size += __wt_vsize_uint(WT_LOGOP_ROW_REMOVE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_REMOVE, (uint32_t)size));
@@ -1120,8 +1150,8 @@ __wt_struct_unpack_row_truncate(const uint8_t **pp, const uint8_t *end, uint32_t
   WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
 {
     __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(, startp);
-    __pack_decode__WT_ITEM(, stopp);
+    __pack_decode__WT_ITEM(startp);
+    __pack_decode__WT_ITEM(stopp);
     __pack_decode__uintAny(uint32_t, modep);
 
     return (0);
@@ -1143,6 +1173,7 @@ __wt_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t
     size += __wt_vsize_uint(WT_LOGOP_ROW_TRUNCATE) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_ROW_TRUNCATE, (uint32_t)size));
@@ -1277,6 +1308,7 @@ __wt_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
     size += __wt_vsize_uint(WT_LOGOP_CHECKPOINT_START) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_CHECKPOINT_START, (uint32_t)size));
@@ -1384,6 +1416,7 @@ __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev
     size += __wt_vsize_uint(WT_LOGOP_PREV_LSN) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_PREV_LSN, (uint32_t)size));
@@ -1445,9 +1478,9 @@ __wt_logop_prev_lsn_print(
  *     Calculate size of backup_id struct.
  */
 static inline void
-__wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, char *id)
+__wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, const char *id)
 {
-    *sizep = __wt_vsize_uint(index) + __wt_vsize_uint(granularity) + __wt_vsize_uint(id);
+    *sizep = __wt_vsize_uint(index) + __wt_vsize_uint(granularity) + strlen(id) + 1;
     return;
 }
 
@@ -1458,11 +1491,11 @@ __wt_struct_size_backup_id(size_t *sizep, uint32_t index, uint64_t granularity, 
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_backup_id(
-  uint8_t **pp, uint8_t *end, uint32_t index, uint64_t granularity, char *id)
+  uint8_t **pp, uint8_t *end, uint32_t index, uint64_t granularity, const char *id)
 {
     WT_RET(__pack_encode__uintAny(pp, end, index));
     WT_RET(__pack_encode__uintAny(pp, end, granularity));
-    WT_RET(__pack_encode__uintAny(pp, end, id));
+    WT_RET(__pack_encode__string(pp, end, id));
 
     return (0);
 }
@@ -1473,12 +1506,12 @@ __wt_struct_pack_backup_id(
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
-__wt_struct_unpack_backup_id(
-  const uint8_t **pp, const uint8_t *end, uint32_t *indexp, uint64_t *granularityp, char **idp)
+__wt_struct_unpack_backup_id(const uint8_t **pp, const uint8_t *end, uint32_t *indexp,
+  uint64_t *granularityp, const char **idp)
 {
     __pack_decode__uintAny(uint32_t, indexp);
     __pack_decode__uintAny(uint64_t, granularityp);
-    __pack_decode__uintAny(char *, idp);
+    __pack_decode__string(idp);
 
     return (0);
 }
@@ -1490,7 +1523,7 @@ __wt_struct_unpack_backup_id(
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
 __wt_logop_backup_id_pack(
-  WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, char *id)
+  WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, const char *id)
 {
     size_t size;
     uint8_t *buf, *end;
@@ -1499,6 +1532,7 @@ __wt_logop_backup_id_pack(
     size += __wt_vsize_uint(WT_LOGOP_BACKUP_ID) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_BACKUP_ID, (uint32_t)size));
@@ -1514,7 +1548,7 @@ __wt_logop_backup_id_pack(
  */
 int
 __wt_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-  uint32_t *indexp, uint64_t *granularityp, char **idp)
+  uint32_t *indexp, uint64_t *granularityp, const char **idp)
 {
     WT_DECL_RET;
     uint32_t optype, size;
@@ -1547,7 +1581,7 @@ __wt_logop_backup_id_print(
 {
     uint32_t index;
     uint64_t granularity;
-    char *id;
+    const char *id;
 
     WT_RET(__wt_logop_backup_id_unpack(session, pp, end, &index, &granularity, &id));
 
@@ -1633,6 +1667,7 @@ __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_
     size += __wt_vsize_uint(WT_LOGOP_TXN_TIMESTAMP) + __wt_vsize_uint(0);
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
     WT_RET(__wt_logop_write(session, &buf, end, WT_LOGOP_TXN_TIMESTAMP, (uint32_t)size));
