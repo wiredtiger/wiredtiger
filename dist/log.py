@@ -6,9 +6,11 @@ from dist import compare_srcfile, format_srcfile
 # Temporary file.
 tmp_file = '__tmp_log' + str(os.getpid())
 
+field_types = {}
+
 class FieldType:
     def __init__(self, typename, ctype, packtype, printf_fmt_templ, printf_arg_templ, setup, always_hex, byptr):
-        self.typename = typename
+        self.typename = typename                  # Internal type id
         self.ctype = ctype                        # C type
         self.packtype = packtype                  # pack type
         self.printf_fmt_templ = printf_fmt_templ  # printf format or list of printf formats
@@ -17,35 +19,45 @@ class FieldType:
         self.always_hex = always_hex              # always include hex
         self.byptr = byptr                        # passed by pointer
 
-field_types = {
-    'WT_LSN' : FieldType('WT_LSN', 'WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
-        'arg.l.file, arg.l.offset', [ '' ], False, True),
-    'string' : FieldType('string', 'const char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
-    'WT_ITEM' : FieldType('WT_ITEM', 'WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
-        [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
-          'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False, True),
-    'recno' : FieldType('recno', 'uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False, False),
-    'uint32_t' : FieldType('uint32_t', 'uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False, False),
-    # The fileid may have the high bit set. Print in both decimal and hex.
-    'uint32_id' : FieldType('uint32_id', 'uint32_t', 'I',
-        [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True, False),
-    'uint64_t' : FieldType('uint64_t', 'uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False, False),
-}
+    @staticmethod
+    def Add(*args):
+        field_types[args[0]] = FieldType(*args)
+
+FieldType.Add('WT_LSN',
+    'WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
+    'arg.l.file, arg.l.offset', [ '' ], False, True),
+FieldType.Add('string',
+    'const char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
+FieldType.Add('WT_ITEM',
+    'WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
+    [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
+      'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False, True),
+FieldType.Add('recno',
+    'uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False, False),
+FieldType.Add('uint32_t',
+    'uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False, False),
+# The fileid may have the high bit set. Print in both decimal and hex.
+FieldType.Add('uint32_id',
+    'uint32_t', 'I', [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True, False),
+FieldType.Add('uint64_t',
+    'uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False, False),
+
 
 class Field:
     def __init__(self, field_tuple):
+        # Copy all attributes from FieldType object into this object.
         self.__dict__.update(field_types[field_tuple[0]].__dict__)
         self.fieldname = field_tuple[1]
 
-        self.cintype = self.ctype + ('*' if self.byptr else ' ')
+        self.cintype = self.ctype + ('*' if self.byptr else '')
         self.cindecl = self.ctype + (' *' if self.byptr else ' ') + self.fieldname
         self.couttype = self.ctype + '*'
         self.coutdecl = self.ctype + ' *' + self.fieldname + 'p'
-        self.clocaltype = self.ctype
         self.clocaldef = self.ctype + ' ' + self.fieldname
         self.n_setup = len(self.setup)
         self.printf_arg = ' ' + self.printf_arg_templ.replace('arg', self.fieldname)
 
+        # Override functions for this type.
         for func in ['pack_arg', 'unpack_arg',
                      'struct_size_body', 'struct_pack_body', 'struct_unpack_body']:
             if (func + '__' + self.typename) in dir(self):
