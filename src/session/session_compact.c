@@ -60,7 +60,11 @@
  * Now, to the actual process.  First, we checkpoint the database: there are
  * potentially many dirty blocks in the cache, and we want to write them out
  * and then discard previous checkpoints so we have as many blocks as possible
- * on the file's "available for reuse" list when we start compaction.
+ * on the file's "available for reuse" list when we start compaction. Note that
+ * this step is skipped for background compaction to limit the number of
+ * generated checkpoints. As this step comes before checking if compaction is
+ * possible, background compaction could potentially generate an unnecessary
+ * checkpoint every time it processes a file.
  *
  * Then, we compact the high-level object.
  *
@@ -96,7 +100,9 @@
  * file, which would prevent any file truncation.  When the metadata is updated
  * for the second checkpoint, the blocks freed by compaction become available
  * for the third checkpoint, so the third checkpoint's blocks are written
- * towards the beginning of the file, and then the file can be truncated.
+ * towards the beginning of the file, and then the file can be truncated. Since
+ * the second checkpoint made the btree clean, mark it as dirty again to ensure
+ * the third checkpoint rewrites blocks too. Otherwise, the btree is skipped.
  */
 
 /*
@@ -260,17 +266,12 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 
 /*
  * __compact_checkpoint --
- *     This function does wait and force checkpoint.
+ *     This function waits and triggers a checkpoint.
  */
 static int
 __compact_checkpoint(WT_SESSION_IMPL *session)
 {
-    /*
-     * Force compaction checkpoints: we don't want to skip it because the work we need to have done
-     * is done in the underlying block manager.
-     */
-    const char *checkpoint_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL};
+    const char *checkpoint_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL, NULL};
 
     /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
     WT_RET(__wt_session_compact_check_interrupted(session));
@@ -298,9 +299,11 @@ __compact_worker(WT_SESSION_IMPL *session)
         session->op_handle[i]->compact_skip = false;
 
     /*
-     * Perform an initial checkpoint (see this file's leading comment for details).
+     * Perform an initial checkpoint unless this is background compaction. See this file's leading
+     * comment for details.
      */
-    WT_ERR(__compact_checkpoint(session));
+    if (session != S2C(session)->background_compact.session)
+        WT_ERR(__compact_checkpoint(session));
 
     /*
      * We compact 10% of a file on each pass (but the overall size of the file is decreasing each
@@ -344,23 +347,29 @@ __compact_worker(WT_SESSION_IMPL *session)
             if (ret == EBUSY) {
                 if (__wt_cache_stuck(session)) {
                     WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
-                    WT_ERR_MSG(session, EBUSY, "compaction halted by eviction pressure");
+                    WT_ERR_MSG(session, EBUSY,
+                      "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
+                      session->op_handle[i]->name);
                 }
                 ret = 0;
                 another_pass = true;
 
-                __wt_verbose_info(session, WT_VERB_COMPACT, "%s",
-                  "Data handle compaction failed with EBUSY but the cache is not stuck. "
-                  "Will give it another go.");
+                __wt_verbose_info(session, WT_VERB_COMPACT,
+                  "The compaction of the data handle %s returned EBUSY due to an in-progress "
+                  "conflicting checkpoint. Compaction of this data handle will be retried.",
+                  session->op_handle[i]->name);
             }
         }
         if (!another_pass)
             break;
 
         /*
-         * Perform two checkpoints (see this file's leading comment for details).
+         * Perform two checkpoints. Mark the trees impacted by compaction to ensure the last
+         * checkpoint processes them (see this file's leading comment for details).
          */
         WT_ERR(__compact_checkpoint(session));
+        for (i = 0; i < session->op_handle_next; ++i)
+            WT_WITH_DHANDLE(session, session->op_handle[i], __wt_tree_modify_set(session));
         WT_ERR(__compact_checkpoint(session));
     }
 
@@ -426,6 +435,11 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
             if (ret == 0)
                 WT_ERR_MSG(session, EINVAL,
                   "exclude configuration cannot be set when disabling the background compaction "
+                  "server.");
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "run_once", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "run_once configuration cannot be set when disabling the background compaction "
                   "server.");
             WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
             if (ret == 0)

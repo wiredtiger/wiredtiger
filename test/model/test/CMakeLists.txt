@@ -4,6 +4,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 # Create the common test utility library for the model.
 add_library(wiredtiger_model_test_common SHARED
+   common/subprocess.cpp
    common/util.cpp
    common/wiredtiger_util.cpp
 )
@@ -19,6 +20,16 @@ target_link_libraries(wiredtiger_model_test_common wiredtiger_model wt::wiredtig
 # Build tests.
 create_test_executable(test_model_basic
     SOURCES model_basic/main.cpp
+    LIBS wiredtiger_model wiredtiger_model_test_common
+    CXX
+)
+create_test_executable(test_model_checkpoint
+    SOURCES model_checkpoint/main.cpp
+    LIBS wiredtiger_model wiredtiger_model_test_common
+    CXX
+)
+create_test_executable(test_model_rts
+    SOURCES model_rts/main.cpp
     LIBS wiredtiger_model wiredtiger_model_test_common
     CXX
 )

@@ -197,7 +197,7 @@ conn_stats = [
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
     ConnStat('time_travel', 'detected system time went backwards'),
     ConnStat('write_io', 'total write I/Os'),
-    
+
     ##########################################
     # Background compaction statistics
     ##########################################
@@ -248,6 +248,7 @@ conn_stats = [
     BlockCacheStat('block_prefetch_skipped_internal_page', 'pre-fetch not triggered due to internal page'),
     BlockCacheStat('block_prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
     BlockCacheStat('block_prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
+    BlockCacheStat('block_prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
     BlockCacheStat('block_prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
 
     ##########################################
@@ -359,12 +360,14 @@ conn_stats = [
     ##########################################
     # Capacity statistics
     ##########################################
+    CapacityStat('capacity_bytes_chunkcache', 'bytes written for chunk cache'),
     CapacityStat('capacity_bytes_ckpt', 'bytes written for checkpoint'),
     CapacityStat('capacity_bytes_evict', 'bytes written for eviction'),
     CapacityStat('capacity_bytes_log', 'bytes written for log'),
     CapacityStat('capacity_bytes_read', 'bytes read'),
     CapacityStat('capacity_bytes_written', 'bytes written total'),
     CapacityStat('capacity_threshold', 'threshold to call fsync'),
+    CapacityStat('capacity_time_chunkcache', 'time waiting for chunk cache IO bandwidth (usecs)'),
     CapacityStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
     CapacityStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
     CapacityStat('capacity_time_log', 'time waiting during logging (usecs)'),
@@ -396,8 +399,11 @@ conn_stats = [
     CheckpointStat('checkpoint_prep_running', 'prepare currently running', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_total', 'prepare total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_presync', 'number of handles visited after writes complete'),
+    CheckpointStat('checkpoint_scrub_max', 'scrub max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_scrub_min', 'scrub min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_scrub_recent', 'scrub most recent time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_target', 'scrub dirty target', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_scrub_time', 'scrub time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_scrub_total', 'scrub total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_skipped', 'checkpoints skipped because database was clean'),
     CheckpointStat('checkpoint_state', 'progress state', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_stop_stress_active', 'stop timing stress active', 'no_clear,no_scale'),
@@ -406,15 +412,19 @@ conn_stats = [
     CheckpointStat('checkpoint_time_min', 'min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_total', 'total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_tree_duration', 'time spent on per-tree checkpoint work (usecs)'),
     CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
-    CheckpointStat('checkpoints', 'number of checkpoints started'),
+    CheckpointStat('checkpoints_api', 'number of checkpoints started by api'),
     CheckpointStat('checkpoints_compact', 'number of checkpoints started by compaction'),
+    CheckpointStat('checkpoints_total_failed', 'total failed number of checkpoints'),
+    CheckpointStat('checkpoints_total_succeed', 'total succeed number of checkpoints'),
 
     ##########################################
     # Chunk cache statistics
     ##########################################
     ChunkCacheStat('chunkcache_bytes_inuse', 'total bytes used by the cache'),
     ChunkCacheStat('chunkcache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
+    ChunkCacheStat('chunkcache_bytes_read_persistent', 'total bytes read from persistent content'),
     ChunkCacheStat('chunkcache_chunks_evicted', 'chunks evicted'),
     ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
     ChunkCacheStat('chunkcache_chunks_loaded_from_flushed_tables', 'number of chunks loaded from flushed tables in chunk cache'),
@@ -424,10 +434,14 @@ conn_stats = [
     ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
     ChunkCacheStat('chunkcache_io_failed', 'number of times a read from storage failed'),
     ChunkCacheStat('chunkcache_lookups', 'lookups'),
+    ChunkCacheStat('chunkcache_metadata_inserted', 'number of metadata entries inserted'),
+    ChunkCacheStat('chunkcache_metadata_removed', 'number of metadata entries removed'),
     ChunkCacheStat('chunkcache_metadata_work_units_created', 'number of metadata inserts/deletes pushed to the worker thread'),
     ChunkCacheStat('chunkcache_metadata_work_units_dequeued', 'number of metadata inserts/deletes read by the worker thread'),
+    ChunkCacheStat('chunkcache_metadata_work_units_dropped', 'number of metadata inserts/deletes dropped by the worker thread'),
     ChunkCacheStat('chunkcache_misses', 'number of misses'),
     ChunkCacheStat('chunkcache_retries', 'retried accessing a chunk while I/O was in progress'),
+    ChunkCacheStat('chunkcache_retries_checksum_mismatch', 'retries from a chunk cache checksum mismatch'),
     ChunkCacheStat('chunkcache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
     ChunkCacheStat('chunkcache_toomany_retries', 'timed out due to too many retries'),
 
@@ -724,7 +738,6 @@ conn_stats = [
     ##########################################
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
     YieldStat('application_evict_time', 'application thread time evicting (usecs)'),
-    YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
     YieldStat('dhandle_lock_blocked', 'data handle lock yielded'),
@@ -821,19 +834,29 @@ dsrc_stats = [
     ##########################################
     # Compression statistics
     ##########################################
-    CompressStat('compress_hist_ratio_2', 'number of blocks with compress ratio smaller than 2'),
-    CompressStat('compress_hist_ratio_4', 'number of blocks with compress ratio smaller than 4'),
-    CompressStat('compress_hist_ratio_8', 'number of blocks with compress ratio smaller than 8'),
-    CompressStat('compress_hist_ratio_16', 'number of blocks with compress ratio smaller than 16'),
-    CompressStat('compress_hist_ratio_32', 'number of blocks with compress ratio smaller than 32'),
-    CompressStat('compress_hist_ratio_64', 'number of blocks with compress ratio smaller than 64'),
-    CompressStat('compress_hist_ratio_max', 'number of blocks with compress ratio greater than 64'),
     CompressStat('compress_precomp_intl_max_page_size', 'compressed page maximum internal page size prior to compression', 'no_clear,no_scale,size'),
     CompressStat('compress_precomp_leaf_max_page_size', 'compressed page maximum leaf page size prior to compression ', 'no_clear,no_scale,size'),
-    CompressStat('compress_read', 'compressed pages read'),
-    CompressStat('compress_write', 'compressed pages written'),
-    CompressStat('compress_write_fail', 'page written failed to compress'),
-    CompressStat('compress_write_too_small', 'page written was too small to compress'),
+    CompressStat('compress_read', 'pages read from disk'),
+    # dist/stat.py sorts stats by their descriptions and not their names. The following stat descriptions insert an extra
+    # space before the single digit numbers (2, 4, 8) so stats will be sorted numerically (2, 4, 8, 16, 32) instead of
+    # alphabetically (16, 2, 32, 4, 8).
+    CompressStat('compress_read_ratio_hist_2', 'pages read from disk with compression ratio smaller than  2'),
+    CompressStat('compress_read_ratio_hist_4', 'pages read from disk with compression ratio smaller than  4'),
+    CompressStat('compress_read_ratio_hist_8', 'pages read from disk with compression ratio smaller than  8'),
+    CompressStat('compress_read_ratio_hist_16', 'pages read from disk with compression ratio smaller than 16'),
+    CompressStat('compress_read_ratio_hist_32', 'pages read from disk with compression ratio smaller than 32'),
+    CompressStat('compress_read_ratio_hist_64', 'pages read from disk with compression ratio smaller than 64'),
+    CompressStat('compress_read_ratio_hist_max', 'pages read from disk with compression ratio greater than 64'),
+    CompressStat('compress_write', 'pages written to disk'),
+    CompressStat('compress_write_ratio_hist_2', 'pages written to disk with compression ratio smaller than  2'),
+    CompressStat('compress_write_ratio_hist_4', 'pages written to disk with compression ratio smaller than  4'),
+    CompressStat('compress_write_ratio_hist_8', 'pages written to disk with compression ratio smaller than  8'),
+    CompressStat('compress_write_ratio_hist_16', 'pages written to disk with compression ratio smaller than 16'),
+    CompressStat('compress_write_ratio_hist_32', 'pages written to disk with compression ratio smaller than 32'),
+    CompressStat('compress_write_ratio_hist_64', 'pages written to disk with compression ratio smaller than 64'),
+    CompressStat('compress_write_ratio_hist_max', 'pages written to disk with compression ratio greater than 64'),
+    CompressStat('compress_write_fail', 'page written to disk failed to compress'),
+    CompressStat('compress_write_too_small', 'page written to disk was too small to compress'),
 
     ##########################################
     # Cursor operations

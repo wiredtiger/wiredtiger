@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static void __bm_method_set(WT_BM *, bool);
+static int __bm_sync_tiered_handles(WT_BM *, WT_SESSION_IMPL *);
 
 /*
  * __wt_bm_close_block --
@@ -20,7 +21,7 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_CONNECTION_IMPL *conn;
     uint64_t bucket, hash;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
+    __wt_verbose(session, WT_VERB_BLKCACHE, "block close: %s", block->name);
 
     conn = S2C(session);
     __wt_spin_lock(session, &conn->block_lock);
@@ -39,8 +40,10 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_ASSERT(
       session, block->ckpt_state == WT_CKPT_NONE || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE);
 
-    if (block->sync_on_checkpoint)
+    if (block->sync_on_checkpoint) {
         WT_RET(__wt_fsync(session, block->fh, true));
+        block->sync_on_checkpoint = false;
+    }
 
     /* If fsync fails WT panics so failure to reach __wt_block_close() is irrelevant. */
     return (__wt_block_close(session, block));
@@ -89,35 +92,34 @@ __bm_block_header(WT_BM *bm)
 }
 
 /*
- * __bm_checkpoint --
- *     Write a buffer into a block, creating a checkpoint.
+ * __bm_sync_tiered_handles --
+ *     Ensure that tiered object handles are synced to disk.
  */
 static int
-__bm_checkpoint(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+__bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_BLOCK *block;
+    WT_DECL_RET;
     u_int i;
-    bool found;
+    int fsync_ret;
+    bool found, last_release, need_sweep;
 
-    block = bm->block;
+    need_sweep = false;
 
-    WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
-
-    if (!bm->is_multi_handle)
-        return (0);
     /*
      * For tiered tables, we need to fsync any previous active files to ensure the full checkpoint
-     * is persisted. We wait until now because there may have been in-progress writes to old files.
+     * is written. We wait until now because there may have been in-progress writes to old files.
      * But now we know those writes must have completed. Checkpoint ensures that all dirty pages of
      * the tree have been written and eviction is disabled at this point, so no new data is getting
      * written.
      *
      * We don't hold the handle array lock across fsync calls since those could be slow and that
-     * would block a concurrent thread opening a new block handle.
+     * would block a concurrent thread opening a new block handle. To guard against the block being
+     * swept, we retain a read reference during the sync.
      */
     do {
         found = false;
+        block = NULL;
         __wt_readlock(session, &bm->handle_array_lock);
         for (i = 0; i < bm->handle_array_next; ++i) {
             block = bm->handle_array[i];
@@ -126,15 +128,65 @@ __bm_checkpoint(
                 break;
             }
         }
+        if (found)
+            __wt_blkcache_get_read_handle(block);
         __wt_readunlock(session, &bm->handle_array_lock);
 
         if (found) {
-            WT_RET(__wt_fsync(session, block->fh, true));
+            fsync_ret = __wt_fsync(session, block->fh, true);
+            __wt_blkcache_release_handle(session, block, &last_release);
+
+            /* Return immediately if the sync failed, we're in trouble. */
+            WT_RET(fsync_ret);
+
             block->sync_on_checkpoint = false;
+
+            /* See if we should try to remove this handle. */
+            if (last_release && fsync_ret == 0 && __wt_block_eligible_for_sweep(bm, block))
+                need_sweep = true;
         }
     } while (found);
 
-    return (0);
+    if (need_sweep)
+        WT_TRET(__wt_blkcache_sweep_handles(session, bm));
+
+    return (ret);
+}
+
+/*
+ * __bm_checkpoint --
+ *     Write a buffer into a block, creating a checkpoint.
+ */
+static int
+__bm_checkpoint(
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+{
+    WT_BLOCK *block;
+
+    block = bm->block;
+
+    WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
+
+    if (!bm->is_multi_handle)
+        return (0);
+
+    /*
+     * For tiered tables, if we postponed switching to a new file, this is the right time to make
+     * that happen since eviction is disabled at the moment and we are the exclusive writers.
+     */
+    if (bm->next_block != NULL) {
+        WT_ASSERT(session, bm->prev_block == NULL);
+        __wt_writelock(session, &bm->handle_array_lock);
+        bm->prev_block = bm->block;
+        bm->block = bm->next_block;
+        bm->next_block = NULL;
+        __wt_writeunlock(session, &bm->handle_array_lock);
+        __wt_verbose(session, WT_VERB_TIERED, "block manager switched from %s to %s",
+          bm->prev_block->name, bm->block->name);
+    }
+
+    /* Finally, sync any previous active files. */
+    return (__bm_sync_tiered_handles(bm, session));
 }
 
 /*
@@ -204,7 +256,15 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
 static int
 __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
-    return (__wt_block_checkpoint_resolve(session, bm->block, failed));
+    WT_DECL_RET;
+
+    /* If we have made a switch from the older file, resolve the older one instead. */
+    if (bm->prev_block != NULL) {
+        if ((ret = __wt_block_checkpoint_resolve(session, bm->prev_block, failed)) == 0)
+            bm->prev_block = NULL;
+        return (ret);
+    } else
+        return (__wt_block_checkpoint_resolve(session, bm->block, failed));
 }
 
 /*
@@ -604,27 +664,25 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 
     WT_RET(__wt_blkcache_get_handle(session, bm, objectid, false, &block));
 
-    __wt_verbose(
-      session, WT_VERB_TIERED, "block manager switching from %s to %s", current->name, block->name);
+    __wt_verbose(session, WT_VERB_TIERED, "block manager scheduling a switch from %s to %s",
+      current->name, block->name);
 
     /* This will be the new writable object. Load its checkpoint */
     WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));
 
-    /* The previous object must by synced to disk as part of the next checkpoint. */
+    /*
+     * The previous object must be synced to disk as part of the next checkpoint. Until that next
+     * checkpoint completes, we may be writing into more than one block, and any sync at the block
+     * manager level must take that until account.
+     */
     current->sync_on_checkpoint = true;
 
     /*
-     * Switch the active handle. We take the handle table lock to coordinate with a reader who is
-     * concurrently trying to read the old active handle.
-     *
-     * FIXME: it should not be possible for a thread of control to copy the WT_BM value in the btree
-     * layer, sleep until after a subsequent switch and a subsequent a checkpoint that would discard
-     * the WT_BM it copied, but it would be worth thinking through those scenarios in detail to be
-     * sure there aren't any races.
+     * We don't do the actual switch just yet. Eviction is active and might write to the file in
+     * parallel. We postpone the switch to later when the block manager writes the checkpoint.
      */
-    __wt_writelock(session, &bm->handle_array_lock);
-    bm->block = block;
-    __wt_writeunlock(session, &bm->handle_array_lock);
+    WT_ASSERT(session, bm->next_block == NULL && bm->prev_block == NULL);
+    bm->next_block = block;
 
     return (0);
 }
@@ -642,13 +700,98 @@ __bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object
 }
 
 /*
+ * __bm_switch_object_end --
+ *     Complete switching the active handle to a different object.
+ */
+static int
+__bm_switch_object_end(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
+{
+    WT_ASSERT(session, bm->max_flushed_objectid == 0 || objectid == bm->max_flushed_objectid + 1);
+    bm->max_flushed_objectid = objectid;
+
+    return (__wt_blkcache_sweep_handles(session, bm));
+}
+
+/*
+ * __bm_switch_object_end_readonly --
+ *     Complete switching the tiered object; readonly version.
+ */
+static int
+__bm_switch_object_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
+{
+    WT_UNUSED(objectid);
+
+    return (__bm_readonly(bm, session));
+}
+
+/*
  * __bm_sync --
  *     Flush a file to disk.
  */
 static int
 __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
-    return (__wt_fsync(session, bm->block->fh, block));
+    /*
+     * If a tiered switch was scheduled, it should have happened by now. If we somehow miss it, we
+     * will leave a dangling switch. Tiered server might incorrectly attempt to flush an active file
+     * in such a case.
+     */
+    WT_ASSERT_ALWAYS(session, bm->next_block == NULL, "Missed switching the local file");
+
+    if (bm->is_multi_handle)
+        WT_RET(__bm_sync_tiered_handles(bm, session));
+
+    /* If we have made a switch from the older file, sync the older one instead. */
+    if (bm->prev_block != NULL)
+        return (__wt_fsync(session, bm->prev_block->fh, block));
+    else
+        return (__wt_fsync(session, bm->block->fh, block));
+}
+
+/*
+ * __wt_blkcache_sweep_handles --
+ *     Free blocks from the manager's handle array if possible.
+ */
+int
+__wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
+{
+    WT_BLOCK *block;
+    WT_DECL_RET;
+    size_t nbytes;
+    u_int i;
+
+    WT_ASSERT(session, bm->is_multi_handle);
+
+    /*
+     * This function may be called when the reader count for a block has been observed at zero. Grab
+     * the lock and check again to see if we can remove any block from our list. If the count for a
+     * block is not zero, other readers have references at this time. The last of those readers will
+     * have another chance to free it.
+     */
+    __wt_writelock(session, &bm->handle_array_lock);
+    for (i = 0; i < bm->handle_array_next; ++i) {
+        block = bm->handle_array[i];
+        if (block->read_count == 0 && __wt_block_eligible_for_sweep(bm, block)) {
+            /* We cannot close the active handle. */
+            WT_ASSERT(session, block != bm->block);
+            WT_TRET(__wt_bm_close_block(session, block));
+
+            /*
+             * To fill the hole just created, shift the rest of the array down. Adjust the loop
+             * index so we'll continue just where we left off.
+             *
+             * FIXME-WT-12028: The set of active handles may be quite large, so the memmove may be
+             * slow. We should consider hash tables to store the handles.
+             */
+            nbytes = (bm->handle_array_next - i - 1) * sizeof(bm->handle_array[0]);
+            memmove(&bm->handle_array[i], &bm->handle_array[i + 1], nbytes);
+            --bm->handle_array_next;
+            --i;
+        }
+    }
+    __wt_writeunlock(session, &bm->handle_array_lock);
+
+    return (ret);
 }
 
 /*
@@ -782,6 +925,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
     bm->size = __wt_block_manager_size;
     bm->stat = __bm_stat;
     bm->switch_object = __bm_switch_object;
+    bm->switch_object_end = __bm_switch_object_end;
     bm->sync = __bm_sync;
     bm->verify_addr = __bm_verify_addr;
     bm->verify_end = __bm_verify_end;
@@ -804,6 +948,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
         bm->salvage_start = __bm_salvage_start_readonly;
         bm->salvage_valid = __bm_salvage_valid_readonly;
         bm->switch_object = __bm_switch_object_readonly;
+        bm->switch_object = __bm_switch_object_end_readonly;
         bm->sync = __bm_sync_readonly;
         bm->write = __bm_write_readonly;
         bm->write_size = __bm_write_size_readonly;
