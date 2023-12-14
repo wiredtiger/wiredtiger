@@ -2,8 +2,8 @@
 
 #include "wt_internal.h"
 
-#define WT_SIZE_CHECK_PACK_PTR(p, end)    WT_RET_TEST(!(p) || !(end) || (p) >= (end), ENOMEM)
-#define WT_SIZE_CHECK_UNPACK_PTR(p, end)  WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
+#define WT_SIZE_CHECK_PACK_PTR(p, end) WT_RET_TEST(!(p) || !(end) || (p) >= (end), ENOMEM)
+#define WT_SIZE_CHECK_UNPACK_PTR(p, end) WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
 
 /*
  * __pack_encode__WT_ITEM --
