@@ -189,13 +189,10 @@ class test_compact10(backup_base):
                 # Update the incremental backup ID from the parent class.
                 self.bkup_id += 1
 
-                # Turn off background compaction, incase background compaction changes the state of
-                # any file after the first backup.
                 self.take_incr_backup(self.backup_incr)
-                # Take a second full backup.
                 self.take_full_backup(self.backup_full)
 
-                # Compare backups function does a connection reopen, which will reset WiredTiger 
+                # Compare backups function does a connection reopen, which will reset WiredTiger
                 # statistics and background compaction. Keep record of how many files we have
                 # compacted up until this point and turn back on compaction.
                 files_compacted += self.get_files_compacted(uris)

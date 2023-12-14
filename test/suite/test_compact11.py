@@ -156,17 +156,11 @@ class test_compact11(backup_base):
         for uri in files:
             bitmaps.append(self.parse_blkmods(uri))
 
-        # Enable background compaction.
-        self.turn_on_bg_compact('free_space_target=1MB')
-
         # Turn on background compaction to allow the bitmap blocks to be modified
         # from compact operation.
-        bytes_recovered = 0
+        self.turn_on_bg_compact('free_space_target=1MB')
         while self.get_files_compacted(uris) < self.num_tables:
-            new_bytes_recovered = self.get_bytes_recovered()
-            if new_bytes_recovered != bytes_recovered:
-                self.pr('Compaction has made progress... ')
-                bytes_recovered = new_bytes_recovered
+            time.sleep(0.5)
 
         assert self.get_files_compacted(uris) == self.num_tables
         self.pr(f'Compaction has compacted {self.num_tables} tables.')
