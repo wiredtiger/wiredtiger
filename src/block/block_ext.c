@@ -923,7 +923,8 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
      * way to determine if the checkpoint is live so we cannot assert the locking here.
      */
 
-    __wt_verbose_debug2(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
+    __wt_verbose_debug2(
+      session, WT_VERB_BLOCK, "block ext list merging %s into %s", a->name, b->name);
 
     /*
      * Sometimes the list we are merging is much bigger than the other: if so, swap the lists around
@@ -1194,7 +1195,7 @@ corrupted:
         WT_ERR(func(session, block, el, off, size));
     }
 
-    WT_ERR(__block_extlist_dump(session, block, el, "read"));
+    WT_ERR(__block_extlist_dump(session, block, el, "block ext list read"));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -1217,7 +1218,7 @@ __wt_block_extlist_write(
     uint32_t entries;
     uint8_t *p;
 
-    WT_RET(__block_extlist_dump(session, block, el, "write"));
+    WT_RET(__block_extlist_dump(session, block, el, "block ext list write"));
 
     /*
      * Figure out how many entries we're writing -- if there aren't any entries, there's nothing to
@@ -1282,8 +1283,8 @@ __wt_block_extlist_write(
     WT_TRET(
       __wt_block_off_remove_overlap(session, block, &block->live.alloc, el->offset, el->size));
 
-    __wt_verbose(session, WT_VERB_BLOCK, "%s written %" PRIdMAX "/%" PRIu32, el->name,
-      (intmax_t)el->offset, el->size);
+    __wt_verbose(session, WT_VERB_BLOCK, "%s block ext list written %" PRIdMAX "/%" PRIu32,
+      el->name, (intmax_t)el->offset, el->size);
 
 err:
     __wt_scr_free(session, &tmp);

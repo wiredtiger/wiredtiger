@@ -347,7 +347,7 @@ __wt_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag, co
     WT_ERR(__wt_block_ckpt_init(session, ci, "string"));
     WT_ERR(__wt_block_ckpt_unpack(session, block, ckpt_string, ckpt_size, ci));
 
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_scr_alloc(session, 512, &tmp));
     WT_ERR(__wt_buf_fmt(session, tmp, "version=%" PRIu8, ci->version));
     WT_ERR(__wt_buf_catfmt(session, tmp, ", object ID=%" PRIu32, ci->root_objectid));
     if (ci->root_offset == WT_BLOCK_INVALID_OFFSET)
@@ -387,5 +387,4 @@ __wt_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag, co
 
 err:
     __wt_scr_free(session, &tmp);
-    __wt_block_ckpt_destroy(session, ci);
 }
