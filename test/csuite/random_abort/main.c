@@ -43,6 +43,8 @@ static bool compat;
 static bool inmem;
 static bool use_lazyfs;
 
+static WT_LAZY_FS lazyfs;
+
 #define MAX_TH 12
 #define MIN_TH 5
 #define MAX_TIME 40
@@ -380,9 +382,12 @@ handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+
+    /* Clean up LazyFS. */
+    if (use_lazyfs)
+        testutil_lazyfs_cleanup(&lazyfs);
+
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -641,7 +646,6 @@ main(int argc, char *argv[])
 {
     struct sigaction sa;
     struct stat sb;
-    WT_LAZY_FS lazyfs;
     WT_RAND_STATE rnd;
     pid_t pid;
     uint32_t i, j, nth, timeout;
@@ -652,6 +656,7 @@ main(int argc, char *argv[])
     bool preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
+    memset(&lazyfs, 0, sizeof(lazyfs));
 
     compaction = compat = inmem = false;
     use_lazyfs = lazyfs_is_implicitly_enabled();

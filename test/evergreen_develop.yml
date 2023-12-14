@@ -133,3 +133,20 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: s-outdated-fixmes
       batchtime: 10080 # 7 days
+
+- name: infrequent-tests-lazyfs
+  display_name: "~ Infrequent tests with LazyFS"
+  run_on:
+  - ubuntu2004-libfuse-small
+  expansions:
+    ENABLE_LAZYFS: -DENABLE_LAZYFS=1
+    cmake_generator: Ninja
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+  stepback: false
+  tasks:
+    - name: csuite-random-abort-lazyfs
+      batchtime: 1440 # 1 day
+    - name: csuite-schema-abort-lazyfs
+      batchtime: 1440 # 1 day
+    - name: csuite-timestamp-abort-lazyfs
+      batchtime: 1440 # 1 day

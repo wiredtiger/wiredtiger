@@ -101,6 +101,7 @@ static bool columns, stress, use_backups, use_lazyfs, use_ts;
 static uint32_t backup_force_stop_interval, backup_full_interval, backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
+static WT_LAZY_FS lazyfs;
 
 static int recover_and_verify(uint32_t backup_index, uint32_t workload_iteration);
 extern int __wt_optind;
@@ -1489,9 +1490,12 @@ handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+
+    /* Clean up LazyFS. */
+    if (use_lazyfs)
+        testutil_lazyfs_cleanup(&lazyfs);
+
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -1503,7 +1507,6 @@ int
 main(int argc, char *argv[])
 {
     struct sigaction sa;
-    WT_LAZY_FS lazyfs;
     pid_t pid;
     uint32_t iteration, num_iterations, rand_value, timeout, tmp;
     int ch, status, ret;
@@ -1516,6 +1519,8 @@ main(int argc, char *argv[])
     /* Automatically flush after each newline, so that we don't miss any messages if we crash. */
     __wt_stream_set_line_buffer(stderr);
     __wt_stream_set_line_buffer(stdout);
+
+    memset(&lazyfs, 0, sizeof(lazyfs));
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
