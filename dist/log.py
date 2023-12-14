@@ -7,15 +7,15 @@ from dist import compare_srcfile, format_srcfile
 tmp_file = '__tmp_log' + str(os.getpid())
 
 class FieldType:
-    def __init__(self, name, ctype, packtype, printf_fmt, printf_arg, setup, always_hex, byptr):
-        self.name = name
-        self.ctype = ctype             # C type
-        self.packtype = packtype       # pack type
-        self.printf_fmt = printf_fmt   # printf format or list of printf formats
-        self.printf_arg = printf_arg   # printf arg
-        self.setup = setup             # list of setup functions
-        self.always_hex = always_hex   # always include hex
-        self.byptr = byptr             # passed by pointer
+    def __init__(self, typename, ctype, packtype, printf_fmt_templ, printf_arg_templ, setup, always_hex, byptr):
+        self.typename = typename
+        self.ctype = ctype                        # C type
+        self.packtype = packtype                  # pack type
+        self.printf_fmt_templ = printf_fmt_templ  # printf format or list of printf formats
+        self.printf_arg_templ = printf_arg_templ  # printf arg
+        self.setup = setup                        # list of setup functions
+        self.always_hex = always_hex              # always include hex
+        self.byptr = byptr                        # passed by pointer
 
 field_types = {
     'WT_LSN' : FieldType('WT_LSN', 'WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
@@ -34,75 +34,63 @@ field_types = {
 
 class Field:
     def __init__(self, field_tuple):
-        self.type = field_types[field_tuple[0]]
-        self.name = field_tuple[1]
+        self.__dict__.update(field_types[field_tuple[0]].__dict__)
+        self.fieldname = field_tuple[1]
 
-    def cintype(self):
-        return self.type.ctype + ('*' if self.type.byptr else ' ')
+        self.cintype = self.ctype + ('*' if self.byptr else ' ')
+        self.cindecl = self.ctype + (' *' if self.byptr else ' ') + self.fieldname
+        self.couttype = self.ctype + '*'
+        self.coutdecl = self.ctype + ' *' + self.fieldname + 'p'
+        self.clocaltype = self.ctype
+        self.clocaldef = self.ctype + ' ' + self.fieldname
+        self.n_setup = len(self.setup)
+        self.printf_arg = ' ' + self.printf_arg_templ.replace('arg', self.fieldname)
 
-    def cindecl(self):
-        return self.type.ctype + (' *' if self.type.byptr else ' ') + self.name
-
-    def couttype(self):
-        return self.type.ctype + '*'
-
-    def coutdecl(self):
-        return self.type.ctype + ' *' + self.name + 'p';
-
-    def clocaltype(self):
-        return self.type.ctype
-
-    def clocaldef(self):
-        return self.type.ctype + ' ' + self.name;
+        for func in ['pack_arg', 'unpack_arg',
+                     'struct_size_body', 'struct_pack_body', 'struct_unpack_body']:
+            if (func + '__' + self.typename) in dir(self):
+                setattr(self, func, getattr(self, func + '__' + self.typename))
 
     def printf_fmt(self, ishex):
-        fmt = self.type.printf_fmt
+        fmt = self.printf_fmt_templ
         if type(fmt) is list:
             fmt = fmt[ishex]
         return fmt
 
     def pack_arg(self):
-        if self.type.name == 'WT_LSN':
-            return '%(name)s->l.file, %(name)s->l.offset' % {'name' : self.name}
-        return self.name
-
-    def printf_arg(self):
-        arg = self.type.printf_arg.replace('arg', self.name)
-        return ' ' + arg
+        return self.fieldname
+    def pack_arg__WT_LSN(self):
+        return '%(name)s->l.file, %(name)s->l.offset' % {'name' : self.fieldname}
 
     def unpack_arg(self):
-        if self.type.name == 'WT_LSN':
-            return '&%(name)sp->l.file, &%(name)sp->l.offset' % {'name' : self.name}
-        return self.name + 'p'
+        return self.fieldname + 'p'
+    def unpack_arg__WT_LSN(self):
+        return '&%(name)sp->l.file, &%(name)sp->l.offset' % {'name' : self.fieldname}
 
     def printf_setup(self, i, nl_indent):
-        stmt = self.type.setup[i].replace('arg', self.name)
+        stmt = self.setup[i].replace('arg', self.fieldname)
         return '' if stmt == '' else stmt + nl_indent
 
-    def n_setup(self):
-        return len(self.type.setup)
-
     def struct_size_body(self):
-        # if self.type.name == 'WT_ITEM' or self.type.name == 'WT_LSN':
-        #     return ''
-        if self.type.name == 'WT_ITEM':
-            return '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.name}
-        else:
-            return '__wt_vsize_uint(%(name)s)' % {'name' : self.name}
+        return '__wt_vsize_uint(%s)' % self.fieldname
+    def struct_size_body__WT_LSN(self):
+        return '__wt_vsize_LSN(%s)' % self.fieldname
+    def struct_size_body__WT_ITEM(self):
+        return '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.fieldname}
 
     def struct_pack_body(self):
-        # if self.type.name == 'WT_ITEM' or self.type.name == 'WT_LSN':
-        #     return ''
-        funcname = '__pack_encode__WT_ITEM' if self.type.name == 'WT_ITEM' else '__pack_encode__uintAny';
-        return '''\tWT_RET(%(funcname)s(pp, end, %(name)s));
-''' % {'funcname': funcname, 'name' : self.name}
+        return '\tWT_RET(__pack_encode__uintAny(pp, end, %s));\n' % self.fieldname
+    def struct_pack_body__WT_LSN(self):
+        return '\tWT_RET(__pack_encode__WT_LSN(pp, end, %s));\n' % self.fieldname
+    def struct_pack_body__WT_ITEM(self):
+        return '\tWT_RET(__pack_encode__WT_ITEM(pp, end, %s));\n' % self.fieldname
 
     def struct_unpack_body(self):
-        # if self.type.name == 'WT_ITEM' or self.type.name == 'WT_LSN':
-        #     return ''
-        funcname = '__pack_decode__WT_ITEM' if self.type.name == 'WT_ITEM' else '__pack_decode__uintAny';
-        return '''%(funcname)s(%(type)s, %(name)sp);
-''' % {'funcname': funcname, 'name' : self.name, 'type': self.cintype()}
+        return '__pack_decode__uintAny(%s, %sp);\n' % (self.cintype, self.fieldname)
+    def struct_unpack_body__WT_LSN(self):
+        return '__pack_decode__WT_LSN(%s, %sp);\n' % (self.cintype, self.fieldname)
+    def struct_unpack_body__WT_ITEM(self):
+        return '__pack_decode__WT_ITEM(%s, %sp);\n' % (self.cintype, self.fieldname)
 
 
 for op in log_data.optypes:
@@ -114,13 +102,13 @@ def escape_decl(fields):
 
 def has_escape(fields):
     for f in fields:
-        for setup in f.type.setup:
+        for setup in f.setup:
             if 'escaped' in setup:
                 return True
     return False
 
 def pack_fmt(fields):
-    return ''.join(f.type.packtype for f in fields)
+    return ''.join(f.packtype for f in fields)
 
 def op_pack_fmt(r):
     return 'II' + pack_fmt(r.fields)
@@ -134,9 +122,9 @@ def rec_pack_fmt(r):
 # to be the metadata.
 def check_redact(optype):
     for f in optype.fields:
-        if f.type.name == 'uint32_id':
+        if f.typename == 'uint32_id':
             redact_str = '\tif (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && '
-            redact_str += '%s != WT_METAFILE_ID)\n' % (f.name)
+            redact_str += '%s != WT_METAFILE_ID)\n' % (f.fieldname)
             redact_str += '\t\treturn(__wt_fprintf(session, args->fs, " REDACTED"));\n'
             return redact_str
     return ''
@@ -150,12 +138,12 @@ def printf_line(f, optype, i, ishex):
     ifbegin = ''
     ifend = ''
     nl_indent = '\n\t'
-    name = f.name
+    name = f.fieldname
     postcomma = '' if i + 1 == len(optype.fields) else ',\\n'
     precomma = ''
     if ishex > 0:
         name += '-hex'
-        if not f.type.always_hex:
+        if not f.always_hex:
             ifend = nl_indent + '}'
             nl_indent += '\t'
             ifbegin = \
@@ -167,7 +155,7 @@ def printf_line(f, optype, i, ishex):
         'WT_ERR' if has_escape(optype.fields) else 'WT_RET') + \
         '%s    "%s        \\"%s\\": %s%s",%s));' % (
         nl_indent, precomma, name, f.printf_fmt(ishex), postcomma,
-        f.printf_arg())
+        f.printf_arg)
     return ifbegin + body + ifend
 
 #####################################################################
@@ -452,8 +440,8 @@ __wt_logop_%(name)s_unpack(
     'name' : optype.name,
     'macro' : optype.macro_name,
     'comma' : ',' if optype.fields else '',
-    'arg_decls_in' : ', '.join(f.cindecl() for f in optype.fields),
-    'arg_decls_out' : ', '.join(f.coutdecl() for f in optype.fields),
+    'arg_decls_in' : ', '.join(f.cindecl for f in optype.fields),
+    'arg_decls_out' : ', '.join(f.coutdecl for f in optype.fields),
     'size_body' : ' + '.join(f.struct_size_body() for f in optype.fields) if optype.fields else '0',
     'pack_args' : ', '.join(f.pack_arg() for f in optype.fields),
     'pack_body' : ''.join(f.struct_pack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
@@ -484,15 +472,15 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     'name' : optype.name,
     'comma' : ',' if len(optype.fields) > 0 else '',
     'arg_ret' : ('\n\tWT_DECL_RET;' if has_escape(optype.fields) else ''),
-    'local_decls' : (('\n' + '\n'.join("\t" + f.clocaldef() + ";"
+    'local_decls' : (('\n' + '\n'.join("\t" + f.clocaldef + ";"
         for f in optype.fields)) + escape_decl(optype.fields)
         if optype.fields else ''),
     'arg_fini' : ('\nerr:\t__wt_scr_free(session, &escaped);\n\treturn (ret);'
     if has_escape(optype.fields) else '\treturn (0);'),
-    'arg_addrs' : ''.join(', &%s' % f.name for f in optype.fields),
+    'arg_addrs' : ''.join(', &%s' % f.fieldname for f in optype.fields),
     'redact' : check_redact(optype),
     'print_args' : ('\t' + '\n\t'.join(printf_line(f, optype, i, s)
-        for i,f in enumerate(optype.fields) for s in range(0, f.n_setup()))
+        for i,f in enumerate(optype.fields) for s in range(0, f.n_setup))
         if optype.fields else ''),
 })
 

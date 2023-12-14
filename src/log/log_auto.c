@@ -1337,7 +1337,7 @@ __wt_logop_checkpoint_start_print(
 static inline void
 __wt_struct_size_prev_lsn(size_t *sizep, WT_LSN *prev_lsn)
 {
-    *sizep = __wt_vsize_uint(prev_lsn);
+    *sizep = __wt_vsize_LSN(prev_lsn);
     return;
 }
 
@@ -1349,7 +1349,7 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_prev_lsn(uint8_t **pp, uint8_t *end, WT_LSN *prev_lsn)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, prev_lsn));
+    WT_RET(__pack_encode__WT_LSN(pp, end, prev_lsn));
 
     return (0);
 }
@@ -1362,7 +1362,7 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_prev_lsn(const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
 {
-    __pack_decode__uintAny(WT_LSN *, prev_lsnp);
+    __pack_decode__WT_LSN(WT_LSN *, prev_lsnp);
 
     return (0);
 }
