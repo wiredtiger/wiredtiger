@@ -316,8 +316,6 @@ __wt_logop_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end,
     uint32_t *optypep, uint32_t *opsizep)
 {
-\treturn (__wt_struct_unpack(
-\t    session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
 \t__pack_decode__uintAny(uint32_t, optypep);
 \t__pack_decode__uintAny(uint32_t, opsizep);
 \treturn (0);
