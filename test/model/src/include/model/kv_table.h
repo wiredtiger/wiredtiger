@@ -42,6 +42,8 @@
 
 namespace model {
 
+class kv_database;
+
 /*
  * kv_table_config --
  *     Table configuration.
@@ -67,7 +69,8 @@ public:
      * kv_table::kv_table --
      *     Create a new instance.
      */
-    inline kv_table(const char *name, const kv_table_config &config) : _name(name), _config(config)
+    inline kv_table(kv_database &database, const char *name, const kv_table_config &config)
+        : _database(database), _name(name), _config(config)
     {
     }
 
@@ -375,6 +378,13 @@ protected:
     }
 
 private:
+    /*
+     * The table's lifetime is constrained to the lifetime of the database, so the following
+     * reference will be valid throughout the table's existence. (And we don't want to make it a
+     * shared pointer as that would create circular references, which will break the GC behavior.)
+     */
+    kv_database &_database;
+
     std::string _name;
     kv_table_config _config;
 
