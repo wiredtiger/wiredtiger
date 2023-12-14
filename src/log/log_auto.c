@@ -174,8 +174,8 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
 static inline void
 __wt_struct_size_col_modify(size_t *sizep, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint((value)->size) +
-      (value)->size;
+    *sizep =
+      __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint(value->size) + value->size;
     return;
 }
 
@@ -308,8 +308,8 @@ err:
 static inline void
 __wt_struct_size_col_put(size_t *sizep, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint((value)->size) +
-      (value)->size;
+    *sizep =
+      __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + __wt_vsize_uint(value->size) + value->size;
     return;
 }
 
@@ -681,8 +681,8 @@ __wt_logop_col_truncate_print(
 static inline void
 __wt_struct_size_row_modify(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint((key)->size) + (key)->size +
-      __wt_vsize_uint((value)->size) + (value)->size;
+    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size +
+      __wt_vsize_uint(value->size) + value->size;
     return;
 }
 
@@ -821,8 +821,8 @@ err:
 static inline void
 __wt_struct_size_row_put(size_t *sizep, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint((key)->size) + (key)->size +
-      __wt_vsize_uint((value)->size) + (value)->size;
+    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size +
+      __wt_vsize_uint(value->size) + value->size;
     return;
 }
 
@@ -960,7 +960,7 @@ err:
 static inline void
 __wt_struct_size_row_remove(size_t *sizep, uint32_t fileid, WT_ITEM *key)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint((key)->size) + (key)->size;
+    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size;
     return;
 }
 
@@ -1088,8 +1088,8 @@ static inline void
 __wt_struct_size_row_truncate(
   size_t *sizep, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
-    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint((start)->size) + (start)->size +
-      __wt_vsize_uint((stop)->size) + (stop)->size + __wt_vsize_uint(mode);
+    *sizep = __wt_vsize_uint(fileid) + __wt_vsize_uint(start->size) + start->size +
+      __wt_vsize_uint(stop->size) + stop->size + __wt_vsize_uint(mode);
     return;
 }
 

@@ -7,7 +7,8 @@ from dist import compare_srcfile, format_srcfile
 tmp_file = '__tmp_log' + str(os.getpid())
 
 class FieldType:
-    def __init__(self, ctype, packtype, printf_fmt, printf_arg, setup, always_hex, byptr):
+    def __init__(self, name, ctype, packtype, printf_fmt, printf_arg, setup, always_hex, byptr):
+        self.name = name
         self.ctype = ctype             # C type
         self.packtype = packtype       # pack type
         self.printf_fmt = printf_fmt   # printf format or list of printf formats
@@ -17,41 +18,109 @@ class FieldType:
         self.byptr = byptr             # passed by pointer
 
 field_types = {
-    'WT_LSN' : FieldType('WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
+    'WT_LSN' : FieldType('WT_LSN', 'WT_LSN', 'II', '[%" PRIu32 ", %" PRIu32 "]',
         'arg.l.file, arg.l.offset', [ '' ], False, True),
-    'string' : FieldType('char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
-    'WT_ITEM' : FieldType('WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
+    'string' : FieldType('string', 'char *', 'S', '\\"%s\\"', 'arg', [ '' ], False, False),
+    'WT_ITEM' : FieldType('WT_ITEM', 'WT_ITEM', 'u', '\\"%s\\"', '(char *)escaped->mem',
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
           'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False, True),
-    'recno' : FieldType('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False, False),
-    'uint32_t' : FieldType('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False, False),
+    'recno' : FieldType('recno', 'uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False, False),
+    'uint32_t' : FieldType('uint32_t', 'uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False, False),
     # The fileid may have the high bit set. Print in both decimal and hex.
-    'uint32_id' : FieldType('uint32_t', 'I',
+    'uint32_id' : FieldType('uint32_id', 'uint32_t', 'I',
         [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True, False),
-    'uint64_t' : FieldType('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False, False),
+    'uint64_t' : FieldType('uint64_t', 'uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False, False),
 }
 
-def cintype(f):
-    return field_types[f[0]].ctype + ('*' if field_types[f[0]].byptr else ' ')
+class Field:
+    def __init__(self, field_tuple):
+        self.type = field_types[field_tuple[0]]
+        self.name = field_tuple[1]
 
-def couttype(f):
-    return field_types[f[0]].ctype + '*'
+    def cintype(self):
+        return self.type.ctype + ('*' if self.type.byptr else ' ')
 
-def clocaltype(f):
-    return field_types[f[0]].ctype
+    def cindecl(self):
+        return self.type.ctype + (' *' if self.type.byptr else ' ') + self.name
+
+    def couttype(self):
+        return self.type.ctype + '*'
+
+    def coutdecl(self):
+        return self.type.ctype + ' *' + self.name + 'p';
+
+    def clocaltype(self):
+        return self.type.ctype
+
+    def clocaldef(self):
+        return self.type.ctype + ' ' + self.name;
+
+    def printf_fmt(self, ishex):
+        fmt = self.type.printf_fmt
+        if type(fmt) is list:
+            fmt = fmt[ishex]
+        return fmt
+
+    def pack_arg(self):
+        if self.type.name == 'WT_LSN':
+            return '%(name)s->l.file, %(name)s->l.offset' % {'name' : self.name}
+        return self.name
+
+    def printf_arg(self):
+        arg = self.type.printf_arg.replace('arg', self.name)
+        return ' ' + arg
+
+    def unpack_arg(self):
+        if self.type.name == 'WT_LSN':
+            return '&%(name)sp->l.file, &%(name)sp->l.offset' % {'name' : self.name}
+        return self.name + 'p'
+
+    def printf_setup(self, i, nl_indent):
+        stmt = self.type.setup[i].replace('arg', self.name)
+        return '' if stmt == '' else stmt + nl_indent
+
+    def n_setup(self):
+        return len(self.type.setup)
+
+    def struct_size_body(self):
+        # if self.type.name == 'WT_ITEM' or self.type.name == 'WT_LSN':
+        #     return ''
+        if self.type.name == 'WT_ITEM':
+            return '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.name}
+        else:
+            return '__wt_vsize_uint(%(name)s)' % {'name' : self.name}
+
+    def struct_pack_body(self):
+        # if self.type.name == 'WT_ITEM' or self.type.name == 'WT_LSN':
+        #     return ''
+        funcname = '__pack_encode__WT_ITEM' if self.type.name == 'WT_ITEM' else '__pack_encode__uintAny';
+        return '''\tWT_RET(%(funcname)s(pp, end, %(name)s));
+''' % {'funcname': funcname, 'name' : self.name}
+
+    def struct_unpack_body(self):
+        # if self.type.name == 'WT_ITEM' or self.type.name == 'WT_LSN':
+        #     return ''
+        funcname = '__pack_decode__WT_ITEM' if self.type.name == 'WT_ITEM' else '__pack_decode__uintAny';
+        return '''%(funcname)s(%(type)s, %(name)sp);
+''' % {'funcname': funcname, 'name' : self.name, 'type': self.cintype()}
+
+
+for op in log_data.optypes:
+    op.fields = [ Field(f) for f in op.fields ]
+
 
 def escape_decl(fields):
     return '\n\tWT_DECL_ITEM(escaped);' if has_escape(fields) else ''
 
 def has_escape(fields):
     for f in fields:
-        for setup in field_types[f[0]].setup:
+        for setup in f.type.setup:
             if 'escaped' in setup:
                 return True
     return False
 
 def pack_fmt(fields):
-    return ''.join(field_types[f[0]].packtype for f in fields)
+    return ''.join(f.type.packtype for f in fields)
 
 def op_pack_fmt(r):
     return 'II' + pack_fmt(r.fields)
@@ -59,70 +128,18 @@ def op_pack_fmt(r):
 def rec_pack_fmt(r):
     return 'I' + pack_fmt(r.fields)
 
-def printf_fmt(f, ishex):
-    fmt = field_types[f[0]].printf_fmt
-    if type(fmt) is list:
-        fmt = fmt[ishex]
-    return fmt
-
-def pack_arg(f):
-    if f[0] == 'WT_LSN':
-        return '%s->l.file, %s->l.offset' % (f[1], f[1])
-    return f[1]
-
-def printf_arg(f):
-    arg = field_types[f[0]].printf_arg.replace('arg', f[1])
-    return ' ' + arg
-
-def unpack_arg(f):
-    if f[0] == 'WT_LSN':
-        return '&%sp->l.file, &%sp->l.offset' % (f[1], f[1])
-    return f[1] + 'p'
-
-def printf_setup(f, i, nl_indent):
-    stmt = field_types[f[0]].setup[i].replace('arg', f[1])
-    return '' if stmt == '' else stmt + nl_indent
-
-def n_setup(f):
-    return len(field_types[f[0]].setup)
-
-def unconditional_hex(f):
-    return field_types[f[0]].always_hex
 
 # Check for an operation that has a file id type. Redact any user data
 # if the redact flag is set, but print operations for file id 0, known
 # to be the metadata.
 def check_redact(optype):
-    for f  in optype.fields:
-        if f[0] == 'uint32_id':
+    for f in optype.fields:
+        if f.type.name == 'uint32_id':
             redact_str = '\tif (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && '
-            redact_str += '%s != WT_METAFILE_ID)\n' % (f[1])
+            redact_str += '%s != WT_METAFILE_ID)\n' % (f.name)
             redact_str += '\t\treturn(__wt_fprintf(session, args->fs, " REDACTED"));\n'
             return redact_str
     return ''
-
-
-def struct_size_body(f, var):
-    # if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
-    #     return ''
-    if f[0] == 'WT_ITEM':
-        return '__wt_vsize_uint((%(name)s)->size) + (%(name)s)->size' % {'name' : var}
-    else:
-        return '__wt_vsize_uint(%(name)s)' % {'name' : var}
-
-def struct_pack_body(f, var):
-    # if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
-    #     return ''
-    funcname = '__pack_encode__WT_ITEM' if f[0] == 'WT_ITEM' else '__pack_encode__uintAny';
-    return '''\tWT_RET(%(funcname)s(pp, end, %(name)s));
-''' % {'funcname': funcname, 'name' : var}
-
-def struct_unpack_body(f, var):
-    # if f[0] == 'WT_ITEM' or f[0] == 'WT_LSN':
-    #     return ''
-    funcname = '__pack_decode__WT_ITEM' if f[0] == 'WT_ITEM' else '__pack_decode__uintAny';
-    return '''%(funcname)s(%(type)s, %(name)sp);
-''' % {'funcname': funcname, 'name' : var, 'type': cintype(f)}
 
 
 # Create a printf line, with an optional setup function.
@@ -133,12 +150,12 @@ def printf_line(f, optype, i, ishex):
     ifbegin = ''
     ifend = ''
     nl_indent = '\n\t'
-    name = f[1]
+    name = f.name
     postcomma = '' if i + 1 == len(optype.fields) else ',\\n'
     precomma = ''
     if ishex > 0:
         name += '-hex'
-        if not unconditional_hex(f):
+        if not f.type.always_hex:
             ifend = nl_indent + '}'
             nl_indent += '\t'
             ifbegin = \
@@ -146,11 +163,11 @@ def printf_line(f, optype, i, ishex):
             if postcomma == '':
                 precomma = ',\\n'
     body = '%s%s(__wt_fprintf(session, args->fs,' % (
-        printf_setup(f, ishex, nl_indent),
+        f.printf_setup(ishex, nl_indent),
         'WT_ERR' if has_escape(optype.fields) else 'WT_RET') + \
         '%s    "%s        \\"%s\\": %s%s",%s));' % (
-        nl_indent, precomma, name, printf_fmt(f, ishex), postcomma,
-        printf_arg(f))
+        nl_indent, precomma, name, f.printf_fmt(ishex), postcomma,
+        f.printf_arg())
     return ifbegin + body + ifend
 
 #####################################################################
@@ -435,16 +452,13 @@ __wt_logop_%(name)s_unpack(
     'name' : optype.name,
     'macro' : optype.macro_name,
     'comma' : ',' if optype.fields else '',
-    'arg_decls_in' : ', '.join(
-        '%s%s%s' % (cintype(f), '' if cintype(f)[-1] == '*' else ' ', f[1])
-        for f in optype.fields),
-    'arg_decls_out' : ', '.join(
-        '%s%sp' % (couttype(f), f[1]) for f in optype.fields),
-    'size_body' : ' + '.join(struct_size_body(f, f[1]) for f in optype.fields) if optype.fields else '0',
-    'pack_args' : ', '.join(pack_arg(f) for f in optype.fields),
-    'pack_body' : ''.join(struct_pack_body(f, f[1]) for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
-    'unpack_args' : ', '.join(unpack_arg(f) for f in optype.fields),
-    'unpack_body' : ''.join(struct_unpack_body(f, f[1]) for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
+    'arg_decls_in' : ', '.join(f.cindecl() for f in optype.fields),
+    'arg_decls_out' : ', '.join(f.coutdecl() for f in optype.fields),
+    'size_body' : ' + '.join(f.struct_size_body() for f in optype.fields) if optype.fields else '0',
+    'pack_args' : ', '.join(f.pack_arg() for f in optype.fields),
+    'pack_body' : ''.join(f.struct_pack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
+    'unpack_args' : ', '.join(f.unpack_arg() for f in optype.fields),
+    'unpack_body' : ''.join(f.struct_unpack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
     'fmt' : op_pack_fmt(optype),
 })
 
@@ -456,7 +470,7 @@ __wt_logop_%(name)s_unpack(
 int
 __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
-{%(arg_ret)s%(arg_decls)s
+{%(arg_ret)s%(local_decls)s
 
 \tWT_RET(__wt_logop_%(name)s_unpack(session, pp, end%(arg_addrs)s));
 
@@ -470,16 +484,15 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     'name' : optype.name,
     'comma' : ',' if len(optype.fields) > 0 else '',
     'arg_ret' : ('\n\tWT_DECL_RET;' if has_escape(optype.fields) else ''),
-    'arg_decls' : (('\n\t' + '\n\t'.join('%s%s%s;' %
-        (clocaltype(f), '' if clocaltype(f)[-1] == '*' else ' ', f[1])
+    'local_decls' : (('\n' + '\n'.join("\t" + f.clocaldef() + ";"
         for f in optype.fields)) + escape_decl(optype.fields)
         if optype.fields else ''),
     'arg_fini' : ('\nerr:\t__wt_scr_free(session, &escaped);\n\treturn (ret);'
     if has_escape(optype.fields) else '\treturn (0);'),
-    'arg_addrs' : ''.join(', &%s' % f[1] for f in optype.fields),
+    'arg_addrs' : ''.join(', &%s' % f.name for f in optype.fields),
     'redact' : check_redact(optype),
     'print_args' : ('\t' + '\n\t'.join(printf_line(f, optype, i, s)
-        for i,f in enumerate(optype.fields) for s in range(0, n_setup(f)))
+        for i,f in enumerate(optype.fields) for s in range(0, f.n_setup()))
         if optype.fields else ''),
 })
 
