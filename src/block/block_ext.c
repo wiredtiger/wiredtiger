@@ -415,8 +415,7 @@ __wt_block_off_remove_overlap(
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
         WT_ASSERT_WITH_ERR_MSG(session, ext->off + ext->size >= off + size, EINVAL,
-          "block off remove, before=[%" PRIu64 ", %" PRIu64 "] overlaps with off:size=[%" PRIu64
-          ", %" PRIu64 "]",
+          "block off remove, %" PRIu64 "-%" PRIu64 " overlaps with %" PRIu64 "-%" PRIu64,
           (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
 
         /* Calculate overlapping extents. */
@@ -424,13 +423,30 @@ __wt_block_off_remove_overlap(
         a_size = off - ext->off;
         b_off = off + size;
         b_size = ext->size - (a_size + size);
+
+        if (a_size > 0 && b_size > 0) {
+            __wt_verbose(session, WT_VERB_BLOCK,
+              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX
+              " and %" PRIdMAX "-%" PRIdMAX,
+              el->name, (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
+              (intmax_t)(a_off), (intmax_t)(a_off + a_size), (intmax_t)(b_off),
+              (intmax_t)(b_off + b_size));
+        } else if (a_size > 0) {
+            __wt_verbose(session, WT_VERB_BLOCK,
+              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
+              (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
+              (intmax_t)(a_off), (intmax_t)(a_off + a_size));
+        } else if (b_size > 0) {
+            __wt_verbose(session, WT_VERB_BLOCK,
+              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
+              (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
+              (intmax_t)(b_off), (intmax_t)(b_off + b_size));
+        }
     } else if (after != NULL && off + size > after->off) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
         WT_ASSERT_WITH_ERR_MSG(session, off == ext->off && off + size <= ext->off + ext->size,
-          EINVAL,
-          "block off remove, after=[%" PRIu64 ", %" PRIu64 "] overlaps with off:size=[%" PRIu64
-          ", %" PRIu64 "]",
+          EINVAL, "block off remove, %" PRIu64 "-%" PRIu64 " overlaps with %" PRIu64 "-%" PRIu64,
           (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
 
         /*
@@ -441,6 +457,13 @@ __wt_block_off_remove_overlap(
         a_size = 0;
         b_off = off + size;
         b_size = ext->size - (b_off - ext->off);
+
+        if (b_size > 0)
+            __wt_verbose(session, WT_VERB_BLOCK,
+              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
+              (intmax_t)after->off, (intmax_t)after->off + (intmax_t)after->size, (intmax_t)(b_off),
+              (intmax_t)(b_off + b_size));
+
     } else
         return (WT_NOTFOUND);
 
