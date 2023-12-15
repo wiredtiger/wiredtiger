@@ -74,16 +74,16 @@ class test_import_base(wttest.WiredTigerTestCase):
             else:
                 self.check_record(uri, keys[i], values[i])
 
-    # The ID and checkpoint information can be different between configs, remove it. Everything else
-    # should be the same.
+    # Compare two given configurations, excluding unique data.
     def config_compare(self, aconf, bconf):
-        stripped_aconf = self.strip_subconfigs(aconf)
-        stripped_bconf = self.strip_subconfigs(bconf)
+        # Retrieve the data that can be compared.
+        stripped_aconf = self.strip_subconfig(aconf)
+        stripped_bconf = self.strip_subconfig(bconf)
 
         self.assertTrue(sorted(stripped_aconf) == sorted(stripped_bconf))
 
-    # Strips the subconfigs that are irrelevant to config_compare (id and checkpoints).
-    def strip_subconfigs(self, conf):
+    # Remove information related to the ID and checkpoints from a config.
+    def strip_subconfig(self, conf):
         subconfigs = []
         curr_subconfig = []
         depth = 0
@@ -100,10 +100,11 @@ class test_import_base(wttest.WiredTigerTestCase):
             else:
                 # Append char to curr subconfig
                 curr_subconfig.append(char)
-        # If curr not empty append to subconfigs.
+        # Append any subconfig left.
         if curr_subconfig:
             subconfigs.append(''.join(curr_subconfig))
 
+        # The ID and checkpoint information can be different between configs, remove it.
         sliced_subconfigs = [con for con in subconfigs if not con.startswith("id=") and not con.startswith("checkpoint")]
 
         return sliced_subconfigs
@@ -190,6 +191,9 @@ class test_import01(test_import_base):
 
         # Import the file.
         self.session.create(self.uri, import_config)
+
+        # Create a named checkpoint so it appears in the configuration of the imported table.
+        # This should not be relevant when comparing the original configuration and the new one.
         self.session.checkpoint("name=abc")
 
         # Verify object.
