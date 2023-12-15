@@ -381,6 +381,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
     WT_DECL_RET;
     char time_string[WT_TIME_STRING_SIZE];
 
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
@@ -392,6 +393,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 
 err:
     __wt_scr_free(session, &tmp);
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     return (buf->data);
 }
 
@@ -439,8 +441,15 @@ __verify_tree(
      * utilizing the regular tree walk function. Check for potential pages to pre-fetch here as
      * well.
      */
-    if (__wt_session_prefetch_check(session, ref))
-        WT_RET(__wt_btree_prefetch(session, ref));
+    if (__wt_session_prefetch_check(session, ref)) {
+        ret = __wt_btree_prefetch(session, ref);
+        /*
+         * It's okay for pre-fetch to fail to start here. We want to assert on an error to gain
+         * diagnostic information, then continue the rest of verify as normal.
+         */
+        WT_PREFETCH_ASSERT(session, ret != WT_ERROR, block_prefetch_failed_start);
+        ret = 0;
+    }
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
