@@ -132,10 +132,6 @@ class test_compact11(backup_base):
         # Write to disk.
         self.session.checkpoint()
 
-        # Take a full backup, this one will remain untouched.
-        os.mkdir(self.backup_full)
-        self.take_full_backup(self.backup_full)
-
         # Take a full backup that will be used for incremental backups later during the test.
         os.mkdir(self.backup_incr)
         self.initial_backup = True
@@ -155,6 +151,10 @@ class test_compact11(backup_base):
 
         # Write to disk.
         self.session.checkpoint()
+
+        # Take a full backup, this one will remain untouched.
+        os.mkdir(self.backup_full)
+        self.take_full_backup(self.backup_full)
 
         # Get the bitmaps of each file.
         for uri in files:
