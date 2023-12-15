@@ -77,21 +77,8 @@ class test_import_base(wttest.WiredTigerTestCase):
     # The ID and checkpoint information can be different between configs, remove it. Everything else
     # should be the same.
     def config_compare(self, aconf, bconf):
-
         stripped_aconf = self.strip_subconfigs(aconf)
         stripped_bconf = self.strip_subconfigs(bconf)
-
-        # a = re.sub('id=\d+,?', '', aconf)
-        # a = (re.sub('\w+=\(.*?\)+,?', '', a).strip(',').split(',') +
-        #      re.findall('\w+=\(.*?\)+', a))
-        # b = re.sub('id=\d+,?', '', bconf)
-        # b = (re.sub('\w+=\(.*?\)+,?', '', b).strip(',').split(',') +
-        #      re.findall('\w+=\(.*?\)+', b))
-        
-        # a = [x for x in a if not x.startswith("checkpoint")]
-        # b = [x for x in b if not x.startswith("checkpoint")]
-
-        # self.assertTrue(sorted(a) == sorted(b))
 
         self.assertTrue(sorted(stripped_aconf) == sorted(stripped_bconf))
 
@@ -102,7 +89,6 @@ class test_import_base(wttest.WiredTigerTestCase):
         depth = 0
 
         for char in conf:
-
             if char == '(':
                 depth += 1
             elif char == ')':
@@ -119,8 +105,6 @@ class test_import_base(wttest.WiredTigerTestCase):
             subconfigs.append(''.join(curr_subconfig))
   
         sliced_subconfigs = [con for con in subconfigs if not con.startswith("id=") and not con.startswith("checkpoint")]
-        # final_subconfigs = ','.join(map(str, sliced_subconfigs))
-        # return final_subconfigs
 
         return sliced_subconfigs
 
