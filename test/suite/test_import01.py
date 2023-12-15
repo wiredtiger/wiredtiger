@@ -77,15 +77,52 @@ class test_import_base(wttest.WiredTigerTestCase):
     # The ID and checkpoint information can be different between configs, remove it. Everything else
     # should be the same.
     def config_compare(self, aconf, bconf):
-        a = re.sub('id=\d+,?', '', aconf)
-        a = (re.sub('\w+=\(.*?\)+,?', '', a).strip(',').split(',') +
-             re.findall('\w+=\(.*?\)+', a))
-        b = re.sub('id=\d+,?', '', bconf)
-        b = (re.sub('\w+=\(.*?\)+,?', '', b).strip(',').split(',') +
-             re.findall('\w+=\(.*?\)+', b))
-        a = [x for x in a if not x.startswith("checkpoint=")]
-        b = [x for x in b if not x.startswith("checkpoint=")]
-        self.assertTrue(sorted(a) == sorted(b))
+
+        stripped_aconf = self.strip_subconfigs(aconf)
+        stripped_bconf = self.strip_subconfigs(bconf)
+
+        # a = re.sub('id=\d+,?', '', aconf)
+        # a = (re.sub('\w+=\(.*?\)+,?', '', a).strip(',').split(',') +
+        #      re.findall('\w+=\(.*?\)+', a))
+        # b = re.sub('id=\d+,?', '', bconf)
+        # b = (re.sub('\w+=\(.*?\)+,?', '', b).strip(',').split(',') +
+        #      re.findall('\w+=\(.*?\)+', b))
+        
+        # a = [x for x in a if not x.startswith("checkpoint")]
+        # b = [x for x in b if not x.startswith("checkpoint")]
+
+        # self.assertTrue(sorted(a) == sorted(b))
+
+        self.assertTrue(sorted(stripped_aconf) == sorted(stripped_bconf))
+
+    # Strips the subconfigs that are irrelevant to config_compare (id and checkpoints).
+    def strip_subconfigs(self, conf):
+        subconfigs = []
+        curr_subconfig = []
+        depth = 0
+
+        for char in conf:
+
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+           # If end of one subconfig, append it to subconfigs list.
+            if char == ',' and depth == 0:
+                subconfigs.append(''.join(curr_subconfig))
+                curr_subconfig = []
+            else:
+                # Append char to curr subconfig
+                curr_subconfig.append(char)
+        # If curr not empty append to subconfigs.
+        if curr_subconfig:
+            subconfigs.append(''.join(curr_subconfig))
+    
+        sliced_subconfigs = [con for con in subconfigs if not con.startswith("id=") and "checkpoint" not in con]
+        # final_subconfigs = ','.join(map(str, sliced_subconfigs))
+        # return final_subconfigs
+
+        return sliced_subconfigs
 
     # Populate a database with N tables, each having M rows.
     def populate(self, ntables, nrows):
@@ -169,6 +206,7 @@ class test_import01(test_import_base):
 
         # Import the file.
         self.session.create(self.uri, import_config)
+        self.session.checkpoint("name=1")
 
         # Verify object.
         self.verifyUntilSuccess(self.session, self.uri, None)
@@ -191,6 +229,8 @@ class test_import01(test_import_base):
 
         # Perform a checkpoint.
         self.session.checkpoint()
+        self.session.checkpoint("name=abc1")
+
 
     def test_file_import_dropped_file(self):
         self.session.create(self.uri, self.create_config)
