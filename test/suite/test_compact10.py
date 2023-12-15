@@ -33,8 +33,7 @@ from wtbackup import backup_base
 # test_compact10.py
 # Verify compaction does not alter data by comparing backups before/after compaction.
 class test_compact10(backup_base):
-    backup_full = "BACKUP_FULL"
-    backup_incr = "BACKUP_INCR"
+
     conn_config = 'cache_size=100MB,statistics=(all)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
     uri_prefix = 'table:test_compact10'
@@ -118,16 +117,17 @@ class test_compact10(backup_base):
     # - Waits for background compaction to compact all the files and create a new full backup.
     # - Compares the two backups.
     def test_compact10_full_backup(self):
-
         # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
+        backup_1 = "BACKUP_1"
+        backup_2 = "BACKUP_2"
         uris = self.generate_data()
 
         # Take the first full backup.
-        os.mkdir(self.backup_full)
-        self.take_full_backup(self.backup_full)
+        os.mkdir(backup_1)
+        self.take_full_backup(backup_1)
 
         # Enable background compaction.
         compact_config = f'background=true,free_space_target=1MB'
@@ -140,12 +140,12 @@ class test_compact10(backup_base):
         assert self.get_files_compacted(uris) == self.num_tables
 
         # Take a second full backup.
-        os.mkdir(self.backup_incr)
-        self.take_full_backup(self.backup_incr)
+        os.mkdir(backup_2)
+        self.take_full_backup(backup_2)
 
         # Compare the backups.
         for uri in uris:
-            self.compare_backups(uri, self.backup_full, self.backup_incr)
+            self.compare_backups(uri, backup_1, backup_2)
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
@@ -158,24 +158,25 @@ class test_compact10(backup_base):
     # compacted.
     # - Compares all performed incremental backups with the original full backup.
     def test_compact10_incr_backup(self):
-
         # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
+        backup_full = "BACKUP_FULL"
+        backup_incr = "BACKUP_INCR"
         uris = self.generate_data()
 
         # Take two full backups:
         # - The first one will remain untouched.
-        os.makedirs(self.backup_full)
-        self.take_full_backup(self.backup_full)
+        os.makedirs(backup_full)
+        self.take_full_backup(backup_full)
 
         # - The second one is used for the incremental backups and use a temporary backup
         # directory to perform multiple incremental backups on different directories.
         self.initial_backup = True
-        os.makedirs(self.backup_incr)
-        self.take_full_backup(self.backup_incr)
-        shutil.copytree(self.backup_incr, self.home_tmp)
+        os.makedirs(backup_incr)
+        self.take_full_backup(backup_incr)
+        shutil.copytree(backup_incr, self.home_tmp)
         self.initial_backup = False
 
         # Enable background compaction.
@@ -189,15 +190,15 @@ class test_compact10(backup_base):
             if new_bytes_recovered != bytes_recovered:
                 # Update the incremental backup ID from the parent class.
                 self.bkup_id += 1
-                shutil.copytree(self.home_tmp, self.backup_incr + str(self.bkup_id))
-                self.take_incr_backup(self.backup_incr + str(self.bkup_id))
+                shutil.copytree(self.home_tmp, backup_incr + str(self.bkup_id))
+                self.take_incr_backup(backup_incr + str(self.bkup_id))
                 bytes_recovered = new_bytes_recovered
 
         # Compare all the incremental backups against the starting full backup. The idea is that
         # compact should not have changed the contents of the table.
         for i in range(1, self.bkup_id + 1):
             for uri in uris:
-                self.compare_backups(uri, self.backup_incr + str(i), self.backup_full)
+                self.compare_backups(uri, backup_incr + str(i), backup_full)
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.

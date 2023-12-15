@@ -152,7 +152,7 @@ class test_compact11(backup_base):
         # Write to disk.
         self.session.checkpoint()
 
-        # Generate the bitmaps of each file.
+        # Get the bitmaps of each file.
         for uri in files:
             bitmaps.append(self.parse_blkmods(uri))
 
