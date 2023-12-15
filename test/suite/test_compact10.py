@@ -170,7 +170,8 @@ class test_compact10(backup_base):
         os.makedirs(self.backup_full)
         self.take_full_backup(self.backup_full)
 
-        # - The second one is used for the incremental backups.
+        # - The second one is used for the incremental backups and use a temporary backup
+        # directory to perform multiple incremental backups on different directories.
         self.initial_backup = True
         os.makedirs(self.backup_incr)
         self.take_full_backup(self.backup_incr)
@@ -197,6 +198,7 @@ class test_compact10(backup_base):
         for i in range(1, self.bkup_id + 1):
             for uri in uris:
                 self.compare_backups(uri, self.backup_incr + str(i), self.backup_full)
+
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
         self.ignoreStdoutPatternIfExists('background compact interrupted by application')
