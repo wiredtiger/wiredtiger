@@ -43,16 +43,16 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
           cval.val, WT_THROTTLE_MIN);
     cap->total = total = (uint64_t)cval.val;
 
-    WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_background_period_sec", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_maximum_wait_period", &cval));
     if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUND_MAX_PERIOD_SEC)
         WT_RET_MSG(session, EINVAL,
-          "fsync_background_period_sec I/O capacity value %" PRId64 " exceed maximum %d", cval.val,
+          "fsync_maximum_wait_period I/O capacity value %" PRId64 " exceed maximum %d", cval.val,
           WT_FSYNC_BACKGROUND_MAX_PERIOD_SEC);
-    cap->fsync_background_period = (uint64_t)cval.val;
+    cap->fsync_maximum_wait_period = (uint64_t)cval.val;
 
-    if (cap->total == 0 && cap->fsync_background_period != 0) {
+    if (cap->total == 0 && cap->fsync_maximum_wait_period != 0) {
         WT_RET_MSG(session, EINVAL,
-          "io_capacity.fsync_background_period_sec is valid only when io_capacity.total is greater "
+          "io_capacity.fsync_maximum_wait_period is valid only when io_capacity.total is greater "
           "than 0");
     }
 
@@ -147,11 +147,11 @@ __capacity_server(void *arg)
             continue;
 
         now = __wt_clock(session);
-        if (cap->fsync_background_period == 0) {
+        if (cap->fsync_maximum_wait_period == 0) {
             if (cap->written < cap->threshold)
                 continue;
         } else {
-            if (WT_CLOCKDIFF_SEC(now, last_time) < cap->fsync_background_period &&
+            if (WT_CLOCKDIFF_SEC(now, last_time) < cap->fsync_maximum_wait_period &&
               cap->written < cap->threshold)
                 continue;
         }

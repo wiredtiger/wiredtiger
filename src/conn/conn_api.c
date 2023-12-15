@@ -1814,12 +1814,11 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * it fail the first time, but succeed the second.
      */
     match = false;
-    TAILQ_FOREACH (t, &__wt_process.connqh, q) {
+    TAILQ_FOREACH (t, &__wt_process.connqh, q) 
         if (t->home != NULL && t != conn && strcmp(t->home, conn->home) == 0) {
             match = true;
             break;
         }
-    }
 
     if (match)
         WT_ERR_MSG(session, EBUSY,

@@ -2368,7 +2368,7 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache, number of bytes per second available
      * to the chunk cache.  The minimum non-zero setting is 1MB., an integer between \c 0 and \c
      * 1TB; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;fsync_background_period_sec, max waiting
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;fsync_maximum_wait_period, max waiting
      * period for background fsync.  If the written threshold is not met in this time\, a background
      * fsync is done., an integer between \c 0 and \c 60; default \c 0.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per second available to all subsystems
@@ -3199,7 +3199,7 @@ struct __wt_connection {
  * capacity results in throttling., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache, number of bytes per second available to the chunk
  * cache.  The minimum non-zero setting is 1MB., an integer between \c 0 and \c 1TB; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;fsync_background_period_sec, max waiting period for background
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;fsync_maximum_wait_period, max waiting period for background
  * fsync.  If the written threshold is not met in this time\, a background fsync is done., an
  * integer between \c 0 and \c 60; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of

@@ -46,7 +46,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
     collection_cfg = 'key_format=q, value_format=S'
     fsync_time = 1
     #set the io_capacity config
-    open_config = 'create, statistics=(all), io_capacity=(' + 'fsync_background_period_sec=' + str(fsync_time) + ', total=1M)'
+    open_config = 'create, statistics=(all), io_capacity=(' + 'fsync_maximum_wait_period=' + str(fsync_time) + ', total=1M)'
 
 
     def generate_random_string(self, length):
@@ -97,7 +97,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         self.close_conn()
 
         #only insert 1 data, the write bytes is well below 1M
-        #If the written conditions are not met fsync_background_period_sec, force background fsync
+        #If the written conditions are not met fsync_maximum_wait_period, force background fsync
         insert_count = 1
         value_size = 1024
         random_string = self.generate_random_string(value_size)
@@ -115,7 +115,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         #Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
 
-        time.sleep(self.fsync_time);
+        time.sleep(self.fsync_time)
         self.assertGreater(self.get_stat(stat.conn.capacity_bytes_written), 0)
         #background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
