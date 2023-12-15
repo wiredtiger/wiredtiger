@@ -489,10 +489,10 @@ test_cmp_all(WT_SESSION_IMPL *session)
 {
     WT_ITEM logrec_fmt, logrec_direct;
 
-    logrec_fmt.data = malloc(1024);
-    logrec_fmt.size = 1024;
-    logrec_direct.data = malloc(1024);
-    logrec_direct.size = 1024;
+    WT_CLEAR(logrec_fmt);
+    assert(__wt_buf_init(session, &logrec_fmt, 0) == 0);
+    WT_CLEAR(logrec_direct);
+    assert(__wt_buf_init(session, &logrec_direct, 0) == 0);
 
     test_cmp__wt_logop_col_modify(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
     test_cmp__wt_logop_col_put(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
@@ -507,6 +507,6 @@ test_cmp_all(WT_SESSION_IMPL *session)
     test_cmp__wt_logop_backup_id(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
     test_cmp__wt_logop_txn_timestamp(session, &logrec_fmt, &logrec_direct, 0, 0, 0, 0, 0, 0, 0);
 
-    free(logrec_fmt.data);
-    free(logrec_direct.data);
+    __wt_buf_free(session, &logrec_fmt);
+    __wt_buf_free(session, &logrec_direct);
 }

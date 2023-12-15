@@ -151,58 +151,6 @@ __wt_logop_txn_timestamp_pack_fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uin
 
 
 
-
-
-
-/*
- * __txn_logrec_init --
- *     Allocate and initialize a buffer for a transaction's log records.
- */
-static int
-__txn_logrec_init(WT_SESSION_IMPL *session)
-{
-    WT_DECL_ITEM(logrec);
-    WT_DECL_RET;
-    WT_TXN *txn;
-    size_t header_size;
-    uint32_t rectype;
-    const char *fmt;
-
-    txn = session->txn;
-    rectype = WT_LOGREC_COMMIT;
-    fmt = WT_UNCHECKED_STRING(Iq);
-
-    if (txn->logrec != NULL) {
-        WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_ID));
-        return (0);
-    }
-
-    /*
-     * The only way we should ever get in here without a txn id is if we are recording diagnostic
-     * information. In that case, allocate an id.
-     */
-    /*
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) && txn->id == WT_TXN_NONE)
-        WT_RET(__wt_txn_id_check(session));
-    else
-        WT_ASSERT(session, txn->id != WT_TXN_NONE);
-    */
-
-    WT_RET(__wt_struct_size(session, &header_size, fmt, rectype, txn->id));
-    WT_RET(__wt_logrec_alloc(session, header_size, &logrec));
-
-    WT_ERR(__wt_struct_pack(
-      session, (uint8_t *)logrec->data + logrec->size, header_size, fmt, rectype, txn->id));
-    logrec->size += (uint32_t)header_size;
-    txn->logrec = logrec;
-
-    if (0) {
-err:
-        __wt_logrec_free(session, &logrec);
-    }
-    return (ret);
-}
-
 /*
  * check --
  */
@@ -212,27 +160,29 @@ run_fmt(int n)
     WT_DECL_RET;
     uint64_t t1, t2;
     WT_SESSION_IMPL *session;
-    WT_ITEM *logrec;
-    WT_TXN *txn;
+    WT_ITEM logrec;  // WT_DECL_ITEM?
 
     session = (WT_SESSION_IMPL *)g.wt_session;
-    txn = session->txn;
-    WT_ERR(__txn_logrec_init(session));
-    logrec = txn->logrec;
 
-    WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, logrec, 0, 0, 0, 0, 0, 0, 0));
-    printf("[%lu]", logrec->size);
-    for (size_t i = 0; i < logrec->size; i++)
-        printf(" %02x", ((uint8_t*)logrec->data)[i]);
+    WT_CLEAR(logrec);
+    WT_ERR(__wt_buf_init(session, &logrec, 0));
+
+    WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
+    printf("[%lu]", logrec.size);
+    for (size_t i = 0; i < logrec.size; i++) printf(" %02x", ((uint8_t*)logrec.data)[i]);
     printf("\n");
 
     t1 = __wt_rdtsc();
-    for (; n > 0; --n)
-        WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, logrec, 0, 0, 0, 0, 0, 0, 0));
+    for (; n > 0; --n) {
+        logrec.size = 0;
+        WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
+    }
     t2 = __wt_rdtsc();
 
+    __wt_buf_free(session, &logrec);
     return (t2 - t1);
 err:
+    __wt_buf_free(session, &logrec);
     return (0);
 }
 
@@ -245,27 +195,33 @@ run_direct(int n)
     WT_DECL_RET;
     uint64_t t1, t2;
     WT_SESSION_IMPL *session;
-    WT_ITEM *logrec;
-    WT_TXN *txn;
+    WT_ITEM logrec;  // WT_DECL_ITEM?
+    // WT_TXN *txn;
 
     session = (WT_SESSION_IMPL *)g.wt_session;
-    txn = session->txn;
-    WT_ERR(__txn_logrec_init(session));
-    logrec = txn->logrec;
+    // txn = session->txn;
+    // WT_ERR(__txn_logrec_init(session));
 
-    WT_ERR(__wt_logop_txn_timestamp_pack(session, logrec, 0, 0, 0, 0, 0, 0, 0));
-    printf("[%lu]", logrec->size);
-    for (size_t i = 0; i < logrec->size; i++)
-        printf(" %02x", ((uint8_t*)logrec->data)[i]);
+    WT_CLEAR(logrec);
+    WT_ERR(__wt_buf_init(session, &logrec, 0));
+    /*logrec = txn->logrec;*/
+
+    WT_ERR(__wt_logop_txn_timestamp_pack(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
+    printf("[%lu]", logrec.size);
+    for (size_t i = 0; i < logrec.size; i++) printf(" %02x", ((uint8_t*)logrec.data)[i]);
     printf("\n");
 
     t1 = __wt_rdtsc();
-    for (; n > 0; --n)
-        WT_ERR(__wt_logop_txn_timestamp_pack(session, logrec, 0, 0, 0, 0, 0, 0, 0));
+    for (; n > 0; --n) {
+        logrec.size = 0;
+        WT_ERR(__wt_logop_txn_timestamp_pack(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
+    }
     t2 = __wt_rdtsc();
 
+    __wt_buf_free(session, &logrec);
     return (t2 - t1);
 err:
+    __wt_buf_free(session, &logrec);
     return (0);
 }
 

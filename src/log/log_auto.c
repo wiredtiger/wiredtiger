@@ -133,6 +133,7 @@ int
 __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *optypep,
   uint32_t *opsizep)
 {
+    WT_UNUSED(session);
     __pack_decode__uintAny(uint32_t, optypep);
     __pack_decode__uintAny(uint32_t, opsizep);
     return (0);
