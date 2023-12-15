@@ -72,7 +72,6 @@ Ceil
 CentOS
 Checkpointing
 Checksums
-Chunkcache
 CityHash
 ClmSvxz
 CloseHandle
@@ -114,6 +113,7 @@ ENCRYPTOR
 ENDIAN
 ENOENT
 ENOMEM
+ENOSPC
 ENOTSUP
 ENUM
 EOF
@@ -154,6 +154,7 @@ FreeLibrary
 Fsync
 Fuerst
 GBR
+GC
 GCP
 GCP's
 GF
@@ -202,6 +203,7 @@ Kounavis
 LANGID
 LF
 LLVMFuzzerTestOneInput
+LOGOP
 LOGREC
 LOGSCAN
 LRU
@@ -359,6 +361,7 @@ StoreLoad
 StoreStore
 Su
 Subdirectory
+Subprocess
 TAILQ
 TCMalloc
 TESTUTIL
@@ -502,6 +505,7 @@ bitstring
 bitwise
 blk
 blkcache
+blkincr
 blkmod
 bm
 bnd
@@ -622,6 +626,7 @@ curstd
 curtable
 curversion
 cust
+customizable
 customp
 cv
 cx
@@ -825,6 +830,7 @@ icount
 idlems
 idx
 ie
+iface
 ifdef's
 iiSii
 iiiS
@@ -1166,6 +1172,7 @@ rw
 rwlock
 sH
 sHQ
+sXXXXXX
 sanitizer
 sanitizers
 scalable
@@ -1182,6 +1189,7 @@ setvbuf
 sfence
 shareability
 sig
+sigchld
 signalled
 sii
 sizeof

@@ -15,6 +15,7 @@ include(cmake/configs/modes.cmake)
 # Import our helpers.
 include(cmake/helpers.cmake)
 include(cmake/define_libwiredtiger.cmake)
+include(cmake/gdb_autoloader_setup.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
 # we will infer the target from the host. This is checked prior to the config option
@@ -80,6 +81,13 @@ else()
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
+
+# Colorize the build error output
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    add_compile_options(-fdiagnostics-color=always)
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+    add_compile_options(-fcolor-diagnostics)
 endif()
 
 if(ENABLE_STRICT)
@@ -228,6 +236,8 @@ if(ENABLE_SHARED)
     )
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+
+    setup_gdb_autoloader()
 
     # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
     # WiredTiger library.

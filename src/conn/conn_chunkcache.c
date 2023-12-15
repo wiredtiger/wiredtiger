@@ -117,7 +117,7 @@ __chunkcache_metadata_run_chk(WT_SESSION_IMPL *session)
 
 /*
  * __chunkcache_metadata_insert --
- *     Insert a specific work queue entry into the chunk cache metadata file.
+ *     Insert the specified work queue entry into the chunk cache metadata file.
  */
 static int
 __chunkcache_metadata_insert(WT_CURSOR *cursor, WT_CHUNKCACHE_METADATA_WORK_UNIT *entry)
@@ -130,7 +130,7 @@ __chunkcache_metadata_insert(WT_CURSOR *cursor, WT_CHUNKCACHE_METADATA_WORK_UNIT
 
 /*
  * __chunkcache_metadata_delete --
- *     Remove an entry from the chunk cache metadata file.
+ *     Remove the specified entry from the chunk cache metadata file.
  */
 static int
 __chunkcache_metadata_delete(WT_CURSOR *cursor, WT_CHUNKCACHE_METADATA_WORK_UNIT *entry)
@@ -156,10 +156,9 @@ __chunkcache_metadata_pop_work(WT_SESSION_IMPL *session, WT_CHUNKCACHE_METADATA_
     if ((*entryp = TAILQ_FIRST(&conn->chunkcache_metadataqh)) != NULL) {
         TAILQ_REMOVE(&conn->chunkcache_metadataqh, *entryp, q);
         --conn->chunkcache_queue_len;
+        WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_dequeued);
     }
     __wt_spin_unlock(session, &conn->chunkcache_metadata_lock);
-
-    WT_STAT_CONN_INCR(session, chunkcache_metadata_work_units_dequeued);
 }
 
 /*
@@ -185,11 +184,13 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
         if (entry == NULL)
             break;
 
-        if (entry->type == WT_CHUNKCACHE_METADATA_WORK_INS)
+        if (entry->type == WT_CHUNKCACHE_METADATA_WORK_INS) {
             WT_ERR(__chunkcache_metadata_insert(cursor, entry));
-        else if (entry->type == WT_CHUNKCACHE_METADATA_WORK_DEL)
+            WT_STAT_CONN_INCR(session, chunkcache_metadata_inserted);
+        } else if (entry->type == WT_CHUNKCACHE_METADATA_WORK_DEL) {
             WT_ERR_NOTFOUND_OK(__chunkcache_metadata_delete(cursor, entry), false);
-        else {
+            WT_STAT_CONN_INCR(session, chunkcache_metadata_removed);
+        } else {
             __wt_verbose_error(
               session, WT_VERB_CHUNKCACHE, "got invalid event type %d\n", entry->type);
             ret = -1;
@@ -210,7 +211,7 @@ err:
 
 /*
  * __chunkcache_metadata_server --
- *     Dispatch chunks of work (or stop the server) whenever we're signalled to do so.
+ *     Dispatch chunks of work (or stop the server) when signalled.
  */
 static WT_THREAD_RET
 __chunkcache_metadata_server(void *arg)
@@ -266,17 +267,16 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
     /* Retrieve the chunk cache metadata config, and ensure it matches our startup config. */
     ret = __chunkcache_get_metadata_config(session, &metadata_config);
     if (ret == WT_NOTFOUND) {
-        WT_RET(__chunkcache_create_metadata_file(
+        WT_ERR(__chunkcache_create_metadata_file(
           session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "created chunkcache metadata file");
+        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "created chunk cache metadata file");
+        ret = 0;
     } else if (ret == 0) {
-        WT_RET(__chunkcache_verify_metadata_config(session, metadata_config, chunkcache->capacity,
+        WT_ERR(__chunkcache_verify_metadata_config(session, metadata_config, chunkcache->capacity,
           chunkcache->hashtable_size, chunkcache->chunk_size));
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "reused chunkcache metadata file");
-    } else {
-        WT_RET(ret);
+        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "reused chunk cache metadata file");
     }
-    __wt_free(session, metadata_config);
+    WT_ERR(ret);
 
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHUNKCACHE_METADATA);
 
@@ -284,9 +284,9 @@ __wt_chunkcache_metadata_create(WT_SESSION_IMPL *session)
       conn, "chunkcache-metadata-server", true, 0, 0, &conn->chunkcache_metadata_session));
     session = conn->chunkcache_metadata_session;
 
-    WT_ERR(__chunkcache_apply_metadata_content(session));
+    WT_ERR(__wt_cond_alloc(session, "chunk cache metadata", &conn->chunkcache_metadata_cond));
 
-    WT_ERR(__wt_cond_alloc(session, "chunkcache metadata", &conn->chunkcache_metadata_cond));
+    WT_ERR(__chunkcache_apply_metadata_content(session));
 
     /* Start the thread. */
     WT_ERR(__wt_thread_create(
@@ -298,6 +298,7 @@ err:
         FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHUNKCACHE_METADATA);
         WT_TRET(__wt_chunkcache_metadata_destroy(session));
     }
+    __wt_free(session, metadata_config);
 
     return (ret);
 }

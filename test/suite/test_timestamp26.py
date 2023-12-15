@@ -321,7 +321,7 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(1))
         c[ds.key(2)] = ds.value(3)
         self.session.commit_transaction()
-        
+
         # Insert key1 at timestamp 10 and key2 at 15. Then update both keys in one transaction at
         # timestamp 13, and we should get a complaint about usage.
         key1 = ds.key(3)
@@ -377,9 +377,6 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
 
     # Smoke test setting the timestamp at various points in the transaction.
     def test_timestamp_ts_order(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
@@ -445,9 +442,6 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
 
     # Smoke test that logged files don't complain about timestamps.
     def test_log_ts(self):
-        if wiredtiger.diagnostic_build():
-            self.skipTest('requires a non-diagnostic build')
-
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
             self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)

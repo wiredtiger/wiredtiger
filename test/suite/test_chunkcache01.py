@@ -26,9 +26,38 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sys, wiredtiger, wttest
+import os, sys, time, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+
+def get_stat(session, stat):
+    stat_cursor = session.open_cursor('statistics:')
+    val = stat_cursor[stat][2]
+    stat_cursor.close()
+
+    return val
+
+# Read a stat either 10,000 times (or for 10 seconds), whichever is greater,
+# unless the condition is met. Raises an exception since it doesn't have
+# access to assertGreater and friends.
+def stat_cond_timeout(session, stat, cond):
+    start = time.time()
+    val = get_stat(session, stat)
+    elapsed = 0
+    iterations = 0
+    while (not cond(val)) and (elapsed < 10 or iterations < 10000):
+        val = get_stat(session, stat)
+        elapsed = time.time() - start
+        iterations += 1
+
+    if not cond(val):
+        raise Exception("stat {} ({}) failed check".format(stat, val))
+
+def stat_assert_equal(session, stat, expected):
+    stat_cond_timeout(session, stat, lambda x: x == expected)
+
+def stat_assert_greater(session, stat, expected):
+    stat_cond_timeout(session, stat, lambda x: x > expected)
 
 # Basic functional chunk cache test - put some data in, make sure it
 # comes back out unscathed.
@@ -47,12 +76,6 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
 
     scenarios = make_scenarios(format_values, cache_types)
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def conn_config(self):
         if not os.path.exists('bucket1'):
@@ -74,10 +97,10 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         self.session.checkpoint('flush_tier=(enabled)')
         ds.check()
 
-        # Assert the new chunks are ingested. 
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables), 0)
+        # Assert the new chunks are ingested.
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_chunks_loaded_from_flushed_tables, 0)
 
         self.close_conn()
         self.reopen_conn()
         ds.check()
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.chunkcache_bytes_inuse), 0)
+        stat_assert_greater(self.session, wiredtiger.stat.conn.chunkcache_bytes_inuse, 0)

@@ -230,20 +230,6 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 }
 
 /*
- * __txn_swap_snapshot --
- *     Swap the snapshot pointers.
- */
-static inline void
-__txn_swap_snapshot(uint64_t **snap_a, uint64_t **snap_b)
-{
-    uint64_t *temp;
-
-    temp = *snap_a;
-    *snap_a = *snap_b;
-    *snap_b = temp;
-}
-
-/*
  * __wt_txn_unmodify --
  *     If threads race making updates, they may discard the last referenced WT_UPDATE item while the
  *     transaction is still active. This function removes the last update item from the "log".
@@ -652,9 +638,8 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
      * opens.
      */
     if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
-        return (
-          __wt_txn_visible_id_snapshot(id, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
-            txn->snapshot_data.snapshot, txn->snapshot_data.snapshot_count));
+        return (__wt_txn_visible_id_snapshot(
+          id, txn->snap_min, txn->snap_max, txn->snapshot, txn->snapshot_count));
     oldest_id = __wt_txn_oldest_id(session);
 
     return (WT_TXNID_LT(id, oldest_id));
@@ -856,8 +841,8 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
     /* Otherwise, we should be called with a snapshot. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
 
-    return (__wt_txn_visible_id_snapshot(id, txn->snapshot_data.snap_min,
-      txn->snapshot_data.snap_max, txn->snapshot_data.snapshot, txn->snapshot_data.snapshot_count));
+    return (__wt_txn_visible_id_snapshot(
+      id, txn->snap_min, txn->snap_max, txn->snapshot, txn->snapshot_count));
 }
 
 /*
@@ -904,7 +889,7 @@ __wt_txn_snap_min_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
     /* Transaction snapshot minimum check. */
-    if (!WT_TXNID_LT(id, session->txn->snapshot_data.snap_min))
+    if (!WT_TXNID_LT(id, session->txn->snap_min))
         return (false);
 
     /* Transactions read their writes, regardless of timestamps. */
@@ -1554,11 +1539,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_modify_block --
+ * __txn_modify_block --
  *     Check if the current transaction can modify an item.
  */
 static inline int
-__wt_txn_modify_block(
+__txn_modify_block(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
 {
     WT_DECL_ITEM(buf);
@@ -1625,16 +1610,13 @@ __wt_txn_modify_block(
             WT_ERR(__wt_scr_alloc(session, 1024, &buf));
             WT_ERR(__wt_buf_fmt(session, buf,
               "snapshot_min=%" PRIu64 ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
-              txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
-              txn->snapshot_data.snapshot_count));
-            if (txn->snapshot_data.snapshot_count > 0) {
+              txn->snap_min, txn->snap_max, txn->snapshot_count));
+            if (txn->snapshot_count > 0) {
                 WT_ERR(__wt_buf_catfmt(session, buf, ", snapshots=["));
-                for (snap_count = 0; snap_count < txn->snapshot_data.snapshot_count - 1;
-                     ++snap_count)
-                    WT_ERR(__wt_buf_catfmt(
-                      session, buf, "%" PRIu64 ",", txn->snapshot_data.snapshot[snap_count]));
-                WT_ERR(__wt_buf_catfmt(
-                  session, buf, "%" PRIu64 "]", txn->snapshot_data.snapshot[snap_count]));
+                for (snap_count = 0; snap_count < txn->snapshot_count - 1; ++snap_count)
+                    WT_ERR(
+                      __wt_buf_catfmt(session, buf, "%" PRIu64 ",", txn->snapshot[snap_count]));
+                WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "]", txn->snapshot[snap_count]));
             }
             __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
         }
@@ -1649,12 +1631,8 @@ __wt_txn_modify_block(
      */
     if (!rollback && prev_tsp != NULL) {
         if (upd != NULL) {
-            /*
-             * The durable timestamp must be greater than or equal to the commit timestamp unless it
-             * is an in-progress prepared update.
-             */
-            WT_ASSERT(session,
-              upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
+            /* The durable timestamp must be greater than or equal to the commit timestamp. */
+            WT_ASSERT(session, upd->durable_ts >= upd->start_ts);
             *prev_tsp = upd->durable_ts;
         } else if (tw_found)
             *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;
@@ -1686,7 +1664,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      * operating on the metadata table.
      */
     if (txn->isolation == WT_ISO_SNAPSHOT && !WT_IS_METADATA(cbt->dhandle))
-        WT_RET(__wt_txn_modify_block(session, cbt, upd, prev_tsp));
+        WT_RET(__txn_modify_block(session, cbt, upd, prev_tsp));
 
     /*
      * Prepending a tombstone to another tombstone indicates remove of a non-existent key and that

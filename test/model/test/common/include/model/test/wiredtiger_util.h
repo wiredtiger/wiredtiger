@@ -62,6 +62,13 @@ int wt_remove(WT_SESSION *session, const char *uri, const model::data_value &key
   model::timestamp_t timestamp = 0);
 
 /*
+ * wt_truncate --
+ *     Truncate a key range in WiredTiger.
+ */
+int wt_truncate(WT_SESSION *session, const char *uri, const model::data_value &start,
+  const model::data_value &stop, model::timestamp_t timestamp = 0);
+
+/*
  * wt_update --
  *     Update a key in WiredTiger.
  */
@@ -79,7 +86,8 @@ void wt_txn_begin(
  * wt_txn_commit --
  *     Commit a transaction.
  */
-void wt_txn_commit(WT_SESSION *session, model::timestamp_t commit_timestamp,
+void wt_txn_commit(WT_SESSION *session,
+  model::timestamp_t commit_timestamp = model::k_timestamp_none,
   model::timestamp_t durable_timestamp = model::k_timestamp_none);
 
 /*
@@ -120,6 +128,48 @@ int wt_txn_insert(WT_SESSION *session, const char *uri, const model::data_value 
   const model::data_value &value, bool overwrite = true);
 
 /*
+ * wt_ckpt_get --
+ *     Read from WiredTiger.
+ */
+model::data_value wt_ckpt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
+  const char *ckpt_name = nullptr,
+  model::timestamp_t debug_read_timestamp = model::k_timestamp_none);
+
+/*
+ * wt_ckpt_create --
+ *     Create a WiredTiger checkpoint.
+ */
+void wt_ckpt_create(WT_SESSION *session, const char *ckpt_name = nullptr);
+
+/*
+ * wt_get_stable_timestamp --
+ *     Get the stable timestamp in WiredTiger.
+ */
+model::timestamp_t wt_get_stable_timestamp(WT_CONNECTION *conn);
+
+/*
+ * wt_set_stable_timestamp --
+ *     Set the stable timestamp in WiredTiger.
+ */
+void wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp);
+
+/*
+ * wt_print_debug_log --
+ *     Print the contents of a debug log to a file.
+ */
+void wt_print_debug_log(WT_CONNECTION *conn, const char *file);
+
+/*
+ * wt_rollback_to_stable --
+ *     Rollback to stable.
+ */
+inline void
+wt_rollback_to_stable(WT_CONNECTION *conn)
+{
+    testutil_check(conn->rollback_to_stable(conn, nullptr));
+}
+
+/*
  * wt_model_assert --
  *     Check that the key has the same value in the model as in the database.
  */
@@ -148,6 +198,14 @@ int wt_txn_insert(WT_SESSION *session, const char *uri, const model::data_value 
 #define wt_model_remove_both(table, uri, key, ...) \
     testutil_assert(                               \
       table->remove(key, ##__VA_ARGS__) == wt_remove(session, uri, key, ##__VA_ARGS__));
+
+/*
+ * wt_model_truncate_both --
+ *     Truncate in both from the model and from the database.
+ */
+#define wt_model_truncate_both(table, uri, start, ...) \
+    testutil_assert(                                   \
+      table->truncate(start, ##__VA_ARGS__) == wt_truncate(session, uri, start, ##__VA_ARGS__));
 
 /*
  * wt_model_update_both --
@@ -232,5 +290,43 @@ int wt_txn_insert(WT_SESSION *session, const char *uri, const model::data_value 
 #define wt_model_txn_insert_both(table, uri, txn, session, key, value, ...) \
     testutil_assert(table->insert(txn, key, value, ##__VA_ARGS__) ==        \
       wt_txn_insert(session, uri, key, value, ##__VA_ARGS__));
+
+/*
+ * wt_model_ckpt_assert --
+ *     Check that the key has the same value in the model as in the database.
+ */
+#define wt_model_ckpt_assert(table, uri, ckpt_name, key, ...)                         \
+    testutil_assert(table->get(database.checkpoint(ckpt_name), key, ##__VA_ARGS__) == \
+      wt_ckpt_get(session, uri, key, ckpt_name, ##__VA_ARGS__));
+
+/*
+ * wt_model_ckpt_create_both --
+ *     Create a checkpoint in both the model and the database.
+ */
+#define wt_model_ckpt_create_both(...)           \
+    {                                            \
+        wt_ckpt_create(session, ##__VA_ARGS__);  \
+        database.create_checkpoint(__VA_ARGS__); \
+    }
+
+/*
+ * wt_model_set_stable_timestamp_both --
+ *     Set the stable timestamp in both the model and the database.
+ */
+#define wt_model_set_stable_timestamp_both(timestamp) \
+    {                                                 \
+        wt_set_stable_timestamp(conn, timestamp);     \
+        database.set_stable_timestamp(timestamp);     \
+    }
+
+/*
+ * wt_model_rollback_to_stable_both --
+ *     Rollback to stable in both the model and the database.
+ */
+#define wt_model_rollback_to_stable_both() \
+    {                                      \
+        wt_rollback_to_stable(conn);       \
+        database.rollback_to_stable();     \
+    }
 
 #endif
