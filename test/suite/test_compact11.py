@@ -31,8 +31,8 @@ from wiredtiger import stat
 from wtbackup import backup_base
 
 # test_compact11.py
-# Verify background compaction and incremental backup behaviour. The block modifications bits in an
-# incremental backup should never be cleared.
+# Verify background compaction and backup behaviour. The block modifications bits in an
+# backup should never be cleared when background compact is working on tables.
 class test_compact11(backup_base):
     backup_incr = "BACKUP_INCR"
     backup_full = "BACKUP_FULL"
@@ -132,6 +132,10 @@ class test_compact11(backup_base):
         # Write to disk.
         self.session.checkpoint()
 
+        # Take a full backup, this one will remain untouched.
+        os.mkdir(self.backup_full)
+        self.take_full_backup(self.backup_full)
+
         # Take a full backup that will be used for incremental backups later during the test.
         os.mkdir(self.backup_incr)
         self.initial_backup = True
@@ -173,10 +177,6 @@ class test_compact11(backup_base):
         for index, uri in enumerate(files):
             new_bitmap = self.parse_blkmods(uri)
             self.compare_bitmap(bitmaps[index], new_bitmap)
-
-        # Take a second full backup.
-        os.mkdir(self.backup_full)
-        self.take_full_backup(self.backup_full)
 
         # Compare the backups.
         for uri in uris:
