@@ -382,13 +382,8 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
                 if (offset > prev_offset) {
                     /* Compare the unchanged chunk. */
                     cmp_size = offset - prev_offset;
-                    testutil_snprintf(buf, sizeof(buf),
-                      "cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, cmp_size, home,
+                    testutil_system("cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, cmp_size, home,
                       filename, backup, filename, prev_offset, prev_offset);
-                    status = system(buf);
-                    if (status != 0)
-                        fprintf(stderr, "FAIL: status %d ID %s from cmd: %s\n", status, id[j], buf);
-                    testutil_assert(status == 0);
                 }
                 prev_offset = offset + size;
             }
@@ -716,7 +711,7 @@ is_mounted(const char *mount_dir)
 }
 
 /*
- * testutil_system --
+ * testutil_system_internal --
  *     A convenience function that combines snprintf, system, and testutil_check.
  */
 void

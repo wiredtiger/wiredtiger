@@ -481,11 +481,7 @@ run(int r)
 
     process();
 
-    testutil_snprintf(buf, sizeof(buf), "cmp %s %s > /dev/null", DUMP, RSLT);
-    if (system(buf)) {
-        fprintf(stderr, "check failed, salvage results were incorrect\n");
-        exit(EXIT_FAILURE);
-    }
+    testutil_system("cmp %s %s > /dev/null", DUMP, RSLT);
 
     testutil_remove(HOME);
 }
