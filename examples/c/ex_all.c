@@ -1041,12 +1041,12 @@ connection_ops(WT_CONNECTION *conn)
     /*! [Reconfigure a connection] */
 
     /*! [Get the database home directory] */
-    printf("The database home is %s\n", conn->get_home(conn));
+    printf("The database home is: %s\n", conn->get_home(conn));
     /*! [Get the database home directory] */
 
-    /*! [Get the configure string] */
-    printf("The configure is %s\n", conn->get_configure(conn));
-    /*! [Get the configure string] */
+    /*! [Get the configuration string] */ 
+    printf("The configure is: %s\n", conn->get_configuration(conn));
+    /*! [Get the configuration string] */ 
 
     /*! [Check if the database is newly created] */
     if (conn->is_new(conn)) {

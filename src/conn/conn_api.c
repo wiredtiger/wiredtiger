@@ -1325,6 +1325,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
+    
     CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
     ret = __wt_conn_reconfig(session, cfg);
 err:
@@ -1333,10 +1334,10 @@ err:
 
 /*
  * __conn_get_home --
- *     WT_CONNECTION.get_configure method.
+ *     WT_CONNECTION.get_configuration method.
  */
 static const char *
-__conn_get_configure(WT_CONNECTION *wt_conn)
+__conn_get_configuration(WT_CONNECTION *wt_conn)
 {
     return (((WT_CONNECTION_IMPL *)wt_conn)->cfg);
 }
@@ -2759,7 +2760,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
   WT_CONNECTION **connectionp)
 {
     static const WT_CONNECTION stdc = {__conn_close, __conn_debug_info, __conn_reconfigure,
-      __conn_get_configure, __conn_get_home, __conn_configure_method, __conn_is_new,
+      __conn_get_configuration, __conn_get_home, __conn_configure_method, __conn_is_new,
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
