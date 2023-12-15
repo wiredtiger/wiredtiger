@@ -168,8 +168,6 @@ usage(void)
 void
 run(int r)
 {
-    char buf[128];
-
     printf("\t%s: run %d\n", __wt_page_type_string(page_type), r);
 
     testutil_recreate_dir(HOME);

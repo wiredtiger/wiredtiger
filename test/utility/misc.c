@@ -315,7 +315,7 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t cmp_size, offset, prev_offset, size, type;
-    int i, j, status;
+    int i, j;
     char buf[1024], *filename, *id[WT_BLKINCR_MAX];
     const char *idstr;
 
@@ -382,8 +382,8 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
                 if (offset > prev_offset) {
                     /* Compare the unchanged chunk. */
                     cmp_size = offset - prev_offset;
-                    testutil_system("cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, cmp_size, home,
-                      filename, backup, filename, prev_offset, prev_offset);
+                    testutil_system("cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, cmp_size,
+                      home, filename, backup, filename, prev_offset, prev_offset);
                 }
                 prev_offset = offset + size;
             }
