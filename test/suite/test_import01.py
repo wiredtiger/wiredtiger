@@ -103,7 +103,7 @@ class test_import_base(wttest.WiredTigerTestCase):
         # If curr not empty append to subconfigs.
         if curr_subconfig:
             subconfigs.append(''.join(curr_subconfig))
-  
+
         sliced_subconfigs = [con for con in subconfigs if not con.startswith("id=") and not con.startswith("checkpoint")]
 
         return sliced_subconfigs
