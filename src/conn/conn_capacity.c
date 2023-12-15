@@ -36,6 +36,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     cap = &conn->capacity;
 
+    chunkcache = total = 0;
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
     if (cval.val != 0 && cval.val < WT_THROTTLE_MIN)
         WT_RET_MSG(session, EINVAL, "total I/O capacity value %" PRId64 " below minimum %d",
@@ -43,25 +44,16 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     cap->total = total = (uint64_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_background_period_sec", &cval));
-    if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUND_PERIOD_SEC)
+    if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUND_MAX_PERIOD_SEC)
         WT_RET_MSG(session, EINVAL,
-          "fsync_background_period_sec I/O capacity value %" PRId64 " exceed maxmum %d", cval.val,
-          WT_FSYNC_BACKGROUND_PERIOD_SEC);
+          "fsync_background_period_sec I/O capacity value %" PRId64 " exceed maximum %d", cval.val,
+          WT_FSYNC_BACKGROUND_MAX_PERIOD_SEC);
     cap->fsync_background_period = (uint64_t)cval.val;
 
     if (cap->total == 0 && cap->fsync_background_period != 0) {
         WT_RET_MSG(session, EINVAL,
           "io_capacity.fsync_background_period_sec is valid only when io_capacity.total is greater "
           "than 0");
-    }
-
-    chunkcache = total = 0;
-    WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
-    if (cval.val != 0) {
-        if (cval.val < WT_THROTTLE_MIN)
-            WT_RET_MSG(session, EINVAL, "total I/O capacity value %" PRId64 " below minimum %d",
-              cval.val, WT_THROTTLE_MIN);
-        total = (uint64_t)cval.val;
     }
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.chunk_cache", &cval));
@@ -134,8 +126,7 @@ __capacity_server(void *arg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t last_time;
-    uint64_t start, stop, now;
+    uint64_t last_time, now, start, stop;
 
     session = arg;
     conn = S2C(session);

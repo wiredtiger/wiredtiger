@@ -14,7 +14,7 @@ typedef enum {
     WT_THROTTLE_READ        /* Read throttle */
 } WT_THROTTLE_TYPE;
 
-#define WT_FSYNC_BACKGROUND_PERIOD_SEC 60 /* Config max fsync background period time(sec) */
+#define WT_FSYNC_BACKGROUND_MAX_PERIOD_SEC 60 /* Config max fsync background period time(sec) */
 
 #define WT_THROTTLE_MIN WT_MEGABYTE /* Config minimum size */
 
@@ -55,7 +55,7 @@ struct __wt_capacity {
     uint64_t total;      /* Bytes/sec total capacity */
     uint64_t threshold;  /* Capacity size period */
 
-    uint64_t fsync_background_period; /* when exceed the period time(sec), force to fsync */
+    uint64_t fsync_background_period; /* Maximum period between fsync calls */
 
     wt_shared volatile uint64_t written; /* Written this period */
     wt_shared volatile bool signalled;   /* Capacity signalled */
