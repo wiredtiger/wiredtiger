@@ -656,7 +656,6 @@ main(int argc, char *argv[])
     bool preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
-    memset(&lazyfs, 0, sizeof(lazyfs));
 
     compaction = compat = inmem = false;
     use_lazyfs = lazyfs_is_implicitly_enabled();

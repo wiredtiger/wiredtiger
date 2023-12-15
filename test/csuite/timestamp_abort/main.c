@@ -1539,8 +1539,6 @@ main(int argc, char *argv[])
     __wt_stream_set_line_buffer(stderr);
     __wt_stream_set_line_buffer(stdout);
 
-    memset(&lazyfs, 0, sizeof(lazyfs));
-
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 

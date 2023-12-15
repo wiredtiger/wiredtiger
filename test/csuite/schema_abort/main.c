@@ -1079,8 +1079,6 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
-    memset(&lazyfs, 0, sizeof(lazyfs));
-
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 
