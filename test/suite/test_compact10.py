@@ -26,15 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wttest
+import os, shutil, time, wttest
 from wiredtiger import stat
 from wtbackup import backup_base
 
 # test_compact10.py
 # Verify compaction does not alter data by comparing backups before/after compaction.
 class test_compact10(backup_base):
-    backup_full = "BACKUP_1"
-    backup_incr = "BACKUP_2"
+    backup_full = "BACKUP_FULL"
+    backup_incr = "BACKUP_INCR"
     conn_config = 'cache_size=100MB,statistics=(all)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
     uri_prefix = 'table:test_compact10'
@@ -156,7 +156,7 @@ class test_compact10(backup_base):
     # comparison and another one as a base for incremental backups.
     # - Performs incremental backups as compaction is rewriting the files until all files have been
     # compacted.
-    # - Compares the two backups.
+    # - Compares all performed incremental backups with the original full backup.
     def test_compact10_incr_backup(self):
 
         # FIXME-WT-11399
@@ -166,14 +166,15 @@ class test_compact10(backup_base):
         uris = self.generate_data()
 
         # Take two full backups:
-
         # - The first one will remain untouched.
-        self.setup_directories(self.backup_incr, self.backup_full)
+        os.makedirs(self.backup_full)
         self.take_full_backup(self.backup_full)
 
         # - The second one is used for the incremental backups.
         self.initial_backup = True
+        os.makedirs(self.backup_incr)
         self.take_full_backup(self.backup_incr)
+        shutil.copytree(self.backup_incr, self.home_tmp)
         self.initial_backup = False
 
         # Enable background compaction.
@@ -182,26 +183,20 @@ class test_compact10(backup_base):
 
         # Every time compaction makes progress, perform an incremental backup.
         bytes_recovered = 0
-        files_compacted = 0
-        while self.get_files_compacted(uris) + files_compacted < self.num_tables:
+        while self.get_files_compacted(uris) < self.num_tables:
             new_bytes_recovered = self.get_bytes_recovered()
             if new_bytes_recovered != bytes_recovered:
                 # Update the incremental backup ID from the parent class.
                 self.bkup_id += 1
-
-                self.take_incr_backup(self.backup_incr)
-                self.take_full_backup(self.backup_full)
-
-                # Compare backups function does a connection reopen, which will reset WiredTiger
-                # statistics and background compaction. Keep record of how many files we have
-                # compacted up until this point and turn back on compaction.
-                files_compacted += self.get_files_compacted(uris)
-                for uri in uris:
-                    self.compare_backups(uri, self.backup_incr, self.backup_full)
-                self.setup_directories(self.backup_incr, self.backup_full)
-                self.turn_on_bg_compact(compact_config)
+                shutil.copytree(self.home_tmp, self.backup_incr + str(self.bkup_id))
+                self.take_incr_backup(self.backup_incr + str(self.bkup_id))
                 bytes_recovered = new_bytes_recovered
 
+        # Compare all the incremental backups against the starting full backup. The idea is that
+        # compact should not have changed the contents of the table.
+        for i in range(1, self.bkup_id + 1):
+            for uri in uris:
+                self.compare_backups(uri, self.backup_incr + str(i), self.backup_full)
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
         self.ignoreStdoutPatternIfExists('background compact interrupted by application')
