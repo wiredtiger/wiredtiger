@@ -168,13 +168,13 @@ class test_compact10(backup_base):
 
         # Take two full backups:
         # - The first one will remain untouched.
-        os.makedirs(backup_full)
+        os.mkdir(backup_full)
         self.take_full_backup(backup_full)
 
         # - The second one is used for the incremental backups and use a temporary backup
         # directory to perform multiple incremental backups on different directories.
         self.initial_backup = True
-        os.makedirs(backup_incr)
+        os.mkdir(backup_incr)
         self.take_full_backup(backup_incr)
         shutil.copytree(backup_incr, self.home_tmp)
         self.initial_backup = False
