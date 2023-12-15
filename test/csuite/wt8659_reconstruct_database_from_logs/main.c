@@ -72,7 +72,7 @@ dump_table(const char *home, const char *table, const char *out_file)
 }
 
 /*
- * reset_dir --
+ * reset_dir --a
  *     Recreate the directory.
  */
 static void

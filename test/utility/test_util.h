@@ -227,6 +227,17 @@ typedef struct {
     } while (0)
 
 /*
+ * testutil_check --
+ *     Complain and quit if a function call fails.
+ */
+#define testutil_check_line(line, call)                                       \
+    do {                                                                      \
+        int __r;                                                              \
+        if ((__r = (call)) != 0)                                              \
+            testutil_die(__r, "%s/%d: %s", __PRETTY_FUNCTION__, line, #call); \
+    } while (0)
+
+/*
  * testutil_check_error_ok --
  *     Complain and quit if a function call fails, with specified error ok.
  */
@@ -329,6 +340,16 @@ typedef struct {
         while ((__ret = session->drop(session, uri, config)) == EBUSY) \
             testutil_check(session->checkpoint(session, NULL));        \
         testutil_check(__ret);                                         \
+    } while (0)
+
+/*
+ * testutil_system --
+ *     blah
+ */
+#define testutil_system(fmt, ...)                             \
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))             \
+    do {                                                      \
+        testutil_system_internal(__LINE__, fmt, __VA_ARGS__); \
     } while (0)
 
 /*
@@ -553,7 +574,8 @@ void testutil_sentinel(const char *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
+void testutil_system_internal(uint32_t line, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
