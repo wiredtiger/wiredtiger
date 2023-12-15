@@ -282,8 +282,7 @@
  */
 #define WT_PREFETCH_ASSERT(session, exp, stat) \
     do {                                       \
-        if (!(exp)) {                          \
+        if (!(exp))                            \
             WT_STAT_CONN_INCR(session, stat);  \
-        }                                      \
         WT_ASSERT(session, exp);               \
     } while (0)

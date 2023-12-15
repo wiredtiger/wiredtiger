@@ -52,9 +52,8 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
             if (ret == 0)
                 ++block_preload;
-            else if (ret != EBUSY) {
+            else if (ret != EBUSY)
                 WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
-            }
         }
     }
     WT_INTL_FOREACH_END;
