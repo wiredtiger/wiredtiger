@@ -117,8 +117,8 @@ class test_import_base(wttest.WiredTigerTestCase):
         # If curr not empty append to subconfigs.
         if curr_subconfig:
             subconfigs.append(''.join(curr_subconfig))
-    
-        sliced_subconfigs = [con for con in subconfigs if not con.startswith("id=") and "checkpoint" not in con]
+  
+        sliced_subconfigs = [con for con in subconfigs if not con.startswith("id=") and not con.startswith("checkpoint")]
         # final_subconfigs = ','.join(map(str, sliced_subconfigs))
         # return final_subconfigs
 
@@ -206,7 +206,7 @@ class test_import01(test_import_base):
 
         # Import the file.
         self.session.create(self.uri, import_config)
-        self.session.checkpoint("name=1")
+        self.session.checkpoint("name=abc")
 
         # Verify object.
         self.verifyUntilSuccess(self.session, self.uri, None)
@@ -229,8 +229,6 @@ class test_import01(test_import_base):
 
         # Perform a checkpoint.
         self.session.checkpoint()
-        self.session.checkpoint("name=abc1")
-
 
     def test_file_import_dropped_file(self):
         self.session.create(self.uri, self.create_config)
