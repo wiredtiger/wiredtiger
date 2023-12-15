@@ -95,6 +95,5 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
         return (WT_ERROR);
 
 err:
-    WT_TRET(__wt_page_release(session, pe->ref, 0));
     return (ret);
 }
