@@ -785,11 +785,11 @@ __evict_pass(WT_SESSION_IMPL *session)
          */
         if (eviction_progress == cache->eviction_progress) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
-                if (cache->evict_aggressive_score < 100)
+                if (cache->evict_aggressive_score < WT_EVICT_SCORE_MAX)
                     ++cache->evict_aggressive_score;
                 oldest_id = txn_global->oldest_id;
                 if (prev_oldest_id == oldest_id && txn_global->current != oldest_id &&
-                  cache->evict_aggressive_score < 100)
+                  cache->evict_aggressive_score < WT_EVICT_SCORE_MAX)
                     ++cache->evict_aggressive_score;
                 time_prev = time_now;
                 prev_oldest_id = oldest_id;
@@ -799,7 +799,7 @@ __evict_pass(WT_SESSION_IMPL *session)
              * Keep trying for long enough that we should be able to evict a page if the server
              * isn't interfering.
              */
-            if (loop < 100 || cache->evict_aggressive_score < 100) {
+            if (loop < 100 || cache->evict_aggressive_score < WT_EVICT_SCORE_MAX) {
                 /*
                  * Back off if we aren't making progress: walks hold the handle list lock, blocking
                  * other operations that can free space in cache, such as LSM discarding handles.
