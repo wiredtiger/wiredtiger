@@ -371,10 +371,12 @@ __compact_worker(WT_SESSION_IMPL *session)
         for (i = 0; i < session->op_handle_next; ++i)
             WT_WITH_DHANDLE(session, session->op_handle[i], __wt_tree_modify_set(session));
         WT_ERR(__compact_checkpoint(session));
+        WT_STAT_CONN_SET(session, session_table_compact_passes, loop);
     }
 
 err:
     session->compact_state = WT_COMPACT_NONE;
+    WT_STAT_CONN_SET(session, session_table_compact_passes, 0);
 
     return (ret);
 }
