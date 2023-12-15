@@ -2490,7 +2490,7 @@ struct __wt_connection {
      * @snippet ex_all.c Get the configuration string
      *
      * @param connection the connection handle
-     * @returns a pointer to a string naming the configure string
+     * @returns a pointer to a string naming the configuration string
      */
     const char * __F(get_configuration)(WT_CONNECTION *connection);
 
