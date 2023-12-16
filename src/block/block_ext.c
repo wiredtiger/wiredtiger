@@ -425,19 +425,19 @@ __wt_block_off_remove_overlap(
         b_size = ext->size - (a_size + size);
 
         if (a_size > 0 && b_size > 0) {
-            __wt_verbose_debug2(session, WT_VERB_BLOCK,
+            __wt_verbose(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX
               " and %" PRIdMAX "-%" PRIdMAX,
               el->name, (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
               (intmax_t)(a_off), (intmax_t)(a_off + a_size), (intmax_t)(b_off),
               (intmax_t)(b_off + b_size));
         } else if (a_size > 0) {
-            __wt_verbose_debug2(session, WT_VERB_BLOCK,
+            __wt_verbose(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
               (intmax_t)(a_off), (intmax_t)(a_off + a_size));
         } else if (b_size > 0) {
-            __wt_verbose_debug2(session, WT_VERB_BLOCK,
+            __wt_verbose(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
               (intmax_t)(b_off), (intmax_t)(b_off + b_size));
@@ -460,7 +460,7 @@ __wt_block_off_remove_overlap(
         b_size = ext->size - (b_off - ext->off);
 
         if (b_size > 0)
-            __wt_verbose_debug2(session, WT_VERB_BLOCK,
+            __wt_verbose(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)after->off, (intmax_t)after->off + (intmax_t)after->size, (intmax_t)(b_off),
               (intmax_t)(b_off + b_size));
@@ -522,8 +522,8 @@ __block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off
     block->size += size;
 
     WT_STAT_DATA_INCR(session, block_extension);
-    __wt_verbose_debug2(session, WT_VERB_BLOCK, "file extend %" PRIdMAX "-%" PRIdMAX,
-      (intmax_t)*offp, (intmax_t)(*offp + size));
+    __wt_verbose(session, WT_VERB_BLOCK, "file extend %" PRIdMAX "-%" PRIdMAX, (intmax_t)*offp,
+      (intmax_t)(*offp + size));
 
     return (0);
 }
@@ -589,7 +589,7 @@ append:
 
     /* If doing a partial allocation, adjust the record and put it back. */
     if (ext->size > size) {
-        __wt_verbose_debug2(session, WT_VERB_BLOCK,
+        __wt_verbose(session, WT_VERB_BLOCK,
           "allocate %" PRIdMAX " from range %" PRIdMAX "-%" PRIdMAX ", range shrinks to %" PRIdMAX
           "-%" PRIdMAX,
           (intmax_t)size, (intmax_t)ext->off, (intmax_t)(ext->off + ext->size),
@@ -599,7 +599,7 @@ append:
         ext->size -= size;
         WT_RET(__block_ext_insert(session, &block->live.avail, ext));
     } else {
-        __wt_verbose_debug2(session, WT_VERB_BLOCK, "allocate range %" PRIdMAX "-%" PRIdMAX,
+        __wt_verbose(session, WT_VERB_BLOCK, "allocate range %" PRIdMAX "-%" PRIdMAX,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
 
         __wt_block_ext_free(session, ext);
@@ -639,8 +639,8 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     if (objectid != block->objectid)
         return (0);
 
-    __wt_verbose_debug2(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX,
-      objectid, (intmax_t)offset, (intmax_t)size);
+    __wt_verbose(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
+      (intmax_t)offset, (intmax_t)size);
 
 #ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_block_misplaced(
@@ -954,7 +954,7 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
      * way to determine if the checkpoint is live so we cannot assert the locking here.
      */
 
-    __wt_verbose_debug2(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
+    __wt_verbose(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
 
     /*
      * Sometimes the list we are merging is much bigger than the other: if so, swap the lists around
@@ -1084,8 +1084,8 @@ __block_merge(
             after = NULL;
     }
     if (before == NULL && after == NULL) {
-        __wt_verbose_debug2(session, WT_VERB_BLOCK, "%s: insert range %" PRIdMAX "-%" PRIdMAX,
-          el->name, (intmax_t)off, (intmax_t)(off + size));
+        __wt_verbose(session, WT_VERB_BLOCK, "%s: insert range %" PRIdMAX "-%" PRIdMAX, el->name,
+          (intmax_t)off, (intmax_t)(off + size));
 
         return (__block_off_insert(session, el, off, size));
     }
@@ -1099,7 +1099,7 @@ __block_merge(
     if (before == NULL) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
-        __wt_verbose_debug2(session, WT_VERB_BLOCK,
+        __wt_verbose(session, WT_VERB_BLOCK,
           "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)off,
           (intmax_t)(off + ext->size + size));
@@ -1113,7 +1113,7 @@ __block_merge(
         }
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
-        __wt_verbose_debug2(session, WT_VERB_BLOCK,
+        __wt_verbose(session, WT_VERB_BLOCK,
           "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)ext->off,
           (intmax_t)(ext->off + ext->size + size));
@@ -1313,7 +1313,7 @@ __wt_block_extlist_write(
     WT_TRET(
       __wt_block_off_remove_overlap(session, block, &block->live.alloc, el->offset, el->size));
 
-    __wt_verbose_debug2(session, WT_VERB_BLOCK, "%s written %" PRIdMAX "/%" PRIu32, el->name,
+    __wt_verbose(session, WT_VERB_BLOCK, "%s written %" PRIdMAX "/%" PRIu32, el->name,
       (intmax_t)el->offset, el->size);
 
 err:
@@ -1424,7 +1424,7 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
     if (block->verify_layout)
         level = WT_VERBOSE_NOTICE;
     else
-        level = WT_VERBOSE_DEBUG_2;
+        level = WT_VERBOSE_LEVEL_DEFAULT;
     __wt_verbose_level(session, WT_VERB_BLOCK, level,
       "%s extent list %s, %" PRIu32 " entries, %s bytes", tag, el->name, el->entries,
       __wt_buf_set_size(session, el->bytes, true, t1));
