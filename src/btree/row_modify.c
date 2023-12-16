@@ -241,8 +241,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
                 ins->next[i] = cbt->next_stack[i];
 
         /* Insert the WT_INSERT structure. */
-        WT_ERR(__wt_insert_serial(
-          session, page, cbt->ins_head, cbt->ins_stack, &ins, ins_size, skipdepth, exclusive));
+        WT_ERR(__wt_insert_serial(session, page, cbt, &ins, ins_size, skipdepth, exclusive));
     }
 
     inserted_to_update_chain = true;

@@ -257,6 +257,14 @@ struct __wt_insert;
 typedef struct __wt_insert WT_INSERT;
 struct __wt_insert_head;
 typedef struct __wt_insert_head WT_INSERT_HEAD;
+struct __wt_int_cursor;
+typedef struct __wt_int_cursor WT_INT_CURSOR;
+struct __wt_int_head;
+typedef struct __wt_int_head WT_INT_HEAD;
+struct __wt_int_node;
+typedef struct __wt_int_node WT_INT_NODE;
+struct __wt_int_skiplist;
+typedef struct __wt_int_skiplist WT_INT_SKIPLIST;
 struct __wt_join_stats;
 typedef struct __wt_join_stats WT_JOIN_STATS;
 struct __wt_join_stats_group;
@@ -532,6 +540,8 @@ typedef uint64_t wt_timestamp_t;
 #include "cell_inline.h"      /* required by btree_inline.h */
 #include "mutex_inline.h"     /* required by btree_inline.h */
 #include "txn_inline.h"       /* required by btree_inline.h */
+
+#include "skiplist.h" /* requires mutex_inline.h */
 
 #include "bitstring_inline.h"
 #include "block_inline.h"
