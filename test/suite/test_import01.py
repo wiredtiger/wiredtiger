@@ -85,7 +85,7 @@ class test_import_base(wttest.WiredTigerTestCase):
     # Remove information related to the ID and checkpoints from a config.
     def strip_subconfig(self, conf):
         subconfigs = []
-        curr_subconfig = []
+        curr_subconfig = ''
         depth = 0
 
         for char in conf:
@@ -95,19 +95,19 @@ class test_import_base(wttest.WiredTigerTestCase):
                 depth -= 1
            # If end of one subconfig, append it to subconfigs list.
             if char == ',' and depth == 0:
-                subconfigs.append(''.join(curr_subconfig))
-                curr_subconfig = []
+                subconfigs.append(curr_subconfig)
+                curr_subconfig = ''
             else:
                 # Append char to curr subconfig
-                curr_subconfig.append(char)
+                curr_subconfig += char
         # Append any subconfig left.
         if curr_subconfig:
-            subconfigs.append(''.join(curr_subconfig))
+            subconfigs.append(curr_subconfig)
 
         # The ID and checkpoint information can be different between configs, remove it.
-        sliced_subconfigs = [con for con in subconfigs if not con.startswith("id=") and not con.startswith("checkpoint")]
+        stripped_subconfigs = [con for con in subconfigs if not con.startswith("id=") and not con.startswith("checkpoint")]
 
-        return sliced_subconfigs
+        return stripped_subconfigs
 
     # Populate a database with N tables, each having M rows.
     def populate(self, ntables, nrows):
