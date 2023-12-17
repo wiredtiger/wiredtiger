@@ -715,7 +715,7 @@ is_mounted(const char *mount_dir)
  *     A convenience function that combines snprintf, system, and testutil_check.
  */
 void
-testutil_system_internal(uint32_t line, const char *fmt, ...)
+testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)))
 {
     WT_DECL_RET;
@@ -728,9 +728,13 @@ testutil_system_internal(uint32_t line, const char *fmt, ...)
     va_start(ap, fmt);
     ret = __wt_vsnprintf_len_incr(buf, sizeof(buf), &len, fmt, ap);
     va_end(ap);
-    testutil_check_line(line, ret);
+
+    if ((ret = (system(buf))) != 0)
+        testutil_die(ret, "%s/%d: system(%s)", function, line, buf);
+
     if (len >= sizeof(buf))
         testutil_die(ERANGE, "The command is too long.");
 
-    testutil_check_line(line, system(buf));
+    if ((ret = (system(buf))) != 0)
+        testutil_die(ret, "%s/%d: system(%s)", function, line, buf);
 }
