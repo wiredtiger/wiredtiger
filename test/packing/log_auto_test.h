@@ -6,6 +6,21 @@
 #include "log_auto_fmt.h"
 #include "log_auto_direct.h"
 
+#define testutil_assertfmt__(a, fmt, ...)                                                         \
+    do {                                                                                          \
+        if (!(a))                                                                                 \
+            testutil_die(0, "\n%s:%d:\n  %s:\n    " fmt, __FILE__, __LINE__, __PRETTY_FUNCTION__, \
+              __VA_ARGS__);                                                                       \
+    } while (0)
+
+#define assert_eq(a, b) testutil_assertfmt__((a) == (b), "%s != %s", #a, #b)
+#define assert_eq_uint16_t(a, b) \
+    testutil_assertfmt__((a) == (b), "%s != %s : (%u) != (%u)", #a, #b, (a), (b))
+#define assert_eq_uint32_t(a, b) \
+    testutil_assertfmt__((a) == (b), "%s != %s : (%lu) != (%lu)", #a, #b, (a), (b))
+#define assert_eq_uint64_t(a, b) \
+    testutil_assertfmt__((a) == (b), "%s != %s : (%llu) != (%llu)", #a, #b, (a), (b))
+
 __attribute__((__unused__)) static void
 test_cmp_one__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -43,7 +58,7 @@ test_cmp_one__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
 
     assert(fileid_fmt == fileid_direct);
     assert(recno_fmt == recno_direct);
-    assert(value_fmt.size == value_direct.size);
+    assert_eq_uint64_t(value_fmt.size, value_direct.size);
     assert(memcmp(value_fmt.data, value_direct.data, value_fmt.size) == 0);
 }
 
@@ -84,7 +99,7 @@ test_cmp_one__wt_logop_col_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
 
     assert(fileid_fmt == fileid_direct);
     assert(recno_fmt == recno_direct);
-    assert(value_fmt.size == value_direct.size);
+    assert_eq_uint64_t(value_fmt.size, value_direct.size);
     assert(memcmp(value_fmt.data, value_direct.data, value_fmt.size) == 0);
 }
 
@@ -197,10 +212,10 @@ test_cmp_one__wt_logop_row_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
              data_direct + logrec_direct->size, &fileid_direct, &key_direct, &value_direct) == 0);
 
     assert(fileid_fmt == fileid_direct);
-    assert(key_fmt.size == key_direct.size);
+    assert_eq_uint64_t(key_fmt.size, key_direct.size);
     assert(memcmp(key_fmt.data, key_direct.data, key_fmt.size) == 0);
 
-    assert(value_fmt.size == value_direct.size);
+    assert_eq_uint64_t(value_fmt.size, value_direct.size);
     assert(memcmp(value_fmt.data, value_direct.data, value_fmt.size) == 0);
 }
 
@@ -242,10 +257,10 @@ test_cmp_one__wt_logop_row_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
              data_direct + logrec_direct->size, &fileid_direct, &key_direct, &value_direct) == 0);
 
     assert(fileid_fmt == fileid_direct);
-    assert(key_fmt.size == key_direct.size);
+    assert_eq_uint64_t(key_fmt.size, key_direct.size);
     assert(memcmp(key_fmt.data, key_direct.data, key_fmt.size) == 0);
 
-    assert(value_fmt.size == value_direct.size);
+    assert_eq_uint64_t(value_fmt.size, value_direct.size);
     assert(memcmp(value_fmt.data, value_direct.data, value_fmt.size) == 0);
 }
 
@@ -281,7 +296,7 @@ test_cmp_one__wt_logop_row_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
              data_direct + logrec_direct->size, &fileid_direct, &key_direct) == 0);
 
     assert(fileid_fmt == fileid_direct);
-    assert(key_fmt.size == key_direct.size);
+    assert_eq_uint64_t(key_fmt.size, key_direct.size);
     assert(memcmp(key_fmt.data, key_direct.data, key_fmt.size) == 0);
 }
 
@@ -327,10 +342,10 @@ test_cmp_one__wt_logop_row_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fm
              &mode_direct) == 0);
 
     assert(fileid_fmt == fileid_direct);
-    assert(start_fmt.size == start_direct.size);
+    assert_eq_uint64_t(start_fmt.size, start_direct.size);
     assert(memcmp(start_fmt.data, start_direct.data, start_fmt.size) == 0);
 
-    assert(stop_fmt.size == stop_direct.size);
+    assert_eq_uint64_t(stop_fmt.size, stop_direct.size);
     assert(memcmp(stop_fmt.data, stop_direct.data, stop_fmt.size) == 0);
 
     assert(mode_fmt == mode_direct);
