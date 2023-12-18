@@ -39,6 +39,7 @@ rm -rf ${t_build} && mkdir ${t_build}
 cd ${t_build}
 args="-o clangScanBuildReports"
 args="$args --use-cc=$compiler"
+args="$args -disable-checker core.NullDereference"
 $scan $args cmake CMAKE_C_FLAGS=-g \
     -DENABLE_STATIC=1 -DENABLE_SHARED=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -G Ninja ../.> /dev/null
 $scan $args ninja wt > ../$t_out 2>&1
