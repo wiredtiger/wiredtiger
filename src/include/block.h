@@ -39,6 +39,9 @@
  *
  * One final complication: we only maintain the per-size skiplist for the avail
  * list, the alloc and discard extent lists are not searched based on size.
+ *
+ * If we add variables to this structure, note that these variables may be modified 
+ * in __wt_block_extlist_merge
  */
 
 /*
