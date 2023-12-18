@@ -47,7 +47,7 @@ class test_compact12(wttest.WiredTigerTestCase):
 
     table_numkv = 10 * 1000
     value_size = kilobyte # The value should be small enough so that we don't create overflow pages.
-    
+
     def get_size(self, uri):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
         size = stat_cursor[stat.dsrc.block_size][2]
@@ -69,7 +69,7 @@ class test_compact12(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             c[k] = ('%07d' % k) + '_' + 'aaaa' * ((self.value_size // 4) - 2)
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
-        
+
         for k in range(num_keys // 10 * 9, num_keys):
             self.session.begin_transaction()
             c[k] = ('%07d' % k) + '_' + 'bbbb' * ((self.value_size // 4) - 2)
@@ -115,7 +115,7 @@ class test_compact12(wttest.WiredTigerTestCase):
 
         # Check the size of the table.
         size_before_compact = self.get_size(uri)
-        
+
         self.session.compact(uri, 'free_space_target=1MB')
 
         # Ensure compact has moved the fast truncated pages at the end of the file.
@@ -123,7 +123,7 @@ class test_compact12(wttest.WiredTigerTestCase):
         size_after_compact = self.get_size(uri)
         space_recovered = size_before_compact - size_after_compact
         self.assertGreater(space_recovered, size_before_compact // 4)
-        
+
         # Ignore compact verbose messages used for debugging.
         self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
         self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')

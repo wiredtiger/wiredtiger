@@ -172,8 +172,7 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     /* Lock the WT_REF. */
     WT_REF_LOCK(session, ref, &previous_state);
 
-    /*
-     * Skip obsolete deleted pages (the on-disk blocks are already discarded) */
+    /* Skip obsolete deleted pages (the on-disk blocks are already discarded). */
     if (previous_state == WT_REF_DELETED && ref->page_del == NULL)
         *skipp = true;
 
