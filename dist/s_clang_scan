@@ -1,11 +1,9 @@
 #!/bin/bash
 
 t_out=__wt.$$.out
-t_err=__wt.$$.err
-a=__wt.$$.a
-b=__wt.$$.b
+t_out_filtered=__wt.$$.out_filtered
 t_build=__s_clang_scan_tmp_build
-trap 'rm -rf $a $b $t_out $t_err $t_build' 0 1 2 3 13 15
+trap 'rm -rf $a $b $t_out $t_build' 0 1 2 3 13 15
 
 # Find the top-level WiredTiger directory and move to there.
 top=`git rev-parse --show-toplevel` && cd $top || exit 1
@@ -17,11 +15,13 @@ echo "$0: running scan-build in $PWD"
 scan="$SCANBUILD"
 test -z "$scan" || compiler="${SCANCOMPILER:-clang}"
 
+# Toolchain binaries.
+toolchain_bin="/opt/mongodbtoolchain/v4/bin"
 if test -z "$scan" &&
-    test -x /usr/bin/clang &&
-    test -x /usr/bin/scan-build; then
-    compiler="/usr/bin/clang"
-    scan="/usr/bin/scan-build"
+    test -x $toolchain_bin/clang &&
+    test -x $toolchain_bin/scan-build; then
+    compiler="$toolchain_bin/clang"
+    scan="$toolchain_bin/scan-build"
 fi
 
 if test -z "$scan"; then
@@ -39,26 +39,21 @@ rm -rf ${t_build} && mkdir ${t_build}
 cd ${t_build}
 args="-o clangScanBuildReports"
 args="$args --use-cc=$compiler"
-args="$args -disable-checker core.NullDereference"
 $scan $args cmake CMAKE_C_FLAGS=-g \
-    -DENABLE_STATIC=1 -DENABLE_SHARED=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 ../.> /dev/null
-$scan $args make -j 8 wt 1>../$t_out 2>../$t_err
+    -DENABLE_STATIC=1 -DENABLE_SHARED=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -G Ninja ../.> /dev/null
+$scan $args ninja wt > ../$t_out 2>&1
 cd ..
-
-grep 'No bugs found' $t_out > /dev/null && exit 0
 
 # Compare the set of errors/warnings and exit success when they're expected.
 # clang_scan outputs errors/warnings with a leading file path followed by a
 # colon, followed by the string "error:" or "warning:".
-cat dist/s_clang_scan.diff |
-    egrep '^[a-z\./].*error: |^[a-z\./].*warning: ' | sed -e 's/:.*:.*://' | sort > $a
-cat $t_err |
-    egrep '^[a-z\./].*error: |^[a-z\./].*warning: ' | sed -e 's/:.*:.*://' | sort > $b
-diff $a $b > /dev/null && exit 0
+cat $t_out |
+    egrep '^[a-z\./].*error: |^[a-z\./].*warning: ' | sed -e 's/:.*:.*://' | sort > $t_out_filtered
+diff dist/s_clang_scan.diff $t_out_filtered > /dev/null && exit 0
 
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 echo 'scan-build output differs from expected:'
 echo '<<<<<<<<<< Expected >>>>>>>>>> Current'
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-diff dist/s_clang_scan.diff $t_err
+diff dist/s_clang_scan.diff $t_out_filtered
 exit 1
