@@ -147,8 +147,6 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          *
          * As updating timestamp might not be an atomic operation, we will manage using state.
          */
-        upd->prepare_state = WT_PREPARE_LOCKED;
-        WT_WRITE_BARRIER();
         upd->start_ts = txn->commit_timestamp;
         upd->durable_ts = txn->durable_timestamp;
         WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
@@ -699,7 +697,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
+    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
 
     /*
@@ -926,30 +924,27 @@ __wt_txn_visible(
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    uint8_t prepare_state, previous_state;
+    uint8_t prepare_state;
     bool upd_visible;
 
+    /* Entries in the history store are always visible. */
+    if ((WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
+            upd->type == WT_UPDATE_STANDARD))
+        return (WT_VISIBLE_TRUE);
+
     for (;; __wt_yield()) {
-        /* Prepare state change is in progress, yield and try again. */
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
-        if (prepare_state == WT_PREPARE_LOCKED)
-            continue;
-
-        /* Entries in the history store are always visible. */
-        if ((WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
-              upd->type == WT_UPDATE_STANDARD))
-            return (WT_VISIBLE_TRUE);
-
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts, upd->durable_ts);
 
         /*
          * The visibility check is only valid if the update does not change state. If the state does
          * change, recheck visibility.
          */
-        previous_state = prepare_state;
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
-        if (previous_state == prepare_state)
-            break;
+        if (prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_READ_BARRIER();
+            if (prepare_state == upd->prepare_state)
+                break;
+        }
 
         WT_STAT_CONN_INCR(session, prepared_transition_blocked_page);
     }
@@ -1102,8 +1097,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
             cbt->upd_value->tw.stop_txn = upd->txnid;
-            cbt->upd_value->tw.prepare =
-              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+            cbt->upd_value->tw.prepare = prepare_state == WT_PREPARE_INPROGRESS;
             continue;
         }
 
@@ -1116,9 +1110,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * Save the prepared update to help us detect if we race with prepared commit or rollback
          * irrespective of update visibility.
          */
-        if ((prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
-          prepare_updp != NULL && *prepare_updp == NULL &&
-          F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+        if (prepare_state == WT_PREPARE_INPROGRESS && prepare_updp != NULL && *prepare_updp == NULL
+          && F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
             *prepare_updp = upd;
 
         /*
@@ -1798,13 +1791,13 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
         upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+          upd->prepare_state == WT_PREPARE_INPROGRESS;
     } else {
         upd_value->tw.durable_start_ts = upd->durable_ts;
         upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
         upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+          upd->prepare_state == WT_PREPARE_INPROGRESS;
     }
     upd_value->type = upd->type;
 }
