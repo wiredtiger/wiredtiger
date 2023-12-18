@@ -121,7 +121,7 @@ init_key(WT_SESSION_IMPL *session, WT_ITEM *key, std::string key_str)
     WT_ASSERT(session, ret == 0);
     ret = __wt_buf_set(session, key, key_str.c_str(), key_str.size());
     WT_ASSERT(session, ret == 0);
-	WT_UNUSED(ret);
+    WT_UNUSED(ret);
 }
 
 /* Generate random keys. */
