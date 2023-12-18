@@ -154,6 +154,7 @@ FreeLibrary
 Fsync
 Fuerst
 GBR
+GC
 GCP
 GCP's
 GF
@@ -442,6 +443,7 @@ Wundef
 Wuninitialized
 Wunused
 XP
+XXXXXX
 Xorshift
 YCSB
 ZSTD
