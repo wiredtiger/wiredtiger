@@ -917,6 +917,7 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
     WT_EXT *ext;
     WT_EXTLIST tmp;
     u_int i;
+    bool swap = false;
 
     /*
      * We should hold the live lock here when running on the live checkpoint. But there is no easy
@@ -943,11 +944,20 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
             b->sz[i] = tmp.sz[i];
         }
 
-        *a = tmp;
+        WT_UNUSED(a->name);
+        WT_UNUSED(a->objectid);
+        WT_UNUSED(a->offset);
+        WT_UNUSED(a->checksum);
+        WT_UNUSED(a->size);
+
+        swap = true;
     }
 
     WT_EXT_FOREACH (ext, a->off)
         WT_RET(__block_merge(session, block, b, ext->off, ext->size));
+
+    if (swap == true)
+        *a = tmp;
 
     return (0);
 }
