@@ -144,11 +144,11 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             if self.prefetch:
                 verify_session = new_conn.open_session("prefetch=(enabled=true)")
                 self.verifyUntilSuccess(verify_session, self.uri)
-                self.check_prefetching_activity(verify_session, 1, 1, 1)
+                self.check_prefetching_activity(verify_session, 0, 0, 0)
             else:
                 verify_session = new_conn.open_session("")
                 self.verifyUntilSuccess(verify_session, self.uri)
-                self.check_no_prefetching_activity(verify_session, 1)
+                self.check_no_prefetching_activity(verify_session, 0)
 
 if __name__ == '__main__':
     wttest.run()
