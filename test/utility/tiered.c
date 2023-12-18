@@ -63,6 +63,7 @@ testutil_tiered_sleep(TEST_OPTS *opts, WT_SESSION *session, uint64_t seconds, bo
 {
     uint64_t now, wake_time;
     bool do_flush;
+    WT_ASSERT(session, do_flush_tier != NULL);
 
     now = testutil_time_us(session);
     wake_time = now + WT_MILLION * seconds;
@@ -72,6 +73,7 @@ testutil_tiered_sleep(TEST_OPTS *opts, WT_SESSION *session, uint64_t seconds, bo
         wake_time = opts->tiered_flush_next_us;
         do_flush = true;
     }
+    
     *do_flush_tier = false;
 
     while (now < wake_time && opts->running) {
