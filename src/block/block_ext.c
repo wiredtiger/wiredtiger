@@ -929,6 +929,9 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
      * Sometimes the list we are merging is much bigger than the other: if so, swap the lists around
      * to reduce the amount of work we need to do during the merge. The size lists have to match as
      * well, so this is only possible if both lists are tracking sizes, or neither are.
+     *
+     * Attention:
+     * We can no longer use the "a" variable inside and outside the function because it's value has changed
      */
     if (a->track_size == b->track_size && a->entries > b->entries) {
         tmp = *a;
@@ -943,6 +946,9 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
             b->sz[i] = tmp.sz[i];
         }
 
+        /*
+         * if other code logic needs to use these variables, we can easily locate here that we may need attention
+         */
         WT_UNUSED(a->name);
         WT_UNUSED(a->objectid);
         WT_UNUSED(a->offset);
