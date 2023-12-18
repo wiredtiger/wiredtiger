@@ -99,7 +99,7 @@ class test_import_base(wttest.WiredTigerTestCase):
                 subconfigs.append(curr_subconfig)
                 curr_subconfig = ''
             else:
-                # Append char to curr subconfig
+                # Append the character to the current subconfiguration.
                 curr_subconfig += char
 
         # Append any subconfig left.
