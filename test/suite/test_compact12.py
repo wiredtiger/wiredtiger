@@ -31,7 +31,7 @@ from wiredtiger import stat
 
 kilobyte = 1024
 
-# test_compact11.py
+# test_compact12.py
 # This test creates:
 #
 # - One table with the first 1/4 of keys deleted and obsolete and the last 10th of the keys
@@ -40,10 +40,10 @@ kilobyte = 1024
 # It checks that:
 #
 # - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
-class test_compact11(wttest.WiredTigerTestCase):
+class test_compact12(wttest.WiredTigerTestCase):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
     conn_config = 'cache_size=10MB,statistics=(all),verbose=[compact:4]'
-    uri_prefix = 'table:test_compact11'
+    uri_prefix = 'table:test_compact12'
 
     table_numkv = 10 * 1000
     value_size = kilobyte # The value should be small enough so that we don't create overflow pages.
@@ -76,7 +76,7 @@ class test_compact11(wttest.WiredTigerTestCase):
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
         c.close()
 
-    def test_compact11_truncate(self):
+    def test_compact12_truncate(self):
         # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
@@ -124,7 +124,7 @@ class test_compact11(wttest.WiredTigerTestCase):
         space_recovered = size_before_compact - size_after_compact
         self.assertGreater(space_recovered, size_before_compact // 4)
         
-        # Keep compact verbose messages on for debugging.
+        # Ignore compact verbose messages used for debugging.
         self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
         self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
 
