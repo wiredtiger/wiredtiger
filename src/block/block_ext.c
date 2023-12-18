@@ -916,6 +916,7 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
 {
     WT_EXT *ext;
     WT_EXTLIST tmp;
+    u_int i;
 
     /*
      * We should hold the live lock here when running on the live checkpoint. But there is no easy
@@ -931,8 +932,18 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
      */
     if (a->track_size == b->track_size && a->entries > b->entries) {
         tmp = *a;
-        *a = *b;
-        *b = tmp;
+        a->bytes = b->bytes;
+        b->bytes = tmp.bytes;
+        a->entries = b->entries;
+        b->entries = tmp.entries;
+        for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+            a->off[i] = b->off[i];
+            b->off[i] = tmp.off[i];
+            a->sz[i] = b->sz[i];
+            b->sz[i] = tmp.sz[i];
+        }
+
+        *a = tmp;
     }
 
     WT_EXT_FOREACH (ext, a->off)
