@@ -734,11 +734,15 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         /*
          * Roll the "from" alloc and discard extent lists into the "to" checkpoint's lists.
          */
-        if (a->alloc.entries != 0)
+        if (a->alloc.entries != 0) {
             WT_ERR(__wt_block_extlist_merge(session, block, &a->alloc, &b->alloc));
-        if (a->discard.entries != 0)
+            __wt_block_extlist_free(session, &a->alloc);
+        }
+        
+        if (a->discard.entries != 0) {
             WT_ERR(__wt_block_extlist_merge(session, block, &a->discard, &b->discard));
-
+            __wt_block_extlist_free(session, &a->discard);
+        }
         /*
          * If the "to" checkpoint is also being deleted, we're done with it, it's merged into some
          * other checkpoint in the next loop. This means the extent lists may aggregate over a
