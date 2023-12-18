@@ -93,6 +93,7 @@ class test_import_base(wttest.WiredTigerTestCase):
                 depth += 1
             elif char == ')':
                 depth -= 1
+
            # If end of one subconfig, append it to subconfigs list.
             if char == ',' and depth == 0:
                 subconfigs.append(curr_subconfig)
@@ -100,6 +101,7 @@ class test_import_base(wttest.WiredTigerTestCase):
             else:
                 # Append char to curr subconfig
                 curr_subconfig += char
+
         # Append any subconfig left.
         if curr_subconfig:
             subconfigs.append(curr_subconfig)
