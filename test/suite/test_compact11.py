@@ -39,10 +39,10 @@ kilobyte = 1024
 #
 # It checks that:
 #
-# - We correctly rewrite pages in WT_REF_DELETED state but are still on disk.
+# - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
 class test_compact11(wttest.WiredTigerTestCase):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
-    conn_config = 'cache_size=10MB,statistics=(all),debug_mode=(background_compact),verbose=[compact:4]'
+    conn_config = 'cache_size=10MB,statistics=(all),verbose=[compact:4]'
     uri_prefix = 'table:test_compact11'
 
     table_numkv = 10 * 1000
@@ -59,18 +59,9 @@ class test_compact11(wttest.WiredTigerTestCase):
         hi_cursor = self.session.open_cursor(uri)
         lo_cursor.set_key(key1)
         hi_cursor.set_key(key2)
-        try:
-            err = self.session.truncate(None, lo_cursor, hi_cursor, None)
-        except WiredTigerError as e:
-            if wiredtiger_strerror(WT_ROLLBACK) in str(e):
-                err = WT_ROLLBACK
-            elif wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e):
-                err = WT_PREPARE_CONFLICT
-            else:
-                raise e
+        self.session.truncate(None, lo_cursor, hi_cursor, None)
         lo_cursor.close()
         hi_cursor.close()
-        self.assertEqual(err, 0)
 
     def populate(self, uri, num_keys):
         c = self.session.open_cursor(uri, None)
