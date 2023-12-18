@@ -80,9 +80,11 @@ main(int argc, char *argv[])
     uint32_t cumulative_hw, cumulative_sw;
     uint32_t hw, sw;
     uint8_t *data;
-    uint8_t data_ff[9] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    uint8_t *data_ff;
+    uint8_t data_ff_buf[9] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
     u_int i, j, k;
 
+    data_ff = data_ff_buf;
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
