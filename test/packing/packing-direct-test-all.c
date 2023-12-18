@@ -124,7 +124,7 @@ cleanup(void)
 static void
 run(void)
 {
-    test_cmp_all((WT_SESSION_IMPL *)g.wt_session)
+    test_cmp_all((WT_SESSION_IMPL *)g.wt_session);
 }
 
 /*
@@ -134,7 +134,6 @@ run(void)
 int
 main(int argc, char **argv)
 {
-    uint64_t dt;
     (void)argc;
     (void)testutil_set_progname(argv);
     /*

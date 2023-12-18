@@ -10,6 +10,7 @@ create_test_executable(test_packing
 create_test_executable(test_packing_direct
     SOURCES packing-direct-test.c
     EXECUTABLE_NAME "packing-direct-test"
+    FLAGS "-Wno-used-but-marked-unused"
 )
 
 # Create packing-direct-test-all executable.

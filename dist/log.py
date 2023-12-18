@@ -184,9 +184,8 @@ def run():
     f='../src/log/log_auto.c'
     tfile = open(tmp_file, 'w')
 
-    tfile.write('/* DO NOT EDIT: automatically built by dist/log.py. */\n')
+    tfile.write('''/* DO NOT EDIT: automatically built by dist/log.py. */
 
-    tfile.write('''
 #include "wt_internal.h"
 
 #define WT_SIZE_CHECK_PACK_PTR(p, end)    WT_RET_TEST(!(p) || !(end) || (p) >= (end), ENOMEM)
