@@ -12,6 +12,12 @@ create_test_executable(test_packing_direct
     EXECUTABLE_NAME "packing-direct-test"
 )
 
+# Create packing-direct-test-all executable.
+create_test_executable(test_packing_direct_all
+    SOURCES packing-direct-test-all.c
+    EXECUTABLE_NAME "packing-direct-test-all"
+)
+
 # Create intpack test executable.
 create_test_executable(test_intpack
     SOURCES intpack-test3.c
