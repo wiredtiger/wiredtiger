@@ -1230,11 +1230,14 @@ struct __wt_ref {
         (ref)->histoff = ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist); \
     } while (0)
 #define WT_REF_SET_STATE(ref, s)                                  \
-    do {                                                          \
-        WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
+    do {                                                                \
+        WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__);       \
         WT_PUBLISH((ref)->state, s);                              \
         syscall(SYS_futex, &((ref)->state), FUTEX_WAKE_PRIVATE, INT_MAX); \
     } while (0)
+        /* else if (ftxret > 0)                                            \ */
+        /*     __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "futex signalled %d threads with state = %d", \ */
+        /*         ftxret, s);                                             \ */
 #else
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #define WT_REF_SET_STATE(ref, s)                                        \
@@ -1242,6 +1245,12 @@ struct __wt_ref {
               WT_PUBLISH((ref)->state, s);                              \
               syscall(SYS_futex, &((ref)->state), FUTEX_WAKE_PRIVATE, INT_MAX); \
           } while (0)
+              /* if (ftxret < 0)                                           \ */
+              /*     __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "ref_set=%d  ftxret=%d  (errno=%d err=%s)", \ */
+              /*       s, ftxret, errno, strerror(errno));                 \ */
+              /* else if (ftxret > 0)                                      \ */
+              /*     __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "futex signalled %d threads with state = %d", \ */
+              /*       ftxret, s);                                         \ */
 #endif
 };
 

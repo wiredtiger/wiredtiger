@@ -296,7 +296,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 
     for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
-        switch (current_state = ref->state) {
+        //switch (current_state = ref->state) {
+        switch (WT_READ_ONCE(current_state, ref->state)) {
         case WT_REF_DELETED:
             /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
@@ -507,12 +508,16 @@ skip_evict:
         }
         do {
             const struct timespec timeout = {
-                .tv_sec = 1,
-                .tv_nsec = 10 * WT_MILLION,
+                .tv_sec = 0,
+                .tv_nsec = 1 * WT_THOUSAND,
             };
+            /* int ftxret; */
             if (ref->state != current_state)
                 continue;
-            syscall(SYS_futex, &(ref->state), FUTEX_WAIT_PRIVATE, current_state, &timeout);
+            /* ftxret = */ syscall(SYS_futex, &(ref->state), FUTEX_WAIT_PRIVATE, current_state, &timeout);
+            /* if (ftxret != 0) */
+            /*     __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "bt_read current_state=%d ref->state=%u futex = %d (errno=%d err=%s)", */
+            /*       current_state, ref->state, ftxret, errno, strerror(errno)); */
         } while(0);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
