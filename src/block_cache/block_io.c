@@ -73,23 +73,24 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
 
     WT_ASSERT_ALWAYS(session, session->dhandle != NULL, "The block cache requires a dhandle");
-    /*
-     * If anticipating a compressed or encrypted block, start with a scratch buffer and convert into
-     * the caller's buffer. Else, start with the caller's buffer.
-     */
-    ip = buf;
+
+    /* Start with a scratch buffer and convert into the caller's properly sized buffer. */
     expect_conversion = compressor != NULL || encryptor != NULL;
-    if (expect_conversion) {
-        WT_RET(__wt_scr_alloc(session, 4 * 1024, &tmp));
-        ip = tmp;
-    }
+    WT_RET(__wt_scr_alloc(session, 4 * 1024, &tmp));
+    ip = tmp;
 
     /* Check for mapped blocks. */
     WT_RET(__wt_blkcache_map_read(session, ip, addr, addr_size, &found));
     if (found) {
         skip_cache_put = true;
-        if (!expect_conversion)
+        dsk = ip->data;
+        if (!expect_conversion) {
+            /* Initialize the buffer to the correct size, and copy to the caller's buffer before
+             * releasing our reference. */
+            WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
+            WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
             goto verify;
+        }
     }
 
     /* Check the block cache. */
@@ -99,9 +100,12 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
             blkcache_found = true;
             ip->data = blkcache_item->data;
             ip->size = blkcache_item->data_size;
+            dsk = ip->data;
             if (!expect_conversion) {
-                /* Copy to the caller's buffer before releasing our reference. */
-                WT_ERR(__wt_buf_set(session, buf, ip->data, ip->size));
+                /* Initialize the buffer to the correct size, and copy to the caller's buffer before
+                 * releasing our reference. */
+                WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
+                WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
                 goto verify;
             }
         }
@@ -199,13 +203,10 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
         __wt_stat_compr_ratio_read_hist_incr(session, compression_ratio);
 
     } else {
-        /*
-         * If we uncompressed above, the page is in the correct buffer. If we get here the data may
-         * be in the wrong buffer and the buffer may be the wrong size. If needed, get the page into
-         * the destination buffer.
-         */
-        if (ip != buf)
-            WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
+        /* Initialize the buffer to the correct size, and copy to the caller's buffer before
+         * releasing our reference. */
+        WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
+        WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
     }
 
 verify:
