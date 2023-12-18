@@ -4,8 +4,8 @@
 #include "log_auto_direct.h"
 
 static void
-test_cmp__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct,
-  uint32_t fileid, uint64_t recno, WT_ITEM *value)
+test_cmp_one__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+  WT_ITEM *logrec_direct, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     const uint8_t *data_fmt, *data_direct;
     uint32_t fileid_fmt, fileid_direct;
@@ -45,8 +45,8 @@ test_cmp__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_
 }
 
 static void
-test_cmp__wt_logop_col_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct,
-  uint32_t fileid, uint64_t recno, WT_ITEM *value)
+test_cmp_one__wt_logop_col_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+  WT_ITEM *logrec_direct, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     const uint8_t *data_fmt, *data_direct;
     uint32_t fileid_fmt, fileid_direct;
@@ -86,8 +86,8 @@ test_cmp__wt_logop_col_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITE
 }
 
 static void
-test_cmp__wt_logop_col_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct,
-  uint32_t fileid, uint64_t recno)
+test_cmp_one__wt_logop_col_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+  WT_ITEM *logrec_direct, uint32_t fileid, uint64_t recno)
 {
     const uint8_t *data_fmt, *data_direct;
     uint32_t fileid_fmt, fileid_direct;
@@ -119,7 +119,7 @@ test_cmp__wt_logop_col_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_
 }
 
 static void
-test_cmp__wt_logop_col_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+test_cmp_one__wt_logop_col_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, uint64_t start, uint64_t stop)
 {
     const uint8_t *data_fmt, *data_direct;
@@ -157,8 +157,8 @@ test_cmp__wt_logop_col_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
 }
 
 static void
-test_cmp__wt_logop_row_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct,
-  uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
+test_cmp_one__wt_logop_row_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+  WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     const uint8_t *data_fmt, *data_direct;
     uint32_t fileid_fmt, fileid_direct;
@@ -202,8 +202,8 @@ test_cmp__wt_logop_row_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_
 }
 
 static void
-test_cmp__wt_logop_row_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct,
-  uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
+test_cmp_one__wt_logop_row_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+  WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     const uint8_t *data_fmt, *data_direct;
     uint32_t fileid_fmt, fileid_direct;
@@ -247,8 +247,8 @@ test_cmp__wt_logop_row_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITE
 }
 
 static void
-test_cmp__wt_logop_row_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct,
-  uint32_t fileid, WT_ITEM *key)
+test_cmp_one__wt_logop_row_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+  WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *key)
 {
     const uint8_t *data_fmt, *data_direct;
     uint32_t fileid_fmt, fileid_direct;
@@ -283,7 +283,7 @@ test_cmp__wt_logop_row_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_
 }
 
 static void
-test_cmp__wt_logop_row_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+test_cmp_one__wt_logop_row_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
     const uint8_t *data_fmt, *data_direct;
@@ -334,7 +334,7 @@ test_cmp__wt_logop_row_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
 }
 
 static void
-test_cmp__wt_logop_checkpoint_start(
+test_cmp_one__wt_logop_checkpoint_start(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
     const uint8_t *data_fmt, *data_direct;
@@ -356,7 +356,7 @@ test_cmp__wt_logop_checkpoint_start(
 }
 
 static void
-test_cmp__wt_logop_prev_lsn(
+test_cmp_one__wt_logop_prev_lsn(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct, WT_LSN *prev_lsn)
 {
     const uint8_t *data_fmt, *data_direct;
@@ -387,8 +387,8 @@ test_cmp__wt_logop_prev_lsn(
 }
 
 static void
-test_cmp__wt_logop_backup_id(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct,
-  uint32_t index, uint64_t granularity, const char *id)
+test_cmp_one__wt_logop_backup_id(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+  WT_ITEM *logrec_direct, uint32_t index, uint64_t granularity, const char *id)
 {
     const uint8_t *data_fmt, *data_direct;
     uint32_t index_fmt, index_direct;
@@ -426,7 +426,7 @@ test_cmp__wt_logop_backup_id(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_I
 }
 
 static void
-test_cmp__wt_logop_txn_timestamp(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
+test_cmp_one__wt_logop_txn_timestamp(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts,
   uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
 {
@@ -485,6 +485,825 @@ test_cmp__wt_logop_txn_timestamp(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
 }
 
 static void
+test_cmp_all__wt_logop_col_modify(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    uint64_t recno;
+    WT_ITEM value;
+
+    fileid = 0;
+    recno = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = 1;
+    recno = 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_1BYTE_MAX - 1;
+    recno = POS_1BYTE_MAX - 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_1BYTE_MAX;
+    recno = POS_1BYTE_MAX;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_1BYTE_MAX + 1;
+    recno = POS_1BYTE_MAX + 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_2BYTE_MAX - 1;
+    recno = POS_2BYTE_MAX - 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_2BYTE_MAX;
+    recno = POS_2BYTE_MAX;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_2BYTE_MAX + 1;
+    recno = POS_2BYTE_MAX + 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = rand();
+    recno = rand();
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+
+    fileid = rand();
+    recno = rand();
+    value.data = "data";
+    value.size = 4;
+    test_cmp_one__wt_logop_col_modify(session, logrec_direct, fileid, recno, &value);
+}
+
+static void
+test_cmp_all__wt_logop_col_put(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    uint64_t recno;
+    WT_ITEM value;
+
+    fileid = 0;
+    recno = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = 1;
+    recno = 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_1BYTE_MAX - 1;
+    recno = POS_1BYTE_MAX - 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_1BYTE_MAX;
+    recno = POS_1BYTE_MAX;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_1BYTE_MAX + 1;
+    recno = POS_1BYTE_MAX + 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_2BYTE_MAX - 1;
+    recno = POS_2BYTE_MAX - 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_2BYTE_MAX;
+    recno = POS_2BYTE_MAX;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = POS_2BYTE_MAX + 1;
+    recno = POS_2BYTE_MAX + 1;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = rand();
+    recno = rand();
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+
+    fileid = rand();
+    recno = rand();
+    value.data = "data";
+    value.size = 4;
+    test_cmp_one__wt_logop_col_put(session, logrec_direct, fileid, recno, &value);
+}
+
+static void
+test_cmp_all__wt_logop_col_remove(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    uint64_t recno;
+
+    fileid = 0;
+    recno = 0;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = 1;
+    recno = 1;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = POS_1BYTE_MAX - 1;
+    recno = POS_1BYTE_MAX - 1;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = POS_1BYTE_MAX;
+    recno = POS_1BYTE_MAX;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = POS_1BYTE_MAX + 1;
+    recno = POS_1BYTE_MAX + 1;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = POS_2BYTE_MAX - 1;
+    recno = POS_2BYTE_MAX - 1;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = POS_2BYTE_MAX;
+    recno = POS_2BYTE_MAX;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = POS_2BYTE_MAX + 1;
+    recno = POS_2BYTE_MAX + 1;
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = rand();
+    recno = rand();
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+
+    fileid = rand();
+    recno = rand();
+    test_cmp_one__wt_logop_col_remove(session, logrec_direct, fileid, recno);
+}
+
+static void
+test_cmp_all__wt_logop_col_truncate(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    uint64_t start;
+    uint64_t stop;
+
+    fileid = 0;
+    start = 0;
+    stop = 0;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = 1;
+    start = 1;
+    stop = 1;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = POS_1BYTE_MAX - 1;
+    start = POS_1BYTE_MAX - 1;
+    stop = POS_1BYTE_MAX - 1;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = POS_1BYTE_MAX;
+    start = POS_1BYTE_MAX;
+    stop = POS_1BYTE_MAX;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = POS_1BYTE_MAX + 1;
+    start = POS_1BYTE_MAX + 1;
+    stop = POS_1BYTE_MAX + 1;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = POS_2BYTE_MAX - 1;
+    start = POS_2BYTE_MAX - 1;
+    stop = POS_2BYTE_MAX - 1;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = POS_2BYTE_MAX;
+    start = POS_2BYTE_MAX;
+    stop = POS_2BYTE_MAX;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = POS_2BYTE_MAX + 1;
+    start = POS_2BYTE_MAX + 1;
+    stop = POS_2BYTE_MAX + 1;
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = rand();
+    start = rand();
+    stop = rand();
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+
+    fileid = rand();
+    start = rand();
+    stop = rand();
+    test_cmp_one__wt_logop_col_truncate(session, logrec_direct, fileid, start, stop);
+}
+
+static void
+test_cmp_all__wt_logop_row_modify(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    WT_ITEM key;
+    WT_ITEM value;
+
+    fileid = 0;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_1BYTE_MAX - 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_1BYTE_MAX;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_1BYTE_MAX + 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_2BYTE_MAX - 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_2BYTE_MAX;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_2BYTE_MAX + 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = rand();
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+
+    fileid = rand();
+    key.data = "data";
+    key.size = 4;
+    value.data = "data";
+    value.size = 4;
+    test_cmp_one__wt_logop_row_modify(session, logrec_direct, fileid, &key, &value);
+}
+
+static void
+test_cmp_all__wt_logop_row_put(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    WT_ITEM key;
+    WT_ITEM value;
+
+    fileid = 0;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_1BYTE_MAX - 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_1BYTE_MAX;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_1BYTE_MAX + 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_2BYTE_MAX - 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_2BYTE_MAX;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = POS_2BYTE_MAX + 1;
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = rand();
+    key.data = NULL;
+    key.size = 0;
+    value.data = NULL;
+    value.size = 0;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+
+    fileid = rand();
+    key.data = "data";
+    key.size = 4;
+    value.data = "data";
+    value.size = 4;
+    test_cmp_one__wt_logop_row_put(session, logrec_direct, fileid, &key, &value);
+}
+
+static void
+test_cmp_all__wt_logop_row_remove(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    WT_ITEM key;
+
+    fileid = 0;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = 1;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = POS_1BYTE_MAX - 1;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = POS_1BYTE_MAX;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = POS_1BYTE_MAX + 1;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = POS_2BYTE_MAX - 1;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = POS_2BYTE_MAX;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = POS_2BYTE_MAX + 1;
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = rand();
+    key.data = NULL;
+    key.size = 0;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+
+    fileid = rand();
+    key.data = "data";
+    key.size = 4;
+    test_cmp_one__wt_logop_row_remove(session, logrec_direct, fileid, &key);
+}
+
+static void
+test_cmp_all__wt_logop_row_truncate(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t fileid;
+    WT_ITEM start;
+    WT_ITEM stop;
+    uint32_t mode;
+
+    fileid = 0;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = 0;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = 1;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = 1;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = POS_1BYTE_MAX - 1;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = POS_1BYTE_MAX - 1;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = POS_1BYTE_MAX;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = POS_1BYTE_MAX;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = POS_1BYTE_MAX + 1;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = POS_1BYTE_MAX + 1;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = POS_2BYTE_MAX - 1;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = POS_2BYTE_MAX - 1;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = POS_2BYTE_MAX;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = POS_2BYTE_MAX;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = POS_2BYTE_MAX + 1;
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = POS_2BYTE_MAX + 1;
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = rand();
+    start.data = NULL;
+    start.size = 0;
+    stop.data = NULL;
+    stop.size = 0;
+    mode = rand();
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+
+    fileid = rand();
+    start.data = "data";
+    start.size = 4;
+    stop.data = "data";
+    stop.size = 4;
+    mode = rand();
+    test_cmp_one__wt_logop_row_truncate(session, logrec_direct, fileid, &start, &stop, mode);
+}
+
+static void
+test_cmp_all__wt_logop_checkpoint_start(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+
+    test_cmp_one__wt_logop_checkpoint_start(session, logrec_direct);
+}
+
+static void
+test_cmp_all__wt_logop_prev_lsn(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    WT_LSN prev_lsn;
+
+    prev_lsn.l.file = 0;
+    prev_lsn.l.offset = 0;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = 1;
+    prev_lsn.l.offset = 1;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = POS_1BYTE_MAX - 1;
+    prev_lsn.l.offset = POS_1BYTE_MAX - 1;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = POS_1BYTE_MAX;
+    prev_lsn.l.offset = POS_1BYTE_MAX;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = POS_1BYTE_MAX + 1;
+    prev_lsn.l.offset = POS_1BYTE_MAX + 1;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = POS_2BYTE_MAX - 1;
+    prev_lsn.l.offset = POS_2BYTE_MAX - 1;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = POS_2BYTE_MAX;
+    prev_lsn.l.offset = POS_2BYTE_MAX;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = POS_2BYTE_MAX + 1;
+    prev_lsn.l.offset = POS_2BYTE_MAX + 1;
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = rand();
+    prev_lsn.l.offset = rand();
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+
+    prev_lsn.l.file = rand();
+    prev_lsn.l.offset = rand();
+    test_cmp_one__wt_logop_prev_lsn(session, logrec_direct, &prev_lsn);
+}
+
+static void
+test_cmp_all__wt_logop_backup_id(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint32_t index;
+    uint64_t granularity;
+    const char *id;
+
+    index = 0;
+    granularity = 0;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = 1;
+    granularity = 1;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = POS_1BYTE_MAX - 1;
+    granularity = POS_1BYTE_MAX - 1;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = POS_1BYTE_MAX;
+    granularity = POS_1BYTE_MAX;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = POS_1BYTE_MAX + 1;
+    granularity = POS_1BYTE_MAX + 1;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = POS_2BYTE_MAX - 1;
+    granularity = POS_2BYTE_MAX - 1;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = POS_2BYTE_MAX;
+    granularity = POS_2BYTE_MAX;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = POS_2BYTE_MAX + 1;
+    granularity = POS_2BYTE_MAX + 1;
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = rand();
+    granularity = rand();
+    id = "";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+
+    index = rand();
+    granularity = rand();
+    id = "string";
+    test_cmp_one__wt_logop_backup_id(session, logrec_direct, index, granularity, id);
+}
+
+static void
+test_cmp_all__wt_logop_txn_timestamp(WT_SESSION_IMPL *session)
+{
+    const uint8_t *data_fmt, *data_direct;
+    WT_ITEM logrec_fmt, logrec_direct;
+
+    uint64_t time_sec;
+    uint64_t time_nsec;
+    uint64_t commit_ts;
+    uint64_t durable_ts;
+    uint64_t first_commit_ts;
+    uint64_t prepare_ts;
+    uint64_t read_ts;
+
+    time_sec = 0;
+    time_nsec = 0;
+    commit_ts = 0;
+    durable_ts = 0;
+    first_commit_ts = 0;
+    prepare_ts = 0;
+    read_ts = 0;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = 1;
+    time_nsec = 1;
+    commit_ts = 1;
+    durable_ts = 1;
+    first_commit_ts = 1;
+    prepare_ts = 1;
+    read_ts = 1;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = POS_1BYTE_MAX - 1;
+    time_nsec = POS_1BYTE_MAX - 1;
+    commit_ts = POS_1BYTE_MAX - 1;
+    durable_ts = POS_1BYTE_MAX - 1;
+    first_commit_ts = POS_1BYTE_MAX - 1;
+    prepare_ts = POS_1BYTE_MAX - 1;
+    read_ts = POS_1BYTE_MAX - 1;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = POS_1BYTE_MAX;
+    time_nsec = POS_1BYTE_MAX;
+    commit_ts = POS_1BYTE_MAX;
+    durable_ts = POS_1BYTE_MAX;
+    first_commit_ts = POS_1BYTE_MAX;
+    prepare_ts = POS_1BYTE_MAX;
+    read_ts = POS_1BYTE_MAX;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = POS_1BYTE_MAX + 1;
+    time_nsec = POS_1BYTE_MAX + 1;
+    commit_ts = POS_1BYTE_MAX + 1;
+    durable_ts = POS_1BYTE_MAX + 1;
+    first_commit_ts = POS_1BYTE_MAX + 1;
+    prepare_ts = POS_1BYTE_MAX + 1;
+    read_ts = POS_1BYTE_MAX + 1;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = POS_2BYTE_MAX - 1;
+    time_nsec = POS_2BYTE_MAX - 1;
+    commit_ts = POS_2BYTE_MAX - 1;
+    durable_ts = POS_2BYTE_MAX - 1;
+    first_commit_ts = POS_2BYTE_MAX - 1;
+    prepare_ts = POS_2BYTE_MAX - 1;
+    read_ts = POS_2BYTE_MAX - 1;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = POS_2BYTE_MAX;
+    time_nsec = POS_2BYTE_MAX;
+    commit_ts = POS_2BYTE_MAX;
+    durable_ts = POS_2BYTE_MAX;
+    first_commit_ts = POS_2BYTE_MAX;
+    prepare_ts = POS_2BYTE_MAX;
+    read_ts = POS_2BYTE_MAX;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = POS_2BYTE_MAX + 1;
+    time_nsec = POS_2BYTE_MAX + 1;
+    commit_ts = POS_2BYTE_MAX + 1;
+    durable_ts = POS_2BYTE_MAX + 1;
+    first_commit_ts = POS_2BYTE_MAX + 1;
+    prepare_ts = POS_2BYTE_MAX + 1;
+    read_ts = POS_2BYTE_MAX + 1;
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = rand();
+    time_nsec = rand();
+    commit_ts = rand();
+    durable_ts = rand();
+    first_commit_ts = rand();
+    prepare_ts = rand();
+    read_ts = rand();
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+
+    time_sec = rand();
+    time_nsec = rand();
+    commit_ts = rand();
+    durable_ts = rand();
+    first_commit_ts = rand();
+    prepare_ts = rand();
+    read_ts = rand();
+    test_cmp_one__wt_logop_txn_timestamp(session, logrec_direct, time_sec, time_nsec, commit_ts,
+      durable_ts, first_commit_ts, prepare_ts, read_ts);
+}
+
+static void
 test_cmp_all(WT_SESSION_IMPL *session)
 {
     WT_ITEM logrec_fmt, logrec_direct;
@@ -494,18 +1313,18 @@ test_cmp_all(WT_SESSION_IMPL *session)
     WT_CLEAR(logrec_direct);
     assert(__wt_buf_init(session, &logrec_direct, 0) == 0);
 
-    test_cmp__wt_logop_col_modify(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
-    test_cmp__wt_logop_col_put(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
-    test_cmp__wt_logop_col_remove(session, &logrec_fmt, &logrec_direct, 0, 0);
-    test_cmp__wt_logop_col_truncate(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
-    test_cmp__wt_logop_row_modify(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
-    test_cmp__wt_logop_row_put(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
-    test_cmp__wt_logop_row_remove(session, &logrec_fmt, &logrec_direct, 0, 0);
-    test_cmp__wt_logop_row_truncate(session, &logrec_fmt, &logrec_direct, 0, 0, 0, 0);
-    test_cmp__wt_logop_checkpoint_start(session, &logrec_fmt, &logrec_direct);
-    test_cmp__wt_logop_prev_lsn(session, &logrec_fmt, &logrec_direct, 0);
-    test_cmp__wt_logop_backup_id(session, &logrec_fmt, &logrec_direct, 0, 0, 0);
-    test_cmp__wt_logop_txn_timestamp(session, &logrec_fmt, &logrec_direct, 0, 0, 0, 0, 0, 0, 0);
+    test_cmp_all__wt_logop_col_modify(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_col_put(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_col_remove(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_col_truncate(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_row_modify(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_row_put(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_row_remove(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_row_truncate(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_checkpoint_start(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_prev_lsn(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_backup_id(session, &logrec_fmt, &logrec_direct);
+    test_cmp_all__wt_logop_txn_timestamp(session, &logrec_fmt, &logrec_direct);
 
     __wt_buf_free(session, &logrec_fmt);
     __wt_buf_free(session, &logrec_direct);
