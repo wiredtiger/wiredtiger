@@ -333,7 +333,7 @@ typedef struct {
 
 /*
  * testutil_system --
- *     A convenience macro for testutil_system_internal. Accepts line number as an argument
+ *     A convenience macro for testutil_system_internal. Accepts line number as an argument.
  */
 #define testutil_system(fmt, ...)                                                  \
     WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))                                  \
