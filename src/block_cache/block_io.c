@@ -83,10 +83,10 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     WT_RET(__wt_blkcache_map_read(session, ip, addr, addr_size, &found));
     if (found) {
         skip_cache_put = true;
-        dsk = ip->data;
         if (!expect_conversion) {
             /* Initialize the buffer to the correct size, and copy to the caller's buffer before
              * releasing our reference. */
+            dsk = ip->data;
             WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
             WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
             goto verify;
@@ -100,10 +100,10 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
             blkcache_found = true;
             ip->data = blkcache_item->data;
             ip->size = blkcache_item->data_size;
-            dsk = ip->data;
             if (!expect_conversion) {
                 /* Initialize the buffer to the correct size, and copy to the caller's buffer before
                  * releasing our reference. */
+                dsk = ip->data;
                 WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
                 WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
                 goto verify;
