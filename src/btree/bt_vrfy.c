@@ -23,13 +23,20 @@ typedef struct {
 
     /* Configuration options passed in. */
     wt_timestamp_t stable_timestamp; /* Stable timestamp to verify against if desired */
+
+#ifdef HAVE_DIAGNOSTIC
 #define WT_VRFY_DUMP(vs) \
     ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
+#else
+#define WT_VRFY_DUMP(vs) ((vs)->dump_address || (vs)->dump_layout)
+#endif
     bool dump_address; /* Configure: dump special */
     bool dump_app_data;
-    bool dump_blocks;
     bool dump_layout;
+#ifdef HAVE_DIAGNOSTIC
+    bool dump_blocks;
     bool dump_pages;
+#endif
     bool read_corrupt;
 
     /* Page layout information. */
@@ -76,14 +83,18 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_app_data", &cval));
     vs->dump_app_data = cval.val != 0;
 
+#ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_config_gets(session, cfg, "dump_blocks", &cval));
     vs->dump_blocks = cval.val != 0;
+#endif
 
     WT_RET(__wt_config_gets(session, cfg, "dump_layout", &cval));
     vs->dump_layout = cval.val != 0;
 
+#ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
+#endif
 
     WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
     vs->read_corrupt = cval.val != 0;
@@ -98,11 +109,6 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
         vs->stable_timestamp = txn_global->stable_timestamp;
     }
 
-#if !defined(HAVE_DIAGNOSTIC)
-    if (vs->dump_blocks || vs->dump_pages)
-        WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
-#endif
-
     return (0);
 }
 
@@ -111,7 +117,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
  *     Debugging: optionally dump specific blocks from the file.
  */
 static int
-__verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp)
+__verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs, bool *quitp)
 {
     WT_CONFIG list;
     WT_CONFIG_ITEM cval, k, v;
@@ -133,9 +139,10 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
         if (v.len != 0 || sscanf(k.str, "%" SCNu64, &offset) != 1)
             WT_RET_MSG(session, EINVAL, "unexpected dump offset format");
 #if !defined(HAVE_DIAGNOSTIC)
+        WT_UNUSED(vs);
         WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
 #else
-        WT_TRET(__wt_debug_offset_blind(session, (wt_off_t)offset, NULL));
+        WT_TRET(__wt_debug_offset_blind(session, (wt_off_t)offset, NULL, vs->dump_app_data));
 #endif
     }
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -211,7 +218,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__verify_config(session, cfg, vs));
 
     /* Optionally dump specific block offsets. */
-    WT_ERR(__verify_config_offsets(session, cfg, &quit));
+    WT_ERR(__verify_config_offsets(session, cfg, vs, &quit));
     if (quit)
         goto done;
 
@@ -488,7 +495,7 @@ __verify_tree(
 
 #ifdef HAVE_DIAGNOSTIC
     /* Optionally dump the blocks or page in debugging mode. */
-    if (vs->dump_blocks)
+    if (vs->dump_blocks && WT_PAGE_IS_INTERNAL(page))
         WT_RET(__wt_debug_disk(session, page->dsk, NULL, vs->dump_app_data));
     if (vs->dump_pages)
         WT_RET(__wt_debug_page(session, NULL, ref, NULL, vs->dump_app_data));
