@@ -29,30 +29,27 @@
 
 from runner import *
 from workgen import *
+from microbenchmark_prefetch_base import *
 
-class microbenchmark_prefetch:
-    def __init__(self):
-        self.context = Context()
-        conn_config = "create,cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),session_max=600,statistics=(fast),statistics_log=(wait=1,json),prefetch=(available=true,default=false)"
-        self.conn = self.context.wiredtiger_open(conn_config)
-        self.session = self.conn.open_session()
+prefetch = microbenchmark_prefetch()
+prefetch.populate()
 
-        table_config = "type=file"
-        table_count = 1
-        for i in range(0, table_count):
-            table_name = "table:test_prefetch" + str(i)
-            self.table = Table(table_name)
-            self.session.create(table_name, table_config)
-            self.table.options.key_size = 12
-            self.table.options.value_size = 138
+scan_ops = Operation(Operation.OP_SEARCH, prefetch.table)
+scan_thread = Thread(scan_ops)
+scan_thread.options.name = "Scan"
+scan_thread.options.throttle = 5
 
-    def populate(self):
-        print("Populating database...")
-        pop_icount = 10000
-        pop_threads = 1
-        pop_ops = Operation(Operation.OP_INSERT, self.table)
-        pop_thread = Thread(pop_ops * pop_icount)
-        pop_workload = Workload(self.context, pop_threads * pop_thread)
-        ret = pop_workload.run(self.conn)
-        assert ret == 0, ret
-        print("Finished populating database.")
+def run_workload():
+    print("Start scanning...")
+    workload = Workload(prefetch.context, scan_thread)
+    workload.options.run_time=100
+    workload.options.report_interval=5
+    workload.options.sample_interval_ms=1000
+    workload.options.max_latency=5000
+    ret = workload.run(prefetch.conn)
+    assert ret == 0, ret
+    print("Finished scanning.")
+    latency_filename = prefetch.context.args.home + "/latency.out"
+    latency.workload_latency(workload, latency_filename)
+
+run_workload()
