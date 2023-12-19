@@ -1331,7 +1331,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    
+
     CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
     ret = __wt_conn_reconfig(session, cfg);
 err:
