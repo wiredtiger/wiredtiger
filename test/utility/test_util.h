@@ -48,7 +48,8 @@
 /* Default file and subdirectory names to use for LazyFS in the tests. */
 #define LAZYFS_BASE_DIR "base"
 #define LAZYFS_CONFIG_FILE "lazyfs-config.toml"
-#define LAZYFS_CONTROL_FILE "lazyfs-control.fifo"
+#define LAZYFS_CONTROL_FILE_SUFFIX ".fifo"
+#define LAZYFS_CONTROL_FILE_TEMPLATE "lazyfs-control-XXXXXX" LAZYFS_CONTROL_FILE_SUFFIX
 #define LAZYFS_LOG_FILE "lazyfs.log"
 
 #ifdef _WIN32
@@ -247,6 +248,12 @@ typedef struct {
             testutil_die(                                                                 \
               __r, "%s/%d: %s: " fmt, __PRETTY_FUNCTION__, __LINE__, #call, __VA_ARGS__); \
     } while (0)
+
+/*
+ * testutil_strcat --
+ *     Do strcat; fail on error.
+ */
+#define testutil_strcat(out, size, str) testutil_check(__wt_strcat(out, size, str))
 
 /*
  * testutil_snprintf --
@@ -555,6 +562,7 @@ void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint64_t, bool *);
 void testutil_tiered_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
 uint64_t testutil_time_us(WT_SESSION *);
+void testutil_verify_model(TEST_OPTS *opts, const char *);
 void testutil_verify_src_backup(WT_CONNECTION *, const char *, const char *, char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);

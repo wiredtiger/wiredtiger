@@ -22,6 +22,8 @@ struct __wt_process {
 /* Checksum functions */
 #define __wt_checksum(chunk, len) __wt_process.checksum(chunk, len)
     uint32_t (*checksum)(const void *, size_t);
+#define __wt_checksum_with_seed(seed, chunk, len) __wt_process.checksum_with_seed(seed, chunk, len)
+    uint32_t (*checksum_with_seed)(uint32_t, const void *, size_t);
 
 #define WT_TSC_DEFAULT_RATIO 1.0
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
@@ -83,6 +85,7 @@ struct __wt_background_compact_exclude {
  */
 struct __wt_background_compact {
     bool running;             /* Compaction supposed to run */
+    bool run_once;            /* Background compaction is executed once */
     bool signalled;           /* Compact signalled */
     bool tid_set;             /* Thread set */
     wt_thread_t tid;          /* Thread */
@@ -284,6 +287,16 @@ struct __wt_name_flag {
     do {                                                     \
         (conn)->hot_backup_start = (conn)->ckpt_most_recent; \
         (conn)->hot_backup_list = NULL;                      \
+    } while (0)
+
+/*
+ * Set all flags related to incremental backup in one macro. The flags do get individually cleared
+ * at different times so there is no corresponding macro for clearing.
+ */
+#define WT_CONN_SET_INCR_BACKUP(conn)                        \
+    do {                                                     \
+        F_SET((conn), WT_CONN_INCR_BACKUP);                  \
+        FLD_SET((conn)->log_flags, WT_CONN_LOG_INCR_BACKUP); \
     } while (0)
 
 /*
@@ -596,12 +609,13 @@ struct __wt_connection_impl {
 #define WT_CONN_LOG_ENABLED 0x004u         /* Logging is enabled */
 #define WT_CONN_LOG_EXISTED 0x008u         /* Log files found */
 #define WT_CONN_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x020u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x040u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x080u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x100u  /* Recovery failed */
-#define WT_CONN_LOG_REMOVE 0x200u          /* Removal is enabled */
-#define WT_CONN_LOG_ZERO_FILL 0x400u       /* Manually zero files */
+#define WT_CONN_LOG_INCR_BACKUP 0x020u     /* Incremental backup log required */
+#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
+#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
+#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
+#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
+#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
+#define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */
     WT_CONDVAR *log_cond;                  /* Log server wait mutex */

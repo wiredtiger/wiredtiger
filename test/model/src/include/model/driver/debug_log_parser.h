@@ -69,6 +69,12 @@ public:
         uint64_t fileid;
         std::string key;
         std::string value;
+
+        /*
+         * debug_log_parser::row_put::row_put --
+         *     Default constructor.
+         */
+        inline row_put() : fileid(0) {}
     };
 
     /*
@@ -78,6 +84,29 @@ public:
     struct row_remove {
         uint64_t fileid;
         std::string key;
+
+        /*
+         * debug_log_parser::row_remove::row_remove --
+         *     Default constructor.
+         */
+        inline row_remove() : fileid(0) {}
+    };
+
+    /*
+     * debug_log_parser::row_truncate --
+     *     The row_truncate log entry.
+     */
+    struct row_truncate {
+        uint64_t fileid;
+        uint32_t mode;
+        std::string start;
+        std::string stop;
+
+        /*
+         * debug_log_parser::row_truncate::row_truncate --
+         *     Default constructor.
+         */
+        inline row_truncate() : fileid(0), mode(0) {}
     };
 
     /*
@@ -97,7 +126,7 @@ public:
      *     lifetime of this parser object.
      */
     inline debug_log_parser(kv_database &database)
-        : _database(database), _base_write_gen(k_write_gen_first), _ckpt_count(0)
+        : _database(database), _base_write_gen(k_write_gen_first)
     {
     }
 
@@ -134,6 +163,12 @@ public:
      *     Apply the given operation to the model.
      */
     void apply(kv_transaction_ptr txn, const txn_timestamp &op);
+
+    /*
+     * debug_log_parser::apply --
+     *     Apply the given operation to the model.
+     */
+    void apply(kv_transaction_ptr txn, const row_truncate &op);
 
     /*
      * debug_log_parser::apply --
@@ -185,9 +220,6 @@ private:
 
     /* The current base write generation. */
     write_gen_t _base_write_gen;
-
-    /* The number of checkpoints so far. */
-    uint64_t _ckpt_count;
 
     /* Place for accumulating checkpoint metadata: TXN ID -> checkpoint name -> config map. */
     std::unordered_map<txn_id_t, std::unordered_map<std::string, std::shared_ptr<config_map>>>
