@@ -102,6 +102,19 @@ from_json(const json &j, debug_log_parser::txn_timestamp &out)
 }
 
 /*
+ * from_json --
+ *     Parse the given log entry.
+ */
+static void
+from_json(const json &j, debug_log_parser::row_truncate &out)
+{
+    j.at("fileid").get_to(out.fileid);
+    j.at("mode").get_to(out.mode);
+    j.at("start").get_to(out.start);
+    j.at("stop").get_to(out.stop);
+}
+
+/*
  * from_debug_log --
  *     Parse the given debug log entry.
  */
@@ -205,6 +218,30 @@ from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
     out.commit_ts = commit_ts;
     out.durable_ts = durable_ts;
     out.prepare_ts = prepare_ts;
+    return 0;
+}
+
+/*
+ * from_debug_log --
+ *     Parse the given debug log entry.
+ */
+static int
+from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
+  debug_log_parser::row_truncate &out)
+{
+    int ret;
+    uint32_t fileid;
+    WT_ITEM start, stop;
+    uint32_t mode;
+
+    if ((ret = __wt_logop_row_truncate_unpack(session, pp, end, &fileid, &start, &stop, &mode)) !=
+      0)
+        return ret;
+
+    out.fileid = fileid;
+    out.start = std::string((const char *)start.data, start.size);
+    out.stop = std::string((const char *)stop.data, stop.size);
+    out.mode = mode;
     return 0;
 }
 
@@ -366,14 +403,13 @@ debug_log_parser::metadata_checkpoint_apply(
         else
             snapshot_ids = std::make_shared<std::vector<uint64_t>>();
         snapshot = std::make_shared<kv_transaction_snapshot_wt>(
-          _ckpt_count, write_gen, snapshot_min, snapshot_max, *snapshot_ids);
+          write_gen, snapshot_min, snapshot_max, *snapshot_ids);
     } else
         snapshot = std::make_shared<kv_transaction_snapshot_wt>(
-          _ckpt_count, write_gen, k_txn_max, k_txn_max, std::vector<uint64_t>());
+          write_gen, k_txn_max, k_txn_max, std::vector<uint64_t>());
 
     /* Create the checkpoint. */
     _database.create_checkpoint(name.c_str(), snapshot, stable_timestamp);
-    _ckpt_count++;
 }
 
 /*
@@ -397,7 +433,9 @@ debug_log_parser::apply(kv_transaction_ptr txn, const row_put &op)
     data_value value = data_value::unpack(op.value, table->value_format());
 
     /* Perform the operation. */
-    table->insert(txn, key, value);
+    int ret = table->insert(txn, key, value);
+    if (ret != 0)
+        throw wiredtiger_exception(ret);
 }
 
 /*
@@ -408,10 +446,8 @@ void
 debug_log_parser::apply(kv_transaction_ptr txn, const row_remove &op)
 {
     /* Handle metadata operations. */
-    if (op.fileid == 0) {
+    if (op.fileid == 0)
         throw model_exception("Unsupported metadata operation: row_remove");
-        return;
-    }
 
     /* Find the table. */
     kv_table_ptr table = table_by_fileid(op.fileid);
@@ -420,7 +456,9 @@ debug_log_parser::apply(kv_transaction_ptr txn, const row_remove &op)
     data_value key = data_value::unpack(op.key, table->key_format());
 
     /* Perform the operation. */
-    table->remove(txn, key);
+    int ret = table->remove(txn, key);
+    if (ret != 0)
+        throw wiredtiger_exception(ret);
 }
 
 /*
@@ -449,6 +487,35 @@ debug_log_parser::apply(kv_transaction_ptr txn, const txn_timestamp &op)
 }
 
 /*
+ * debug_log_parser::row_truncate --
+ *     Apply the given operation to the model.
+ */
+void
+debug_log_parser::apply(kv_transaction_ptr txn, const row_truncate &op)
+{
+    /* Handle metadata operations. */
+    if (op.fileid == 0)
+        throw model_exception("Unsupported metadata operation: row_truncate");
+
+    /* Find the table. */
+    kv_table_ptr table = table_by_fileid(op.fileid);
+
+    /* Parse the keys. */
+    data_value start;
+    data_value stop;
+
+    if (op.mode == WT_TXN_TRUNC_BOTH || op.mode == WT_TXN_TRUNC_START)
+        start = data_value::unpack(op.start, table->key_format());
+    if (op.mode == WT_TXN_TRUNC_BOTH || op.mode == WT_TXN_TRUNC_STOP)
+        stop = data_value::unpack(op.stop, table->key_format());
+
+    /* Perform the operation. */
+    int ret = table->truncate(txn, start, stop);
+    if (ret != 0)
+        throw wiredtiger_exception(ret);
+}
+
+/*
  * debug_log_parser::apply --
  *     Apply the given operation to the model.
  */
@@ -471,7 +538,7 @@ debug_log_parser::begin_transaction(const debug_log_parser::commit_header &op)
         throw model_exception("The base write generation is not set");
 
     kv_transaction_ptr txn = _database.begin_transaction();
-    txn->set_wt_metadata(op.txnid, _base_write_gen, _ckpt_count);
+    txn->set_wt_metadata(op.txnid, _base_write_gen);
     return txn;
 }
 
@@ -578,6 +645,13 @@ from_debug_log_helper(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, W
             }
             case WT_LOGOP_TXN_TIMESTAMP: {
                 debug_log_parser::txn_timestamp v;
+                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
+                    return ret;
+                args.parser.apply(txn, v);
+                break;
+            }
+            case WT_LOGOP_ROW_TRUNCATE: {
+                debug_log_parser::row_truncate v;
                 if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
                     return ret;
                 args.parser.apply(txn, v);
@@ -717,8 +791,10 @@ debug_log_parser::from_json(kv_database &database, const char *path)
                     parser.apply(txn, op_entry.get<row_remove>());
                     continue;
                 }
-                if (op_type == "row_truncate")
-                    throw model_exception("Unsupported operation: " + op_type);
+                if (op_type == "row_truncate") {
+                    parser.apply(txn, op_entry.get<row_truncate>());
+                    continue;
+                }
 
                 /* Transaction operations. */
                 if (op_type == "txn_timestamp") {

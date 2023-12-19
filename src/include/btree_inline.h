@@ -1535,6 +1535,9 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     page = ref->home;
     copy->del_set = false;
 
+    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
+      "Any thread accessing ref address must hold a valid split generation");
+
     /*
      * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
      * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
@@ -1552,14 +1555,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     if (__wt_off_page(page, addr)) {
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
         copy->type = addr->type;
-        /*
-         * FIXME-WT-11062 - We've checked that ref->addr is non-null a few lines above and we only
-         * enter this function when the page is on-disk or clean. However, it is possible that once
-         * we've entered this function the page gets dirtied *and* reconciled. If this happens for a
-         * page with rec_result == 0 we will free the addr being copied - possibly after the null
-         * check above - and this function will attempt to copy from freed memory.
-         */
-        WT_ASSERT(session, *(void *volatile *)&ref->addr != NULL);
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
     }
@@ -1605,15 +1600,20 @@ static inline int
 __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
+    WT_DECL_RET;
 
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (!__wt_ref_addr_copy(session, ref, &addr))
-        return (0);
+        goto err;
 
-    WT_RET(__wt_btree_block_free(session, addr.addr, addr.size));
+    WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);
-    return (0);
+
+err:
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+    return (ret);
 }
 
 /*
@@ -1974,6 +1974,14 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_recently_modified);
         return (false);
     }
+
+    /*
+     * FIXME-WT-12127 Allow pages on the pre-fetch queue to be considered for eviction once a
+     * satisfactory workaround has been found for ensuring certain eviction flows don't invalidate
+     * refs on the pre-fetch queue.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+        return (false);
 
     return (true);
 }

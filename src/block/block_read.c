@@ -20,6 +20,7 @@ __wt_bm_read(
     WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
+    bool last_release;
 
     block = bm->block;
 
@@ -41,15 +42,18 @@ __wt_bm_read(
 #endif
 
     /* Read the block. */
-    __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
     WT_ERR(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
     WT_ERR(__wt_block_discard(session, block, (size_t)size));
 
 err:
-    if (bm->is_multi_handle)
-        __wt_blkcache_release_handle(session, block);
+    if (bm->is_multi_handle) {
+        last_release = false;
+        __wt_blkcache_release_handle(session, block, &last_release);
+        if (last_release && __wt_block_eligible_for_sweep(bm, block))
+            WT_TRET(__wt_blkcache_sweep_handles(session, bm));
+    }
 
     return (ret);
 }
@@ -218,8 +222,10 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
                   ENOSPC);
             }
         }
-        if (failures > 0 || !chunkcache_hit)
+        if (!chunkcache_hit || failures > 0) {
+            __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
             WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+        }
 
         /*
          * We incrementally read through the structure before doing a checksum, do little- to
