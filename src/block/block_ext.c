@@ -949,7 +949,7 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
      * way to determine if the checkpoint is live so we cannot assert the locking here.
      */
 
-    __wt_verbose(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
+    __wt_verbose_debug2(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
 
     /*
      * Sometimes the list we are merging is much bigger than the other: if so, swap the lists around
