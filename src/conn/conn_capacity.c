@@ -46,7 +46,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_maximum_wait_period", &cval));
     if (cval.val != 0 && cval.val > WT_FSYNC_BACKGROUND_MAX_PERIOD_SEC)
         WT_RET_MSG(session, EINVAL,
-          "fsync_maximum_wait_period I/O capacity value %" PRId64 " exceed maximum %d", cval.val,
+          "fsync_maximum_wait_period I/O capacity value %" PRId64 " exceeds maximum %d", cval.val,
           WT_FSYNC_BACKGROUND_MAX_PERIOD_SEC);
     cap->fsync_maximum_wait_period = (uint64_t)cval.val;
 
@@ -94,7 +94,6 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
         cap->threshold = ((cap->ckpt + cap->evict + cap->log) / 100) * WT_CAPACITY_PCT;
         if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
             cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
-
         WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
     } else
         WT_STAT_CONN_SET(session, capacity_threshold, 0);

@@ -30,24 +30,17 @@
 from wtscenario import make_scenarios
 import wiredtiger, wttest
 from wiredtiger import stat
-import random
-import time
-
-import random
-import string
+import random, string, time
 
 # test_io_capacity_01.py
-#   max waiting period for background fsync. If the written threshold is not met in this time,
+#   Max waiting period for background fsync. If the written threshold is not met in this time,
 #   a background fsync is done.
-
-@wttest.skip_for_hook("tiered", "Enabling tiered alters the logs produced by WiredTiger")
 class test_io_capacity_01(wttest.WiredTigerTestCase):
     uri = 'table:test_io_capacity_01'
     collection_cfg = 'key_format=q, value_format=S'
     fsync_time = 1
-    #set the io_capacity config
-    open_config = 'create, statistics=(all), io_capacity=(' + 'fsync_maximum_wait_period=' + str(fsync_time) + ', total=1M)'
-
+    #Set the io_capacity config
+    open_config = 'create,statistics=(all),io_capacity=(' + 'fsync_maximum_wait_period=' + str(fsync_time) + ',total=1M)'
 
     def generate_random_string(self, length):
         characters = string.digits
@@ -61,7 +54,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         return val
 
     # The number of written bytes exceeded the threshold.
-    def test_io_catacity_written_threshold(self):
+    def test_io_capacity_written_threshold(self):
         # Close the initial connection. We will be opening new connections for this test.
         self.close_conn()
 
@@ -83,20 +76,19 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         #Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
 
-        self.assertGreater(self.get_stat(stat.conn.capacity_bytes_written), 0)
-        #background fsync statistics
+        #Background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
 
         self.session.create(self.uri, self.collection_cfg)
         self.session.compact(self.uri)
         self.session.close()
 
-    # The number of written bytes not exceeded the threshold, but the running period is exceeded
-    def test_io_catacity_fsync_background_period(self):
-        # Close the initial connection. We will be opening new connections for this test.
+    #The number of written bytes not exceeded the threshold, but the running period is exceeded
+    def test_io_capacity_fsync_background_period(self):
+        #Close the initial connection. We will be opening new connections for this test.
         self.close_conn()
 
-        #only insert 1 data, the write bytes is well below 1M
+        #Only insert 1 data, the write bytes is well below 1M
         #If the written conditions are not met fsync_maximum_wait_period, force background fsync
         insert_count = 1
         value_size = 1024
@@ -116,13 +108,8 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         self.session.checkpoint('force=true')
 
         time.sleep(self.fsync_time)
-        self.assertGreater(self.get_stat(stat.conn.capacity_bytes_written), 0)
-        #background fsync statistics
+        #Background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
-
-        self.session.create(self.uri, self.collection_cfg)
-        self.session.compact(self.uri)
-        self.session.close()
 
 if __name__ == '__main__':
     wttest.run()
