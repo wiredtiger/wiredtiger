@@ -43,7 +43,9 @@ cd ..
 # clang_scan outputs errors/warnings with a leading file path followed by a
 # colon, followed by the string "error:" or "warning:".
 cat $t_out |
-    grep -E '^[a-z\./].*error: |^[a-z\./].*warning: ' | sort > $t_out_filtered
+    grep -E '^[a-z\./].*error: |^[a-z\./].*warning: ' |
+    sed -e 's/^.*wiredtiger/wiredtiger/' |
+    sort > $t_out_filtered
 diff dist/s_clang_scan.diff $t_out_filtered > /dev/null && exit 0
 
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
