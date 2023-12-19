@@ -2346,8 +2346,8 @@ static inline void __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep);
-static inline void __wt_timer_evaluate(
-  WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff);
+static inline void __wt_timer_evaluate_ms(
+  WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff_ms);
 static inline void __wt_timer_start(WT_SESSION_IMPL *session, WT_TIMER *start_time);
 static inline void __wt_timing_stress_sleep_random(WT_SESSION_IMPL *session);
 static inline void __wt_tree_modify_set(WT_SESSION_IMPL *session);
