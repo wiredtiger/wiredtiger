@@ -294,7 +294,7 @@ main(int argc, char *argv[])
         }
 
         len *= 2;
-        if (len > DATASIZE)
+        if (len > DATASIZE || len == 0)
             len = 512;
     }
 
@@ -302,7 +302,9 @@ main(int argc, char *argv[])
      * Checksums of random data chunks.
      */
     for (i = 0; i < WT_THOUSAND; ++i) {
-        len = __wt_random(&rnd) % DATASIZE;
+        do {
+            len = __wt_random(&rnd) % DATASIZE;
+        } while (len == 0);
         for (j = 0; j < len; ++j)
             data[j] = __wt_random(&rnd) & 0xff;
         hw = __wt_checksum(data, len);
@@ -325,7 +327,7 @@ main(int argc, char *argv[])
     /*
      * "Strobed" misalignments - test every combo of size/misalignment up to 16B.
      */
-    for (i = 0; i < 16; i++) {   /* Length. */
+    for (i = 0; i < 16; i++) {     /* Length. */
         for (j = 0; j < 16; j++) { /* Misalignment. */
             hw = __wt_checksum(&data_ff[j], i);
             sw = __wt_checksum_sw(&data_ff[j], i);
