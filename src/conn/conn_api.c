@@ -1333,7 +1333,7 @@ err:
 }
 
 /*
- * __conn_get_home --
+ * __conn_get_configuration --
  *     WT_CONNECTION.get_configuration method.
  */
 static const char *
