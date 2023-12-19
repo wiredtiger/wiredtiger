@@ -17,19 +17,10 @@ echo "$0: scan-build: $scan"
 
 # Check if Clang is available with the desired version.
 desired_version="12.0.1"
-if ! command -v "$compiler" &> /dev/null; then
-    echo "$compiler is not available" && exit 1
-elif ! $compiler --version | grep -q $desired_version; then
+if ! $compiler --version | grep -q $desired_version; then
     echo "$compiler is not using the expected version: $desired_version"
     $compiler --version
-    echo "clang is not using the expected version: $desired_version"
-    clang --version
     exit 1
-fi
-
-# Check the scanner is available.
-if ! command -v "$scan" &> /dev/null; then
-    echo "$scan is not available" && exit 1
 fi
 
 # Remove old reports.
