@@ -81,7 +81,7 @@ main(int argc, char *argv[])
     uint32_t hw, sw;
     uint8_t *data;
     uint8_t data_ff[32];
-    u_int i, j, k;
+    u_int i, j, k, length, misalignment;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -327,11 +327,11 @@ main(int argc, char *argv[])
     /*
      * "Strobed" misalignments - test every combo of size/misalignment up to 16B.
      */
-    for (i = 0; i < 16; i++) {     /* Length. */
-        for (j = 0; j < 16; j++) { /* Misalignment. */
-            hw = __wt_checksum(&data_ff[j], i);
-            sw = __wt_checksum_sw(&data_ff[j], i);
-            check(hw, sw, i, "0xff: strobed");
+    for (length = 0; length < 16; length++) {
+        for (misalignment = 0; misalignment < 16; misalignment++) {
+            hw = __wt_checksum(&data_ff[misalignment], length);
+            sw = __wt_checksum_sw(&data_ff[misalignment], length);
+            check(hw, sw, length, "0xff: strobed");
         }
     }
 
