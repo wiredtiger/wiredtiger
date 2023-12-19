@@ -209,25 +209,6 @@
 #endif
 
 /*
- * HAVE_DIAGNOSTIC --
- *  Assert an expression and abort if it fails.
- *  Besides, print error messages
- *  Only enabled when compiled with HAVE_DIAGNOSTIC=1.
- */
-#ifdef HAVE_DIAGNOSTIC
-#define WT_ASSERT_WITH_ERR_MSG(session, exp, v, ...)                  \
-    do {                                                              \
-        int __ret = (v);                                              \
-        if (UNLIKELY(!(exp))) {                                       \
-            __wt_err(session, __ret, __VA_ARGS__);                    \
-            TRIGGER_ABORT(session, exp, "Expression returned false"); \
-        }                                                             \
-    } while (0)
-#else
-#define WT_ASSERT_WITH_ERR_MSG(session, exp, v, ...) WT_UNUSED(session)
-#endif
-
-/*
  * WT_ASSERT_OPTIONAL --
  *  Assert an expression if the relevant assertion category is enabled.
  */

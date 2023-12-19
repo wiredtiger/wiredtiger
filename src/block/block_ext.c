@@ -414,9 +414,7 @@ __wt_block_off_remove_overlap(
     if (before != NULL && before->off + before->size > off) {
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
-        WT_ASSERT_WITH_ERR_MSG(session, ext->off + ext->size >= off + size, EINVAL,
-          "%s: block off remove, %" PRIu64 "-%" PRIu64 " overlaps with %" PRIu64 "-%" PRIu64,
-          el->name, (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
+        WT_ASSERT(session, ext->off + ext->size >= off + size);
 
         /* Calculate overlapping extents. */
         a_off = ext->off;
@@ -445,10 +443,7 @@ __wt_block_off_remove_overlap(
     } else if (after != NULL && off + size > after->off) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
-        WT_ASSERT_WITH_ERR_MSG(session, off == ext->off && off + size <= ext->off + ext->size,
-          EINVAL,
-          "%s: block off remove, %" PRIu64 "-%" PRIu64 " overlaps with %" PRIu64 "-%" PRIu64,
-          el->name, (uint64_t)ext->off, (uint64_t)ext->size, (uint64_t)off, (uint64_t)size);
+        WT_ASSERT(session, off == ext->off && off + size <= ext->off + ext->size);
 
         /*
          * Calculate overlapping extents. There's no initial overlap since the after extent
