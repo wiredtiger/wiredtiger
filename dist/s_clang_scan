@@ -35,8 +35,7 @@ cd ${t_build} || exit 1
 args="-o clangScanBuildReports"
 args="$args --use-cc=clang"
 args="$args -disable-checker core.NullDereference"
-cmake_args="CMAKE_C_FLAGS=-g -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake -DENABLE_STATIC=1 -DENABLE_SHARED=0 -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1"
-scan-build $args cmake $cmake_args -G Ninja ../.> /dev/null
+scan-build $args cmake -G Ninja ../. > /dev/null
 scan-build $args ninja wt > ../$t_out 2>&1
 cd ..
 
