@@ -79,10 +79,6 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         #Background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
 
-        self.session.create(self.uri, self.collection_cfg)
-        self.session.compact(self.uri)
-        self.session.close()
-
     #The number of written bytes not exceeded the threshold, but the running period is exceeded
     def test_io_capacity_fsync_background_period(self):
         #Close the initial connection. We will be opening new connections for this test.
