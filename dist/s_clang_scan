@@ -9,22 +9,27 @@ trap 'rm -rf $a $b $t_out $t_build' 0 1 2 3 13 15
 top=$(git rev-parse --show-toplevel)
 cd $top || exit 1
 echo "$0: running scan-build in $PWD"
-echo "$0: compiler: $(which clang)"
-echo "$0: scan-build: $(which scan-build)"
+
+compiler=$(which clang)
+scan=$(which scan-build)
+echo "$0: compiler: $compiler"
+echo "$0: scan-build: $scan"
 
 # Check if Clang is available with the desired version.
 desired_version="12.0.1"
-if ! command -v clang &> /dev/null; then
-    echo "clang is not available" && exit 1
-elif ! clang --version | grep -q $desired_version; then
+if ! command -v "$compiler" &> /dev/null; then
+    echo "$compiler is not available" && exit 1
+elif ! $compiler --version | grep -q $desired_version; then
+    echo "$compiler is not using the expected version: $desired_version"
+    $compiler --version
     echo "clang is not using the expected version: $desired_version"
     clang --version
     exit 1
 fi
 
-# Check scan-build is available.
-if ! command -v scan-build &> /dev/null; then
-    echo "scan-build is not available" && exit 1
+# Check the scanner is available.
+if ! command -v "$scan" &> /dev/null; then
+    echo "$scan is not available" && exit 1
 fi
 
 # Remove old reports.
@@ -32,11 +37,10 @@ rm -rf clangScanBuildReports && mkdir clangScanBuildReports
 rm -rf ${t_build} && mkdir ${t_build}
 
 cd ${t_build} || exit 1
-args="-o clangScanBuildReports"
-args="$args --use-cc=clang"
+args="$args --use-cc=$compiler"
 args="$args -disable-checker core.NullDereference"
-scan-build $args cmake -G Ninja ../. > /dev/null
-scan-build $args ninja wt > ../$t_out 2>&1
+$scan $args cmake -G Ninja ../. > /dev/null
+$scan $args ninja wt > ../$t_out 2>&1
 cd ..
 
 # Compare the set of errors/warnings and exit success when they're expected.
