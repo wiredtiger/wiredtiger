@@ -3,7 +3,7 @@
 t_out=__wt.$$.out
 t_out_filtered=__wt.$$.out_filtered
 t_build=__s_clang_scan_tmp_build
-trap 'rm -rf $a $b $t_out $t_build' 0 1 2 3 13 15
+trap 'rm -rf $t_out $t_out_filtered $t_build' 0 1 2 3 13 15
 
 # Find the top-level WiredTiger directory and move to there.
 top=$(git rev-parse --show-toplevel)
