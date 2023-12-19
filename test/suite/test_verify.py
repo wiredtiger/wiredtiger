@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, struct
+import os, re, struct
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
@@ -77,11 +77,28 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         filename = tablename + ".wt"
 
         filesize = os.path.getsize(filename)
-        position = (filesize * pct) // 100
+        position = int((filesize * pct) // 100)
 
         self.pr('damaging file at: ' + str(position))
         fp = open(filename, "r+b")
         fp.seek(position)
+        return fp
+
+    def open_and_offset(self, tablename, offset):
+        """
+        Open the file for the table, position it at the given offset.
+        As a side effect, the connection is closed.
+        """
+        # we close the connection to guarantee everything is
+        # flushed and closed from the WT point of view.
+        if self.conn != None:
+            self.conn.close()
+            self.conn = None
+        filename = tablename + ".wt"
+
+        self.pr('damaging file at: ' + str(offset))
+        fp = open(filename, "r+b")
+        fp.seek(offset)
         return fp
 
     def test_verify_process_empty(self):
@@ -138,6 +155,60 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.session = self.setUpSessionOpen(self.conn)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, None),
+            "/WT_SESSION.verify/")
+
+    def test_verify_api_read_corrupt_pages(self):
+        """
+        Test verify via API, on a table that is purposely corrupted in
+        multiple places. A verify operation with read_corrupt on should
+        result in multiple checksum errors being logged.
+        """
+        params = 'key_format=S,value_format=S'
+        self.session.create('table:' + self.tablename, params)
+        self.populate(self.tablename)
+        with self.open_and_position(self.tablename, 25) as f:
+            for i in range(0, 100):
+                f.write(b'\x01\xff\x80')
+        with self.open_and_position(self.tablename, 50) as f:
+            for i in range(0, 100):
+                f.write(b'\x01\xff\x80')
+        with self.open_and_position(self.tablename, 75) as f:
+            for i in range(0, 100):
+                f.write(b'\x01\xff\x80')
+
+    def test_verify_api_corrupt_first_page(self):
+        """
+        Test that verify works when the first child of an internal node is corrupted. A verify
+        operation with read_corrupt on should result in a checksum errors being logged.
+        """
+        params = 'key_format=S,value_format=S'
+        self.session.create('table:' + self.tablename, params)
+        self.populate(self.tablename)
+
+        # wt verify -d dump_address performs a depth-first traversal of the BTree. So the first
+        # leaf page it prints is the first child of its parent. Grab the offset of this one so we
+        # can corrupt it.
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename], outfilename='dump.out')
+
+        # Grab the offset position of the first page.
+        offset = 0
+        lines = open('dump.out').readlines()
+        for line in lines:
+            m = re.search('(\d+)-(\d+).*row-store leaf', line)
+            if m:
+                offset = int((int(m.group(2)) - int(m.group(1)))/2)
+                break
+
+        # Open the file and corrupt the first page.
+        with self.open_and_offset(self.tablename, offset) as f:
+            for i in range(0, 100):
+                f.write(b'\x01\xff\x80')
+
+        # open_and_position closed the session/connection, reopen them now.
+        self.conn = self.setUpConnectionOpen(".")
+        self.session = self.setUpSessionOpen(self.conn)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
             "/WT_SESSION.verify/")
 
     def test_verify_process_75pct_null(self):
