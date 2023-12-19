@@ -1051,7 +1051,7 @@ done:
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
     /* Time since the Log replay has started. */
-    __wt_timer_evaluate(session, &timer, &conn->recovery_timeline.log_replay_ms);
+    __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.log_replay_ms);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
       "recovery log replay has successfully finished and ran for %" PRIu64 " milliseconds",
       conn->recovery_timeline.log_replay_ms);
@@ -1107,7 +1107,7 @@ done:
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
         /* Time since the recovery checkpoint has started. */
-        __wt_timer_evaluate(session, &checkpoint_timer, &conn->recovery_timeline.checkpoint_ms);
+        __wt_timer_evaluate_ms(session, &checkpoint_timer, &conn->recovery_timeline.checkpoint_ms);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "recovery checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
           conn->recovery_timeline.checkpoint_ms);
@@ -1134,7 +1134,7 @@ done:
     FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
     /* Time since the recovery has started. */
-    __wt_timer_evaluate(session, &timer, &conn->recovery_timeline.recovery_ms);
+    __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.recovery_ms);
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
       "recovery was completed successfully and took %" PRIu64 "ms, including %" PRIu64
       "ms for the log replay, %" PRIu64 "ms for the rollback to stable, and %" PRIu64
