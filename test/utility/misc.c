@@ -729,8 +729,7 @@ testutil_system_internal(const char *function, uint32_t line, const char *fmt, .
     ret = __wt_vsnprintf_len_incr(buf, sizeof(buf), &len, fmt, ap);
     va_end(ap);
 
-    if ((ret = (system(buf))) != 0)
-        testutil_die(ret, "%s/%d: system(%s)", function, line, buf);
+    testutil_check(ret);
 
     if (len >= sizeof(buf))
         testutil_die(ERANGE, "The command is too long.");

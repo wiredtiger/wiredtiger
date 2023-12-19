@@ -71,7 +71,7 @@ dump_table(const char *home, const char *table, const char *out_file)
       "%s -R -h %s/%s dump %s > %s/%s", wt_tool_path, test_root, home, table, test_root, out_file);
 }
 
-/*s
+/*
  * reset_dir --
  *     Recreate the directory.
  */
