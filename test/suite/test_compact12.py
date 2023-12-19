@@ -42,7 +42,7 @@ kilobyte = 1024
 # - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
 class test_compact12(wttest.WiredTigerTestCase):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
-    conn_config = 'cache_size=10MB,statistics=(all),verbose=[compact:4]'
+    conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
     uri_prefix = 'table:test_compact12'
 
     table_numkv = 10 * 1000
@@ -53,6 +53,12 @@ class test_compact12(wttest.WiredTigerTestCase):
         size = stat_cursor[stat.dsrc.block_size][2]
         stat_cursor.close()
         return size
+    
+    def get_fast_truncated_pages(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
+        stat_cursor.close()
+        return pages
 
     def truncate(self, uri, key1, key2):
         lo_cursor = self.session.open_cursor(uri)
@@ -110,8 +116,10 @@ class test_compact12(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         self.truncate(uri, self.table_numkv // 10 * 9, self.table_numkv)
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
-
+        
         self.session.checkpoint()
+        
+        self.assertGreater(self.get_fast_truncated_pages(), 0)
 
         # Check the size of the table.
         size_before_compact = self.get_size(uri)
@@ -119,7 +127,7 @@ class test_compact12(wttest.WiredTigerTestCase):
         self.session.compact(uri, 'free_space_target=1MB')
 
         # Ensure compact has moved the fast truncated pages at the end of the file.
-        # We should have recovered around 1/4 of the file.
+        # We should have recovered at least 1/4 of the file.
         size_after_compact = self.get_size(uri)
         space_recovered = size_before_compact - size_after_compact
         self.assertGreater(space_recovered, size_before_compact // 4)
