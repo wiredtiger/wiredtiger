@@ -2819,13 +2819,13 @@ tasks:
       - func: "get project"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/dist"
           shell: bash
           script: |
             set -o errexit
             set -o verbose
             ${PREPARE_PATH}
-            sh dist/s_clang_scan 2>&1
+            sh s_clang_scan 2>&1
 
   - name: configure-combinations
     commands:
