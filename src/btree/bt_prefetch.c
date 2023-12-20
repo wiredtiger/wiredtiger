@@ -52,9 +52,8 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
             if (ret == 0)
                 ++block_preload;
-            else if (ret != EBUSY) {
+            else if (ret != EBUSY)
                 WT_STAT_CONN_INCR(session, block_prefetch_page_not_queued);
-            }
         }
     }
     WT_INTL_FOREACH_END;
@@ -89,13 +88,14 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     WT_STAT_CONN_INCR(session, block_prefetch_pages_read);
 
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
         WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
         WT_ERR(__wt_page_release(session, pe->ref, 0));
     } else
-        return (WT_ERROR);
+        ret = (WT_ERROR);
 
 err:
-    WT_TRET(__wt_page_release(session, pe->ref, 0));
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     return (ret);
 }

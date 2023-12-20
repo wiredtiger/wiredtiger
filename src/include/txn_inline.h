@@ -697,7 +697,10 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+    uint8_t prepare_state;
+
+    WT_ORDERED_READ(prepare_state, upd->prepare_state);
+    if (prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
 
     /*
@@ -1769,6 +1772,10 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
+    uint8_t prepare_state;
+
+    WT_ORDERED_READ(prepare_state, upd->prepare_state);
+
     if (!upd_value->skip_buf) {
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
@@ -1777,12 +1784,22 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->tw.durable_stop_ts = upd->durable_ts;
         upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
+<<<<<<< HEAD
         upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS;
+=======
+        upd_value->tw.prepare =
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+>>>>>>> develop
     } else {
         upd_value->tw.durable_start_ts = upd->durable_ts;
         upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
+<<<<<<< HEAD
         upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS;
+=======
+        upd_value->tw.prepare =
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+>>>>>>> develop
     }
     upd_value->type = upd->type;
 }
