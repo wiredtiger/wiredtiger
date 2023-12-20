@@ -22,13 +22,21 @@ prepare_file() {
 #pragma GCC diagnostic error "-Wno-used-but-marked-unused"
 #pragma clang diagnostic ignored "-Wused-but-marked-unused"
 
+#ifndef WT_ATTRIBUTE_UNUSED
+#if defined(DOXYGEN) || defined(SWIG) || !defined(__GNUC__)
+#define WT_ATTRIBUTE_UNUSED
+#else
+#define WT_ATTRIBUTE_UNUSED    __attribute__((__unused__))
+#endif
+#endif
+
 #ifdef WT_STRUCT_PACKING_@{[uc $ENV{SUFFIX}]}
 @{[join "\n", map {"#define ${_} ${_}__$ENV{SUFFIX}"} sort keys %fn]}
 #endif
 _END
     for (@a) {
 #        /^#include |DO NOT EDIT/ && next;    # strip includes and previous "DO NOT EDIT" notice
-        s/^(int|void)/__attribute__((__unused__))\nstatic $1/ ||          # add "static" to all function defs
+        s/^(int|void)/WT_ATTRIBUTE_UNUSED\nstatic $1/ ||          # add "static" to all function defs
         s/($FNRE)/${1}__$ENV{SUFFIX}/g;      # append suffix to all locally defined funcs
         print;
     }'
@@ -138,7 +146,7 @@ def optype_format_local_init_int(optype, name, num):
 
 for optype in log_data.optypes:
     print('''
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static void
 test_cmp_one__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct{arg_decls_in}) {{
     const uint8_t *data_fmt, *data_direct;
@@ -174,7 +182,7 @@ test_cmp_one__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_f
 
 for optype in log_data.optypes:
     print('''
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static void
 test_cmp_all__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct) {{
 {local_decls}
@@ -234,7 +242,7 @@ test_cmp_all__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_f
 
 print(f'''
 
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static void
 test_cmp_all(WT_SESSION_IMPL *session) {{
     WT_ITEM logrec_fmt, logrec_direct;

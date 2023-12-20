@@ -21,7 +21,8 @@
 #define assert_eq_uint64_t(a, b) \
     testutil_assertfmt__((a) == (b), "%s != %s : (%llu) != (%llu)", #a, #b, (a), (b))
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
@@ -69,7 +70,8 @@ test_cmp_one__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_col_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
@@ -117,7 +119,8 @@ test_cmp_one__wt_logop_col_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_col_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, uint64_t recno)
 {
@@ -156,7 +159,8 @@ test_cmp_one__wt_logop_col_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_col_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, uint64_t start, uint64_t stop)
 {
@@ -200,7 +204,8 @@ test_cmp_one__wt_logop_col_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fm
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_row_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
@@ -252,7 +257,8 @@ test_cmp_one__wt_logop_row_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_row_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
@@ -304,7 +310,8 @@ test_cmp_one__wt_logop_row_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_row_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *key)
 {
@@ -347,7 +354,8 @@ test_cmp_one__wt_logop_row_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_row_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
@@ -404,7 +412,8 @@ test_cmp_one__wt_logop_row_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fm
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_checkpoint_start(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -434,7 +443,8 @@ test_cmp_one__wt_logop_checkpoint_start(
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_prev_lsn(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct, WT_LSN *prev_lsn)
 {
@@ -472,7 +482,8 @@ test_cmp_one__wt_logop_prev_lsn(
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_backup_id(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint32_t index, uint64_t granularity, const char *id)
 {
@@ -517,7 +528,8 @@ test_cmp_one__wt_logop_backup_id(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_one__wt_logop_txn_timestamp(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
   WT_ITEM *logrec_direct, uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts,
   uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
@@ -582,7 +594,8 @@ test_cmp_one__wt_logop_txn_timestamp(WT_SESSION_IMPL *session, WT_ITEM *logrec_f
     /*logrec_direct->size = sz_direct;*/
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_col_modify(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -651,7 +664,8 @@ test_cmp_all__wt_logop_col_modify(
     test_cmp_one__wt_logop_col_modify(session, logrec_fmt, logrec_direct, fileid, recno, &value);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_col_put(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -720,7 +734,8 @@ test_cmp_all__wt_logop_col_put(
     test_cmp_one__wt_logop_col_put(session, logrec_fmt, logrec_direct, fileid, recno, &value);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_col_remove(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -768,7 +783,8 @@ test_cmp_all__wt_logop_col_remove(
     test_cmp_one__wt_logop_col_remove(session, logrec_fmt, logrec_direct, fileid, recno);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_col_truncate(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -827,7 +843,8 @@ test_cmp_all__wt_logop_col_truncate(
     test_cmp_one__wt_logop_col_truncate(session, logrec_fmt, logrec_direct, fileid, start, stop);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_row_modify(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -906,7 +923,8 @@ test_cmp_all__wt_logop_row_modify(
     test_cmp_one__wt_logop_row_modify(session, logrec_fmt, logrec_direct, fileid, &key, &value);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_row_put(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -985,7 +1003,8 @@ test_cmp_all__wt_logop_row_put(
     test_cmp_one__wt_logop_row_put(session, logrec_fmt, logrec_direct, fileid, &key, &value);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_row_remove(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -1043,7 +1062,8 @@ test_cmp_all__wt_logop_row_remove(
     test_cmp_one__wt_logop_row_remove(session, logrec_fmt, logrec_direct, fileid, &key);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_row_truncate(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -1143,7 +1163,8 @@ test_cmp_all__wt_logop_row_truncate(
       session, logrec_fmt, logrec_direct, fileid, &start, &stop, mode);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_checkpoint_start(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -1169,7 +1190,8 @@ test_cmp_all__wt_logop_checkpoint_start(
     test_cmp_one__wt_logop_checkpoint_start(session, logrec_fmt, logrec_direct);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_prev_lsn(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -1216,7 +1238,8 @@ test_cmp_all__wt_logop_prev_lsn(
     test_cmp_one__wt_logop_prev_lsn(session, logrec_fmt, logrec_direct, &prev_lsn);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_backup_id(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -1275,7 +1298,8 @@ test_cmp_all__wt_logop_backup_id(
     test_cmp_one__wt_logop_backup_id(session, logrec_fmt, logrec_direct, index, granularity, id);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all__wt_logop_txn_timestamp(
   WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct)
 {
@@ -1388,7 +1412,8 @@ test_cmp_all__wt_logop_txn_timestamp(
       commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts);
 }
 
-__attribute__((__unused__)) static void
+WT_ATTRIBUTE_UNUSED
+static void
 test_cmp_all(WT_SESSION_IMPL *session)
 {
     WT_ITEM logrec_fmt, logrec_direct;

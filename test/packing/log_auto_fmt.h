@@ -3,6 +3,14 @@
 #pragma GCC diagnostic error "-Wno-used-but-marked-unused"
 #pragma clang diagnostic ignored "-Wused-but-marked-unused"
 
+#ifndef WT_ATTRIBUTE_UNUSED
+#if defined(DOXYGEN) || defined(SWIG) || !defined(__GNUC__)
+#define WT_ATTRIBUTE_UNUSED
+#else
+#define WT_ATTRIBUTE_UNUSED    __attribute__((__unused__))
+#endif
+#endif
+
 #ifdef WT_STRUCT_PACKING_FMT
 #define __logrec_make_hex_str __logrec_make_hex_str__fmt
 #define __logrec_make_json_str __logrec_make_json_str__fmt
@@ -56,7 +64,7 @@
  * __wt_logrec_alloc__fmt --
  *     Allocate a new WT_ITEM structure.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logrec_alloc__fmt(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
@@ -76,7 +84,7 @@ __wt_logrec_alloc__fmt(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
  * __wt_logrec_free__fmt --
  *     Free the given WT_ITEM structure.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static void
 __wt_logrec_free__fmt(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 {
@@ -87,7 +95,7 @@ __wt_logrec_free__fmt(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
  * __wt_logrec_read__fmt --
  *     Read the record type.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logrec_read__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
@@ -104,7 +112,7 @@ __wt_logrec_read__fmt(
  * __wt_logop_read__fmt --
  *     Read the operation type.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_read__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *optypep,
   uint32_t *opsizep)
@@ -155,7 +163,7 @@ __logrec_make_hex_str__fmt(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM
  * __wt_logop_col_modify_pack__fmt --
  *     Pack the log operation col_modify.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_modify_pack__fmt(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -181,7 +189,7 @@ __wt_logop_col_modify_pack__fmt(
  * __wt_logop_col_modify_unpack__fmt --
  *     Unpack the log operation col_modify.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_modify_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
@@ -203,7 +211,7 @@ __wt_logop_col_modify_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, 
  * __wt_logop_col_modify_print__fmt --
  *     Print the log operation col_modify.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_modify_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -240,7 +248,7 @@ err:
  * __wt_logop_col_put_pack__fmt --
  *     Pack the log operation col_put.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_put_pack__fmt(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -266,7 +274,7 @@ __wt_logop_col_put_pack__fmt(
  * __wt_logop_col_put_unpack__fmt --
  *     Unpack the log operation col_put.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_put_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
@@ -288,7 +296,7 @@ __wt_logop_col_put_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, con
  * __wt_logop_col_put_print__fmt --
  *     Print the log operation col_put.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_put_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -325,7 +333,7 @@ err:
  * __wt_logop_col_remove_pack__fmt --
  *     Pack the log operation col_remove.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_remove_pack__fmt(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno)
@@ -351,7 +359,7 @@ __wt_logop_col_remove_pack__fmt(
  * __wt_logop_col_remove_unpack__fmt --
  *     Unpack the log operation col_remove.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_remove_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop)
@@ -373,7 +381,7 @@ __wt_logop_col_remove_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, 
  * __wt_logop_col_remove_print__fmt --
  *     Print the log operation col_remove.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_remove_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -397,7 +405,7 @@ __wt_logop_col_remove_print__fmt(
  * __wt_logop_col_truncate_pack__fmt --
  *     Pack the log operation col_truncate.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_truncate_pack__fmt(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t start, uint64_t stop)
@@ -423,7 +431,7 @@ __wt_logop_col_truncate_pack__fmt(
  * __wt_logop_col_truncate_unpack__fmt --
  *     Unpack the log operation col_truncate.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_truncate_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
@@ -445,7 +453,7 @@ __wt_logop_col_truncate_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp
  * __wt_logop_col_truncate_print__fmt --
  *     Print the log operation col_truncate.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_col_truncate_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -471,7 +479,7 @@ __wt_logop_col_truncate_print__fmt(
  * __wt_logop_row_modify_pack__fmt --
  *     Pack the log operation row_modify.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_modify_pack__fmt(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -497,7 +505,7 @@ __wt_logop_row_modify_pack__fmt(
  * __wt_logop_row_modify_unpack__fmt --
  *     Unpack the log operation row_modify.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_modify_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
@@ -519,7 +527,7 @@ __wt_logop_row_modify_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, 
  * __wt_logop_row_modify_print__fmt --
  *     Print the log operation row_modify.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_modify_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -562,7 +570,7 @@ err:
  * __wt_logop_row_put_pack__fmt --
  *     Pack the log operation row_put.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_put_pack__fmt(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -588,7 +596,7 @@ __wt_logop_row_put_pack__fmt(
  * __wt_logop_row_put_unpack__fmt --
  *     Unpack the log operation row_put.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_put_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
@@ -610,7 +618,7 @@ __wt_logop_row_put_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, con
  * __wt_logop_row_put_print__fmt --
  *     Print the log operation row_put.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_put_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -653,7 +661,7 @@ err:
  * __wt_logop_row_remove_pack__fmt --
  *     Pack the log operation row_remove.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_remove_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key)
 {
@@ -678,7 +686,7 @@ __wt_logop_row_remove_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint3
  * __wt_logop_row_remove_unpack__fmt --
  *     Unpack the log operation row_remove.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_remove_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp)
@@ -700,7 +708,7 @@ __wt_logop_row_remove_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, 
  * __wt_logop_row_remove_print__fmt --
  *     Print the log operation row_remove.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_remove_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -735,7 +743,7 @@ err:
  * __wt_logop_row_truncate_pack__fmt --
  *     Pack the log operation row_truncate.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_truncate_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
   WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
@@ -761,7 +769,7 @@ __wt_logop_row_truncate_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uin
  * __wt_logop_row_truncate_unpack__fmt --
  *     Unpack the log operation row_truncate.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_truncate_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
@@ -783,7 +791,7 @@ __wt_logop_row_truncate_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp
  * __wt_logop_row_truncate_print__fmt --
  *     Print the log operation row_truncate.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_row_truncate_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -828,7 +836,7 @@ err:
  * __wt_logop_checkpoint_start_pack__fmt --
  *     Pack the log operation checkpoint_start.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_checkpoint_start_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec)
 {
@@ -853,7 +861,7 @@ __wt_logop_checkpoint_start_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec)
  * __wt_logop_checkpoint_start_unpack__fmt --
  *     Unpack the log operation checkpoint_start.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_checkpoint_start_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end)
 {
@@ -873,7 +881,7 @@ __wt_logop_checkpoint_start_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t 
  * __wt_logop_checkpoint_start_print__fmt --
  *     Print the log operation checkpoint_start.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_checkpoint_start_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -890,7 +898,7 @@ __wt_logop_checkpoint_start_print__fmt(
  * __wt_logop_prev_lsn_pack__fmt --
  *     Pack the log operation prev_lsn.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_prev_lsn_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn)
 {
@@ -915,7 +923,7 @@ __wt_logop_prev_lsn_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN 
  * __wt_logop_prev_lsn_unpack__fmt --
  *     Unpack the log operation prev_lsn.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_prev_lsn_unpack__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
@@ -937,7 +945,7 @@ __wt_logop_prev_lsn_unpack__fmt(
  * __wt_logop_prev_lsn_print__fmt --
  *     Print the log operation prev_lsn.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_prev_lsn_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -956,7 +964,7 @@ __wt_logop_prev_lsn_print__fmt(
  * __wt_logop_backup_id_pack__fmt --
  *     Pack the log operation backup_id.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_backup_id_pack__fmt(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, const char *id)
@@ -982,7 +990,7 @@ __wt_logop_backup_id_pack__fmt(
  * __wt_logop_backup_id_unpack__fmt --
  *     Unpack the log operation backup_id.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_backup_id_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *indexp, uint64_t *granularityp, const char **idp)
@@ -1004,7 +1012,7 @@ __wt_logop_backup_id_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, c
  * __wt_logop_backup_id_print__fmt --
  *     Print the log operation backup_id.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_backup_id_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -1026,7 +1034,7 @@ __wt_logop_backup_id_print__fmt(
  * __wt_logop_txn_timestamp_pack__fmt --
  *     Pack the log operation txn_timestamp.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_txn_timestamp_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_t time_sec,
   uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
@@ -1054,7 +1062,7 @@ __wt_logop_txn_timestamp_pack__fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, ui
  * __wt_logop_txn_timestamp_unpack__fmt --
  *     Unpack the log operation txn_timestamp.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_txn_timestamp_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint64_t *time_secp, uint64_t *time_nsecp, uint64_t *commit_tsp, uint64_t *durable_tsp,
@@ -1078,7 +1086,7 @@ __wt_logop_txn_timestamp_unpack__fmt(WT_SESSION_IMPL *session, const uint8_t **p
  * __wt_logop_txn_timestamp_print__fmt --
  *     Print the log operation txn_timestamp.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_logop_txn_timestamp_print__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -1110,7 +1118,7 @@ __wt_logop_txn_timestamp_print__fmt(
  * __wt_txn_op_printlog__fmt --
  *     Print operation from a log cookie.
  */
-__attribute__((__unused__))
+WT_ATTRIBUTE_UNUSED
 static int
 __wt_txn_op_printlog__fmt(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)

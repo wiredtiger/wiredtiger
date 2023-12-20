@@ -7,7 +7,7 @@ create_test_executable(test_packing
 )
 
 if(MSVC)
-    set(PACKING_TEST_FLAGS )
+    set(PACKING_TEST_FLAGS /wd4068)
 else()
     set(PACKING_TEST_FLAGS -Wno-used-but-marked-unused -Wno-error=pragmas -Wno-error=unknown-pragmas -Wno-pragmas -Wno-error=unused-but-set-variable -Wno-error=unused-parameter -Wno-error)
 endif()
