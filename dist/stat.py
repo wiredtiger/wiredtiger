@@ -3,7 +3,7 @@
 # Read the source files and output the statistics #defines plus the
 # initialize and refresh code.
 
-import os, string, sys, textwrap
+import os, textwrap
 from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
 

@@ -60,7 +60,7 @@ def fn_prototypes(fns, tests, name):
 # Unit-testing functions are exposed separately in their own section to
 # allow them to be ifdef'd out.
 def output(fns, tests, f):
-    tmp_file = '__tmp_proto' + str(os.getpid())
+    tmp_file = '__tmp_prototypes' + str(os.getpid())
     tfile = open(tmp_file, 'w')
     for e in sorted(list(set(fns))):
         tfile.write(e)

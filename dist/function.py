@@ -132,7 +132,7 @@ def function_args(name, line):
 
 # Put function arguments in correct sort order.
 def function_declaration():
-    tmp_file = '__tmp_funcs' + str(os.getpid())
+    tmp_file = '__tmp_functions' + str(os.getpid())
     for name in all_c_files():
         skip_re = re.compile(r'DO NOT EDIT: automatically built')
         s = open(name, 'r').read()

@@ -58,12 +58,12 @@ errchk()
 
 run()
 {
-    cmd="$1"
-    name="${cmd%% *}"
-    t="${t_pfx}-${name}-$$"
+    local cmd="$1" flags="$2"
+    local name="${cmd%% *}"
+    local t="${t_pfx}-${name}-$$"
     [[ "$name" =~ .*\.py$ ]] && cmd="python3 $cmd" || cmd="/bin/bash $cmd"
-    $cmd 2>&1 > $t
-    errchk "$name" "$t" "$2"
+    $cmd > $t 2>&1
+    errchk "$name" "$t" "$flags"
 }
 
 # Non parallelizable scripts. The following scripts either modify files or
@@ -114,7 +114,7 @@ wait
 [[ -s "${t_pfx}_errfound" ]] && errfound=1
 
 echo "dist/s_all run finished. Error? $errfound"
-[[ $errfound -ne 0 ]] && echo Errors in: `cat "${t_pfx}_errfound"`
+[[ $errfound -ne 0 ]] && echo Fatal errors reported by: `cat "${t_pfx}_errfound"`
 if test $errmode -ne 0; then
     exit $errfound;
 fi

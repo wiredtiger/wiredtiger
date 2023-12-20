@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import os
+import os, log_data
 from dist import compare_srcfile, format_srcfile
-import log_data
 
 # Temporary file.
 tmp_file = '__tmp_log' + str(os.getpid())
