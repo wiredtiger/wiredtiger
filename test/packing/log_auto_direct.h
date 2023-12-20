@@ -259,10 +259,14 @@ __wt_logrec_write__direct(WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end, 
  */
 WT_ATTRIBUTE_UNUSED
 static int
-__wt_logop_read__direct(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *optypep,
-  uint32_t *opsizep)
+__wt_logop_read__direct(WT_SESSION_IMPL *session, const uint8_t **pp2, const uint8_t *end,
+  uint32_t *optypep, uint32_t *opsizep)
 {
+    const uint8_t *p, **pp;
     WT_UNUSED(session);
+
+    p = *pp2;
+    pp = &p;
     __pack_decode__uintAny__direct(uint32_t, optypep);
     __pack_decode__uintAny__direct(uint32_t, opsizep);
     return (0);

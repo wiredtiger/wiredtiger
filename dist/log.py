@@ -341,10 +341,14 @@ __wt_logrec_write(WT_SESSION_IMPL *session,
  */
 int
 __wt_logop_read(WT_SESSION_IMPL *session,
-    const uint8_t **pp, const uint8_t *end,
+    const uint8_t **pp2, const uint8_t *end,
     uint32_t *optypep, uint32_t *opsizep)
 {
+\tconst uint8_t *p, **pp;
 \tWT_UNUSED(session);
+
+\tp = *pp2;
+\tpp = &p;
 \t__pack_decode__uintAny(uint32_t, optypep);
 \t__pack_decode__uintAny(uint32_t, opsizep);
 \treturn (0);
