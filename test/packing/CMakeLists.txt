@@ -6,32 +6,25 @@ create_test_executable(test_packing
     EXECUTABLE_NAME "packing-test"
 )
 
-if(WT_WIN)
-    # Create packing-direct-test executable.
-    create_test_executable(test_packing_direct
-        SOURCES packing-direct-test.c
-        EXECUTABLE_NAME "packing-direct-test"
-    )
-
-    # Create packing-direct-test-all executable.
-    create_test_executable(test_packing_direct_all
-        SOURCES packing-direct-test-all.c
-        EXECUTABLE_NAME "packing-direct-test-all"
-    )
+if(MSVC)
+    set(PACKING_TEST_FLAGS )
 else()
-    # Create packing-direct-test executable.
-    create_test_executable(test_packing_direct
-        SOURCES packing-direct-test.c
-        EXECUTABLE_NAME "packing-direct-test"
-        FLAGS -Wno-used-but-marked-unused -Wno-error=pragmas -Wno-error=unknown-pragmas -Wno-pragmas -Wno-error=unused-but-set-variable -Wno-error=unused-parameter -Wno-error
-    )
-    # Create packing-direct-test-all executable.
-    create_test_executable(test_packing_direct_all
-        SOURCES packing-direct-test-all.c
-        EXECUTABLE_NAME "packing-direct-test-all"
-        FLAGS -Wno-used-but-marked-unused -Wno-error=pragmas -Wno-error=unknown-pragmas -Wno-pragmas -Wno-error=unused-but-set-variable -Wno-error=unused-parameter -Wno-error
-    )
+    set(PACKING_TEST_FLAGS -Wno-used-but-marked-unused -Wno-error=pragmas -Wno-error=unknown-pragmas -Wno-pragmas -Wno-error=unused-but-set-variable -Wno-error=unused-parameter -Wno-error)
 endif()
+
+# Create packing-direct-test executable.
+create_test_executable(test_packing_direct
+    SOURCES packing-direct-test.c
+    EXECUTABLE_NAME "packing-direct-test"
+    FLAGS ${PACKING_TEST_FLAGS}
+)
+
+# Create packing-direct-test-all executable.
+create_test_executable(test_packing_direct_all
+    SOURCES packing-direct-test-all.c
+    EXECUTABLE_NAME "packing-direct-test-all"
+    FLAGS ${PACKING_TEST_FLAGS}
+)
 
 # Create intpack test executable.
 create_test_executable(test_intpack

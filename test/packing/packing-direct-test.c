@@ -168,7 +168,7 @@ run_fmt(int n)
     WT_ERR(__wt_buf_init(session, &logrec, 0));
 
     WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
-    printf("[%lu]", logrec.size);
+    printf("[%lu]", (unsigned long)logrec.size);
     for (size_t i = 0; i < logrec.size; i++) printf(" %02x", ((uint8_t*)logrec.data)[i]);
     printf("\n");
 
@@ -207,7 +207,7 @@ run_direct(int n)
     /*logrec = txn->logrec;*/
 
     WT_ERR(__wt_logop_txn_timestamp_pack(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
-    printf("[%lu]", logrec.size);
+    printf("[%lu]", (unsigned long)logrec.size);
     for (size_t i = 0; i < logrec.size; i++) printf(" %02x", ((uint8_t*)logrec.data)[i]);
     printf("\n");
 
