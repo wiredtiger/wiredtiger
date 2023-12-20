@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import os
 from dist import compare_srcfile, format_srcfile
 import log_data
 
 # Temporary file.
-tmp_file = '__tmp'
+tmp_file = '__tmp_log' + str(os.getpid())
 
 # Map log record types to:
 #   0. C type

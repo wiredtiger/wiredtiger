@@ -3,7 +3,7 @@
 # Run standard scripts.
 t=__wt.$$
 t_pfx=__s_all_tmp_
-trap 'rm -f $t *.pyc __tmp __wt.* __s_all_tmp*' 0 1 2 3 13 15
+trap 'rm -f $t *.pyc __tmp* __wt.* __s_all_tmp*; kill -- `jobs -p | sed 's/^/-/'` 2>/dev/null' 0 1 2 3 13 15
 
 # We require python3 which may not be installed.
 type python3 > /dev/null 2>&1 || {
@@ -41,26 +41,29 @@ echo "Updating files that include the package version" &&
 errchk()
 {
     if ! `test -s $2`; then
-        return
+        return 0
     fi
 
-    echo "####################### MESSAGE ############################"
-    echo "s_all run of: \"$1\" resulted in:"
-    sed -e 's/^/    /' $2
-    echo "#######################"
+    echo '#########' s_all run of: "$1" resulted in:$'\n'"$(cat $2)"$'\n''#########'
 
     # If the test was skipped or marked warning only, ignore the failure.
-    if [ ! `grep "$1.*skipped" $2 > /dev/null` ] && [ ! "$3" = "--warning-only" ] ; then
+    { grep -q "$1.*skipped" $2 || test "$3" = "--warning-only"; } || {
         errfound=1;
-    fi
+        echo "$1" >> "${t_pfx}_errfound"
+    }
 
     rm -f $2
+    return $errfound
 }
 
 run()
 {
-    2>&1 $1 > $t
-    errchk "$1" $t "$2"
+    cmd="$1"
+    name="${cmd%% *}"
+    t="${t_pfx}-${name}-$$"
+    [[ "$name" =~ .*\.py$ ]] && cmd="python3 $cmd" || cmd="/bin/bash $cmd"
+    $cmd 2>&1 > $t
+    errchk "$name" "$t" "$2"
 }
 
 # Non parallelizable scripts. The following scripts either modify files or
@@ -82,53 +85,40 @@ run "python3 test_tag.py"
 # The s_mentions script requires bash.
 run "./s_mentions" "--warning-only"
 
-COMMANDS="
-2>&1 ./s_define > ${t_pfx}s_define
-2>&1 ./s_docs > ${t_pfx}s_docs
-2>&1 ./s_evergreen > ${t_pfx}s_evergreen
-2>&1 ./s_evergreen_validate ${fast} > ${t_pfx}s_evergreen_validate
-2>&1 ./s_export > ${t_pfx}s_export
-2>&1 ./s_free > ${t_pfx}s_free
-2>&1 ./s_funcs > ${t_pfx}s_funcs
-2>&1 ./s_function ${fast} > ${t_pfx}s_function
-2>&1 ./s_getopt > ${t_pfx}s_getopt
-2>&1 ./s_lang > ${t_pfx}s_lang
-2>&1 ./s_longlines > ${t_pfx}s_longlines
-2>&1 ./s_python > ${t_pfx}s_python
-2>&1 ./s_stat > ${t_pfx}_stat
-2>&1 ./s_string > ${t_pfx}s_string
-2>&1 ./s_tags > ${t_pfx}tags
-2>&1 ./s_typedef -c > ${t_pfx}s_typedef_c
-2>&1 ./s_visibility_checks > ${t_pfx}s_visibility_checks
-2>&1 ./s_void > ${t_pfx}s_void
-2>&1 ./s_whitespace > ${t_pfx}s_whitespace
-2>&1 python3 function.py > ${t_pfx}py_function
-2>&1 python3 style.py > ${t_pfx}py_style
-2>&1 python3 comment_style.py ${fast} > ${t_pfx}py_comment_style
-2>&1 python3 type_to_str.py > ${t_pfx}py_type_to_str
-" # the closing quote needs to be on a separate line, or the wrong command is run.
+for cmd in \
+    "s_define" \
+    "s_docs" \
+    "s_evergreen" \
+    "s_evergreen_validate ${fast}" \
+    "s_export" \
+    "s_free" \
+    "s_funcs" \
+    "s_function ${fast}" \
+    "s_getopt" \
+    "s_lang" \
+    "s_longlines" \
+    "s_python" \
+    "s_stat" \
+    "s_string" \
+    "s_tags" \
+    "s_typedef -c" \
+    "s_visibility_checks" \
+    "s_void" \
+    "s_whitespace" \
+    "function.py" \
+    "style.py" \
+    "comment_style.py ${fast}" \
+    "type_to_str.py" \
+    ;
+do
+    run "$cmd" &
+done
+wait
 
-# Parallelize if possible.
-xp=""
-echo date | xargs -P 20 >/dev/null 2>&1
-if test $? -eq 0; then
-    xp="-P 20"
-fi
-echo "$COMMANDS" | xargs $xp -I{} /bin/bash -c {}
-
-# For each command check if an output file has been generated. If it has, report the contents and
-# the command used to populate it.
-while read -r line ; do
-    outputfile=$(echo "$line" | sed -e 's/.* > //')
-    if test -s "$outputfile" ; then
-        check=$(echo "$line" | sed -e 's/ >.*//' -e 's/2>&1 //')
-        errchk "$check" "$outputfile"
-    fi
-done <<EOT
-"$COMMANDS"
-EOT
+[[ -s "${t_pfx}_errfound" ]] && errfound=1
 
 echo "dist/s_all run finished. Error? $errfound"
+[[ $errfound -ne 0 ]] && echo Errors in: `cat "${t_pfx}_errfound"`
 if test $errmode -ne 0; then
     exit $errfound;
 fi
