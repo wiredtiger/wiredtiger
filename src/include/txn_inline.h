@@ -700,6 +700,8 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     wt_timestamp_t start_ts, durable_ts;
     uint8_t prepare_state;
 
+    start_ts = durable_ts = 0;
+
     prepare_state = __wt_read_update_timestamps(NULL, upd, &start_ts, &durable_ts);
 
     if (prepare_state == WT_PREPARE_INPROGRESS)
@@ -934,6 +936,8 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     wt_timestamp_t start_ts, durable_ts;
     uint8_t prepare_state;
     bool upd_visible;
+
+    durable_ts = start_ts = 0;
 
     /* Entries in the history store are always visible. */
     if ((WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
