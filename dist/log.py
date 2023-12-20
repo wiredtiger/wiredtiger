@@ -99,14 +99,14 @@ class Field:
         return 'strlen(%s) + 1' % self.fieldname
 
     def struct_pack_body(self):
-        return '\tWT_RET(__pack_encode__uintAny(pp, end, %s));\n' % self.fieldname
+        return '    WT_RET(__pack_encode__uintAny(pp, end, %s));\n' % self.fieldname
     def struct_pack_body__WT_LSN(self):
-        return '\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.file));\n\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.offset));\n'  % {'name' : self.fieldname}
+        return '    WT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.file));\n    WT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.offset));\n'  % {'name' : self.fieldname}
     def struct_pack_body__WT_ITEM(self):
         fn = '__pack_encode__WT_ITEM' if not self.is_last_field else '__pack_encode__WT_ITEM_last'
-        return '\tWT_RET('+fn+'(pp, end, '+self.fieldname+'));\n'
+        return '    WT_RET('+fn+'(pp, end, '+self.fieldname+'));\n'
     def struct_pack_body__string(self):
-        return '\tWT_RET(__pack_encode__string(pp, end, %s));\n' % self.fieldname
+        return '    WT_RET(__pack_encode__string(pp, end, %s));\n' % self.fieldname
 
     def struct_unpack_body(self):
         return '__pack_decode__uintAny(%s, %sp);\n' % (self.cintype, self.fieldname)
@@ -124,7 +124,7 @@ for op in log_data.optypes:
 
 
 def escape_decl(fields):
-    return '\n\tWT_DECL_ITEM(escaped);' if has_escape(fields) else ''
+    return '\n    WT_DECL_ITEM(escaped);' if has_escape(fields) else ''
 
 def has_escape(fields):
     for f in fields:
@@ -149,9 +149,9 @@ def rec_pack_fmt(r):
 def check_redact(optype):
     for f in optype.fields:
         if f.typename == 'uint32_id':
-            redact_str = '\tif (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && '
+            redact_str = '    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && '
             redact_str += '%s != WT_METAFILE_ID)\n' % (f.fieldname)
-            redact_str += '\t\treturn(__wt_fprintf(session, args->fs, " REDACTED"));\n'
+            redact_str += '        return(__wt_fprintf(session, args->fs, " REDACTED"));\n'
             return redact_str
     return ''
 
@@ -163,7 +163,7 @@ def check_redact(optype):
 def printf_line(f, optype, i, ishex):
     ifbegin = ''
     ifend = ''
-    nl_indent = '\n\t'
+    nl_indent = '\n    '
     name = f.fieldname
     postcomma = '' if i + 1 == len(optype.fields) else ',\\n'
     precomma = ''
@@ -171,7 +171,7 @@ def printf_line(f, optype, i, ishex):
         name += '-hex'
         if not f.always_hex:
             ifend = nl_indent + '}'
-            nl_indent += '\t'
+            nl_indent += '    '
             ifbegin = \
                 'if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {' + nl_indent
             if postcomma == '':
@@ -202,7 +202,7 @@ def run():
 
 /*
  * __pack_encode__WT_ITEM --
- *\tPack a WT_ITEM structure.
+ *    Pack a WT_ITEM structure.
  */
 
 static inline int
@@ -279,148 +279,148 @@ __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
 
 /*
  * __wt_logrec_alloc --
- *\tAllocate a new WT_ITEM structure.
+ *    Allocate a new WT_ITEM structure.
  */
 int
 __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
-\tWT_ITEM *logrec;
-\tWT_LOG *log;
-\tsize_t allocsize;
+    WT_ITEM *logrec;
+    WT_LOG *log;
+    size_t allocsize;
 
-\tlog = S2C(session)->log;
-\tallocsize = log == NULL ? WT_LOG_ALIGN : log->allocsize;
-\tWT_RET(__wt_scr_alloc(session, WT_ALIGN(size + 1, allocsize), &logrec));
-\tWT_CLEAR(*(WT_LOG_RECORD *)logrec->data);
-\tlogrec->size = offsetof(WT_LOG_RECORD, record);
+    log = S2C(session)->log;
+    allocsize = log == NULL ? WT_LOG_ALIGN : log->allocsize;
+    WT_RET(__wt_scr_alloc(session, WT_ALIGN(size + 1, allocsize), &logrec));
+    WT_CLEAR(*(WT_LOG_RECORD *)logrec->data);
+    logrec->size = offsetof(WT_LOG_RECORD, record);
 
-\t*logrecp = logrec;
-\treturn (0);
+    *logrecp = logrec;
+    return (0);
 }
 
 /*
  * __wt_logrec_free --
- *\tFree the given WT_ITEM structure.
+ *    Free the given WT_ITEM structure.
  */
 void
 __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 {
-\t__wt_scr_free(session, logrecp);
+    __wt_scr_free(session, logrecp);
 }
 
 /*
  * __wt_logrec_read --
- *\tRead the record type.
+ *    Read the record type.
  */
 int
 __wt_logrec_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
 {
-\tWT_UNUSED(session);
-\t__pack_decode__uintAny(uint32_t, rectypep);
-\treturn (0);
+    WT_UNUSED(session);
+    __pack_decode__uintAny(uint32_t, rectypep);
+    return (0);
 }
 
 /*
  * __wt_logrec_write --
- *\tWrite the record type.
+ *    Write the record type.
  */
 int
 __wt_logrec_write(WT_SESSION_IMPL *session,
     uint8_t **pp, uint8_t *end, uint32_t rectype)
 {
-\tWT_UNUSED(session);
-\tWT_RET(__pack_encode__uintAny(pp, end, rectype));
-\treturn (0);
+    WT_UNUSED(session);
+    WT_RET(__pack_encode__uintAny(pp, end, rectype));
+    return (0);
 }
 
 
 /*
  * __wt_logop_read --
- *\tPEEK the operation type.
+ *    PEEK the operation type.
  */
 int
 __wt_logop_read(WT_SESSION_IMPL *session,
     const uint8_t **pp2, const uint8_t *end,
     uint32_t *optypep, uint32_t *opsizep)
 {
-\tconst uint8_t *p, **pp;
-\tWT_UNUSED(session);
+    const uint8_t *p, **pp;
+    WT_UNUSED(session);
 
-\tp = *pp2;
-\tpp = &p;
-\t__pack_decode__uintAny(uint32_t, optypep);
-\t__pack_decode__uintAny(uint32_t, opsizep);
-\treturn (0);
+    p = *pp2;
+    pp = &p;
+    __pack_decode__uintAny(uint32_t, optypep);
+    __pack_decode__uintAny(uint32_t, opsizep);
+    return (0);
 }
 
 /*
  * __wt_logop_unpack --
- *\tRead the operation type.
+ *    Read the operation type.
  */
 int
 __wt_logop_unpack(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end,
     uint32_t *optypep, uint32_t *opsizep)
 {
-\tWT_UNUSED(session);
-\t__pack_decode__uintAny(uint32_t, optypep);
-\t__pack_decode__uintAny(uint32_t, opsizep);
-\treturn (0);
+    WT_UNUSED(session);
+    __pack_decode__uintAny(uint32_t, optypep);
+    __pack_decode__uintAny(uint32_t, opsizep);
+    return (0);
 }
 
 /*
  * __wt_logop_write --
- *\tWrite the operation type.
+ *    Write the operation type.
  */
 int
 __wt_logop_write(WT_SESSION_IMPL *session,
     uint8_t **pp, uint8_t *end,
     uint32_t optype, uint32_t opsize)
 {
-\tWT_UNUSED(session);
-\tWT_RET(__pack_encode__uintAny(pp, end, optype));
-\tWT_RET(__pack_encode__uintAny(pp, end, opsize));
-\treturn (0);
+    WT_UNUSED(session);
+    WT_RET(__pack_encode__uintAny(pp, end, optype));
+    WT_RET(__pack_encode__uintAny(pp, end, opsize));
+    return (0);
 }
 
 /*
  * __logrec_make_json_str --
- *\tUnpack a string into JSON escaped format.
+ *    Unpack a string into JSON escaped format.
  */
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
-\tsize_t needed;
+    size_t needed;
 
-\tneeded = (item->size * WT_MAX_JSON_ENCODE) + 1;
+    needed = (item->size * WT_MAX_JSON_ENCODE) + 1;
 
-\tif (*escapedp == NULL)
-\t\tWT_RET(__wt_scr_alloc(session, needed, escapedp));
-\telse
-\tWT_RET(__wt_buf_grow(session, *escapedp, needed));
-\tWT_IGNORE_RET(
-\t\t__wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size));
-\treturn (0);
+    if (*escapedp == NULL)
+        WT_RET(__wt_scr_alloc(session, needed, escapedp));
+    else
+        WT_RET(__wt_buf_grow(session, *escapedp, needed));
+    WT_IGNORE_RET(
+        __wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size));
+    return (0);
 }
 
 /*
  * __logrec_make_hex_str --
- *\tConvert data to a hexadecimal representation.
+ *    Convert data to a hexadecimal representation.
  */
 static int
 __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
-\tsize_t needed;
+    size_t needed;
 
-\tneeded = (item->size * 2) + 1;
+    needed = (item->size * 2) + 1;
 
-\tif (*escapedp == NULL)
-\t\tWT_RET(__wt_scr_alloc(session, needed, escapedp));
-\telse
-\tWT_RET(__wt_buf_grow(session, *escapedp, needed));
-\t__wt_fill_hex(item->data, item->size, (*escapedp)->mem, (*escapedp)->memsize, NULL);
-\treturn (0);
+    if (*escapedp == NULL)
+        WT_RET(__wt_scr_alloc(session, needed, escapedp));
+    else
+        WT_RET(__wt_buf_grow(session, *escapedp, needed));
+    __wt_fill_hex(item->data, item->size, (*escapedp)->mem, (*escapedp)->memsize, NULL);
+    return (0);
 }
 
 ''')
@@ -430,7 +430,7 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
         tfile.write('''
 /*
  * __wt_struct_size_%(name)s --
- *\tCalculate size of %(name)s struct.
+ *    Calculate size of %(name)s struct.
  */
 static inline size_t
 __wt_struct_size_%(name)s(%(arg_decls_in_or_void)s)
@@ -441,7 +441,7 @@ __wt_struct_size_%(name)s(%(arg_decls_in_or_void)s)
 
 /*
  * __wt_struct_pack_%(name)s --
- *\tPack the %(name)s struct.
+ *    Pack the %(name)s struct.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
@@ -454,7 +454,7 @@ __wt_struct_pack_%(name)s(uint8_t **pp, uint8_t *end%(comma)s
 
 /*
  * __wt_struct_unpack_%(name)s --
- *\tUnpack the %(name)s struct.
+ *    Unpack the %(name)s struct.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
@@ -468,7 +468,7 @@ __wt_struct_unpack_%(name)s(const uint8_t **pp, const uint8_t *end%(comma)s
 
 /*
  * __wt_logop_%(name)s_pack --
- *\tPack the log operation %(name)s.
+ *    Pack the log operation %(name)s.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
@@ -476,50 +476,50 @@ __wt_logop_%(name)s_pack(
     WT_SESSION_IMPL *session, WT_ITEM *logrec%(comma)s
     %(arg_decls_in)s)
 {
-\tsize_t size;
-\tuint8_t *buf, *end;
+    size_t size;
+    uint8_t *buf, *end;
 
-\tsize = __wt_struct_size_%(name)s(%(pack_args)s);
-\tsize += __wt_vsize_uint(%(macro)s) + __wt_vsize_uint(0);
-\t__wt_struct_size_adjust(session, &size);
-\tWT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+    size = __wt_struct_size_%(name)s(%(pack_args)s);
+    size += __wt_vsize_uint(%(macro)s) + __wt_vsize_uint(0);
+    __wt_struct_size_adjust(session, &size);
+    WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
 
-\tbuf = (uint8_t *)logrec->data + logrec->size;
-\tend = buf + size;
-\tWT_RET(__wt_logop_write(session, &buf, end, %(macro)s, (uint32_t)size));
-\tWT_RET(__wt_struct_pack_%(name)s(&buf, end%(comma)s%(pack_args)s));
+    buf = (uint8_t *)logrec->data + logrec->size;
+    end = buf + size;
+    WT_RET(__wt_logop_write(session, &buf, end, %(macro)s, (uint32_t)size));
+    WT_RET(__wt_struct_pack_%(name)s(&buf, end%(comma)s%(pack_args)s));
 
-\tlogrec->size += (uint32_t)size;
-\treturn (0);
+    logrec->size += (uint32_t)size;
+    return (0);
 }
 
 /*
  * __wt_logop_%(name)s_unpack --
- *\tUnpack the log operation %(name)s.
+ *    Unpack the log operation %(name)s.
  */
 int
 __wt_logop_%(name)s_unpack(
     WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end%(comma)s
     %(arg_decls_out)s)
 {
-\tWT_DECL_RET;
-\tuint32_t optype, size;
+    WT_DECL_RET;
+    uint32_t optype, size;
 
 #ifdef HAVE_DIAGNOSTIC
-\tconst uint8_t **pp_orig;
-\tpp_orig = pp;
+    const uint8_t **pp_orig;
+    pp_orig = pp;
 #endif
 
-\tif ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
-\t\t\t(ret = __wt_struct_unpack_%(name)s(pp, end%(comma)s%(unpack_args)s)) != 0)
-\t\tWT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
+    if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+            (ret = __wt_struct_unpack_%(name)s(pp, end%(comma)s%(unpack_args)s)) != 0)
+        WT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 
-\tWT_ASSERT(session, optype == %(macro)s);
+    WT_ASSERT(session, optype == %(macro)s);
 #ifdef HAVE_DIAGNOSTIC
-\tWT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
 #endif
 
-\treturn (0);
+    return (0);
 }
 ''' % {
             'name' : optype.name,
@@ -530,42 +530,42 @@ __wt_logop_%(name)s_unpack(
             'arg_decls_out' : ', '.join(f.coutdecl for f in optype.fields),
             'size_body' : ' + '.join(f.struct_size_body() for f in optype.fields) if optype.fields else '0',
             'pack_args' : ', '.join(f.pack_arg() for f in optype.fields),
-            'pack_body' : ''.join(f.struct_pack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
+            'pack_body' : ''.join(f.struct_pack_body() for f in optype.fields) if optype.fields else '    WT_UNUSED(pp);\n    WT_UNUSED(end);',
             'unpack_args' : ', '.join(f.unpack_arg() for f in optype.fields),
-            'unpack_body' : ''.join(f.struct_unpack_body() for f in optype.fields) if optype.fields else '\tWT_UNUSED(pp);\n\tWT_UNUSED(end);',
+            'unpack_body' : ''.join(f.struct_unpack_body() for f in optype.fields) if optype.fields else '    WT_UNUSED(pp);\n    WT_UNUSED(end);',
             'fmt' : op_pack_fmt(optype),
         })
 
         tfile.write('''
 /*
  * __wt_logop_%(name)s_print --
- *\tPrint the log operation %(name)s.
+ *    Print the log operation %(name)s.
  */
 int
 __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {%(arg_ret)s%(local_decls)s
 
-\tWT_RET(__wt_logop_%(name)s_unpack(session, pp, end%(arg_addrs)s));
+    WT_RET(__wt_logop_%(name)s_unpack(session, pp, end%(arg_addrs)s));
 
-\t%(redact)s
-\tWT_RET(__wt_fprintf(session, args->fs,
-\t    " \\"optype\\": \\"%(name)s\\"%(comma)s\\n"));
+    %(redact)s
+    WT_RET(__wt_fprintf(session, args->fs,
+        " \\"optype\\": \\"%(name)s\\"%(comma)s\\n"));
 %(print_args)s
 %(arg_fini)s
 }
 ''' % {
             'name' : optype.name,
             'comma' : ',' if len(optype.fields) > 0 else '',
-            'arg_ret' : ('\n\tWT_DECL_RET;' if has_escape(optype.fields) else ''),
-            'local_decls' : (('\n' + '\n'.join("\t" + f.clocaldef + ";"
+            'arg_ret' : ('\n    WT_DECL_RET;' if has_escape(optype.fields) else ''),
+            'local_decls' : (('\n' + '\n'.join("    " + f.clocaldef + ";"
                 for f in optype.fields)) + escape_decl(optype.fields)
                 if optype.fields else ''),
-            'arg_fini' : ('\nerr:\t__wt_scr_free(session, &escaped);\n\treturn (ret);'
-            if has_escape(optype.fields) else '\treturn (0);'),
+            'arg_fini' : ('\nerr:    __wt_scr_free(session, &escaped);\n    return (ret);'
+            if has_escape(optype.fields) else '    return (0);'),
             'arg_addrs' : ''.join(', &%s' % f.fieldname for f in optype.fields),
             'redact' : check_redact(optype),
-            'print_args' : ('\t' + '\n\t'.join(printf_line(f, optype, i, s)
+            'print_args' : ('    ' + '\n    '.join(printf_line(f, optype, i, s)
                 for i,f in enumerate(optype.fields) for s in range(0, f.n_setup))
                 if optype.fields else ''),
         })
@@ -574,35 +574,35 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     tfile.write('''
 /*
  * __wt_txn_op_printlog --
- *\tPrint operation from a log cookie.
+ *    Print operation from a log cookie.
  */
 int
 __wt_txn_op_printlog(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
-\tuint32_t optype, opsize;
+    uint32_t optype, opsize;
 
-\t/* Peek at the size and the type. */
-\tWT_RET(__wt_logop_read(session, pp, end, &optype, &opsize));
-\tend = *pp + opsize;
+    /* Peek at the size and the type. */
+    WT_RET(__wt_logop_read(session, pp, end, &optype, &opsize));
+    end = *pp + opsize;
 
-\tswitch (optype) {''')
+    switch (optype) {''')
 
     for optype in log_data.optypes:
         tfile.write('''
-\tcase %(macro)s:
-\t\tWT_RET(%(print_func)s(session, pp, end, args));
-\t\tbreak;
+    case %(macro)s:
+        WT_RET(%(print_func)s(session, pp, end, args));
+        break;
 ''' % {
         'macro' : optype.macro_name,
         'print_func' : '__wt_logop_' + optype.name + '_print',
     })
 
     tfile.write('''
-\tdefault:\n\t\treturn (__wt_illegal_value(session, optype));
-\t}
+    default:\n        return (__wt_illegal_value(session, optype));
+    }
 
-\treturn (0);
+    return (0);
 }
 ''')
 

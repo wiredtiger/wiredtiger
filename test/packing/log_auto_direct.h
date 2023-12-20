@@ -136,7 +136,7 @@ __pack_encode__WT_ITEM__direct(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 }
 
 static inline int
-__pack_encode__WT_ITEM_last__direct(uint8_t **pp, uint8_t *end, WT_ITEM *item)
+__pack_encode__WT_ITEM__direct_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 {
     WT_SIZE_CHECK_PACK(item->size, WT_PTRDIFF(end, *pp));
     memcpy(*pp, item->data, item->size);
@@ -362,7 +362,7 @@ __wt_struct_pack_col_modify__direct(
 {
     WT_RET(__pack_encode__uintAny__direct(pp, end, fileid));
     WT_RET(__pack_encode__uintAny__direct(pp, end, recno));
-    WT_RET(__pack_encode__WT_ITEM_last__direct(pp, end, value));
+    WT_RET(__pack_encode__WT_ITEM__direct_last(pp, end, value));
 
     return (0);
 }
@@ -497,7 +497,7 @@ __wt_struct_pack_col_put__direct(
 {
     WT_RET(__pack_encode__uintAny__direct(pp, end, fileid));
     WT_RET(__pack_encode__uintAny__direct(pp, end, recno));
-    WT_RET(__pack_encode__WT_ITEM_last__direct(pp, end, value));
+    WT_RET(__pack_encode__WT_ITEM__direct_last(pp, end, value));
 
     return (0);
 }
@@ -875,7 +875,7 @@ __wt_struct_pack_row_modify__direct(
 {
     WT_RET(__pack_encode__uintAny__direct(pp, end, fileid));
     WT_RET(__pack_encode__WT_ITEM__direct(pp, end, key));
-    WT_RET(__pack_encode__WT_ITEM_last__direct(pp, end, value));
+    WT_RET(__pack_encode__WT_ITEM__direct_last(pp, end, value));
 
     return (0);
 }
@@ -1015,7 +1015,7 @@ __wt_struct_pack_row_put__direct(uint8_t **pp, uint8_t *end, uint32_t fileid, WT
 {
     WT_RET(__pack_encode__uintAny__direct(pp, end, fileid));
     WT_RET(__pack_encode__WT_ITEM__direct(pp, end, key));
-    WT_RET(__pack_encode__WT_ITEM_last__direct(pp, end, value));
+    WT_RET(__pack_encode__WT_ITEM__direct_last(pp, end, value));
 
     return (0);
 }
@@ -1154,7 +1154,7 @@ static inline int
 __wt_struct_pack_row_remove__direct(uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *key)
 {
     WT_RET(__pack_encode__uintAny__direct(pp, end, fileid));
-    WT_RET(__pack_encode__WT_ITEM_last__direct(pp, end, key));
+    WT_RET(__pack_encode__WT_ITEM__direct_last(pp, end, key));
 
     return (0);
 }
