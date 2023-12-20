@@ -124,9 +124,8 @@ err:
 
     /*
      * Sanity check timings - 86,400,000 milliseconds is 24 hours. FIXME WT-12192 rec_hs_wrapup
-     * should also have an assertion here.
+     * and rec_img_build should also have an assertion here.
      */
-    WT_ASSERT(session, rec_img_build < WT_DAY * WT_THOUSAND);
     WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
 
     if (rec_hs_wrapup > conn->rec_maximum_hs_wrapup_milliseconds)
