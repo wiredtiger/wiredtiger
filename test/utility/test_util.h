@@ -48,7 +48,8 @@
 /* Default file and subdirectory names to use for LazyFS in the tests. */
 #define LAZYFS_BASE_DIR "base"
 #define LAZYFS_CONFIG_FILE "lazyfs-config.toml"
-#define LAZYFS_CONTROL_FILE "lazyfs-control.fifo"
+#define LAZYFS_CONTROL_FILE_SUFFIX ".fifo"
+#define LAZYFS_CONTROL_FILE_TEMPLATE "lazyfs-control-XXXXXX" LAZYFS_CONTROL_FILE_SUFFIX
 #define LAZYFS_LOG_FILE "lazyfs.log"
 
 #ifdef _WIN32
@@ -249,6 +250,12 @@ typedef struct {
     } while (0)
 
 /*
+ * testutil_strcat --
+ *     Do strcat; fail on error.
+ */
+#define testutil_strcat(out, size, str) testutil_check(__wt_strcat(out, size, str))
+
+/*
  * testutil_snprintf --
  *     Do snprintf; fail on error.
  */
@@ -322,6 +329,16 @@ typedef struct {
         while ((__ret = session->drop(session, uri, config)) == EBUSY) \
             testutil_check(session->checkpoint(session, NULL));        \
         testutil_check(__ret);                                         \
+    } while (0)
+
+/*
+ * testutil_system --
+ *     A convenience macro for testutil_system_internal. Accepts line number as an argument.
+ */
+#define testutil_system(fmt, ...)                                                  \
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))                                  \
+    do {                                                                           \
+        testutil_system_internal(__PRETTY_FUNCTION__, __LINE__, fmt, __VA_ARGS__); \
     } while (0)
 
 /*
@@ -546,7 +563,8 @@ void testutil_sentinel(const char *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
+void testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
@@ -555,6 +573,7 @@ void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint64_t, bool *);
 void testutil_tiered_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
 uint64_t testutil_time_us(WT_SESSION *);
+void testutil_verify_model(TEST_OPTS *opts, const char *);
 void testutil_verify_src_backup(WT_CONNECTION *, const char *, const char *, char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
