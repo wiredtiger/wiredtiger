@@ -112,9 +112,7 @@ cleanup(void)
 
 /*
  * run --
- *
- *
- *
+ *     Run the test.
  */
 static void
 run(void)

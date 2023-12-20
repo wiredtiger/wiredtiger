@@ -26,7 +26,7 @@ prepare_file() {
 #if defined(DOXYGEN) || defined(SWIG) || !defined(__GNUC__)
 #define WT_ATTRIBUTE_UNUSED
 #else
-#define WT_ATTRIBUTE_UNUSED    __attribute__((__unused__))
+#define WT_ATTRIBUTE_UNUSED __attribute__((__unused__))
 #endif
 #endif
 

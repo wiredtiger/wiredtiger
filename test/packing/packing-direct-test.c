@@ -140,9 +140,7 @@ __wt_logop_txn_timestamp_pack_fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uin
 
 /*
  * run_fmt --
- *
- *
- *
+ *     Run formatted packing.
  */
 static uint64_t
 run_fmt(int n)
@@ -179,9 +177,7 @@ err:
 
 /*
  * run_direct --
- *
- *
- *
+ *     Run direct packing.
  */
 static uint64_t
 run_direct(int n)
