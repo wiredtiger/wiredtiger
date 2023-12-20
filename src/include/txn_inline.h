@@ -1784,6 +1784,8 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
     wt_timestamp_t start_ts;
     wt_timestamp_t durable_ts;
 
+    start_ts = durable_ts = 0;
+
     prepare_state = __wt_read_update_timestamps(NULL, upd, &start_ts, &durable_ts);
 
     if (!upd_value->skip_buf) {
