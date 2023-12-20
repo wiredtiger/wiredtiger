@@ -78,7 +78,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
 
         #Background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
-
+                
     #The number of written bytes not exceeded the threshold, but the running period is exceeded
     def test_io_capacity_fsync_background_period(self):
         #Close the initial connection. We will be opening new connections for this test.
@@ -88,6 +88,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         #If the written conditions are not met fsync_maximum_wait_period, force background fsync
         insert_count = 1
         value_size = 1024
+        retry_times = 0
         random_string = self.generate_random_string(value_size)
         conn = self.wiredtiger_open(self.home, self.open_config)
 
@@ -103,9 +104,12 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         #Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
 
-        time.sleep(self.fsync_time)
         #Background fsync statistics
-        self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
+        while (self.get_stat(stat.conn.fsync_all_fh_total) == 0):
+            retry_times += 1
+            time.sleep(0.1)
+            if retry_times > 10:
+                raise Exception("Timed out waiting for fsync_all_fh_total statistic")
 
 if __name__ == '__main__':
     wttest.run()
