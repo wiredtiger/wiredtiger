@@ -1044,9 +1044,9 @@ connection_ops(WT_CONNECTION *conn)
     printf("The database home is: %s\n", conn->get_home(conn));
     /*! [Get the database home directory] */
 
-    /*! [Get the configuration string] */ 
+    /*! [Get the configuration string] */
     printf("The configuration is: %s\n", conn->get_configuration(conn));
-    /*! [Get the configuration string] */ 
+    /*! [Get the configuration string] */
 
     /*! [Check if the database is newly created] */
     if (conn->is_new(conn)) {
