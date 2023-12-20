@@ -39,3 +39,8 @@ $TEST_WRAPPER "$test_bin" -t 10 -T 5 -x
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -x -S
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -x -m
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -x -m -c
+
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -PT -Po dir_store
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -c -PT -Po dir_store
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -z -PT -Po dir_store
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -x -PT -Po dir_store
