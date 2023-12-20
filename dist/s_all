@@ -46,11 +46,12 @@ errchk()
 
     echo '#########' s_all run of: "$1" resulted in:$'\n'"$(cat $2)"$'\n''#########'
 
-    # If the test was skipped or marked warning only, ignore the failure.
-    { grep -q "$1.*skipped" $2 || test "$3" = "--warning-only"; } || {
+    if grep -q "$1.*skipped" $2 || [[ "$3" = "--warning-only" ]]; then
+        : # If the test was skipped or marked warning only, ignore the failure.
+    else
         errfound=1;
         echo "$1" >> "${t_pfx}_errfound"
-    }
+    fi
 
     rm -f $2
     return $errfound
