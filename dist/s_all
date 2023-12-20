@@ -68,51 +68,47 @@ run()
 
 # Non parallelizable scripts. The following scripts either modify files or
 # already parallelize internally.
-run "bash ./s_readme $force"
-run "bash ./s_install $force"
-run "python3 api_config_gen.py"
-run "python3 api_err.py"
-run "python3 flags.py"
-run "python3 log.py"
-run "python3 stat.py"
-run "python3 verbose.py"
-run "bash ./s_copyright"
-run "bash ./s_style ${fast}"
-run "./s_clang_format ${fast}"
-run "python3 prototypes.py"
-run "bash ./s_typedef -b"
-run "python3 test_tag.py"
-# The s_mentions script requires bash.
-run "./s_mentions" "--warning-only"
+run "s_readme $force"
+run "s_install $force"
+run "api_config_gen.py"
+run "api_err.py"
+run "flags.py"
+run "log.py"
+run "stat.py"
+run "verbose.py"
+run "s_copyright"
+run "s_style $fast"
+run "s_clang_format $fast"
+run "prototypes.py"
+run "s_typedef -b"
+run "test_tag.py"
+run "s_mentions" "--warning-only"
+run "primitive_check.py" "--warning-only"
 
-for cmd in \
-    "s_define" \
-    "s_docs" \
-    "s_evergreen" \
-    "s_evergreen_validate ${fast}" \
-    "s_export" \
-    "s_free" \
-    "s_funcs" \
-    "s_function ${fast}" \
-    "s_getopt" \
-    "s_lang" \
-    "s_longlines" \
-    "s_python" \
-    "s_stat" \
-    "s_string" \
-    "s_tags" \
-    "s_typedef -c" \
-    "s_visibility_checks" \
-    "s_void" \
-    "s_whitespace" \
-    "function.py" \
-    "style.py" \
-    "comment_style.py ${fast}" \
-    "type_to_str.py" \
-    ;
-do
-    run "$cmd" &
-done
+# Run in parallel:
+run "s_define" &
+run "s_docs" &
+run "s_evergreen" &
+run "s_evergreen_validate $fast" &
+run "s_export" &
+run "s_free" &
+run "s_funcs" &
+run "s_function $fast" &
+run "s_getopt" &
+run "s_lang" &
+run "s_longlines" &
+run "s_python" &
+run "s_stat" &
+run "s_string" &
+run "s_tags" &
+run "s_typedef -c" &
+run "s_visibility_checks" &
+run "s_void" &
+run "s_whitespace" &
+run "function.py" &
+run "style.py" &
+run "comment_style.py $fast" &
+run "type_to_str.py" &
 wait
 
 [[ -s "${t_pfx}_errfound" ]] && errfound=1
