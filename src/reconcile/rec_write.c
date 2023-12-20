@@ -33,13 +33,15 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    uint64_t rec_hs_wrapup, rec_img_build, rec, rec_start, rec_finish;
     bool no_reconcile_set, page_locked;
 
     btree = S2BT(session);
     conn = S2C(session);
     page = ref->page;
 
-    session->reconcile_timeline.reconcile_start = __wt_clock(session);
+    rec_start = __wt_clock(session);
+    WT_ASSERT(session, rec_start != 0);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -111,23 +113,28 @@ err:
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
      * (it's just a statistic).
      */
-    session->reconcile_timeline.reconcile_finish = __wt_clock(session);
-    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.hs_wrapup_finish,
-          session->reconcile_timeline.hs_wrapup_start) > conn->rec_maximum_hs_wrapup_milliseconds)
-        conn->rec_maximum_hs_wrapup_milliseconds =
-          WT_CLOCKDIFF_MS(session->reconcile_timeline.hs_wrapup_finish,
-            session->reconcile_timeline.hs_wrapup_start);
-    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
-          session->reconcile_timeline.image_build_start) >
-      conn->rec_maximum_image_build_milliseconds)
-        conn->rec_maximum_image_build_milliseconds =
-          WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
-            session->reconcile_timeline.image_build_start);
-    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.reconcile_finish,
-          session->reconcile_timeline.reconcile_start) > conn->rec_maximum_milliseconds)
-        conn->rec_maximum_milliseconds =
-          WT_CLOCKDIFF_MS(session->reconcile_timeline.reconcile_finish,
-            session->reconcile_timeline.reconcile_start);
+    rec_finish = __wt_clock(session);
+    session->reconcile_timeline.reconcile_finish = rec_finish;
+
+    rec_hs_wrapup = WT_CLOCKDIFF_MS(
+      session->reconcile_timeline.hs_wrapup_finish, session->reconcile_timeline.hs_wrapup_start);
+    rec_img_build = WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
+      session->reconcile_timeline.image_build_start);
+    rec = WT_CLOCKDIFF_MS(rec_finish, rec_start);
+
+    /*
+     * Sanity check timings - 86,400,000 milliseconds is 24 hours. FIXME WT-12192 rec_hs_wrapup
+     * should also have an assertion here.
+     */
+    WT_ASSERT(session, rec_img_build < WT_DAY * WT_THOUSAND);
+    WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
+
+    if (rec_hs_wrapup > conn->rec_maximum_hs_wrapup_milliseconds)
+        conn->rec_maximum_hs_wrapup_milliseconds = rec_hs_wrapup;
+    if (rec_img_build > conn->rec_maximum_image_build_milliseconds)
+        conn->rec_maximum_image_build_milliseconds = rec_img_build;
+    if (rec > conn->rec_maximum_milliseconds)
+        conn->rec_maximum_milliseconds = rec;
     if (session->reconcile_timeline.total_reentry_hs_eviction_time >
       conn->cache->reentry_hs_eviction_ms)
         conn->cache->reentry_hs_eviction_ms =
