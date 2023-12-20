@@ -331,8 +331,7 @@ __curversion_next_int(WT_CURSOR *cursor)
                 stop_txn = cbt->upd_value->tw.stop_txn;
             }
 
-            if (tombstone != NULL &&
-              (tombstone->prepare_state == WT_PREPARE_INPROGRESS))
+            if (tombstone != NULL && (tombstone->prepare_state == WT_PREPARE_INPROGRESS))
                 version_prepare_state = 1;
             else
                 version_prepare_state = cbt->upd_value->tw.prepare;

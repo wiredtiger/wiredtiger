@@ -231,3 +231,33 @@
         (out_ta)->newest_stop_ts = WT_MAX((out_ta)->newest_stop_ts, (in_ta)->newest_stop_ts);    \
         (out_ta)->newest_stop_txn = WT_MAX((out_ta)->newest_stop_txn, (in_ta)->newest_stop_txn); \
     } while (0)
+
+/*
+ * __wt_read_update_timestamps --
+ *     Read the start timestamp and durable timestamp off the update.
+ */
+static inline uint8_t
+__wt_read_update_timestamps(
+  WT_SESSION_IMPL *session, WT_UPDATE *upd, wt_timestamp_t *start_tsp, wt_timestamp_t *durable_tsp)
+{
+    uint8_t prepare_state;
+
+    WT_ASSERT(session, start_tsp != NULL && durable_tsp != NULL);
+
+    WT_ORDERED_READ(prepare_state, upd->prepare_state);
+
+    /* These are all mutually exclusive cases and per the implementation of prepared transactions
+     * we should treat them as such.*/
+    if (prepare_state == WT_PREPARE_INPROGRESS) {
+        *start_tsp = upd->prepare_ts;
+        *durable_tsp = WT_TS_NONE;
+    } else if (prepare_state == WT_PREPARE_RESOLVED) {
+        *start_tsp = upd->start_ts;
+        *durable_tsp = upd->durable_ts;
+    } else {
+        *start_tsp = upd->start_ts;
+        *durable_tsp = WT_TS_NONE;
+    }
+
+    return (prepare_state);
+}

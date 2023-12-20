@@ -1308,7 +1308,7 @@ struct __wt_update {
      * be necessary.
      */
     wt_timestamp_t prev_durable_ts;
-
+    wt_timestamp_t prepare_ts;
     wt_shared WT_UPDATE *next; /* forward-linked list */
 
     uint32_t size; /* data length */
@@ -1377,7 +1377,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#define WT_UPDATE_SIZE 47
+#define WT_UPDATE_SIZE 55
 
 /*
  * If there is no value, ensure that the memory allocation size matches that returned by sizeof().
