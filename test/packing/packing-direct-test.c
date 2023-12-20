@@ -27,6 +27,8 @@
  */
 
 #include "test_util.h"
+#include "log_auto_fmt.h"
+#include "log_auto_direct.h"
 
 #define ITERATIONS 10000000
 
@@ -111,108 +113,41 @@ cleanup(void)
     testutil_check(g.wt_conn->close(g.wt_conn, NULL));
 }
 
-/*
- * __wt_logop_txn_timestamp_pack_fmt --
- *     Pack the log operation txn_timestamp.
- */
-static int
-__wt_logop_txn_timestamp_pack_fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_t time_sec,
-  uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
-  uint64_t prepare_ts, uint64_t read_ts)
-{
-    size_t size;
-    uint32_t optype, recsize;
-    const char *fmt;
-
-    fmt = WT_UNCHECKED_STRING(IIQQQQQQQ);
-    optype = WT_LOGOP_TXN_TIMESTAMP;
-    WT_RET(__wt_struct_size(session, &size, fmt, optype, 0, time_sec, time_nsec, commit_ts,
-      durable_ts, first_commit_ts, prepare_ts, read_ts));
-
-    __wt_struct_size_adjust(session, &size);
-    WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
-    recsize = (uint32_t)size;
-    WT_RET(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, size, fmt, optype,
-      recsize, time_sec, time_nsec, commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts));
-
-    logrec->size += (uint32_t)size;
-    return (0);
-}
-
-/*
- * run_fmt --
- *     Run formatted packing.
- */
-static uint64_t
-run_fmt(int n)
-{
-    WT_DECL_RET;
-    WT_ITEM logrec;
-    WT_SESSION_IMPL *session;
-    uint64_t t1, t2;
-
-    session = (WT_SESSION_IMPL *)g.wt_session;
-
-    WT_CLEAR(logrec);
-    WT_ERR(__wt_buf_init(session, &logrec, 0));
-
-    WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
-    printf("[%lu]", (unsigned long)logrec.size);
-    for (size_t i = 0; i < logrec.size; i++)
-        printf(" %02x", ((uint8_t *)logrec.data)[i]);
-    printf("\n");
-
-    t1 = __wt_rdtsc();
-    for (; n > 0; --n) {
-        logrec.size = 0;
-        WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
+#define DEF_PACKING(SUFFIX, FN)                                \
+    static uint64_t run_##SUFFIX(int n)                        \
+    {                                                          \
+        WT_DECL_RET;                                           \
+        WT_ITEM logrec;                                        \
+        WT_SESSION_IMPL *session;                              \
+        uint64_t t1, t2;                                       \
+                                                               \
+        session = (WT_SESSION_IMPL *)g.wt_session;             \
+                                                               \
+        WT_CLEAR(logrec);                                      \
+        WT_ERR(__wt_buf_init(session, &logrec, 0));            \
+                                                               \
+        WT_ERR(FN(session, &logrec, 0, 0, 0, 0, 0, 0, 0));     \
+        printf("[%lu]", (unsigned long)logrec.size);           \
+        for (size_t i = 0; i < logrec.size; i++)               \
+            printf(" %02x", ((uint8_t *)logrec.data)[i]);      \
+        printf("\n");                                          \
+                                                               \
+        t1 = __wt_rdtsc();                                     \
+        for (; n > 0; --n) {                                   \
+            logrec.size = 0;                                   \
+            WT_ERR(FN(session, &logrec, 0, 0, 0, 0, 0, 0, 0)); \
+        }                                                      \
+        t2 = __wt_rdtsc();                                     \
+                                                               \
+        __wt_buf_free(session, &logrec);                       \
+        return (t2 - t1);                                      \
+err:                                                           \
+        __wt_buf_free(session, &logrec);                       \
+        return (0);                                            \
     }
-    t2 = __wt_rdtsc();
 
-    __wt_buf_free(session, &logrec);
-    return (t2 - t1);
-err:
-    __wt_buf_free(session, &logrec);
-    return (0);
-}
-
-/*
- * run_direct --
- *     Run direct packing.
- */
-static uint64_t
-run_direct(int n)
-{
-    WT_DECL_RET;
-    WT_ITEM logrec;
-    WT_SESSION_IMPL *session;
-    uint64_t t1, t2;
-
-    session = (WT_SESSION_IMPL *)g.wt_session;
-
-    WT_CLEAR(logrec);
-    WT_ERR(__wt_buf_init(session, &logrec, 0));
-    /*logrec = txn->logrec;*/
-
-    WT_ERR(__wt_logop_txn_timestamp_pack(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
-    printf("[%lu]", (unsigned long)logrec.size);
-    for (size_t i = 0; i < logrec.size; i++)
-        printf(" %02x", ((uint8_t *)logrec.data)[i]);
-    printf("\n");
-
-    t1 = __wt_rdtsc();
-    for (; n > 0; --n) {
-        logrec.size = 0;
-        WT_ERR(__wt_logop_txn_timestamp_pack(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
-    }
-    t2 = __wt_rdtsc();
-
-    __wt_buf_free(session, &logrec);
-    return (t2 - t1);
-err:
-    __wt_buf_free(session, &logrec);
-    return (0);
-}
+DEF_PACKING(fmt, __wt_logop_txn_timestamp_pack__fmt)
+DEF_PACKING(direct, __wt_logop_txn_timestamp_pack)
 
 /*
  * main --
