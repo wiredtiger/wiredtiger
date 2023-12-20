@@ -254,9 +254,9 @@ __wt_read_update_timestamps(
     } else if (prepare_state == WT_PREPARE_RESOLVED) {
         *start_tsp = upd->start_ts;
         *durable_tsp = upd->durable_ts;
-    } else {
+    } else if (prepare_state == WT_PREPARE_INIT) {
         *start_tsp = upd->start_ts;
-        *durable_tsp = WT_TS_NONE;
+        *durable_tsp = upd->durable_ts;
     }
 
     return (prepare_state);
