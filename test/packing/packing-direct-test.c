@@ -123,7 +123,7 @@ cleanup(void)
 
 
 /*
- * __wt_logop_txn_timestamp_pack --
+ * __wt_logop_txn_timestamp_pack_fmt --
  *     Pack the log operation txn_timestamp.
  */
 static int
@@ -152,7 +152,7 @@ __wt_logop_txn_timestamp_pack_fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uin
 
 
 /*
- * check --
+ * run_fmt --
  */
 static uint64_t
 run_fmt(int n)
@@ -160,7 +160,7 @@ run_fmt(int n)
     WT_DECL_RET;
     uint64_t t1, t2;
     WT_SESSION_IMPL *session;
-    WT_ITEM logrec;  // WT_DECL_ITEM?
+    WT_ITEM logrec;
 
     session = (WT_SESSION_IMPL *)g.wt_session;
 
@@ -187,7 +187,7 @@ err:
 }
 
 /*
- * check --
+ * run_direct --
  */
 static uint64_t
 run_direct(int n)
@@ -195,12 +195,9 @@ run_direct(int n)
     WT_DECL_RET;
     uint64_t t1, t2;
     WT_SESSION_IMPL *session;
-    WT_ITEM logrec;  // WT_DECL_ITEM?
-    // WT_TXN *txn;
+    WT_ITEM logrec;
 
     session = (WT_SESSION_IMPL *)g.wt_session;
-    // txn = session->txn;
-    // WT_ERR(__txn_logrec_init(session));
 
     WT_CLEAR(logrec);
     WT_ERR(__wt_buf_init(session, &logrec, 0));
