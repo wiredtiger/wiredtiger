@@ -142,16 +142,20 @@ __attribute__((__unused__))
 static void
 test_cmp_one__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt, WT_ITEM *logrec_direct{arg_decls_in}) {{
     const uint8_t *data_fmt, *data_direct;
+    /*size_t sz_fmt, sz_direct;*/
 {local_decls2}
 
 {local_init2}
+    logrec_fmt->size = logrec_direct->size = 0;
+    /*sz_fmt = logrec_fmt->size;*/
+    /*sz_direct = logrec_direct->size;*/
 
     /* test packing */
     assert(__wt_logop_{optype.name}_pack__fmt(session, logrec_fmt{pack_args_fmt}) == 0);
     assert(__wt_logop_{optype.name}_pack__direct(session, logrec_direct{pack_args_direct}) == 0);
 
-    assert(logrec_fmt->size == logrec_fmt->size);
-    assert(memcmp(logrec_fmt->data, logrec_fmt->data, logrec_fmt->size) == 0);
+    assert(logrec_fmt->size == logrec_direct->size);
+    assert(memcmp(logrec_fmt->data, logrec_direct->data, logrec_fmt->size) == 0);
 
     /* test unpacking */
     data_fmt = logrec_fmt->data;
@@ -160,6 +164,8 @@ test_cmp_one__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_f
     assert(__wt_logop_{optype.name}_unpack__direct(session, &data_direct, data_direct+logrec_direct->size{unpack_args_direct}) == 0);
 
 {check_fields}
+    /*logrec_fmt->size = sz_fmt;*/
+    /*logrec_direct->size = sz_direct;*/
 }}
 '''.format(
     **optype_format_args(optype),

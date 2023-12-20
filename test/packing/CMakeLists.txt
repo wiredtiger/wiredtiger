@@ -17,6 +17,7 @@ create_test_executable(test_packing_direct
 create_test_executable(test_packing_direct_all
     SOURCES packing-direct-test-all.c
     EXECUTABLE_NAME "packing-direct-test-all"
+    FLAGS "-Wno-used-but-marked-unused"
 )
 
 # Create intpack test executable.

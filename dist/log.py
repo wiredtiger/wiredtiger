@@ -44,10 +44,13 @@ FieldType.Add('uint64_t',
 
 
 class Field:
-    def __init__(self, field_tuple):
+    def __init__(self, field_tuple, field_idx, fields_count):
         # Copy all attributes from FieldType object into this object.
         self.__dict__.update(field_types[field_tuple[0]].__dict__)
         self.fieldname = field_tuple[1]
+        self.fieldidx = field_idx
+        self.fieldcount = fields_count
+        self.is_last_field = (field_idx + 1 >= fields_count)
 
         self.cintype = self.ctype + ('*' if self.byptr else '')
         self.cindecl = self.ctype + (' *' if self.byptr else ' ') + self.fieldname
@@ -88,7 +91,10 @@ class Field:
     def struct_size_body__WT_LSN(self):
         return '__wt_vsize_uint(%(name)s->l.file) + __wt_vsize_uint(%(name)s->l.offset)' % {'name' : self.fieldname}
     def struct_size_body__WT_ITEM(self):
-        return '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.fieldname}
+        return \
+            '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.fieldname} \
+            if not self.is_last_field else \
+            '%(name)s->size' % {'name' : self.fieldname}
     def struct_size_body__string(self):
         return 'strlen(%s) + 1' % self.fieldname
 
@@ -97,7 +103,8 @@ class Field:
     def struct_pack_body__WT_LSN(self):
         return '\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.file));\n\tWT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.offset));\n'  % {'name' : self.fieldname}
     def struct_pack_body__WT_ITEM(self):
-        return '\tWT_RET(__pack_encode__WT_ITEM(pp, end, %s));\n' % self.fieldname
+        fn = '__pack_encode__WT_ITEM' if not self.is_last_field else '__pack_encode__WT_ITEM_last'
+        return '\tWT_RET('+fn+'(pp, end, '+self.fieldname+'));\n'
     def struct_pack_body__string(self):
         return '\tWT_RET(__pack_encode__string(pp, end, %s));\n' % self.fieldname
 
@@ -106,13 +113,14 @@ class Field:
     def struct_unpack_body__WT_LSN(self):
         return '__pack_decode__uintAny(uint32_t, &%(name)sp->l.file);__pack_decode__uintAny(uint32_t, &%(name)sp->l.offset);\n' % {'name':self.fieldname}
     def struct_unpack_body__WT_ITEM(self):
-        return '__pack_decode__WT_ITEM(%sp);\n' % self.fieldname
+        fn = '__pack_decode__WT_ITEM' if not self.is_last_field else '__pack_decode__WT_ITEM_last'
+        return fn+'('+self.fieldname+'p);\n'
     def struct_unpack_body__string(self):
         return '__pack_decode__string(%sp);\n' % self.fieldname
 
 
 for op in log_data.optypes:
-    op.fields = [ Field(f) for f in op.fields ]
+    op.fields = [ Field(f, i, len(op.fields)) for i, f in enumerate(op.fields) ]
 
 
 def escape_decl(fields):
@@ -188,8 +196,9 @@ def run():
 
 #include "wt_internal.h"
 
-#define WT_SIZE_CHECK_PACK_PTR(p, end)    WT_RET_TEST(!(p) || !(end) || (p) >= (end), ENOMEM)
-#define WT_SIZE_CHECK_UNPACK_PTR(p, end)  WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
+#define WT_SIZE_CHECK_PACK_PTR(p, end)     WT_RET_TEST(!(p) || !(end) || (p) >= (end), ENOMEM)
+#define WT_SIZE_CHECK_UNPACK_PTR(p, end)   WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
+#define WT_SIZE_CHECK_UNPACK_PTR0(p, end)  WT_RET_TEST(!(p) || !(end) || (p) >  (end), EINVAL)
 
 /*
  * __pack_encode__WT_ITEM --
@@ -215,12 +224,22 @@ __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 }
 
 static inline int
+__pack_encode__WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
+{
+    WT_SIZE_CHECK_PACK(item->size, WT_PTRDIFF(end, *pp));
+    memcpy(*pp, item->data, item->size);
+    *pp += item->size;
+    return (0);
+}
+
+static inline int
 __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
 {
-    size_t s;
+    size_t s, sz;
 
-    s = __wt_strnlen(item, WT_PTRDIFF(end, *pp) - 1);
-    WT_SIZE_CHECK_PACK(*pp, s + 1);
+    sz = WT_PTRDIFF(end, *pp);
+    s = __wt_strnlen(item, sz - 1);
+    WT_SIZE_CHECK_PACK(s + 1, sz);
     memcpy(*pp, item, s);
     *pp += s;
     **pp = '\\0';
@@ -239,6 +258,13 @@ __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
 #define __pack_decode__WT_ITEM(val)  do { \
         __pack_decode__uintAny(size_t, &val->size); \
         WT_SIZE_CHECK_UNPACK(val->size, WT_PTRDIFF(end, *pp)); \
+        val->data = *pp; \
+        *pp += val->size; \
+    } while (0)
+
+#define __pack_decode__WT_ITEM_last(val)  do { \
+        WT_SIZE_CHECK_UNPACK_PTR0(*pp, end); \
+        val->size = WT_PTRDIFF(end, *pp); \
         val->data = *pp; \
         *pp += val->size; \
     } while (0)
