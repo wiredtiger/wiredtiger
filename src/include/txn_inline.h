@@ -152,7 +152,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
         WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp. */
-        upd->start_ts = txn->prepare_timestamp;
+        upd->prepare_ts = txn->prepare_timestamp;
 
         /*
          * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
