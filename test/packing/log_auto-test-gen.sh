@@ -106,7 +106,7 @@ def optype_format_args(optype):
             if f.typename == 'WT_LSN' else
             '    assert(!strcmp('+f.fieldname+'_fmt, '+f.fieldname+'_direct));'
             if f.typename == 'string' else
-            '    assert('+f.fieldname+'_fmt == '+f.fieldname+'_direct);'
+            '    assert_eq_'+f.ctype+'('+f.fieldname+'_fmt, '+f.fieldname+'_direct);'
             for f in optype.fields),
     }
 
@@ -154,7 +154,7 @@ test_cmp_one__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_f
     assert(__wt_logop_{optype.name}_pack__fmt(session, logrec_fmt{pack_args_fmt}) == 0);
     assert(__wt_logop_{optype.name}_pack__direct(session, logrec_direct{pack_args_direct}) == 0);
 
-    assert(logrec_fmt->size == logrec_direct->size);
+    assert_eq_uint64_t(logrec_fmt->size, logrec_direct->size);
     assert(memcmp(logrec_fmt->data, logrec_direct->data, logrec_fmt->size) == 0);
 
     /* test unpacking */
