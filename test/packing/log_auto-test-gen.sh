@@ -169,7 +169,9 @@ test_cmp_one__wt_logop_{optype.name}(WT_SESSION_IMPL *session, WT_ITEM *logrec_f
     data_fmt = logrec_fmt->data;
     data_direct = logrec_direct->data;
     assert(__wt_logop_{optype.name}_unpack__fmt(session, &data_fmt, data_fmt+logrec_fmt->size{unpack_args_fmt}) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_{optype.name}_unpack__direct(session, &data_direct, data_direct+logrec_direct->size{unpack_args_direct}) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
 {check_fields}
     /*logrec_fmt->size = sz_fmt;*/

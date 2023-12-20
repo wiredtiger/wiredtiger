@@ -334,12 +334,28 @@ __wt_logrec_write(WT_SESSION_IMPL *session,
 \treturn (0);
 }
 
+
 /*
  * __wt_logop_read --
- *\tRead the operation type.
+ *\tPEEK the operation type.
  */
 int
 __wt_logop_read(WT_SESSION_IMPL *session,
+    const uint8_t **pp, const uint8_t *end,
+    uint32_t *optypep, uint32_t *opsizep)
+{
+\tWT_UNUSED(session);
+\t__pack_decode__uintAny(uint32_t, optypep);
+\t__pack_decode__uintAny(uint32_t, opsizep);
+\treturn (0);
+}
+
+/*
+ * __wt_logop_unpack --
+ *\tRead the operation type.
+ */
+int
+__wt_logop_unpack(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end,
     uint32_t *optypep, uint32_t *opsizep)
 {
@@ -490,7 +506,7 @@ __wt_logop_%(name)s_unpack(
 \tpp_orig = pp;
 #endif
 
-\tif ((ret = __wt_logop_read(session, pp, end, &optype, &size)) != 0 ||
+\tif ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
 \t\t\t(ret = __wt_struct_unpack_%(name)s(pp, end%(comma)s%(unpack_args)s)) != 0)
 \t\tWT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 
@@ -499,7 +515,6 @@ __wt_logop_%(name)s_unpack(
 \tWT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
 #endif
 
-\t*pp += size;
 \treturn (0);
 }
 ''' % {

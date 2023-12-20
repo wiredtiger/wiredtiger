@@ -58,8 +58,10 @@ test_cmp_one__wt_logop_col_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     data_direct = logrec_direct->data;
     assert(__wt_logop_col_modify_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &fileid_fmt, &recno_fmt, &value_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_col_modify_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &recno_direct, &value_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(recno_fmt, recno_direct);
@@ -107,8 +109,10 @@ test_cmp_one__wt_logop_col_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     data_direct = logrec_direct->data;
     assert(__wt_logop_col_put_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &fileid_fmt, &recno_fmt, &value_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_col_put_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &recno_direct, &value_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(recno_fmt, recno_direct);
@@ -150,8 +154,10 @@ test_cmp_one__wt_logop_col_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     data_direct = logrec_direct->data;
     assert(__wt_logop_col_remove_unpack__fmt(
              session, &data_fmt, data_fmt + logrec_fmt->size, &fileid_fmt, &recno_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_col_remove_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &recno_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(recno_fmt, recno_direct);
@@ -194,8 +200,10 @@ test_cmp_one__wt_logop_col_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fm
     data_direct = logrec_direct->data;
     assert(__wt_logop_col_truncate_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &fileid_fmt, &start_fmt, &stop_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_col_truncate_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &start_direct, &stop_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(start_fmt, start_direct);
@@ -243,8 +251,10 @@ test_cmp_one__wt_logop_row_modify(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     data_direct = logrec_direct->data;
     assert(__wt_logop_row_modify_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &fileid_fmt, &key_fmt, &value_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_row_modify_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &key_direct, &value_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(key_fmt.size, key_direct.size);
@@ -296,8 +306,10 @@ test_cmp_one__wt_logop_row_put(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     data_direct = logrec_direct->data;
     assert(__wt_logop_row_put_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &fileid_fmt, &key_fmt, &value_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_row_put_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &key_direct, &value_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(key_fmt.size, key_direct.size);
@@ -343,8 +355,10 @@ test_cmp_one__wt_logop_row_remove(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     data_direct = logrec_direct->data;
     assert(__wt_logop_row_remove_unpack__fmt(
              session, &data_fmt, data_fmt + logrec_fmt->size, &fileid_fmt, &key_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_row_remove_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &key_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(key_fmt.size, key_direct.size);
@@ -396,9 +410,11 @@ test_cmp_one__wt_logop_row_truncate(WT_SESSION_IMPL *session, WT_ITEM *logrec_fm
     data_direct = logrec_direct->data;
     assert(__wt_logop_row_truncate_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &fileid_fmt, &start_fmt, &stop_fmt, &mode_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_row_truncate_unpack__direct(session, &data_direct,
              data_direct + logrec_direct->size, &fileid_direct, &start_direct, &stop_direct,
              &mode_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(fileid_fmt, fileid_direct);
     assert_eq_uint64_t(start_fmt.size, start_direct.size);
@@ -436,8 +452,10 @@ test_cmp_one__wt_logop_checkpoint_start(
     data_direct = logrec_direct->data;
     assert(__wt_logop_checkpoint_start_unpack__fmt(
              session, &data_fmt, data_fmt + logrec_fmt->size) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_checkpoint_start_unpack__direct(
              session, &data_direct, data_direct + logrec_direct->size) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     /*logrec_fmt->size = sz_fmt;*/
     /*logrec_direct->size = sz_direct;*/
@@ -472,8 +490,10 @@ test_cmp_one__wt_logop_prev_lsn(
     data_direct = logrec_direct->data;
     assert(__wt_logop_prev_lsn_unpack__fmt(
              session, &data_fmt, data_fmt + logrec_fmt->size, &prev_lsn_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(__wt_logop_prev_lsn_unpack__direct(
              session, &data_direct, data_direct + logrec_direct->size, &prev_lsn_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert(prev_lsn_fmt.l.file == prev_lsn_direct.l.file);
     assert(prev_lsn_fmt.l.offset == prev_lsn_direct.l.offset);
@@ -517,9 +537,11 @@ test_cmp_one__wt_logop_backup_id(WT_SESSION_IMPL *session, WT_ITEM *logrec_fmt,
     data_direct = logrec_direct->data;
     assert(__wt_logop_backup_id_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &index_fmt, &granularity_fmt, &id_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(
       __wt_logop_backup_id_unpack__direct(session, &data_direct, data_direct + logrec_direct->size,
         &index_direct, &granularity_direct, &id_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint32_t(index_fmt, index_direct);
     assert_eq_uint64_t(granularity_fmt, granularity_direct);
@@ -578,10 +600,12 @@ test_cmp_one__wt_logop_txn_timestamp(WT_SESSION_IMPL *session, WT_ITEM *logrec_f
     assert(__wt_logop_txn_timestamp_unpack__fmt(session, &data_fmt, data_fmt + logrec_fmt->size,
              &time_sec_fmt, &time_nsec_fmt, &commit_ts_fmt, &durable_ts_fmt, &first_commit_ts_fmt,
              &prepare_ts_fmt, &read_ts_fmt) == 0);
+    assert_eq_uint64_t(logrec_fmt->size, WT_PTRDIFF(data_fmt, logrec_fmt->data));
     assert(
       __wt_logop_txn_timestamp_unpack__direct(session, &data_direct,
         data_direct + logrec_direct->size, &time_sec_direct, &time_nsec_direct, &commit_ts_direct,
         &durable_ts_direct, &first_commit_ts_direct, &prepare_ts_direct, &read_ts_direct) == 0);
+    assert_eq_uint64_t(logrec_direct->size, WT_PTRDIFF(data_direct, logrec_direct->data));
 
     assert_eq_uint64_t(time_sec_fmt, time_sec_direct);
     assert_eq_uint64_t(time_nsec_fmt, time_nsec_direct);
