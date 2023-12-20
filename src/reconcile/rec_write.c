@@ -123,8 +123,8 @@ err:
     rec = WT_CLOCKDIFF_MS(rec_finish, rec_start);
 
     /*
-     * Sanity check timings - 86,400,000 milliseconds is 24 hours. FIXME WT-12192 rec_hs_wrapup
-     * and rec_img_build should also have an assertion here.
+     * Sanity check timings - 86,400,000 milliseconds is 24 hours. FIXME WT-12192 rec_hs_wrapup and
+     * rec_img_build should also have an assertion here.
      */
     WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
 
