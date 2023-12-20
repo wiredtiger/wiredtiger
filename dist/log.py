@@ -157,7 +157,7 @@ def check_redact(optype):
 
 
 # Create a printf line, with an optional setup function.
-# ishex indicates that the the field name in the output is modified
+# ishex indicates that the field name in the output is modified
 # (to add "-hex"), and that the setup and printf are conditional
 # in the generated code.
 def printf_line(f, optype, i, ishex):

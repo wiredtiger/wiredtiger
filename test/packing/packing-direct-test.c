@@ -120,10 +120,11 @@ __wt_logop_txn_timestamp_pack_fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uin
   uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
   uint64_t prepare_ts, uint64_t read_ts)
 {
-    const char *fmt = WT_UNCHECKED_STRING(IIQQQQQQQ);
     size_t size;
     uint32_t optype, recsize;
+    const char *fmt;
 
+    fmt = WT_UNCHECKED_STRING(IIQQQQQQQ);
     optype = WT_LOGOP_TXN_TIMESTAMP;
     WT_RET(__wt_struct_size(session, &size, fmt, optype, 0, time_sec, time_nsec, commit_ts,
       durable_ts, first_commit_ts, prepare_ts, read_ts));
@@ -146,9 +147,9 @@ static uint64_t
 run_fmt(int n)
 {
     WT_DECL_RET;
-    uint64_t t1, t2;
-    WT_SESSION_IMPL *session;
     WT_ITEM logrec;
+    WT_SESSION_IMPL *session;
+    uint64_t t1, t2;
 
     session = (WT_SESSION_IMPL *)g.wt_session;
 
@@ -183,9 +184,9 @@ static uint64_t
 run_direct(int n)
 {
     WT_DECL_RET;
-    uint64_t t1, t2;
-    WT_SESSION_IMPL *session;
     WT_ITEM logrec;
+    WT_SESSION_IMPL *session;
+    uint64_t t1, t2;
 
     session = (WT_SESSION_IMPL *)g.wt_session;
 
