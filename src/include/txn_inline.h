@@ -697,17 +697,21 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+    wt_timestamp_t start_ts, durable_ts;
     uint8_t prepare_state;
 
-    WT_ORDERED_READ(prepare_state, upd->prepare_state);
+    prepare_state = __wt_read_update_timestamps(NULL, upd, &start_ts, &durable_ts);
+
     if (prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
+
+    WT_UNUSED(start_ts);
 
     /*
      * This function is used to determine when an update is obsolete: that should take into account
      * the durable timestamp which is greater than or equal to the start timestamp.
      */
-    return (__wt_txn_visible_all(session, upd->txnid, upd->durable_ts));
+    return (__wt_txn_visible_all(session, upd->txnid, durable_ts));
 }
 
 /*
@@ -1773,21 +1777,23 @@ static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
     uint8_t prepare_state;
+    wt_timestamp_t start_ts;
+    wt_timestamp_t durable_ts;
 
-    WT_ORDERED_READ(prepare_state, upd->prepare_state);
+    prepare_state = __wt_read_update_timestamps(NULL, upd, &start_ts, &durable_ts);
 
     if (!upd_value->skip_buf) {
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
     }
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        upd_value->tw.durable_stop_ts = upd->durable_ts;
-        upd_value->tw.stop_ts = upd->start_ts;
+        upd_value->tw.durable_stop_ts = durable_ts;
+        upd_value->tw.stop_ts = start_ts;
         upd_value->tw.stop_txn = upd->txnid;
         upd_value->tw.prepare = prepare_state == WT_PREPARE_INPROGRESS;
     } else {
-        upd_value->tw.durable_start_ts = upd->durable_ts;
-        upd_value->tw.start_ts = upd->start_ts;
+        upd_value->tw.durable_start_ts = durable_ts;
+        upd_value->tw.start_ts = start_ts;
         upd_value->tw.start_txn = upd->txnid;
         upd_value->tw.prepare = prepare_state == WT_PREPARE_INPROGRESS;
     }
