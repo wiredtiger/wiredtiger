@@ -98,7 +98,7 @@
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
 /* Set "ret" if not already set. */
-__inline static void
+inline static void
 __wt_tret(int *pret, int a)
 {
     int __ret;
@@ -112,7 +112,7 @@ __wt_tret(int *pret, int a)
 }
 #define WT_TRET(a) __wt_tret(&ret, a)
 
-__inline static void
+inline static void
 __wt_tret_error_ok(int *pret, int a, int e)
 {
     int __ret;
