@@ -118,9 +118,9 @@ WT_READ_BARRIER(void)
 }
 
 /*
-* WT_WRITE_BARRIER --
-*	MSVC implementation of WT_WRITE_BARRIER.
-*/
+ * WT_WRITE_BARRIER --
+ *	MSVC implementation of WT_WRITE_BARRIER.
+ */
 static inline void
 WT_WRITE_BARRIER(void)
 {
