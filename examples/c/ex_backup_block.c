@@ -75,11 +75,23 @@ compare_backups(int i)
     if (i == 0)
         testutil_system("../../wt -R -h %s dump main > %s.%d", home, full_out, i);
     else
+<<<<<<< HEAD
         testutil_system("../../wt -R -h %s.%d dump main > %s.%d", home_full, i, full_out, i);
     /*
      * Now run dump on the incremental directory.
      */
     testutil_system("../../wt -R -h %s.%d dump main > %s.%d", home_incr, i, incr_out, i);
+=======
+        (void)snprintf(
+          buf, sizeof(buf), "../../wt -R -h %s.%d dump main > %s.%d", home_full, i, full_out, i);
+    error_check(system(buf));
+    /*
+     * Now run dump on the incremental directory.
+     */
+    (void)snprintf(
+      buf, sizeof(buf), "../../wt -R -h %s.%d dump main > %s.%d", home_incr, i, incr_out, i);
+    error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
 
     /*
      * Compare the files.
@@ -99,8 +111,14 @@ compare_backups(int i)
      * If they compare successfully, clean up.
      */
     if (i != 0) {
+<<<<<<< HEAD
         testutil_system(
           "rm -rf %s.%d %s.%d %s.%d %s.%d", home_full, i, home_incr, i, full_out, i, incr_out, i);
+=======
+        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d %s.%d %s.%d %s.%d", home_full, i, home_incr,
+          i, full_out, i, incr_out, i);
+        error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
     }
     return (ret);
 }
@@ -120,13 +138,25 @@ setup_directories(void)
          * For incremental backups we need 0-N. The 0 incremental directory will compare with the
          * original at the end.
          */
+<<<<<<< HEAD
         testutil_system("rm -rf %s.%d && mkdir -p %s.%d/%s", home_incr, i, home_incr, i, logpath);
+=======
+        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_incr, i,
+          home_incr, i, logpath);
+        error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
         if (i == 0)
             continue;
         /*
          * For full backups we need 1-N.
          */
+<<<<<<< HEAD
         testutil_system("rm -rf %s.%d && mkdir -p %s.%d/%s", home_full, i, home_full, i, logpath);
+=======
+        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_full, i,
+          home_full, i, logpath);
+        error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
     }
 }
 
@@ -182,6 +212,10 @@ finalize_files(FILELIST *flistp, size_t count)
             testutil_system("rm WT_BLOCK_LOG_*/%s%s",
               strncmp(last_flist[i].name, WTLOG, WTLOGLEN) == 0 ? "logpath/" : "",
               last_flist[i].name);
+<<<<<<< HEAD
+=======
+            error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
         }
         free((void *)last_flist[i].name);
     }
@@ -287,6 +321,10 @@ take_full_backup(WT_SESSION *session, int i)
 #if 0
                 printf("FULL: Copy: %s\n", buf);
 #endif
+<<<<<<< HEAD
+=======
+                error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
             }
         else {
 #if 0
@@ -296,6 +334,10 @@ take_full_backup(WT_SESSION *session, int i)
 #if 0
             printf("FULL %d: Copy: %s\n", i, buf);
 #endif
+<<<<<<< HEAD
+=======
+            error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
         }
     }
     scan_end_check(ret == WT_NOTFOUND);
@@ -347,6 +389,10 @@ take_incr_backup(WT_SESSION *session, int i)
 #if 0
         printf("Copying backup: %s\n", buf);
 #endif
+<<<<<<< HEAD
+=======
+        error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
         first = true;
 
         (void)snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
@@ -404,6 +450,10 @@ take_incr_backup(WT_SESSION *session, int i)
 #if 0
                 printf("Incremental: Whole file copy: %s\n", buf);
 #endif
+<<<<<<< HEAD
+=======
+                error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
             }
         }
         scan_end_check(ret == WT_NOTFOUND);
@@ -426,7 +476,12 @@ take_incr_backup(WT_SESSION *session, int i)
                 testutil_system(
                   "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
             else
+<<<<<<< HEAD
                 testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
+=======
+                (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
+            error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
         }
     }
     scan_end_check(ret == WT_NOTFOUND);
@@ -450,7 +505,12 @@ main(int argc, char *argv[])
     (void)argc; /* Unused variable */
     (void)testutil_set_progname(argv);
 
+<<<<<<< HEAD
     testutil_system("rm -rf %s && mkdir -p %s/%s", home, home, logpath);
+=======
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "rm -rf %s && mkdir -p %s/%s", home, home, logpath);
+    error_check(system(cmd_buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
     error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
 
     setup_directories();

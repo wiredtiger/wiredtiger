@@ -1143,7 +1143,13 @@ backup(WT_SESSION *session)
     /* Copy the list of files. */
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &filename));
+<<<<<<< HEAD
         testutil_system("cp /path/database/%s /path/database.backup/%s", filename, filename);
+=======
+        (void)snprintf(
+          buf, sizeof(buf), "cp /path/database/%s /path/database.backup/%s", filename, filename);
+        error_check(system(buf));
+>>>>>>> 8e64d0def (Rollback unrelated changes)
     }
     scan_end_check(ret == WT_NOTFOUND);
 
