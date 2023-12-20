@@ -111,17 +111,6 @@ cleanup(void)
     testutil_check(g.wt_conn->close(g.wt_conn, NULL));
 }
 
-
-
-
-
-
-
-
-
-
-
-
 /*
  * __wt_logop_txn_timestamp_pack_fmt --
  *     Pack the log operation txn_timestamp.
@@ -149,10 +138,11 @@ __wt_logop_txn_timestamp_pack_fmt(WT_SESSION_IMPL *session, WT_ITEM *logrec, uin
     return (0);
 }
 
-
-
 /*
  * run_fmt --
+ *
+ *
+ *
  */
 static uint64_t
 run_fmt(int n)
@@ -169,7 +159,8 @@ run_fmt(int n)
 
     WT_ERR(__wt_logop_txn_timestamp_pack_fmt(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
     printf("[%lu]", (unsigned long)logrec.size);
-    for (size_t i = 0; i < logrec.size; i++) printf(" %02x", ((uint8_t*)logrec.data)[i]);
+    for (size_t i = 0; i < logrec.size; i++)
+        printf(" %02x", ((uint8_t *)logrec.data)[i]);
     printf("\n");
 
     t1 = __wt_rdtsc();
@@ -188,6 +179,9 @@ err:
 
 /*
  * run_direct --
+ *
+ *
+ *
  */
 static uint64_t
 run_direct(int n)
@@ -205,7 +199,8 @@ run_direct(int n)
 
     WT_ERR(__wt_logop_txn_timestamp_pack(session, &logrec, 0, 0, 0, 0, 0, 0, 0));
     printf("[%lu]", (unsigned long)logrec.size);
-    for (size_t i = 0; i < logrec.size; i++) printf(" %02x", ((uint8_t*)logrec.data)[i]);
+    for (size_t i = 0; i < logrec.size; i++)
+        printf(" %02x", ((uint8_t *)logrec.data)[i]);
     printf("\n");
 
     t1 = __wt_rdtsc();

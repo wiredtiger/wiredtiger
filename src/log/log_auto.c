@@ -17,7 +17,7 @@ __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
     /* Check that there is at least one byte available: the low-level routines treat zero length as
      * unchecked. */
     WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    return __wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item);
+    return (__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item));
 }
 
 static inline int
@@ -133,18 +133,6 @@ __wt_logrec_read(
 }
 
 /*
- * __wt_logrec_write --
- *     Write the record type.
- */
-int
-__wt_logrec_write(WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end, uint32_t rectype)
-{
-    WT_UNUSED(session);
-    WT_RET(__pack_encode__uintAny(pp, end, rectype));
-    return (0);
-}
-
-/*
  * __wt_logop_read --
  *     PEEK the operation type.
  */
@@ -236,7 +224,7 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
 static inline size_t
 __wt_struct_size_col_modify(uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    return __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + value->size;
+    return (__wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + value->size);
 }
 
 /*
@@ -368,7 +356,7 @@ err:
 static inline size_t
 __wt_struct_size_col_put(uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    return __wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + value->size;
+    return (__wt_vsize_uint(fileid) + __wt_vsize_uint(recno) + value->size);
 }
 
 /*
@@ -500,7 +488,7 @@ err:
 static inline size_t
 __wt_struct_size_col_remove(uint32_t fileid, uint64_t recno)
 {
-    return __wt_vsize_uint(fileid) + __wt_vsize_uint(recno);
+    return (__wt_vsize_uint(fileid) + __wt_vsize_uint(recno));
 }
 
 /*
@@ -616,7 +604,7 @@ __wt_logop_col_remove_print(
 static inline size_t
 __wt_struct_size_col_truncate(uint32_t fileid, uint64_t start, uint64_t stop)
 {
-    return __wt_vsize_uint(fileid) + __wt_vsize_uint(start) + __wt_vsize_uint(stop);
+    return (__wt_vsize_uint(fileid) + __wt_vsize_uint(start) + __wt_vsize_uint(stop));
 }
 
 /*
@@ -737,7 +725,7 @@ __wt_logop_col_truncate_print(
 static inline size_t
 __wt_struct_size_row_modify(uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    return __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size + value->size;
+    return (__wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size + value->size);
 }
 
 /*
@@ -875,7 +863,7 @@ err:
 static inline size_t
 __wt_struct_size_row_put(uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    return __wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size + value->size;
+    return (__wt_vsize_uint(fileid) + __wt_vsize_uint(key->size) + key->size + value->size);
 }
 
 /*
@@ -1012,7 +1000,7 @@ err:
 static inline size_t
 __wt_struct_size_row_remove(uint32_t fileid, WT_ITEM *key)
 {
-    return __wt_vsize_uint(fileid) + key->size;
+    return (__wt_vsize_uint(fileid) + key->size);
 }
 
 /*
@@ -1138,8 +1126,8 @@ err:
 static inline size_t
 __wt_struct_size_row_truncate(uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
-    return __wt_vsize_uint(fileid) + __wt_vsize_uint(start->size) + start->size +
-      __wt_vsize_uint(stop->size) + stop->size + __wt_vsize_uint(mode);
+    return (__wt_vsize_uint(fileid) + __wt_vsize_uint(start->size) + start->size +
+      __wt_vsize_uint(stop->size) + stop->size + __wt_vsize_uint(mode));
 }
 
 /*
@@ -1281,7 +1269,7 @@ err:
 static inline size_t
 __wt_struct_size_checkpoint_start(void)
 {
-    return 0;
+    return (0);
 }
 
 /*
@@ -1385,7 +1373,7 @@ __wt_logop_checkpoint_start_print(
 static inline size_t
 __wt_struct_size_prev_lsn(WT_LSN *prev_lsn)
 {
-    return __wt_vsize_uint(prev_lsn->l.file) + __wt_vsize_uint(prev_lsn->l.offset);
+    return (__wt_vsize_uint(prev_lsn->l.file) + __wt_vsize_uint(prev_lsn->l.offset));
 }
 
 /*
@@ -1494,7 +1482,7 @@ __wt_logop_prev_lsn_print(
 static inline size_t
 __wt_struct_size_backup_id(uint32_t index, uint64_t granularity, const char *id)
 {
-    return __wt_vsize_uint(index) + __wt_vsize_uint(granularity) + strlen(id) + 1;
+    return (__wt_vsize_uint(index) + __wt_vsize_uint(granularity) + strlen(id) + 1);
 }
 
 /*
@@ -1612,9 +1600,9 @@ static inline size_t
 __wt_struct_size_txn_timestamp(uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts,
   uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
 {
-    return __wt_vsize_uint(time_sec) + __wt_vsize_uint(time_nsec) + __wt_vsize_uint(commit_ts) +
+    return (__wt_vsize_uint(time_sec) + __wt_vsize_uint(time_nsec) + __wt_vsize_uint(commit_ts) +
       __wt_vsize_uint(durable_ts) + __wt_vsize_uint(first_commit_ts) + __wt_vsize_uint(prepare_ts) +
-      __wt_vsize_uint(read_ts);
+      __wt_vsize_uint(read_ts));
 }
 
 /*

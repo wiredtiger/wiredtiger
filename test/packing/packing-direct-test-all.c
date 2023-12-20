@@ -110,16 +110,11 @@ cleanup(void)
     testutil_check(g.wt_conn->close(g.wt_conn, NULL));
 }
 
-
-
-
-
-
-
-
-
 /*
- * check --
+ * run --
+ *
+ *
+ *
  */
 static void
 run(void)

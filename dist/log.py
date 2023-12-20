@@ -210,7 +210,7 @@ __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
 {
     /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */
     WT_SIZE_CHECK_PACK_PTR(*pp, end);
-    return __wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item);
+    return (__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item));
 }
 
 static inline int
@@ -322,20 +322,6 @@ __wt_logrec_read(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_logrec_write --
- *    Write the record type.
- */
-int
-__wt_logrec_write(WT_SESSION_IMPL *session,
-    uint8_t **pp, uint8_t *end, uint32_t rectype)
-{
-    WT_UNUSED(session);
-    WT_RET(__pack_encode__uintAny(pp, end, rectype));
-    return (0);
-}
-
-
-/*
  * __wt_logop_read --
  *    PEEK the operation type.
  */
@@ -435,7 +421,7 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
 static inline size_t
 __wt_struct_size_%(name)s(%(arg_decls_in_or_void)s)
 {
-    return %(size_body)s;
+    return (%(size_body)s);
 }
 
 

@@ -382,7 +382,7 @@ typedef struct {
             testutil_die(__r, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
     } while (0)
 
-#define shell_call_check(cmd)                                                         \
+#define shell_call_check(cmd)                                                          \
     do {                                                                               \
         int __r;                                                                       \
         if ((__r = system(cmd)) != 0 && __r != ENOTSUP)                                \
