@@ -40,6 +40,7 @@ cd ..
 cat $t_out |
     grep -E '^[a-z\./].*error: |^[a-z\./].*warning: ' |
     sed -e 's/^.*wiredtiger/wiredtiger/' |
+    sed -e 's/:.*:.*://' |
     sort > $t_out_filtered
 diff dist/s_clang_scan.diff $t_out_filtered > /dev/null && exit 0
 
