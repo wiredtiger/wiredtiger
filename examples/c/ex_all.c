@@ -1151,7 +1151,7 @@ backup(WT_SESSION *session)
         error_check(cursor->get_key(cursor, &filename));
         (void)snprintf(
           buf, sizeof(buf), "cp /path/database/%s /path/database.backup/%s", filename, filename);
-        error_check(system(buf));
+        shell_call_check(buf);
     }
     scan_end_check(ret == WT_NOTFOUND);
 
