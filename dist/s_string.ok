@@ -908,7 +908,6 @@ lex
 lexically
 lexicographically
 lf
-lfence
 libdatasource
 libmemkind
 libs
@@ -1187,7 +1186,6 @@ setname
 setstr
 setv
 setvbuf
-sfence
 shareability
 sig
 sigchld

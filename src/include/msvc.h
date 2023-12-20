@@ -112,17 +112,11 @@ WT_PAUSE(void)
  *	MSVC implementation of WT_READ_BARRIER.
  */
 static inline void
-WT_READ_BARRIER(void)
-{
-    _mm_lfence();
-}
+WT_READ_BARRIER(void) WT_BARRIER()
 
 /*
  * WT_WRITE_BARRIER --
  *	MSVC implementation of WT_WRITE_BARRIER.
  */
 static inline void
-WT_WRITE_BARRIER(void)
-{
-    _mm_sfence();
-}
+WT_WRITE_BARRIER(void) WT_BARRIER()

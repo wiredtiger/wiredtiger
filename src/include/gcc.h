@@ -164,14 +164,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("mfence" ::: "memory"); \
     } while (0)
-#define WT_READ_BARRIER()                        \
-    do {                                         \
-        __asm__ volatile("lfence" ::: "memory"); \
-    } while (0)
-#define WT_WRITE_BARRIER()                       \
-    do {                                         \
-        __asm__ volatile("sfence" ::: "memory"); \
-    } while (0)
+#define WT_READ_BARRIER() WT_BARRIER()
+#define WT_WRITE_BARRIER() WT_BARRIER()
 
 #elif defined(i386) || defined(__i386__)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
