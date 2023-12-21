@@ -10,7 +10,7 @@ allchildpids() { # Recursively get PIDs of all child processes.
 import re, os, sys
 a = {}
 for line in sys.stdin.readlines():
-    pair = re.findall("""(\d++)""", line)
+    pair = re.findall("""(\d+)""", line)
     if len(pair) == 2 and pair[0] != str(os.getpid()):
         if pair[1] not in a: a[pair[1]] = []
         a[pair[1]].append(pair[0])
