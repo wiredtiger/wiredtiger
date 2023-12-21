@@ -1,9 +1,26 @@
 #!/bin/bash
 
 # Run standard scripts.
+
 t=__wt.$$
 t_pfx=__s_all_tmp_
-trap 'rm -f $t *.pyc __tmp* __wt.* __s_all_tmp*; kill -- `jobs -p | sed 's/^/-/'` 2>/dev/null' 0 1 2 3 13 15
+allchildpids() { # Recursively get the pids of child processes.
+    ps -o pid,ppid | PID=$$ perl -naE '
+        /\d/ && $F[0] != $$ and push @{$a[$F[1]]}, $F[0];
+        END {
+            @p = @{$a[$ENV{PID}]};
+            while ($pid = shift @p) {
+                say $pid;
+                push @p, @{$a[$pid]};
+            }
+        }'
+}
+trap '
+    # Kill all child processes recursively.
+    kill `allchildpids` 2>/dev/null
+    # Cleanup in both current and parent dir.
+    rm -f {,../}{$t,*.pyc,__tmp*,__wt.*,__s_all_tmp*}
+' 0 1 2 3 13 15
 
 # We require python3 which may not be installed.
 type python3 > /dev/null 2>&1 || {
@@ -26,7 +43,7 @@ while :
     -f)    # Force versions to be updated
         force="-f"
         shift;;
-    -F) # Run fast.
+    -F)    # Run fast.
         echo "dist/s_all running in fast mode..."
         fast="-F"
         shift;;
