@@ -164,7 +164,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("mfence" ::: "memory"); \
     } while (0)
-/* We only need compiler barriers on x86 as Total Store Ordering (TSO). */
+/* We only need compiler barriers on x86 due to Total Store Ordering (TSO). */
 #define WT_READ_BARRIER() WT_BARRIER()
 #define WT_WRITE_BARRIER() WT_BARRIER()
 
