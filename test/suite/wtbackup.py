@@ -343,12 +343,14 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Optional arguments:
     #   consolidate: Add consolidate option to the cursor.
     #
-    def take_incr_backup(self, backup_incr_dir, id=0, consolidate=False):
-        self.assertTrue(id > 0 or self.bkup_id > 0)
-        if id == 0:
+    def take_incr_backup(self, backup_incr_dir, src_id=0, dest_id=0, consolidate=False):
+        self.assertTrue(dest_id > 0 or self.bkup_id > 0)
+        if src_id == 0 and dest_id == 0:
             id = self.bkup_id
-        # Open the backup data source for incremental backup.
-        config = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '"'
+            src_id = id - 1
+            dest_id =  id
+        # Open the backup data source for incremental backup.    
+        config = 'incremental=(src_id="ID' +  str(src_id) + '",this_id="ID' + str(dest_id) + '"'
         if consolidate:
             config += ',consolidate=true'
         config += ')'

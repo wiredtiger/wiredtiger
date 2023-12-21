@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, time, wttest
+import os, shutil, re, time, wttest
 from wiredtiger import stat
 from wtbackup import backup_base
 
 # test_compact11.py
-# Verify background compaction and backup behaviour. The block modifications bits in an
-# backup should never be cleared when background compact is working on tables.
+# Verify background compaction and incremental backup behaviour. The block modifications bits in an
+# incremental backup should never be cleared when background compact is working on tables.
 class test_compact11(backup_base):
     backup_incr = "BACKUP_INCR"
     backup_full = "BACKUP_FULL"
@@ -136,6 +136,7 @@ class test_compact11(backup_base):
         os.mkdir(self.backup_incr)
         self.initial_backup = True
         self.take_full_backup(self.backup_incr)
+        shutil.copytree(self.backup_incr, self.home_tmp)
         self.initial_backup = False
 
         # Insert the latter 50% in each table.
@@ -163,24 +164,32 @@ class test_compact11(backup_base):
         # Turn on background compaction to allow the bitmap blocks to be modified
         # from compact operation.
         self.turn_on_bg_compact('free_space_target=1MB')
+
+        bytes_recovered = 0
         while self.get_files_compacted(uris) < self.num_tables:
-            time.sleep(0.5)
+            new_bytes_recovered = self.get_bytes_recovered()
+            if new_bytes_recovered != bytes_recovered:
+                # Update the incremental backup ID from the parent class.
+                self.bkup_id += 1
+                shutil.copytree(self.home_tmp, self.backup_incr + str(self.bkup_id))
+                self.take_incr_backup(self.backup_incr + str(self.bkup_id), 0, self.bkup_id)
+
+                self.pr('Comparing the original bitmaps with the new ones...')
+                for index, uri in enumerate(files):
+                    new_bitmap = self.parse_blkmods(uri)
+                    self.compare_bitmap(bitmaps[index], new_bitmap)
+                
+                bytes_recovered = new_bytes_recovered
+
 
         assert self.get_files_compacted(uris) == self.num_tables
         self.pr(f'Compaction has compacted {self.num_tables} tables.')
 
-        # Update the incremental backup ID from the parent class.
-        self.bkup_id += 1
-        self.take_incr_backup(self.backup_incr)
-
-        self.pr('Comparing the original bitmaps with the new ones...')
-        for index, uri in enumerate(files):
-            new_bitmap = self.parse_blkmods(uri)
-            self.compare_bitmap(bitmaps[index], new_bitmap)
-
-        # Compare the backups.
-        for uri in uris:
-            self.compare_backups(uri, self.backup_incr, self.backup_full)
+        # Compare all the incremental backups against the starting full backup. The idea is that
+        # compact should not have changed the contents of the table.
+        for i in range(1, self.bkup_id + 1):
+            for uri in uris:
+                self.compare_backups(uri, self.backup_incr + str(i), self.backup_full)
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
