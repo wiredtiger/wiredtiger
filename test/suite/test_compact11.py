@@ -178,7 +178,7 @@ class test_compact11(backup_base):
                 for index, uri in enumerate(files):
                     new_bitmap = self.parse_blkmods(uri)
                     self.compare_bitmap(bitmaps[index], new_bitmap)
-                
+
                 bytes_recovered = new_bytes_recovered
 
 

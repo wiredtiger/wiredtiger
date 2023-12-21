@@ -349,7 +349,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             id = self.bkup_id
             src_id = id - 1
             dest_id =  id
-        # Open the backup data source for incremental backup.    
+        # Open the backup data source for incremental backup.
         config = 'incremental=(src_id="ID' +  str(src_id) + '",this_id="ID' + str(dest_id) + '"'
         if consolidate:
             config += ',consolidate=true'
