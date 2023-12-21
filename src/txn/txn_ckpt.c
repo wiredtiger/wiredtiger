@@ -685,10 +685,9 @@ static int
 __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[])
 {
     struct timespec tsp;
-    WT_CONF *txn_conf;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_CONF(WT_SESSION, begin_transaction, conf);
+    WT_DECL_CONF(WT_SESSION, begin_transaction, txn_conf);
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -702,11 +701,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    txn_conf = NULL;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     API_CONF(session, WT_SESSION, begin_transaction, txn_cfg, txn_conf);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     WT_ERR(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     use_timestamp = (cval.val != 0);
@@ -849,7 +847,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 0);
 
 err:
-    API_CONF_END(session, conf);
+    API_CONF_END(session, txn_conf);
     return (ret);
 }
 
