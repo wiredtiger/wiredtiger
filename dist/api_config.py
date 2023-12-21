@@ -617,6 +617,50 @@ def build_key_initializer(names):
         shift += 16
     return result
 
+def get_allowable_name(name):
+    '''
+    When creating a C identifier, disallow reserved words.
+    This handles, for example, "default" when used as a config identifier.
+    '''
+    c_reserved_words = [
+        'auto',
+        'break',
+        'case',
+        'char',
+        'const',
+        'continue',
+        'default',
+        'do',
+	    'double',
+	    'else',
+	    'enum',
+	    'extern',
+	    'float',
+	    'for',
+	    'goto',
+	    'if',
+	    'int',
+	    'long',
+	    'register',
+	    'return',
+	    'short',
+	    'signed',
+	    'sizeof',
+	    'static',
+	    'struct',
+	    'switch',
+	    'typedef',
+	    'union',
+	    'unsigned',
+	    'void',
+	    'volatile',
+	    'while'
+        ]
+    if name in c_reserved_words:
+        return '_' + name
+    else:
+        return name
+
 def gen_conf_key_struct_init(indent, names, conf_keys):
     structs = ''
     inits = ''
@@ -625,7 +669,7 @@ def gen_conf_key_struct_init(indent, names, conf_keys):
         subnames.append(name)
         h = conf_keys[name]
         if type(h) == int:
-            structs += '{}uint64_t {};\n'.format(indent, name)
+            structs += '{}uint64_t {};\n'.format(indent, get_allowable_name(name))
             inits += '{}{},\n'.format(indent, build_key_initializer(subnames))
         else:
             lbrace = '{'

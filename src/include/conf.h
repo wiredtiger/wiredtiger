@@ -495,7 +495,7 @@ static const struct {
     } Operation_tracking;
     struct {
         uint64_t available;
-        uint64_t default;
+        uint64_t _default;
     } Prefetch;
     struct {
         uint64_t prepared;
