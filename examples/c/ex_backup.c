@@ -84,8 +84,8 @@ compare_backups(int i)
      * If they compare successfully, clean up.
      */
     if (i != 0) {
-        testutil_system("rm -rf %s.%d %s.%d %s.%d %s.%d", home_full, i, home_incr,
-          i, full_out, i, incr_out, i);
+        testutil_system(
+          "rm -rf %s.%d %s.%d %s.%d %s.%d", home_full, i, home_incr, i, full_out, i, incr_out, i);
     }
     return (ret);
 }

@@ -99,8 +99,8 @@ compare_backups(int i)
      * If they compare successfully, clean up.
      */
     if (i != 0) {
-        testutil_system("rm -rf %s.%d %s.%d %s.%d %s.%d", home_full, i, home_incr,
-          i, full_out, i, incr_out, i);
+        testutil_system(
+          "rm -rf %s.%d %s.%d %s.%d %s.%d", home_full, i, home_incr, i, full_out, i, incr_out, i);
     }
     return (ret);
 }
@@ -120,15 +120,13 @@ setup_directories(void)
          * For incremental backups we need 0-N. The 0 incremental directory will compare with the
          * original at the end.
          */
-        testutil_system("rm -rf %s.%d && mkdir -p %s.%d/%s", home_incr, i,
-          home_incr, i, logpath);
+        testutil_system("rm -rf %s.%d && mkdir -p %s.%d/%s", home_incr, i, home_incr, i, logpath);
         if (i == 0)
             continue;
         /*
          * For full backups we need 1-N.
          */
-        testutil_system("rm -rf %s.%d && mkdir -p %s.%d/%s", home_full, i,
-          home_full, i, logpath);
+        testutil_system("rm -rf %s.%d && mkdir -p %s.%d/%s", home_full, i, home_full, i, logpath);
     }
 }
 
@@ -343,8 +341,7 @@ take_incr_backup(WT_SESSION *session, int i)
         error_check(process_file(&flist, &count, &alloc, filename));
         (void)snprintf(h, sizeof(h), "%s.0", home_incr);
         if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-            testutil_system("cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
-              logpath, filename);
+            testutil_system("cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
         else
             testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
 #if 0
@@ -400,8 +397,8 @@ take_incr_backup(WT_SESSION *session, int i)
                 testutil_assert(first == true);
                 rfd = wfd = -1;
                 if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-                    testutil_system("cp %s/%s/%s %s/%s/%s", home, logpath,
-                      filename, h, logpath, filename);
+                    testutil_system(
+                      "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
                 else
                     testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
 #if 0
@@ -426,8 +423,8 @@ take_incr_backup(WT_SESSION *session, int i)
         for (j = i; j < MAX_ITERATIONS; j++) {
             (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
             if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-                testutil_system("cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
-                  logpath, filename);
+                testutil_system(
+                  "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h, logpath, filename);
             else
                 testutil_system("cp %s/%s %s/%s", home, filename, h, filename);
         }
