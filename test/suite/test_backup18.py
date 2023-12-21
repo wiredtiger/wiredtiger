@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from helper import simulate_crash_restart
 from wtbackup import backup_base
 
 # test_backup18.py
@@ -111,6 +112,7 @@ class test_backup18(backup_base):
         config = 'incremental=(force_stop=true)'
         bkup_c = self.session.open_cursor('backup:', None, config)
         bkup_c.close()
+        simulate_crash_restart(self, ".", "RESTART")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor('backup:query_id',
             None, None), 0), msg)
