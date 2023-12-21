@@ -358,6 +358,7 @@ Spinlock
 Spinlocks
 StoreLoad
 StoreStore
+Strobed
 Su
 Subdirectory
 Subprocess
@@ -973,6 +974,7 @@ metafile
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
+misalignments
 mkdir
 mmap
 mmrand
@@ -1226,6 +1228,7 @@ strlen
 strncpy
 strndup
 strnlen
+strobed
 strtoll
 strtouq
 struct
