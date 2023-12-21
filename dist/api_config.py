@@ -16,6 +16,7 @@ else:
     test_config = True
     import test_data as api_data_def
 
+# Temporary file.
 tmp_file = '__tmp'
 
 #####################################################################
