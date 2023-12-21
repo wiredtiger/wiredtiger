@@ -177,7 +177,7 @@ for filename in test_files:
 #####
 
 ##### GENERATE TEST COVERAGE MD #####
-tmp_filename = '__tmp_tag' + str(os.getpid())
+tmp_filename = '__tmp_test_tag' + str(os.getpid())
 tfile = open(tmp_filename, 'w')
 
 # Sort tags

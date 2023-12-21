@@ -58,7 +58,7 @@ echo "Updating files that include the package version" &&
 errchk()
 {
     if ! `test -s $2`; then
-        return 0
+        return
     fi
 
     echo '#########' s_all run of: "$1" resulted in:$'\n'"$(cat $2)"$'\n''#########'
@@ -71,7 +71,6 @@ errchk()
     fi
 
     rm -f $2
-    return $errfound
 }
 
 run()
