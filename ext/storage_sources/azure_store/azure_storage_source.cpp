@@ -433,7 +433,7 @@ azure_file_system_exists(
       "azure_file_system_exists: Checking object: " + std::string(name) + " exists in Azure.");
     // Check whether the object exists in the cloud.
     int ret;
-    if (ret = azure_fs->azure_conn->object_exists(name, *existp, size) != 0) {
+    if ((ret = azure_fs->azure_conn->object_exists(name, *existp, size)) != 0) {
         log->log_err_msg(
           "azure_file_system_exists: Error with searching for object: " + std::string(name));
         return ret;
@@ -541,8 +541,9 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
         return ret;
     }
     if (!exists) {
-        log->log_err_msg("azure_file_open: no such file named " + std::string(name) + ".");
-        return EINVAL;
+        log->log_err_msg(
+          "azure_file_open: object named " + std::string(name) + " does not exist in the bucket.");
+        return ENOENT;
     }
 
     // Check if there is already an existing file handle open.

@@ -242,8 +242,10 @@ typedef struct {
 
     char *config_open; /* Command-line configuration */
 
-    TABLE *base_mirror;  /* First mirrored table */
-    bool mirror_fix_var; /* Special case if mirroring both FIX and VAR tables */
+    TABLE *base_mirror;    /* First mirrored table */
+    bool mirror_col_store; /* Special case if mirroring column store table */
+
+    bool background_compaction_running; /* Background compaction running */
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
@@ -266,6 +268,8 @@ typedef struct {
     uint64_t replay_start_timestamp;     /* Timestamp at the beginning of a run */
     uint64_t stop_timestamp;             /* If non-zero, stop when stable reaches this */
     uint64_t timestamp_copy;             /* A copy of the timestamp, for safety checks */
+
+    uint32_t operation_timeout_ms; /* Requested limit to complete operations in transaction */
 
     /*
      * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
@@ -421,6 +425,7 @@ typedef struct {
 extern TINFO **tinfo_list;
 
 WT_THREAD_RET alter(void *);
+WT_THREAD_RET background_compact(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
@@ -504,7 +509,8 @@ void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, bool);
-void wts_verify_checkpoint(WT_CONNECTION *, const char *);
+void wts_verify_mirrored_truncate(TINFO *tinfo);
+void wts_verify_mirrors(WT_CONNECTION *, const char *, TINFO *);
 
 /* Backward compatibility to older versions of the WiredTiger library. */
 #if !defined(CUR2S)

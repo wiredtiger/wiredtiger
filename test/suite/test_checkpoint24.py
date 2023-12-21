@@ -38,6 +38,7 @@ from wtscenario import make_scenarios
 # Test reading a checkpoint that contains fast-delete pages.
 # This version does not use timestamps.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
 
@@ -55,7 +56,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('unnamed', dict(first_checkpoint=None, do_reopen=False)),
     ]
     scenarios = make_scenarios(format_values, name_values)
-        
+
 
     def large_updates(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)

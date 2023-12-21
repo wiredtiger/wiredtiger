@@ -785,11 +785,11 @@ __evict_pass(WT_SESSION_IMPL *session)
          */
         if (eviction_progress == cache->eviction_progress) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
-                if (cache->evict_aggressive_score < 100)
+                if (cache->evict_aggressive_score < WT_EVICT_SCORE_MAX)
                     ++cache->evict_aggressive_score;
                 oldest_id = txn_global->oldest_id;
                 if (prev_oldest_id == oldest_id && txn_global->current != oldest_id &&
-                  cache->evict_aggressive_score < 100)
+                  cache->evict_aggressive_score < WT_EVICT_SCORE_MAX)
                     ++cache->evict_aggressive_score;
                 time_prev = time_now;
                 prev_oldest_id = oldest_id;
@@ -799,7 +799,7 @@ __evict_pass(WT_SESSION_IMPL *session)
              * Keep trying for long enough that we should be able to evict a page if the server
              * isn't interfering.
              */
-            if (loop < 100 || cache->evict_aggressive_score < 100) {
+            if (loop < 100 || cache->evict_aggressive_score < WT_EVICT_SCORE_MAX) {
                 /*
                  * Back off if we aren't making progress: walks hold the handle list lock, blocking
                  * other operations that can free space in cache, such as LSM discarding handles.
@@ -902,6 +902,17 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
         __wt_spin_unlock(session, &cache->evict_walk_lock);
         return (0);
     }
+
+    /*
+     * Special operations don't enable eviction, however the underlying command (e.g. verify) may
+     * choose to turn on eviction. This falls outside of the typical eviction flow, and here
+     * eviction may forcibly remove pages from the cache. Consequently, we may end up evicting
+     * internal pages which still have child pages present on the pre-fetch queue. Remove any refs
+     * still present on the pre-fetch queue so that they are not accidentally accessed in an invalid
+     * way later on.
+     */
+    if (F_ISSET(session, WT_SESSION_PREFETCH))
+        WT_ERR(__wt_conn_prefetch_clear_tree(session, false));
 
     /*
      * Ensure no new pages from the file will be queued for eviction after this point, then clear
@@ -1527,7 +1538,7 @@ retry:
          * Even though that ceiling has been removed, we need to test eviction with huge numbers of
          * active trees before allowing larger numbers of hazard pointers in the walk session.
          */
-        if (btree->evict_ref == NULL && session->nhazard > WT_EVICT_MAX_TREES)
+        if (btree->evict_ref == NULL && session->hazards.num_active > WT_EVICT_MAX_TREES)
             continue;
 
         /*
@@ -1865,8 +1876,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (btree->evict_ref == NULL) {
             for (;;) {
                 /* Ensure internal pages indexes remain valid */
-                WT_WITH_PAGE_INDEX(
-                  session, ret = __wt_random_descent(session, &btree->evict_ref, read_flags));
+                WT_WITH_PAGE_INDEX(session,
+                  ret = __wt_random_descent(session, &btree->evict_ref, read_flags, &session->rnd));
                 if (ret != WT_RESTART)
                     break;
                 WT_STAT_CONN_INCR(session, cache_eviction_walk_restart);
@@ -1977,8 +1988,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         }
 
         /* Don't queue dirty pages in trees during checkpoints. */
-        if (modified && WT_BTREE_SYNCING(btree))
+        if (modified && WT_BTREE_SYNCING(btree)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_dirty_pages_during_checkpoint);
             continue;
+        }
 
         /*
          * It's possible (but unlikely) to visit a page without a read generation, if we race with
@@ -2054,13 +2067,21 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
         /*
          * If the global transaction state hasn't changed since the last time we tried eviction,
-         * it's unlikely we can make progress. Similarly, if the most recent update on the page is
-         * not yet globally visible, eviction will fail. This heuristic avoids repeated attempts to
-         * evict the same page.
+         * it's unlikely we can make progress. This heuristic avoids repeated attempts to evict the
+         * same page.
          */
-        if (!__wt_page_evict_retry(session, page) ||
-          (modified && page->modify->update_txn >= conn->txn_global.last_running))
+        if (!__wt_page_evict_retry(session, page)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
             continue;
+        } else if (modified && page->modify->update_txn >= conn->txn_global.last_running) {
+            /*
+             * FIXME-WT-11805: The assumption that the eviction will fail if most recent update on
+             * the page from the transaction that is greater than the last running transaction has
+             * changed because now eviction also has it's own snapshot for visibility check.
+             */
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
+            continue;
+        }
 
 fast:
         /* If the page can't be evicted, give up. */
@@ -2421,6 +2442,11 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     if (app_thread)
         time_start = __wt_clock(session);
 
+    /*
+     * Note that this for loop is designed to reset expected eviction error codes before exiting,
+     * namely, the busy return and empty eviction queue. We do not need the calling functions to
+     * have to deal with internal eviction return codes.
+     */
     for (initial_progress = cache->eviction_progress;; ret = 0) {
         /*
          * If eviction is stuck, check if this thread is likely causing problems and should be
@@ -2429,7 +2455,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                --cache->evict_aggressive_score;
+                if (cache->evict_aggressive_score > 0)
+                    --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
                 __wt_verbose_debug1(
                   session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
@@ -2446,6 +2473,13 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          */
         if (__wt_op_timer_fired(session))
             break;
+
+        /* Check if we have exceeded the global or the session timeout for waiting on the cache. */
+        if (time_start != 0 && cache_max_wait_us != 0) {
+            time_stop = __wt_clock(session);
+            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
+                break;
+        }
 
         /*
          * Check if we have become busy.
@@ -2481,12 +2515,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         default:
             goto err;
         }
-        /* Stop if we've exceeded the time out. */
-        if (time_start != 0 && cache_max_wait_us != 0) {
-            time_stop = __wt_clock(session);
-            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
-                goto err;
-        }
     }
 
 err:
@@ -2496,9 +2524,14 @@ err:
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
-        if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            WT_TRET(__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW));
-            --cache->evict_aggressive_score;
+        /*
+         * Check if a rollback is required only if there has not been an error. Returning an error
+         * takes precedence over asking for a rollback. We can not do both.
+         */
+        if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
+            ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
+            if (cache->evict_aggressive_score > 0)
+                --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
             __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
         }

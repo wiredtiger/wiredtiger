@@ -26,9 +26,7 @@ __conn_dhandle_config_clear(WT_SESSION_IMPL *session)
         __wt_free(session, *a);
     __wt_free(session, dhandle->cfg);
     __wt_free(session, dhandle->meta_base);
-#ifdef HAVE_DIAGNOSTIC
     __wt_free(session, dhandle->orig_meta_base);
-#endif
 }
 
 /*
@@ -89,9 +87,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         cfg[3] = NULL;
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
         WT_ASSERT(session, dhandle->meta_base == NULL);
-#ifdef HAVE_DIAGNOSTIC
         WT_ASSERT(session, dhandle->orig_meta_base == NULL);
-#endif
         WT_ERR(__wt_config_collapse(session, cfg, &tmp));
         /*
          * Now strip out the checkpoint related items from the configuration string and that is now
@@ -117,14 +113,14 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     }
     dhandle->cfg[1] = metaconf;
     dhandle->meta_base = base;
-    dhandle->meta_base_length = base == NULL ? 0 : strlen(base);
-#ifdef HAVE_DIAGNOSTIC
     /*  Save the original metadata value for further check to avoid writing corrupted data. */
-    if (base == NULL)
-        dhandle->orig_meta_base = NULL;
-    else
+    if (base != NULL) {
+        dhandle->meta_hash = __wt_hash_city64(base, strlen(base));
+        __wt_epoch(session, &dhandle->base_upd);
         WT_ERR(__wt_strdup(session, base, &dhandle->orig_meta_base));
-#endif
+        dhandle->orig_meta_hash = dhandle->meta_hash;
+        dhandle->orig_upd = dhandle->base_upd;
+    }
     return (0);
 
 err:
@@ -716,7 +712,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 goto done;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-              !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL || WT_IS_METADATA(dhandle))
+              !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
+              WT_IS_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
@@ -725,12 +722,12 @@ done:
             F_CLR(conn, WT_CONN_CKPT_GATHER);
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_applied, conn->ckpt_apply);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_skipped, conn->ckpt_skip);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_walked, conn->dhandle_count);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration, time_diff);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_apply, conn->ckpt_apply_time);
-            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_skip, conn->ckpt_skip_time);
+            WT_STAT_CONN_SET(session, checkpoint_handle_applied, conn->ckpt_apply);
+            WT_STAT_CONN_SET(session, checkpoint_handle_skipped, conn->ckpt_skip);
+            WT_STAT_CONN_SET(session, checkpoint_handle_walked, conn->dhandle_count);
+            WT_STAT_CONN_SET(session, checkpoint_handle_duration, time_diff);
+            WT_STAT_CONN_SET(session, checkpoint_handle_duration_apply, conn->ckpt_apply_time);
+            WT_STAT_CONN_SET(session, checkpoint_handle_duration_skip, conn->ckpt_skip_time);
         }
         return (0);
     }
@@ -841,7 +838,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
     WT_ASSERT(session, dhandle != conn->cache->walk_tree);
 
     /* Check if the handle was reacquired by a session while we waited. */
-    if (!final && (dhandle->session_inuse != 0 || dhandle->session_ref != 0))
+    if (!final && (dhandle->session_inuse != 0 || dhandle->references != 0))
         return (__wt_set_return(session, EBUSY));
 
     WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket);
@@ -1028,7 +1025,8 @@ __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
         WT_RET(__wt_msg(session, "Name: %s", dhandle->name));
         if (dhandle->checkpoint != NULL)
             WT_RET(__wt_msg(session, "Checkpoint: %s", dhandle->checkpoint));
-        WT_RET(__wt_msg(session, "  Sessions referencing handle: %" PRIu32, dhandle->session_ref));
+        WT_RET(__wt_msg(
+          session, "  Handle session and tiered work references: %" PRIu32, dhandle->references));
         WT_RET(__wt_msg(session, "  Sessions using handle: %" PRId32, dhandle->session_inuse));
         WT_RET(__wt_msg(session, "  Exclusive references to handle: %" PRIu32, dhandle->excl_ref));
         if (dhandle->excl_ref != 0)

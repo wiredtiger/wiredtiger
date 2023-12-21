@@ -33,7 +33,7 @@ import os, shutil, wiredtiger
 from helper_tiered import get_conn_config, gen_tiered_storage_sources, TieredConfigMixin
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
-import wttest 
+import wttest
 
 class test_tiered13(test_import_base, TieredConfigMixin):
     storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered13', tiered_only=True)
@@ -145,7 +145,7 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         # we cannot tell it was a tiered table until we read in the root page.
         # Only test this in diagnostic mode which has an assertion.
         #
-        # FIXME-8644 There is an error path bug in wt_bm_read preventing this from
+        # FIXME-WT-8644 There is an error path bug in wt_bm_read preventing this from
         # working correctly although the code to return an error is in the code.
         # Uncomment these lines when that bug is fixed.
 

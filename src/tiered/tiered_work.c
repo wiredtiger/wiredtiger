@@ -36,7 +36,7 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    (void)__wt_atomic_subi32(&entry->tiered->iface.session_inuse, 1);
+    WT_DHANDLE_RELEASE((WT_DATA_HANDLE *)&entry->tiered->iface);
     __tiered_flush_state(session, entry->type, false);
     /* If all work is done signal any waiting thread waiting for sync. */
     if (WT_FLUSH_STATE_DONE(conn->flush_state))
@@ -114,9 +114,11 @@ __tiered_push_new_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     /*
      * Bump the in use count lock on the dhandle, this is kept until the work unit is freed. This
-     * prevents the an otherwise idle dhandle from being swept and freed.
+     * prevents an otherwise idle dhandle from being swept and freed. We do not need to hold the
+     * dhandle list lock here because our session currently holds a reference to the tiered entry
+     * when pushing this work and the handle cannot be swept out from under us.
      */
-    (void)__wt_atomic_addi32(&entry->tiered->iface.session_inuse, 1);
+    WT_DHANDLE_ACQUIRE((WT_DATA_HANDLE *)&entry->tiered->iface);
     __tiered_push_work_internal(session, entry);
     return;
 }
@@ -206,13 +208,14 @@ __wt_tiered_get_flush_finish(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **ent
 
 /*
  * __wt_tiered_get_flush --
- *     Get the first flush work unit from the queue. The id information cannot change between our
- *     caller and here. The caller is responsible for freeing the work unit.
+ *     Get the first flush work unit from the queue. If a non zero generation value is given, only
+ *     return work units less than that value. The id information cannot change between our caller
+ *     and here. The caller is responsible for freeing the work unit.
  */
 void
-__wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
+__wt_tiered_get_flush(WT_SESSION_IMPL *session, uint64_t generation, WT_TIERED_WORK_UNIT **entryp)
 {
-    __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH, 0, entryp);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH, generation, entryp);
     return;
 }
 
@@ -301,7 +304,7 @@ __wt_tiered_put_remove_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint3
  *     information cannot change between our caller and here.
  */
 int
-__wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
+__wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, uint64_t generation)
 {
     WT_TIERED_WORK_UNIT *entry;
 
@@ -309,6 +312,7 @@ __wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
     entry->type = WT_TIERED_WORK_FLUSH;
     entry->id = id;
     entry->tiered = tiered;
+    entry->op_val = generation;
     __tiered_push_new_work(session, entry);
     return (0);
 }

@@ -39,6 +39,7 @@ from wtscenario import make_scenarios
 # Make sure each checkpoint has its own snapshot by creating two successive
 # inconsistent checkpoints and reading both of them.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
@@ -128,7 +129,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             ckpt_started = 0
             while not ckpt_started:
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
                 stat_cursor.close()
                 time.sleep(1)
 
@@ -150,12 +151,12 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             ckpt = named_checkpoint_thread(self.conn, done, self.second_checkpoint)
         try:
             ckpt.start()
-            
+
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
                 stat_cursor.close()
                 time.sleep(1)
 

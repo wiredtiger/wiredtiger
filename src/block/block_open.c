@@ -37,7 +37,14 @@ __wt_block_manager_drop_object(
 
     /* Generate the name of the shared object file with the bucket prefix. */
     WT_ERR(__wt_buf_fmt(session, tmp, "%s%s", bstorage->bucket_prefix, filename));
-    WT_WITH_BUCKET_STORAGE(bstorage, session, ret = __wt_fs_remove(session, tmp->data, false));
+    /*
+     * Call directly into the bucket file system rather than wt_fs_remove because wt_fs_remove will
+     * prepend the home directory and then send an incorrect path into the storage layer. The bucket
+     * and cache directory should just get the prefixed name and it will do its own path management.
+     */
+    WT_WITH_BUCKET_STORAGE(bstorage, session,
+      ret = bstorage->file_system->fs_remove(
+        bstorage->file_system, (WT_SESSION *)session, tmp->data, 0));
     WT_ERR(ret);
 
 err:
@@ -98,7 +105,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
 
     /* Undo any create on error. */
     if (ret != 0)
-        WT_TRET(__wt_fs_remove(session, filename, false));
+        WT_TRET(__wt_fs_remove(session, filename, false, false));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -113,11 +120,7 @@ err:
 int
 __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t bucket, hash;
-
-    conn = S2C(session);
 
     if (block == NULL) /* Safety check, if failed to initialize. */
         return (0);
@@ -126,13 +129,6 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* We shouldn't have any read requests in progress. */
     WT_ASSERT(session, block->read_count == 0);
-
-    /* If we failed during allocation, the block won't have been linked. */
-    if (block->linked) {
-        hash = __wt_hash_city64(block->name, strlen(block->name));
-        bucket = hash & (conn->hash_size - 1);
-        WT_CONN_BLOCK_REMOVE(conn, block, bucket);
-    }
 
     __wt_free(session, block->name);
 
@@ -202,10 +198,9 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     /* Basic structure allocation, initialization. */
     WT_ERR(__wt_calloc_one(session, &block));
     WT_ERR(__wt_strdup(session, filename, &block->name));
+    block->compact_session_id = WT_SESSION_ID_INVALID;
     block->objectid = objectid;
     block->ref = 1;
-    WT_CONN_BLOCK_INSERT(conn, block, bucket);
-    block->linked = true;
 
     /* If not passed an allocation size, get one from the configuration. */
     if (allocsize == 0) {
@@ -215,7 +210,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     block->allocsize = allocsize;
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
-    block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
+    block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len) ? 1 : 0;
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));
@@ -250,8 +245,10 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * Tiered storage sets file permissions to readonly, but nobody else does. This flag means the
      * underlying file is read-only, and NOT that the handle access pattern is read-only.
      */
-    if (readonly)
+    if (readonly) {
         LF_SET(WT_FS_OPEN_READONLY);
+        block->readonly = true;
+    }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
     /* Set the file's size. */
@@ -275,6 +272,9 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      */
     if (!forced_salvage)
         WT_ERR(__desc_read(session, allocsize, block));
+
+    /* Block is valid, so make it visible in the connection. */
+    WT_CONN_BLOCK_INSERT(conn, block, bucket);
 
     __wt_spin_unlock(session, &conn->block_lock);
 
@@ -326,6 +326,17 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 
     __wt_scr_free(session, &buf);
     return (ret);
+}
+
+/*
+ * __file_is_wt_internal --
+ *     Check if a filename is one used by WiredTiger internal files.
+ */
+static bool
+__file_is_wt_internal(const char *name)
+{
+    return (strcmp(name, WT_METAFILE) == 0 || strcmp(name, WT_HS_FILE) == 0 ||
+      strcmp(name, WT_CC_METAFILE) == 0);
 }
 
 /*
@@ -404,7 +415,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * file name, and is now frantically pounding their interrupt key.
      */
     if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched) {
-        if (strcmp(block->name, WT_METAFILE) == 0 || strcmp(block->name, WT_HS_FILE) == 0)
+        if (__file_is_wt_internal(block->name))
             WT_ERR_MSG(session, WT_TRY_SALVAGE,
               "%s is corrupted: calculated block checksum of %#" PRIx32
               " doesn't match expected checksum of %#" PRIx32,

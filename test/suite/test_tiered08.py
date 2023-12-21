@@ -59,7 +59,7 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     def conn_config(self):
         return get_conn_config(self) + '),statistics=(fast),timing_stress_for_test=(tiered_flush_finish)'
-        
+
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
@@ -89,9 +89,12 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
             for i in range(nkeys, nkeys + self.batch_size):
                 c[self.key_gen(i)] = self.value_gen(i)
             nkeys += self.batch_size
-            ckpt_count = self.get_stat(stat.conn.txn_checkpoint)
+            ckpt_count = self.get_stat(stat.conn.checkpoints_api)
             flush_count = self.get_stat(stat.conn.flush_tier)
             self.pr('Populating: ckpt {}, flush {}'.format(str(ckpt_count), str(flush_count)))
+            crd = self.session.open_cursor(self.uri, None, None)
+            val = crd[self.key_gen(1)]
+            crd.close()
         c.close()
         return nkeys
 
@@ -130,6 +133,6 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.reopen_conn()
 
         self.verify(key_count)
-        
+
 if __name__ == '__main__':
     wttest.run()

@@ -43,6 +43,8 @@ static bool compat;
 static bool inmem;
 static bool use_lazyfs;
 
+static WT_LAZY_FS lazyfs;
+
 #define MAX_TH 12
 #define MIN_TH 5
 #define MAX_TIME 40
@@ -234,9 +236,14 @@ thread_run(void *arg)
         if (compaction && i >= (100 * WT_THOUSAND) && i % (100 * WT_THOUSAND) == 0) {
             printf("Running compaction in Thread %" PRIu32 "\n", td->id);
             if (columnar_table)
-                testutil_check(session->compact(session, col_uri, NULL));
+                ret = session->compact(session, col_uri, NULL);
             else
-                testutil_check(session->compact(session, uri, NULL));
+                ret = session->compact(session, uri, NULL);
+            /*
+             * We may have several sessions trying to compact the same URI, in this case, EBUSY is
+             * returned.
+             */
+            testutil_assert(ret == 0 || ret == EBUSY);
         }
 
         /*
@@ -375,9 +382,12 @@ handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+
+    /* Clean up LazyFS. */
+    if (use_lazyfs)
+        testutil_lazyfs_cleanup(&lazyfs);
+
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -636,7 +646,6 @@ main(int argc, char *argv[])
 {
     struct sigaction sa;
     struct stat sb;
-    WT_LAZY_FS lazyfs;
     WT_RAND_STATE rnd;
     pid_t pid;
     uint32_t i, j, nth, timeout;

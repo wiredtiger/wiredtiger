@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 # test_prepare23.py
 # Test prepare rollback with rollback to stable and failed eviction.
 class test_prepare23(wttest.WiredTigerTestCase):
-    conn_config = 'timing_stress_for_test=[failpoint_eviction_fail_after_reconciliation]'
+    conn_config = 'timing_stress_for_test=[failpoint_eviction_split]'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
@@ -124,7 +124,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
                     cursor.set_key(i)
                     self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
                 self.session.rollback_transaction()
-            
+
             ts += 40
 
 if __name__ == '__main__':

@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef LOGGER_H
-#define LOGGER_H
+#pragma once
 
 /* Following definitions are required in order to use printing format specifiers in C++. */
 #ifndef __STDC_LIMIT_MACROS
@@ -38,6 +37,7 @@
 #endif
 
 #include <mutex>
+#include <string_view>
 
 /* Define helpful functions related to debugging. */
 namespace test_harness {
@@ -64,11 +64,9 @@ public:
 
 public:
     /* Used to print out traces for debugging purpose. */
-    static void log_msg(int64_t trace_type, const std::string &str);
+    static void log_msg(int64_t trace_type, std::string_view str);
 
     /* Make sure the class will not be instantiated. */
     logger() = delete;
 };
 } // namespace test_harness
-
-#endif

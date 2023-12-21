@@ -313,11 +313,13 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
      * If we are storing debugging LSNs to retain additional log files from removal, then rotate the
      * newest LSN into the array.
      */
+    __wt_writelock(session, &conn->debug_log_retention_lock);
     if (conn->debug_ckpt_cnt != 0) {
         for (i = (int)conn->debug_ckpt_cnt - 1; i > 0; --i)
             conn->debug_ckpt[i] = conn->debug_ckpt[i - 1];
         conn->debug_ckpt[0] = *ckpt_lsn;
     }
+    __wt_writeunlock(session, &conn->debug_log_retention_lock);
 }
 
 /*
@@ -634,8 +636,11 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
      * If the user configured zero filling, pre-allocate the log file manually. Otherwise use the
      * file extension method to create and zero the log file based on what is available.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL))
-        return (__wt_file_zero(session, fh, log->first_record, conn->log_file_max));
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL)) {
+        WT_STAT_CONN_INCR(session, log_zero_fills);
+        return (
+          __wt_file_zero(session, fh, log->first_record, conn->log_file_max, WT_THROTTLE_LOG));
+    }
 
     /* If configured to not extend the file, we're done. */
     if (conn->log_extend_len == 0)
@@ -996,7 +1001,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
     WT_ERR(__wt_logrec_read(session, &p, end, &rectype));
     if (rectype != WT_LOGREC_SYSTEM)
         WT_ERR_MSG(session, WT_ERROR, "System log record missing");
-    WT_ERR(__wt_log_recover_system(session, &p, end, lsnp));
+    WT_ERR(__wt_log_recover_prevlsn(session, &p, end, lsnp));
 
 err:
     __wt_scr_free(session, &buf);
@@ -1170,6 +1175,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         log->log_close_fh = NULL;
     else {
         WT_ASSIGN_LSN(&log->log_close_lsn, &log->alloc_lsn);
+        /* Paired with an ordered read in the log file server path. */
         WT_PUBLISH(log->log_close_fh, log->log_fh);
     }
     log->fileid++;
@@ -1231,11 +1237,11 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      */
     WT_SET_LSN(&log->alloc_lsn, log->fileid, WT_LOG_END_HEADER);
     /*
-     * If we're running the version where we write a system record do so now and update the
+     * If we're running the version where we write the previous LSN, do so now and update the
      * alloc_lsn.
      */
     if (log->log_version >= WT_LOG_VERSION_SYSTEM) {
-        WT_RET(__wt_log_system_record(session, log_fh, &logrec_lsn));
+        WT_RET(__wt_log_system_prevlsn(session, log_fh, &logrec_lsn));
         WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
     }
     WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
@@ -1406,7 +1412,8 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
         }
     }
 
-    return (__wt_file_zero(session, log_fh, offset, conn->log_file_max));
+    WT_STAT_CONN_INCR(session, log_zero_fills);
+    return (__wt_file_zero(session, log_fh, offset, conn->log_file_max, WT_THROTTLE_LOG));
 }
 
 /*
@@ -1579,7 +1586,7 @@ __wt_log_remove(WT_SESSION_IMPL *session, const char *file_prefix, uint32_t logn
     WT_RET(__wt_scr_alloc(session, 0, &path));
     WT_ERR(__wt_log_filename(session, lognum, file_prefix, path));
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove log %s", (const char *)path->data);
-    WT_ERR(__wt_fs_remove(session, path->data, false));
+    WT_ERR(__wt_fs_remove(session, path->data, false, false));
 err:
     __wt_scr_free(session, &path);
     return (ret);
@@ -2824,8 +2831,8 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
         WT_RET(__wt_log_flush_lsn(session, &lsn, false));
     }
 
-    __wt_verbose(session, WT_VERB_LOG, "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,
-      flags, lsn.l.file, lsn.l.offset);
+    __wt_verbose_debug2(session, WT_VERB_LOG,
+      "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32, flags, lsn.l.file, lsn.l.offset);
     /*
      * If the user wants write-no-sync, there is nothing more to do. If the user wants background
      * sync, set the LSN and we're done. If the user wants sync, force it now.

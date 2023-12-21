@@ -1,4 +1,5 @@
-from __future__ import print_function
+#!/usr/bin/env python3
+
 import filecmp, fnmatch, glob, os, re, shutil, subprocess
 from contextlib import contextmanager
 
@@ -86,27 +87,27 @@ class ModifyFile:
         self.tmp_name = filename + ".TMP"
         self.current = filename
 
-    # Remove a possibly nonexistant file
+    # Remove a possibly nonexistent file
     def remove(self, filename):
         try:
-            os.remove(self.mod_name)
+            os.remove(filename)
         except:
             pass
 
     @contextmanager
     def replace_fragment(self, match):
         tfile = open(self.tmp_name, 'w')
-        skip = 0
+        skip = False
         try:
             for line in open(self.current, 'r'):
                 if skip:
                     if match + ': END' in line:
                         tfile.write('/*\n' + line)
-                        skip = 0
+                        skip = False
                 else:
                     tfile.write(line)
                 if match + ': BEGIN' in line:
-                    skip = 1
+                    skip = True
                     tfile.write(' */\n')
                     yield tfile
         finally:

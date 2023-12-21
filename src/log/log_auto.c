@@ -2,6 +2,10 @@
 
 #include "wt_internal.h"
 
+/*
+ * __wt_logrec_alloc --
+ *     Allocate a new WT_ITEM structure.
+ */
 int
 __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
@@ -17,12 +21,20 @@ __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
     return (0);
 }
 
+/*
+ * __wt_logrec_free --
+ *     Free the given WT_ITEM structure.
+ */
 void
 __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 {
     __wt_scr_free(session, logrecp);
 }
 
+/*
+ * __wt_logrec_read --
+ *     Read the record type.
+ */
 int
 __wt_logrec_read(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
@@ -35,6 +47,10 @@ __wt_logrec_read(
     return (0);
 }
 
+/*
+ * __wt_logop_read --
+ *     Read the operation type.
+ */
 int
 __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *optypep,
   uint32_t *opsizep)
@@ -42,6 +58,10 @@ __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end
     return (__wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
 }
 
+/*
+ * __logrec_make_json_str --
+ *     Unpack a string into JSON escaped format.
+ */
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -58,6 +78,10 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
     return (0);
 }
 
+/*
+ * __logrec_make_hex_str --
+ *     Convert data to a hexadecimal representation.
+ */
 static int
 __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -73,6 +97,10 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
     return (0);
 }
 
+/*
+ * __wt_logop_col_modify_pack --
+ *     Pack the log operation col_modify.
+ */
 int
 __wt_logop_col_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -94,6 +122,10 @@ __wt_logop_col_modify_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_modify_unpack --
+ *     Unpack the log operation col_modify.
+ */
 int
 __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
@@ -111,6 +143,10 @@ __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_col_modify_print --
+ *     Print the log operation col_modify.
+ */
 int
 __wt_logop_col_modify_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -127,8 +163,8 @@ __wt_logop_col_modify_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_modify\",\n"));
-    WT_ERR(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"recno\": %" PRIu64 ",\n", recno));
     WT_ERR(__logrec_make_json_str(session, &escaped, &value));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"value\": \"%s\"", (char *)escaped->mem));
@@ -143,6 +179,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_col_put_pack --
+ *     Pack the log operation col_put.
+ */
 int
 __wt_logop_col_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
@@ -164,6 +204,10 @@ __wt_logop_col_put_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_put_unpack --
+ *     Unpack the log operation col_put.
+ */
 int
 __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
@@ -181,6 +225,10 @@ __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
     return (0);
 }
 
+/*
+ * __wt_logop_col_put_print --
+ *     Print the log operation col_put.
+ */
 int
 __wt_logop_col_put_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -197,8 +245,8 @@ __wt_logop_col_put_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_put\",\n"));
-    WT_ERR(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"recno\": %" PRIu64 ",\n", recno));
     WT_ERR(__logrec_make_json_str(session, &escaped, &value));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"value\": \"%s\"", (char *)escaped->mem));
@@ -213,6 +261,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_col_remove_pack --
+ *     Pack the log operation col_remove.
+ */
 int
 __wt_logop_col_remove_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno)
@@ -234,6 +286,10 @@ __wt_logop_col_remove_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_remove_unpack --
+ *     Unpack the log operation col_remove.
+ */
 int
 __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *recnop)
@@ -251,6 +307,10 @@ __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_col_remove_print --
+ *     Print the log operation col_remove.
+ */
 int
 __wt_logop_col_remove_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -264,12 +324,16 @@ __wt_logop_col_remove_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_remove\",\n"));
-    WT_RET(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_RET(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_RET(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_RET(__wt_fprintf(session, args->fs, "        \"recno\": %" PRIu64 "", recno));
     return (0);
 }
 
+/*
+ * __wt_logop_col_truncate_pack --
+ *     Pack the log operation col_truncate.
+ */
 int
 __wt_logop_col_truncate_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t start, uint64_t stop)
@@ -291,6 +355,10 @@ __wt_logop_col_truncate_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_col_truncate_unpack --
+ *     Unpack the log operation col_truncate.
+ */
 int
 __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
@@ -308,6 +376,10 @@ __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
     return (0);
 }
 
+/*
+ * __wt_logop_col_truncate_print --
+ *     Print the log operation col_truncate.
+ */
 int
 __wt_logop_col_truncate_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -322,13 +394,17 @@ __wt_logop_col_truncate_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_truncate\",\n"));
-    WT_RET(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_RET(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_RET(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_RET(__wt_fprintf(session, args->fs, "        \"start\": %" PRIu64 ",\n", start));
     WT_RET(__wt_fprintf(session, args->fs, "        \"stop\": %" PRIu64 "", stop));
     return (0);
 }
 
+/*
+ * __wt_logop_row_modify_pack --
+ *     Pack the log operation row_modify.
+ */
 int
 __wt_logop_row_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -350,6 +426,10 @@ __wt_logop_row_modify_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_row_modify_unpack --
+ *     Unpack the log operation row_modify.
+ */
 int
 __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
@@ -367,6 +447,10 @@ __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_row_modify_print --
+ *     Print the log operation row_modify.
+ */
 int
 __wt_logop_row_modify_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -383,8 +467,8 @@ __wt_logop_row_modify_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_modify\",\n"));
-    WT_ERR(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &key));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"key\": \"%s\",\n", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
@@ -405,6 +489,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_row_put_pack --
+ *     Pack the log operation row_put.
+ */
 int
 __wt_logop_row_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
@@ -426,6 +514,10 @@ __wt_logop_row_put_pack(
     return (0);
 }
 
+/*
+ * __wt_logop_row_put_unpack --
+ *     Unpack the log operation row_put.
+ */
 int
 __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
@@ -443,6 +535,10 @@ __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
     return (0);
 }
 
+/*
+ * __wt_logop_row_put_print --
+ *     Print the log operation row_put.
+ */
 int
 __wt_logop_row_put_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -459,8 +555,8 @@ __wt_logop_row_put_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_put\",\n"));
-    WT_ERR(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &key));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"key\": \"%s\",\n", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
@@ -481,6 +577,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_row_remove_pack --
+ *     Pack the log operation row_remove.
+ */
 int
 __wt_logop_row_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key)
 {
@@ -501,6 +601,10 @@ __wt_logop_row_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t f
     return (0);
 }
 
+/*
+ * __wt_logop_row_remove_unpack --
+ *     Unpack the log operation row_remove.
+ */
 int
 __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *keyp)
@@ -518,6 +622,10 @@ __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     return (0);
 }
 
+/*
+ * __wt_logop_row_remove_print --
+ *     Print the log operation row_remove.
+ */
 int
 __wt_logop_row_remove_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -533,8 +641,8 @@ __wt_logop_row_remove_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_remove\",\n"));
-    WT_ERR(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &key));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"key\": \"%s\"", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
@@ -548,6 +656,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_row_truncate_pack --
+ *     Pack the log operation row_truncate.
+ */
 int
 __wt_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
   WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
@@ -569,6 +681,10 @@ __wt_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t
     return (0);
 }
 
+/*
+ * __wt_logop_row_truncate_unpack --
+ *     Unpack the log operation row_truncate.
+ */
 int
 __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *fileidp, WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
@@ -586,6 +702,10 @@ __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
     return (0);
 }
 
+/*
+ * __wt_logop_row_truncate_print --
+ *     Print the log operation row_truncate.
+ */
 int
 __wt_logop_row_truncate_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -603,8 +723,8 @@ __wt_logop_row_truncate_print(
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_truncate\",\n"));
-    WT_ERR(__wt_fprintf(
-      session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
+    WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &start));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"start\": \"%s\",\n", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
@@ -626,6 +746,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_logop_checkpoint_start_pack --
+ *     Pack the log operation checkpoint_start.
+ */
 int
 __wt_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
 {
@@ -646,6 +770,10 @@ __wt_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
     return (0);
 }
 
+/*
+ * __wt_logop_checkpoint_start_unpack --
+ *     Unpack the log operation checkpoint_start.
+ */
 int
 __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end)
 {
@@ -661,6 +789,10 @@ __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
     return (0);
 }
 
+/*
+ * __wt_logop_checkpoint_start_print --
+ *     Print the log operation checkpoint_start.
+ */
 int
 __wt_logop_checkpoint_start_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -668,11 +800,15 @@ __wt_logop_checkpoint_start_print(
 
     WT_RET(__wt_logop_checkpoint_start_unpack(session, pp, end));
 
-    WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"checkpoint_start\",\n"));
+    WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"checkpoint_start\"\n"));
 
     return (0);
 }
 
+/*
+ * __wt_logop_prev_lsn_pack --
+ *     Pack the log operation prev_lsn.
+ */
 int
 __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn)
 {
@@ -693,6 +829,10 @@ __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev
     return (0);
 }
 
+/*
+ * __wt_logop_prev_lsn_unpack --
+ *     Unpack the log operation prev_lsn.
+ */
 int
 __wt_logop_prev_lsn_unpack(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
@@ -710,6 +850,10 @@ __wt_logop_prev_lsn_unpack(
     return (0);
 }
 
+/*
+ * __wt_logop_prev_lsn_print --
+ *     Print the log operation prev_lsn.
+ */
 int
 __wt_logop_prev_lsn_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -724,6 +868,77 @@ __wt_logop_prev_lsn_print(
     return (0);
 }
 
+/*
+ * __wt_logop_backup_id_pack --
+ *     Pack the log operation backup_id.
+ */
+int
+__wt_logop_backup_id_pack(
+  WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, const char *id)
+{
+    const char *fmt = WT_UNCHECKED_STRING(IIIQS);
+    size_t size;
+    uint32_t optype, recsize;
+
+    optype = WT_LOGOP_BACKUP_ID;
+    WT_RET(__wt_struct_size(session, &size, fmt, optype, 0, index, granularity, id));
+
+    __wt_struct_size_adjust(session, &size);
+    WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
+    recsize = (uint32_t)size;
+    WT_RET(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, size, fmt, optype,
+      recsize, index, granularity, id));
+
+    logrec->size += (uint32_t)size;
+    return (0);
+}
+
+/*
+ * __wt_logop_backup_id_unpack --
+ *     Unpack the log operation backup_id.
+ */
+int
+__wt_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
+  uint32_t *indexp, uint64_t *granularityp, const char **idp)
+{
+    WT_DECL_RET;
+    const char *fmt = WT_UNCHECKED_STRING(IIIQS);
+    uint32_t optype, size;
+
+    if ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt, &optype, &size, indexp,
+           granularityp, idp)) != 0)
+        WT_RET_MSG(session, ret, "logop_backup_id: unpack failure");
+    WT_ASSERT(session, optype == WT_LOGOP_BACKUP_ID);
+
+    *pp += size;
+    return (0);
+}
+
+/*
+ * __wt_logop_backup_id_print --
+ *     Print the log operation backup_id.
+ */
+int
+__wt_logop_backup_id_print(
+  WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
+{
+    uint32_t index;
+    uint64_t granularity;
+    const char *id;
+
+    WT_RET(__wt_logop_backup_id_unpack(session, pp, end, &index, &granularity, &id));
+
+    WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"backup_id\",\n"));
+    WT_RET(__wt_fprintf(session, args->fs, "        \"index\": %" PRIu32 ",\n", index));
+    WT_RET(__wt_fprintf(session, args->fs, "        \"granularity\": %" PRIu64 ",\n", granularity));
+    WT_RET(__wt_fprintf(session, args->fs, "        \"id\": \"%s\"", id));
+    return (0);
+}
+
+/*
+ * __wt_logop_txn_timestamp_pack --
+ *     Pack the log operation txn_timestamp.
+ */
 int
 __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_t time_sec,
   uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
@@ -747,6 +962,10 @@ __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_
     return (0);
 }
 
+/*
+ * __wt_logop_txn_timestamp_unpack --
+ *     Unpack the log operation txn_timestamp.
+ */
 int
 __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint64_t *time_secp, uint64_t *time_nsecp, uint64_t *commit_tsp, uint64_t *durable_tsp,
@@ -766,6 +985,10 @@ __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, co
     return (0);
 }
 
+/*
+ * __wt_logop_txn_timestamp_print --
+ *     Print the log operation txn_timestamp.
+ */
 int
 __wt_logop_txn_timestamp_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -793,6 +1016,10 @@ __wt_logop_txn_timestamp_print(
     return (0);
 }
 
+/*
+ * __wt_txn_op_printlog --
+ *     Print operation from a log cookie.
+ */
 int
 __wt_txn_op_printlog(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -842,6 +1069,10 @@ __wt_txn_op_printlog(
 
     case WT_LOGOP_PREV_LSN:
         WT_RET(__wt_logop_prev_lsn_print(session, pp, end, args));
+        break;
+
+    case WT_LOGOP_BACKUP_ID:
+        WT_RET(__wt_logop_backup_id_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_TXN_TIMESTAMP:

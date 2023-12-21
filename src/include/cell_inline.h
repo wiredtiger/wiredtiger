@@ -1227,6 +1227,26 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
 }
 
 /*
+ * __wt_cell_get_ta --
+ *     Get the underlying time aggregate from an unpacked address cell.
+ */
+static inline void
+__wt_cell_get_ta(WT_CELL_UNPACK_ADDR *unpack_addr, WT_TIME_AGGREGATE **tap)
+{
+    *tap = &unpack_addr->ta;
+}
+
+/*
+ * __wt_cell_get_tw --
+ *     Get the underlying time window from an unpacked value cell.
+ */
+static inline void
+__wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp)
+{
+    *twp = &unpack_value->tw;
+}
+
+/*
  * __cell_data_ref --
  *     Set a buffer to reference the data from an unpacked cell.
  */
@@ -1264,7 +1284,7 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
          * Encourage checkpoint to race with reading the onpage value. If we have an overflow item,
          * it may be removed by checkpoint concurrently.
          */
-        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE, NULL);
+        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE);
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (decoded)
             return (0);

@@ -88,8 +88,18 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
     SAP *sap;
     WT_DECL_RET;
     int nw;
+    bool printf_msg;
 
     (void)handler;
+
+    /*
+     * If Antithesis is enabled and the message starts with ANTITHESIS: then make sure it always
+     * goes to stdout and is flushed.
+     */
+    printf_msg = false;
+#ifdef ENABLE_ANTITHESIS
+    printf_msg = WT_PREFIX_MATCH(message, "ANTITHESIS:");
+#endif
 
     /*
      * Log to the trace database when tracing messages. In threaded paths there will be a per-thread
@@ -97,15 +107,16 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
      * can be generated in the library when we don't have a session. There's a global session we can
      * use, but that requires locking.
      */
-    if ((sap = session->app_private) != NULL && sap->trace != NULL) {
+    if (g.trace_conn != NULL && (sap = session->app_private) != NULL && sap->trace != NULL) {
         testutil_check(sap->trace->log_printf(sap->trace, "%s", message));
-        return (0);
-    }
-    if (g.trace_session != NULL) {
+        if (!printf_msg)
+            return (0);
+    } else if (g.trace_session != NULL) {
         __wt_spin_lock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
         testutil_check(g.trace_session->log_printf(g.trace_session, "%s", message));
         __wt_spin_unlock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
-        return (0);
+        if (!printf_msg)
+            return (0);
     }
 
     /* Write and flush the message so we're up-to-date on error. */
@@ -166,10 +177,12 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_evict_page");
     if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
+    if (GV(STRESS_COMPACT_SLOW))
+        CONFIG_APPEND(*p, ",compact_slow");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
-    if (GV(STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION))
-        CONFIG_APPEND(*p, ",failpoint_eviction_fail_after_reconciliation");
+    if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
+        CONFIG_APPEND(*p, ",failpoint_eviction_split");
     if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
         CONFIG_APPEND(*p, ",failpoint_history_store_delete_key_from_ts");
     if (GV(STRESS_HS_CHECKPOINT_DELAY))
@@ -178,8 +191,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",history_store_search");
     if (GV(STRESS_HS_SWEEP))
         CONFIG_APPEND(*p, ",history_store_sweep_race");
-    if (GV(STRESS_PREPARE_RESOLUTION))
-        CONFIG_APPEND(*p, ",prepare_resolution");
+    if (GV(STRESS_PREPARE_RESOLUTION_1))
+        CONFIG_APPEND(*p, ",prepare_resolution_1");
     if (GV(STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE))
         CONFIG_APPEND(*p, ",sleep_before_read_overflow_onpage");
     if (GV(STRESS_SPLIT_1))
@@ -300,6 +313,30 @@ configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 }
 
 /*
+ * configure_chunkcache --
+ *     Configure chunk cache settings for opening a connection.
+ */
+static void
+configure_chunkcache(char **p, size_t max)
+{
+    char chunkcache_ext_cfg[512];
+
+    if (GV(CHUNK_CACHE)) {
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0)
+            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
+              strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0 ? GVS(CHUNK_CACHE_STORAGE_PATH) :
+                                                                  "WiredTigerChunkCache");
+        else
+            chunkcache_ext_cfg[0] = '\0';
+
+        CONFIG_APPEND(*p,
+          ",chunk_cache=(enabled=true,capacity=%" PRIu32 "MB,chunk_size=%" PRIu32 "MB,type=%s,%s)",
+          GV(CHUNK_CACHE_CAPACITY), GV(CHUNK_CACHE_CHUNK_SIZE), GVS(CHUNK_CACHE_TYPE),
+          chunkcache_ext_cfg);
+    }
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
@@ -320,7 +357,6 @@ create_database(const char *home, WT_CONNECTION **connp)
       "MB"
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
-      ",operation_timeout_ms=2000"
       ",statistics=(%s)",
       GV(CACHE), progname, GVS(STATISTICS_MODE));
 
@@ -403,6 +439,9 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     /* Optional tiered storage. */
     configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
+    /* Optional chunk cache. */
+    configure_chunkcache(&p, max);
 
 #define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
 
@@ -739,15 +778,9 @@ wts_stats(void)
     wt_wrap_open_session(conn, &sap, NULL, &session);
     stats_data_print(session, "statistics:", fp);
 
-    /*
-     * Data source statistics.
-     *     FIXME-WT-9785: Statistics cursors on tiered storage objects are not yet supported.
-     */
-    if (!g.tiered_storage_config) {
-        args.fp = fp;
-        args.session = session;
-        tables_apply(stats_data_source, &args);
-    }
+    args.fp = fp;
+    args.session = session;
+    tables_apply(stats_data_source, &args);
 
     wt_wrap_close_session(session);
 

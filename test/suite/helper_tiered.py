@@ -57,7 +57,7 @@ buckets = {
     # S3 buckets requires a region.
     "s3_store": ['s3testext-us;us-east-2', 's3testext;ap-southeast-2'],
     "dir_store": ['bucket1', 'bucket2'],
-    "gcp_store": ["gcptestext-us-jie", "gcptestext-ap-jie"],
+    "gcp_store": ["gcptestext-us", "gcptestext-ap"],
     "azure_store": ["azuretestext-us", "azuretestext-ap"]
 }
 
@@ -98,14 +98,14 @@ def get_check(storage_source, tc, base, n):
     tc.set_key(str(n))
     storage_source.assertEquals(tc.search(), wiredtiger.WT_NOTFOUND)
 
-# Generate a unique object prefix for the S3 store. 
+# Generate a unique object prefix for the S3 store.
 def generate_prefix(random_prefix = '', test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
     # "s3test/python/2022-31-01-16-34-10/623843294--".
-    # Objects with the prefix pattern "s3test/*" are deleted after a certain period of time 
+    # Objects with the prefix pattern "s3test/*" are deleted after a certain period of time
     # according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
     # prefix pattern or lifecycle of the object, please speak to the release manager.
-    # Group all the python test objects under s3test/python/ 
+    # Group all the python test objects under s3test/python/
     prefix = 's3test/python/'
     # Group each test run together by random number and date. If a random prefix isn't provided
     # generate a new one now.
@@ -128,7 +128,6 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
         ('dir_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = True,
-            has_cache = True,
             auth_token = get_auth_token('dir_store'),
             bucket = get_bucket_name('dir_store', 0),
             bucket1 = get_bucket_name('dir_store', 1),
@@ -140,7 +139,6 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
         ('s3_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = False,
-            has_cache = True,
             auth_token = get_auth_token('s3_store'),
             bucket = get_bucket_name('s3_store', 0),
             bucket1 = get_bucket_name('s3_store', 1),
@@ -164,7 +162,6 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
         ('azure_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = False,
-            has_cache = False,
             auth_token = get_auth_token('azure_store'),
             bucket = get_bucket_name('azure_store', 0),
             bucket1 = get_bucket_name('azure_store', 1),
@@ -178,7 +175,7 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
     ]
 
     # Return a sublist to use for the tiered test scenarios as last item on list is not a scenario
-    # for the tiered tests.  
+    # for the tiered tests.
     if tiered_only:
         return tiered_storage_sources[:-1]
 
@@ -250,19 +247,31 @@ class TieredConfigMixin:
     def conn_extensions(self, extlist):
         return self.tiered_conn_extensions(extlist)
 
+    # Returns configuration to be passed to the extension.
+    # Call may override, in which case, they probably want to
+    # look at self.is_local_storage or self.ss_name, as every
+    # extension has their own configurations that are valid.
+    #
+    # Some possible values to return: 'verbose=1'
+    # or for dir_store: 'verbose=1,delay_ms=13,force_delay=30'
+    def tiered_extension_config(self):
+        return ''
+
     # Load tiered storage source extension.
     def tiered_conn_extensions(self, extlist):
         # Handle non_tiered storage scenarios.
         if not self.is_tiered_scenario():
             return ''
-        
-        config = ''
+
+        config = self.tiered_extension_config()
+        if config == None:
+            config = ''
+        elif config != '':
+            config = '=(config=\"(%s)\")' % config
+
         # S3 store is built as an optional loadable extension, not all test environments build S3.
         if not self.is_local_storage:
-            #config = '=(config=\"(verbose=1)\")'
             extlist.skip_if_missing = True
-        #if self.is_local_storage:
-            #config = '=(config=\"(verbose=1,delay_ms=200,force_delay=3)\")'
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
@@ -279,10 +288,10 @@ class TieredConfigMixin:
 
         if (self.ss_name == 's3_store'):
             import boto3
-            # The bucket from the storage source is expected to be a name and a region, separated by a 
+            # The bucket from the storage source is expected to be a name and a region, separated by a
             # semi-colon. eg: 'abcd;ap-southeast-2'.
             bucket_name, region = bucket_name.split(';')
-            
+
             # Get the bucket resource and list the objects within that bucket that match the prefix for a
             # given test.
             s3 = boto3.resource('s3')
@@ -294,7 +303,7 @@ class TieredConfigMixin:
                 bucket.download_file(o.key, file_path)
         elif (self.ss_name == 'gcp_store'):
             from google.cloud import storage
-            
+
             storage_client = storage.Client()
             blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
 
@@ -304,8 +313,8 @@ class TieredConfigMixin:
         elif (self.ss_name == 'azure_store'):
             from azure.storage.blob import BlobServiceClient
 
-            blob_service_client = BlobServiceClient.from_connection_string(self.auth_token.strip('\"')) 
-            container_client = blob_service_client.get_container_client(container=bucket_name) 
+            blob_service_client = BlobServiceClient.from_connection_string(self.auth_token.strip('\"'))
+            container_client = blob_service_client.get_container_client(container=bucket_name)
             blob_list = container_client.list_blobs(name_starts_with=prefix)
 
             for blob in blob_list:

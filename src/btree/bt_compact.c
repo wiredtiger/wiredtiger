@@ -311,7 +311,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     WT_BM *bm;
     WT_DECL_RET;
     WT_REF *ref;
-    u_int i, msg_count;
+    u_int i;
     bool first, skip;
 
     uint64_t stats_pages_reviewed;           /* Pages reviewed */
@@ -320,7 +320,6 @@ __wt_compact(WT_SESSION_IMPL *session)
     uint64_t stats_pages_skipped;            /* Pages skipped */
 
     bm = S2BT(session)->bm;
-    msg_count = 0;
     ref = NULL;
 
     WT_STAT_DATA_INCR(session, session_compact);
@@ -361,20 +360,13 @@ __wt_compact(WT_SESSION_IMPL *session)
           session, btree_compact_pages_rewritten_expected, stats_pages_rewritten_expected);
 
         /*
-         * Periodically check if we've timed out or eviction is stuck. Quit if eviction is stuck,
-         * we're making the problem worse.
+         * Periodically check if compaction has been interrupted or if eviction is stuck, quit if
+         * this is the case.
          */
         if (first || ++i > 100) {
             if (!first)
-                bm->compact_progress(bm, session, &msg_count);
-            WT_ERR(__wt_session_compact_check_timeout(session));
-            if (session->event_handler->handle_general != NULL) {
-                ret = session->event_handler->handle_general(session->event_handler,
-                  &(S2C(session))->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
-                /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
-                if (ret != 0)
-                    WT_ERR_MSG(session, WT_ERROR, "compact interrupted by application");
-            }
+                bm->compact_progress(bm, session);
+            WT_ERR(__wt_session_compact_check_interrupted(session));
 
             if (__wt_cache_stuck(session))
                 WT_ERR(EBUSY);

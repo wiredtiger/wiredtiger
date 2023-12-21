@@ -193,7 +193,7 @@ struct __wt_bm {
     int (*compact_page_rewrite)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
     int (*compact_page_skip)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
     int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
-    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *, u_int *);
+    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
@@ -207,6 +207,7 @@ struct __wt_bm {
     int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
     int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
     int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
+    int (*switch_object_end)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
     int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
@@ -215,6 +216,8 @@ struct __wt_bm {
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
+    WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
+    WT_BLOCK *prev_block; /* If a tier switch was done, this was the old file. */
 
     void *map; /* Mapped region */
     size_t maplen;
@@ -231,6 +234,7 @@ struct __wt_bm {
     size_t handle_array_allocated; /* Size of handle array */
     WT_RWLOCK handle_array_lock;   /* Lock for block handle array */
     u_int handle_array_next;       /* Next open slot */
+    uint32_t max_flushed_objectid; /* Local objects at or below this id should be closed */
 
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.
@@ -249,7 +253,6 @@ struct __wt_block {
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
-    bool linked;
 
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
@@ -258,11 +261,13 @@ struct __wt_block {
 
     bool created_during_backup; /* Created during incremental backup */
     bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
+    bool remote;                /* Handle references non-local object */
+    bool readonly;              /* Underlying file was opened only for reading */
 
     /* Configuration information, set when the file is opened. */
-    uint32_t allocfirst; /* Allocation is first-fit */
-    uint32_t allocsize;  /* Allocation size */
-    size_t os_cache;     /* System buffer cache flush max */
+    wt_shared uint32_t allocfirst; /* Allocation is first-fit */
+    uint32_t allocsize;            /* Allocation size */
+    size_t os_cache;               /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 
@@ -293,6 +298,7 @@ struct __wt_block {
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    uint32_t compact_session_id;               /* Session compacting */
 
     /* Salvage support */
     wt_off_t slvg_off; /* Salvage file offset */
@@ -308,7 +314,7 @@ struct __wt_block {
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
 
     /* Multi-file support */
-    uint32_t read_count; /* Count of active read requests using this block handle */
+    wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
 };
 
 /*
@@ -451,4 +457,15 @@ __wt_block_header(WT_BLOCK *block)
     WT_UNUSED(block);
 
     return ((u_int)WT_BLOCK_HEADER_SIZE);
+}
+
+/*
+ * __wt_block_eligible_for_sweep --
+ *     Return true if the block meets requirements for sweeping. The check that read reference count
+ *     is zero is made elsewhere.
+ */
+static inline bool
+__wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
+{
+    return (!block->remote && block->objectid <= bm->max_flushed_objectid);
 }

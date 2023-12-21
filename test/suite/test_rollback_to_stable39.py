@@ -106,7 +106,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
             ckpt_started = 0
             while not ckpt_started:
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
                 stat_cursor.close()
                 time.sleep(1)
 
@@ -122,7 +122,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
         # Simulate a crash by copying to a new directory(RESTART).
         self.restart_config = True
         simulate_crash_restart(self, ".", "RESTART")
-        
+
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(value_a, uri, 0, nrows, 40)
@@ -157,7 +157,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
             ckpt_started = 0
             while not ckpt_started:
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
                 stat_cursor.close()
                 time.sleep(1)
 

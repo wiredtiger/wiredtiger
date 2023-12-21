@@ -169,15 +169,11 @@ __wt_op_timer_start(WT_SESSION_IMPL *session)
 {
     uint64_t timeout_us;
 
-    /* Timer can be configured per-transaction, and defaults to per-connection. */
-    if (session->txn == NULL || (timeout_us = session->txn->operation_timeout_us) == 0)
-        timeout_us = S2C(session)->operation_timeout_us;
-    if (timeout_us == 0)
-        session->operation_start_us = session->operation_timeout_us = 0;
-    else {
-        session->operation_start_us = __wt_clock(session);
-        session->operation_timeout_us = timeout_us;
-    }
+    /* Timer is configured per-transaction if there is a value. */
+    timeout_us = (session->txn == NULL) ? 0 : session->txn->operation_timeout_us;
+
+    session->operation_start_us = timeout_us == 0 ? 0 : __wt_clock(session);
+    session->operation_timeout_us = timeout_us;
 }
 
 /*
@@ -199,10 +195,34 @@ __wt_op_timer_fired(WT_SESSION_IMPL *session)
 {
     uint64_t diff, now;
 
-    if (session->operation_start_us == 0 || session->operation_timeout_us == 0)
+    if (!F_ISSET(session->txn, WT_TXN_RUNNING) || session->operation_start_us == 0 ||
+      session->operation_timeout_us == 0)
         return (false);
 
     now = __wt_clock(session);
     diff = WT_CLOCKDIFF_US(now, session->operation_start_us);
     return (diff > session->operation_timeout_us);
+}
+
+/*
+ * __wt_timer_start --
+ *     Start the timer.
+ */
+static inline void
+__wt_timer_start(WT_SESSION_IMPL *session, WT_TIMER *start_time)
+{
+    __wt_epoch(session, start_time);
+}
+
+/*
+ * __wt_timer_evaluate_ms --
+ *     Evaluate the difference between the current time and start time and output the difference in
+ *     milliseconds.
+ */
+static inline void
+__wt_timer_evaluate_ms(WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t *time_diff_ms)
+{
+    struct timespec cur_time;
+    __wt_epoch(session, &cur_time);
+    *time_diff_ms = WT_TIMEDIFF_MS(cur_time, *start_time);
 }

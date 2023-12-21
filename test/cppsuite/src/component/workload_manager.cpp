@@ -56,6 +56,13 @@ workload_manager::set_operation_tracker(operation_tracker *op_tracker)
     _operation_tracker = op_tracker;
 }
 
+/* The workload manager should never execute this function. */
+void
+workload_manager::do_work()
+{
+    testutil_assert(false);
+}
+
 void
 workload_manager::run()
 {
@@ -63,7 +70,12 @@ workload_manager::run()
     std::vector<operation_configuration> operation_configs;
     uint64_t thread_id = 0;
 
+    logger::log_msg(LOG_INFO, "Running component: " + _name);
+    _running = true;
+
     /* Retrieve useful parameters from the test configuration. */
+    operation_configs.push_back(operation_configuration(
+      _config->get_subconfig(BACKGROUND_COMPACT_OP_CONFIG), thread_type::BACKGROUND_COMPACT));
     operation_configs.push_back(operation_configuration(
       _config->get_subconfig(CHECKPOINT_OP_CONFIG), thread_type::CHECKPOINT));
     operation_configs.push_back(

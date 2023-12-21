@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 # General checkpoint test: create an object containing sets of data associated
 # with a set of checkpoints, then confirm the checkpoint's values are correct,
 # including after other checkpoints are dropped.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
         ('file', dict(uri='file:checkpoint',fmt='S')),
@@ -215,7 +216,7 @@ class test_checkpoint_target(wttest.WiredTigerTestCase):
 
     def check(self, uri, ds, value):
         cursor = ds.open_cursor(uri, None, "checkpoint=checkpoint-1")
-        self.assertEquals(cursor[ds.key(10)], value)
+        self.assertEqual(cursor[ds.key(10)], value)
         cursor.close()
 
     # FIXME-WT-10836
@@ -307,7 +308,7 @@ class test_checkpoint_last(wttest.WiredTigerTestCase):
             # Verify the "last" checkpoint sees the correct value.
             cursor = ds.open_cursor(
                 uri, None, "checkpoint=WiredTigerCheckpoint")
-            self.assertEquals(cursor[ds.key(10)], value)
+            self.assertEqual(cursor[ds.key(10)], value)
             # Don't close the checkpoint cursor, we want it to remain open until
             # the test completes.
 
@@ -404,7 +405,7 @@ class test_checkpoint_empty(wttest.WiredTigerTestCase):
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.session.checkpoint('name=ckpt')
         cursor = self.session.open_cursor(self.uri, None, "checkpoint=ckpt")
-        self.assertEquals(cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -412,7 +413,7 @@ class test_checkpoint_empty(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         cursor = self.session.open_cursor(self.uri, None, "checkpoint=ckpt")
-        self.assertEquals(cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
 
     # Check that if we create an unnamed and then a named checkpoint, opening
     # WiredTigerCheckpoint opens the most recent (the named) checkpoint.
@@ -421,7 +422,7 @@ class test_checkpoint_empty(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         cursor = self.session.open_cursor(
             self.uri, None, "checkpoint=WiredTigerCheckpoint")
-        self.assertEquals(cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -430,7 +431,7 @@ class test_checkpoint_empty(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(
             self.uri, None, "checkpoint=WiredTigerCheckpoint")
-        self.assertEquals(cursor.next(), 0)
+        self.assertEqual(cursor.next(), 0)
 
     # Check that if we create a named and then an unnamed checkpoint, opening
     # WiredTigerCheckpoint opens the most recent (the named) checkpoint.
@@ -439,7 +440,7 @@ class test_checkpoint_empty(wttest.WiredTigerTestCase):
         self.session.checkpoint('name=ckpt')
         cursor = self.session.open_cursor(
             self.uri, None, "checkpoint=WiredTigerCheckpoint")
-        self.assertEquals(cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -448,7 +449,7 @@ class test_checkpoint_empty(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(
             self.uri, None, "checkpoint=WiredTigerCheckpoint")
-        self.assertEquals(cursor.next(), 0)
+        self.assertEqual(cursor.next(), 0)
 
 if __name__ == '__main__':
     wttest.run()

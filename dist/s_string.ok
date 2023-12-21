@@ -33,7 +33,6 @@ BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
-BClmvxz
 BLKCACHE
 BLmRrSVv
 BOOL
@@ -70,10 +69,12 @@ CURSTD
 CallsCustDate
 Castagnoli
 Cclmpv
+Ceil
 CentOS
 Checkpointing
 Checksums
 CityHash
+ClmSvxz
 CloseHandle
 CmP
 Codec
@@ -113,6 +114,7 @@ ENCRYPTOR
 ENDIAN
 ENOENT
 ENOMEM
+ENOSPC
 ENOTSUP
 ENUM
 EOF
@@ -153,6 +155,7 @@ FreeLibrary
 Fsync
 Fuerst
 GBR
+GC
 GCP
 GCP's
 GF
@@ -196,10 +199,12 @@ JSON
 Jyrki
 KV
 Kanowski's
+Keyedness
 Kounavis
 LANGID
 LF
 LLVMFuzzerTestOneInput
+LOGOP
 LOGREC
 LOGSCAN
 LRU
@@ -223,14 +228,15 @@ MADV
 MALLOC
 MEM
 MEMALIGN
-MEMORDER
 MERCHANTABILITY
 MONGODB
 MOVEFILE
 MRXB
 MRXBOPC
+MSAN
 MSDN
 MSVC
+MSan
 MUTEX
 MacOS
 MapViewOfFile
@@ -278,6 +284,7 @@ PID
 POS
 POSIX
 PPC
+PREFETCH
 PRId
 PRIu
 PRNG
@@ -353,8 +360,10 @@ Spinlock
 Spinlocks
 StoreLoad
 StoreStore
+Strobed
 Su
 Subdirectory
+Subprocess
 TAILQ
 TCMalloc
 TESTUTIL
@@ -421,7 +430,9 @@ WideCharToMultiByte
 WinNT
 WiredTiger
 WiredTiger's
+WiredTigerCC
 WiredTigerCheckpoint
+WiredTigerChunkCache
 WiredTigerHS
 WiredTigerLAS
 WiredTigerLog
@@ -434,6 +445,7 @@ Wundef
 Wuninitialized
 Wunused
 XP
+XXXXXX
 Xorshift
 YCSB
 ZSTD
@@ -444,7 +456,7 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
-acstu
+acSstu
 addl
 addr
 addrs
@@ -496,6 +508,7 @@ bitstring
 bitwise
 blk
 blkcache
+blkincr
 blkmod
 bm
 bnd
@@ -567,6 +580,7 @@ colgroup
 colgroups
 collatorp
 comparator
+comparators
 comparep
 compat
 cond
@@ -615,6 +629,7 @@ curstd
 curtable
 curversion
 cust
+customizable
 customp
 cv
 cval
@@ -804,7 +819,6 @@ hashval
 havesize
 hdr
 hhh
-highjack
 hpp
 hs
 html
@@ -820,6 +834,7 @@ icount
 idlems
 idx
 ie
+iface
 ifdef's
 iiSii
 iiiS
@@ -866,14 +881,15 @@ isprint
 isrc
 isspace
 iter
-jemalloc
 jjj
 js
 json
 kB
 kbits
 kepQFQ
+key'd
 keycmp
+keyedness
 keyid
 keyids
 keylen
@@ -892,9 +908,9 @@ len
 lengthp
 lenp
 lex
+lexically
 lexicographically
 lf
-lfence
 libdatasource
 libmemkind
 libs
@@ -922,7 +938,6 @@ logsize
 logtest
 lookaside
 lookups
-loongarch
 lossy
 lr
 lru
@@ -962,6 +977,7 @@ metafile
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
+misalignments
 mkdir
 mmap
 mmrand
@@ -1005,6 +1021,7 @@ nlpo
 nocase
 noclear
 nocrypto
+noexcept
 nolock
 nonces
 nonliteral
@@ -1022,6 +1039,7 @@ nrecs
 nsec
 nset
 nul
+nullptr
 num
 numSymbols
 numbare
@@ -1080,6 +1098,7 @@ precompile
 precompiled
 precompiler
 precompiling
+prefetch
 preload
 prepend
 prepended
@@ -1161,6 +1180,7 @@ rw
 rwlock
 sH
 sHQ
+sXXXXXX
 sanitizer
 sanitizers
 scalable
@@ -1174,9 +1194,9 @@ setname
 setstr
 setv
 setvbuf
-sfence
 shareability
 sig
+sigchld
 signalled
 sii
 sizeof
@@ -1191,8 +1211,8 @@ sn
 snaplen
 snapsort
 snprintf
+sortable
 sp
-sparc
 spinlock
 spinlocks
 src
@@ -1216,6 +1236,7 @@ strlen
 strncpy
 strndup
 strnlen
+strobed
 strtoll
 strtouq
 struct
@@ -1286,6 +1307,7 @@ txnid
 txp
 txt
 typedef
+typeof
 uS
 ui
 uint
@@ -1346,6 +1368,7 @@ vd
 vdata
 vec
 vectorized
+verifier
 vfprintf
 vh
 vm

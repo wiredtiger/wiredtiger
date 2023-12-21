@@ -33,6 +33,7 @@
 #include "src/common/logger.h"
 #include "src/main/test.h"
 
+#include "background_compact.cpp"
 #include "bounded_cursor_perf.cpp"
 #include "bounded_cursor_prefix_indices.cpp"
 #include "bounded_cursor_prefix_search_near.cpp"
@@ -129,13 +130,16 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 {
     int error_code = 0;
 
-    test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
+    test_harness::logger::log_msg(LOG_INFO, "Test " + test_name + " starting.");
+    test_harness::logger::log_msg(LOG_TRACE, "Configuration:" + config);
     test_harness::test_args args = {.test_config = config,
       .test_name = test_name,
       .wt_open_config = wt_open_config,
       .home = home};
 
-    if (test_name == "bounded_cursor_perf")
+    if (test_name == "background_compact")
+        background_compact(args).run();
+    else if (test_name == "bounded_cursor_perf")
         bounded_cursor_perf(args).run();
     else if (test_name == "bounded_cursor_prefix_indices")
         bounded_cursor_prefix_indices(args).run();
@@ -180,10 +184,10 @@ main(int argc, char *argv[])
     std::string cfg, config_filename, current_cfg, current_test_name, home, test_name,
       wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"reverse_split", "bounded_cursor_perf",
+    const std::vector<std::string> all_tests = {"background_compact", "bounded_cursor_perf",
       "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
       "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
-      "hs_cleanup", "operations_test", "test_template"};
+      "hs_cleanup", "operations_test", "reverse_split", "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);

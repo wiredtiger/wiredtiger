@@ -308,6 +308,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_BTREE *btree;
     WT_CONFIG_ITEM cval, metadata;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     int64_t maj_version, min_version;
     uint32_t bitcnt;
     const char **cfg;
@@ -323,7 +324,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         maj_version = cval.val;
         WT_RET(__wt_config_gets(session, cfg, "version.minor", &cval));
         min_version = cval.val;
-        __wt_verbose(session, WT_VERB_VERSION, "%" PRId64 ".%" PRId64, maj_version, min_version);
+        __wt_verbose(session, WT_VERB_VERSION, "btree version: %" PRId64 ".%" PRId64, maj_version,
+          min_version);
     }
 
     /* Get the file ID. */
@@ -425,6 +427,20 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_SET(btree, WT_BTREE_NO_CHECKPOINT);
     else
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
+
+    /* Get the last flush times for tiered storage, if applicable. */
+    btree->flush_most_recent_secs = 0;
+    ret = __wt_config_gets(session, cfg, "flush_time", &cval);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret == 0)
+        btree->flush_most_recent_secs = (uint64_t)cval.val;
+
+    btree->flush_most_recent_ts = 0;
+    ret = __wt_config_gets(session, cfg, "flush_timestamp", &cval);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret == 0 && cval.len != 0)
+        WT_RET(__wt_txn_parse_timestamp_raw(
+          session, "flush_timestamp", &btree->flush_most_recent_ts, &cval));
 
     /* Checksums */
     WT_RET(__wt_config_gets(session, cfg, "checksum", &cval));
@@ -854,12 +870,12 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     }
 
     /*
-     * The endpoint for append is global; read the last page with global visibility to make sure
-     * that if the end of the tree is truncated we don't start appending in the truncated space
-     * unless the truncation has become globally visible. (Note that this path does not examine the
-     * visibility of individual data items; it only checks whether whole pages are deleted.)
+     * The endpoint for append is global; read the last page with global visibility (even if it's
+     * deleted) to make sure that if the end of the tree is truncated, the tree walk finds the
+     * correct page. (Note that this path does not examine the visibility of individual data items;
+     * it only checks whether whole pages are deleted.)
      */
-    flags = WT_READ_PREV | WT_READ_VISIBLE_ALL;
+    flags = WT_READ_PREV | WT_READ_VISIBLE_ALL | WT_READ_SEE_DELETED;
 
     next_walk = NULL;
     WT_RET(__wt_tree_walk(session, &next_walk, flags));
@@ -951,9 +967,11 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      */
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
     btree->maxmempage = (uint64_t)cval.val;
+
+#define WT_MIN_PAGES 10
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
-        btree->maxmempage = (uint64_t)WT_MIN(
-          btree->maxmempage, (conn->cache->eviction_dirty_trigger * cache_size) / WT_THOUSAND);
+        btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
+          ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
 
     /* Enforce a lower bound of a single disk leaf page */
     btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);

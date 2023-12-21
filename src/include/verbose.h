@@ -10,6 +10,7 @@
 #define WT_VERBOSE_CATEGORY_STR_INIT \
     { \
     /* AUTOMATIC VERBOSE ENUM STRING GENERATION START */ \
+    "WT_VERB_ALL", \
     "WT_VERB_API", \
     "WT_VERB_BACKUP", \
     "WT_VERB_BLKCACHE", \
@@ -38,6 +39,7 @@
     "WT_VERB_METADATA", \
     "WT_VERB_OUT_OF_ORDER", \
     "WT_VERB_OVERFLOW", \
+    "WT_VERB_PREFETCH", \
     "WT_VERB_READ", \
     "WT_VERB_RECONCILE", \
     "WT_VERB_RECOVERY", \
@@ -131,6 +133,19 @@ struct __wt_verbose_multi_category {
  */
 #define WT_VERBOSE_ISSET(session, category) \
     WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_LEVEL_DEFAULT)
+
+/* Set the verbose level and save the previous value. */
+#define WT_VERBOSE_SET_AND_SAVE(session, verbose_orig_level, category, level) \
+    do {                                                                      \
+        verbose_orig_level[category] = S2C(session)->verbose[category];       \
+        WT_SET_VERBOSE_LEVEL(session, category, level);                       \
+    } while (0)
+
+/* Restore the original level  */
+#define WT_VERBOSE_RESTORE(session, verbose_orig_level, category)              \
+    do {                                                                       \
+        WT_SET_VERBOSE_LEVEL(session, category, verbose_orig_level[category]); \
+    } while (0)
 
 /*
  * __wt_verbose_level --

@@ -26,6 +26,7 @@ CURSTD
 CXX
 Cheng
 Christoph
+Chunkcache
 Collet's
 Coverity
 Coverity's
@@ -121,21 +122,23 @@ PROFDATA
 Powershell
 README
 RLE
+RNG
 RedHat
 RepMgr
 Riak
 RocksDB
 Roelofs
 Rrx
-SDK
-SDKs
-SDK's
 SCons
+SDK
+SDK's
+SDKs
 SYSV
 Sanitizer
 Seward's
 SiH
 TSC
+TW
 TXID
 TXT
 Timestamping
@@ -148,6 +151,7 @@ Valgrind
 WILLNEED
 WiredTiger
 WiredTiger's
+WiredTigerCC
 WiredTigerCheckpoint
 WiredTigerException
 WiredTigerHS
@@ -168,8 +172,8 @@ aR
 aarch
 abc
 abstime
+acSstu
 ack'ed
-acstu
 addr
 ajn
 alloc
@@ -224,6 +228,7 @@ checkpointed
 checkpointing
 checksum
 checksums
+chunkcache
 ckp
 ckpt
 clickable
@@ -261,7 +266,6 @@ customerABC
 customizability
 cv
 cyclomatic
-de
 dN
 dNLen
 dNOff
@@ -276,6 +280,7 @@ dbc
 dbformat
 dbm
 dbt
+de
 deallocated
 decl
 decrement
@@ -331,6 +336,7 @@ exe
 extensibility
 fadvise
 failchk
+failpoint
 fallocate
 fcoverage
 fd's
@@ -348,8 +354,8 @@ filehandle
 fileid
 filename
 filesystem
-filesystems
 filesystem's
+filesystems
 fillfactor
 firstname
 flamegraph
@@ -372,8 +378,8 @@ fuzzutil
 fvisibility
 fxray
 gcc
-gcp
 gcov
+gcp
 gdbm
 ge
 getKey
@@ -611,6 +617,7 @@ scanf
 sched
 schemas
 scons
+scr
 screenshots
 secretkey
 selectable
@@ -713,6 +720,7 @@ versa
 viewable
 vlcs
 vm
+vpack
 vpmsum
 warmup
 wget

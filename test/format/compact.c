@@ -29,6 +29,67 @@
 #include "format.h"
 
 /*
+ * background_compact --
+ *     Periodically enable/disable the background compaction thread.
+ */
+WT_THREAD_RET
+background_compact(void *arg)
+{
+    SAP sap;
+    WT_CONNECTION *conn;
+    WT_DECL_RET;
+    WT_SESSION *session;
+    u_int period;
+    char config_buf[128];
+
+    (void)(arg);
+
+    conn = g.wts_conn;
+
+    /* Open a session. */
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(conn, &sap, NULL, &session);
+
+    /*
+     * Start the background compaction server at somewhere under 5 seconds, and then enable/disable
+     * it every 10 minutes.
+     */
+    for (period = mmrand(&g.extra_rnd, 1, 5);; period = 600) {
+        /* Sleep for short periods so we don't make the run wait. */
+        while (period > 0 && !g.workers_finished) {
+            --period;
+            __wt_sleep(1, 0);
+        }
+        if (g.workers_finished)
+            break;
+
+        /*
+         * The API supports enabling or disabling the background compact server multiple times in a
+         * row. Randomly pick whether we are enabling or disabling to cover all state changes.
+         */
+        if (mmrand(&g.extra_rnd, 0, 1))
+            testutil_snprintf(config_buf, sizeof(config_buf),
+              "background=true,free_space_target=%" PRIu32 "MB",
+              GV(BACKGROUND_COMPACT_FREE_SPACE_TARGET));
+        else
+            testutil_snprintf(config_buf, sizeof(config_buf), "%s", "background=false");
+
+        ret = session->compact(session, NULL, config_buf);
+        if (ret != 0)
+            testutil_assertfmt(ret == EBUSY, "WT_SESSION.compact failed: %d", ret);
+    }
+
+    /* Always disable the background compaction server. */
+    ret = session->compact(session, NULL, "background=false");
+    if (ret != 0)
+        testutil_assertfmt(ret == EBUSY, "WT_SESSION.compact failed: %d", ret);
+
+    wt_wrap_close_session(session);
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
  * compact --
  *     Periodically do a compaction operation.
  */
@@ -41,6 +102,7 @@ compact(void *arg)
     WT_DECL_RET;
     WT_SESSION *session;
     u_int period;
+    char config_buf[128];
 
     (void)(arg);
 
@@ -71,7 +133,9 @@ compact(void *arg)
          * don't configure a timeout and occasionally exceed the default of 1200 seconds.
          */
         table = table_select(NULL, false);
-        ret = session->compact(session, table->uri, NULL);
+        testutil_snprintf(config_buf, sizeof(config_buf), "free_space_target=%" PRIu32 "MB",
+          GV(COMPACT_FREE_SPACE_TARGET));
+        ret = session->compact(session, table->uri, config_buf);
         testutil_assertfmt(ret == 0 || ret == EBUSY || ret == ETIMEDOUT || ret == WT_CACHE_FULL ||
             ret == WT_ROLLBACK,
           "WT_SESSION.compact failed: %s: %d", table->uri, ret);

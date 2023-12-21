@@ -75,7 +75,7 @@ static const char *const uri_collection = "table:collection";
 
 static const char *const ready_file = "child_ready";
 
-static bool use_columns, use_lazyfs, use_ts, use_txn;
+static bool aggressive_sweep, use_columns, use_lazyfs, use_ts, use_txn;
 static volatile bool stable_set;
 
 static uint32_t nth;                       /* Number of threads. */
@@ -94,6 +94,7 @@ typedef struct {
 static volatile THREAD_TS th_ts[MAX_TH];
 
 static TEST_OPTS *opts, _opts;
+static WT_LAZY_FS lazyfs;
 
 #define ENV_CONFIG_DEF                                                                             \
     "create,"                                                                                      \
@@ -101,13 +102,12 @@ static TEST_OPTS *opts, _opts;
     "log=(enabled,file_max=10M,remove=false),statistics=(all),statistics_log=(json,on_close,wait=" \
     "1)"
 
-#define ENV_CONFIG_TXNSYNC \
-    ENV_CONFIG_DEF         \
-    ",transaction_sync=(enabled,method=none)"
+#define ENV_CONFIG_SWEEP \
+    ",file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)"
 
-#define ENV_CONFIG_TXNSYNC_FSYNC \
-    ENV_CONFIG_DEF               \
-    ",transaction_sync=(enabled,method=fsync)"
+#define ENV_CONFIG_TXNSYNC ",transaction_sync=(enabled,method=none)"
+
+#define ENV_CONFIG_TXNSYNC_FSYNC ",transaction_sync=(enabled,method=fsync)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -148,13 +148,28 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * usage --
- *     TODO: Add a comment describing this function.
+ *     Display usage statement and exit failure.
  */
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-BClmvxz]\n",
+    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-ClmSvxz]\n",
       progname);
+    fprintf(stderr, "%s",
+      "\t-C compatibility\n"
+      "\t-c use variable-length columns\n"
+      "\t-h home directory\n"
+      "\t-l use LazyFS\n"
+      "\t-m in-memory\n"
+      "\t-P tiered storage options\n"
+      "\t-p preserve directory contents\n"
+      "\t-S set sweep server to be aggressive\n"
+      "\t-s set a stop timestamp to stop the threads to run\n"
+      "\t-T set number of threads\n"
+      "\t-t set timeout in seconds\n"
+      "\t-v verify only\n"
+      "\t-x use transactions\n"
+      "\t-z don't use timestamps\n");
     exit(EXIT_FAILURE);
 }
 
@@ -455,7 +470,7 @@ test_upgrade(THREAD_DATA *td)
     WT_DECL_RET;
     WT_SESSION *session;
 
-    /* FIXME-WT-9423 Remove this return when tiered storage supports upgrade. */
+    /* FIXME-WT-11366 Remove this return when tiered storage supports upgrade. */
     if (opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
@@ -477,7 +492,7 @@ test_verify(THREAD_DATA *td)
     WT_DECL_RET;
     WT_SESSION *session;
 
-    /* FIXME-WT-9423 Remove this return when tiered storage supports verify. */
+    /* FIXME-WT-10520 Remove this return when tiered storage supports verify. */
     if (opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
@@ -566,7 +581,6 @@ static WT_THREAD_RET
 thread_ckpt_run(void *arg)
 {
     struct timespec now, start;
-    FILE *fp;
     THREAD_DATA *td;
     WT_SESSION *session;
     uint64_t ts;
@@ -599,8 +613,6 @@ thread_ckpt_run(void *arg)
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
-        flush_tier = false;
-        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
         if (use_ts) {
             ts = get_all_committed_ts();
             /*
@@ -620,8 +632,11 @@ thread_ckpt_run(void *arg)
             }
         }
 
-        /* Set the configurations. Set use_timestamps regardless of whether timestamps are in use.
-         */
+        /* Determine if we're flushing once we know we're actually doing the checkpoint. */
+        flush_tier = false;
+        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
+
+        /* Set the configuration based on whether we're flushing. */
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
 
         /*
@@ -648,8 +663,7 @@ thread_ckpt_run(void *arg)
          * can cause a false positive for a timeout.
          */
         if (ready_for_kill && !created_ready) {
-            testutil_assert_errno((fp = fopen(ready_file, "w")) != NULL);
-            testutil_assert_errno(fclose(fp) == 0);
+            testutil_sentinel(NULL, ready_file);
             created_ready = true;
         }
 
@@ -920,12 +934,13 @@ run_workload(void)
     stable_set = false;
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
-    if (opts->inmem)
-        strcpy(envconf, ENV_CONFIG_DEF);
-    else if (use_lazyfs)
-        strcpy(envconf, ENV_CONFIG_TXNSYNC_FSYNC);
+    strcpy(envconf, ENV_CONFIG_DEF);
+    if (use_lazyfs)
+        strcat(envconf, ENV_CONFIG_TXNSYNC_FSYNC);
     else
-        strcpy(envconf, ENV_CONFIG_TXNSYNC);
+        strcat(envconf, ENV_CONFIG_TXNSYNC);
+    if (aggressive_sweep)
+        strcat(envconf, ENV_CONFIG_SWEEP);
 
     /* Open WiredTiger without recovery. */
     testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &event_handler, &conn, false, false);
@@ -1029,9 +1044,12 @@ sig_handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+
+    /* Clean up LazyFS. */
+    if (use_lazyfs)
+        testutil_lazyfs_cleanup(&lazyfs);
+
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -1043,13 +1061,11 @@ int
 main(int argc, char *argv[])
 {
     struct sigaction sa;
-    struct stat sb;
     FILE *fp;
     REPORT c_rep[MAX_TH], l_rep[MAX_TH], o_rep[MAX_TH];
     WT_CONNECTION *conn;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_DECL_RET;
-    WT_LAZY_FS lazyfs;
     WT_SESSION *session;
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;
@@ -1057,7 +1073,7 @@ main(int argc, char *argv[])
     uint32_t i, rand_value, timeout;
     int base, ch, status;
     char *end_number, *stop_arg;
-    char buf[PATH_MAX], fname[64], kname[64], statname[1024];
+    char buf[PATH_MAX], fname[64], kname[64];
     char cwd_start[PATH_MAX]; /* The working directory when we started */
     bool fatal, rand_th, rand_time, verify_only;
 
@@ -1066,22 +1082,22 @@ main(int argc, char *argv[])
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 
-    use_lazyfs = lazyfs_is_implicitly_enabled();
-    use_ts = true;
     /*
      * Setting this to false forces us to use internal library code. Allow an override but default
      * to using that code.
      */
-    use_txn = false;
+    aggressive_sweep = use_columns = use_lazyfs = use_txn = false;
     nth = MIN_TH;
-    rand_th = rand_time = true;
+    rand_th = rand_time = use_ts = true;
     stop_timestamp = 0;
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:Ch:mP:pT:v", opts);
+    use_lazyfs = lazyfs_is_implicitly_enabled();
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:s:T:t:vxz")) != EOF)
+    testutil_parse_begin_opt(argc, argv, "Ch:mP:pT:v", opts);
+
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:Ss:T:t:vxz")) != EOF)
         switch (ch) {
         case 'c':
             /* Variable-length columns only; fixed would require considerable changes */
@@ -1089,6 +1105,9 @@ main(int argc, char *argv[])
             break;
         case 'l':
             use_lazyfs = true;
+            break;
+        case 'S':
+            aggressive_sweep = true;
             break;
         case 's':
             stop_arg = __wt_optarg;
@@ -1120,9 +1139,8 @@ main(int argc, char *argv[])
             break;
         default:
             /* The option is either one that we're asking testutil to support, or illegal. */
-            if (testutil_parse_single_opt(opts, ch) != 0) {
+            if (testutil_parse_single_opt(opts, ch) != 0)
                 usage();
-            }
         }
     argc -= __wt_optind;
     if (argc != 0)
@@ -1132,9 +1150,7 @@ main(int argc, char *argv[])
         usage();
     }
 
-    /*
-     * Among other things, this initializes the random number generators in the option structure.
-     */
+    /* Among other things, this initializes the random number generators in the option structure. */
     testutil_parse_end_opt(opts);
 
     testutil_work_dir_from_path(home, sizeof(home), opts->home);
@@ -1199,11 +1215,11 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
                " " TESTUTIL_SEED_FORMAT "\n",
           progname, opts->compat ? " -C" : "", use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
-          opts->tiered_storage ? " -PT" : "", !use_ts ? " -z" : "", opts->home, stop_timestamp, nth,
-          timeout, opts->data_seed, opts->extra_seed);
+          opts->tiered_storage ? " -PT" : "", aggressive_sweep ? " -S" : "", !use_ts ? " -z" : "",
+          opts->home, stop_timestamp, nth, timeout, opts->data_seed, opts->extra_seed);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
@@ -1227,8 +1243,7 @@ main(int argc, char *argv[])
          * If we have a stop timestamp, the ready file is created when the child threads have all
          * reached the stop point, so there's no reason to sleep.
          */
-        testutil_snprintf(statname, sizeof(statname), "%s/%s", home, ready_file);
-        while (stat(statname, &sb) != 0)
+        while (!testutil_exists(home, ready_file))
             testutil_sleep_wait(1, pid);
         if (stop_timestamp == 0)
             sleep(timeout);

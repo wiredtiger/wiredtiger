@@ -69,9 +69,10 @@ static char home[1024]; /* Program working dir */
  */
 
 #define BACKUP_BASE "backup."
+#define BACKUP_OLD "OLD." BACKUP_BASE
 #define CHECK_BASE "check."
 #define INVALID_KEY UINT64_MAX
-#define MAX_BACKUP_INVL 5 /* Maximum interval between backups */
+#define MAX_BACKUP_INVL 4 /* Maximum interval between backups */
 #define MAX_CKPT_INVL 5   /* Maximum interval between checkpoints */
 #define MAX_TH 200        /* Maximum configurable threads */
 #define MAX_TIME 40
@@ -97,10 +98,11 @@ static const char *const uri_shadow = "shadow";
 static const char *const ckpt_file = "checkpoint_done";
 
 static bool backup_verify_immediately, backup_verify_quick;
-static bool columns, stress, use_backups, use_lazyfs, use_ts;
-static uint32_t backup_full_interval, backup_granularity_kb;
+static bool columns, stress, use_backups, use_lazyfs, use_ts, verify_model;
+static uint32_t backup_force_stop_interval, backup_full_interval, backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
+static WT_LAZY_FS lazyfs;
 
 static int recover_and_verify(uint32_t backup_index, uint32_t workload_iteration);
 extern int __wt_optind;
@@ -126,19 +128,16 @@ extern char *__wt_optarg;
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
 #define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
-#define ENV_CONFIG_DEF                                        \
+#define ENV_CONFIG_BASE                                       \
     "cache_size=%" PRIu32                                     \
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
+    "log=(enabled,file_max=10M,remove=%s),session_max=%d,"    \
     "statistics=(all),statistics_log=(wait=%d,json,on_close)"
-#define ENV_CONFIG_TXNSYNC \
-    ENV_CONFIG_DEF         \
-    ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_TXNSYNC_FSYNC \
-    ENV_CONFIG_DEF               \
-    ",transaction_sync=(enabled,method=fsync)"
+
+#define ENV_CONFIG_ADD_TXNSYNC ",transaction_sync=(enabled,method=none)"
+#define ENV_CONFIG_ADD_TXNSYNC_FSYNC ",transaction_sync=(enabled,method=fsync)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -167,9 +166,6 @@ extern char *__wt_optarg;
 /* Get back the workload iteration number from a backup index. */
 #define BACKUP_INDEX_TO_ITERATION(index) ((index) / WT_THOUSAND)
 
-/* Get back the sequence number from a backup index. */
-#define BACKUP_INDEX_TO_SEQUENCE(index) ((index) % WT_THOUSAND)
-
 typedef struct {
     uint64_t absent_key; /* Last absent key */
     uint64_t exist_key;  /* First existing key after miss */
@@ -195,6 +191,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 static void handle_conn_close(void);
 static void handle_conn_ready(WT_CONNECTION *);
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 
 static WT_CONNECTION *stat_conn = NULL;
@@ -202,7 +199,8 @@ static WT_SESSION *stat_session = NULL;
 static volatile bool stat_run = false;
 static wt_thread_t stat_th;
 
-static WT_EVENT_HANDLER my_event = {NULL, NULL, NULL, NULL, handle_general};
+static WT_EVENT_HANDLER other_event = {handle_error, NULL, NULL, NULL, NULL};
+static WT_EVENT_HANDLER reopen_event = {handle_error, NULL, NULL, NULL, handle_general};
 
 /*
  * __int_comparator --
@@ -283,6 +281,25 @@ handle_conn_ready(WT_CONNECTION *conn)
     stat_conn = conn;
     stat_run = true;
     testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, (void *)&unused));
+}
+
+/*
+ * handle_error --
+ *     Function to handle errors.
+ */
+static int
+handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+{
+    (void)(handler);
+    (void)(session);
+    (void)(error);
+
+    /* Ignore complaints about incremental backup not being configured. */
+    if (backup_force_stop_interval > 0 &&
+      strstr(errmsg, "Incremental backup is not configured") != NULL)
+        return (0);
+
+    return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
 
 /*
@@ -402,57 +419,22 @@ set_flush_tier_delay(WT_RAND_STATE *rnd)
 static void
 backup_create_full(WT_CONNECTION *conn, bool consolidate, uint32_t index)
 {
-    FILE *fp;
-    WT_CURSOR *cursor;
-    WT_SESSION *session;
-    int nfiles, ret;
-    char backup_home[PATH_MAX], copy_from[PATH_MAX], copy_to[PATH_MAX];
-    char buf[PATH_MAX];
-    char *filename;
-    const char *cons;
+    int nfiles;
+    char backup_home[PATH_MAX], backup_id[32];
 
-    nfiles = 0;
+    testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index);
+    testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
 
     printf("Create full backup %" PRIu32 " - start: consolidate=%d, granularity=%" PRIu32 "KB\n",
       index, consolidate, backup_granularity_kb);
+    testutil_backup_create_full(
+      conn, WT_HOME_DIR, backup_home, backup_id, consolidate, backup_granularity_kb, &nfiles);
 
-    /* Prepare the directory. */
-    testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index);
-    testutil_remove(backup_home);
-    testutil_mkdir(backup_home);
-
-    /* Open the session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
-    /* Open the backup cursor to get the list of files to copy. */
-    if (consolidate)
-        cons = ",consolidate=true";
-    else
-        cons = ",consolidate=false";
-    testutil_snprintf(buf, sizeof(buf),
-      "incremental=(granularity=%" PRIu32 "K,enabled=true,%s,this_id=ID%" PRIu32 ")",
-      backup_granularity_kb, cons, index);
-    testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
-
-    /* Copy the files. */
-    while ((ret = cursor->next(cursor)) == 0) {
-        nfiles++;
-        testutil_check(cursor->get_key(cursor, &filename));
-        testutil_snprintf(
-          copy_from, sizeof(copy_from), "%s" DIR_DELIM_STR "%s", WT_HOME_DIR, filename);
-        testutil_snprintf(copy_to, sizeof(copy_to), "%s" DIR_DELIM_STR "%s", backup_home, filename);
-        testutil_copy(copy_from, copy_to);
-    }
-    testutil_assert(ret == WT_NOTFOUND);
-
-    /* Cleanup */
-    testutil_check(cursor->close(cursor));
-    testutil_check(session->close(session, NULL));
+    /* Remember that this was a full backup. */
+    testutil_sentinel(backup_home, "full");
 
     /* Remember that the backup finished successfully. */
-    testutil_snprintf(buf, sizeof(buf), "%s/done", backup_home);
-    testutil_assert_errno((fp = fopen(buf, "w")) != NULL);
-    testutil_assert_errno(fclose(fp) == 0);
+    testutil_sentinel(backup_home, "done");
 
     printf("Create full backup %" PRIu32 " - complete: files=%" PRId32 "\n", index, nfiles);
 }
@@ -464,131 +446,20 @@ backup_create_full(WT_CONNECTION *conn, bool consolidate, uint32_t index)
 static void
 backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t index)
 {
-    FILE *fp;
-    WT_CURSOR *cursor, *file_cursor;
-    WT_SESSION *session;
-    ssize_t rdsize;
-    uint64_t offset, size, type;
-    int rfd, ret, wfd, nfiles, nranges, nunmodified;
-    char backup_home[PATH_MAX], copy_from[PATH_MAX], copy_to[PATH_MAX], src_backup_home[PATH_MAX];
-    char buf[4096];
-    char *filename;
-    bool first_range;
-    void *tmp;
+    int nfiles, nranges, nunmodified;
+    char backup_home[PATH_MAX], backup_id[32], src_backup_home[PATH_MAX], src_backup_id[32];
 
-    nfiles = 0;
-    nranges = 0;
-    nunmodified = 0;
-
+    testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index);
+    testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
     testutil_snprintf(src_backup_home, sizeof(src_backup_home), BACKUP_BASE "%" PRIu32, src_index);
+    testutil_snprintf(src_backup_id, sizeof(src_backup_id), "ID%" PRIu32, src_index);
 
     printf("Create incremental backup %" PRIu32 " - start: source=%" PRIu32 "\n", index, src_index);
-
-    /* Prepare the directory. */
-    testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index);
-    testutil_remove(backup_home);
-    testutil_mkdir(backup_home);
-
-    /* Open the session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
-    /* Open the backup cursor to get the list of files to copy. */
-    testutil_snprintf(buf, sizeof(buf), "incremental=(src_id=ID%" PRIu32 ",this_id=ID%" PRIu32 ")",
-      src_index, index);
-    testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
-
-    /* Process the files. */
-    while ((ret = cursor->next(cursor)) == 0) {
-        nfiles++;
-        testutil_check(cursor->get_key(cursor, &filename));
-
-        /* Process ranges within each file. */
-        testutil_snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
-        testutil_check(session->open_cursor(session, NULL, cursor, buf, &file_cursor));
-
-        first_range = true;
-        rfd = wfd = 0;
-        while ((ret = file_cursor->next(file_cursor)) == 0) {
-            testutil_check(file_cursor->get_key(file_cursor, &offset, &size, &type));
-            testutil_assert(type == WT_BACKUP_FILE || type == WT_BACKUP_RANGE);
-
-            if (type == WT_BACKUP_RANGE) {
-                /*
-                 * If this is the first range, copy the base file from the source backup. Then open
-                 * the source and target files to set up the rest of the copy.
-                 */
-                if (first_range) {
-                    first_range = false;
-                    testutil_snprintf(copy_from, sizeof(copy_from), "%s" DIR_DELIM_STR "%s",
-                      src_backup_home, filename);
-                    testutil_snprintf(
-                      copy_to, sizeof(copy_to), "%s" DIR_DELIM_STR "%s", backup_home, filename);
-                    testutil_copy(copy_from, copy_to);
-                    printf("INCR: cp %s %s\n", copy_from, copy_to);
-                    fflush(stdout);
-
-                    testutil_snprintf(buf, sizeof(buf), "%s/%s", WT_HOME_DIR, filename);
-                    testutil_assert((rfd = open(buf, O_RDONLY, 0666)) >= 0);
-                    testutil_assert((wfd = open(copy_to, O_WRONLY | O_CREAT, 0666)) >= 0);
-                }
-
-                /* Copy the range. */
-                tmp = dcalloc(1, size);
-                rdsize = pread(rfd, tmp, (size_t)size, (wt_off_t)offset);
-                testutil_assert(rdsize >= 0);
-                testutil_assert(pwrite(wfd, tmp, (size_t)rdsize, (wt_off_t)offset) == rdsize);
-                free(tmp);
-
-                nranges++;
-            } else {
-                /* We are supposed to do the full file copy. */
-                testutil_assert(first_range);
-                first_range = false;
-                testutil_snprintf(
-                  copy_from, sizeof(copy_from), "%s" DIR_DELIM_STR "%s", WT_HOME_DIR, filename);
-                testutil_snprintf(
-                  copy_to, sizeof(copy_to), "%s" DIR_DELIM_STR "%s", backup_home, filename);
-                testutil_copy(copy_from, copy_to);
-            }
-        }
-
-        if (rfd > 0)
-            testutil_assert(close(rfd) == 0);
-        if (wfd > 0)
-            testutil_assert(close(wfd) == 0);
-
-        if (first_range) {
-            /*
-             * If we get here and first_range is still true, it means that there were no changes to
-             * the file. The duplicate backup cursor did not return any information. Therefore
-             * "copy" the file from the source backup (actually, just create a hard link as an
-             * optimization).
-             */
-            testutil_snprintf(
-              copy_from, sizeof(copy_from), "%s" DIR_DELIM_STR "%s", src_backup_home, filename);
-            testutil_snprintf(
-              copy_to, sizeof(copy_to), "%s" DIR_DELIM_STR "%s", backup_home, filename);
-#ifndef _WIN32
-            testutil_assert_errno(link(copy_from, copy_to) == 0);
-#else
-            testutil_copy(copy_from, copy_to);
-#endif
-            nunmodified++;
-        }
-
-        testutil_assert(ret == WT_NOTFOUND);
-        testutil_check(file_cursor->close(file_cursor));
-    }
-    testutil_assert(ret == WT_NOTFOUND);
-
-    /* Cleanup */
-    testutil_check(cursor->close(cursor));
-    testutil_check(session->close(session, NULL));
+    testutil_backup_create_incremental(conn, WT_HOME_DIR, backup_home, backup_id, src_backup_home,
+      src_backup_id, true /* verbose */, &nfiles, &nranges, &nunmodified);
 
     /* Remember that the backup finished successfully. */
-    testutil_snprintf(buf, sizeof(buf), "%s/done", backup_home);
-    testutil_assert_errno((fp = fopen(buf, "w")) != NULL);
-    testutil_assert_errno(fclose(fp) == 0);
+    testutil_sentinel(backup_home, "done");
 
     printf("Create incremental backup %" PRIu32 " - complete: files=%" PRId32 ", ranges=%" PRId32
            ", unmodified=%" PRId32 "\n",
@@ -597,10 +468,9 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
     /* Immediately verify the backup. */
     if (backup_verify_immediately) {
         PRINT_BACKUP_VERIFY(index);
-        if (backup_verify_quick) {
-            testutil_snprintf(buf, sizeof(buf), "ID%" PRIu32, index);
-            testutil_verify_src_backup(conn, backup_home, WT_HOME_DIR, buf);
-        } else
+        if (backup_verify_quick)
+            testutil_verify_src_backup(conn, backup_home, WT_HOME_DIR, backup_id);
+        else
             testutil_check(recover_and_verify(index, 0));
         PRINT_BACKUP_VERIFY_DONE(index);
     }
@@ -612,16 +482,16 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
  *     no good reason.
  */
 static void
-backup_delete_old_backups(int retain, int last_full)
+backup_delete_old_backups(int retain)
 {
     struct dirent *dir;
-    struct stat sb;
     DIR *d;
     size_t len;
-    int count, i, indexes[256], ndeleted;
-    char buf[256];
+    int count, i, indexes[256], last_full, ndeleted;
+    char fromdir[256], todir[256];
     bool done;
 
+    last_full = 0;
     len = strlen(BACKUP_BASE);
     ndeleted = 0;
     do {
@@ -631,16 +501,17 @@ backup_delete_old_backups(int retain, int last_full)
         while ((dir = readdir(d)) != NULL) {
             if (strncmp(dir->d_name, BACKUP_BASE, len) == 0) {
                 i = atoi(dir->d_name + len);
-                if (i == last_full)
-                    continue;
                 indexes[count++] = i;
 
                 /* If the backup failed to finish, delete it right away. */
-                testutil_snprintf(buf, sizeof(buf), "%s/done", dir->d_name);
-                if (stat(buf, &sb) != 0 && errno == ENOENT) {
+                if (!testutil_exists(dir->d_name, "done")) {
                     testutil_remove(dir->d_name);
                     ndeleted++;
                 }
+
+                /* Check if this is a full backup - we'd like to keep at least one. */
+                if (testutil_exists(dir->d_name, "full"))
+                    last_full = WT_MAX(last_full, i);
 
                 /* If we have too many backups, finish next time. */
                 if (count >= (int)(sizeof(indexes) / sizeof(*indexes))) {
@@ -655,8 +526,16 @@ backup_delete_old_backups(int retain, int last_full)
 
         __wt_qsort(indexes, (size_t)count, sizeof(*indexes), __int_comparator);
         for (i = 0; i < count - retain; i++) {
-            testutil_snprintf(buf, sizeof(buf), BACKUP_BASE "%d", indexes[i]);
-            testutil_remove(buf);
+            if (indexes[i] == last_full)
+                continue;
+            testutil_snprintf(fromdir, sizeof(fromdir), BACKUP_BASE "%d", indexes[i]);
+            testutil_snprintf(todir, sizeof(todir), BACKUP_OLD "%d", indexes[i]);
+            /*
+             * First rename the directory so that if the child process is killed during the remove
+             * the verify function doesn't attempt to open a partial database.
+             */
+            testutil_check(rename(fromdir, todir));
+            testutil_remove(todir);
             ndeleted++;
         }
     } while (!done);
@@ -671,7 +550,6 @@ backup_delete_old_backups(int retain, int last_full)
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
 {
-    FILE *fp;
     THREAD_DATA *td;
     WT_SESSION *session;
     uint64_t stable;
@@ -731,9 +609,8 @@ thread_ckpt_run(void *arg)
          * the database.
          */
         if (first_ckpt && (!use_ts || stable != WT_TS_NONE)) {
-            testutil_assert_errno((fp = fopen(ckpt_file, "w")) != NULL);
+            testutil_sentinel(NULL, ckpt_file);
             first_ckpt = false;
-            testutil_assert_errno(fclose(fp) == 0);
         }
     }
 
@@ -747,17 +624,21 @@ thread_ckpt_run(void *arg)
 static WT_THREAD_RET
 thread_backup_run(void *arg)
 {
-    struct stat sb;
     THREAD_DATA *td;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    uint32_t i, last_backup, last_full, sleep_time, u;
+    uint32_t force_stop_offset, full_offset, i, last_backup, sleep_time, u;
     char *str;
     char buf[1024];
 
     td = (THREAD_DATA *)arg;
-    last_backup = last_full = 0;
+    last_backup = 0;
+
+    /* Pick random points for starting the full backup and force stop backup cycles. */
+    force_stop_offset =
+      backup_force_stop_interval > 0 ? __wt_random(&td->extra_rnd) % backup_force_stop_interval : 0;
+    full_offset = backup_full_interval > 0 ? __wt_random(&td->extra_rnd) % backup_full_interval : 0;
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -779,9 +660,8 @@ thread_backup_run(void *arg)
             u = (uint32_t)atoi(str + 2);
 
             /* Check whether the backup has indeed completed. */
-            testutil_snprintf(buf, sizeof(buf), BACKUP_BASE "%" PRIu32 "/done", u);
-            if (stat(buf, &sb) != 0) {
-                testutil_assert_errno(errno == ENOENT);
+            testutil_snprintf(buf, sizeof(buf), BACKUP_BASE "%" PRIu32, u);
+            if (!testutil_exists(buf, "done")) {
                 printf("Found backup %" PRIu32 ", but it is incomplete\n", u);
                 continue;
             }
@@ -789,14 +669,6 @@ thread_backup_run(void *arg)
             printf("Found backup %" PRIu32 "\n", u);
             if (u > last_backup)
                 last_backup = u;
-
-            /* Is it a full backup? */
-            if (u == 1 ||
-              (backup_full_interval > 0 &&
-                BACKUP_INDEX_TO_SEQUENCE(u) % backup_full_interval == 0)) {
-                if (u > last_full)
-                    last_full = u;
-            }
         }
         testutil_assert(ret == WT_NOTFOUND);
         testutil_check(cursor->close(cursor));
@@ -810,19 +682,26 @@ create:
         sleep_time = __wt_random(&td->extra_rnd) % MAX_BACKUP_INVL;
         __wt_sleep(sleep_time, 0);
 
+        if (backup_force_stop_interval > 0 &&
+          (i + force_stop_offset) % backup_force_stop_interval == 0) {
+            printf("Force-stop incremental backups\n");
+            testutil_backup_force_stop_conn(td->conn);
+            last_backup = 0; /* Force creation of a new full backup. */
+        }
+
         /* Create a backup. */
         u = BACKUP_INDEX(td, i);
-        if (last_backup == 0 || (backup_full_interval > 0 && i % backup_full_interval == 0)) {
+        if (last_backup == 0 ||
+          (backup_full_interval > 0 && (i + full_offset) % backup_full_interval == 0))
             backup_create_full(td->conn, __wt_random(&td->extra_rnd) % 2, u);
-            last_full = u;
-        } else
+        else
             backup_create_incremental(td->conn, last_backup, u);
 
         last_backup = u;
 
         /* Periodically delete old backups. */
         if (i % 5 == 0 || (td->workload_iteration > 1 && i == 1))
-            backup_delete_old_backups(5, (int)last_full);
+            backup_delete_old_backups(5);
     }
 
     /* NOTREACHED */
@@ -1088,15 +967,22 @@ run_workload(uint32_t workload_iteration)
      */
     cache_mb = ((32 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 20;
 
-    if (opts->inmem)
-        testutil_snprintf(
-          envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX, STAT_WAIT);
-    else if (use_lazyfs)
-        testutil_snprintf(
-          envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC_FSYNC, cache_mb, SESSION_MAX, STAT_WAIT);
-    else
-        testutil_snprintf(
-          envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, STAT_WAIT);
+    /*
+     * Do not remove log files when using model verification. The current implementation requires
+     * the debug log to be present from the beginning of time, as it uses it to populate the model.
+     * (To remove this requirement in the future, we could explore the possibility of populating the
+     * model from an earlier checkpoint and then rolling forward using the debug log, just from that
+     * position.)
+     */
+    testutil_snprintf(envconf, sizeof(envconf), ENV_CONFIG_BASE, cache_mb,
+      verify_model ? "false" : "true", SESSION_MAX, STAT_WAIT);
+
+    if (!opts->inmem) {
+        if (use_lazyfs)
+            testutil_strcat(envconf, sizeof(envconf), ENV_CONFIG_ADD_TXNSYNC_FSYNC);
+        else
+            testutil_strcat(envconf, sizeof(envconf), ENV_CONFIG_ADD_TXNSYNC);
+    }
     if (opts->compat)
         strcat(envconf, TESTUTIL_ENV_CONFIG_COMPAT);
     if (stress)
@@ -1109,7 +995,7 @@ run_workload(uint32_t workload_iteration)
     if (!opts->compat && !opts->inmem)
         strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, NULL, &conn, false, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &other_event, &conn, false, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
@@ -1280,11 +1166,10 @@ static void
 backup_verify(WT_CONNECTION *conn, uint32_t workload_iteration)
 {
     struct dirent *dir;
-    struct stat sb;
     DIR *d;
     size_t len;
     uint32_t index;
-    char backup_id[64], buf[1024];
+    char backup_id[64];
 
     testutil_assert_errno((d = opendir(".")) != NULL);
     len = strlen(BACKUP_BASE);
@@ -1292,11 +1177,8 @@ backup_verify(WT_CONNECTION *conn, uint32_t workload_iteration)
         if (strncmp(dir->d_name, BACKUP_BASE, len) == 0) {
 
             /* Verify the backup only if it has completed. */
-            testutil_snprintf(buf, sizeof(buf), "%s/done", dir->d_name);
-            if (stat(buf, &sb) != 0) {
-                testutil_assert_errno(errno == ENOENT);
+            if (!testutil_exists(dir->d_name, "done"))
                 continue;
-            }
 
             index = (uint32_t)atoi(dir->d_name + len);
             if (workload_iteration > 0 && BACKUP_INDEX_TO_ITERATION(index) != workload_iteration)
@@ -1345,7 +1227,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
     uint64_t commit_fp, durable_fp, stable_val;
     uint32_t i;
     int ret;
-    char backup_dir[PATH_MAX], buf[PATH_MAX], fname[64], kname[64];
+    char backup_dir[PATH_MAX], buf[PATH_MAX], fname[64], kname[64], verify_dir[PATH_MAX];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     bool fatal;
 
@@ -1358,7 +1240,8 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
      * Open the connection which forces recovery to be run.
      */
     if (backup_index == 0) {
-        testutil_wiredtiger_open(opts, WT_HOME_DIR, NULL, &my_event, &conn, true, false);
+        testutil_snprintf(verify_dir, sizeof(verify_dir), "%s", WT_HOME_DIR);
+        testutil_wiredtiger_open(opts, verify_dir, NULL, &reopen_event, &conn, true, false);
         printf("Connection open and recovery complete. Verify content\n");
         /* Compare against the copy of the home directory just before recovery. */
         if (use_backups) {
@@ -1375,17 +1258,17 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
             backup_verify(conn, workload_iteration);
     } else {
         testutil_snprintf(backup_dir, sizeof(backup_dir), BACKUP_BASE "%" PRIu32, backup_index);
-        testutil_snprintf(buf, sizeof(buf), CHECK_BASE "%" PRIu32, backup_index);
+        testutil_snprintf(verify_dir, sizeof(verify_dir), CHECK_BASE "%" PRIu32, backup_index);
         testutil_remove(CHECK_BASE "*");
-        testutil_copy(backup_dir, buf);
+        testutil_copy(backup_dir, verify_dir);
 
         /*
-         * Open the database connection to the backup. But don't pass our event handlers, so that we
-         * don't create another statistics thread. Not only we don't need it here, but trying to
-         * create it would cause the test to abort as we currently allow only one statistics thread
-         * at a time.
+         * Open the database connection to the backup. But don't pass the general event handler, so
+         * that we don't create another statistics thread. Not only we don't need it here, but
+         * trying to create it would cause the test to abort as we currently allow only one
+         * statistics thread at a time.
          */
-        testutil_wiredtiger_open(opts, buf, NULL, NULL, &conn, true, false);
+        testutil_wiredtiger_open(opts, verify_dir, NULL, &other_event, &conn, true, false);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
@@ -1597,15 +1480,22 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
+    if (fatal)
+        return (EXIT_FAILURE);
 
-    if (fatal) {
-        ret = EXIT_FAILURE;
-    } else {
-        ret = EXIT_SUCCESS;
-        printf("%" PRIu64 " records verified\n", count);
+    printf("%" PRIu64 " records verified\n", count);
+
+    /*
+     * Also verify using the model. This must be called after the recovery is complete, and the
+     * database is closed. At this point, verify only the main database (not backups) for
+     * expediency.
+     */
+    if (verify_model && backup_index == 0) {
+        printf("Running model-based verification: %s\n", verify_dir);
+        testutil_verify_model(opts, verify_dir);
     }
 
-    return (ret);
+    return (EXIT_SUCCESS);
 }
 
 /*
@@ -1619,9 +1509,12 @@ handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+
+    /* Clean up LazyFS. */
+    if (use_lazyfs)
+        testutil_lazyfs_cleanup(&lazyfs);
+
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -1633,10 +1526,8 @@ int
 main(int argc, char *argv[])
 {
     struct sigaction sa;
-    struct stat sb;
-    WT_LAZY_FS lazyfs;
     pid_t pid;
-    uint32_t iteration, num_iterations, rand_value, timeout;
+    uint32_t iteration, num_iterations, rand_value, timeout, tmp;
     int ch, status, ret;
     char buf[PATH_MAX], bucket[512];
     char cwd_start[PATH_MAX]; /* The working directory when we started */
@@ -1651,9 +1542,10 @@ main(int argc, char *argv[])
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 
+    backup_force_stop_interval = 3;
     backup_full_interval = 4;
     backup_granularity_kb = 1024;
-    backup_verify_immediately = true;
+    backup_verify_immediately = false;
     backup_verify_quick = false;
     columns = stress = false;
     nth = MIN_TH;
@@ -1661,14 +1553,16 @@ main(int argc, char *argv[])
     rand_th = rand_time = true;
     ret = 0;
     timeout = MIN_TIME;
+    tmp = 0;
     use_backups = false;
     use_lazyfs = lazyfs_is_implicitly_enabled();
     use_ts = true;
+    verify_model = false;
     verify_only = false;
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "BcF:I:LlsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BcF:I:LlMsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'B':
             use_backups = true;
@@ -1690,6 +1584,9 @@ main(int argc, char *argv[])
             break;
         case 'l':
             use_lazyfs = true;
+            break;
+        case 'M':
+            verify_model = true;
             break;
         case 's':
             stress = true;
@@ -1727,6 +1624,14 @@ main(int argc, char *argv[])
      */
     testutil_parse_end_opt(opts);
 
+    /*
+     * Don't allow testing backups in the compatibility mode. MongoDB no longer uses it, and the
+     * compatibility mode is inherently incompatible with backup-related fixes that add new log
+     * records. So disallow the test.
+     */
+    testutil_assert(!(opts->compat && use_backups));
+
+    testutil_deduce_build_dir(opts);
     testutil_work_dir_from_path(home, sizeof(home), opts->home);
 
     /*
@@ -1788,13 +1693,17 @@ main(int argc, char *argv[])
           "use: %s\n",
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           stress ? "true" : "false", use_ts ? "true" : "false");
+        printf("Parent: backups: %s, full backup interval: %" PRIu32
+               ", force stop interval: %" PRIu32 "\n",
+          use_backups ? "true" : "false", backup_full_interval, backup_force_stop_interval);
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
                " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
           progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", columns ? " -c" : "",
-          use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "",
-          stress ? " -s" : "", !use_ts ? " -z" : "", backup_full_interval, opts->home,
-          num_iterations, nth, timeout, opts->data_seed, opts->extra_seed);
+          use_lazyfs ? " -l" : "", verify_model ? " -M" : "", opts->inmem ? " -m" : "",
+          opts->tiered_storage ? " -PT" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
+          backup_full_interval, opts->home, num_iterations, nth, timeout, opts->data_seed,
+          opts->extra_seed);
 
         /*
          * Go inside the home directory (typically WT_TEST), but not all the way into the database's
@@ -1812,6 +1721,15 @@ main(int argc, char *argv[])
 
             if (num_iterations > 1)
                 printf("\n=== Iteration %" PRIu32 "/%" PRIu32 "\n", iteration, num_iterations);
+
+            /*
+             * Advance the random number generators, so that child process created in the loop would
+             * not all start with the same random state. Note that we cannot simply use (void) to
+             * ignore the return value, because that generates compiler warnings.
+             */
+            tmp ^= __wt_random(&opts->data_rnd);
+            tmp ^= __wt_random(&opts->extra_rnd);
+            WT_UNUSED(tmp);
 
             /*
              * Fork a child to insert as many items. We will then randomly kill the child, run
@@ -1844,7 +1762,7 @@ main(int argc, char *argv[])
              * from the time we notice that the file has been created. That allows the test to run
              * correctly on really slow machines.
              */
-            while (stat(ckpt_file, &sb) != 0)
+            while (!testutil_exists(NULL, ckpt_file))
                 testutil_sleep_wait(1, pid);
             sleep(timeout);
             sa.sa_handler = SIG_DFL;
@@ -1934,6 +1852,7 @@ main(int argc, char *argv[])
     if (ret == EXIT_SUCCESS && !opts->preserve)
         testutil_remove(home);
 
-    testutil_cleanup(opts);
+    if (ret == EXIT_SUCCESS)
+        testutil_cleanup(opts);
     return (ret);
 }

@@ -1,7 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import print_function
-import os, re, subprocess, sys, textwrap
+import os, re, sys, textwrap
 from dist import compare_srcfile, format_srcfile, ModifyFile
 
 test_config = False
@@ -393,7 +392,7 @@ def get_default(c):
 # position 'b' is 1 (offset of "cat"),
 # position 'c' is 1 (offset of "cat"),
 # position 'd' is 2 (offset of "deer"),
-# 'e' and 'f' are 4 (offset of "giraffe")
+# 'e' and 'f' are 4 (offset of "giraffe"),
 # 'g' is 4 (offset of "giraffe"),
 # 'h' and beyond is 5 (not found).
 def build_jump(arr):
@@ -430,13 +429,13 @@ static const WT_CONFIG_CHECK %(name)s[] = {
 \t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL }
 };
 
-static const uint8_t %(name)s_jump[128] = {
+static const uint8_t %(name)s_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
 \t%(jump_contents)s
 };
 ''' % {
-    'name' : 'confchk_' + cname + '_subconfigs',
+    'name' : '\n    '.join(ws.wrap('confchk_' + cname + '_subconfigs')),
     'check' : '\n\t'.join(getconfcheck(subc, keynumber) for subc in sorted(c.subconfig)),
-    'jump_contents' : ', '.join([str(i) for i in jump])
+    'jump_contents' : ', '.join([str(i) for i in jump]),
 })
 
 def getcname(c):
@@ -468,13 +467,13 @@ static const WT_CONFIG_CHECK confchk_%(name)s[] = {
 \t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL }
 };
 
-static const uint8_t confchk_%(name)s_jump[128] = {
+static const uint8_t confchk_%(name)s_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
 \t%(jump_contents)s
 };
 ''' % {
     'name' : name.replace('.', '_'),
     'check' : '\n\t'.join(getconfcheck(c, keynumber) for c in config),
-    'jump_contents' : ', '.join([str(i) for i in jump])
+    'jump_contents' : ', '.join([str(i) for i in jump]),
 })
 
 # Write the initialized list of configuration entry structures.
@@ -713,6 +712,6 @@ if not test_config:
                 'WT_CONF_API_DECLARE({}, {}, {}, {});\n'.format(clname, mname, nconf, nitem))
 
         tfile.write('\n#define WT_CONF_API_ELEMENTS {}\n\n'.format(count))
-                    
+
     config_h.done()
     conf_h.done()

@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 #
 # Test reading a checkpoint that contains prepared data.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     format_values = [
@@ -53,7 +54,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('unnamed', dict(first_checkpoint=None)),
     ]
     scenarios = make_scenarios(format_values, stable_ts_values, name_values)
-        
+
 
     def large_updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)

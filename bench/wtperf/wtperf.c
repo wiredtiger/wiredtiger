@@ -1680,6 +1680,12 @@ execute_populate(WTPERF *wtperf)
     return (0);
 }
 
+static bool
+need_reopen(CONFIG_OPTS *opts)
+{
+    return opts->readonly || opts->reopen_connection;
+}
+
 static int
 close_reopen(WTPERF *wtperf)
 {
@@ -1691,7 +1697,7 @@ close_reopen(WTPERF *wtperf)
     if (opts->in_memory)
         return (0);
 
-    if (!opts->readonly && !opts->reopen_connection)
+    if (!need_reopen(opts))
         return (0);
     /*
      * Reopen the connection. We do this so that the workload phase always starts with the on-disk
@@ -1783,6 +1789,7 @@ execute_workload(WTPERF *wtperf)
         wtperf->in_warmup = false;
     }
 
+    wtperf->testsec = 0;
     for (interval = opts->report_interval, run_time = opts->run_time, run_ops = opts->run_ops;
          !wtperf->error;) {
         /*
@@ -1790,6 +1797,7 @@ execute_workload(WTPERF *wtperf)
          * and if we're only tracking run time, go back to sleep.
          */
         sleep(1);
+        ++wtperf->testsec;
         if (run_time != 0) {
             if (--run_time == 0)
                 break;
@@ -1839,8 +1847,8 @@ execute_workload(WTPERF *wtperf)
         last_backup = wtperf->backup_ops;
     }
 
-/* Notify the worker threads they are done. */
 err:
+    /* Notify the worker threads they are done. */
     wtperf->stop = true;
 
     /* Stop cycling idle tables. */
@@ -2182,6 +2190,37 @@ config_tiered(WTPERF *wtperf)
     return (ret);
 }
 
+/*
+ * create_tiered_bucket --
+ *     Create the bucket directory required for tiered storage to work.
+ */
+static int
+create_tiered_bucket(WTPERF *wtperf)
+{
+    CONFIG_OPTS *opts;
+    char buf[1024];
+    size_t home_len, bucket_len;
+
+    opts = wtperf->opts;
+    home_len = strlen(wtperf->home);
+    bucket_len = strlen(opts->tiered_bucket);
+
+    /* Check that we can fit the paths, separator, and null byte. */
+    if ((home_len + bucket_len + 2) > 1024) {
+        fprintf(stderr, "home and bucket directory names too long\n");
+        return (-1);
+    }
+
+    if (bucket_len != 0) {
+        strcpy(buf, wtperf->home);
+        strcat(buf, "/");
+        strcat(buf, opts->tiered_bucket);
+        testutil_mkdir(buf);
+    }
+
+    return (0);
+}
+
 static int
 start_all_runs(WTPERF *wtperf)
 {
@@ -2260,7 +2299,6 @@ start_run(WTPERF *wtperf)
     CONFIG_OPTS *opts;
     wt_thread_t monitor_thread;
     uint64_t total_ops;
-    uint32_t run_time;
     int monitor_created, ret, t_ret;
 
     opts = wtperf->opts;
@@ -2350,26 +2388,26 @@ start_run(WTPERF *wtperf)
         wtperf->scan_ops = sum_scan_ops(wtperf);
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
-        run_time = opts->run_time == 0 ? 1 : opts->run_time;
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
-          wtperf->insert_ops / run_time);
+          wtperf->insert_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " modify operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->modify_ops, (wtperf->modify_ops * 100) / total_ops,
-          wtperf->modify_ops / run_time);
+          wtperf->modify_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " read operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->read_ops, (wtperf->read_ops * 100) / total_ops, wtperf->read_ops / run_time);
+          wtperf->read_ops, (wtperf->read_ops * 100) / total_ops,
+          wtperf->read_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " truncate operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->truncate_ops, (wtperf->truncate_ops * 100) / total_ops,
-          wtperf->truncate_ops / run_time);
+          wtperf->truncate_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
-          wtperf->update_ops / run_time);
+          wtperf->update_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
@@ -2642,28 +2680,19 @@ main(int argc, char *argv[])
         testutil_snprintf(
           wtperf->partial_config, req_len, "%s%s", opts->table_config, LOG_PARTIAL_CONFIG);
     }
-    /*
-     * Set the config for reopen. If readonly add in that string. If not readonly then just copy the
-     * original conn_config.
-     */
-    if (opts->readonly)
-        req_len = strlen(opts->conn_config) + strlen(READONLY_CONFIG) + 1;
-    else
-        req_len = strlen(opts->conn_config) + 1;
-    wtperf->reopen_config = dmalloc(req_len);
-    if (opts->readonly)
-        testutil_snprintf(
-          wtperf->reopen_config, req_len, "%s%s", opts->conn_config, READONLY_CONFIG);
-    else
-        testutil_snprintf(wtperf->reopen_config, req_len, "%s", opts->conn_config);
+
+    /* Generate config for the close/reopen after populating. */
+    wtperf->reopen_config = config_reopen(opts);
 
     /* Sanity-check the configuration. */
     if ((ret = config_sanity(wtperf)) != 0)
         goto err;
 
-    /* If creating, remove and re-create the home directory. */
-    if (opts->create != 0)
+    /* If creating, remove and re-create the home and tiered bucket directories. */
+    if (opts->create != 0) {
         testutil_recreate_dir(wtperf->home);
+        testutil_check(create_tiered_bucket(wtperf));
+    }
 
     /* Write a copy of the config. */
     req_len = strlen(wtperf->home) + strlen("/CONFIG.wtperf") + 1;

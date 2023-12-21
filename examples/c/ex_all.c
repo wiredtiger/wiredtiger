@@ -1041,8 +1041,12 @@ connection_ops(WT_CONNECTION *conn)
     /*! [Reconfigure a connection] */
 
     /*! [Get the database home directory] */
-    printf("The database home is %s\n", conn->get_home(conn));
+    printf("The database home is: %s\n", conn->get_home(conn));
     /*! [Get the database home directory] */
+
+    /*! [Get the configuration string] */
+    printf("The configuration is: %s\n", conn->get_configuration(conn));
+    /*! [Get the configuration string] */
 
     /*! [Check if the database is newly created] */
     if (conn->is_new(conn)) {
@@ -1370,6 +1374,24 @@ main(int argc, char *argv[])
         func = wiredtiger_crc32c_func();
         crc32c = func(buffer, len);
         /*! [Checksum a buffer] */
+        (void)crc32c;
+    }
+
+    {
+        size_t chunk1, chunk2, chunk3;
+        /*! [Checksum a large buffer in smaller pieces] */
+        uint32_t crc32c, (*func_with_seed)(uint32_t, const void *, size_t);
+        const char *buffer = "some other larger string";
+
+        func_with_seed = wiredtiger_crc32c_with_seed_func();
+        chunk1 = strlen("some ");
+        chunk2 = strlen("other larger ");
+        chunk3 = strlen("string");
+        crc32c = 0;
+        crc32c = func_with_seed(crc32c, buffer, chunk1);
+        crc32c = func_with_seed(crc32c, buffer + chunk1, chunk2);
+        crc32c = func_with_seed(crc32c, buffer + chunk1 + chunk2, chunk3);
+        /*! [Checksum a large buffer in smaller pieces] */
         (void)crc32c;
     }
 

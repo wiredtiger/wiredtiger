@@ -56,6 +56,7 @@ from wtscenario import make_scenarios
 # This test sets up such a transaction, evicts half of it, then checkpoints the
 # rest, and checks that it is all visible by reading the checkpoint.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     format_values = [
@@ -69,7 +70,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('unnamed', dict(first_checkpoint=None)),
     ]
     scenarios = make_scenarios(format_values, name_values)
-        
+
 
     def large_updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)

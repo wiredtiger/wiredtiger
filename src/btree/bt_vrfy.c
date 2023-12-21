@@ -280,8 +280,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
-/* FIXME-WT-10927 */
-#if 0
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it.
@@ -294,7 +292,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                  * after that and unloading this checkpoint.
                  */
             }
-#endif
+
             /*
              * If the read_corrupt mode was turned on, we may have continued traversing and
              * verifying the pages of the tree despite encountering an error. Set the error.
@@ -383,6 +381,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
     WT_DECL_RET;
     char time_string[WT_TIME_STRING_SIZE];
 
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
@@ -394,6 +393,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 
 err:
     __wt_scr_free(session, &tmp);
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     return (buf->data);
 }
 
@@ -435,6 +435,21 @@ __verify_tree(
     bm = btree->bm;
     unpack = &_unpack;
     page = ref->page;
+
+    /*
+     * The verify operation does not go through the same tree walk flow as other operations
+     * utilizing the regular tree walk function. Check for potential pages to pre-fetch here as
+     * well.
+     */
+    if (__wt_session_prefetch_check(session, ref)) {
+        ret = __wt_btree_prefetch(session, ref);
+        /*
+         * It's okay for pre-fetch to fail to start here. We want to assert on an error to gain
+         * diagnostic information, then continue the rest of verify as normal.
+         */
+        WT_PREFETCH_ASSERT(session, ret != WT_ERROR, block_prefetch_failed_start);
+        ret = 0;
+    }
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
@@ -539,7 +554,19 @@ __verify_tree(
      * (just created), it won't have a disk image; if there is no disk image, there is no page
      * content to check.
      */
-    if (page->dsk != NULL)
+    if (page->dsk != NULL) {
+        /*
+         * Compare the write generation number on the page to the write generation number on the
+         * parent. Since a parent page's reconciliation takes place once all of its child pages have
+         * been completed, the parent page's write generation number must be higher than that of its
+         * children.
+         */
+        if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= ref->home->dsk->write_gen)
+            WT_RET_MSG(session, EINVAL,
+              "child write generation number %" PRIu64
+              " is greater/equal to the parent page write generation number %" PRIu64,
+              page->dsk->write_gen, ref->home->dsk->write_gen);
+
         switch (page->type) {
         case WT_PAGE_COL_FIX:
             WT_RET(__verify_page_content_fix(session, ref, addr_unpack, vs));
@@ -553,6 +580,7 @@ __verify_tree(
             WT_RET(__verify_page_content_leaf(session, ref, addr_unpack, vs));
             break;
         }
+    }
 
     /* Compare the address type against the page type. */
     switch (page->type) {
@@ -730,9 +758,10 @@ __verify_row_int_key_order(
               "tree: "
               "%s, %s",
               entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
-              __wt_buf_set_printable(session, item.data, item.size, false, vs->tmp2),
-              __wt_buf_set_printable(
-                session, vs->max_key->data, vs->max_key->size, false, vs->tmp3));
+              __wt_buf_set_printable_format(
+                session, item.data, item.size, btree->key_format, false, vs->tmp2),
+              __wt_buf_set_printable_format(
+                session, vs->max_key->data, vs->max_key->size, btree->key_format, false, vs->tmp3));
     }
 
     /* Update the largest key we've seen to the key just checked. */
@@ -784,9 +813,10 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
               "the first key on the page at %s sorts equal to or less than the last key appearing "
               "on the page at %s, earlier in the tree: %s, %s",
               __verify_addr_string(session, ref, vs->tmp2), (char *)vs->max_addr->data,
-              __wt_buf_set_printable(session, vs->tmp1->data, vs->tmp1->size, false, vs->tmp3),
-              __wt_buf_set_printable(
-                session, vs->max_key->data, vs->max_key->size, false, vs->tmp4));
+              __wt_buf_set_printable_format(
+                session, vs->tmp1->data, vs->tmp1->size, btree->key_format, false, vs->tmp3),
+              __wt_buf_set_printable_format(
+                session, vs->max_key->data, vs->max_key->size, btree->key_format, false, vs->tmp4));
     }
 
     /* Update the largest key we've seen to the last key on this page. */
@@ -913,7 +943,8 @@ __verify_key_hs(
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
-              __wt_buf_set_printable(session, tmp1->data, tmp1->size, false, vs->tmp2),
+              __wt_buf_set_printable_format(
+                session, tmp1->data, tmp1->size, btree->key_format, false, vs->tmp2),
               __wt_timestamp_to_string(older_stop_ts, ts_string[0]),
               __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
         }

@@ -235,8 +235,8 @@ __session_clear(WT_SESSION_IMPL *session)
      */
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
-    session->hazard_inuse = 0;
-    session->nhazard = 0;
+    session->hazards.inuse = 0;
+    session->hazards.num_active = 0;
 }
 
 /*
@@ -396,6 +396,10 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
 
+#ifdef HAVE_DIAGNOSTIC
+    __wt_spin_destroy(session, &session->thread_check.lock);
+#endif
+
     /*
      * Sessions are re-used, clear the structure: the clear sets the active field to 0, which will
      * exclude the hazard array from review by the eviction thread. Because some session fields are
@@ -412,8 +416,8 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * not be at the end of the array, step toward the beginning of the array until we reach an
      * active session.
      */
-    while (conn->sessions[conn->session_cnt - 1].active == 0)
-        if (--conn->session_cnt == 0)
+    while (WT_CONN_SESSIONS_GET(conn)[conn->session_array.cnt - 1].active == 0)
+        if (--conn->session_array.cnt == 0)
             break;
 
     __wt_spin_unlock(session, &conn->api_lock);
@@ -469,6 +473,20 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
             WT_ERR(__session_close_cached_cursors(session));
         }
     }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    /*
+     * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
+     * is completed.
+     */
+    if ((ret = __wt_config_getones(
+           session, config, "debug.checkpoint_fail_before_turtle_update", &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
      * There is a session debug configuration which can be set to evict pages as they are released
@@ -487,6 +505,28 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     if (ret == 0 && cval.val)
         session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (S2C(session)->prefetch_auto_on)
+        F_SET(session, WT_SESSION_PREFETCH);
+    else
+        F_CLR(session, WT_SESSION_PREFETCH);
+
+    /*
+     * Override any connection-level pre-fetch settings if a specific session-level setting was
+     * provided.
+     */
+    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) != WT_NOTFOUND) {
+        if (cval.val) {
+            if (!S2C(session)->prefetch_available) {
+                F_CLR(session, WT_SESSION_PREFETCH);
+                WT_ERR_MSG(session, EINVAL,
+                  "pre-fetching cannot be enabled for the session if pre-fetching is configured as "
+                  "unavailable");
+            } else
+                F_SET(session, WT_SESSION_PREFETCH);
+        } else
+            F_CLR(session, WT_SESSION_PREFETCH);
+    }
 
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
@@ -2375,7 +2415,8 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    WT_STAT_CONN_INCR(session, txn_checkpoint);
+    WT_STAT_CONN_INCR(session, checkpoints_api);
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RUNNING);
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, checkpoint, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
@@ -2401,6 +2442,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_TRET(__wt_session_release_resources(session));
 
 err:
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2439,26 +2481,6 @@ __wt_session_strerror(WT_SESSION *wt_session, int error)
 }
 
 /*
- * __session_flush_tier_readonly --
- *     WT_SESSION->flush_tier method; readonly version.
- */
-static int
-__session_flush_tier_readonly(WT_SESSION *wt_session, const char *config)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    WT_UNUSED(config);
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_NOCONF(session, flush_tier);
-
-    ret = __wt_session_notsup(session);
-err:
-    API_END_RET(session, ret);
-}
-
-/*
  * __wt_session_breakpoint --
  *     A place to put a breakpoint, if you need one, or call some check code.
  */
@@ -2479,43 +2501,44 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
   WT_SESSION_IMPL **sessionp)
 {
     static const WT_SESSION
-      stds = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier_readonly,
-        __wt_session_strerror, __session_open_cursor, __session_alter, __session_bind_configuration,
-        __session_create, __wt_session_compact, __session_drop, __session_join, __session_log_flush,
+      stds = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
+        __session_open_cursor, __session_alter, __session_bind_configuration, __session_create,
+        __wt_session_compact, __session_drop, __session_join, __session_log_flush,
         __session_log_printf, __session_rename, __session_reset, __session_salvage,
         __session_truncate, __session_upgrade, __session_verify, __session_begin_transaction,
         __session_commit_transaction, __session_prepare_transaction, __session_rollback_transaction,
         __session_query_timestamp, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_checkpoint, __session_reset_snapshot,
         __session_transaction_pinned_range, __session_get_rollback_reason, __wt_session_breakpoint},
-      stds_min = {NULL, NULL, __session_close, __session_reconfigure_notsup,
-        __session_flush_tier_readonly, __wt_session_strerror, __session_open_cursor,
-        __session_alter_readonly, __session_bind_configuration, __session_create_readonly,
-        __wt_session_compact_readonly, __session_drop_readonly, __session_join_notsup,
-        __session_log_flush_readonly, __session_log_printf_readonly, __session_rename_readonly,
-        __session_reset_notsup, __session_salvage_readonly, __session_truncate_readonly,
-        __session_upgrade_readonly, __session_verify_notsup, __session_begin_transaction_notsup,
-        __session_commit_transaction_notsup, __session_prepare_transaction_readonly,
-        __session_rollback_transaction_notsup, __session_query_timestamp_notsup,
-        __session_timestamp_transaction_notsup, __session_timestamp_transaction_uint_notsup,
-        __session_checkpoint_readonly, __session_reset_snapshot_notsup,
-        __session_transaction_pinned_range_notsup, __session_get_rollback_reason,
-        __wt_session_breakpoint},
-      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure,
-        __session_flush_tier_readonly, __wt_session_strerror, __session_open_cursor,
-        __session_alter_readonly, __session_bind_configuration, __session_create_readonly,
-        __wt_session_compact_readonly, __session_drop_readonly, __session_join,
-        __session_log_flush_readonly, __session_log_printf_readonly, __session_rename_readonly,
-        __session_reset, __session_salvage_readonly, __session_truncate_readonly,
-        __session_upgrade_readonly, __session_verify, __session_begin_transaction,
-        __session_commit_transaction, __session_prepare_transaction_readonly,
-        __session_rollback_transaction, __session_query_timestamp, __session_timestamp_transaction,
+      stds_min = {NULL, NULL, __session_close, __session_reconfigure_notsup, __wt_session_strerror,
+        __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
+        __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
+        __session_join_notsup, __session_log_flush_readonly, __session_log_printf_readonly,
+        __session_rename_readonly, __session_reset_notsup, __session_salvage_readonly,
+        __session_truncate_readonly, __session_upgrade_readonly, __session_verify_notsup,
+        __session_begin_transaction_notsup, __session_commit_transaction_notsup,
+        __session_prepare_transaction_readonly, __session_rollback_transaction_notsup,
+        __session_query_timestamp_notsup, __session_timestamp_transaction_notsup,
+        __session_timestamp_transaction_uint_notsup, __session_checkpoint_readonly,
+        __session_reset_snapshot_notsup, __session_transaction_pinned_range_notsup,
+        __session_get_rollback_reason, __wt_session_breakpoint},
+      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
+        __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
+        __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
+        __session_join, __session_log_flush_readonly, __session_log_printf_readonly,
+        __session_rename_readonly, __session_reset, __session_salvage_readonly,
+        __session_truncate_readonly, __session_upgrade_readonly, __session_verify,
+        __session_begin_transaction, __session_commit_transaction,
+        __session_prepare_transaction_readonly, __session_rollback_transaction,
+        __session_query_timestamp, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_checkpoint_readonly,
         __session_reset_snapshot, __session_transaction_pinned_range, __session_get_rollback_reason,
         __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;
+
+    WT_VERIFY_OPAQUE_POINTER(WT_SESSION_IMPL);
 
     *sessionp = NULL;
 
@@ -2531,21 +2554,22 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_ASSERT(session, !F_ISSET(conn, WT_CONN_CLOSING));
 
     /* Find the first inactive session slot. */
-    for (session_ret = conn->sessions, i = 0; i < conn->session_size; ++session_ret, ++i)
+    for (session_ret = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.size;
+         ++session_ret, ++i)
         if (!session_ret->active)
             break;
-    if (i == conn->session_size)
+    if (i == conn->session_array.size)
         WT_ERR_MSG(session, WT_ERROR,
           "out of sessions, configured for %" PRIu32 " (including internal sessions)",
-          conn->session_size);
+          conn->session_array.size);
 
     /*
      * If the active session count is increasing, update it. We don't worry about correcting the
      * session count on error, as long as we don't mark this session as active, we'll clean it up on
      * close.
      */
-    if (i >= conn->session_cnt) /* Defend against off-by-one errors. */
-        conn->session_cnt = i + 1;
+    if (i >= conn->session_array.cnt) /* Defend against off-by-one errors. */
+        conn->session_array.cnt = i + 1;
 
     /* Find the set of methods appropriate to this session. */
     if (F_ISSET(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))
@@ -2560,6 +2584,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 #ifdef HAVE_UNITTEST_ASSERTS
     session_ret->unittest_assert_hit = false;
     memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
+#endif
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__wt_spin_init(session, &session_ret->thread_check.lock, "thread check lock"));
 #endif
 
     /*
@@ -2604,10 +2632,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * access to it isn't serialized. Allocate the first time we open this session.
      */
     if (WT_SESSION_FIRST_USE(session_ret)) {
-        WT_ERR(__wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazard));
-        session_ret->hazard_size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        session_ret->hazard_inuse = 0;
-        session_ret->nhazard = 0;
+        WT_ERR(
+          __wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazards.arr));
+        session_ret->hazards.size = WT_SESSION_INITIAL_HAZARD_SLOTS;
+        session_ret->hazards.inuse = 0;
+        session_ret->hazards.num_active = 0;
     }
 
     /*
@@ -2645,12 +2674,14 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      */
     WT_PUBLISH(session_ret->active, 1);
 
-    WT_STATIC_ASSERT(offsetof(WT_SESSION_IMPL, iface) == 0);
     *sessionp = session_ret;
 
     WT_STAT_CONN_INCR(session, session_open);
 
 err:
+#ifdef HAVE_DIAGNOSTIC
+    __wt_spin_destroy(session, &session->thread_check.lock);
+#endif
     __wt_spin_unlock(session, &conn->api_lock);
     return (ret);
 }

@@ -35,15 +35,11 @@
 #
 from __future__ import print_function
 
-# If unittest2 is available, use it in preference to (the old) unittest
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+import unittest
 
 from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, threading, time, traceback, types
-import wiredtiger, wtscenario, wthooks
+import abstract_test_case, test_result, wiredtiger, wthooks, wtscenario
 
 # Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
 # and only available (with non-zero argument) on Unix systems.
@@ -73,148 +69,6 @@ class timeout(object):
             except Exception as e:
                 raise Exception('The --timeout option is not available on this system: ' + str(e))
 
-def shortenWithEllipsis(s, maxlen):
-    if len(s) > maxlen:
-        s = s[0:maxlen-3] + '...'
-    return s
-
-class CapturedFd(object):
-    """
-    CapturedFd encapsulates a file descriptor (e.g. 1 or 2) that is diverted
-    to a file.  We use this to capture and check the C stdout/stderr.
-    Meanwhile we reset Python's sys.stdout, sys.stderr, using duped copies
-    of the original 1, 2 fds.  The end result is that Python's sys.stdout
-    sys.stderr behave normally (e.g. go to the tty), while the C stdout/stderr
-    ends up in a file that we can verify.
-    """
-    def __init__(self, filename, desc):
-        self.filename = filename
-        self.desc = desc
-        self.expectpos = 0
-        self.file = None
-        self.ignore_regex = None
-
-    def setIgnorePattern(self, regex):
-        self.ignore_regex = regex
-
-    def readFileFrom(self, filename, pos, maxchars):
-        """
-        Read a file starting at a given position,
-        returning the beginning of its contents
-        """
-        with open(filename, 'r') as f:
-            f.seek(pos)
-            return shortenWithEllipsis(f.read(maxchars+1), maxchars)
-
-    def capture(self):
-        """
-        Start capturing the file descriptor.
-        Note that the original targetFd is closed, we expect
-        that the caller has duped it and passed the dup to us
-        in the constructor.
-        """
-        self.file = open(self.filename, 'w')
-        return self.file
-
-    def release(self):
-        """
-        Stop capturing.
-        """
-        self.file.close()
-        self.file = None
-
-    def hasUnexpectedOutput(self, testcase):
-        """
-        Check to see that there is no unexpected output in the captured output
-        file.
-        """
-        if WiredTigerTestCase._ignoreStdout:
-            return
-        if self.file != None:
-            self.file.flush()
-        new_size = os.path.getsize(self.filename)
-        if self.ignore_regex is None:
-            return self.expectpos < new_size
-
-        gotstr = self.readFileFrom(self.filename, self.expectpos, new_size - self.expectpos)
-        for line in list(filter(None, gotstr.split('\n'))):
-            if self.ignore_regex.search(line) is None:
-                return True
-        return False
-
-    def check(self, testcase):
-        """
-        Check to see that there is no unexpected output in the captured output
-        file.  If there is, raise it as a test failure.
-        This is generally called after 'release' is called.
-        """
-        if self.hasUnexpectedOutput(testcase):
-            contents = self.readFileFrom(self.filename, self.expectpos, 10000)
-            WiredTigerTestCase.prout('ERROR: ' + self.filename +
-                                     ' unexpected ' + self.desc +
-                                     ', contains:\n"' + contents + '"')
-            testcase.fail('unexpected ' + self.desc + ', contains: "' +
-                      contents + '"')
-        self.expectpos = os.path.getsize(self.filename)
-
-    def ignorePreviousOutput(self):
-        """
-        Ignore any output up to this point.
-        """
-        if self.file != None:
-            self.file.flush()
-        self.expectpos = os.path.getsize(self.filename)
-
-    def checkAdditional(self, testcase, expect):
-        """
-        Check to see that an additional string has been added to the
-        output file.  If it has not, raise it as a test failure.
-        In any case, reset the expected pos to account for the new output.
-        """
-        if self.file != None:
-            self.file.flush()
-        gotstr = self.readFileFrom(self.filename, self.expectpos, 1000)
-        testcase.assertEqual(gotstr, expect, 'in ' + self.desc +
-                             ', expected "' + expect + '", but got "' +
-                             gotstr + '"')
-        self.expectpos = os.path.getsize(self.filename)
-
-    def checkAdditionalPattern(self, testcase, pat, re_flags = 0):
-        """
-        Check to see that an additional string has been added to the
-        output file.  If it has not, raise it as a test failure.
-        In any case, reset the expected pos to account for the new output.
-        """
-        if self.file != None:
-            self.file.flush()
-        gotstr = self.readFileFrom(self.filename, self.expectpos, 1500)
-        if re.search(pat, gotstr, re_flags) == None:
-            testcase.fail('in ' + self.desc +
-                          ', expected pattern "' + pat + '", but got "' +
-                          gotstr + '"')
-        self.expectpos = os.path.getsize(self.filename)
-
-    def checkCustomValidator(self, testcase, f):
-        """
-        Check to see that an additional string has been added to the
-        output file.  If it has not, raise it as a test failure.
-        In any case, reset the expected pos to account for the new output.
-        """
-        if self.file != None:
-            self.file.flush()
-
-        # Custom validators probably don't want to see truncated output.
-        # Give them the whole string.
-        new_expectpos = os.path.getsize(self.filename)
-        diff = new_expectpos - self.expectpos
-        gotstr = self.readFileFrom(self.filename, self.expectpos, diff)
-        try:
-            f(gotstr)
-        except Exception as e:
-            testcase.fail('in ' + self.desc +
-                          ', custom validator failed: ' + str(e))
-        self.expectpos = new_expectpos
-
 class TestSuiteConnection(object):
     def __init__(self, conn, connlist):
         connlist.append(conn)
@@ -241,42 +95,8 @@ class ExtensionList(list):
             ext = '' if extarg == None else '=' + extarg
             self.append(dirname + '/' + name + ext)
 
-# Custom result class that will prefix the pid in text output (including if it's a child).
-# Only enabled when we are in verbose mode so we don't check that here.
-class PidAwareTextTestResult(unittest.TextTestResult):
-    _thread_prefix = threading.local()
-
-    def __init__(self, stream, descriptions, verbosity):
-        super(PidAwareTextTestResult, self).__init__(stream, descriptions, verbosity)
-        self._thread_prefix.value = "[pid:{}]: ".format(os.getpid())
-
-    def tags(self, new_tags, gone_tags):
-        # We attach the PID to the thread so we only need the new_tags.
-        for tag in new_tags:
-            if tag.startswith("pid:"):
-                pid = tag[len("pid:"):]
-                self._thread_prefix.value = "[pid:{}/{}]: ".format(os.getpid(), pid)
-
-    def startTest(self, test):
-        self.stream.write(self._thread_prefix.value)
-        super(PidAwareTextTestResult, self).startTest(test)
-
-    def getDescription(self, test):
-        return str(test.shortDescription())
-
-    def printErrorList(self, flavour, errors):
-        for test, err in errors:
-            self.stream.writeln(self.separator1)
-            self.stream.writeln("%s%s: %s" % (self._thread_prefix.value, 
-                flavour, self.getDescription(test)))
-            self.stream.writeln(self.separator2)
-            self.stream.writeln("%s%s" % (self._thread_prefix.value, err))
-            self.stream.flush()
-
-class WiredTigerTestCase(unittest.TestCase):
+class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     _globalSetup = False
-    _printOnceSeen = {}
-    _ttyDescriptor = None   # set this early, to allow tty() to be called any time.
 
     # We store the current test case in thread local storage.  There are
     # certain odd cases where this is useful, like hooks, where we don't
@@ -310,33 +130,15 @@ class WiredTigerTestCase(unittest.TestCase):
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
                     seedw = 0, seedz = 0, hookmgr = None, ss_random_prefix = 0, timeout = 0):
-        WiredTigerTestCase._preserveFiles = preserveFiles
-        d = 'WT_TEST' if dirarg == None else dirarg
-        if useTimestamp:
-            d += '.' + time.strftime('%Y%m%d-%H%M%S', time.localtime())
-        if removeAtStart:
-            shutil.rmtree(d, ignore_errors=True)
-        os.makedirs(d)
+        parentTestDir = 'WT_TEST' if dirarg == None else dirarg
         wtscenario.set_long_run(longtest)
-        resultFileName = os.path.join(d, 'results.txt')
-        WiredTigerTestCase._parentTestdir = d
         WiredTigerTestCase._builddir = builddir
-        WiredTigerTestCase._origcwd = os.getcwd()
-        WiredTigerTestCase._resultFileName = resultFileName
-        WiredTigerTestCase._resultFile = open(resultFileName, "w", 1)  # line buffered
         WiredTigerTestCase._gdbSubprocess = gdbSub
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
         WiredTigerTestCase._extralongtest = extralongtest
         WiredTigerTestCase._zstdtest = zstdtest
-        WiredTigerTestCase._verbose = verbose
-        WiredTigerTestCase._ignoreStdout = ignoreStdout
-        WiredTigerTestCase._dupout = os.dup(sys.stdout.fileno())
-        WiredTigerTestCase._stdout = sys.stdout
-        WiredTigerTestCase._stderr = sys.stderr
         WiredTigerTestCase._concurrent = False
-        WiredTigerTestCase._seeds = [521288629, 362436069]
-        WiredTigerTestCase._randomseed = False
         WiredTigerTestCase._ss_random_prefix = ss_random_prefix
         WiredTigerTestCase._retriesAfterRollback = 0
         WiredTigerTestCase._testsRun = 0
@@ -345,9 +147,10 @@ class WiredTigerTestCase(unittest.TestCase):
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
         WiredTigerTestCase.hook_names = hookmgr.get_hook_names()
-        if seedw != 0 and seedz != 0:
-            WiredTigerTestCase._randomseed = True
-            WiredTigerTestCase._seeds = [seedw, seedz]
+
+        WiredTigerTestCase.setupTestDir(parentTestDir, preserveFiles, removeAtStart, useTimestamp)
+        WiredTigerTestCase.setupIO('results.txt', ignoreStdout, verbose)
+        WiredTigerTestCase.setupRandom(seedw, seedz)
         WiredTigerTestCase._globalSetup = True
 
     @staticmethod
@@ -368,27 +171,9 @@ class WiredTigerTestCase(unittest.TestCase):
     def currentTestCase():
         return getattr(WiredTigerTestCase._threadLocal, 'currentTestCase', None)
 
-    def fdSetUp(self):
-        self.captureout = CapturedFd('stdout.txt', 'standard output')
-        self.captureerr = CapturedFd('stderr.txt', 'error output')
-        sys.stdout = self.captureout.capture()
-        sys.stderr = self.captureerr.capture()
-        if self.ignore_regex is not None:
-            self.captureout.setIgnorePattern(self.ignore_regex)
-
-    def fdTearDown(self):
-        # restore stderr/stdout
-        self.captureout.release()
-        self.captureerr.release()
-        sys.stdout = WiredTigerTestCase._stdout
-        sys.stderr = WiredTigerTestCase._stderr
-
     def __init__(self, *args, **kwargs):
-        if hasattr(self, 'scenarios'):
-            assert(len(self.scenarios) == len(dict(self.scenarios)))
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.skipped = False
-        self.ignore_regex = None
         self.teardown_actions = []
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
@@ -423,29 +208,9 @@ class WiredTigerTestCase(unittest.TestCase):
     def getTierStorageSource(self):
         return self.platform_api.getTierStorageSource()
 
-    def __str__(self):
-        # when running with scenarios, if the number_scenarios() method
-        # is used, then each scenario is given a number, which can
-        # help distinguish tests.
-        scen = ''
-        if hasattr(self, 'scenario_number') and hasattr(self, 'scenario_name'):
-            scen = ' -s ' + str(self.scenario_number) + \
-                   ' (' + self.scenario_name + ')'
-        return self.simpleName() + scen
-
-    def shortDesc(self):
-        ret_str = ''
-        if hasattr(self, 'scenario_number'):
-            ret_str = ' -s ' + str(self.scenario_number)
-        return self.simpleName() + ret_str
-
-    def simpleName(self):
-        # Prefer the saved method name, it's always correct if set.
-        if hasattr(self, '_savedTestMethodName'):
-            methodName = self._savedTestMethodName
-        else:
-            methodName = self._testMethodName
-        return "%s.%s.%s" %  (self.__module__, self.className(), methodName)
+    # Return the tier storage source configuration for this testcase, or None.
+    def getTierStorageSourceConfig(self):
+        return self.platform_api.getTierStorageSourceConfig()
 
     def buildDirectory(self):
         return self._builddir
@@ -556,7 +321,7 @@ class WiredTigerTestCase(unittest.TestCase):
     def setUpConnectionOpen(self, home):
         self.home = home
         config = self.conn_config
-        
+
         if hasattr(config, '__call__'):
             config = self.conn_config()
 
@@ -657,7 +422,7 @@ class WiredTigerTestCase(unittest.TestCase):
         if WiredTigerTestCase._concurrent:
             self.testsubdir = self.sanitized_shortid()
         else:
-            self.testsubdir = self.className() + '.' + str(self.__class__.wt_ntests)
+            self.testsubdir = self.class_name() + '.' + str(self.__class__.wt_ntests)
         self.testdir = os.path.join(WiredTigerTestCase._parentTestdir, self.testsubdir)
         self.__class__.wt_ntests += 1
         self.starttime = time.time()
@@ -676,6 +441,8 @@ class WiredTigerTestCase(unittest.TestCase):
         os.chdir(self.testdir)
         with open('testname.txt', 'w+') as namefile:
             namefile.write(str(self) + '\n')
+        if WiredTigerTestCase._verbose >= 2:
+            print("[pid:{}]: {}: starting".format(os.getpid(), str(self)))
         self.fdSetUp()
         self._threadLocal.currentTestCase = self
         self.ignoreTearDownLogs = False
@@ -743,25 +510,7 @@ class WiredTigerTestCase(unittest.TestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
-        # This approach works for all our support Python versions and
-        # is suggested by one of the answers in:
-        # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
-        # In addition, check to make sure exc_info is "clean", because
-        # the ConcurrencyTestSuite in Python2 indicates failures using that.
-        if hasattr(self, '_outcome'):  # Python 3.4+
-            if hasattr(self._outcome, 'errors'):  # Python 3.4 - 3.10
-                result = self.defaultTestResult()  # these 2 methods have no side effects
-                self._feedErrorsToResult(result, self._outcome.errors)
-            else:  # Python 3.11+
-                result = self._outcome.result
-        else:  # Python 3.2 - 3.3 or 3.0 - 3.1 and 2.7
-            result = getattr(self, '_outcomeForDoCleanups', self._resultForDoCleanups)
-        error = self.list2reason(result, 'errors')
-        failure = self.list2reason(result, 'failures')
-        exc_failure = (sys.exc_info() != (None, None, None))
-
-        self._failed = error or failure or exc_failure
-        passed = not (self._failed or teardown_failed)
+        passed = not (self.failed() or teardown_failed)
 
         try:
             self.platform_api.tearDown()
@@ -823,8 +572,8 @@ class WiredTigerTestCase(unittest.TestCase):
         if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
             print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
         if teardown_failed:
-            self.fail(f'Teardown failed with message: {teardown_msg}')
-        if (not passed) and (not self.skipped):
+            self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
+        if (not passed or teardown_failed) and (not self.skipped):
             print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
             self.pr('FAIL')
             self.pr('preserving directory ' + self.testdir)
@@ -850,38 +599,8 @@ class WiredTigerTestCase(unittest.TestCase):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkp_cursor.close()
 
-    # Set a Python breakpoint.  When this function is called,
-    # the python debugger will be called as described here:
-    #   https://docs.python.org/3/library/pdb.html
-    #
-    # This can be used instead of the Python built-in "breakpoint",
-    # so that the terminal has proper I/O and a prompt appears, etc.
-    #
-    # Since the actual breakpoint is in this method, the developer will
-    # probably need to single step to get back to their calling function.
-    def breakpoint(self):
-        import pdb, sys
-        # Restore I/O to the controlling tty so we can
-        # run the debugger.
-        if os.name == "nt":
-            # No solution has been tested here.
-            pass
-        else:
-            sys.stdin = open('/dev/tty', 'r')
-            sys.stdout = open('/dev/tty', 'w')
-            sys.stderr = open('/dev/tty', 'w')
-        self.printOnce("""
-        ********
-        You are now in the python debugger, type "help" for more information.
-        Typing "s" will single step, returning you to the calling function. Common commands:
-          list            -   show python source code
-          s               -   single step
-          n               -   next step
-          b file:number   -   set a breakpoint
-          p variable      -   print the value of a variable
-          c               -   continue
-        ********""")
-        pdb.set_trace()
+    def runningHook(self, name):
+        return name in WiredTigerTestCase.hook_names
 
     @contextmanager
     def expectedStdout(self, expect):
@@ -896,16 +615,16 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr.checkAdditional(self, expect)
 
     @contextmanager
-    def expectedStdoutPattern(self, pat, re_flags=0):
+    def expectedStdoutPattern(self, pat, re_flags=0, maxchars=1500):
         self.captureout.check(self)
         yield
-        self.captureout.checkAdditionalPattern(self, pat, re_flags)
+        self.captureout.checkAdditionalPattern(self, pat, re_flags, maxchars)
 
     @contextmanager
-    def expectedStderrPattern(self, pat, re_flags=0):
+    def expectedStderrPattern(self, pat, re_flags=0, maxchars=1500):
         self.captureerr.check(self)
         yield
-        self.captureerr.checkAdditionalPattern(self, pat, re_flags)
+        self.captureerr.checkAdditionalPattern(self, pat, re_flags, maxchars)
 
     @contextmanager
     def customStdoutPattern(self, f):
@@ -1000,7 +719,34 @@ class WiredTigerTestCase(unittest.TestCase):
     def timestamp_str(self, t):
         return '%x' % t
 
+    # Some tests do table drops as a means to perform some test repeatedly in a loop.
+    # These tests require that a name be completely removed before the next iteration
+    # can begin.  However, tiered storage does not always provide a way to remove or
+    # rename objects that have been stored to the cloud, as doing that is not the normal
+    # part of a workflow (at this writing, GC is not yet implemented). Most storage sources
+    # return ENOTSUP when asked to remove a cloud object, so we really don't have a way to
+    # clear out the name space, and so we skip these tests under tiered storage.
+    #
+    # Note: as part of PM-3389, we may end up with unique names for every cloud object.
+    # If so, we could remove this restriction.
+    def requireDropRemovesNameConflict(self):
+        if self.runningHook('tiered'):
+            self.skipTest('Test requires removal from cloud storage, which is not yet permitted')
+
+    def compactUntilSuccess(self, session, uri, config=None):
+        while True:
+            try:
+                session.compact(uri, config)
+                return
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+
     def dropUntilSuccess(self, session, uri, config=None):
+        # Most test cases consider a drop, and especially a 'drop until success',
+        # to completely remove a file's artifacts, so that the name can be reused.
+        # Require this behavior.
+        self.requireDropRemovesNameConflict()
         while True:
             try:
                 session.drop(uri, config)
@@ -1019,7 +765,7 @@ class WiredTigerTestCase(unittest.TestCase):
                 if str(err) != os.strerror(errno.EBUSY):
                     raise err
                 session.checkpoint()
-    
+
     def renameUntilSuccess(self, session, uri, newUri, config=None):
         while True:
             try:
@@ -1073,26 +819,6 @@ class WiredTigerTestCase(unittest.TestCase):
         self.assertRaisesWithMessage(
             exceptionType, lambda: self.exceptionToStderr(expr), message)
 
-    @staticmethod
-    def printOnce(msg):
-        # There's a race condition with multiple threads,
-        # but we won't worry about it.  We err on the side
-        # of printing the message too many times.
-        if not msg in WiredTigerTestCase._printOnceSeen:
-            WiredTigerTestCase._printOnceSeen[msg] = msg
-            WiredTigerTestCase.prout(msg)
-
-    def KNOWN_FAILURE(self, name):
-        myname = self.simpleName()
-        msg = '**** ' + myname + ' HAS A KNOWN FAILURE: ' + name + ' ****'
-        self.printOnce(msg)
-        self.skipTest('KNOWN FAILURE: ' + name)
-
-    def KNOWN_LIMITATION(self, name):
-        myname = self.simpleName()
-        msg = '**** ' + myname + ' HAS A KNOWN LIMITATION: ' + name + ' ****'
-        self.printOnce(msg)
-
     def databaseCorrupted(self, directory = None):
         """
         Mark this test as having a corrupted database by creating a
@@ -1102,87 +828,34 @@ class WiredTigerTestCase(unittest.TestCase):
             directory = self.home
         open(os.path.join(directory, "DATABASE_CORRUPTED"), "a").close()
 
-    @staticmethod
-    def printVerbose(level, message):
-        if level <= WiredTigerTestCase._verbose:
-            WiredTigerTestCase.prout(message)
-
-    def verbose(self, level, message):
-        WiredTigerTestCase.printVerbose(level, message)
-
-    def prout(self, s):
-        WiredTigerTestCase.prout(s)
-
-    @staticmethod
-    def prout(s):
-        os.write(WiredTigerTestCase._dupout, str.encode("[pid:{}]: {}\n".format(os.getpid(), s)))
-
-    def pr(self, s):
-        """
-        print a progress line for testing
-        """
-        msg = '    ' + self.shortid() + ': ' + s
-        WiredTigerTestCase._resultFile.write(msg + '\n')
-
-    def prhead(self, s, *beginning):
-        """
-        print a header line for testing, something important
-        """
-        msg = ''
-        if len(beginning) > 0:
-            msg += '\n'
-        msg += '  ' + self.shortid() + ': ' + s
-        self.prout(msg)
-        WiredTigerTestCase._resultFile.write(msg + '\n')
-
-    def prexception(self, excinfo):
-        WiredTigerTestCase._resultFile.write('\n')
-        traceback.print_exception(excinfo[0], excinfo[1], excinfo[2], None, WiredTigerTestCase._resultFile)
-        WiredTigerTestCase._resultFile.write('\n')
-
     def recno(self, i):
         """
         return a recno key
         """
         return i
 
-    # print directly to tty, useful for debugging
-    def tty(self, message):
-        WiredTigerTestCase.tty(message)
+@contextmanager
+def open_cursor(session, uri: str, **kwargs):
+    """
+    Open a cursor instance on a session.
 
-    @staticmethod
-    def tty(message):
-        if WiredTigerTestCase._ttyDescriptor == None:
-            WiredTigerTestCase._ttyDescriptor = open('/dev/tty', 'w')
-        WiredTigerTestCase._ttyDescriptor.write("[pid:{}]: {}\n".format(os.getpid(), message))
+    Supports 'with' statements.
 
-    def ttyVerbose(self, level, message):
-        WiredTigerTestCase.ttyVerbose(level, message)
+    Args:
+        uri (str): URI.
 
-    @staticmethod
-    def ttyVerbose(level, message):
-        if level <= WiredTigerTestCase._verbose:
-            WiredTigerTestCase.tty(message)
+    Keyword Args:
+        config (str): Configuration.
+    """
 
-    def shortid(self):
-        return self.id().replace("__main__.","")
+    config = None if "config" not in kwargs else str(kwargs["config"])
 
-    def sanitized_shortid(self):
-        """
-        Return a name that is suitable for creating file system names.
-        In particular, names with scenarios look like
-        'test_file.test_file.test_funcname(scen1.scen2.scen3)'.
-        So transform '(', but remove final ')'.
-        """
-        name = self.shortid().translate(str.maketrans('($[]/ ','______', ')'))
+    cursor = session.open_cursor(uri, None, config)
+    try:
+        yield cursor
+    finally:
+        cursor.close()
 
-        # On OS/X, we can get name conflicts if names differ by case. Upper
-        # case letters are uncommon in our python class and method names, so
-        # we lowercase them and prefix with '@', e.g. "AbC" -> "@ab@c".
-        return re.sub(r'[A-Z]', lambda x: '@' + x.group(0).lower(), name)
-
-    def className(self):
-        return self.__class__.__name__
 
 def zstdtest(description):
     """
@@ -1250,6 +923,14 @@ def skip_for_hook(hookname, description):
     else:
         return runit_decorator
 
+# Override a test's setUp function to instead skip and report the reason for skipping
+def register_skipped_test(test, hook, skip_reason):
+
+    def _skip_test(self):
+        raise unittest.SkipTest(f"{test} for hook {hook}: {skip_reason}")
+
+    setattr(test, "setUp", lambda: _skip_test(test))
+
 def islongtest():
     return WiredTigerTestCase._longtest
 
@@ -1283,7 +964,7 @@ def runsuite(suite, parallel):
                 .format(str(WiredTigerTestCase._seeds[0]), str(WiredTigerTestCase._seeds[1])))
         result_class = None
         if WiredTigerTestCase._verbose > 1:
-            result_class = PidAwareTextTestResult
+            result_class = test_result.PidAwareTextTestResult
         result = unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose, resultclass=result_class).run(suite_to_run)
         WiredTigerTestCase.finalReport()

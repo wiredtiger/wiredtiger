@@ -273,6 +273,7 @@ __config_add_checks(WT_SESSION_IMPL *session, WT_CONFIG_ENTRY *entry, WT_CONFIG_
                 __conn_foc_add(session, cp->choices);
             }
         }
+        WT_RET_NOTFOUND_OK(ret);
     }
     return (0);
 }
@@ -320,6 +321,20 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
     if (type == NULL)
         WT_RET_MSG(session, EINVAL, "no configuration type specified");
 
+    compiled_type = 0;
+    if (strcmp(type, "boolean") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_BOOLEAN;
+    else if (strcmp(type, "int") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_INT;
+    else if (strcmp(type, "list") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_LIST;
+    else if (strcmp(type, "string") == 0)
+        compiled_type = WT_CONFIG_COMPILED_TYPE_STRING;
+    else
+        WT_RET_MSG(
+          session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
+
+    /* Determine the compiled type. */
     compiled_type = 0;
     if (strcmp(type, "boolean") == 0)
         compiled_type = WT_CONFIG_COMPILED_TYPE_BOOLEAN;
@@ -383,6 +398,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         for (cp = (*epp)->checks; cp->name != NULL; ++cp)
             if (strcmp(newcheck_name, cp->name) != 0)
                 checks[cnt++] = *cp;
+
     newcheck = &checks[cnt];
     newcheck->name = newcheck_name;
     newcheck->compiled_type = compiled_type;

@@ -39,6 +39,7 @@ from wtscenario import make_scenarios
 #
 # - You may not regen or drop a named checkpoint with a cursor open.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = ''
     session_config = 'isolation=snapshot'
@@ -91,7 +92,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Make it stable.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-        
+
         # Make a checkpoint.
         if self.checkpoint_name is not None:
             self.session.checkpoint('name=' + self.checkpoint_name)
@@ -152,7 +153,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
                 lambda: trydrop(), '/cannot be dropped/')
 
             ckpt_cursor.close()
-            
+
 
 if __name__ == '__main__':
     wttest.run()

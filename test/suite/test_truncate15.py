@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 #
 # Check that readonly database reading fast truncated pages doesn't lead to cache stuck.
 
+@wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
 class test_truncate15(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
@@ -163,7 +164,11 @@ class test_truncate15(wttest.WiredTigerTestCase):
         # support, so assert we didn't.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        if self.value_format == '8t':
+        if self.runningHook('tiered'):
+            # There's no way the test can guess whether fast delete is possible when
+            # flush_tier calls are "randomly" inserted.
+            pass
+        elif self.value_format == '8t':
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)

@@ -55,7 +55,7 @@
 #
 from __future__ import print_function
 
-import os, unittest, wthooks
+import os, re, unittest, wthooks, wttest
 from wttest import WiredTigerTestCase
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 
@@ -67,6 +67,7 @@ def wiredtiger_open_tiered(ignored_self, args):
     tiered_storage_sources = gen_tiered_storage_sources()
     testcase = WiredTigerTestCase.currentTestCase()
     extension_name = testcase.getTierStorageSource()
+    extension_config = testcase.getTierStorageSourceConfig()
 
     auth_token = None
     bucket = None
@@ -96,15 +97,15 @@ def wiredtiger_open_tiered(ignored_self, args):
     # however, we alter several other API methods that would do weird things with
     # a different tiered_storage configuration. So better to skip the test entirely.
     if 'tiered_storage=' in curconfig:
-        testcase.skipTest("cannot run tiered hook on a test that already uses tiered storage")
+        skip_test("cannot run tiered hook on a test that already uses tiered storage")
 
     # Similarly if this test is already set up to run tiered vs non-tiered scenario, let's
     # not get in the way.
     if hasattr(testcase, 'tiered_conn_config'):
-        testcase.skipTest("cannot run tiered hook on a test that already includes TieredConfigMixin")
+        skip_test("cannot run tiered hook on a test that already includes TieredConfigMixin")
 
     if 'in_memory=true' in curconfig:
-        testcase.skipTest("cannot run tiered hook on a test that is in-memory")
+        skip_test("cannot run tiered hook on a test that is in-memory")
 
     # Mark this test as readonly, but don't disallow it.  See testcase_is_readonly().
     if 'readonly=true' in curconfig:
@@ -135,7 +136,12 @@ def wiredtiger_open_tiered(ignored_self, args):
             raise Exception('hook_tiered: bad extensions in config \"%s\"' % curconfig)
         ext_string = curconfig[start: end]
 
-    tier_string += ',' + ext_string + ',\"%s\"]' % extension_libs[0]
+    if extension_config == None:
+        ext_lib = '\"%s\"' % extension_libs[0]
+    else:
+        ext_lib = '\"%s\"=(config=\"%s\")' % (extension_libs[0], extension_config)
+
+    tier_string += ',' + ext_string + ',%s]' % ext_lib
 
     args = list(args)         # convert from a readonly tuple to a writeable list
     args[-1] += tier_string   # Modify the list
@@ -159,6 +165,14 @@ def testcase_has_failed():
     testcase = WiredTigerTestCase.currentTestCase()
     return testcase.failed()
 
+def testcase_has_skipped():
+    testcase = WiredTigerTestCase.currentTestCase()
+    return testcase.skipped
+
+def skip_test(comment):
+    testcase = WiredTigerTestCase.currentTestCase()
+    testcase.skipTest(comment)
+
 # Called to replace Connection.close
 # Insert a call to flush_tier before closing connection.
 def connection_close_replace(orig_connection_close, connection_self, config):
@@ -166,7 +180,8 @@ def connection_close_replace(orig_connection_close, connection_self, config):
     # Likewise we should not call flush_tier if the test case has failed,
     # and the connection is being closed at the end of the run after the failure.
     # Otherwise, diagnosing the original failure may be troublesome.
-    if not testcase_is_readonly() and not testcase_has_failed():
+    if not testcase_is_readonly() and not testcase_has_failed() and \
+      not testcase_has_skipped():
         s = connection_self.open_session(None)
         s.checkpoint('flush_tier=(enabled,force=true)')
         s.close()
@@ -175,11 +190,18 @@ def connection_close_replace(orig_connection_close, connection_self, config):
     return ret
 
 # Called to replace Session.checkpoint.
-# We add a call to flush_tier after the checkpoint to make sure we are exercising tiered
+# We add a call to flush_tier during every checkpoint to make sure we are exercising tiered
 # functionality.
 def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
+    # FIXME-WT-10771 We cannot do named checkpoints with tiered storage objects.
+    # We can't really continue the test without the name, as the name will certainly be used.
+    if config == None:
+        config = ''
+    if 'name=' in config:
+        skip_test('named checkpoints do not work in tiered storage')
     # We cannot call flush_tier on a readonly connection.
     if not testcase_is_readonly():
+        # Enable flush_tier on checkpoint.
         config += ',flush_tier=(enabled,force=true)'
     return orig_session_checkpoint(session_self, config)
 
@@ -189,9 +211,12 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
     # Compact isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # Background compaction can be enabled or disabled, each compact call it issues should circle
+    # back here.
     # We want readonly connections to do the real call, see comment in testcase_is_readonly.
     ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
+    background_compaction = not uri and config and "background=" in config
+    if background_compaction or not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_compact(session_self, uri, config)
     return ret
 
@@ -214,16 +239,12 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     ret = orig_session_create(session_self, uri, new_config)
     return ret
 
-# FIXME-WT-9785
+# FIXME-PM-2532
 # Called to replace Session.open_cursor. This is needed to skip tests that
-# do statistics on (tiered) table data sources, as that is not yet supported.
+# do backup on (tiered) table data sources, as that is not yet supported.
 def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
-    if uri != None and (uri.startswith("statistics:table:") or uri.startswith("statistics:file:")):
-        testcase = WiredTigerTestCase.currentTestCase()
-        testcase.skipTest("statistics on tiered tables not yet implemented")
     if uri != None and uri.startswith("backup:"):
-        testcase = WiredTigerTestCase.currentTestCase()
-        testcase.skipTest("backup on tiered tables not yet implemented")
+        skip_test("backup on tiered tables not yet implemented")
     return orig_session_open_cursor(session_self, uri, dupcursor, config)
 
 # Called to replace Session.rename
@@ -269,102 +290,44 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         # Override some platform APIs
         self.platform_api = TieredPlatformAPI(arg)
 
-    # Is this test one we should skip?
-    def skip_test(self, test):
-        # Skip any test that contains one of these strings as a substring
-        skip = ["backup",               # Can't backup a tiered table
-                "env01",                # Using environment variable to set WT home
-                "config02",             # Using environment variable to set WT home
-                "cursor13_ckpt",        # Checkpoint tests with cached cursors
-                "cursor13_dup",         # More cursor cache tests
-                "cursor13_reopens",     # More cursor cache tests
-                "inmem",                # In memory tests don't make sense with tiered storage
-                "lsm",                  # If the test name tells us it uses lsm ignore it
-                "modify_smoke_recover", # Copying WT dir doesn't copy the bucket directory
-                "salvage01",            # Salvage tests directly name files ending in ".wt"
-                "test_config_json",     # create replacement can't handle a json config string
-                "test_cursor_big",      # Cursor caching verified with stats
-                "tiered",               # Tiered tests already do tiering.
-                "test_verify",          # Verify not supported on tiered tables (yet)
-
-                # FIXME-WT-9809 The following failures should be triaged and potentially
-                # individually reticketed.
-
-                # This first group currently cause severe errors, where Python crashes,
-                # whether from internal assertion or other causes.
-                "test_bug003.test_bug003",   # Triggers WT-9954
-                "test_bug024.test_bug024",
-                "test_bulk01.test_bulk_load",   # Triggers WT-9954
-                "test_durable_ts03.test_durable_ts03",
-                "test_rollback_to_stable20.test_rollback_to_stable",
-                "test_stat_log01_readonly.test_stat_log01_readonly",
-                "test_stat_log02.test_stats_log_on_json_with_tables",
-                "test_txn02.test_ops",
-
-                # This group fail within Python for various, sometimes unknown, reasons.
-                "test_bug018.test_bug018",
-                "test_checkpoint.test_checkpoint",
-                "test_checkpoint_snapshot02.test_checkpoint_snapshot_with_txnid_and_timestamp",
-                "test_compat05.test_compat05",
-                "test_config05.test_too_many_sessions",
-                "test_config09.test_config09",
-                "test_drop.test_drop",
-                "test_empty.test_empty",     # looks at wt file names and uses column store
-                "test_encrypt06.test_encrypt",
-                "test_encrypt07.test_salvage_api",
-                "test_encrypt07.test_salvage_api_damaged",
-                "test_encrypt07.test_salvage_process_damaged",
-                "test_export01.test_export_restart",
-                "test_hs21.test_hs",
-                "test_import04.test_table_import",
-                "test_import09.test_import_table_repair",
-                "test_import09.test_import_table_repair",
-                "test_import11.test_file_import",
-                "test_import11.test_file_import",
-                "test_join03.test_join",
-                "test_join07.test_join_string",
-                "test_jsondump02.test_json_all_bytes",
-                "test_metadata_cursor02.test_missing",
-                "test_prepare02.test_prepare_session_operations",
-                "test_prepare_hs03.test_prepare_hs",
-                "test_prepare_hs03.test_prepare_hs",
-                "test_rename.test_rename",
-                "test_rollback_to_stable09.test_rollback_to_stable",
-                "test_rollback_to_stable28.test_update_restore_evict_recovery",
-                "test_rollback_to_stable34.test_rollback_to_stable",
-                "test_rollback_to_stable35.test_rollback_to_stable",
-                "test_rollback_to_stable36.test_rollback_to_stable",
-                "test_sweep03.test_disable_idle_timeout_drop",
-                "test_sweep03.test_disable_idle_timeout_drop_force",
-                "test_truncate01.test_truncate_cursor",
-                "test_truncate01.test_truncate_cursor_end",
-                "test_truncate01.test_truncate_timestamp",
-                "test_truncate01.test_truncate_uri",
-                "test_truncate10.test_truncate10",
-                "test_truncate12.test_truncate12",
-                "test_truncate13.test_truncate",
-                "test_truncate14.test_truncate",
-                "test_truncate16.test_truncate16",
-                "test_truncate18.test_truncate18",
-                "test_truncate15.test_truncate15",
-                "test_truncate19.test_truncate19",
-                "test_truncate20.test_truncate20",
-                "test_txn22.test_corrupt_meta",
-                "test_verbose01.test_verbose_single",
-                "test_verbose02.test_verbose_single",
-                "test_verify2.test_verify_ckpt",
-                ]
-
-        for item in skip:
-            if item in str(test):
-                return True
+    # Our current tiered storage implementation has a slow version of truncate, and
+    # some tests are sensitive to that.
+    #
+    # FIXME-WT-11023: when we implement a fast truncate for tiered storage, we might remove
+    # this, and visit tests that are marked with @wttest.prevent(..."slow_truncate"...)
+    def uses(self, use_list):
+        if "slow_truncate" in use_list:
+            return True
         return False
 
-    # Remove tests that won't work on tiered cursors
-    def filter_tests(self, tests):
-        new_tests = unittest.TestSuite()
-        new_tests.addTests([t for t in tests if not self.skip_test(t)])
-        return new_tests
+    # Determine whether a test should be skipped, if it should also return the reason for skipping.
+    # Some features aren't supported with tiered storage currently. If they exist in
+    # the test name (or scenario name) skip the test.
+    def should_skip(self, test) -> (bool, str):
+        skip_categories = [
+            ("backup",               "Can't backup a tiered table"),
+            ("inmem",                "In memory tests don't make sense with tiered storage"),
+            ("lsm",                  "LSM is not supported with tiering"),
+            ("modify_smoke_recover", "Copying WT dir doesn't copy the bucket directory"),
+            ("test_salvage",         "Salvage tests directly name files ending in '.wt'"),
+            ("test_config_json",     "Tiered hook's create function can't handle a json config string"),
+            ("test_cursor_big",      "Cursor caching verified with stats"),
+            ("tiered",               "Tiered tests already do tiering."),
+            ("test_verify",          "Verify not supported on tiered tables (yet)")
+        ]
+
+        for (skip_string, skip_reason) in skip_categories:
+            if skip_string in str(test):
+                return (True, skip_reason)
+
+        return (False, None)
+
+    # Skip tests that won't work on tiered cursors
+    def register_skipped_tests(self, tests):
+        for t in tests:
+            (should_skip, skip_reason) = self.should_skip(t)
+            if should_skip:
+                wttest.register_skipped_test(t, "tiered", skip_reason)
 
     def get_platform_api(self):
         return self.platform_api
@@ -373,6 +336,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_connection_close = self.Connection['close']
         self.Connection['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
           connection_close_replace(orig_connection_close, s, config))
+
+        orig_session_checkpoint = self.Session['checkpoint']
+        self.Session['checkpoint'] =  (wthooks.HOOK_REPLACE, lambda s, config=None:
+            session_checkpoint_replace(orig_session_checkpoint, s, config))
 
         orig_session_compact = self.Session['compact']
         self.Session['compact'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
@@ -400,23 +367,58 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
         self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_tiered)
 
+# Strip matching parens, which act as a quoting mechanism.
+def strip_matching_parens(s):
+    if len(s) >= 2:
+        if s[0] == '(' and s[-1] == ')':
+            s = s[1:-1]
+    return s
+
+def config_split(config):
+    pos = config.index('=')
+    if pos >= 0:
+        left = config[:pos]
+        right = config[pos+1:]
+    else:
+        left = config
+        right = ''
+    return [left, strip_matching_parens(right)]
+
 # Override some platform APIs for this hook.
 class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
     def __init__(self, arg=None):
         self.tier_share_percent = 0
         self.tier_cache_percent = 0
         self.tier_storage_source = 'dir_store'
+        self.tier_storage_source_config = ''
         params = []
-        if arg:
-            params = [config.split('=') for config in arg.split(',')]
 
-        for param_key, param_value in params :
+        # We want to split args something like arg.split(','), except that we need
+        # to sometimes allow commas as part of the individual parameters, which we
+        # allow via parens.  For example, a developer can run:
+        #  run.py --hook \
+        #    'tiered=(tier_storage_source=dir_store,tier_storage_source_config=(force_delay=5,delay_ms=10))'
+        #
+        # and that should appear as two parameters to the tiered hook.
+        if arg:
+            arg = strip_matching_parens(arg)
+            # Note: this regular expression does not handle arbitrary nesting of parens
+            config_list = re.split(r",(?=(?:[^(]*[(][^)]*[)])*[^)]*$)", arg)
+            params = [config_split(config) for config in config_list]
+
+        import wttest
+        #wttest.WiredTigerTestCase.tty('Tiered hook params={}'.format(params))
+        for param_key, param_value in params:
             if param_key == 'tier_populate_share':
                 self.tier_share_percent = int(param_value)
             elif param_key == 'tier_populate_cache':
                 self.tier_cache_percent = int(param_value)
             elif param_key == 'tier_storage_source':
                 self.tier_storage_source = param_value
+            elif param_key == 'tier_storage_source_config':
+                self.tier_storage_source_config = param_value
+            else:
+                raise Exception('hook_tiered: unknown parameter {}'.format(param_key))
 
     def tableExists(self, name):
         for i in range(1, 9):
@@ -439,6 +441,9 @@ class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
 
     def getTierStorageSource(self):
         return self.tier_storage_source
+
+    def getTierStorageSourceConfig(self):
+        return self.tier_storage_source_config
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.

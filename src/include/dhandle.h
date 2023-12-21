@@ -38,9 +38,9 @@
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
 
-#define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->session_ref, 1)
+#define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->references, 1)
 
-#define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)
+#define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->references, 1)
 
 #define WT_DHANDLE_NEXT(session, dhandle, head, field)                                     \
     do {                                                                                   \
@@ -79,26 +79,27 @@ struct __wt_data_handle {
     TAILQ_ENTRY(__wt_data_handle) q;
     TAILQ_ENTRY(__wt_data_handle) hashq;
 
-    const char *name;         /* Object name as a URI */
-    uint64_t name_hash;       /* Hash of name */
-    const char *checkpoint;   /* Checkpoint name (or NULL) */
-    int64_t checkpoint_order; /* Checkpoint order number, when applicable */
-    const char **cfg;         /* Configuration information */
-    const char *meta_base;    /* Base metadata configuration */
-    size_t meta_base_length;  /* Base metadata length */
-#ifdef HAVE_DIAGNOSTIC
+    const char *name;           /* Object name as a URI */
+    uint64_t name_hash;         /* Hash of name */
+    const char *checkpoint;     /* Checkpoint name (or NULL) */
+    int64_t checkpoint_order;   /* Checkpoint order number, when applicable */
+    const char **cfg;           /* Configuration information */
+    const char *meta_base;      /* Base metadata configuration */
+    uint64_t meta_hash;         /* Base metadata hash */
+    struct timespec base_upd;   /* Time of last metadata update with meta base */
     const char *orig_meta_base; /* Copy of the base metadata configuration */
-#endif
+    uint64_t orig_meta_hash;    /* Copy of base metadata hash */
+    struct timespec orig_upd;   /* Time of original setup of meta base */
     /*
-     * Sessions holding a connection's data handle will have a non-zero reference count; sessions
-     * using a connection's data handle will have a non-zero in-use count. Instances of cached
-     * cursors referencing the data handle appear in session_cache_ref.
+     * Sessions holding a connection's data handle and queued tiered storage work units will hold
+     * references; sessions using a connection's data handle will have a non-zero in-use count.
+     * Instances of cached cursors referencing the data handle appear in session_cache_ref.
      */
-    uint32_t session_ref;          /* Sessions referencing this handle */
-    int32_t session_inuse;         /* Sessions using this handle */
-    uint32_t excl_ref;             /* Refs of handle by excl_session */
-    uint64_t timeofdeath;          /* Use count went to 0 */
-    WT_SESSION_IMPL *excl_session; /* Session with exclusive use, if any */
+    wt_shared uint32_t references;   /* References to this handle */
+    wt_shared int32_t session_inuse; /* Sessions using this handle */
+    uint32_t excl_ref;               /* Refs of handle by excl_session */
+    uint64_t timeofdeath;            /* Use count went to 0 */
+    WT_SESSION_IMPL *excl_session;   /* Session with exclusive use, if any */
 
     WT_DATA_SOURCE *dsrc; /* Data source for this handle */
     void *handle;         /* Generic handle */

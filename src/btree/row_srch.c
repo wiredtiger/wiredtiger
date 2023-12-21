@@ -56,9 +56,9 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
          * serialized insert function.
          */
         for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
-            cbt->ins_stack[i] = (i == 0) ?
-              &ins->next[0] :
-              (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] : &ins_head->head[i];
+            cbt->ins_stack[i] = (i == 0)  ? &ins->next[0] :
+              (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] :
+                                            &ins_head->head[i];
             cbt->next_stack[i] = NULL;
         }
         cbt->compare = -cmp;
@@ -115,7 +115,7 @@ __wt_search_insert(
          *
          * Place a read barrier here to avoid these issues.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
+        WT_ORDERED_READ(ins, *insp);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
@@ -187,7 +187,7 @@ __wt_search_insert(
                  * It is possible that we read an old value down the stack due to read reordering on
                  * CPUs with weak memory ordering. Add a read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_WEAK_MEMORDER(cbt->next_stack[i], ins->next[i]);
+                WT_ORDERED_READ(cbt->next_stack[i], ins->next[i]);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }
@@ -506,7 +506,7 @@ restart:
                 __wt_ref_key(page, descent, &item->data, &item->size);
 
                 match = WT_MIN(skiplow, skiphigh);
-                cmp = __wt_lex_compare_skip(srch_key, item, &match);
+                cmp = __wt_lex_compare_skip(session, srch_key, item, &match);
                 if (cmp > 0) {
                     skiplow = match;
                     base = indx + 1;
@@ -668,7 +668,7 @@ leaf_only:
             WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
             match = WT_MIN(skiplow, skiphigh);
-            cmp = __wt_lex_compare_skip(srch_key, item, &match);
+            cmp = __wt_lex_compare_skip(session, srch_key, item, &match);
             if (cmp > 0) {
                 skiplow = match;
                 base = indx + 1;

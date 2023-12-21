@@ -48,7 +48,8 @@
 /* Default file and subdirectory names to use for LazyFS in the tests. */
 #define LAZYFS_BASE_DIR "base"
 #define LAZYFS_CONFIG_FILE "lazyfs-config.toml"
-#define LAZYFS_CONTROL_FILE "lazyfs-control.fifo"
+#define LAZYFS_CONTROL_FILE_SUFFIX ".fifo"
+#define LAZYFS_CONTROL_FILE_TEMPLATE "lazyfs-control-XXXXXX" LAZYFS_CONTROL_FILE_SUFFIX
 #define LAZYFS_LOG_FILE "lazyfs.log"
 
 #ifdef _WIN32
@@ -73,6 +74,8 @@
 #define TESTUTIL_ENV_CONFIG_REC \
     ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 #define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
+
+#define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
@@ -104,8 +107,6 @@ typedef struct {
     uint64_t force_delay;     /* Force a simulated network delay every N operations */
     uint64_t force_error;     /* Force a simulated network error every N operations */
     uint32_t local_retention; /* Local retention for tiered storage */
-
-#define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
     bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
@@ -249,6 +250,12 @@ typedef struct {
     } while (0)
 
 /*
+ * testutil_strcat --
+ *     Do strcat; fail on error.
+ */
+#define testutil_strcat(out, size, str) testutil_check(__wt_strcat(out, size, str))
+
+/*
  * testutil_snprintf --
  *     Do snprintf; fail on error.
  */
@@ -267,6 +274,38 @@ typedef struct {
  */
 #define testutil_snprintf_len_set(out, size, retsizep, ...) \
     testutil_check(__wt_snprintf_len_set(out, size, retsizep, __VA_ARGS__))
+
+/*
+ * Quiet compiler warnings about unused function parameters and variables, and unused function
+ * return values. The equivalent of WT_ macros.
+ */
+#define testutil_unused(var) (void)(var)
+#define testutil_not_read(v, val) \
+    do {                          \
+        (v) = (val);              \
+        (void)(v);                \
+    } while (0);
+#define testutil_ignore_ret(call)          \
+    do {                                   \
+        uintmax_t __ignored_ret;           \
+        __ignored_ret = (uintmax_t)(call); \
+        testutil_unused(__ignored_ret);    \
+    } while (0)
+#define testutil_ignore_ret_bool(call)  \
+    do {                                \
+        bool __ignored_ret;             \
+        __ignored_ret = (call);         \
+        testutil_unused(__ignored_ret); \
+    } while (0)
+#define testutil_ignore_ret_ptr(call)   \
+    do {                                \
+        const void *__ignored_ret;      \
+        __ignored_ret = (call);         \
+        testutil_unused(__ignored_ret); \
+    } while (0)
+
+/* Basic constants. */
+#define testutil_billion (1000000000)
 
 /*
  * WT_OP_CHECKPOINT_WAIT --
@@ -290,6 +329,16 @@ typedef struct {
         while ((__ret = session->drop(session, uri, config)) == EBUSY) \
             testutil_check(session->checkpoint(session, NULL));        \
         testutil_check(__ret);                                         \
+    } while (0)
+
+/*
+ * testutil_system --
+ *     A convenience macro for testutil_system_internal. Accepts line number as an argument.
+ */
+#define testutil_system(fmt, ...)                                                  \
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))                                  \
+    do {                                                                           \
+        testutil_system_internal(__PRETTY_FUNCTION__, __LINE__, fmt, __VA_ARGS__); \
     } while (0)
 
 /*
@@ -471,6 +520,12 @@ void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
 bool testutil_is_dir_store(TEST_OPTS *);
+void testutil_backup_create_full(
+  WT_CONNECTION *, const char *, const char *, const char *, bool, uint32_t, int *);
+void testutil_backup_create_incremental(WT_CONNECTION *, const char *, const char *, const char *,
+  const char *, const char *, bool, int *, int *, int *);
+void testutil_backup_force_stop(WT_SESSION *);
+void testutil_backup_force_stop_conn(WT_CONNECTION *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_clean_test_artifacts(const char *);
 void testutil_cleanup(TEST_OPTS *);
@@ -482,6 +537,7 @@ void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
 void testutil_deduce_build_dir(TEST_OPTS *opts);
+bool testutil_exists(const char *, const char *);
 int testutil_general_event_handler(
   WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 void testutil_lazyfs_cleanup(WT_LAZY_FS *);
@@ -503,10 +559,12 @@ void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
 void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
 void testutil_recreate_dir(const char *);
 void testutil_remove(const char *);
+void testutil_sentinel(const char *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
+void testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
@@ -515,6 +573,7 @@ void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint64_t, bool *);
 void testutil_tiered_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
 uint64_t testutil_time_us(WT_SESSION *);
+void testutil_verify_model(TEST_OPTS *opts, const char *);
 void testutil_verify_src_backup(WT_CONNECTION *, const char *, const char *, char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);

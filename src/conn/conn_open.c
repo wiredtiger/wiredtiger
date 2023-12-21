@@ -22,7 +22,8 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     WT_ASSERT(session, session->iface.connection == &conn->iface);
 
     /* WT_SESSION_IMPL array. */
-    WT_RET(__wt_calloc(session, conn->session_size, sizeof(WT_SESSION_IMPL), &conn->sessions));
+    WT_RET(__wt_calloc(
+      session, conn->session_array.size, sizeof(WT_SESSION_IMPL), &WT_CONN_SESSIONS_GET(conn)));
 
     /*
      * Open the default session. We open this before starting service threads because those may
@@ -89,14 +90,19 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
      * Shut down server threads. Some of these threads access btree handles and eviction, shut them
      * down before the eviction server, and shut all servers down before closing open data handles.
      */
-    WT_TRET(__wt_capacity_server_destroy(session));
+    WT_TRET(__wt_background_compact_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
     WT_TRET(__wt_statlog_destroy(session, true));
     WT_TRET(__wt_tiered_storage_destroy(session, false));
     WT_TRET(__wt_sweep_destroy(session));
+    WT_TRET(__wt_chunkcache_teardown(session));
+    WT_TRET(__wt_chunkcache_metadata_destroy(session));
+    WT_TRET(__wt_prefetch_destroy(session));
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
+    /* The capacity server can only be shut down after all I/O is complete. */
+    WT_TRET(__wt_capacity_server_destroy(session));
 
     /* There should be no more file opens after this point. */
     F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
@@ -173,12 +179,12 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
      * session close, they persist past the life of the session. Discard them now.
      */
     if (!F_ISSET(conn, WT_CONN_LEAK_MEMORY))
-        if ((s = conn->sessions) != NULL)
-            for (i = 0; i < conn->session_size; ++s, ++i) {
+        if ((s = WT_CONN_SESSIONS_GET(conn)) != NULL)
+            for (i = 0; i < conn->session_array.size; ++s, ++i) {
                 __wt_free(session, s->cursor_cache);
                 __wt_free(session, s->dhhash);
                 __wt_stash_discard_all(session, s);
-                __wt_free(session, s->hazard);
+                __wt_free(session, s->hazards.arr);
             }
 
     /* Destroy the file-system configuration. */
@@ -228,6 +234,10 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));
 
+    /* Can create a table, so must be done after metadata tracking. */
+    WT_RET(__wt_chunkcache_setup(session, cfg));
+    WT_RET(__wt_chunkcache_metadata_create(session));
+
     /*
      * Create the history store file. This will only actually create it on a clean upgrade or when
      * creating a new database.
@@ -250,11 +260,17 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Start the handle sweep thread. */
     WT_RET(__wt_sweep_create(session));
 
+    /* Start the compact thread. */
+    WT_RET(__wt_background_compact_server_create(session));
+
     /* Start the optional capacity thread. */
     WT_RET(__wt_capacity_server_create(session, cfg));
 
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));
+
+    /* Start pre-fetch utilities. */
+    WT_RET(__wt_prefetch_create(session, cfg));
 
     return (0);
 }

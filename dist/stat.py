@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Read the source files and output the statistics #defines plus the
 # initialize and refresh code.
 
@@ -12,7 +14,7 @@ from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stat
 ##########################################
 # Check for duplicate stat descriptions:
 # Duplicate stat descpriptions within a category are not allowed.
-# The list must be sorted by description. 
+# The list must be sorted by description.
 ##########################################
 def check_unique_description(sorted_list):
     temp = ""

@@ -1,6 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-import os, re, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 import log_data
 
@@ -8,20 +7,25 @@ import log_data
 tmp_file = '__tmp'
 
 # Map log record types to:
-# (C type, pack type, printf format, printf arg(s), list of setup functions)
+#   0. C type
+#   1. pack type
+#   2. printf format, or a list of printf formats (one regular, and optionally one more for hex)
+#   3. printf arg(s)
+#   4. list of setup functions (one regular, and optionally one more for hex)
+#   5. always include hex (regardless of whether WT_TXN_PRINTLOG_HEX was set)
 field_types = {
     'WT_LSN' : ('WT_LSN *', 'II', '[%" PRIu32 ", %" PRIu32 "]',
-        'arg.l.file, arg.l.offset', [ '' ]),
-    'string' : ('const char *', 'S', '\\"%s\\"', 'arg', [ '' ]),
+        'arg.l.file, arg.l.offset', [ '' ], False),
+    'string' : ('const char *', 'S', '\\"%s\\"', 'arg', [ '' ], False),
     'item' : ('WT_ITEM *', 'u', '\\"%s\\"', '(char *)escaped->mem',
         [ 'WT_ERR(__logrec_make_json_str(session, &escaped, &arg));',
-          'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));']),
-    'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ]),
-    'uint32' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ]),
+          'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));'], False),
+    'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ], False),
+    'uint32' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ], False),
     # The fileid may have the high bit set. Print in both decimal and hex.
     'uint32_id' : ('uint32_t', 'I',
-        '%" PRIu32 " 0x%" PRIx32 "', 'arg, arg', [ '' ]),
-    'uint64' : ('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ]),
+        [ '%" PRIu32 "', '\\"0x%" PRIx32 "\\"' ], 'arg', [ '', '' ], True),
+    'uint64' : ('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ], False),
 }
 
 def cintype(f):
@@ -62,8 +66,11 @@ def op_pack_fmt(r):
 def rec_pack_fmt(r):
     return 'I' + pack_fmt(r.fields)
 
-def printf_fmt(f):
-    return field_types[f[0]][2]
+def printf_fmt(f, ishex):
+    fmt = field_types[f[0]][2]
+    if type(fmt) is list:
+        fmt = fmt[ishex]
+    return fmt
 
 def pack_arg(f):
     if f[0] == 'WT_LSN':
@@ -85,6 +92,9 @@ def printf_setup(f, i, nl_indent):
 
 def n_setup(f):
     return len(field_types[f[0]][4])
+
+def unconditional_hex(f):
+    return field_types[f[0]][5]
 
 # Check for an operation that has a file id type. Redact any user data
 # if the redact flag is set, but print operations for file id 0, known
@@ -111,17 +121,18 @@ def printf_line(f, optype, i, ishex):
     precomma = ''
     if ishex > 0:
         name += '-hex'
-        ifend = nl_indent + '}'
-        nl_indent += '\t'
-        ifbegin = \
-            'if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {' + nl_indent
-        if postcomma == '':
-            precomma = ',\\n'
+        if not unconditional_hex(f):
+            ifend = nl_indent + '}'
+            nl_indent += '\t'
+            ifbegin = \
+                'if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {' + nl_indent
+            if postcomma == '':
+                precomma = ',\\n'
     body = '%s%s(__wt_fprintf(session, args->fs,' % (
         printf_setup(f, ishex, nl_indent),
         'WT_ERR' if has_escape(optype.fields) else 'WT_RET') + \
         '%s    "%s        \\"%s\\": %s%s",%s));' % (
-        nl_indent, precomma, name, printf_fmt(f), postcomma,
+        nl_indent, precomma, name, printf_fmt(f, ishex), postcomma,
         printf_arg(f))
     return ifbegin + body + ifend
 
@@ -136,6 +147,10 @@ tfile.write('/* DO NOT EDIT: automatically built by dist/log.py. */\n')
 tfile.write('''
 #include "wt_internal.h"
 
+/*
+ * __wt_logrec_alloc --
+ *\tAllocate a new WT_ITEM structure.
+ */
 int
 __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
@@ -152,12 +167,20 @@ __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 \treturn (0);
 }
 
+/*
+ * __wt_logrec_free --
+ *\tFree the given WT_ITEM structure.
+ */
 void
 __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 {
 \t__wt_scr_free(session, logrecp);
 }
 
+/*
+ * __wt_logrec_read --
+ *\tRead the record type.
+ */
 int
 __wt_logrec_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
@@ -170,6 +193,10 @@ __wt_logrec_read(WT_SESSION_IMPL *session,
 \treturn (0);
 }
 
+/*
+ * __wt_logop_read --
+ *\tRead the operation type.
+ */
 int
 __wt_logop_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end,
@@ -179,6 +206,10 @@ __wt_logop_read(WT_SESSION_IMPL *session,
 \t    session, *pp, WT_PTRDIFF(end, *pp), "II", optypep, opsizep));
 }
 
+/*
+ * __logrec_make_json_str --
+ *\tUnpack a string into JSON escaped format.
+ */
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -195,6 +226,10 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
 \treturn (0);
 }
 
+/*
+ * __logrec_make_hex_str --
+ *\tConvert data to a hexadecimal representation.
+ */
 static int
 __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
@@ -214,6 +249,10 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
 # Emit code to read, write and print log operations (within a log record)
 for optype in log_data.optypes:
     tfile.write('''
+/*
+ * __wt_logop_%(name)s_pack --
+ *\tPack the log operation %(name)s.
+ */
 int
 __wt_logop_%(name)s_pack(
     WT_SESSION_IMPL *session, WT_ITEM *logrec%(comma)s
@@ -249,6 +288,10 @@ __wt_logop_%(name)s_pack(
 })
 
     tfile.write('''
+/*
+ * __wt_logop_%(name)s_unpack --
+ *\tUnpack the log operation %(name)s.
+ */
 int
 __wt_logop_%(name)s_unpack(
     WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end%(comma)s
@@ -277,6 +320,10 @@ __wt_logop_%(name)s_unpack(
 })
 
     tfile.write('''
+/*
+ * __wt_logop_%(name)s_print --
+ *\tPrint the log operation %(name)s.
+ */
 int
 __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
@@ -286,12 +333,13 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
 
 \t%(redact)s
 \tWT_RET(__wt_fprintf(session, args->fs,
-\t    " \\"optype\\": \\"%(name)s\\",\\n"));
+\t    " \\"optype\\": \\"%(name)s\\"%(comma)s\\n"));
 %(print_args)s
 %(arg_fini)s
 }
 ''' % {
     'name' : optype.name,
+    'comma' : ',' if len(optype.fields) > 0 else '',
     'arg_ret' : ('\n\tWT_DECL_RET;' if has_escape(optype.fields) else ''),
     'arg_decls' : (('\n\t' + '\n\t'.join('%s%s%s;' %
         (clocaltype(f), '' if clocaltype(f)[-1] == '*' else ' ', f[1])
@@ -308,6 +356,10 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
 
 # Emit the printlog entry point
 tfile.write('''
+/*
+ * __wt_txn_op_printlog --
+ *\tPrint operation from a log cookie.
+ */
 int
 __wt_txn_op_printlog(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)

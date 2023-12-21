@@ -827,6 +827,7 @@ config_sanity(WTPERF *wtperf)
                 return (EINVAL);
             }
         }
+
     return (0);
 }
 
@@ -965,7 +966,7 @@ config_opt_print(WTPERF *wtperf)
           "Workload configuration(s):\n");
         for (i = 0, workp = wtperf->workload; i < wtperf->workload_cnt; ++i, ++workp)
             printf("\t\t%" PRId64 " threads (inserts=%" PRId64 ", reads=%" PRId64
-                   ", updates=%" PRId64 ", truncates=% " PRId64 ")\n",
+                   ", updates=%" PRId64 ", truncates=%" PRId64 ")\n",
               workp->threads, workp->insert, workp->read, workp->update, workp->truncate);
     }
 
@@ -1063,4 +1064,27 @@ config_opt_usage(void)
         printf("%s (%s, default=%s)\n", config_opts_desc[i].name, typestr, defaultval);
         pretty_print(config_opts_desc[i].description, "\t");
     }
+}
+
+/*
+ * config_reopen --
+ *     Set the config string for reopen from the given options structure.
+ */
+char *
+config_reopen(CONFIG_OPTS *opts)
+{
+    char *ret;
+    size_t req_len;
+
+    req_len = strlen(opts->conn_config) + 1;
+    if (opts->readonly)
+        req_len += strlen(READONLY_CONFIG);
+
+    ret = dmalloc(req_len);
+    if (opts->readonly)
+        testutil_snprintf(ret, req_len, "%s%s", opts->conn_config, READONLY_CONFIG);
+    else
+        testutil_snprintf(ret, req_len, "%s", opts->conn_config);
+
+    return (ret);
 }

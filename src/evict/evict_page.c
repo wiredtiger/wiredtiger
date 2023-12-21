@@ -143,7 +143,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
         if (conn->txn_global.checkpoint_running)
             WT_STAT_CONN_INCR(session, cache_eviction_pages_in_parallel_with_checkpoint);
     } else {
-        if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+        if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
             if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
             WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
@@ -158,7 +158,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
             conn->cache->evict_max_ms = eviction_time_milliseconds;
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICT,
-              "Eviction took more than 1 minute (%" PRIu64 "). Building disk image took %" PRIu64
+              "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
               "us. History store wrapup took %" PRIu64 "us.",
               eviction_time,
               WT_CLOCKDIFF_US(session->reconcile_timeline.image_build_finish,
@@ -188,13 +188,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_DECL_RET;
     WT_PAGE *page;
     uint8_t stats_flags;
-    bool clean_page, closing, inmem_split, tree_dead;
+    bool clean_page, closing, inmem_split, tree_dead, ebusy_only;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    clean_page = false;
+    clean_page = ebusy_only = false;
 
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -252,6 +252,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_evict_list_clear_page(session, ref);
     }
 
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
+        WT_STAT_CONN_INCR(session, cache_eviction_consider_prefetch);
+
     /*
      * Review the page for conditions that would block its eviction. If the check fails (for
      * example, we find a page with active children), quit. Make this check for clean pages, too:
@@ -272,15 +275,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (!tree_dead && __wt_page_is_modified(page))
         WT_ERR(__evict_reconcile(session, ref, flags));
 
-    /*
-     * Fail 0.1% of the time after we have done reconciliation. We should always evict the page of a
-     * dead tree.
-     */
-    if (!closing && !tree_dead &&
-      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION, 10)) {
-        ret = EBUSY;
-        goto err;
-    }
+    /* After this spot, the only recoverable failure is EBUSY. */
+    ebusy_only = true;
 
     /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,
@@ -326,6 +322,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 err:
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
+
+        if (ebusy_only && ret != EBUSY)
+            WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
     }
 
 done:
@@ -550,7 +549,11 @@ static int
 __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_REF *child;
-    bool visible;
+    bool busy, visible;
+
+    busy = false;
+    /* Pre-fetch queue flags on a ref need to be checked while holding the pre-fetch lock. */
+    __wt_spin_lock(session, &S2C(session)->prefetch_lock);
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -561,15 +564,27 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * opposite direction from our check.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+        /* It isn't safe to evict if there is a child on the pre-fetch queue. */
+        if (F_ISSET(child, WT_REF_FLAG_PREFETCH)) {
+            busy = true;
+            break;
+        }
+
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
         case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
-            return (__wt_set_return(session, EBUSY));
+            busy = true;
         }
+        if (busy)
+            break;
     }
     WT_INTL_FOREACH_END;
+    __wt_spin_unlock(session, &S2C(session)->prefetch_lock);
+    if (busy)
+        return (__wt_set_return(session, EBUSY));
+
     WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
@@ -594,6 +609,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * WT_REF structures pages can be discarded.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+
         switch (child->state) {
         case WT_REF_DISK: /* On-disk */
             break;
