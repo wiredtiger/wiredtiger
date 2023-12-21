@@ -8,17 +8,17 @@ t_pfx=__s_all_tmp_
 allchildpids() { # Recursively get PIDs of all child processes.
     ps -o pid,ppid | python3 -c '
 import re, os, sys
-a = {}
+children = {}   # Map from parent PID to list of child PIDs.
 for line in sys.stdin.readlines():
-    pair = re.findall("""(\d+)""", line)
-    if len(pair) == 2 and pair[0] != str(os.getpid()):
-        if pair[1] not in a: a[pair[1]] = []
-        a[pair[1]].append(pair[0])
-p = a[sys.argv[1]].copy() if sys.argv[1] in a else []
-while len(p):
-    pid = p[0]; p = p[1:]
+    (pid, ppid) = [*re.findall("""(\d+)""", line), 0, 0][:2]
+    if pid and ppid and pid != str(os.getpid()):
+        if ppid not in children: children[ppid] = []
+        children[ppid].append(pid)
+pids = children[sys.argv[1]].copy() if sys.argv[1] in children else []
+while len(pids):
+    (pid, pids) = (pids[0], pids[1:])   # pop one element and shift the list.
     print(pid)
-    if pid in a: p.extend(a[pid])
+    if pid in children: pids.extend(children[pid])
 ' $$
 }
 
