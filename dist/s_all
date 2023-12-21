@@ -4,17 +4,24 @@
 
 t=__wt.$$
 t_pfx=__s_all_tmp_
-allchildpids() { # Recursively get the pids of child processes.
-    ps -o pid,ppid | PID=$$ perl -naE '
-        /\d/ && $F[0] != $$ and push @{$a[$F[1]]}, $F[0];
-        END {
-            @p = @{$a[$ENV{PID}]};
-            while ($pid = shift @p) {
-                say $pid;
-                push @p, @{$a[$pid]};
-            }
-        }'
+
+allchildpids() { # Recursively get PIDs of all child processes.
+    ps -o pid,ppid | python3 -c '
+import re, os, sys
+a = {}
+for line in sys.stdin.readlines():
+    pair = re.findall("""(\d++)""", line)
+    if len(pair) == 2 and pair[0] != str(os.getpid()):
+        if pair[1] not in a: a[pair[1]] = []
+        a[pair[1]].append(pair[0])
+p = a[sys.argv[1]].copy() if sys.argv[1] in a else []
+while len(p):
+    pid = p[0]; p = p[1:]
+    print(pid)
+    if pid in a: p.extend(a[pid])
+' $$
 }
+
 trap '
     # Kill all child processes recursively.
     kill `allchildpids` 2>/dev/null
