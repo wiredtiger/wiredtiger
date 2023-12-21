@@ -312,9 +312,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      */
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
       F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->page) && r->multi_next == 1 &&
-      F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore)
+      F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore) {
+        WT_STAT_CONN_DATA_INCR(session, adelines_cool_cache_stat);
         ret = __wt_set_return(session, EBUSY);
-
+    }
     addr = ref->addr;
 
     /*
@@ -2040,7 +2041,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
      * unless we're the checkpoint thread. Big pages take a lot of writes, avoid wasting work.
      */
     if (!last_block && WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session))
-        return (__wt_set_return(session, EBUSY));
+        WT_STAT_CONN_DATA_INCR(session, adelines_cool_cache_stat1);
+    return (__wt_set_return(session, EBUSY));
 
     /* Make sure there's enough room for another write. */
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));

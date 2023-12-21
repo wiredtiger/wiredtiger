@@ -939,6 +939,9 @@ conn_dsrc_stats = [
     ##########################################
     # Cache and eviction statistics
     ##########################################
+    CacheStat('adelines_cool_cache_stat', 'eviction gave up due to no progress being made'),
+    CacheStat('adelines_cool_cache_stat1', 'multiple block reconciliation whilst checkpoint is running'),
+
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_total', 'bytes dirty in the cache cumulative', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
