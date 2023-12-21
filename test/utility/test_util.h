@@ -382,13 +382,6 @@ typedef struct {
             testutil_die(__r, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
     } while (0)
 
-#define shell_call_check(cmd)                                                          \
-    do {                                                                               \
-        int __r;                                                                       \
-        if ((__r = system(cmd)) != 0 && __r != ENOTSUP)                                \
-            testutil_die(__r, "%s/%d:\n$ %s\n", __PRETTY_FUNCTION__, __LINE__, (cmd)); \
-    } while (0)
-
 /*
  * scan_end_check --
  *     Complain and quit if something isn't true. The same as testutil_assert, with a different name
