@@ -1352,13 +1352,14 @@ static int
 __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
 {
     size_t index;
-    unsigned char partial_result;
     unsigned char *original_ptr, *new_ptr;
+    unsigned char partial_result;
 
-    index = 0;
-    partial_result = 0;
+    WT_NOT_READ(index, 0);
     original_ptr = NULL;
     new_ptr = NULL;
+    WT_NOT_READ(partial_result, 0);
+
     *ok = false;
 
     if ((original_bitmap == NULL) || (new_bitmap == NULL))
