@@ -336,21 +336,22 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         return dup_logs
 
     #
-    # Open incremental backup cursor, with an id and iterate through all the files
-    # and perform incremental block copy for each of them. Returns the information about
+    # Open incremental backup cursor, with a source ID and a destination ID and iterate through all
+    # the files and perform incremental block copy for each of them. Returns the information about
     # the backup files.
     #
     # Optional arguments:
+    #   src_id: Read an existing incremental backup ID to use as the source for incremental backup.
+    #   dest_id: ID to track the any new incremental backup information.
     #   consolidate: Add consolidate option to the cursor.
     #
     def take_incr_backup(self, backup_incr_dir, src_id=0, dest_id=0, consolidate=False):
         self.assertTrue(dest_id > 0 or self.bkup_id > 0)
         if src_id == 0 and dest_id == 0:
-            id = self.bkup_id
-            src_id = id - 1
-            dest_id =  id
+            src_id = self.bkup_id - 1
+            dest_id =  self.bkup_id
         # Open the backup data source for incremental backup.
-        config = 'incremental=(src_id="ID' +  str(src_id) + '",this_id="ID' + str(dest_id) + '"'
+        config = f'incremental=(src_id="ID{src_id}",this_id="ID{dest_id}"'
         if consolidate:
             config += ',consolidate=true'
         config += ')'
