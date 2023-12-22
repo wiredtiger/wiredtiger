@@ -186,5 +186,4 @@ class test_cursor04(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

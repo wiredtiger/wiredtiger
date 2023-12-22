@@ -80,5 +80,4 @@ class test_timestamp28(wttest.WiredTigerTestCase):
             lambda: self.session.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(80)), self.error_logs[self.timestamp])
 
-if __name__ == '__main__':
-    wttest.run()
+

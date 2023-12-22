@@ -134,5 +134,4 @@ class test_gc05(test_gc_base):
                 self.assertEqual(ckpt_cursor.get_value(), value_w)
 
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -150,5 +150,4 @@ class test_cursor02(TestCursorTracker):
         self.cur_check_forward(cursor, -1)
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

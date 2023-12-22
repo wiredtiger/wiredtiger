@@ -231,5 +231,4 @@ class test_truncate12(wttest.WiredTigerTestCase):
         self.check(ds1, pointy_cursor, value_a, keep_rows, nrows)
         pointy_cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

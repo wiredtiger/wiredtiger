@@ -216,5 +216,4 @@ class test_bulk_load(wttest.WiredTigerTestCase):
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(uri, None, "bulk"))
 
-if __name__ == '__main__':
-    wttest.run()
+

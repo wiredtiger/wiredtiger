@@ -133,5 +133,4 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertGreaterEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

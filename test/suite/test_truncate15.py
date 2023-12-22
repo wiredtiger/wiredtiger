@@ -207,6 +207,5 @@ class test_truncate15(wttest.WiredTigerTestCase):
             else:
                 raise e
 
-if __name__ == '__main__':
-    wttest.run()
+
 

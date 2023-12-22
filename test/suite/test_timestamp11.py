@@ -160,5 +160,4 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction()
         c.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

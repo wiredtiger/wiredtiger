@@ -534,5 +534,4 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
             self.truncateRangeAndCheck(ds, uri, begin, end, expected)
             self.dropUntilSuccess(self.session, uri)
 
-if __name__ == '__main__':
-    wttest.run()
+

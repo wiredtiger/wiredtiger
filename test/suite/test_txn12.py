@@ -64,5 +64,4 @@ class test_txn12(wttest.WiredTigerTestCase, suite_subprocess):
         # error.
         session.commit_transaction()
 
-if __name__ == '__main__':
-    wttest.run()
+

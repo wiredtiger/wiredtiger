@@ -210,5 +210,4 @@ class test_inmem01(wttest.WiredTigerTestCase):
             self.pr('Finished check ' + str(run))
             sleep(1)
 
-if __name__ == '__main__':
-    wttest.run()
+

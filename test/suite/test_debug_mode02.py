@@ -128,5 +128,4 @@ class test_debug_mode02(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.conn.reconfigure(cfg)
 
-if __name__ == '__main__':
-    wttest.run()
+

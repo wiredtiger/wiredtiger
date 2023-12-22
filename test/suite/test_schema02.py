@@ -295,5 +295,4 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.populate()
         self.check_entries()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -136,5 +136,4 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             # We don't want stats from earlier runs to interfere with later runs.
             self.reopen_conn()
 
-if __name__ == '__main__':
-    wttest.run()
+

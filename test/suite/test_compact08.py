@@ -66,5 +66,4 @@ class test_compact08(wttest.WiredTigerTestCase):
             lambda: self.background_compaction(),
             '/Operation not supported/')
 
-if __name__ == '__main__':
-    wttest.run()
+

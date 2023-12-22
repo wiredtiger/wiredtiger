@@ -118,5 +118,4 @@ class test_tiered17(TieredConfigMixin, wttest.WiredTigerTestCase):
         obj_files = self.get_object_files()
         self.assertTrue(len(obj_files_orig) == len(obj_files))
 
-if __name__ == '__main__':
-    wttest.run()
+

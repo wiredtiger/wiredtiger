@@ -198,5 +198,4 @@ class test_truncate10(wttest.WiredTigerTestCase):
         # back the changes during shutdown.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
 
-if __name__ == '__main__':
-    wttest.run()
+

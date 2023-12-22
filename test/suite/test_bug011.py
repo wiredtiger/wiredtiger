@@ -72,5 +72,4 @@ class test_bug011(wttest.WiredTigerTestCase):
                 cursors[i].search()
                 cursors[i].reset()
 
-if __name__ == '__main__':
-    wttest.run()
+

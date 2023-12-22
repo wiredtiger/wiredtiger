@@ -64,5 +64,4 @@ class test_tiered23(wttest.WiredTigerTestCase, TieredConfigMixin):
             self.session.checkpoint('flush_tier=(enabled)')
             ds.check()
 
-if __name__ == '__main__':
-    wttest.run()
+

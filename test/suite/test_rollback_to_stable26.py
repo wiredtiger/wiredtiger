@@ -180,5 +180,4 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
         self.check(value_b, uri, nrows, None, 31 if self.prepare else 30)
         self.check(value_e, uri, nrows, None, 71 if self.prepare else 70)
 
-if __name__ == '__main__':
-    wttest.run()
+

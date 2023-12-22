@@ -67,5 +67,4 @@ class test_config10(wttest.WiredTigerTestCase):
         # Check salvage populates file.
         self.assertNotEqual(os.stat('WiredTiger').st_size, 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

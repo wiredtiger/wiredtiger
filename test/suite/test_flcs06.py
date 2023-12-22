@@ -214,5 +214,4 @@ class test_flcs06(wttest.WiredTigerTestCase):
         cursor2.close()
         session2.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

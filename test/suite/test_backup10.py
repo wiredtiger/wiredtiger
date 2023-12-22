@@ -121,5 +121,4 @@ class test_backup10(backup_base):
         backup_conn = self.wiredtiger_open(self.dir)
         backup_conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

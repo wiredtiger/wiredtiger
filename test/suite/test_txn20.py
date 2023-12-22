@@ -91,5 +91,4 @@ class test_txn20(wttest.WiredTigerTestCase):
             # 'read-uncommitted' will still see the new value.
             self.assertEqual(cursor[self.key], self.new_value)
 
-if __name__ == '__main__':
-    wttest.run()
+

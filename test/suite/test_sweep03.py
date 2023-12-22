@@ -196,5 +196,4 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
     #         lambda: self.session.commit_transaction(),
     #         '/transaction requires rollback/')
 
-if __name__ == '__main__':
-    wttest.run()
+

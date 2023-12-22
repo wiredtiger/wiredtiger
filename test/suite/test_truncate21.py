@@ -145,5 +145,4 @@ class test_truncate21(wttest.WiredTigerTestCase):
         crow.close()
         new_conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

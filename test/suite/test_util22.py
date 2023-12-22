@@ -72,5 +72,4 @@ class test_util22(wttest.WiredTigerTestCase, suite_subprocess):
             self.check_file_contains(errfilename, 'wt: illegal option -- ^')
             self.check_file_contains(errfilename, 'options:')
 
-if __name__ == '__main__':
-    wttest.run()
+

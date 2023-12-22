@@ -170,5 +170,4 @@ class test_schema06(TieredConfigMixin, wttest.WiredTigerTestCase):
             cursor.close()
             self.assertEqual(count, n)
 
-if __name__ == '__main__':
-    wttest.run()
+

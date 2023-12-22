@@ -151,5 +151,4 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check(c, 0, 1)
         c.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

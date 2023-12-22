@@ -88,5 +88,4 @@ class test_config06(wttest.WiredTigerTestCase):
         cursor[k] = v
         self.assertEquals(cursor[k[:1]], v[:1])
 
-if __name__ == '__main__':
-    wttest.run()
+

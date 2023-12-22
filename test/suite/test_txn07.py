@@ -228,5 +228,4 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
         #
         self.runWt(['-h', self.backup_dir, 'printlog'], outfilename='printlog.out')
 
-if __name__ == '__main__':
-    wttest.run()
+

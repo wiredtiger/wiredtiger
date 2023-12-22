@@ -399,5 +399,4 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs1.terminate(session)
         ss.terminate(session)
 
-if __name__ == '__main__':
-    wttest.run()
+

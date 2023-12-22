@@ -64,5 +64,4 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None, f"checkpoint={internal_checkpoint_name}")
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

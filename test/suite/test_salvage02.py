@@ -99,7 +99,6 @@ class test_salvage02(wttest.WiredTigerTestCase):
         results = list(self.session.open_cursor(self.uri))
         assert(len(results) == nrows)
 
-if __name__ == '__main__':
-    wttest.run()
+
 
 

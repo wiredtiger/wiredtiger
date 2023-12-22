@@ -213,5 +213,4 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(c[k], 1)
         self.session.commit_transaction()
 
-if __name__ == '__main__':
-    wttest.run()
+

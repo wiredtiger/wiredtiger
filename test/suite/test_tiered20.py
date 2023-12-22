@@ -205,5 +205,4 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.assertEqual(c1["a"], expected_value)
         c1.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

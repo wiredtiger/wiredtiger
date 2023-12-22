@@ -73,5 +73,4 @@ class test_encrypt03(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.create(self.uri, params), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

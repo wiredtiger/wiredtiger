@@ -149,5 +149,4 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         if self.evict:
             self.evict_cursor(uri, nrows, value_d)
 
-if __name__ == '__main__':
-    wttest.run()
+

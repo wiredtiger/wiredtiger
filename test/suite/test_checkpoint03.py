@@ -111,5 +111,4 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         cur2.search()
         self.assertEqual(cur2.get_value(), 4)
 
-if __name__ == '__main__':
-    wttest.run()
+

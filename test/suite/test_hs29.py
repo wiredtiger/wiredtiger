@@ -102,5 +102,4 @@ class test_hs29(wttest.WiredTigerTestCase):
         # Close the connection to trigger a final checkpoint and reconciliation.
         self.conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

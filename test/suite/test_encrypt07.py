@@ -84,5 +84,4 @@ class test_encrypt07(test_salvage01.test_salvage01):
     def test_salvage_process_damaged(self):
         return super(test_encrypt07, self).test_salvage_process_damaged()
 
-if __name__ == '__main__':
-    wttest.run()
+

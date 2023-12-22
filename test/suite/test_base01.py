@@ -112,5 +112,4 @@ class test_base01(wttest.WiredTigerTestCase):
         self.pr('closing cursor')
         getcursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

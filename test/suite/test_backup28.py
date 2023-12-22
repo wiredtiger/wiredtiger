@@ -92,5 +92,4 @@ class test_backup28(backup_base):
                 '/partial backup restore only supports objects of type .* formats in the target uri list/')
 
 
-if __name__ == '__main__':
-    wttest.run()
+

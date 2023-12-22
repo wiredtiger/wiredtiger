@@ -114,5 +114,4 @@ class test_truncate11(wttest.WiredTigerTestCase):
         self.assertLess(read_deleted, 10)
         stat_cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

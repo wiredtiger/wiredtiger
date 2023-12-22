@@ -171,5 +171,4 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
 
         self.session.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -154,5 +154,4 @@ class test_join06(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
         self.dropUntilSuccess(self.session, 'table:join06')
 
-if __name__ == '__main__':
-    wttest.run()
+

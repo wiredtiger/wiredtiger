@@ -88,5 +88,4 @@ class test_util14(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_empty_file(outfile)
         self.check_file_contains(errfile, 'usage:')
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -122,5 +122,4 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

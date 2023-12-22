@@ -191,5 +191,4 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
         self.check(ds, value_a, nrows, 15)
         self.check(ds, value_a, nrows, 25)
 
-if __name__ == '__main__':
-    wttest.run()
+

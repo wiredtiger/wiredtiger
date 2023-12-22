@@ -54,5 +54,4 @@ class test_tiered21(TieredConfigMixin, wttest.WiredTigerTestCase):
                                        lambda: self.conn.reconfigure('in_memory=true'),
                                        '/unknown configuration key/')
 
-if __name__ == '__main__':
-    wttest.run()
+

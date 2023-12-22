@@ -202,5 +202,4 @@ class test_reserve(wttest.WiredTigerTestCase):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda:self.assertEquals(c.reserve(), 0), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

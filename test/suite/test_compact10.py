@@ -201,5 +201,4 @@ class test_compact10(backup_base):
         # as an interruption, ignore that message.
         self.ignoreStdoutPatternIfExists('background compact interrupted by application')
 
-if __name__ == '__main__':
-    wttest.run()
+

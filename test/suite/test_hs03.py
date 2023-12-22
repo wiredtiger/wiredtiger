@@ -106,5 +106,4 @@ class test_hs03(wttest.WiredTigerTestCase):
             # a bound on this.
             self.assertLessEqual(hs_reads, 200)
 
-if __name__ == '__main__':
-    wttest.run()
+

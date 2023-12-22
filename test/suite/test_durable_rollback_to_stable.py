@@ -161,5 +161,4 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
             errfilename=errfilename, failure=False)
         self.check_empty_file(errfilename)
 
-if __name__ == '__main__':
-    wttest.run()
+

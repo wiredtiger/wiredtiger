@@ -62,5 +62,4 @@ class test_debug_mode06(wttest.WiredTigerTestCase):
         self.conn.reconfigure(conn_reconfig)
         self.insert_data()
 
-if __name__ == '__main__':
-    wttest.run()
+

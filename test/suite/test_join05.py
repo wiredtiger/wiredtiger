@@ -61,5 +61,4 @@ class test_join05(wttest.WiredTigerTestCase):
         jcursor.close()
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

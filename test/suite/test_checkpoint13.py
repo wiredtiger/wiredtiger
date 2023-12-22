@@ -155,5 +155,4 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             ckpt_cursor.close()
 
 
-if __name__ == '__main__':
-    wttest.run()
+

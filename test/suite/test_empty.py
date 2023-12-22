@@ -53,5 +53,4 @@ class test_empty(wttest.WiredTigerTestCase):
             name = name + '.wt'
         self.assertEquals(os.stat(name).st_size, 4*1024)
 
-if __name__ == '__main__':
-    wttest.run()
+

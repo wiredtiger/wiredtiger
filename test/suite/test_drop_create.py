@@ -67,5 +67,4 @@ class test_drop_create(wttest.WiredTigerTestCase):
         self.assertEqual(s.close(), 0)
         self.assertEqual(s2.close(), 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

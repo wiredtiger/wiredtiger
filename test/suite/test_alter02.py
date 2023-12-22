@@ -244,5 +244,4 @@ class test_alter02(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.pr("EXPECTED KEYS 2: " + str(expected_keys))
             self.verify_logrecs(expected_keys)
 
-if __name__ == '__main__':
-    wttest.run()
+

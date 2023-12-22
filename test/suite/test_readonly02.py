@@ -117,5 +117,4 @@ class test_readonly02(wttest.WiredTigerTestCase, suite_subprocess):
         #   3. logging with zero-fill enabled and readonly
         self.close_checkerror(self.badcfg1)
 
-if __name__ == '__main__':
-    wttest.run()
+

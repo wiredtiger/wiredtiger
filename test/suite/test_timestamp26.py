@@ -543,5 +543,4 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
 
         self.ignoreStdoutPatternIfExists('/unexpected timestamp usage/')
         self.ignoreStdoutPatternIfExists('/no timestamp provided/')
-if __name__ == '__main__':
-    wttest.run()
+

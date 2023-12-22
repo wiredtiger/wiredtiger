@@ -218,5 +218,4 @@ class test_cursor01(wttest.WiredTigerTestCase):
         cursor = self.backward_iter_with_dup(cursor)
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -84,5 +84,4 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
 
         session.rollback_transaction()
 
-if __name__ == '__main__':
-    wttest.run()
+

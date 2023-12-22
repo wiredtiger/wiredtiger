@@ -225,5 +225,4 @@ class test_hs09(wttest.WiredTigerTestCase):
         # resulting Python type error means something's wrong.
         self.check_ckpt_hs(0, value1, 2, 3)
 
-if __name__ == '__main__':
-    wttest.run()
+

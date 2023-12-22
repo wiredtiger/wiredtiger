@@ -200,5 +200,4 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
             self.make_backups()
             self.run_recovery(uri, suburi)
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -89,5 +89,4 @@ class test_backup22(backup_base):
         self.take_incr_backup(self.incr_dir, 2)
         self.compare_backups(self.uri, self.dir, self.incr_dir)
 
-if __name__ == '__main__':
-    wttest.run()
+

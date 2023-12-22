@@ -191,5 +191,4 @@ class test_shared_cache02(wttest.WiredTigerTestCase):
 
         self.closeConnections()
 
-if __name__ == '__main__':
-    wttest.run()
+

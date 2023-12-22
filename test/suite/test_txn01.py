@@ -165,5 +165,4 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         s.commit_transaction()
         s.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

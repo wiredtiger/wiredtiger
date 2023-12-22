@@ -199,5 +199,4 @@ class test_truncate16(wttest.WiredTigerTestCase):
         self.assertEqual(read_deleted_still, read_deleted)
         stat_cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -202,5 +202,4 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #self.assertGreater(inconsistent_ckpt, 0)
 
 
-if __name__ == '__main__':
-    wttest.run()
+

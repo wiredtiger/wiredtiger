@@ -287,5 +287,4 @@ class test_join02(wttest.WiredTigerTestCase):
         c3b.close()
         c4a.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

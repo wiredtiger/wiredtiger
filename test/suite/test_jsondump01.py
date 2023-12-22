@@ -171,5 +171,4 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
         compare_files(self, 'jsondump.out', 'jsondump2.out')
         ds.check()
 
-if __name__ == '__main__':
-    wttest.run()
+

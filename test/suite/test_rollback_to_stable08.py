@@ -133,5 +133,4 @@ class test_rollback_to_stable08(test_rollback_to_stable_base):
         else:
             self.assertEqual(pages_visited, 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

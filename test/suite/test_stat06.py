@@ -61,5 +61,4 @@ class test_stat06(wttest.WiredTigerTestCase):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
                 self.session.open_cursor('statistics:', None, None), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

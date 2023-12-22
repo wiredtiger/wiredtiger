@@ -72,5 +72,4 @@ class test_dictionary(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor('statistics:' + uri, None, None)
         self.assertGreater(cursor[stat.dsrc.rec_dictionary][2], nentries - 100)
 
-if __name__ == '__main__':
-    wttest.run()
+

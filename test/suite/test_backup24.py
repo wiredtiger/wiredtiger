@@ -150,5 +150,4 @@ class test_backup24(backup_base):
         self.check_data(self.nolog_t1, 'key', 'value')
         backup_conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

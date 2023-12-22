@@ -91,5 +91,4 @@ class test_import10(backup_base):
         self.assertTrue(self.uri + ".wt" not in all_files)
         bkup_c.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

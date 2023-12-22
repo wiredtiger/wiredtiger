@@ -273,5 +273,4 @@ class test_import01(test_import_base):
         c.close()
         self.config_compare(original_db_file_config, current_db_file_config)
 
-if __name__ == '__main__':
-    wttest.run()
+

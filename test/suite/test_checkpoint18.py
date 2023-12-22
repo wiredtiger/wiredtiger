@@ -160,5 +160,4 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # inconsistent. Could do that by copying the database before the second checkpoint
         # and opening the copy here, I guess. FUTURE?
 
-if __name__ == '__main__':
-    wttest.run()
+

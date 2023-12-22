@@ -261,5 +261,4 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.prepare_updates(ds, nrows, nsessions, nkeys)
 
 
-if __name__ == '__main__':
-    wttest.run()
+

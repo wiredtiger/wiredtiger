@@ -88,5 +88,4 @@ class test_encrypt08(wttest.WiredTigerTestCase):
                    self.reopen_conn(config = sysconfig),
              self.msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

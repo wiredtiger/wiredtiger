@@ -98,5 +98,4 @@ class test_rename(wttest.WiredTigerTestCase):
             lambda: self.session.rename(uri1, uri2, None),
             '/type must match URI/')
 
-if __name__ == '__main__':
-    wttest.run()
+

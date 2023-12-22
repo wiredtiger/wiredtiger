@@ -62,5 +62,4 @@ class test_reconfig03(wttest.WiredTigerTestCase):
         self.conn.reconfigure("checkpoint=(log_size=1M)")
         self.conn.reconfigure("checkpoint=(log_size=0)")
 
-if __name__ == '__main__':
-    wttest.run()
+

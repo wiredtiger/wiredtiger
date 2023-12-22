@@ -127,5 +127,4 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
         cursor2 = session2.open_cursor(uri2)
         newds.check_cursor(cursor2)
 
-if __name__ == '__main__':
-    wttest.run()
+

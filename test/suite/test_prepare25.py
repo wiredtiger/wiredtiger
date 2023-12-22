@@ -133,5 +133,4 @@ class test_prepare25(wttest.WiredTigerTestCase):
 
             ts += 50
 
-if __name__ == '__main__':
-    wttest.run()
+

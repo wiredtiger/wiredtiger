@@ -50,5 +50,4 @@ class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaises(wiredtiger.WiredTigerError, lambda:
             self.session.open_cursor('table:' + self.tablename, None, None))
 
-if __name__ == '__main__':
-    wttest.run()
+

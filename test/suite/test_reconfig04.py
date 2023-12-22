@@ -45,5 +45,4 @@ class test_reconfig04(wttest.WiredTigerTestCase):
         self.session.reconfigure('ignore_cache_size=true')
         self.session.reconfigure('isolation=snapshot')
 
-if __name__ == '__main__':
-    wttest.run()
+

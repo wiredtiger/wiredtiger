@@ -390,5 +390,4 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
             self.conn.query_timestamp('get=pinned'),
             self.conn.query_timestamp('get=oldest_timestamp'))
 
-if __name__ == '__main__':
-    wttest.run()
+

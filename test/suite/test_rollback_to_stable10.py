@@ -362,5 +362,4 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         self.check_hs_stats()
 
-if __name__ == '__main__':
-    wttest.run()
+

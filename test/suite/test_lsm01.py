@@ -83,5 +83,4 @@ class test_lsm01(wttest.WiredTigerTestCase):
         # is still happening. See issue #349.
         # self.session.drop(self.uri)
 
-if __name__ == '__main__':
-    wttest.run()
+

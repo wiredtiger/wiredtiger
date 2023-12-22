@@ -105,5 +105,4 @@ class test_metadata03(wttest.WiredTigerTestCase):
         self.session.drop(uri)
         self.verify_logrecs(origcnt)
 
-if __name__ == '__main__':
-    wttest.run()
+

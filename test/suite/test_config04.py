@@ -311,5 +311,4 @@ class test_config04(wttest.WiredTigerTestCase):
         # Note: this will have functional tests in the future.
         self.common_test('')
 
-if __name__ == '__main__':
-    wttest.run()
+

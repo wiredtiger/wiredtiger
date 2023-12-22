@@ -167,6 +167,5 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
             ckpt.join()
 
 
-if __name__ == '__main__':
-    wttest.run()
+
 

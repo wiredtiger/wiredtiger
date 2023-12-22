@@ -76,5 +76,4 @@ class test_debug_info(wttest.WiredTigerTestCase):
         with self.expectedStdoutPattern('ID1'):
             self.conn.debug_info('backup')
 
-if __name__ == '__main__':
-    wttest.run()
+

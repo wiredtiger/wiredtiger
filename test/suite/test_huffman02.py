@@ -56,5 +56,4 @@ class test_huffman02(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.session.create(self.uri, self.huffval)
 
-if __name__ == '__main__':
-    wttest.run()
+

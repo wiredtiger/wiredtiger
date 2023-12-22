@@ -54,5 +54,4 @@ class test_schema07(TieredConfigMixin, wttest.WiredTigerTestCase):
             c.close()
             self.dropUntilSuccess(self.session, uri)
 
-if __name__ == '__main__':
-    wttest.run()
+

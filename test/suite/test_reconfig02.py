@@ -119,5 +119,4 @@ class test_reconfig02(wttest.WiredTigerTestCase):
         for o in orig_logs:
             self.assertEqual(False, o in cur_logs)
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -116,5 +116,4 @@ class test_truncate09(wttest.WiredTigerTestCase):
         cursor.set_key(simple_key(cursor, 75000))
         self.assertEqual(cursor.search(), 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

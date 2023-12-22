@@ -132,5 +132,4 @@ class test_stat09(wttest.WiredTigerTestCase):
         s5.commit_transaction()
         self.check_stat_oldest_read(allstat_cursor, 0, commit_range)
 
-if __name__ == '__main__':
-    wttest.run()
+

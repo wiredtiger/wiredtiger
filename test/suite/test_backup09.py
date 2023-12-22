@@ -139,5 +139,4 @@ class test_backup09(wttest.WiredTigerTestCase):
         self.copy_and_restore(
             backup_cursor, last_doc_in_backup, last_doc_in_data)
 
-if __name__ == '__main__':
-    wttest.run()
+

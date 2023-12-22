@@ -126,5 +126,4 @@ class test_config03(test_base03.test_base03):
         self.pr(repr(conn))
         return conn
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -194,5 +194,4 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
         with self.expectedStdoutPattern('recreating metadata'):
             self.ops()
 
-if __name__ == '__main__':
-    wttest.run()
+

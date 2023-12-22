@@ -118,5 +118,4 @@ class test_backup05(wttest.WiredTigerTestCase, suite_subprocess):
         with self.expectedStdoutPattern('recreating metadata'):
             self.backup()
 
-if __name__ == '__main__':
-    wttest.run()
+

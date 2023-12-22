@@ -100,5 +100,4 @@ class test_cursor23(wttest.WiredTigerTestCase):
         self.session.close()
 
 
-if __name__ == '__main__':
-    wttest.run()
+

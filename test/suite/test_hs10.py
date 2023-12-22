@@ -103,5 +103,4 @@ class test_hs10(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[1], value1 + 'ABC')
         self.session.commit_transaction()
 
-if __name__ == '__main__':
-    wttest.run()
+

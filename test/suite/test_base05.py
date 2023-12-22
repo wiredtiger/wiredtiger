@@ -234,5 +234,4 @@ class test_base05(wttest.WiredTigerTestCase):
         """
         self.do_test_table_base(True)
 
-if __name__ == '__main__':
-    wttest.run()
+

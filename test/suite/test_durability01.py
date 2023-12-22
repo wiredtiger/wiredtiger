@@ -73,5 +73,4 @@ class test_durability01(wttest.WiredTigerTestCase, suite_subprocess):
                 self.verifyUntilSuccess(self.session, self.uri)
             self.check_crash_restart(".", "RESTART")
 
-if __name__ == '__main__':
-    wttest.run()
+

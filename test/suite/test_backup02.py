@@ -91,5 +91,4 @@ class test_backup02(wttest.WiredTigerTestCase):
                 t.join()
             bkp.join()
 
-if __name__ == '__main__':
-    wttest.run()
+

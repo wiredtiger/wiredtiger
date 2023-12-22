@@ -220,5 +220,4 @@ class test_cursor05(wttest.WiredTigerTestCase):
         self.check_entries(1, nentries, False)
         self.check_entries(2, nentries, False)
 
-if __name__ == '__main__':
-    wttest.run()
+

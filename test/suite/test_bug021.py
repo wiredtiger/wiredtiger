@@ -208,5 +208,4 @@ class test_bug021(wttest.WiredTigerTestCase):
             current[18 - i] = i
         self.check(current)
 
-if __name__ == '__main__':
-    wttest.run()
+

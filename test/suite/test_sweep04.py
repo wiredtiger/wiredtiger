@@ -248,5 +248,4 @@ class test_sweep04(wttest.WiredTigerTestCase):
         self.assertLess(abs(end_run_slope), 5.0)
         self.assertLess(end_run_avg, self.core_tables + self.transient_tables + 20)
 
-if __name__ == '__main__':
-    wttest.run()
+

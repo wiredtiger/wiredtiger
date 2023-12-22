@@ -268,5 +268,4 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         if self.scenario_number % test_txn02.checklog_mod == 0:
             self.check_log(committed)
 
-if __name__ == '__main__':
-    wttest.run()
+

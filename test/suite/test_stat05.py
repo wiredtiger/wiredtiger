@@ -100,5 +100,4 @@ class test_stat_cursor_config(wttest.WiredTigerTestCase):
         cursor.close()
         self.openAndWalkStatCursor()
 
-if __name__ == '__main__':
-    wttest.run()
+

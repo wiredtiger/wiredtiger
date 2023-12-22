@@ -437,5 +437,4 @@ class test_cursor12(wttest.WiredTigerTestCase):
         self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -52,5 +52,4 @@ class test_baseconfig(wttest.WiredTigerTestCase):
         conn = self.wiredtiger_open("A", "create,config_base=false")
         conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

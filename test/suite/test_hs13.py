@@ -100,5 +100,4 @@ class test_hs13(wttest.WiredTigerTestCase):
         cursor2.search()
         self.assertEquals(cursor2.get_value(), 'A' + value1)
 
-if __name__ == '__main__':
-    wttest.run()
+

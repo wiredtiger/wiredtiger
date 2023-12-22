@@ -107,5 +107,4 @@ class test_backup26(backup_base):
             c.close()
         backup_conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -166,5 +166,4 @@ class test_backup16(backup_base):
         files_to_backup = [self.file4]
         self.verify_incr_backup(files_to_backup)
 
-if __name__ == '__main__':
-    wttest.run()
+

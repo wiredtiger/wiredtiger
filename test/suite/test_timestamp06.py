@@ -214,5 +214,4 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session, "", self.table_ts_log, dict((k, 3) for k in orig_keys))
         self.check(self.session, "", self.table_ts_nolog, dict((k, 2) for k in orig_keys))
 
-if __name__ == '__main__':
-    wttest.run()
+

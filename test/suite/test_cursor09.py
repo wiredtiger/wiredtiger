@@ -63,5 +63,4 @@ class test_cursor09(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, cursor.search, msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

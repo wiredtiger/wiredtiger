@@ -121,5 +121,4 @@ class test_stat08(wttest.WiredTigerTestCase):
             [desc, pvalue, value] = stat_cur.get_values()
             self.assertTrue(value == 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

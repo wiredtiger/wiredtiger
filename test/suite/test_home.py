@@ -72,5 +72,4 @@ class test_base_config(wttest.WiredTigerTestCase):
         self.assertFalse(os.path.exists("A/WiredTiger.basecfg"))
         conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

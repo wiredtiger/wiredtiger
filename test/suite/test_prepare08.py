@@ -320,5 +320,4 @@ class test_prepare08(wttest.WiredTigerTestCase):
         session_p.close()
         self.session.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

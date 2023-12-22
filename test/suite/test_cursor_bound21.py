@@ -214,5 +214,4 @@ class test_cursor_bound21(bound_base):
         else:
             assert(str(cursor2.get_key().decode()) == self.gen_key(4))
 
-if __name__ == '__main__':
-    wttest.run()
+

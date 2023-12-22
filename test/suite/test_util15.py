@@ -67,5 +67,4 @@ class test_util15(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
         self.assertTrue(acc_pat_rand in string)
 
-if __name__ == '__main__':
-    wttest.run()
+

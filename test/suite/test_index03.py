@@ -67,5 +67,4 @@ class test_index03(wttest.WiredTigerTestCase):
         c1.close()
         self.dropUntilSuccess(session, index2_uri)
 
-if __name__ == '__main__':
-    wttest.run()
+

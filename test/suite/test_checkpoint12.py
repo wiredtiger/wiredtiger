@@ -123,5 +123,4 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.operate(ckpt_cursor), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -116,5 +116,4 @@ class test_timestamp12(wttest.WiredTigerTestCase):
 
         self.verify_expected(logged_exp, ckpt_exp)
 
-if __name__ == '__main__':
-    wttest.run()
+

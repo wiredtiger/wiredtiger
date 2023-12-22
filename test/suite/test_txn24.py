@@ -143,5 +143,4 @@ class test_txn24(wttest.WiredTigerTestCase):
         cursor4.close()
         session4.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

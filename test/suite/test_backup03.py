@@ -122,5 +122,4 @@ class test_backup_target(backup_base):
         self.populate(self.objs, True)
         self.backup_table_cursor(self.list)
 
-if __name__ == '__main__':
-    wttest.run()
+

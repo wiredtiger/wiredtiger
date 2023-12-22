@@ -355,5 +355,4 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "table:test_verify.a2: WT_ERROR"), 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

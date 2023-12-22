@@ -48,5 +48,4 @@ class test_tiered22(TieredConfigMixin, wttest.WiredTigerTestCase):
                                      lambda: self.session.compact(uri_local_file, None),
                                      '/Operation not supported/')
 
-if __name__ == '__main__':
-    wttest.run()
+

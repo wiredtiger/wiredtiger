@@ -303,5 +303,4 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEqual(skip2, skip1 + 1)
         self.assertEqual(switch2, switch1 + 1)
 
-if __name__ == '__main__':
-    wttest.run()
+

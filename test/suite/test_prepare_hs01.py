@@ -154,5 +154,4 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
 
         self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')
 
-if __name__ == '__main__':
-    wttest.run()
+

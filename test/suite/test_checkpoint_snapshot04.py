@@ -140,5 +140,4 @@ class test_checkpoint_snapshot04(backup_base):
         # to confirm that RTS doesn't change the backup contents.
         self.compare_backups(self.uri, self.dir, './')
 
-if __name__ == '__main__':
-    wttest.run()
+

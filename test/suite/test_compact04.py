@@ -114,5 +114,4 @@ class test_compact04(wttest.WiredTigerTestCase):
                 num_failures += 1
                 self.assertLessEqual(num_failures, 2)
 
-if __name__ == '__main__':
-    wttest.run()
+

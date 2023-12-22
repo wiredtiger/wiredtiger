@@ -98,5 +98,4 @@ class test_backup27(backup_base):
         self.validate_timestamp_data(bkup_session, self.newuri, "key", None, wiredtiger.WT_NOTFOUND, 10)
         backup_conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -103,5 +103,4 @@ class test_config09(wttest.WiredTigerTestCase):
 
         self.conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

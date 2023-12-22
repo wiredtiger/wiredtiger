@@ -141,5 +141,4 @@ class test_sweep05(wttest.WiredTigerTestCase):
         self.ignoreStdoutPatternIfExists('did not run a sweep')
         self.assert_stats(2, 1)
 
-if __name__ == '__main__':
-    wttest.run()
+

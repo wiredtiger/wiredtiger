@@ -128,5 +128,4 @@ class test_cursor_bound16(bound_base):
 
         dumpcurs.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

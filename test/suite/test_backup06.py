@@ -161,5 +161,4 @@ class test_backup06(backup_base):
         self.assertEqual(i, total)
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

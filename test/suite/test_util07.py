@@ -92,5 +92,4 @@ class test_util07(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_empty_file(outfile)
         self.check_file_contains(errfile, 'key49: not found\n')
 
-if __name__ == '__main__':
-    wttest.run()
+

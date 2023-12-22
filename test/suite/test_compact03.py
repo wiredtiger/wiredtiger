@@ -192,5 +192,4 @@ class test_compact03(wttest.WiredTigerTestCase):
         if not self.runningHook('tiered'):
             self.assertEqual(sizeAfterCompact, sizeAfterNewInserts)
 
-if __name__ == '__main__':
-    wttest.run()
+

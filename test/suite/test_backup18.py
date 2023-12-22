@@ -115,5 +115,4 @@ class test_backup18(backup_base):
             lambda:self.assertEquals(self.session.open_cursor('backup:query_id',
             None, None), 0), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

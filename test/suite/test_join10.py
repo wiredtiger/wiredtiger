@@ -184,5 +184,4 @@ class test_join10(wttest.WiredTigerTestCase):
         country_cursor2.close()
         year_cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

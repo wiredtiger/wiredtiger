@@ -158,5 +158,4 @@ class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.assertEqual(write1, write2)
 
-if __name__ == '__main__':
-    wttest.run()
+

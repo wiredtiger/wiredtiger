@@ -155,5 +155,4 @@ class test_import03(test_import_base):
         # Perform a checkpoint.
         self.session.checkpoint()
 
-if __name__ == '__main__':
-    wttest.run()
+

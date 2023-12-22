@@ -96,5 +96,4 @@ class test_cursor_bound05(bound_base):
 
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

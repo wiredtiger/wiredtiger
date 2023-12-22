@@ -51,5 +51,4 @@ class test_stat11(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -124,5 +124,4 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
             else:
                 self.fail('Unknown session method: ' + op)
 
-if __name__ == '__main__':
-    wttest.run()
+

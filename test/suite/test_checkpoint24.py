@@ -147,5 +147,4 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         zeros = nrows - nonzeros
         self.check(ds, self.first_checkpoint, nonzeros, zeros, value_a)
 
-if __name__ == '__main__':
-    wttest.run()
+

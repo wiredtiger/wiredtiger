@@ -131,5 +131,4 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         self.apply_timestamps(8)
         self.session.commit_transaction()
 
-if __name__ == '__main__':
-    wttest.run()
+

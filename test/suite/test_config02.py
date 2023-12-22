@@ -169,5 +169,4 @@ class test_config02(wttest.WiredTigerTestCase):
             lambda: self.wiredtiger_open(dir, 'create'),
             '/Permission denied/')
 
-if __name__ == '__main__':
-    wttest.run()
+

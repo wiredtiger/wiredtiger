@@ -241,5 +241,4 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, lambda: cX.equals(c1), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

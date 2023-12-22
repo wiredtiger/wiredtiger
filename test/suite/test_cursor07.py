@@ -106,5 +106,4 @@ class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
         self.assertEqual(count, self.nkeys)
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -83,5 +83,4 @@ class test_txn27(wttest.WiredTigerTestCase):
         # Expect the rollback reason to give us the true reason for the rollback.
         self.assertEquals(session1.get_rollback_reason(), msg2)
 
-if __name__ == '__main__':
-    wttest.run()
+

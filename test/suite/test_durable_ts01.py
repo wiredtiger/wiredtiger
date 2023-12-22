@@ -160,5 +160,4 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.get_value(), ds.value(111))
             self.assertEquals(cursor.next(), 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

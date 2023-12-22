@@ -119,5 +119,4 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
 
         self.assertEqual(keys_removed, 0)
 
-if __name__ == '__main__':
-    wttest.run()
+

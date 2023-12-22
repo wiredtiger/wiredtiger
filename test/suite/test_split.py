@@ -85,5 +85,4 @@ class test_split(wttest.WiredTigerTestCase):
         self.assertEqual(2, stat_cursor[stat.dsrc.btree_row_leaf][2])
         stat_cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

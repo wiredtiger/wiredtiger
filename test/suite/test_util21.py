@@ -77,5 +77,4 @@ class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.assertEqual(True, compare_files(self, "before_oldest", "after_oldest"))
 
-if __name__ == '__main__':
-    wttest.run()
+

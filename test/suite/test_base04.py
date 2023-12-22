@@ -101,5 +101,4 @@ class test_base04(wttest.WiredTigerTestCase):
             self.check_exists('key1', wiredtiger.WT_NOTFOUND)
             self.drop_table()
 
-if __name__ == '__main__':
-    wttest.run()
+

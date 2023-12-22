@@ -229,5 +229,4 @@ class test_index01(wttest.WiredTigerTestCase):
             'columns=(dept),exclusive'))
         self.drop_table()
 
-if __name__ == '__main__':
-    wttest.run()
+

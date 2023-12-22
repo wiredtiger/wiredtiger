@@ -187,5 +187,4 @@ class test_backup14(backup_base):
         self.cursor_config = 'bulk'
         self.insert_bulk_data()
 
-if __name__ == '__main__':
-    wttest.run()
+

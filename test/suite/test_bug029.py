@@ -108,5 +108,4 @@ class test_bug029(wttest.WiredTigerTestCase):
         for i in range(0, 4000, 10):
             self.assertEqual(cur1[i], self.bigvalue)
 
-if __name__ == '__main__':
-    wttest.run()
+

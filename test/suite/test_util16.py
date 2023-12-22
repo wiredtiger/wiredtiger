@@ -67,5 +67,4 @@ class test_util16(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
         self.assertEquals(self.nentries, count)
 
-if __name__ == '__main__':
-    wttest.run()
+

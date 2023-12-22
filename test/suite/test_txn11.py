@@ -73,5 +73,4 @@ class test_txn11(wttest.WiredTigerTestCase, suite_subprocess):
         # Close and reopen the connection
         self.reopen_conn()
 
-if __name__ == '__main__':
-    wttest.run()
+

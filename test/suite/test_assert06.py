@@ -223,5 +223,4 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.ignoreStdoutPatternIfExists('/unexpected timestamp usage/')
 
-if __name__ == '__main__':
-    wttest.run()
+

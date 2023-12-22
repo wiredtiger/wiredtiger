@@ -126,5 +126,4 @@ class test_truncate20(wttest.WiredTigerTestCase):
         # Ensure the datasize is smaller than 600M
         self.assertGreater(600000000, os.path.getsize("oplog.wt"))
 
-if __name__ == '__main__':
-    wttest.run()
+

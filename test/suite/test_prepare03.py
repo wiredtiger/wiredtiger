@@ -197,5 +197,4 @@ class test_prepare03(wttest.WiredTigerTestCase):
         cursor.search_near()
         cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

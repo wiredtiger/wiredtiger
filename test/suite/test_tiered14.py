@@ -152,5 +152,4 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
             s = ''.join(random.choices('aufcr.', k=self.num_ops))
             self.playback(testnum, s)
 
-if __name__ == '__main__':
-    wttest.run()
+

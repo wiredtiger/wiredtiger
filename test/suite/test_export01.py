@@ -163,5 +163,4 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         export_cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

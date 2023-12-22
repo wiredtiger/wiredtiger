@@ -85,5 +85,4 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         assert num_lines == self.expected_num_lines, num_lines
 
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -120,5 +120,4 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
         c2.close()
         self.session.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

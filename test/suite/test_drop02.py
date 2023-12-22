@@ -44,5 +44,4 @@ class test_drop02(wttest.WiredTigerTestCase):
 
         self.session.drop(uri, None)
 
-if __name__ == '__main__':
-    wttest.run()
+

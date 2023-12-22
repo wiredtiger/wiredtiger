@@ -256,5 +256,4 @@ class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
         self.assertGreater(c[stat.dsrc.btree_entries][2], 0)
         c.close()
 
-if __name__ == '__main__':
-    wttest.run()
+

@@ -109,5 +109,4 @@ class test_huffman_range(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.table_name, config), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

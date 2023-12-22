@@ -142,5 +142,4 @@ class test_prepare09(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
-if __name__ == '__main__':
-    wttest.run()
+

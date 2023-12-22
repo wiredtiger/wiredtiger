@@ -132,5 +132,4 @@ class test_backup08(wttest.WiredTigerTestCase):
         # with the backup. It should be part of the backup metadata file.
         self.backup_and_recover(ckpt_ts)
 
-if __name__ == '__main__':
-    wttest.run()
+

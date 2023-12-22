@@ -384,5 +384,4 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_check(self.value3, valcnt_ts_log, valcnt_ts_nolog,
             valcnt_nots_log, valcnt_nots_nolog)
 
-if __name__ == '__main__':
-    wttest.run()
+

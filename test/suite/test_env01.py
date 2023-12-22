@@ -165,5 +165,4 @@ class test_priv01(wttest.WiredTigerTestCase):
         self.checknofiles(edir)
         self.checkfiles('.')
 
-if __name__ == '__main__':
-    wttest.run()
+

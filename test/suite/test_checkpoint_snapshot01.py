@@ -94,5 +94,4 @@ class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen("RESTART")
         self.session = self.setUpSessionOpen(self.conn)
 
-if __name__ == '__main__':
-    wttest.run()
+

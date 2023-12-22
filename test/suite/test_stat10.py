@@ -226,5 +226,4 @@ class test_stat10(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(overflow, 1)
 
-if __name__ == '__main__':
-    wttest.run()
+

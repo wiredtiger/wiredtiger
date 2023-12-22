@@ -48,5 +48,4 @@ class test_prepare18(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.prepare_transaction('prepare_timestamp=1'), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+

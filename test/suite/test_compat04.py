@@ -121,8 +121,6 @@ class test_compat04(wttest.WiredTigerTestCase, suite_subprocess):
         conn = self.wiredtiger_open('.', config_str)
         conn.close()
 
-if __name__ == '__main__':
-    wttest.run()
 
-if __name__ == '__main__':
-    wttest.run()
+
+

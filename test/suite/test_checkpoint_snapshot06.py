@@ -250,5 +250,4 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
         self.assertEqual(cursor12.search(), 0)
         self.assertEqual(cursor12.get_value(), self.valueb)
 
-if __name__ == '__main__':
-    wttest.run()
+

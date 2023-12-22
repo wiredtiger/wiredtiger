@@ -233,5 +233,4 @@ class test_shared_cache01(wttest.WiredTigerTestCase):
             self.add_records(sess, 0, nops)
         self.closeConnections()
 
-if __name__ == '__main__':
-    wttest.run()
+

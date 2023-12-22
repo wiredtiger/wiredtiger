@@ -81,5 +81,4 @@ class test_bug012(wttest.WiredTigerTestCase):
             self.session.create('index:A:xyzzy',
             'key_format=S,columns=(column2),extractor="xyzzy"'), msg)
 
-if __name__ == '__main__':
-    wttest.run()
+
