@@ -5627,7 +5627,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	1098
 /*! cache: eviction gave up due to no progress being made */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_5	1099
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_PROGRESS	1099
 /*! cache: eviction passes of a file */
 #define	WT_STAT_CONN_CACHE_EVICTION_WALK_PASSES		1100
 /*! cache: eviction server candidate queue empty when topping up */
@@ -5860,7 +5860,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: modified pages evicted by application threads */
 #define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY		1183
 /*! cache: multiple block reconciliation whilst checkpoint is running */
-#define	WT_STAT_CONN_CACHE_MULTI_BLOCK_RECONCILIATION	1184
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILATION_DURING_CHECKPOINT	1184
 /*! cache: operations timed out waiting for space in cache */
 #define	WT_STAT_CONN_CACHE_TIMED_OUT_OPS		1185
 /*!
@@ -7188,7 +7188,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	2059
 /*! cache: eviction gave up due to no progress being made */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_5	2060
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_PROGRESS	2060
 /*! cache: eviction walk passes of a file */
 #define	WT_STAT_DSRC_CACHE_EVICTION_WALK_PASSES		2061
 /*! cache: eviction walk target pages histogram - 0-9 */
@@ -7309,7 +7309,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: modified pages evicted */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY		2100
 /*! cache: multiple block reconciliation whilst checkpoint is running */
-#define	WT_STAT_DSRC_CACHE_MULTI_BLOCK_RECONCILIATION	2101
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILATION_DURING_CHECKPOINT	2101
 /*!
  * cache: overflow keys on a multiblock row-store page blocked its
  * eviction

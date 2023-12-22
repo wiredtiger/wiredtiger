@@ -939,7 +939,6 @@ conn_dsrc_stats = [
     ##########################################
     # Cache and eviction statistics
     ##########################################
-
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_total', 'bytes dirty in the cache cumulative', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
@@ -949,11 +948,11 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_blocked_internal_page_split', 'internal page split blocked its eviction'),
+    CacheStat('cache_eviction_blocked_no_progress', 'eviction gave up due to no progress being made'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_1', 'eviction gave up due to detecting a disk value without a timestamp behind the last update on the chain'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_2', 'eviction gave up due to detecting a tombstone without a timestamp ahead of the selected on disk update'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_3', 'eviction gave up due to detecting a tombstone without a timestamp ahead of the selected on disk update after validating the update chain'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_4', 'eviction gave up due to detecting update chain entries without timestamps after the selected on disk update'),
-    CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_5', 'eviction gave up due to no progress being made'),
     CacheStat('cache_eviction_blocked_overflow_keys', 'overflow keys on a multiblock row-store page blocked its eviction'),
     CacheStat('cache_eviction_blocked_recently_modified', 'recent modification of a page blocked its eviction'),
     CacheStat('cache_eviction_blocked_remove_hs_race_with_checkpoint', 'eviction gave up due to needing to remove a record from the history store but checkpoint is running'),
@@ -1000,7 +999,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
-    CacheStat('cache_multi_block_reconciliation', 'multiple block reconciliation whilst checkpoint is running'),
+    CacheStat('cache_eviction_blocked_multi_block_reconcilation_during_checkpoint', 'multiple block reconciliation whilst checkpoint is running'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
