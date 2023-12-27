@@ -1461,7 +1461,6 @@ __rollback_to_stable_btree_apply(
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, value, key;
     WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
     size_t addr_size;
     uint64_t rollback_txnid, write_gen;
@@ -1474,7 +1473,6 @@ __rollback_to_stable_btree_apply(
     if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);
 
-    txn_global = &S2C(session)->txn_global;
     addr_size = 0;
     rollback_txnid = 0;
     write_gen = 0;
