@@ -60,7 +60,7 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         ('evict', dict(evict=True))
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, evict)
+    scenarios = make_scenarios(key_format_values, in_memory_values, prepare_values, evict)
 
     def conn_config(self):
         config = 'cache_size=500MB,statistics=(all)'
