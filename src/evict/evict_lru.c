@@ -23,6 +23,11 @@ static int __evict_walk_tree(WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, u_int *
 #define WT_EVICT_HAS_WORKERS(s) (S2C(s)->evict_threads.current_threads > 1)
 
 /*
+ * The minimum number of pages we should consider per tree.
+ */
+#define MIN_PAGES_PER_TREE 10
+
+/*
  * __evict_lock_handle_list --
  *     Try to get the handle list lock, with yield and sleep back off. Keep timing statistics
  *     overall.
@@ -1682,11 +1687,6 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     cache = S2C(session)->cache;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
-/*
- * The minimum number of pages we should consider per tree.
- */
-#define MIN_PAGES_PER_TREE 10
-
     /*
      * The target number of pages for this tree is proportional to the space it is taking up in
      * cache. Round to the nearest number of slots so we assign all of the slots to a tree filling
@@ -1838,11 +1838,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     min_pages = 10 * (uint64_t)target_pages;
     if (!F_ISSET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES))
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_clean);
-    else if (!F_ISSET(cache, WT_CACHE_EVICT_CLEAN)) {
+    else if (!F_ISSET(cache, WT_CACHE_EVICT_UPDATES)) {
         min_pages *= 10;
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_dirty);
     } else
-        WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_both_clean_and_dirty);
+        WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_update);
 
     if (btree->evict_ref == NULL) {
         WT_STAT_CONN_INCR(session, cache_eviction_walk_from_root);
