@@ -387,7 +387,9 @@ report_failure()
 # Report all running CONFIGs
 report_running_configs()
 {
-	msg "Out of disk space detected, outputting non-failed CONFIGs"
+	echo "############################################"
+	echo "Out of disk space detected, outputting non-failed CONFIGs"
+	echo "############################################"
 	list=$(ls $home | grep '^RUNDIR.[0-9]*.log')
 	for i in $list; do
 		dir="$home/${i%.*}"
