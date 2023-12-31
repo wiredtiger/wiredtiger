@@ -1841,9 +1841,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     else if (!F_ISSET(cache, WT_CACHE_EVICT_UPDATES)) {
         min_pages *= 10;
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_dirty);
-    } 
-    
-    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && F_ISSET(cache, WT_CACHE_EVICT_UPDATES))) 
+    }
+
+    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && F_ISSET(cache, WT_CACHE_EVICT_UPDATES))
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_both_clean_and_dirty);
 
     if (btree->evict_ref == NULL) {

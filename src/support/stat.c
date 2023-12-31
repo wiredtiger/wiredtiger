@@ -1429,9 +1429,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction walk target pages histogram - 32-63",
   "cache: eviction walk target pages histogram - 64-128",
   "cache: eviction walk target pages reduced due to history store cache pressure",
+  "cache: eviction walk target strategy both clean and dirty pages",
   "cache: eviction walk target strategy only clean pages",
   "cache: eviction walk target strategy only dirty pages",
-  "cache: eviction walk target strategy only update pages",
   "cache: eviction walks abandoned",
   "cache: eviction walks gave up because they restarted their walk twice",
   "cache: eviction walks gave up because they saw too many pages and found no candidates",
@@ -2152,9 +2152,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_target_page_lt64 = 0;
     stats->cache_eviction_target_page_lt128 = 0;
     stats->cache_eviction_target_page_reduced = 0;
+    stats->cache_eviction_target_strategy_both_clean_and_dirty = 0;
     stats->cache_eviction_target_strategy_clean = 0;
     stats->cache_eviction_target_strategy_dirty = 0;
-    stats->cache_eviction_target_strategy_update = 0;
     stats->cache_eviction_walks_abandoned = 0;
     stats->cache_eviction_walks_stopped = 0;
     stats->cache_eviction_walks_gave_up_no_targets = 0;
@@ -2846,12 +2846,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_target_page_lt128 += WT_STAT_READ(from, cache_eviction_target_page_lt128);
     to->cache_eviction_target_page_reduced +=
       WT_STAT_READ(from, cache_eviction_target_page_reduced);
+    to->cache_eviction_target_strategy_both_clean_and_dirty +=
+      WT_STAT_READ(from, cache_eviction_target_strategy_both_clean_and_dirty);
     to->cache_eviction_target_strategy_clean +=
       WT_STAT_READ(from, cache_eviction_target_strategy_clean);
     to->cache_eviction_target_strategy_dirty +=
       WT_STAT_READ(from, cache_eviction_target_strategy_dirty);
-    to->cache_eviction_target_strategy_update +=
-      WT_STAT_READ(from, cache_eviction_target_strategy_update);
     to->cache_eviction_walks_abandoned += WT_STAT_READ(from, cache_eviction_walks_abandoned);
     to->cache_eviction_walks_stopped += WT_STAT_READ(from, cache_eviction_walks_stopped);
     to->cache_eviction_walks_gave_up_no_targets +=
