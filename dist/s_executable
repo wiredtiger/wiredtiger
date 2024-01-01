@@ -1,13 +1,8 @@
 #!/bin/bash
-# cd into the directory u want
 cd ../test/suite
-# $() gets the result result and tries to interpret it (runs in a subshell)
-# [] Evaluate conditional expression.
-# [[]] more advanced version of single square bracket
 if [[ $(find . -executable -type f | grep -v -w "./run.py") ]]; then
     echo "failed test"
 else
     echo "passed test"
 fi
-# only run.py in test/suite is executable
 exit 0
