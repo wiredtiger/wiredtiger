@@ -147,13 +147,7 @@ main(int argc, char *argv[])
       BUCKET_NAME, STORAGE_SOURCE, BUILD_DIR, STORAGE_SOURCE, STORAGE_SOURCE);
 
     /* Create the home directory, and the bucket directory underneath it. */
-<<<<<<< HEAD
     testutil_system("rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, BUCKET_NAME);
-=======
-    (void)snprintf(
-      buf, sizeof(buf), "rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, BUCKET_NAME);
-    error_check(system(buf));
->>>>>>> 8e64d0def (Rollback unrelated changes)
 
     /* Configure the connection to use tiered storage. */
     error_check(wiredtiger_open(home, NULL, config, &conn));
