@@ -9,7 +9,8 @@ tmp_file = '__tmp_log' + str(os.getpid())
 field_types = {}
 
 class FieldType:
-    def __init__(self, typename, ctype, packtype, printf_fmt_templ, printf_arg_templ, setup, always_hex, byptr):
+    def __init__(self, typename, ctype, packtype,
+                 printf_fmt_templ, printf_arg_templ, setup, always_hex, byptr):
         self.typename = typename                  # Internal type id
         self.ctype = ctype                        # C type
         self.packtype = packtype                  # pack type
@@ -89,19 +90,22 @@ class Field:
     def struct_size_body(self):
         return '__wt_vsize_uint(%s)' % self.fieldname
     def struct_size_body__WT_LSN(self):
-        return '__wt_vsize_uint(%(name)s->l.file) + __wt_vsize_uint(%(name)s->l.offset)' % {'name' : self.fieldname}
+        return '__wt_vsize_uint(%(name)s->l.file) + __wt_vsize_uint(%(name)s->l.offset)' \
+            % {'name' : self.fieldname}
     def struct_size_body__WT_ITEM(self):
         return \
             '__wt_vsize_uint(%(name)s->size) + %(name)s->size' % {'name' : self.fieldname} \
             if not self.is_last_field else \
-            '%(name)s->size' % {'name' : self.fieldname}
+            self.fieldname + '->size'
     def struct_size_body__string(self):
         return 'strlen(%s) + 1' % self.fieldname
 
     def struct_pack_body(self):
         return '    WT_RET(__pack_encode__uintAny(pp, end, %s));\n' % self.fieldname
     def struct_pack_body__WT_LSN(self):
-        return '    WT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.file));\n    WT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.offset));\n'  % {'name' : self.fieldname}
+        return  '''    WT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.file));
+    WT_RET(__pack_encode__uintAny(pp, end, %(name)s->l.offset));
+''' % {'name' : self.fieldname}
     def struct_pack_body__WT_ITEM(self):
         fn = '__pack_encode__WT_ITEM' if not self.is_last_field else '__pack_encode__WT_ITEM_last'
         return '    WT_RET('+fn+'(pp, end, '+self.fieldname+'));\n'
@@ -111,7 +115,9 @@ class Field:
     def struct_unpack_body(self):
         return '__pack_decode__uintAny(%s, %sp);\n' % (self.cintype, self.fieldname)
     def struct_unpack_body__WT_LSN(self):
-        return '__pack_decode__uintAny(uint32_t, &%(name)sp->l.file);__pack_decode__uintAny(uint32_t, &%(name)sp->l.offset);\n' % {'name':self.fieldname}
+        return '''__pack_decode__uintAny(uint32_t, &%(name)sp->l.file);
+    __pack_decode__uintAny(uint32_t, &%(name)sp->l.offset);
+''' % {'name':self.fieldname}
     def struct_unpack_body__WT_ITEM(self):
         fn = '__pack_decode__WT_ITEM' if not self.is_last_field else '__pack_decode__WT_ITEM_last'
         return fn+'('+self.fieldname+'p);\n'
@@ -208,7 +214,8 @@ def run():
 static inline int
 __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
 {
-    /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */
+    /* Check that there is at least one byte available:
+     * the low-level routines treat zero length as unchecked. */
     WT_SIZE_CHECK_PACK_PTR(*pp, end);
     return (__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item));
 }
@@ -249,7 +256,8 @@ __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
 
 #define __pack_decode__uintAny(TYPE, pval)  do { \
         uint64_t v; \
-        /* Check that there is at least one byte available: the low-level routines treat zero length as unchecked. */ \
+        /* Check that there is at least one byte available: \
+the low-level routines treat zero length as unchecked. */ \
         WT_SIZE_CHECK_UNPACK_PTR(*pp, end); \
         WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v)); \
         *(pval) = (TYPE)v; \
@@ -512,13 +520,25 @@ __wt_logop_%(name)s_unpack(
             'macro' : optype.macro_name,
             'comma' : ',' if optype.fields else '',
             'arg_decls_in' : ', '.join(f.cindecl for f in optype.fields),
-            'arg_decls_in_or_void' : ', '.join(f.cindecl for f in optype.fields) if optype.fields else 'void',
+            'arg_decls_in_or_void' : ', '.join(
+                f.cindecl
+                for f in optype.fields)
+                if optype.fields else 'void',
             'arg_decls_out' : ', '.join(f.coutdecl for f in optype.fields),
-            'size_body' : ' + '.join(f.struct_size_body() for f in optype.fields) if optype.fields else '0',
+            'size_body' : ' + '.join(
+                f.struct_size_body()
+                for f in optype.fields)
+                if optype.fields else '0',
             'pack_args' : ', '.join(f.pack_arg() for f in optype.fields),
-            'pack_body' : ''.join(f.struct_pack_body() for f in optype.fields) if optype.fields else '    WT_UNUSED(pp);\n    WT_UNUSED(end);',
+            'pack_body' : ''.join(
+                f.struct_pack_body()
+                for f in optype.fields)
+                if optype.fields else '    WT_UNUSED(pp);\n    WT_UNUSED(end);',
             'unpack_args' : ', '.join(f.unpack_arg() for f in optype.fields),
-            'unpack_body' : ''.join(f.struct_unpack_body() for f in optype.fields) if optype.fields else '    WT_UNUSED(pp);\n    WT_UNUSED(end);',
+            'unpack_body' : ''.join(
+                f.struct_unpack_body()
+                for f in optype.fields)
+                if optype.fields else '    WT_UNUSED(pp);\n    WT_UNUSED(end);',
             'fmt' : op_pack_fmt(optype),
         })
 

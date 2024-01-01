@@ -118,8 +118,8 @@
 static inline int
 __pack_encode__uintAny__direct(uint8_t **pp, uint8_t *end, uint64_t item)
 {
-    /* Check that there is at least one byte available: the low-level routines treat zero length as
-     * unchecked. */
+    /* Check that there is at least one byte available:
+     * the low-level routines treat zero length as unchecked. */
     WT_SIZE_CHECK_PACK_PTR(*pp, end);
     return (__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item));
 }
