@@ -544,7 +544,7 @@ functions:
         exit 0
 
   # The following cppsuite tasks define a greater overall task.
-  "cppsuite test all run": &cppsuite_test_all_run
+  "cppsuite test run all": &cppsuite_test_run_all
     command: shell.exec
     params:
       # The tests need to be executed in the cppsuite directory as some required libraries have
@@ -1745,13 +1745,13 @@ tasks:
           test_config_filename: configs/background_compact_default.txt
           test_name: background_compact
 
-  - name: cppsuite-all-default
+  - name: cppsuite-default-all
     tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "cppsuite test all run"
+      - func: "cppsuite test run all"
         vars:
           test_config: debug_mode=(cursor_copy=true)
 
@@ -5396,9 +5396,7 @@ buildvariants:
     - name: format-stress-pull-request-test
     - name: make-check-test
       distros: ubuntu2004-large
-    - name: cppsuite-operations-test-default
-    - name: cppsuite-hs-cleanup-default
-    - name: cppsuite-burst-inserts-default
+    - name: cppsuite-default-all
 
 - name: ubuntu2004-compilers
   display_name: "! Ubuntu 20.04 Compilers"
