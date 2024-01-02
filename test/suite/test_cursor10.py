@@ -123,4 +123,3 @@ class test_cursor10(wttest.WiredTigerTestCase):
             count += 1
         self.assertEqual(count, self.nentries)
         cursor.close()
-
