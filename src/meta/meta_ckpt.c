@@ -1352,7 +1352,7 @@ static int
 __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
 {
     size_t index;
-    unsigned char *original_ptr, *new_ptr;
+    unsigned char *new_ptr, *original_ptr;
     unsigned char partial_result;
 
     WT_NOT_READ(index, 0);
@@ -1375,7 +1375,19 @@ __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, b
     *ok = true;
 
     for (index = 0; index < original_bitmap->size; index++) {
-        /* Detect bits that were (incorrectly) changed from 1 in the original to 0 in the new */
+        /*
+         * Detect bits that were (incorrectly) changed from 1 in the original to 0 in the new.
+         *
+         * This check is performed by bitwise inverting (using bitwise NOT) the new value
+         * so that any bits that are, or have become 0, are turned into a 1. This intermediate
+         * value is then bitwise ANDed with the original value, so that any bit values that are 1 in
+         * the original result and 0 in the new value (and therefore 1 in the intermediate value)
+         * results in a bit that is set in the partial result. Any 0s in the original value result in 0
+         * in the partial result.
+         *
+         * Thus, any non-zero partial results indicate a bit that has incorrectly changed from
+         * 1 in the original to 0 in the new.
+         */
         partial_result = *original_ptr & ~(*new_ptr);
 
         if (partial_result != 0) {
