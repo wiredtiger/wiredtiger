@@ -438,10 +438,12 @@ WiredTigerPreplog
 WiredTigerTmplog
 WithSeeds
 Wmissing
+Wno
 WriteFile
 Wundef
 Wuninitialized
 Wunused
+Wused
 XP
 XXXXXX
 Xorshift
