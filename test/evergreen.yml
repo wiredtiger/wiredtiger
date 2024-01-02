@@ -1745,7 +1745,7 @@ tasks:
           test_config_filename: configs/background_compact_default.txt
           test_name: background_compact
 
-  - name: cppsuite-default-all
+  - name: cppsuite-all-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
