@@ -32,7 +32,7 @@
 /*
  * vector_bool_from_hex_string()
  *
- *
+ * Initialize a std::vector<bool> using a hex string.
  */
 std::vector<bool>
 vector_bool_from_hex_string(std::string const &hex_str)
@@ -52,6 +52,11 @@ vector_bool_from_hex_string(std::string const &hex_str)
     return result;
 }
 
+/*
+ * vector_bool_to_hex_string()
+ *
+ * Encode a std::vector<bool> in a hex string.
+ */
 std::string
 vector_bool_to_hex_string(std::vector<bool> const &vector_bool)
 {
@@ -67,16 +72,20 @@ vector_bool_to_hex_string(std::vector<bool> const &vector_bool)
         if (bit_count == 4) {
             char hex_digit = 0;
             std::to_chars(&hex_digit, &hex_digit + 1, hex_digit_value, 16);
-            result.push_back(hex_digit);
+            result.insert(0, 1, hex_digit);
             bit_count = 0;
             hex_digit_value = 0;
         }
     }
 
-    std::reverse(result.begin(), result.end());
     return result;
 }
 
+/*
+ * vector_bool_from_binary_string()
+ *
+ * Initialize a std::vector<bool> using a binary string.
+ */
 std::vector<bool>
 vector_bool_from_binary_string(std::string const &binary_str)
 {
@@ -101,6 +110,11 @@ vector_bool_from_binary_string(std::string const &binary_str)
     return result;
 }
 
+/*
+ * vector_bool_to_binary_string()
+ *
+ * Encode a std::vector<bool> in a binary string.
+ */
 std::string
 vector_bool_to_binary_string(std::vector<bool> const &vector_bool)
 {
@@ -114,6 +128,14 @@ vector_bool_to_binary_string(std::vector<bool> const &vector_bool)
     return result;
 }
 
+
+/*
+ * operator&(std::vector<bool> const &a, std::vector<bool> const &b)
+ *
+ * Perform a bitwise AND operation between two std::vector<bool> values.
+ *
+ * The result will have the number of bits of the input vector with the most bits.
+ */
 std::vector<bool>
 operator&(std::vector<bool> const &a, std::vector<bool> const &b)
 {
@@ -132,6 +154,13 @@ operator&(std::vector<bool> const &a, std::vector<bool> const &b)
     return result;
 }
 
+/*
+ * operator^(std::vector<bool> const &a, std::vector<bool> const &b)
+ *
+ * Perform a bitwise XOR operation between two std::vector<bool> values.
+ *
+ * The result will have the number of bits of the input vector with the most bits.
+ */
 std::vector<bool>
 operator^(std::vector<bool> const &a, std::vector<bool> const &b)
 {
@@ -153,6 +182,13 @@ operator^(std::vector<bool> const &a, std::vector<bool> const &b)
     return result;
 }
 
+
+/*
+ * trim_most_significant_false_values()
+ *
+ * This function will trip any most significant false values (ie leading 0 bits)
+ * from the std::vector<bool> parameter.
+ */
 void
 trim_most_significant_false_values(std::vector<bool> &vector_bool)
 {
@@ -160,6 +196,11 @@ trim_most_significant_false_values(std::vector<bool> &vector_bool)
         vector_bool.pop_back();
 }
 
+/*
+ * get_true_count()
+ *
+ * This function will return the count of the true values in the std::vector<bool>.
+ */
 unsigned
 get_true_count(std::vector<bool> const &vector_bool)
 {
