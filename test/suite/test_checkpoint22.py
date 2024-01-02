@@ -190,5 +190,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Now read the first table in the second checkpoint. We should see value_b.
         self.check(ds, self.second_checkpoint, nrows, value_b)
-
-

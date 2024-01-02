@@ -159,5 +159,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # Note that it would be nice to crosscheck that the first checkpoint was in fact
         # inconsistent. Could do that by copying the database before the second checkpoint
         # and opening the copy here, I guess. FUTURE?
-
-

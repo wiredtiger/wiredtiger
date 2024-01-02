@@ -83,5 +83,3 @@ class test_bug014(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.search(), 0)
 
         conn.close()
-
-

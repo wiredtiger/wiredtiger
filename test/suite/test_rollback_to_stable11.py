@@ -138,5 +138,3 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
         self.assertGreater(pages_visited, 0)
         self.assertEqual(hs_removed, 4)
         self.assertEqual(hs_sweep, 0)
-
-

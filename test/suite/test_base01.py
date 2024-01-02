@@ -111,5 +111,3 @@ class test_base01(wttest.WiredTigerTestCase):
         self.assertEqual(getcursor.get_value(), 'value1')
         self.pr('closing cursor')
         getcursor.close()
-
-

@@ -104,5 +104,3 @@ class test_backup25(backup_base):
         c.close()
 
         new_conn.close()
-
-

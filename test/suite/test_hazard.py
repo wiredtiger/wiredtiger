@@ -53,5 +53,3 @@ class test_hazard(wttest.WiredTigerTestCase):
         # Close the cursors, clearing the hazard pointer.
         for c in cursors:
             c.close()
-
-

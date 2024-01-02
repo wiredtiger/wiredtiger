@@ -118,5 +118,3 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
         stat_cursor.close()
 
         self.assertEqual(keys_removed, 0)
-
-

@@ -73,5 +73,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor.set_key('2')
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), '20')
-
-

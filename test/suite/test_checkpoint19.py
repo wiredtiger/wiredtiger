@@ -165,5 +165,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ckpt10.close()
         ckpt20.close()
         ckpt30.close()
-
-

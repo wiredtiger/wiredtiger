@@ -228,5 +228,3 @@ class test_index01(wttest.WiredTigerTestCase):
             lambda: self.session.create(self.index[0],
             'columns=(dept),exclusive'))
         self.drop_table()
-
-

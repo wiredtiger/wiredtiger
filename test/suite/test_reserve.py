@@ -201,5 +201,3 @@ class test_reserve(wttest.WiredTigerTestCase):
                 msg = "/Operation not supported/"
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda:self.assertEquals(c.reserve(), 0), msg)
-
-

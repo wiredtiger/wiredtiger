@@ -302,5 +302,3 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # values should increase by one.
         self.assertEqual(skip2, skip1 + 1)
         self.assertEqual(switch2, switch1 + 1)
-
-

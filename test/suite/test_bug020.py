@@ -40,5 +40,3 @@ class test_bug020(wttest.WiredTigerTestCase):
         expectMessage = 'WiredTiger.turtle not found'
         with self.expectedStdoutPattern(expectMessage):
             self.open_conn()
-
-

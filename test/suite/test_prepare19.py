@@ -84,6 +84,3 @@ class test_prepare19(wttest.WiredTigerTestCase):
         write_conflict_session.close()
 
         self.session.rollback_transaction()
-
-
-

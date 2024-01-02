@@ -164,5 +164,3 @@ class test_priv01(wttest.WiredTigerTestCase):
         self.common_test(None, edir, 'use_environment=false')
         self.checknofiles(edir)
         self.checkfiles('.')
-
-

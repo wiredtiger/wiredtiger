@@ -122,5 +122,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         msg = '/Invalid argument/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.operate(ckpt_cursor), msg)
-
-

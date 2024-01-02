@@ -88,5 +88,3 @@ class test_encrypt09(wttest.WiredTigerTestCase):
         else:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
                 self.session.create(self.uri, params), self.msg)
-
-

@@ -126,5 +126,3 @@ class test_prepare23(wttest.WiredTigerTestCase):
                 self.session.rollback_transaction()
 
             ts += 40
-
-

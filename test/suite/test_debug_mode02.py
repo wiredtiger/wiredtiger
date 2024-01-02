@@ -127,5 +127,3 @@ class test_debug_mode02(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_remove(self.log2)
 
         self.conn.reconfigure(cfg)
-
-

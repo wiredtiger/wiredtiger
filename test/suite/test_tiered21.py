@@ -53,5 +53,3 @@ class test_tiered21(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
                                        lambda: self.conn.reconfigure('in_memory=true'),
                                        '/unknown configuration key/')
-
-

@@ -584,5 +584,3 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         session.commit_transaction()
 
         # End of Scenario-4.
-
-

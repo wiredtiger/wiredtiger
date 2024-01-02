@@ -137,5 +137,3 @@ class test_join04(wttest.WiredTigerTestCase):
             jcursor.close()
             for c in cursors:
                 c.close()
-
-

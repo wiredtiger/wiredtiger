@@ -436,5 +436,3 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['load', '-jf', 'jsondump6.out'])
         self.session.drop(self.table_uri5)
         self.session.drop(self.table_uri6)
-
-

@@ -57,5 +57,3 @@ class test_cursor14(wttest.WiredTigerTestCase):
 
         for i in range(66000):
             cursor = self.session.open_cursor(uri, None, None)
-
-

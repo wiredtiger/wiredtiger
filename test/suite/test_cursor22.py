@@ -89,6 +89,3 @@ class test_cursor22(wttest.WiredTigerTestCase):
 
         cursor.close()
         self.session.close()
-
-
-

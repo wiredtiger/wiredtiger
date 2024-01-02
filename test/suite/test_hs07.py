@@ -226,5 +226,3 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.check(bigvalue, uri, nrows, 300)
 
         self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')
-
-

@@ -160,5 +160,3 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
         self.runWt(["verify", "-s", uri],
             errfilename=errfilename, failure=False)
         self.check_empty_file(errfilename)
-
-

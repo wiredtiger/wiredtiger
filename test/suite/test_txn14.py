@@ -89,5 +89,3 @@ class test_txn14(wttest.WiredTigerTestCase, suite_subprocess):
         all = self.entries + self.extra_entries
         self.assertEqual(i, all + 1)
         c.close()
-
-

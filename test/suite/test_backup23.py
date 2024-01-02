@@ -95,5 +95,3 @@ class test_backup23(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_data = list(session.open_cursor(self.uri))
 
         self.assertEqual(orig_data, bkup_data)
-
-

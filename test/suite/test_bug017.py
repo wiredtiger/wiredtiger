@@ -41,5 +41,3 @@ class test_bug017(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor("table:bug17(country)", None),
             msg)
-
-

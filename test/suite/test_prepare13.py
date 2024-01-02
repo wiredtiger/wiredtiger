@@ -109,5 +109,3 @@ class test_prepare13(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
 
         s.close()
-
-

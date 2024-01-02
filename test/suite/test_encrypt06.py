@@ -266,5 +266,3 @@ class test_encrypt06(wttest.WiredTigerTestCase):
                 self.assertFalse(self.match_string_in_rundir(txt1))
                 self.assertFalse(self.match_string_in_rundir(keyname1))
                 self.assertFalse(self.match_string_in_rundir(valname1))
-
-

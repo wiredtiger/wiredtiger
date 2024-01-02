@@ -206,6 +206,3 @@ class test_truncate15(wttest.WiredTigerTestCase):
                 self.assertTrue(False)
             else:
                 raise e
-
-
-

@@ -39,5 +39,3 @@ class test_version(wttest.WiredTigerTestCase):
     # Test version call.
     def test_version(self):
         version = wiredtiger.wiredtiger_version()
-
-

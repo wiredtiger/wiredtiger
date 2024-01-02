@@ -222,5 +222,3 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.rollback_transaction()
 
         self.ignoreStdoutPatternIfExists('/unexpected timestamp usage/')
-
-

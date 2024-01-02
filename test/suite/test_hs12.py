@@ -102,5 +102,3 @@ class test_hs12(wttest.WiredTigerTestCase):
         cursor2.set_key(2)
         cursor2.search()
         self.assertEquals(cursor2.get_value(), 'AB' + value1)
-
-

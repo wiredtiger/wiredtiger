@@ -82,5 +82,3 @@ class test_isolation01(wttest.WiredTigerTestCase):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.reset_snapshot(),
                 "/not supported in read-committed or read-uncommitted transactions/")
-
-

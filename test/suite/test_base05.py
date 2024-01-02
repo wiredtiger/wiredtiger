@@ -233,5 +233,3 @@ class test_base05(wttest.WiredTigerTestCase):
         and read back in a cursor: key=string, value=string
         """
         self.do_test_table_base(True)
-
-

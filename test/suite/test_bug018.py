@@ -142,5 +142,3 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
             self.captureerr.checkAdditionalPattern(self, '.')
             results2 = []
         self.assertEqual(results1, results2)
-
-

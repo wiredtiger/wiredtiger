@@ -144,5 +144,3 @@ class test_bug028(wttest.WiredTigerTestCase, suite_subprocess):
         self.open_conn(5, '32K', False)
         self.open_conn(6, '64K', False)
         self.open_conn(7, '8000', True)
-
-

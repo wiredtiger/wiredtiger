@@ -209,5 +209,3 @@ class test_inmem01(wttest.WiredTigerTestCase):
             ds.check()
             self.pr('Finished check ' + str(run))
             sleep(1)
-
-

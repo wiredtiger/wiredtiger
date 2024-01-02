@@ -176,5 +176,3 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.session.checkpoint()
         self.confirm_flush(increase=False)
         self.progress('END TEST')
-
-

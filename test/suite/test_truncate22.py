@@ -83,5 +83,3 @@ class test_truncate22(wttest.WiredTigerTestCase):
         for i in range(1, self.nrows // 2):
             cursor.set_key(ds.key(i))
             self.assertNotEqual(cursor.search(), 0)
-
-

@@ -71,5 +71,3 @@ class test_backup20(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.close()
         self.conn.close()
-
-

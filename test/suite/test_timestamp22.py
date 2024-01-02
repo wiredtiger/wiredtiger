@@ -471,5 +471,3 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # a test code error where we mistakenly don't update any rows.
         self.assertGreater(expect_key, 1)
         cursor.close()
-
-

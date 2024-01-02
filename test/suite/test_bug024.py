@@ -57,5 +57,3 @@ class test_bug024(wttest.WiredTigerTestCase):
         # Open wiredtiger in new directory and in readonly mode.
         conn = self.wiredtiger_open(self.home, "readonly")
         conn.close()
-
-

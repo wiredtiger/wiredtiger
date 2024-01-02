@@ -120,5 +120,3 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure("file_manager=(close_idle_time=4)")
         self.conn.reconfigure(
             "file_manager=(close_idle_time=4,close_scan_interval=100)")
-
-

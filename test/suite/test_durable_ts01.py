@@ -159,5 +159,3 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         for i in range(1, 50):
             self.assertEquals(cursor.get_value(), ds.value(111))
             self.assertEquals(cursor.next(), 0)
-
-

@@ -120,5 +120,3 @@ class test_stat08(wttest.WiredTigerTestCase):
         while stat_cur.next() == 0:
             [desc, pvalue, value] = stat_cur.get_values()
             self.assertTrue(value == 0)
-
-

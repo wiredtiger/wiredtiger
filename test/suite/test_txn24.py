@@ -142,5 +142,3 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         cursor4.close()
         session4.close()
-
-

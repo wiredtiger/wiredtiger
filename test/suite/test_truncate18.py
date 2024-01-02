@@ -216,5 +216,3 @@ class test_truncate18(wttest.WiredTigerTestCase):
 
         # Now verify the tree. In the problem scenario described above, this will assert.
         self.session.verify(ds.uri, None)
-
-

@@ -173,5 +173,3 @@ class test_cursor_bound10(bound_base):
         self.session.commit_transaction()
         self.assertEqual(cursor.bound("action=clear"), 0)
         cursor.close()
-
-

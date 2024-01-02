@@ -139,5 +139,3 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
                 self.readonly()
         else:
             self.readonly()
-
-

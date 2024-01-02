@@ -53,5 +53,3 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
         conn_reconfig = 'debug_mode=(realloc_malloc=false)'
         self.conn.reconfigure(conn_reconfig)
         self.insert_data()
-
-

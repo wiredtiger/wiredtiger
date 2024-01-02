@@ -82,5 +82,3 @@ class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # Sleep more than the one second stress timing amount and give the thread time to run.
         time.sleep(2)
-
-

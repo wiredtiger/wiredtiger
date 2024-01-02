@@ -164,5 +164,3 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         self.assertEqual(self.cursor_count(cursor), 1)
         s.commit_transaction()
         s.close()
-
-

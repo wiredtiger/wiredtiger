@@ -63,5 +63,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # Open the checkpoint cursor successfully.
         cursor = self.session.open_cursor(uri, None, f"checkpoint={internal_checkpoint_name}")
         cursor.close()
-
-

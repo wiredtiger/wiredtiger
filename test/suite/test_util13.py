@@ -180,5 +180,3 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.assertTrue(self.compare_files(expectfile, outfile))
         self.assertTrue(self.load_recheck(ds, expectfile, outfile))
-
-

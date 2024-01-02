@@ -111,5 +111,3 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
         self.close_conn()
         # Reopening with recover=error after a clean shutdown should succeed.
         self.conn = self.wiredtiger_open(newdir, self.conn_recerror)
-
-

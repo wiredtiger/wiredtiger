@@ -150,5 +150,3 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
         c = self.session.open_cursor(self.uri2)
         self.check(c, 0, 1)
         c.close()
-
-

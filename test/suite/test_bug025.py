@@ -78,5 +78,3 @@ class test_bug025(wttest.WiredTigerTestCase):
                 self.pr('Exception in second access: ' + str(e))
 
             cursor.close()
-
-

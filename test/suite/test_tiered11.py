@@ -110,5 +110,3 @@ class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
         time_str = "flush_time=0"
         self.check_metadata(self.tiereduri, time_str, False)
         self.check_metadata(self.objuri, time_str, False)
-
-

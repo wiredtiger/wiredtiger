@@ -186,5 +186,3 @@ class test_gc01(test_gc_base):
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue2, uri, nrows, 300)
-
-

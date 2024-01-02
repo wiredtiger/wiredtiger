@@ -64,5 +64,3 @@ class test_cursor15(wttest.WiredTigerTestCase):
             for key, value in cursor:
                 pass
             cursor.close()
-
-

@@ -227,5 +227,3 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
         # journal file read.
         #
         self.runWt(['-h', self.backup_dir, 'printlog'], outfilename='printlog.out')
-
-

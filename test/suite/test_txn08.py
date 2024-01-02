@@ -122,5 +122,3 @@ class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
             '"lsn" : [1,128],')
         self.check_file_not_contains('printlog-range07.out',
             '"lsn" : [1,384],')
-
-

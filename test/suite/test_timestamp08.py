@@ -267,5 +267,3 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Now the all_durable reflect the last committed transaction.
         self.assertTimestampsEqual(self.conn.query_timestamp('get=all_durable'), self.timestamp_str(11))
-
-

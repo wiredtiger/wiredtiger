@@ -66,5 +66,3 @@ class test_util16(wttest.WiredTigerTestCase, suite_subprocess):
             count +=1
         cursor.close()
         self.assertEquals(self.nentries, count)
-
-

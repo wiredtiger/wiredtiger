@@ -121,5 +121,3 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
         self.close_conn()
         self.run_toggle(".")
         self.run_toggle("RESTART")
-
-

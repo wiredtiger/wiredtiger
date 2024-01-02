@@ -61,5 +61,3 @@ class test_cursor20(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesHavingMessage(
             wiredtiger.WiredTigerError, lambda:c.insert(), '/WT_DUPLICATE_KEY/')
         self.assertEqual(c.get_value(), ds.value(10))
-
-

@@ -124,5 +124,3 @@ class test_schema04(TieredConfigMixin, wttest.WiredTigerTestCase):
         if self.create_index == 2:
             self.create_indices()
         self.check_entries()
-
-

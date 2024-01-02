@@ -258,5 +258,3 @@ class test_join08(wttest.WiredTigerTestCase):
 
         jcursor.close()
         cursor.close()
-
-

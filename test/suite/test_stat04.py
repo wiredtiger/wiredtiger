@@ -102,5 +102,3 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
         # that tests the on-disk format as well as the in-memory format.
         self.reopen_conn()
         self.checkcount(uri, count)
-
-

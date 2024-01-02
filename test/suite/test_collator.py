@@ -130,5 +130,3 @@ class test_collator(wttest.WiredTigerTestCase):
         self.drop_indices()
         self.create_indices()
         self.check_entries()
-
-

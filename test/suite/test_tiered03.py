@@ -126,5 +126,3 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Check that we can see the new data
         cursor2 = session2.open_cursor(uri2)
         newds.check_cursor(cursor2)
-
-

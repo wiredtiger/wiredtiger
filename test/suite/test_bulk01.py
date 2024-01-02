@@ -215,5 +215,3 @@ class test_bulk_load(wttest.WiredTigerTestCase):
         # Don't close the insert cursor, we want EBUSY.
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(uri, None, "bulk"))
-
-

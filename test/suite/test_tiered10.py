@@ -139,5 +139,3 @@ class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check(c2, 20, 1)
         c1.close()
         c2.close()
-
-

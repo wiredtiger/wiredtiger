@@ -61,5 +61,3 @@ class test_debug_mode06(wttest.WiredTigerTestCase):
         conn_reconfig = 'debug_mode=(slow_checkpoint=false)'
         self.conn.reconfigure(conn_reconfig)
         self.insert_data()
-
-

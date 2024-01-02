@@ -139,5 +139,3 @@ class test_timestamp24(wttest.WiredTigerTestCase):
 
         cursor2.close()
         cursor1.close()
-
-

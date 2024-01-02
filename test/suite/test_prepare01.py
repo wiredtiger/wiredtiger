@@ -153,5 +153,3 @@ class test_prepare01_read_ts(wttest.WiredTigerTestCase):
         self.session.prepare_transaction('prepare_timestamp=a')
         with self.expectedStderrPattern('.*silently ignored.*'):
             self.session.timestamp_transaction('read_timestamp=a')
-
-

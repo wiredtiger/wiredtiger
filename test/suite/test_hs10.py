@@ -102,5 +102,3 @@ class test_hs10(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
         self.assertEqual(cursor[1], value1 + 'ABC')
         self.session.commit_transaction()
-
-

@@ -83,5 +83,3 @@ class test_tiered15(TieredConfigMixin, wttest.WiredTigerTestCase):
                 if self.type == "colgroup":
                     self.skipTest('Skip the colgroup type configuration as we expect it to crash.')
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(uri, "tiered_storage=(name=none),type=" + self.type), self.non_tiered_errmsg)
-
-

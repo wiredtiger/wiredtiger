@@ -102,5 +102,3 @@ class test_config09(wttest.WiredTigerTestCase):
         self.assertNotEqual(val, 0)
 
         self.conn.close()
-
-

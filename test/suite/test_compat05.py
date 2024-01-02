@@ -82,5 +82,3 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Assert the first log is there or not there.
         self.assertEquals(self.check_remove(), self.removed)
-
-

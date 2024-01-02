@@ -185,5 +185,3 @@ class test_cursor04(wttest.WiredTigerTestCase):
         self.expect_either(cursor, 8, 11)
 
         cursor.close()
-
-

@@ -54,5 +54,3 @@ class test_bug003(wttest.WiredTigerTestCase):
         else:
             self.session.checkpoint()
         cursor = self.session.open_cursor(self.uri, None, "bulk")
-
-

@@ -138,5 +138,3 @@ class test_cursor_bound06(bound_base):
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         cursor.reset()
         cursor.close()
-
-

@@ -141,5 +141,3 @@ class test_prepare09(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_value(), 0)
         else:
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-
-

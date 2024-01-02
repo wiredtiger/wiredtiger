@@ -168,5 +168,3 @@ class test_verbose04(test_verbose_base):
                 c = session.open_cursor(uri)
                 c['multiple'] = 'multiple'
                 c.close()
-
-

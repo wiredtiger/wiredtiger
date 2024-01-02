@@ -170,5 +170,3 @@ class test_intpack(wttest.WiredTigerTestCase):
                 pt.check_range(-i - 1, -i + 1)
                 pt.check_range(i - 1, i + 1)
                 i <<= 1
-
-

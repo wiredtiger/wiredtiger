@@ -144,5 +144,3 @@ class test_compat03(wttest.WiredTigerTestCase, suite_subprocess):
             self.pr("EXPECT SUCCESS")
             conn = self.wiredtiger_open(testdir, config_str)
             conn.close()
-
-

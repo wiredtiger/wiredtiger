@@ -259,6 +259,3 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         nsessions = 3
         nkeys = 4000
         self.prepare_updates(ds, nrows, nsessions, nkeys)
-
-
-

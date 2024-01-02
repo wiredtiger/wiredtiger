@@ -199,5 +199,3 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
         if not self.is_tiered_scenario():
             self.make_backups()
             self.run_recovery(uri, suburi)
-
-

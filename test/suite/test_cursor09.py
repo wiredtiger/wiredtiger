@@ -62,5 +62,3 @@ class test_cursor09(wttest.WiredTigerTestCase):
         msg = '/requires key be set/'
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, cursor.search, msg)
-
-

@@ -124,5 +124,3 @@ class test_calc_modify(wttest.WiredTigerTestCase):
             maxdiff = r.randint(64, size // 10)
             self.pr("size %s, repeats %s, nmods %s, maxdiff %s" % (size, repeats, nmods, maxdiff))
             self.one_test(c, k, size, repeats, nmods, maxdiff)
-
-

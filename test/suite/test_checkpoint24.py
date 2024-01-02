@@ -146,5 +146,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nonzeros = nrows // 2
         zeros = nrows - nonzeros
         self.check(ds, self.first_checkpoint, nonzeros, zeros, value_a)
-
-

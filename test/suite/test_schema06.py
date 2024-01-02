@@ -169,5 +169,3 @@ class test_schema06(TieredConfigMixin, wttest.WiredTigerTestCase):
                 count += 1
             cursor.close()
             self.assertEqual(count, n)
-
-

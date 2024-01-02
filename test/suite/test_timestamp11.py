@@ -159,5 +159,3 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEquals(c[key2], value5)
         self.session.commit_transaction()
         c.close()
-
-

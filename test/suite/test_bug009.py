@@ -52,5 +52,3 @@ class test_bug009(wttest.WiredTigerTestCase):
         # size over a page boundary.
         cursor['fill_2__b_27'] = '0' * 2294
         cursor['fill_2__b_28'] = '0' * 3022
-
-

@@ -55,5 +55,3 @@ class test_huffman02(wttest.WiredTigerTestCase, suite_subprocess):
                 self.session.create(self.uri, self.huffval), msg)
         else:
             self.session.create(self.uri, self.huffval)
-
-

@@ -47,5 +47,3 @@ class test_timestamp25(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTimestampsEqual(self.conn.query_timestamp("get=stable"), self.timestamp_str(100))
         self.assertTimestampsEqual(\
             self.conn.query_timestamp("get=stable_timestamp"), self.timestamp_str(100))
-
-

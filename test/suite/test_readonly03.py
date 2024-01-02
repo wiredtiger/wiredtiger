@@ -123,5 +123,3 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
                     lambda: self.session.upgrade(self.uri, None), msg)
             else:
                 self.fail('Unknown session method: ' + op)
-
-

@@ -47,5 +47,3 @@ class test_tiered22(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                                      lambda: self.session.compact(uri_local_file, None),
                                      '/Operation not supported/')
-
-

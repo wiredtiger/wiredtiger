@@ -134,5 +134,3 @@ class test_recovery01(wttest.WiredTigerTestCase):
         self.check(valueb, uri_1, nrows, 0)
         self.check(valuea, uri_2, nrows, 10)
         self.check(valuea, uri_2, nrows, 20)
-
-

@@ -130,5 +130,3 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         outfile = "listout.txt"
         self.runWt(["list"], outfilename=outfile)
         self.check_file_content(outfile, filelist)
-
-

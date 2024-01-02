@@ -336,5 +336,3 @@ class test_join01(wttest.WiredTigerTestCase):
             for c in closeme:
                 c.close()
         self.dropUntilSuccess(self.session, 'table:join01')
-
-

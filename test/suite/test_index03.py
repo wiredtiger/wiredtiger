@@ -66,5 +66,3 @@ class test_index03(wttest.WiredTigerTestCase):
             lambda: session.drop(index2_uri))
         c1.close()
         self.dropUntilSuccess(session, index2_uri)
-
-

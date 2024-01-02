@@ -41,5 +41,3 @@ class test_util08(wttest.WiredTigerTestCase, suite_subprocess):
         with open(outfile, 'r') as f:
             text = f.read(1000)
             self.assertTrue('Copyright' in text)
-
-

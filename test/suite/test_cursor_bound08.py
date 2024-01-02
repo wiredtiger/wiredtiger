@@ -247,5 +247,3 @@ class test_cursor_bound08(bound_base):
         self.assertGreater(skip_count - prev_skip_count, 150 * 2)
 
         cursor.close()
-
-

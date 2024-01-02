@@ -94,5 +94,3 @@ class test_cursor08(wttest.WiredTigerTestCase, suite_subprocess):
                     count += 1
         c.close()
         self.assertEqual(count, self.nkeys)
-
-

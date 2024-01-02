@@ -191,5 +191,3 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.pr('After Inserting bunch of values ' + str(sizeAfterNewInserts // mb) + 'MB')
         if not self.runningHook('tiered'):
             self.assertEqual(sizeAfterCompact, sizeAfterNewInserts)
-
-

@@ -310,5 +310,3 @@ class test_config04(wttest.WiredTigerTestCase):
     def test_transactional(self):
         # Note: this will have functional tests in the future.
         self.common_test('')
-
-

@@ -122,5 +122,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Make sure we can read table 1 from the second checkpoint.
         self.check(ds1, self.second_checkpoint, nrows, value_a)
-
-

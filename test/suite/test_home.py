@@ -71,5 +71,3 @@ class test_base_config(wttest.WiredTigerTestCase):
         conn = self.wiredtiger_open("A", "create,config_base=false")
         self.assertFalse(os.path.exists("A/WiredTiger.basecfg"))
         conn.close()
-
-

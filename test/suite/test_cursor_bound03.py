@@ -160,5 +160,3 @@ class test_cursor_bound03(bound_base):
         self.assertEqual(cursor.bound("action=clear"), 0)
 
         cursor.close()
-
-

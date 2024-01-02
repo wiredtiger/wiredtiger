@@ -217,5 +217,3 @@ class test_hs26(wttest.WiredTigerTestCase):
 
         # Also check that the most recent transaction has the later data.
         self.check(self.session, ds.uri, self.timestamp_2, self.timestamp_2)
-
-

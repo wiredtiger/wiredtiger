@@ -131,5 +131,3 @@ class test_stat09(wttest.WiredTigerTestCase):
         s4.commit_transaction()
         s5.commit_transaction()
         self.check_stat_oldest_read(allstat_cursor, 0, commit_range)
-
-

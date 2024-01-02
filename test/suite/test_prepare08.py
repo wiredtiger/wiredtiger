@@ -319,5 +319,3 @@ class test_prepare08(wttest.WiredTigerTestCase):
         cursor_p.close()
         session_p.close()
         self.session.close()
-
-

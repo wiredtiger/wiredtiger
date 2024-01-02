@@ -272,5 +272,3 @@ class test_import01(test_import_base):
         current_db_file_config = c[self.uri]
         c.close()
         self.config_compare(original_db_file_config, current_db_file_config)
-
-

@@ -157,5 +157,3 @@ class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assertNotEqual(sync1, sync2)
         else:
             self.assertEqual(write1, write2)
-
-

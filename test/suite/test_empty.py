@@ -52,5 +52,3 @@ class test_empty(wttest.WiredTigerTestCase):
         if self.type == "table:":
             name = name + '.wt'
         self.assertEquals(os.stat(name).st_size, 4*1024)
-
-

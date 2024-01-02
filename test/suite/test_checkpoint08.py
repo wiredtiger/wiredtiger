@@ -119,5 +119,3 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
         c1.close()
         c2.close()
         self.session.close()
-
-

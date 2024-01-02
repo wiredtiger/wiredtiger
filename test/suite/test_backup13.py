@@ -118,5 +118,3 @@ class test_backup13(backup_base):
         # Make sure after a restart we cannot access old backup info.
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))
-
-

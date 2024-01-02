@@ -113,5 +113,3 @@ class test_compact04(wttest.WiredTigerTestCase):
                 self.pr(message + ' (FAILURE)')
                 num_failures += 1
                 self.assertLessEqual(num_failures, 2)
-
-

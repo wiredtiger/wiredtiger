@@ -125,5 +125,3 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
         cursor.close()
 
         self.dropUntilSuccess(self.session, uri_c)
-
-

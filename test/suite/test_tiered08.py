@@ -133,5 +133,3 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.reopen_conn()
 
         self.verify(key_count)
-
-
