@@ -1382,8 +1382,8 @@ __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, b
          * so that any bits that are, or have become 0, are turned into a 1. This intermediate
          * value is then bitwise ANDed with the original value, so that any bit values that are 1 in
          * the original result and 0 in the new value (and therefore 1 in the intermediate value)
-         * results in a bit that is set in the partial result. Any 0s in the original value result in 0
-         * in the partial result.
+         * results in a bit that is set in the partial result. Any 0s in the original value result
+         * in 0 in the partial result.
          *
          * Thus, any non-zero partial results indicate a bit that has incorrectly changed from
          * 1 in the original to 0 in the new.
