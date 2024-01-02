@@ -29,7 +29,7 @@
 #include "test_util.h"
 #include "log_auto_test.h"
 
-/* bilerplate from test_bloom.c */
+/* boilerplate from test_bloom.c */
 
 #define HOME_SIZE 512
 

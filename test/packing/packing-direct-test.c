@@ -32,7 +32,7 @@
 
 #define ITERATIONS 10000000
 
-/* bilerplate from test_bloom.c */
+/* boilerplate from test_bloom.c */
 
 #define HOME_SIZE 512
 
