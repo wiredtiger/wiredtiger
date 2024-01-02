@@ -128,7 +128,6 @@ vector_bool_to_binary_string(std::vector<bool> const &vector_bool)
     return result;
 }
 
-
 /*
  * operator&(std::vector<bool> const &a, std::vector<bool> const &b)
  *
@@ -182,12 +181,11 @@ operator^(std::vector<bool> const &a, std::vector<bool> const &b)
     return result;
 }
 
-
 /*
  * trim_most_significant_false_values()
  *
- * This function will trip any most significant false values (ie leading 0 bits)
- * from the std::vector<bool> parameter.
+ * This function will trip any most significant false values (ie leading 0 bits) from the
+ * std::vector<bool> parameter.
  */
 void
 trim_most_significant_false_values(std::vector<bool> &vector_bool)

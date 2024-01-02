@@ -12,8 +12,8 @@
 #include <vector>
 
 /*
- * The following operations treat the std::vector<bool> as a binary number,
- * with the least significant bit stored in the 0th element.
+ * The following operations treat the std::vector<bool> as a binary number, with the least
+ * significant bit stored in the 0th element.
  */
 
 std::vector<bool> vector_bool_from_hex_string(std::string const &str);
