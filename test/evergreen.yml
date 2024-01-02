@@ -544,7 +544,7 @@ functions:
         exit 0
 
   # The following cppsuite tasks define a greater overall task.
-  "cppsuite test run all": &cppsuite_test_run_all
+  "cppsuite test all run": &cppsuite_test_all_run
     command: shell.exec
     params:
       # The tests need to be executed in the cppsuite directory as some required libraries have
@@ -1751,7 +1751,7 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "cppsuite test run all"
+      - func: "cppsuite test all run"
         vars:
           test_config: debug_mode=(cursor_copy=true)
 
