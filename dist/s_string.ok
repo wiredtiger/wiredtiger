@@ -228,7 +228,6 @@ MADV
 MALLOC
 MEM
 MEMALIGN
-MEMORDER
 MERCHANTABILITY
 MONGODB
 MOVEFILE
@@ -360,6 +359,7 @@ Spinlock
 Spinlocks
 StoreLoad
 StoreStore
+Strobed
 Su
 Subdirectory
 Subprocess
@@ -876,7 +876,6 @@ isb
 isdigit
 ish
 ishld
-ishst
 islocked
 ispo
 isprint
@@ -913,7 +912,6 @@ lex
 lexically
 lexicographically
 lf
-lfence
 libdatasource
 libmemkind
 libs
@@ -941,7 +939,6 @@ logsize
 logtest
 lookaside
 lookups
-loongarch
 lossy
 lr
 lru
@@ -981,6 +978,7 @@ metafile
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
+misalignments
 mkdir
 mmap
 mmrand
@@ -1193,7 +1191,6 @@ setname
 setstr
 setv
 setvbuf
-sfence
 shareability
 sig
 sigchld
@@ -1213,7 +1210,6 @@ snapsort
 snprintf
 sortable
 sp
-sparc
 spinlock
 spinlocks
 src
@@ -1237,6 +1233,7 @@ strlen
 strncpy
 strndup
 strnlen
+strobed
 strtoll
 strtouq
 struct
