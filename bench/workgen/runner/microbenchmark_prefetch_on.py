@@ -27,6 +27,31 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+"""
+# wtperf options file: evict btree configuration
+conn_config="cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,statistics=(fast),statistics_log=(wait=1,json),read_ahead=true"
+key_sz=12
+value_sz=138
+table_config="type=file"
+create=false
+compression="snappy"
+icount=10000
+scan_icount=120000000
+    report_interval=5
+populate_threads=1
+    run_time=100
+scan_table_count=1
+scan_type=forward
+scan_interval=99
+scan_pct=20
+table_count=1
+# The benchmark needs some non-scan acticity
+threads=((count=1,reads=1,throttle=5))
+# Add throughput/latency monitoring
+max_latency=50000
+sample_interval=5
+"""
+
 from runner import *
 from workgen import *
 from microbenchmark_prefetch_base import *
@@ -34,8 +59,11 @@ from microbenchmark_prefetch_base import *
 prefetch = microbenchmark_prefetch()
 prefetch.populate()
 
+# Turn pre-fetching on.
+prefetch.session = prefetch.conn.open_session("prefetch=(enabled=true)")
+
 scan_ops = Operation(Operation.OP_SEARCH, prefetch.table)
-scan_thread = Thread(scan_ops)
+scan_thread = Thread(scan_ops * 120000000)
 scan_thread.options.name = "Scan"
 scan_thread.options.throttle = 5
 
@@ -44,8 +72,8 @@ def run_workload():
     workload = Workload(prefetch.context, scan_thread)
     workload.options.run_time=100
     workload.options.report_interval=5
-    workload.options.sample_interval_ms=1000
-    workload.options.max_latency=5000
+    workload.options.sample_interval_ms=5
+    workload.options.max_latency=50000
     ret = workload.run(prefetch.conn)
     assert ret == 0, ret
     print("Finished scanning.")
