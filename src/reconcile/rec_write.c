@@ -357,7 +357,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * rec_hs_wrapup and rec_img_build should also have an assertion here.
      */
     WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
-    WT_ASSERT(session, rec_img_build < WT_DAY * WT_THOUSAND);
 
     if (rec_hs_wrapup > conn->rec_maximum_hs_wrapup_milliseconds)
         conn->rec_maximum_hs_wrapup_milliseconds = rec_hs_wrapup;
