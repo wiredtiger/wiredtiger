@@ -1782,6 +1782,8 @@ main(int argc, char *argv[])
                 }
             }
             sleep(timeout);
+            sa.sa_handler = SIG_DFL;
+            testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
             /*
              * !!! It should be plenty long enough to make sure more than
@@ -1789,8 +1791,6 @@ main(int argc, char *argv[])
              * here.
              */
             printf("Kill child\n");
-            sa.sa_handler = SIG_DFL;
-            testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
             testutil_assert_errno(kill(pid, SIGKILL) == 0);
             testutil_assert_errno(waitpid(pid, &status, 0) != -1);
 
