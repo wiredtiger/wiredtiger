@@ -207,13 +207,16 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     dhandle = (WT_DATA_HANDLE *)tiered;
     tmp = NULL;
     /*
-     * It is possible that the tiered object was closed before the work unit was processed. The work
-     * unit holds a reference on the dhandle but if the bucket storage is gone there is nothing to
-     * do.
+     * The work unit holds a reference on the dhandle so that the structure is valid to look at, but
+     * the dhandle could have been dropped or under exclusive use. If it isn't open or it is dropped
+     * there is nothing to do. If the bucket storage is gone there is nothing to do. (see if this is
+     * valid still our ref may keep it around).
      */
-    if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || tiered->bstorage == NULL) {
-        __wt_verbose(
-          session, WT_VERB_TIERED, "DO_OP: closed tiered %p NULL bstorage.", (void *)tiered);
+    WT_ASSERT(session, tiered->bstorage != NULL);
+    if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
+        __wt_verbose(session, WT_VERB_TIERED,
+          "DO_OP: DH flags 0x%" PRIx32 " not open or dropped tiered %p.", dhandle->flags,
+          (void *)tiered);
         return (0);
     }
     storage_source = tiered->bstorage->storage_source;
@@ -267,12 +270,12 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
              * the remove local work unit below. They do not need to be in any order and do not
              * interfere with each other.
              */
-            WT_ERR(__wt_tiered_put_flush_finish(session, tiered, id));
+            WT_ERR(__wt_tiered_put_work(session, tiered, WT_TIERED_WORK_FLUSH_FINISH, id, 0));
             /*
              * After successful flushing, push a work unit to remove the local object in the future.
              * The object will be removed locally after the local retention period expires.
              */
-            WT_ERR(__wt_tiered_put_remove_local(session, tiered, id));
+            WT_ERR(__wt_tiered_put_work(session, tiered, WT_TIERED_WORK_REMOVE_LOCAL, id, 0));
         } else {
             /*
              * Continue with the error ignored if we've been told to do that.

@@ -309,9 +309,9 @@ __tiered_restart_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
             __wt_verbose(session, WT_VERB_TIERED,
               "RESTART_WORK: local object %s has flush time %" PRId64, obj_uri, cval.val);
             if (cval.val == 0)
-                WT_ERR(__wt_tiered_put_flush(session, tiered, i, 0));
+                WT_ERR(__wt_tiered_put_work(session, tiered, WT_TIERED_WORK_FLUSH, i, 0));
             else
-                WT_ERR(__wt_tiered_put_remove_local(session, tiered, i));
+                WT_ERR(__wt_tiered_put_work(session, tiered, WT_TIERED_WORK_REMOVE_LOCAL, i, 0));
             __wt_free(session, obj_val);
         }
         __wt_free(session, obj_uri);
@@ -598,8 +598,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     /* Create the object: entry in the metadata. */
     if (need_object) {
         WT_ERR(__tiered_create_object(session, tiered));
-        WT_ERR(__wt_tiered_put_flush(
-          session, tiered, tiered->current_id, __wt_gen(session, WT_GEN_CHECKPOINT)));
+        WT_ERR(__wt_tiered_put_work(session, tiered, WT_TIERED_WORK_FLUSH, tiered->current_id,
+          __wt_gen(session, WT_GEN_CHECKPOINT)));
     }
 
     /* We always need to create a local object. */
@@ -806,7 +806,8 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
         FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
-        WT_ERR(__wt_tiered_put_remove_shared(session, tiered, tiered->current_id));
+        WT_ERR(__wt_tiered_put_work(
+          session, tiered, WT_TIERED_WORK_REMOVE_SHARED, tiered->current_id, 0));
         __wt_tiered_get_remove_shared(session, &entry);
     }
 #endif

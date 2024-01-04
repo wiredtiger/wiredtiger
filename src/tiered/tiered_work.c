@@ -34,9 +34,12 @@ void
 __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
 
     conn = S2C(session);
-    WT_DHANDLE_RELEASE((WT_DATA_HANDLE *)&entry->tiered->iface);
+    dhandle = (WT_DATA_HANDLE *)&entry->tiered->iface;
+    WT_WITH_DHANDLE(session, dhandle, (void)__wt_session_release_dhandle(session));
+    WT_DHANDLE_RELEASE(dhandle);
     __tiered_flush_state(session, entry->type, false);
     /* If all work is done signal any waiting thread waiting for sync. */
     if (WT_FLUSH_STATE_DONE(conn->flush_state))
@@ -112,13 +115,6 @@ __wt_tiered_requeue_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 static void
 __tiered_push_new_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
-    /*
-     * Bump the in use count lock on the dhandle, this is kept until the work unit is freed. This
-     * prevents an otherwise idle dhandle from being swept and freed. We do not need to hold the
-     * dhandle list lock here because our session currently holds a reference to the tiered entry
-     * when pushing this work and the handle cannot be swept out from under us.
-     */
-    WT_DHANDLE_ACQUIRE((WT_DATA_HANDLE *)&entry->tiered->iface);
     __tiered_push_work_internal(session, entry);
     return;
 }
@@ -134,6 +130,7 @@ __wt_tiered_pop_work(
   WT_SESSION_IMPL *session, uint32_t type, uint64_t maxval, WT_TIERED_WORK_UNIT **entryp)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
 
     *entryp = entry = NULL;
@@ -152,6 +149,11 @@ __wt_tiered_pop_work(
             *entryp = entry;
             break;
         }
+    }
+    if (entry != NULL) {
+        ret = __wt_session_get_dhandle(
+          session, ((WT_DATA_HANDLE *)&entry->tiered->iface)->name, NULL, NULL, 0);
+        WT_ASSERT(session, ret == 0);
     }
     __wt_spin_unlock(session, &conn->tiered_lock);
     return;
@@ -243,11 +245,11 @@ __wt_tiered_get_remove_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **en
 }
 
 /*
- * __wt_tiered_put_flush_finish --
+ * __tiered_put_flush_finish --
  *     Add a flush_finish work unit to the queue.
  */
-int
-__wt_tiered_put_flush_finish(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
+static int
+__tiered_put_flush_finish(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
 {
     WT_TIERED_WORK_UNIT *entry;
 
@@ -260,11 +262,11 @@ __wt_tiered_put_flush_finish(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32
 }
 
 /*
- * __wt_tiered_put_remove_local --
+ * __tiered_put_remove_local --
  *     Add a remove local work unit for the given ID to the queue.
  */
-int
-__wt_tiered_put_remove_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
+static int
+__tiered_put_remove_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
 {
     WT_TIERED_WORK_UNIT *entry;
     uint64_t now;
@@ -282,11 +284,11 @@ __wt_tiered_put_remove_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32
 }
 
 /*
- * __wt_tiered_put_remove_shared --
+ * __tiered_put_remove_shared --
  *     Add a remove shared work unit for the given ID to the queue.
  */
-int
-__wt_tiered_put_remove_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
+static int
+__tiered_put_remove_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
 {
     WT_TIERED_WORK_UNIT *entry;
 
@@ -299,12 +301,12 @@ __wt_tiered_put_remove_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint3
 }
 
 /*
- * __wt_tiered_put_flush --
+ * __tiered_put_flush --
  *     Add a flush work unit to the queue. We're single threaded so the tiered structure's id
  *     information cannot change between our caller and here.
  */
-int
-__wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, uint64_t generation)
+static int
+__tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, uint64_t generation)
 {
     WT_TIERED_WORK_UNIT *entry;
 
@@ -315,4 +317,34 @@ __wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, 
     entry->op_val = generation;
     __tiered_push_new_work(session, entry);
     return (0);
+}
+
+/*
+ * __wt_tiered_put_work --
+ *     Add a work unit to the queue. Use a general function so that we can grab the handle list read
+ *     lock to avoid racing with sweep change the tiered structure out from under us.
+ */
+int
+__wt_tiered_put_work(
+  WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t op, uint32_t id, uint64_t generation)
+{
+    /* Increment the reference count so that the dhandle and tiered structure isn't swept. */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_ACQUIRE((WT_DATA_HANDLE *)&tiered->iface));
+    /*
+     * Each work unit type may have special initialization it does. So call each function rather
+     * than try to encapsulate it here. Grab the handle list read lock so that the tiered structure
+     * cannot be closed by sweep out from under us.
+     */
+    switch (op) {
+    case WT_TIERED_WORK_FLUSH:
+        return (__tiered_put_flush(session, tiered, id, generation));
+    case WT_TIERED_WORK_FLUSH_FINISH:
+        return (__tiered_put_flush_finish(session, tiered, id));
+    case WT_TIERED_WORK_REMOVE_LOCAL:
+        return (__tiered_put_remove_local(session, tiered, id));
+    case WT_TIERED_WORK_REMOVE_SHARED:
+        return (__tiered_put_remove_shared(session, tiered, id));
+    default:
+        return (__wt_illegal_value(session, op));
+    }
 }
