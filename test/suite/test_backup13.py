@@ -87,7 +87,7 @@ class test_backup13(backup_base):
         self.add_data_and_check()
 
         # Now do an incremental backup with id 2.
-        (bkup_files, _) = self.take_incr_backup(self.dir, 2)
+        (bkup_files, _) = self.take_incr_backup(self.dir, 1, 2)
 
         all_set = set(all_files)
         bkup_set = set(bkup_files)
@@ -118,6 +118,3 @@ class test_backup13(backup_base):
         # Make sure after a restart we cannot access old backup info.
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))
-
-if __name__ == '__main__':
-    wttest.run()

@@ -401,9 +401,12 @@ struct __wt_connection_stats {
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
     int64_t block_prefetch_failed_start;
+    int64_t block_prefetch_skipped_same_ref;
     int64_t block_prefetch_disk_one;
     int64_t block_prefetch_skipped_no_valid_dhandle;
     int64_t block_prefetch_skipped;
+    int64_t block_prefetch_skipped_disk_read_count;
+    int64_t block_prefetch_skipped_internal_session;
     int64_t block_prefetch_skipped_special_handle;
     int64_t block_prefetch_pages_fail;
     int64_t block_prefetch_page_not_queued;
@@ -457,6 +460,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
+    int64_t cache_eviction_blocked_no_progress;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
@@ -541,6 +545,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_maximum_page_size;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
+    int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     int64_t cache_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -1087,6 +1092,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
+    int64_t cache_eviction_blocked_no_progress;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
@@ -1127,6 +1133,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_dirty;
+    int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
