@@ -385,9 +385,9 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
-        WT_ERR(__wt_buf_fmt(session, buf, "%-43s %s",
-          __wt_addr_string(session, addr.addr, addr.size, tmp),
-          __wt_time_aggregate_to_string(&addr.ta, time_string)));
+        WT_ERR(
+          __wt_buf_fmt(session, buf, "%s %s", __wt_addr_string(session, addr.addr, addr.size, tmp),
+            __wt_time_aggregate_to_string(&addr.ta, time_string)));
     } else
         WT_ERR(__wt_buf_fmt(session, buf, "%s -/-,-/-", __wt_addr_string(session, NULL, 0, tmp)));
 
@@ -456,7 +456,7 @@ __verify_tree(
 
     /* Optionally dump address information. */
     if (vs->dump_address)
-        WT_RET(__wt_msg(session, "%s %-18s write gen: %" PRIu64,
+        WT_RET(__wt_msg(session, "%s %s write gen: %" PRIu64,
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
           page->dsk->write_gen));
 
