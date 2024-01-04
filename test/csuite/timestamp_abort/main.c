@@ -1763,8 +1763,6 @@ main(int argc, char *argv[])
              * correctly on really slow machines.
              */
             wait_time = 0;
-            sa.sa_handler = SIG_DFL;
-            testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
             while (!testutil_exists(NULL, ckpt_file)) {
                 testutil_sleep_wait(1, pid);
                 ++wait_time;
@@ -1775,6 +1773,8 @@ main(int argc, char *argv[])
                  * eventually exit and not have the parent process hang.
                  */
                 if (wait_time > MAX_TIME) {
+                    sa.sa_handler = SIG_DFL;
+                    testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
                     testutil_assert_errno(kill(pid, SIGABRT) == 0);
                     testutil_assert_errno(waitpid(pid, &status, 0) != -1);
                     testutil_die(
@@ -1789,6 +1789,8 @@ main(int argc, char *argv[])
              * here.
              */
             printf("Kill child\n");
+            sa.sa_handler = SIG_DFL;
+            testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
             testutil_assert_errno(kill(pid, SIGKILL) == 0);
             testutil_assert_errno(waitpid(pid, &status, 0) != -1);
 
