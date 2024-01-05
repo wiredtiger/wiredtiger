@@ -802,11 +802,6 @@ struct __wt_page {
  * WT_PREPARE_INPROGRESS:
  *	Update is in prepared phase.
  *
- * WT_PREPARE_LOCKED:
- *	State is locked as state transition is in progress from INPROGRESS to
- *	RESOLVED. Any reader of the state needs to wait for state transition to
- *	complete.
- *
  * WT_PREPARE_RESOLVED:
  *	Represents the commit state of the prepared update.
  *
@@ -824,8 +819,7 @@ struct __wt_page {
 /* Must be 0, as structures will be default initialized with 0. */
 #define WT_PREPARE_INIT 0
 #define WT_PREPARE_INPROGRESS 1
-#define WT_PREPARE_LOCKED 2
-#define WT_PREPARE_RESOLVED 3
+#define WT_PREPARE_RESOLVED 2
 
 /*
  * Page state.

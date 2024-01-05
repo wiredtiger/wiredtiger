@@ -10,8 +10,6 @@ __wt_prepare_state_str(uint8_t val)
         return ("WT_PREPARE_INIT");
     case WT_PREPARE_INPROGRESS:
         return ("WT_PREPARE_INPROGRESS");
-    case WT_PREPARE_LOCKED:
-        return ("WT_PREPARE_LOCKED");
     case WT_PREPARE_RESOLVED:
         return ("WT_PREPARE_RESOLVED");
     }

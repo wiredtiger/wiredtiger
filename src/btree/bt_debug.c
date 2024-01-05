@@ -1625,9 +1625,6 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
         case WT_PREPARE_INPROGRESS:
             prepare_state = "in-progress";
             break;
-        case WT_PREPARE_LOCKED:
-            prepare_state = "locked";
-            break;
         case WT_PREPARE_RESOLVED:
             prepare_state = "resolved";
             break;

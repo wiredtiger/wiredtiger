@@ -124,7 +124,7 @@ __rec_child_deleted(
      * lost in hard-to-debug ways.
      */
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
-    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+    if (prepare_state == WT_PREPARE_INPROGRESS) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
           "In progress prepares should never be seen in eviction");
         WT_ASSERT(session, !visible_all);
