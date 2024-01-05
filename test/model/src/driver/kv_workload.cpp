@@ -135,6 +135,17 @@ model_execute(kv_workload_context &context, const operation::remove &op)
  *     Execute the given workload operation in the model.
  */
 static void
+model_execute(kv_workload_context &context, const operation::restart &op)
+{
+    (void)op;
+    context.restart();
+}
+
+/*
+ * model_execute --
+ *     Execute the given workload operation in the model.
+ */
+static void
 model_execute(kv_workload_context &context, const operation::rollback_to_stable &op)
 {
     (void)op;
@@ -365,6 +376,19 @@ wt_execute(kv_workload_context_wt &context, const operation::remove &op)
  *     Execute the given workload operation in WiredTiger.
  */
 static void
+wt_execute(kv_workload_context_wt &context, const operation::restart &op)
+{
+    (void)op;
+
+    context.wiredtiger_close();
+    context.wiredtiger_open();
+}
+
+/*
+ * wt_execute --
+ *     Execute the given workload operation in WiredTiger.
+ */
+static void
 wt_execute(kv_workload_context_wt &context, const operation::rollback_to_stable &op)
 {
     (void)op;
@@ -471,11 +495,15 @@ wt_execute(kv_workload_context_wt &context, const operation::truncate &op)
  *     Run the workload in WiredTiger.
  */
 void
-kv_workload::run(WT_CONNECTION *connection) const
+kv_workload::run_in_wiredtiger(const char *home, const char *connection_config) const
 {
-    kv_workload_context_wt context{connection};
+    kv_workload_context_wt context{home, connection_config};
+    context.wiredtiger_open();
+
     for (const operation::any &op : _operations)
         std::visit([&context](auto &&x) { wt_execute(context, x); }, op);
+
+    context.wiredtiger_close();
 }
 
 } /* namespace model */

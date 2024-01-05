@@ -118,17 +118,40 @@ public:
      * kv_workload_context_wt::kv_workload_context_wt --
      *     Create a new workload context.
      */
-    inline kv_workload_context_wt(WT_CONNECTION *connection) : _connection(connection) {}
+    inline kv_workload_context_wt(const char *home, const char *connection_config)
+        : _connection(nullptr), _connection_config(connection_config), _home(home)
+    {
+    }
+
+    /*
+     * kv_workload_context_wt::~kv_workload_context_wt --
+     *     Clean up the workload context.
+     */
+    ~kv_workload_context_wt();
 
     /*
      * kv_workload_context_wt::connection --
      *     Get the connection.
      */
     inline WT_CONNECTION *
-    connection() const noexcept
+    connection() const
     {
+        if (_connection == nullptr)
+            throw model_exception("WiredTiger is not open");
         return _connection;
     }
+
+    /*
+     * kv_workload_context_wt::wiredtiger_open --
+     *     Open WiredTiger.
+     */
+    void wiredtiger_open();
+
+    /*
+     * kv_workload_context_wt::wiredtiger_close --
+     *     Close WiredTiger.
+     */
+    void wiredtiger_close();
 
     /*
      * kv_workload_context_wt::add_table_uri --
@@ -196,6 +219,8 @@ public:
 
 private:
     WT_CONNECTION *_connection;
+    std::string _connection_config;
+    std::string _home;
 
     mutable std::shared_mutex _table_uris_lock;
     std::unordered_map<table_id_t, std::string> _table_uris;

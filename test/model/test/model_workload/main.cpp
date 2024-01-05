@@ -171,6 +171,77 @@ test_workload_txn(void)
 }
 
 /*
+ * test_workload_prepared --
+ *     Test the workload executor with prepared transactions.
+ */
+static void
+test_workload_prepared(void)
+{
+    model::kv_workload workload;
+    workload << model::operation::create_table(k_table1_id, "table1", "S", "S")
+             << model::operation::begin_transaction(1) << model::operation::begin_transaction(2)
+             << model::operation::insert(k_table1_id, 1, key1, value1)
+             << model::operation::insert(k_table1_id, 2, key2, value2)
+             << model::operation::prepare_transaction(1, 10)
+             << model::operation::prepare_transaction(2, 15)
+             << model::operation::commit_transaction(1, 20, 21)
+             << model::operation::commit_transaction(2, 25, 26)
+             << model::operation::set_stable_timestamp(24)
+             << model::operation::rollback_to_stable();
+
+    /* Run the workload in the model. */
+    model::kv_database database;
+    workload.run(database);
+
+    /* Verify the contents of the model. */
+    model::kv_table_ptr table = database.table("table1");
+    testutil_assert(table->get(key1) == value1);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == model::NONE);
+
+    /* Run the workload in WiredTiger and verify. */
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "prepared";
+    verify_workload(workload, opts, test_home, ENV_CONFIG);
+    verify_using_debug_log(opts, test_home.c_str()); /* May as well test this. */
+}
+
+/*
+ * test_workload_restart --
+ *     Test the workload executor with database restart.
+ */
+static void
+test_workload_restart(void)
+{
+    model::kv_workload workload;
+    workload << model::operation::create_table(k_table1_id, "table1", "S", "S")
+             << model::operation::begin_transaction(1) << model::operation::begin_transaction(2)
+             << model::operation::insert(k_table1_id, 1, key1, value1)
+             << model::operation::insert(k_table1_id, 2, key2, value2)
+             << model::operation::prepare_transaction(1, 10)
+             << model::operation::prepare_transaction(2, 15)
+             << model::operation::commit_transaction(1, 20, 21)
+             << model::operation::commit_transaction(2, 25, 26)
+             << model::operation::set_stable_timestamp(24) << model::operation::begin_transaction(1)
+             << model::operation::remove(k_table1_id, 1, key1) << model::operation::checkpoint()
+             << model::operation::restart();
+
+    /* Run the workload in the model. */
+    model::kv_database database;
+    workload.run(database);
+
+    /* Verify the contents of the model. */
+    model::kv_table_ptr table = database.table("table1");
+    testutil_assert(table->get(key1) == value1);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == model::NONE);
+
+    /* Run the workload in WiredTiger and verify. */
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "restart";
+    verify_workload(workload, opts, test_home, ENV_CONFIG);
+    verify_using_debug_log(opts, test_home.c_str()); /* May as well test this. */
+}
+
+/*
  * usage --
  *     Print usage help for the program.
  */
@@ -221,6 +292,8 @@ main(int argc, char *argv[])
         ret = EXIT_SUCCESS;
         test_workload_basic();
         test_workload_txn();
+        test_workload_prepared();
+        test_workload_restart();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;
         ret = EXIT_FAILURE;

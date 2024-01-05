@@ -34,7 +34,6 @@
 #include "model/core.h"
 #include "model/data_value.h"
 #include "model/kv_database.h"
-#include "wiredtiger.h"
 
 namespace model {
 
@@ -155,6 +154,38 @@ struct prepare_transaction {
 };
 
 /*
+ * remove --
+ *     A representation of this workload operation.
+ */
+struct remove {
+    table_id_t table_id;
+    txn_id_t txn_id;
+    data_value key;
+
+    /*
+     * remove::remove --
+     *     Create the operation.
+     */
+    inline remove(table_id_t table_id, txn_id_t txn_id, const data_value &key)
+        : table_id(table_id), txn_id(txn_id), key(key)
+    {
+    }
+};
+
+/*
+ * restart --
+ *     A representation of this workload operation.
+ */
+struct restart {
+
+    /*
+     * restart::restart --
+     *     Create the operation.
+     */
+    inline restart() {}
+};
+
+/*
  * rollback_to_stable --
  *     A representation of this workload operation.
  */
@@ -216,25 +247,6 @@ struct set_stable_timestamp {
 };
 
 /*
- * remove --
- *     A representation of this workload operation.
- */
-struct remove {
-    table_id_t table_id;
-    txn_id_t txn_id;
-    data_value key;
-
-    /*
-     * remove::remove --
-     *     Create the operation.
-     */
-    inline remove(table_id_t table_id, txn_id_t txn_id, const data_value &key)
-        : table_id(table_id), txn_id(txn_id), key(key)
-    {
-    }
-};
-
-/*
  * truncate --
  *     A representation of this workload operation.
  */
@@ -260,8 +272,8 @@ struct truncate {
  *     Any workload operation.
  */
 using any = std::variant<begin_transaction, checkpoint, commit_transaction, create_table, insert,
-  prepare_transaction, remove, rollback_to_stable, rollback_transaction, set_commit_timestamp,
-  set_stable_timestamp, truncate>;
+  prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
+  set_commit_timestamp, set_stable_timestamp, truncate>;
 
 } /* namespace operation */
 
@@ -310,7 +322,7 @@ public:
      * kv_workload::run --
      *     Run the workload in WiredTiger.
      */
-    void run(WT_CONNECTION *connection) const;
+    void run_in_wiredtiger(const char *home, const char *connection_config) const;
 
 private:
     std::deque<operation::any> _operations;

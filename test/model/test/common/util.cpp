@@ -130,11 +130,12 @@ verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::
     workload.run(database);
 
     /* Run the workload in WiredTiger. */
-    WT_CONNECTION *conn;
     testutil_recreate_dir(home.c_str());
-    testutil_wiredtiger_open(opts, home.c_str(), env_config, nullptr, &conn, false, false);
+    workload.run_in_wiredtiger(home.c_str(), env_config);
 
-    workload.run(conn);
+    /* Open the database that we just created. */
+    WT_CONNECTION *conn;
+    testutil_wiredtiger_open(opts, home.c_str(), env_config, nullptr, &conn, false, false);
 
     /* Verify. */
     std::vector<std::string> tables = model::wt_list_tables(conn);

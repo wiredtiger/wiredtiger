@@ -79,6 +79,61 @@ kv_workload_context_wt::session_context::cursor(table_id_t table_id, int table_c
 }
 
 /*
+ * kv_workload_context_wt::~kv_workload_context_wt --
+ *     Clean up the workload context.
+ */
+kv_workload_context_wt::~kv_workload_context_wt()
+{
+    if (_connection != nullptr) {
+        try {
+            wiredtiger_close();
+        } catch (std::runtime_error &e) {
+            /*
+             * We cannot throw an exception out of a destructor, so just print a warning and
+             * continue.
+             */
+            std::cerr << "Error while cleaning up the workload context: " << e.what() << std::endl;
+        }
+    }
+}
+
+/*
+ * kv_workload_context_wt::wiredtiger_open --
+ *     Open WiredTiger.
+ */
+void
+kv_workload_context_wt::wiredtiger_open()
+{
+    if (_connection != nullptr)
+        throw model_exception("WiredTiger is already open");
+
+    int ret = ::wiredtiger_open(_home.c_str(), nullptr, _connection_config.c_str(), &_connection);
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot open WiredTiger", ret);
+}
+
+/*
+ * kv_workload_context_wt::wiredtiger_close --
+ *     Close WiredTiger.
+ */
+void
+kv_workload_context_wt::wiredtiger_close()
+{
+    if (_connection == nullptr)
+        throw model_exception("WiredTiger is not open");
+
+    /* Close all sessions. */
+    _sessions.clear();
+
+    /* Close the database. */
+    int ret = _connection->close(_connection, nullptr);
+    if (ret != 0)
+        throw wiredtiger_exception("Cannot close WiredTiger", ret);
+
+    _connection = nullptr;
+}
+
+/*
  * kv_workload_context_wt::allocate_txn_session --
  *     Allocate a session context for a transaction.
  */
@@ -86,6 +141,9 @@ kv_workload_context_wt::session_context_ptr
 kv_workload_context_wt::allocate_txn_session(txn_id_t id)
 {
     std::unique_lock lock(_sessions_lock);
+    if (_connection == nullptr)
+        throw model_exception("The database is closed");
+
     if (_sessions.find(id) != _sessions.end())
         throw model_exception("A session with the given ID already exists");
 

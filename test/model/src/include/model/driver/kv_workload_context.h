@@ -64,6 +64,18 @@ public:
     }
 
     /*
+     * kv_workload_context::restart --
+     *     Simulate database restart.
+     */
+    inline void
+    restart()
+    {
+        std::unique_lock lock(_transactions_lock);
+        _transactions.clear();
+        _database.restart();
+    }
+
+    /*
      * kv_workload_context::add_table --
      *     Add a table.
      */
