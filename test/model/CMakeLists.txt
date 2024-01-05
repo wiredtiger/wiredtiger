@@ -13,7 +13,7 @@ add_library(wiredtiger_model SHARED
     src/core/verify.cpp
     src/driver/debug_log_parser.cpp
     src/driver/kv_workload.cpp
-    src/driver/kv_workload_context_wt.cpp
+    src/driver/kv_workload_runner_wt.cpp
 )
 
 target_include_directories(

@@ -221,9 +221,13 @@ test_workload_restart(void)
              << model::operation::prepare_transaction(2, 15)
              << model::operation::commit_transaction(1, 20, 21)
              << model::operation::commit_transaction(2, 25, 26)
-             << model::operation::set_stable_timestamp(24) << model::operation::begin_transaction(1)
+             << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
              << model::operation::remove(k_table1_id, 1, key1) << model::operation::checkpoint()
-             << model::operation::restart();
+             << model::operation::restart() << model::operation::begin_transaction(1)
+             << model::operation::insert(k_table1_id, 1, key3, value3)
+             << model::operation::prepare_transaction(1, 23)
+             << model::operation::commit_transaction(1, 24, 25)
+             << model::operation::set_stable_timestamp(25);
 
     /* Run the workload in the model. */
     model::kv_database database;
@@ -233,7 +237,7 @@ test_workload_restart(void)
     model::kv_table_ptr table = database.table("table1");
     testutil_assert(table->get(key1) == value1);
     testutil_assert(table->get(key2) == model::NONE);
-    testutil_assert(table->get(key3) == model::NONE);
+    testutil_assert(table->get(key3) == value3);
 
     /* Run the workload in WiredTiger and verify. */
     std::string test_home = std::string(home) + DIR_DELIM_STR + "restart";

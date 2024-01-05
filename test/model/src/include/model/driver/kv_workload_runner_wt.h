@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DRIVER_KV_WORKLOAD_CONTEXT_WT_H
-#define MODEL_DRIVER_KV_WORKLOAD_CONTEXT_WT_H
+#ifndef MODEL_DRIVER_KV_WORKLOAD_RUNNER_WT_H
+#define MODEL_DRIVER_KV_WORKLOAD_RUNNER_WT_H
 
 #include <memory>
 #include <shared_mutex>
@@ -39,15 +39,15 @@
 namespace model {
 
 /*
- * kv_workload_context_wt --
+ * kv_workload_runner_wt --
  *     The workload context for WiredTiger.
  */
-class kv_workload_context_wt {
+class kv_workload_runner_wt {
 
-public:
+protected:
     /*
      * session_context --
-     *     The WiredTiger session context.
+     *     The WiredTiger session
      */
     class session_context {
 
@@ -57,9 +57,9 @@ public:
     public:
         /*
          * session_context::session_context --
-         *     Create the context.
+         *     Create the
          */
-        inline session_context(kv_workload_context_wt &workload_context, WT_SESSION *session)
+        inline session_context(kv_workload_runner_wt &workload_context, WT_SESSION *session)
             : _session(session), _workload_context(workload_context)
         {
         }
@@ -102,59 +102,169 @@ public:
 
     private:
         WT_SESSION *_session;
-        kv_workload_context_wt &_workload_context;
+        kv_workload_runner_wt &_workload_context;
 
         std::unordered_map<cursor_id_t, WT_CURSOR *> _cursors; /* One cursor per table. */
     };
 
     /*
      * session_context_ptr --
-     *     The shared pointer for the session context.
+     *     The shared pointer for the session
      */
     using session_context_ptr = std::shared_ptr<session_context>;
 
 public:
     /*
-     * kv_workload_context_wt::kv_workload_context_wt --
-     *     Create a new workload context.
+     * kv_workload_runner_wt::kv_workload_runner_wt --
+     *     Create a new workload
      */
-    inline kv_workload_context_wt(const char *home, const char *connection_config)
+    inline kv_workload_runner_wt(const char *home, const char *connection_config)
         : _connection(nullptr), _connection_config(connection_config), _home(home)
     {
     }
 
     /*
-     * kv_workload_context_wt::~kv_workload_context_wt --
-     *     Clean up the workload context.
+     * kv_workload_runner_wt::~kv_workload_runner_wt --
+     *     Clean up the workload
      */
-    ~kv_workload_context_wt();
+    ~kv_workload_runner_wt();
 
     /*
-     * kv_workload_context_wt::connection --
-     *     Get the connection.
+     * kv_workload_runner::run_operation --
+     *     Run the given operation.
      */
-    inline WT_CONNECTION *
-    connection() const
+    inline void
+    run_operation(const operation::any &op)
     {
-        if (_connection == nullptr)
-            throw model_exception("WiredTiger is not open");
-        return _connection;
+        std::visit(
+          [this](auto &&x) {
+              int ret = do_operation(x);
+              /*
+               * In the future, we would like to be able to test operations that can fail, at which
+               * point we would record and compare return codes. But we're not there yet, so just
+               * fail on error.
+               */
+              if (ret != 0)
+                  throw wiredtiger_exception(ret);
+          },
+          op);
     }
 
     /*
-     * kv_workload_context_wt::wiredtiger_open --
+     * kv_workload_runner_wt::wiredtiger_open --
      *     Open WiredTiger.
      */
-    void wiredtiger_open();
+    inline void
+    wiredtiger_open()
+    {
+        std::unique_lock lock(_connection_lock);
+        wiredtiger_open_nolock();
+    }
 
     /*
-     * kv_workload_context_wt::wiredtiger_close --
+     * kv_workload_runner_wt::wiredtiger_close --
      *     Close WiredTiger.
      */
-    void wiredtiger_close();
+    inline void
+    wiredtiger_close()
+    {
+        std::unique_lock lock(_connection_lock);
+        wiredtiger_close_nolock();
+    }
+
+protected:
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::begin_transaction &op);
 
     /*
-     * kv_workload_context_wt::add_table_uri --
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::checkpoint &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::commit_transaction &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::create_table &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::insert &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::prepare_transaction &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::remove &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::restart &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::rollback_to_stable &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::rollback_transaction &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::set_commit_timestamp &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::set_stable_timestamp &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::truncate &op);
+
+    /*
+     * kv_workload_runner_wt::wiredtiger_open_nolock --
+     *     Open WiredTiger, assume the right locks are held.
+     */
+    void wiredtiger_open_nolock();
+
+    /*
+     * kv_workload_runner_wt::wiredtiger_close_nolock --
+     *     Close WiredTiger, assume the right locks are held.
+     */
+    void wiredtiger_close_nolock();
+
+    /*
+     * kv_workload_runner_wt::add_table_uri --
      *     Add a table URI.
      */
     inline void
@@ -167,7 +277,7 @@ public:
     }
 
     /*
-     * kv_workload_context_wt::table_uri --
+     * kv_workload_runner_wt::table_uri --
      *     Get the table URI. The returned C string pointer is valid for the rest of the duration of
      *     this object.
      */
@@ -182,13 +292,13 @@ public:
     }
 
     /*
-     * kv_workload_context_wt::allocate_txn_session --
+     * kv_workload_runner_wt::allocate_txn_session --
      *     Allocate a session context for a transaction.
      */
     session_context_ptr allocate_txn_session(txn_id_t id);
 
     /*
-     * kv_workload_context_wt::remove_txn_session --
+     * kv_workload_runner_wt::remove_txn_session --
      *     Remove a session context from the transaction.
      */
     inline session_context_ptr
@@ -204,7 +314,7 @@ public:
     }
 
     /*
-     * kv_workload_context_wt::session_context --
+     * kv_workload_runner_wt::session_context --
      *     Get the session context associated with the given transaction.
      */
     inline session_context_ptr
@@ -218,9 +328,11 @@ public:
     }
 
 private:
-    WT_CONNECTION *_connection;
     std::string _connection_config;
     std::string _home;
+
+    mutable std::shared_mutex _connection_lock; /* Should be held for all operations. */
+    WT_CONNECTION *_connection;
 
     mutable std::shared_mutex _table_uris_lock;
     std::unordered_map<table_id_t, std::string> _table_uris;
