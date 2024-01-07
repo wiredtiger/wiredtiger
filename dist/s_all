@@ -166,9 +166,7 @@ run --bg "type_to_str.py" &
 
 # Wait for completion.
 if [[ -n "$ISTTY" ]]; then
-    while : ; do
-        J="$(echo `jobs -rp` | tr ' ' '|')"
-        [[ -z "$J" ]] && break
+    while J="$(echo `jobs -rp` | tr ' ' '|')" && [[ -n "$J" ]]; do
         status "$(echo -n $'Running:'`ps -o ppid=,command= | egrep "^($J) " | egrep -o " s_\w*| \w*\.py" | sort`)"
         sleep 0.2
     done
