@@ -40,18 +40,9 @@ namespace model {
  */
 kv_workload_runner_wt::session_context::~session_context()
 {
-    int r;
+    /* Close the session, which automatically closes its cursors. */
+    int r = _session->close(_session, nullptr);
 
-    for (auto p : _cursors) {
-        WT_CURSOR *cursor = p.second;
-        r = cursor->close(cursor);
-        /* We cannot fail the cleanup, so just print a warning */
-        if (r != 0)
-            std::cerr << "Could not close a cursor: " << _session->strerror(_session, r) << " ("
-                      << r << ")" << std::endl;
-    }
-
-    r = _session->close(_session, nullptr);
     /* We cannot fail the cleanup, so just print a warning */
     if (r != 0)
         std::cerr << "Could not close a session: " << wiredtiger_strerror(r) << " (" << r << ")"
@@ -64,7 +55,7 @@ kv_workload_runner_wt::session_context::~session_context()
  *     create additional cursors for the given table.
  */
 WT_CURSOR *
-kv_workload_runner_wt::session_context::cursor(table_id_t table_id, int table_cur_id)
+kv_workload_runner_wt::session_context::cursor(table_id_t table_id, unsigned table_cur_id)
 {
     cursor_id_t id = cursor_id(table_id, table_cur_id);
     auto i = _cursors.find(id);
@@ -87,16 +78,16 @@ kv_workload_runner_wt::session_context::cursor(table_id_t table_id, int table_cu
  */
 kv_workload_runner_wt::~kv_workload_runner_wt()
 {
-    if (_connection != nullptr) {
-        try {
-            wiredtiger_close();
-        } catch (std::runtime_error &e) {
-            /*
-             * We cannot throw an exception out of a destructor, so just print a warning and
-             * continue.
-             */
-            std::cerr << "Error while cleaning up the workload context: " << e.what() << std::endl;
-        }
+    if (_connection == nullptr)
+        return;
+
+    try {
+        wiredtiger_close();
+    } catch (std::runtime_error &e) {
+        /*
+         * We cannot throw an exception out of a destructor, so just print a warning and continue.
+         */
+        std::cerr << "Error while cleaning up the workload context: " << e.what() << std::endl;
     }
 }
 
@@ -124,11 +115,11 @@ kv_workload_runner_wt::do_operation(const operation::checkpoint &op)
     WT_SESSION *session;
     int ret = _connection->open_session(_connection, nullptr, nullptr, &session);
     if (ret != 0)
-        throw wiredtiger_exception("Failed to open a session", ret);
+        return ret;
     wiredtiger_session_guard session_guard(session);
 
     std::ostringstream config;
-    if (op.name != "")
+    if (!op.name.empty())
         config << "name=" << op.name;
 
     std::string config_str = config.str();
@@ -167,10 +158,14 @@ kv_workload_runner_wt::do_operation(const operation::create_table &op)
     WT_SESSION *session;
     int ret = _connection->open_session(_connection, nullptr, nullptr, &session);
     if (ret != 0)
-        throw wiredtiger_exception("Failed to open a session", ret);
+        return ret;
     wiredtiger_session_guard session_guard(session);
 
     std::ostringstream config;
+    /*
+     * Set the logging parameter explicitly, because if the connection config enables logging (e.g.,
+     * because the caller wants to use debug logging), we still don't want logging for these tables.
+     */
     config << "log=(enabled=false)";
     config << ",key_format=" << op.key_format << ",value_format=" << op.value_format;
 
@@ -309,7 +304,7 @@ kv_workload_runner_wt::do_operation(const operation::truncate &op)
     std::shared_lock lock(_connection_lock);
     session_context_ptr session = txn_session(op.txn_id);
     WT_CURSOR *cursor1 = session->cursor(op.table_id);
-    WT_CURSOR *cursor2 = session->cursor(op.table_id, 1);
+    WT_CURSOR *cursor2 = session->cursor(op.table_id, 1); /* Open another cursor for the table. */
     return wt_cursor_truncate(
       session->session(), table_uri(op.table_id), cursor1, cursor2, op.start, op.stop);
 }

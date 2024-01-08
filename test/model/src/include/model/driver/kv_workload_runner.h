@@ -103,7 +103,7 @@ protected:
     int
     do_operation(const operation::checkpoint &op)
     {
-        _database.create_checkpoint(op.name == "" ? nullptr : op.name.c_str());
+        _database.create_checkpoint(op.name.empty() ? nullptr : op.name.c_str());
         return 0;
     }
 
@@ -114,6 +114,7 @@ protected:
     int
     do_operation(const operation::commit_transaction &op)
     {
+        /* Remove the transaction first, so that the map has only uncommitted transactions. */
         remove_transaction(op.txn_id)->commit(op.commit_timestamp, op.durable_timestamp);
         return 0;
     }

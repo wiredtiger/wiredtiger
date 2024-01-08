@@ -51,7 +51,7 @@ protected:
      */
     class session_context {
 
-        using cursor_id_t = int;
+        using cursor_id_t = unsigned;
         static constexpr cursor_id_t k_cursors_per_table = 16;
 
     public:
@@ -85,7 +85,7 @@ protected:
          *     Get a cursor. Create one if it does not already exist. Use the second argument to get
          *     and/or create additional cursors for the given table.
          */
-        WT_CURSOR *cursor(table_id_t table_id, int table_cur_id = 0);
+        WT_CURSOR *cursor(table_id_t table_id, unsigned table_cur_id = 0);
 
     private:
         /*
@@ -93,7 +93,7 @@ protected:
          *     Get a cursor ID.
          */
         static inline cursor_id_t
-        cursor_id(table_id_t table_id, int table_cur_id)
+        cursor_id(table_id_t table_id, unsigned table_cur_id)
         {
             if (table_cur_id < 0 || table_cur_id >= k_cursors_per_table)
                 throw model_exception("Cursor ID out of range");
