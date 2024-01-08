@@ -55,7 +55,7 @@ struct __wt_tiered_work_unit {
     uint32_t id;                          /* Id of the object */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TIERED_WORK_FORCE 0x1u /* Force operation */
-#define WT_TIERED_WORK_FREE 0x2u  /* Free data after operation */
+#define WT_TIERED_WORK_FREE 0x2u  /* Only free the work unit */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;               /* Flags for operation */
 };

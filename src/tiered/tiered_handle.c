@@ -805,7 +805,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     if (0) {
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
-        FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
+        FLD_SET(unused, WT_TIERED_WORK_FORCE);
         WT_ERR(__wt_tiered_put_work(
           session, tiered, WT_TIERED_WORK_REMOVE_SHARED, tiered->current_id, 0));
         __wt_tiered_get_remove_shared(session, &entry);

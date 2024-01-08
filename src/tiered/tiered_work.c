@@ -39,7 +39,9 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 
     conn = S2C(session);
     dhandle = (WT_DATA_HANDLE *)&entry->tiered->iface;
-    WT_WITH_DHANDLE(session, dhandle, ret = __wt_session_release_dhandle(session));
+    /* Only call session_release_dhandle if we popped it for work. */
+    if (!F_ISSET(entry->tiered, WT_TIERED_WORK_FREE))
+        WT_WITH_DHANDLE(session, dhandle, ret = __wt_session_release_dhandle(session));
     WT_DHANDLE_RELEASE(dhandle);
     /* We expect success always. */
     if (ret != 0)

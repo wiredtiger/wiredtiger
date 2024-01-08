@@ -553,6 +553,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session, bool final_flush)
         conn->tiered_tid_set = false;
         while ((entry = TAILQ_FIRST(&conn->tieredqh)) != NULL) {
             TAILQ_REMOVE(&conn->tieredqh, entry, q);
+            F_SET(entry->tiered, WT_TIERED_WORK_FREE);
             __wt_tiered_work_free(session, entry);
         }
     }
