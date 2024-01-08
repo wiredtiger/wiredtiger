@@ -35,11 +35,16 @@ __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
 
     conn = S2C(session);
     dhandle = (WT_DATA_HANDLE *)&entry->tiered->iface;
-    WT_WITH_DHANDLE(session, dhandle, (void)__wt_session_release_dhandle(session));
+    WT_WITH_DHANDLE(session, dhandle, ret = __wt_session_release_dhandle(session));
     WT_DHANDLE_RELEASE(dhandle);
+    /* We expect success always. */
+    if (ret != 0)
+        WT_IGNORE_RET(
+          __wt_panic(session, WT_PANIC, "Releasing tiered work unit dhandle failed with %d", ret));
     __tiered_flush_state(session, entry->type, false);
     /* If all work is done signal any waiting thread waiting for sync. */
     if (WT_FLUSH_STATE_DONE(conn->flush_state))
