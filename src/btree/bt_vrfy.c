@@ -419,7 +419,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unp
  *     was physically verified (so we know it's correctly formed), and the in-memory version built.
  *     Our job is to check logical relationships in the page and in the tree.
  */
-static int // MARIAM
+static int
 __verify_tree(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
 {
@@ -659,8 +659,8 @@ celltype_err:
             ret = __wt_page_in(session, child_ref, 0);
 
             if (ret != 0 && unpack->data != NULL) {
-                WT_RET(__wt_msg(session, "MARIAM %p: %s - potential hardware corruption",
-                  unpack->data, __wt_page_type_string(ref->page->type)));
+                WT_RET(__wt_msg(session, "%p: %s - potential hardware corruption", unpack->data,
+                  __wt_page_type_string(ref->page->type)));
             }
 
             /*
@@ -705,8 +705,8 @@ celltype_err:
             ret = __wt_page_in(session, child_ref, 0);
 
             if (ret != 0 && unpack->data != NULL) {
-                WT_RET(__wt_msg(session, "MARIAM %p: %s - potential hardware corruption",
-                  unpack->data, __wt_page_type_string(ref->page->type)));
+                WT_RET(__wt_msg(session, "%p: %s - potential hardware corruption", unpack->data,
+                  __wt_page_type_string(ref->page->type)));
             }
             /*
              * If configured, continue traversing through the pages of the tree even after
