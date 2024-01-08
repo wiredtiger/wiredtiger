@@ -158,8 +158,9 @@ __wt_tiered_pop_work(
     if (entry != NULL) {
         ret = __wt_session_get_dhandle(
           session, ((WT_DATA_HANDLE *)&entry->tiered->iface)->name, NULL, NULL, 0);
-        WT_IGNORE_RET(
-          __wt_panic(session, WT_PANIC, "Getting tiered work unit dhandle failed with %d", ret));
+        if (ret != 0)
+            WT_IGNORE_RET(__wt_panic(
+              session, WT_PANIC, "Getting tiered work unit dhandle failed with %d", ret));
     }
     __wt_spin_unlock(session, &conn->tiered_lock);
     return;
