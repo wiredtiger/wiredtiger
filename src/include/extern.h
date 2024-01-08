@@ -482,9 +482,6 @@ extern int __wt_conf_compile(WT_SESSION_IMPL *session, const char *api, const ch
 extern int __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
   u_int centry_index, const char *config, void *compile_buf, size_t compile_buf_size,
   WT_CONF **confp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  const char **cfg, u_int user_supplied, WT_CONF *conf)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf,
@@ -1901,7 +1898,6 @@ extern void __wt_cond_auto_wait(
 extern void __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress,
   bool (*run_func)(WT_SESSION_IMPL *), bool *signalled);
 extern void __wt_conf_compile_discard(WT_SESSION_IMPL *session);
-extern void __wt_conf_compile_free(WT_SESSION_IMPL *session, WT_CONF *conf);
 extern void __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str);
 extern void __wt_config_initn(
   WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);

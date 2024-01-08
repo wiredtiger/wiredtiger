@@ -1096,12 +1096,6 @@ struct __wt_conf_bind_desc {
     u_int offset;             /* offset into WT_SESSION::conf_bindings.values table */
 };
 
-typedef enum {
-    CONF_COMPILED_SUBCONF = 0,
-    CONF_COMPILED_EXPLICIT = 1,
-    CONF_COMPILED_IMPLICIT = 2
-} WT_CONF_COMPILED_TYPE;
-
 /*
  * WT_CONF --
  *	A structure corresponding to a compiled configuration string.  This is set up to
@@ -1118,11 +1112,6 @@ typedef enum {
  * copy so we can add modifications), we must copy the entire superstructure.
  */
 struct __wt_conf {
-    /*
-     * Explicit compilation is allocated on the heap, implicit is allocated on the stack.
-     * Sub-configurations are always allocated as part of a top level configuration.
-     */
-    WT_CONF_COMPILED_TYPE compiled_type;
     const WT_CONFIG_ENTRY *compile_time_entry; /* May be used for diagnostic checks. */
     char *orig_config;
 

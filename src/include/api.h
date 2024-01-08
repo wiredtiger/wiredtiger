@@ -382,4 +382,8 @@
 
 #define SESSION_API_CONF(session, n, cfg, conf) API_CONF(session, WT_SESSION, n, cfg, conf)
 
-#define API_CONF_END(session, conf) __wt_conf_compile_free(session, conf)
+/*
+ * There is currently nothing to free, so this is a placeholder for any other cleanup we need in the
+ * future.
+ */
+#define API_CONF_END(session, conf)

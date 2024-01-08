@@ -22,19 +22,24 @@ static const WT_CONFIG_ITEM_TYPE __compiled_type_to_item_type[] = {
   WT_CONFIG_ITEM_STRUCT, /* WT_CONFIG_COMPILED_TYPE_LIST, e.g. type='list' */
 };
 
+static int __conf_compile_config_strings(
+  WT_SESSION_IMPL *, const WT_CONFIG_ENTRY *, const char **, u_int, bool, WT_CONF *);
+static void __conf_compile_free(WT_SESSION_IMPL *, WT_CONF *);
+
 /*
  * __conf_compile_value --
  *     Compile a value into the compiled struct.
  */
 static int
 __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM_TYPE check_type,
-  WT_CONF_KEY *conf_key, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value, bool is_default)
+  WT_CONF_KEY *conf_key, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value, bool bind_allowed,
+  bool is_default)
 {
     uint32_t bind_offset;
 
     if (value->len > 0 && value->str[0] == '%') {
         /* We must be doing an explicit compilation. */
-        if (top_conf->compiled_type != CONF_COMPILED_EXPLICIT)
+        if (!bind_allowed)
             WT_RET_MSG(
               session, EINVAL, "Value '%.*s' is not valid here", (int)value->len, value->str);
 
@@ -117,7 +122,7 @@ __conf_check_compare(const void *keyvoid, const void *check)
 static int
 __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_CONF *conf,
   const WT_CONFIG_CHECK *checks, u_int check_count, const uint8_t *check_jump, const char *format,
-  size_t format_len, bool is_default)
+  size_t format_len, bool bind_allowed, bool is_default)
 {
     WT_CONF *sub_conf;
     WT_CONFIG parser;
@@ -249,7 +254,8 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
 
             /* Compile the sub-configuration and adjust our counts. */
             WT_ERR(__conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
-              check->subconfigs_entries, check->subconfigs_jump, value.str, value.len, is_default));
+              check->subconfigs_entries, check->subconfigs_jump, value.str, value.len, bind_allowed,
+              is_default));
             conf->conf_key_count += (sub_conf->conf_key_count - subconf_keys);
             conf->conf_count += (sub_conf->conf_count - subconf_count);
         } else
@@ -258,7 +264,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
              * matches one.
              */
             WT_ERR(__conf_compile_value(
-              session, top_conf, check_type, conf_key, check, &value, is_default));
+              session, top_conf, check_type, conf_key, check, &value, bind_allowed, is_default));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
@@ -310,10 +316,9 @@ __wt_conf_compile(
     cfgs[1] = format_copy;
     WT_ERR(__wt_calloc(session, centry->conf_total_size, 1, &buf));
     conf = buf;
-    conf->compiled_type = CONF_COMPILED_EXPLICIT;
     conf->orig_config = format_copy;
 
-    WT_ERR(__wt_conf_compile_config_strings(session, centry, cfgs, 1, conf));
+    WT_ERR(__conf_compile_config_strings(session, centry, cfgs, 1, true, conf));
 
     /*
      * The entry compiled. Now put it into the connection array if there's room.
@@ -333,7 +338,7 @@ __wt_conf_compile(
 
 err:
     if (ret != 0)
-        __wt_conf_compile_free(session, conf);
+        __conf_compile_free(session, conf);
 
     return (ret);
 }
@@ -362,15 +367,11 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
       "conf: total size does not equal calculated size");
 
     /*
-     * If an entry is precompiled, it will be the last one. A precompiled entry already includes the
-     * default values, so very little needs to be done in that case.
+     * If the config string has been precompiled, it already includes everything we need, including
+     * the default values, so nothing needs to be done here.
      */
     if (__wt_conf_get_compiled(S2C(session), config, &preconf)) {
-        memcpy(compile_buf, preconf, compile_buf_size);
-        conf = compile_buf;
-
-        conf->compiled_type = CONF_COMPILED_IMPLICIT; /* Stack allocated, no frees needed. */
-        *confp = conf;
+        *confp = preconf;
         return (0);
     }
 
@@ -380,29 +381,25 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
 
     memcpy(compile_buf, preconf, compile_buf_size);
     conf = compile_buf;
-    conf->compiled_type = CONF_COMPILED_IMPLICIT; /* Stack allocated, no frees needed. */
 
     /* Add to it the user format if any. */
     if (config != NULL)
         WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
-          centry->checks_entries, centry->checks_jump, config, strlen(config), false));
+          centry->checks_entries, centry->checks_jump, config, strlen(config), false, false));
 
     *confp = conf;
 
 err:
-    if (ret != 0)
-        __wt_conf_compile_free(session, conf);
-
     return (ret);
 }
 
 /*
- * __wt_conf_compile_config_strings --
+ * __conf_compile_config_strings --
  *     Given an array of config strings, parse them, returning the compiled structure.
  */
-int
-__wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  const char **cfg, u_int user_supplied, WT_CONF *conf)
+static int
+__conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
+  const char **cfg, u_int user_supplied, bool bind_allowed, WT_CONF *conf)
 {
     u_int i, nconf, nkey;
 
@@ -422,7 +419,8 @@ __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY
     for (i = 0; cfg[i] != NULL; ++i)
         /* Every entry but the last is considered a "default" entry. */
         WT_RET(__conf_compile(session, centry->method, conf, conf, centry->checks,
-          centry->checks_entries, centry->checks_jump, cfg[i], strlen(cfg[i]), i != user_supplied));
+          centry->checks_entries, centry->checks_jump, cfg[i], strlen(cfg[i]), bind_allowed,
+          i != user_supplied));
 
     WT_ASSERT_ALWAYS(session, conf->conf_key_count <= nkey, "conf: key count overflow");
     WT_ASSERT_ALWAYS(session, conf->conf_count <= nconf, "conf: sub-conf count overflow");
@@ -473,10 +471,9 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
         WT_ASSERT(session, centry->method_id == i);
         if (centry->compilable) {
             WT_RET(__wt_calloc(session, centry->conf_total_size, 1, &conf));
-            conf->compiled_type = CONF_COMPILED_EXPLICIT;
 
             cfgs[0] = centry->base;
-            WT_RET(__wt_conf_compile_config_strings(session, centry, cfgs, 1, conf));
+            WT_RET(__conf_compile_config_strings(session, centry, cfgs, 1, false, conf));
             conn->conf_api_array[i] = conf;
         }
     }
@@ -484,17 +481,13 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * __wt_conf_compile_free --
+ * __conf_compile_free --
  *     Free one compiled item.
  */
-void
-__wt_conf_compile_free(WT_SESSION_IMPL *session, WT_CONF *conf)
+static void
+__conf_compile_free(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
-    /*
-     * Don't mistakenly free a compiled entry that has already been handed back to a user or is one
-     * of the initial compilations of base APIs.
-     */
-    if (conf != NULL && conf->compiled_type == CONF_COMPILED_EXPLICIT) {
+    if (conf != NULL) {
         __wt_free(session, conf->orig_config);
         __wt_free(session, conf->binding_descriptions);
         __wt_free(session, conf);
@@ -515,12 +508,12 @@ __wt_conf_compile_discard(WT_SESSION_IMPL *session)
     __wt_free(session, conn->conf_dummy);
     if (conn->conf_api_array != NULL) {
         for (i = 0; i < WT_CONF_API_ELEMENTS; ++i)
-            __wt_conf_compile_free(session, conn->conf_api_array[i]);
+            __conf_compile_free(session, conn->conf_api_array[i]);
         __wt_free(session, conn->conf_array);
     }
     if (conn->conf_array != NULL) {
         for (i = 0; i < conn->conf_size; ++i)
-            __wt_conf_compile_free(session, conn->conf_array[i]);
+            __conf_compile_free(session, conn->conf_array[i]);
         __wt_free(session, conn->conf_array);
     }
 }
