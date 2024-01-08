@@ -22,17 +22,17 @@ while len(pids):
 ' $$
 }
 
-CLRL=$'\e[K'
-CLRS=$'\e[0J'
-BOL=$'\r'
+CLRL=$'\e[K'     # Clear to the end of line.
+CLRS=$'\e[0J'    # Clear to the bottom of screen.
+BOL=$'\r'        # Move cursor to the beginning of line.
 # `stty` unfortunately uses stdin (not stdout) to locate the tty so have to check both.
 [[ -t 1 && -t 0 ]] && { ISTTY=1; CLRIFTTY="$CLRS"; }
 
 status() {
-    # Single line:
+    # Single line version: ensures that the status soesn't span for more than one line.
     # [[ -n "$ISTTY" ]] && echo -n "${1:0:`stty size | sed -n 's/^[0-9]* //p'`}$CLRL$BOL"
 
-    # Multiline:
+    # Multiline version: counts the number of lines and moves the cursor up accordingly.
     [[ -n "$ISTTY" ]] || return
     local text="$1"
     [[ -z "$text" ]] && { echo -n $CLRS; return; }  # Short path to just clear the status
@@ -69,20 +69,38 @@ force=
 errmode=0
 errfound=0
 
-while :
+help() {
+    cat << _END
+Run all presubmit tests.
+Usage: $0 [... options]
+  -E                 Return an error code on failure.
+  -f                 Force versions to be updated.
+  -F                 Run fast.
+  --no-interactive   Disable interactitve terminal status.
+  -h, --help         Display this help.
+_END
+    exit $1
+}
+
+while [[ "$#" -gt 0 ]]
     do case "$1" in
-    -E)    # Return an error code on failure
+    -E)                # Return an error code on failure
         errmode=1
         shift;;
-    -f)    # Force versions to be updated
+    -f)                # Force versions to be updated
         force="-f"
         shift;;
-    -F)    # Run fast.
+    -F)                # Run fast.
         echo "dist/s_all running in fast mode..."
         fast="-F"
         shift;;
+    -h | --help) help 0;;
+    --no-interactive)   # Force disable terminal status report
+        ISTTY="" CLRIFTTY=""
+        shift;;
     *)
-        break;;
+        echo "Unknown option '$1'. Use '-h' for help."
+        exit 1;;
     esac
 done
 
