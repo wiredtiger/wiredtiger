@@ -104,7 +104,8 @@ protected:
         WT_SESSION *_session;
         kv_workload_runner_wt &_workload_context;
 
-        std::unordered_map<cursor_id_t, WT_CURSOR *> _cursors; /* One cursor per table. */
+        /* Cached cursors. There can be up to k_cursors_per_table cursors for each table. */
+        std::unordered_map<cursor_id_t, WT_CURSOR *> _cursors;
     };
 
     /*
@@ -271,9 +272,10 @@ protected:
     add_table_uri(table_id_t id, std::string uri)
     {
         std::unique_lock lock(_table_uris_lock);
-        if (_table_uris.find(id) != _table_uris.end())
+        auto i = _table_uris.find(id);
+        if (i != _table_uris.end())
             throw model_exception("A table with the given ID already exists");
-        _table_uris[id] = uri;
+        _table_uris.insert_or_assign(i, id, uri);
     }
 
     /*

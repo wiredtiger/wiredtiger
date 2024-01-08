@@ -250,9 +250,10 @@ protected:
     add_table(table_id_t id, kv_table_ptr ptr)
     {
         std::unique_lock lock(_tables_lock);
-        if (_tables.find(id) != _tables.end())
+        auto i = _tables.find(id);
+        if (i != _tables.end())
             throw model_exception("A table with the given ID already exists");
-        _tables[id] = ptr;
+        _tables.insert_or_assign(i, id, ptr);
     }
 
     /*
@@ -277,9 +278,10 @@ protected:
     add_transaction(txn_id_t id, kv_transaction_ptr ptr)
     {
         std::unique_lock lock(_transactions_lock);
-        if (_transactions.find(id) != _transactions.end())
+        auto i = _transactions.find(id);
+        if (i != _transactions.end())
             throw model_exception("A transaction with the given ID already exists");
-        _transactions[id] = ptr;
+        _transactions.insert_or_assign(i, id, ptr);
     }
 
     /*

@@ -39,7 +39,7 @@ namespace model {
 
 /*
  * kv_workload::run --
- *     Run the workload.
+ *     Run the workload in the model.
  */
 void
 kv_workload::run(kv_database &database) const
@@ -50,7 +50,7 @@ kv_workload::run(kv_database &database) const
 }
 
 /*
- * kv_workload::run --
+ * kv_workload::run_in_wiredtiger --
  *     Run the workload in WiredTiger.
  */
 void

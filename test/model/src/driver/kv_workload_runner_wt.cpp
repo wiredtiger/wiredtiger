@@ -356,7 +356,8 @@ kv_workload_runner_wt::allocate_txn_session(txn_id_t id)
     if (_connection == nullptr)
         throw model_exception("The database is closed");
 
-    if (_sessions.find(id) != _sessions.end())
+    auto i = _sessions.find(id);
+    if (i != _sessions.end())
         throw model_exception("A session with the given ID already exists");
 
     WT_SESSION *session;
@@ -365,7 +366,7 @@ kv_workload_runner_wt::allocate_txn_session(txn_id_t id)
         throw wiredtiger_exception("Failed to open a session", ret);
 
     auto context = std::make_shared<session_context>(*this, session);
-    _sessions[id] = context;
+    _sessions.insert_or_assign(i, id, context);
     return context;
 }
 
