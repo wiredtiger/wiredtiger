@@ -183,10 +183,10 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_TIERED *tiered, tiered_tmp;
     u_int i, localid;
     const char *filename, *name;
-    bool exist, got_dhandle, remove_files, remove_shared;
+    bool exist, remove_files, remove_shared, tracked;
 
     conn = S2C(session);
-    got_dhandle = false;
+    tracked = false;
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
     WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
@@ -199,9 +199,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 
     name = NULL;
     /* Get the tiered data handle. */
-    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
-    got_dhandle = true;
-    tiered = (WT_TIERED *)session->dhandle;
+    WT_RET(__wt_schema_get_tiered_uri(session, uri, WT_DHANDLE_EXCLUSIVE, &tiered));
     /*
      * Save a copy because we cannot release the tiered resources until after the dhandle is
      * released and closed. We have to know if the table is busy or if the close is successful
@@ -221,7 +219,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      * the tiered structure because that is from the dhandle.
      */
     WT_ERR(__wt_session_release_dhandle(session));
-    got_dhandle = false;
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
     WT_ERR(ret);
@@ -309,9 +306,16 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 
     ret = __wt_metadata_remove(session, uri);
 
+    F_SET(&tiered->iface, WT_DHANDLE_DISCARD);
+    if (WT_META_TRACKING(session)) {
+        WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_meta_track_handle_lock(session, false));
+        WT_ERR(ret);
+        tracked = true;
+    }
+
 err:
-    if (got_dhandle)
-        WT_TRET(__wt_session_release_dhandle(session));
+    if (!tracked)
+        WT_TRET(__wt_schema_release_tiered(session, &tiered));
     __wt_free(session, name);
     __wt_spin_unlock_if_owned(session, &conn->tiered_lock);
     return (ret);
