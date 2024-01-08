@@ -272,8 +272,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     }
 
     /* No need to reconcile the page if it is from a dead tree or it is clean. */
-    if (!tree_dead && __wt_page_is_modified(page))
-        WT_ERR(__evict_reconcile(session, ref, flags));
+    if (!tree_dead && __wt_page_is_modified(page)) {
+        ret = __evict_reconcile(session, ref, flags);
+        if (ret == EBUSY)
+            WT_ERR(__evict_reconcile(session, ref, flags | WT_EVICT_CALL_REFRESH_SNAPSHOT));
+        WT_ERR(ret);
+    }
 
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
@@ -881,10 +885,11 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * acquire a new snapshot to evict the latest data, once the application threads are done
          * with eviction then the snapshots are switched back to its original snapshots.
          */
-        WT_RET(__wt_txn_snapshot_save_and_refresh(session));
-
-        is_application_thread_snapshot_refreshed = true;
-        WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
+        if (FLD_ISSET(evict_flags, WT_EVICT_CALL_REFRESH_SNAPSHOT)) {
+            WT_RET(__wt_txn_snapshot_save_and_refresh(session));
+            is_application_thread_snapshot_refreshed = true;
+            WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
+        }
 
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
