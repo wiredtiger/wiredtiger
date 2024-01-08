@@ -172,9 +172,12 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     /* Lock the WT_REF. */
     WT_REF_LOCK(session, ref, &previous_state);
 
-    /* Skip obsolete deleted pages (the on-disk blocks are already discarded). */
+    /*
+     * Don't bother rewriting deleted pages but also don't skip. The on-disk block is discarded by
+     * the next checkpoint.
+     */
     if (previous_state == WT_REF_DELETED && ref->page_del == NULL)
-        *skipp = true;
+        *skipp = false;
 
     /*
      * If it's on disk, get a copy of the address and ask the block manager to rewrite the block if
