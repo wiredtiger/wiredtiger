@@ -699,7 +699,11 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
+    uint8_t prepare_state;
+
+    WT_ORDERED_READ(prepare_state, upd->prepare_state);
+
+    if (prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
 
     /*
@@ -926,7 +930,7 @@ __wt_txn_visible(
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    uint8_t prepare_state, previous_state;
+    uint8_t prepare_state;
     bool upd_visible;
 
     for (;; __wt_yield()) {
@@ -945,10 +949,13 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         /*
          * The visibility check is only valid if the update does not change state. If the state does
          * change, recheck visibility.
+         *
+         * We need to place a read barrier prior to the second read of prepare state as otherwise it
+         * could overlap with the reads of the transaction id and start timestamp. Which would
+         * invalidate this check.
          */
-        previous_state = prepare_state;
-        WT_ORDERED_READ(prepare_state, upd->prepare_state);
-        if (previous_state == prepare_state)
+        WT_READ_BARRIER();
+        if (prepare_state == upd->prepare_state)
             break;
 
         WT_STAT_CONN_INCR(session, prepared_transition_blocked_page);
@@ -1789,6 +1796,10 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
+    uint8_t prepare_state;
+
+    WT_ORDERED_READ(prepare_state, upd->prepare_state);
+
     if (!upd_value->skip_buf) {
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
@@ -1798,13 +1809,13 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
         upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
     } else {
         upd_value->tw.durable_start_ts = upd->durable_ts;
         upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
         upd_value->tw.prepare =
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
     }
     upd_value->type = upd->type;
 }
