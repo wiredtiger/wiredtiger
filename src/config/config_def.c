@@ -1,6 +1,7 @@
 /* DO NOT EDIT: automatically built by dist/api_config.py. */
 
 #include "wt_internal.h"
+const char __WT_CONFIG_CHOICE_NULL[] = ""; /* not set in configuration */
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_close[] = {
   {"final_flush", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 164,
@@ -70,9 +71,12 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+const char __WT_CONFIG_CHOICE_read_uncommitted[] = "read_uncommitted";
+const char __WT_CONFIG_CHOICE_read_committed[] = "read_committed";
+const char __WT_CONFIG_CHOICE_snapshot[] = "snapshot";
 
-static const char *confchk_isolation_choices[] = {
-  "read-uncommitted", "read-committed", "snapshot", NULL};
+static const char *confchk_isolation_choices[] = {__WT_CONFIG_CHOICE_read_uncommitted,
+  __WT_CONFIG_CHOICE_read_committed, __WT_CONFIG_CHOICE_snapshot, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session_prefetch_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 37, INT64_MIN,
@@ -111,9 +115,20 @@ static const uint8_t confchk_WT_CONNECTION_open_session_jump[WT_CONFIG_JUMP_TABL
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3,
   3, 3, 3, 3, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
+const char __WT_CONFIG_CHOICE_all_durable[] = "all_durable";
+const char __WT_CONFIG_CHOICE_last_checkpoint[] = "last_checkpoint";
+const char __WT_CONFIG_CHOICE_oldest[] = "oldest";
+const char __WT_CONFIG_CHOICE_oldest_reader[] = "oldest_reader";
+const char __WT_CONFIG_CHOICE_oldest_timestamp[] = "oldest_timestamp";
+const char __WT_CONFIG_CHOICE_pinned[] = "pinned";
+const char __WT_CONFIG_CHOICE_recovery[] = "recovery";
+const char __WT_CONFIG_CHOICE_stable[] = "stable";
+const char __WT_CONFIG_CHOICE_stable_timestamp[] = "stable_timestamp";
 
-static const char *confchk_get_choices[] = {"all_durable", "last_checkpoint", "oldest",
-  "oldest_reader", "oldest_timestamp", "pinned", "recovery", "stable", "stable_timestamp", NULL};
+static const char *confchk_get_choices[] = {__WT_CONFIG_CHOICE_all_durable,
+  __WT_CONFIG_CHOICE_last_checkpoint, __WT_CONFIG_CHOICE_oldest, __WT_CONFIG_CHOICE_oldest_reader,
+  __WT_CONFIG_CHOICE_oldest_timestamp, __WT_CONFIG_CHOICE_pinned, __WT_CONFIG_CHOICE_recovery,
+  __WT_CONFIG_CHOICE_stable, __WT_CONFIG_CHOICE_stable_timestamp, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
   {"get", "string", NULL,
@@ -175,8 +190,11 @@ static const uint8_t confchk_wiredtiger_open_checkpoint_subconfigs_jump[WT_CONFI
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2};
+const char __WT_CONFIG_CHOICE_none[] = "none";
+const char __WT_CONFIG_CHOICE_reclaim_space[] = "reclaim_space";
 
-static const char *confchk_checkpoint_cleanup_choices[] = {"none", "reclaim_space", NULL};
+static const char *confchk_checkpoint_cleanup_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_reclaim_space, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_chunk_cache_subconfigs[] = {
   {"pinned", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 193, INT64_MIN,
@@ -254,10 +272,25 @@ static const uint8_t confchk_wiredtiger_open_eviction_subconfigs_jump[WT_CONFIG_
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+const char __WT_CONFIG_CHOICE_all[] = "all";
+const char __WT_CONFIG_CHOICE_checkpoint_validate[] = "checkpoint_validate";
+const char __WT_CONFIG_CHOICE_cursor_check[] = "cursor_check";
+const char __WT_CONFIG_CHOICE_disk_validate[] = "disk_validate";
+const char __WT_CONFIG_CHOICE_eviction_check[] = "eviction_check";
+const char __WT_CONFIG_CHOICE_generation_check[] = "generation_check";
+const char __WT_CONFIG_CHOICE_hs_validate[] = "hs_validate";
+const char __WT_CONFIG_CHOICE_key_out_of_order[] = "key_out_of_order";
+const char __WT_CONFIG_CHOICE_log_validate[] = "log_validate";
+const char __WT_CONFIG_CHOICE_prepared[] = "prepared";
+const char __WT_CONFIG_CHOICE_slow_operation[] = "slow_operation";
+const char __WT_CONFIG_CHOICE_txn_visibility[] = "txn_visibility";
 
-static const char *confchk_extra_diagnostics_choices[] = {"all", "checkpoint_validate",
-  "cursor_check", "disk_validate", "eviction_check", "generation_check", "hs_validate",
-  "key_out_of_order", "log_validate", "prepared", "slow_operation", "txn_visibility", NULL};
+static const char *confchk_extra_diagnostics_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
+  __WT_CONFIG_CHOICE_disk_validate, __WT_CONFIG_CHOICE_eviction_check,
+  __WT_CONFIG_CHOICE_generation_check, __WT_CONFIG_CHOICE_hs_validate,
+  __WT_CONFIG_CHOICE_key_out_of_order, __WT_CONFIG_CHOICE_log_validate, __WT_CONFIG_CHOICE_prepared,
+  __WT_CONFIG_CHOICE_slow_operation, __WT_CONFIG_CHOICE_txn_visibility, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_file_manager_subconfigs[] = {
   {"close_handle_minimum", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 225, 0,
@@ -300,8 +333,11 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+const char __WT_CONFIG_CHOICE_error[] = "error";
+const char __WT_CONFIG_CHOICE_message[] = "message";
 
-static const char *confchk_json_output_choices[] = {"error", "message", NULL};
+static const char *confchk_json_output_choices[] = {
+  __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_message, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_log_subconfigs[] = {
   {"archive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 235, INT64_MIN,
@@ -370,9 +406,14 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+const char __WT_CONFIG_CHOICE_cache_walk[] = "cache_walk";
+const char __WT_CONFIG_CHOICE_fast[] = "fast";
+const char __WT_CONFIG_CHOICE_clear[] = "clear";
+const char __WT_CONFIG_CHOICE_tree_walk[] = "tree_walk";
 
-static const char *confchk_statistics_choices[] = {
-  "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
+static const char *confchk_statistics_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_fast, __WT_CONFIG_CHOICE_none,
+  __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs[] = {
   {"json", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 250, INT64_MIN,
@@ -405,23 +446,109 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const char __WT_CONFIG_CHOICE_aggressive_stash_free[] = "aggressive_stash_free";
+const char __WT_CONFIG_CHOICE_aggressive_sweep[] = "aggressive_sweep";
+const char __WT_CONFIG_CHOICE_backup_rename[] = "backup_rename";
+const char __WT_CONFIG_CHOICE_checkpoint_evict_page[] = "checkpoint_evict_page";
+const char __WT_CONFIG_CHOICE_checkpoint_handle[] = "checkpoint_handle";
+const char __WT_CONFIG_CHOICE_checkpoint_slow[] = "checkpoint_slow";
+const char __WT_CONFIG_CHOICE_checkpoint_stop[] = "checkpoint_stop";
+const char __WT_CONFIG_CHOICE_compact_slow[] = "compact_slow";
+const char __WT_CONFIG_CHOICE_evict_reposition[] = "evict_reposition";
+const char __WT_CONFIG_CHOICE_failpoint_eviction_split[] = "failpoint_eviction_split";
+const char __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts[] =
+  "failpoint_history_store_delete_key_from_ts";
+const char __WT_CONFIG_CHOICE_history_store_checkpoint_delay[] = "history_store_checkpoint_delay";
+const char __WT_CONFIG_CHOICE_history_store_search[] = "history_store_search";
+const char __WT_CONFIG_CHOICE_history_store_sweep_race[] = "history_store_sweep_race";
+const char __WT_CONFIG_CHOICE_prefix_compare[] = "prefix_compare";
+const char __WT_CONFIG_CHOICE_prepare_checkpoint_delay[] = "prepare_checkpoint_delay";
+const char __WT_CONFIG_CHOICE_prepare_resolution_1[] = "prepare_resolution_1";
+const char __WT_CONFIG_CHOICE_prepare_resolution_2[] = "prepare_resolution_2";
+const char __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage[] =
+  "sleep_before_read_overflow_onpage";
+const char __WT_CONFIG_CHOICE_split_1[] = "split_1";
+const char __WT_CONFIG_CHOICE_split_2[] = "split_2";
+const char __WT_CONFIG_CHOICE_split_3[] = "split_3";
+const char __WT_CONFIG_CHOICE_split_4[] = "split_4";
+const char __WT_CONFIG_CHOICE_split_5[] = "split_5";
+const char __WT_CONFIG_CHOICE_split_6[] = "split_6";
+const char __WT_CONFIG_CHOICE_split_7[] = "split_7";
+const char __WT_CONFIG_CHOICE_split_8[] = "split_8";
+const char __WT_CONFIG_CHOICE_tiered_flush_finish[] = "tiered_flush_finish";
 
-static const char *confchk_timing_stress_for_test_choices[] = {"aggressive_stash_free",
-  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
-  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
-  "failpoint_eviction_split", "failpoint_history_store_delete_key_from_ts",
-  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
-  "prefix_compare", "prepare_checkpoint_delay", "prepare_resolution_1", "prepare_resolution_2",
-  "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
-  "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
+static const char *confchk_timing_stress_for_test_choices[] = {
+  __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
+  __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
+  __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
+  __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefix_compare,
+  __WT_CONFIG_CHOICE_prepare_checkpoint_delay, __WT_CONFIG_CHOICE_prepare_resolution_1,
+  __WT_CONFIG_CHOICE_prepare_resolution_2, __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage,
+  __WT_CONFIG_CHOICE_split_1, __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3,
+  __WT_CONFIG_CHOICE_split_4, __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6,
+  __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish,
+  NULL};
+const char __WT_CONFIG_CHOICE_api[] = "api";
+const char __WT_CONFIG_CHOICE_backup[] = "backup";
+const char __WT_CONFIG_CHOICE_block[] = "block";
+const char __WT_CONFIG_CHOICE_block_cache[] = "block_cache";
+const char __WT_CONFIG_CHOICE_checkpoint[] = "checkpoint";
+const char __WT_CONFIG_CHOICE_checkpoint_cleanup[] = "checkpoint_cleanup";
+const char __WT_CONFIG_CHOICE_checkpoint_progress[] = "checkpoint_progress";
+const char __WT_CONFIG_CHOICE_chunkcache[] = "chunkcache";
+const char __WT_CONFIG_CHOICE_compact[] = "compact";
+const char __WT_CONFIG_CHOICE_compact_progress[] = "compact_progress";
+const char __WT_CONFIG_CHOICE_error_returns[] = "error_returns";
+const char __WT_CONFIG_CHOICE_evict[] = "evict";
+const char __WT_CONFIG_CHOICE_evict_stuck[] = "evict_stuck";
+const char __WT_CONFIG_CHOICE_evictserver[] = "evictserver";
+const char __WT_CONFIG_CHOICE_fileops[] = "fileops";
+const char __WT_CONFIG_CHOICE_generation[] = "generation";
+const char __WT_CONFIG_CHOICE_handleops[] = "handleops";
+const char __WT_CONFIG_CHOICE_history_store[] = "history_store";
+const char __WT_CONFIG_CHOICE_history_store_activity[] = "history_store_activity";
+const char __WT_CONFIG_CHOICE_log[] = "log";
+const char __WT_CONFIG_CHOICE_lsm[] = "lsm";
+const char __WT_CONFIG_CHOICE_lsm_manager[] = "lsm_manager";
+const char __WT_CONFIG_CHOICE_metadata[] = "metadata";
+const char __WT_CONFIG_CHOICE_mutex[] = "mutex";
+const char __WT_CONFIG_CHOICE_out_of_order[] = "out_of_order";
+const char __WT_CONFIG_CHOICE_overflow[] = "overflow";
+const char __WT_CONFIG_CHOICE_read[] = "read";
+const char __WT_CONFIG_CHOICE_reconcile[] = "reconcile";
+const char __WT_CONFIG_CHOICE_recovery_progress[] = "recovery_progress";
+const char __WT_CONFIG_CHOICE_rts[] = "rts";
+const char __WT_CONFIG_CHOICE_salvage[] = "salvage";
+const char __WT_CONFIG_CHOICE_shared_cache[] = "shared_cache";
+const char __WT_CONFIG_CHOICE_split[] = "split";
+const char __WT_CONFIG_CHOICE_temporary[] = "temporary";
+const char __WT_CONFIG_CHOICE_thread_group[] = "thread_group";
+const char __WT_CONFIG_CHOICE_tiered[] = "tiered";
+const char __WT_CONFIG_CHOICE_timestamp[] = "timestamp";
+const char __WT_CONFIG_CHOICE_transaction[] = "transaction";
+const char __WT_CONFIG_CHOICE_verify[] = "verify";
+const char __WT_CONFIG_CHOICE_version[] = "version";
+const char __WT_CONFIG_CHOICE_write[] = "write";
 
-static const char *confchk_verbose_choices[] = {"all", "api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
-  "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
-  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
-  "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
-  "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
+static const char *confchk_verbose_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
+  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
+  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
+  __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
+  __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group,
+  __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction,
+  __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12,
@@ -581,10 +708,15 @@ static const uint8_t confchk_WT_CONNECTION_set_timestamp_jump[WT_CONFIG_JUMP_TAB
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
+const char __WT_CONFIG_CHOICE_set[] = "set";
 
-static const char *confchk_action_choices[] = {"clear", "set", NULL};
+static const char *confchk_action_choices[] = {
+  __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_set, NULL};
+const char __WT_CONFIG_CHOICE_lower[] = "lower";
+const char __WT_CONFIG_CHOICE_upper[] = "upper";
 
-static const char *confchk_bound_choices[] = {"lower", "upper", NULL};
+static const char *confchk_bound_choices[] = {
+  __WT_CONFIG_CHOICE_lower, __WT_CONFIG_CHOICE_upper, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CURSOR_bound[] = {
   {"action", "string", NULL, "choices=[\"clear\",\"set\"]", NULL, 0, NULL,
@@ -615,18 +747,28 @@ static const uint8_t confchk_WT_CURSOR_reconfigure_jump[WT_CONFIG_JUMP_TABLE_SIZ
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
   1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+const char __WT_CONFIG_CHOICE_random[] = "random";
+const char __WT_CONFIG_CHOICE_sequential[] = "sequential";
 
-static const char *confchk_access_pattern_hint_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
+const char __WT_CONFIG_CHOICE_always[] = "always";
+const char __WT_CONFIG_CHOICE_key_consistent[] = "key_consistent";
+const char __WT_CONFIG_CHOICE_never[] = "never";
 
-static const char *confchk_commit_timestamp_choices[] = {
-  "always", "key_consistent", "never", "none", NULL};
+static const char *confchk_commit_timestamp_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_never, __WT_CONFIG_CHOICE_none, NULL};
 
-static const char *confchk_durable_timestamp_choices[] = {
-  "always", "key_consistent", "never", "none", NULL};
+static const char *confchk_durable_timestamp_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_never, __WT_CONFIG_CHOICE_none, NULL};
 
-static const char *confchk_read_timestamp_choices[] = {"always", "never", "none", NULL};
+static const char *confchk_read_timestamp_choices[] = {
+  __WT_CONFIG_CHOICE_always, __WT_CONFIG_CHOICE_never, __WT_CONFIG_CHOICE_none, NULL};
+const char __WT_CONFIG_CHOICE_off[] = "off";
+const char __WT_CONFIG_CHOICE_on[] = "on";
 
-static const char *confchk_write_timestamp_choices[] = {"off", "on", NULL};
+static const char *confchk_write_timestamp_choices[] = {
+  __WT_CONFIG_CHOICE_off, __WT_CONFIG_CHOICE_on, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_assert_subconfigs[] = {
   {"commit_timestamp", "string", NULL,
@@ -661,11 +803,15 @@ static const uint8_t confchk_WT_SESSION_create_log_subconfigs_jump[WT_CONFIG_JUM
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const char __WT_CONFIG_CHOICE_write_timestamp[] = "write_timestamp";
 
-static const char *confchk_verbose2_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose2_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
+const char __WT_CONFIG_CHOICE_mixed_mode[] = "mixed_mode";
+const char __WT_CONFIG_CHOICE_ordered[] = "ordered";
 
-static const char *confchk_write_timestamp_usage_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_alter[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -703,11 +849,15 @@ static const uint8_t confchk_WT_SESSION_alter_jump[WT_CONFIG_JUMP_TABLE_SIZE] = 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 5, 5, 6, 6, 6,
   6, 6, 6, 6, 7, 7, 7, 9, 9, 9, 9, 9, 9, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11};
+const char __WT_CONFIG_CHOICE_false[] = "false";
+const char __WT_CONFIG_CHOICE_force[] = "force";
+const char __WT_CONFIG_CHOICE_true[] = "true";
 
-static const char *confchk_ignore_prepare_choices[] = {"false", "force", "true", NULL};
+static const char *confchk_ignore_prepare_choices[] = {
+  __WT_CONFIG_CHOICE_false, __WT_CONFIG_CHOICE_force, __WT_CONFIG_CHOICE_true, NULL};
 
-static const char *confchk_isolation2_choices[] = {
-  "read-uncommitted", "read-committed", "snapshot", NULL};
+static const char *confchk_isolation2_choices[] = {__WT_CONFIG_CHOICE_read_uncommitted,
+  __WT_CONFIG_CHOICE_read_committed, __WT_CONFIG_CHOICE_snapshot, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction_roundup_timestamps_subconfigs[] =
   {{"prepared", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 158,
@@ -795,7 +945,7 @@ static const uint8_t confchk_WT_SESSION_checkpoint_jump[WT_CONFIG_JUMP_TABLE_SIZ
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 3,
   3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
 
-static const char *confchk_sync_choices[] = {"off", "on", NULL};
+static const char *confchk_sync_choices[] = {__WT_CONFIG_CHOICE_off, __WT_CONFIG_CHOICE_on, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_commit_transaction[] = {
   {"commit_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 2,
@@ -833,11 +983,18 @@ static const uint8_t confchk_WT_SESSION_compact_jump[WT_CONFIG_JUMP_TABLE_SIZE] 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 3, 3,
   3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
-static const char *confchk_access_pattern_hint2_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint2_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
+const char __WT_CONFIG_CHOICE_best[] = "best";
+const char __WT_CONFIG_CHOICE_first[] = "first";
 
-static const char *confchk_block_allocation_choices[] = {"best", "first", NULL};
+static const char *confchk_block_allocation_choices[] = {
+  __WT_CONFIG_CHOICE_best, __WT_CONFIG_CHOICE_first, NULL};
+const char __WT_CONFIG_CHOICE_uncompressed[] = "uncompressed";
+const char __WT_CONFIG_CHOICE_unencrypted[] = "unencrypted";
 
-static const char *confchk_checksum_choices[] = {"on", "off", "uncompressed", "unencrypted", NULL};
+static const char *confchk_checksum_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
+  __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_encryption_subconfigs[] = {
   {"keyid", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
@@ -852,11 +1009,13 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+const char __WT_CONFIG_CHOICE_btree[] = "btree";
 
-static const char *confchk_format_choices[] = {"btree", NULL};
+static const char *confchk_format_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 
-static const char *confchk_compare_timestamp_choices[] = {
-  "oldest", "oldest_timestamp", "stable", "stable_timestamp", NULL};
+static const char *confchk_compare_timestamp_choices[] = {__WT_CONFIG_CHOICE_oldest,
+  __WT_CONFIG_CHOICE_oldest_timestamp, __WT_CONFIG_CHOICE_stable,
+  __WT_CONFIG_CHOICE_stable_timestamp, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_import_subconfigs[] = {
   {"compare_timestamp", "string", NULL,
@@ -957,10 +1116,11 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3,
     4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 6, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8};
 
-static const char *confchk_verbose3_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose3_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage2_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage2_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -1099,12 +1259,24 @@ static const uint8_t confchk_WT_SESSION_drop_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2,
   2, 2, 2, 3, 3, 3, 3, 3, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+const char __WT_CONFIG_CHOICE_eq[] = "eq";
+const char __WT_CONFIG_CHOICE_ge[] = "ge";
+const char __WT_CONFIG_CHOICE_gt[] = "gt";
+const char __WT_CONFIG_CHOICE_le[] = "le";
+const char __WT_CONFIG_CHOICE_lt[] = "lt";
 
-static const char *confchk_compare_choices[] = {"eq", "ge", "gt", "le", "lt", NULL};
+static const char *confchk_compare_choices[] = {__WT_CONFIG_CHOICE_eq, __WT_CONFIG_CHOICE_ge,
+  __WT_CONFIG_CHOICE_gt, __WT_CONFIG_CHOICE_le, __WT_CONFIG_CHOICE_lt, NULL};
+const char __WT_CONFIG_CHOICE_and[] = "and";
+const char __WT_CONFIG_CHOICE_or[] = "or";
 
-static const char *confchk_operation_choices[] = {"and", "or", NULL};
+static const char *confchk_operation_choices[] = {
+  __WT_CONFIG_CHOICE_and, __WT_CONFIG_CHOICE_or, NULL};
+const char __WT_CONFIG_CHOICE_bloom[] = "bloom";
+const char __WT_CONFIG_CHOICE_default[] = "default";
 
-static const char *confchk_strategy_choices[] = {"bloom", "default", NULL};
+static const char *confchk_strategy_choices[] = {
+  __WT_CONFIG_CHOICE_bloom, __WT_CONFIG_CHOICE_default, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_join[] = {
   {"bloom_bit_count", "int", NULL, "min=2,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 71,
@@ -1129,7 +1301,7 @@ static const uint8_t confchk_WT_SESSION_join_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 5, 5, 5, 5, 5, 5,
   5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 
-static const char *confchk_sync2_choices[] = {"off", "on", NULL};
+static const char *confchk_sync2_choices[] = {__WT_CONFIG_CHOICE_off, __WT_CONFIG_CHOICE_on, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_log_flush[] = {
   {"sync", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0, NULL,
@@ -1157,8 +1329,14 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+const char __WT_CONFIG_CHOICE_hex[] = "hex";
+const char __WT_CONFIG_CHOICE_json[] = "json";
+const char __WT_CONFIG_CHOICE_pretty[] = "pretty";
+const char __WT_CONFIG_CHOICE_pretty_hex[] = "pretty_hex";
+const char __WT_CONFIG_CHOICE_print[] = "print";
 
-static const char *confchk_dump_choices[] = {"hex", "json", "pretty", "pretty_hex", "print", NULL};
+static const char *confchk_dump_choices[] = {__WT_CONFIG_CHOICE_hex, __WT_CONFIG_CHOICE_json,
+  __WT_CONFIG_CHOICE_pretty, __WT_CONFIG_CHOICE_pretty_hex, __WT_CONFIG_CHOICE_print, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor_incremental_subconfigs[] = {
   {"consolidate", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 127,
@@ -1183,9 +1361,11 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 1, 1, 2, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+const char __WT_CONFIG_CHOICE_size[] = "size";
 
-static const char *confchk_statistics2_choices[] = {
-  "all", "cache_walk", "fast", "clear", "size", "tree_walk", NULL};
+static const char *confchk_statistics2_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_fast, __WT_CONFIG_CHOICE_clear,
+  __WT_CONFIG_CHOICE_size, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 90, INT64_MIN,
@@ -1251,8 +1431,12 @@ static const uint8_t confchk_WT_SESSION_prepare_transaction_jump[WT_CONFIG_JUMP_
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const char __WT_CONFIG_CHOICE_commit[] = "commit";
+const char __WT_CONFIG_CHOICE_first_commit[] = "first_commit";
+const char __WT_CONFIG_CHOICE_prepare[] = "prepare";
 
-static const char *confchk_get2_choices[] = {"commit", "first_commit", "prepare", "read", NULL};
+static const char *confchk_get2_choices[] = {__WT_CONFIG_CHOICE_commit,
+  __WT_CONFIG_CHOICE_first_commit, __WT_CONFIG_CHOICE_prepare, __WT_CONFIG_CHOICE_read, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp[] = {
   {"get", "string", NULL,
@@ -1267,8 +1451,8 @@ static const uint8_t confchk_WT_SESSION_query_timestamp_jump[WT_CONFIG_JUMP_TABL
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-static const char *confchk_isolation3_choices[] = {
-  "read-uncommitted", "read-committed", "snapshot", NULL};
+static const char *confchk_isolation3_choices[] = {__WT_CONFIG_CHOICE_read_uncommitted,
+  __WT_CONFIG_CHOICE_read_committed, __WT_CONFIG_CHOICE_snapshot, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_reconfigure[] = {
   {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 259,
@@ -1364,10 +1548,11 @@ static const uint8_t confchk_WT_SESSION_verify_jump[WT_CONFIG_JUMP_TABLE_SIZE] =
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,
   7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
 
-static const char *confchk_verbose4_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose4_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage3_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage3_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_colgroup_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 0,
@@ -1398,18 +1583,22 @@ static const uint8_t confchk_colgroup_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 4, 4, 4, 4,
   4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 6, 6, 7, 8, 8, 8, 8, 8, 8, 8, 8};
 
-static const char *confchk_access_pattern_hint3_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint3_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
 
-static const char *confchk_block_allocation2_choices[] = {"best", "first", NULL};
+static const char *confchk_block_allocation2_choices[] = {
+  __WT_CONFIG_CHOICE_best, __WT_CONFIG_CHOICE_first, NULL};
 
-static const char *confchk_checksum2_choices[] = {"on", "off", "uncompressed", "unencrypted", NULL};
+static const char *confchk_checksum2_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
+  __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
-static const char *confchk_format2_choices[] = {"btree", NULL};
+static const char *confchk_format2_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 
-static const char *confchk_verbose5_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose5_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage4_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage4_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_file_config[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -1511,18 +1700,22 @@ static const uint8_t confchk_file_config_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 10, 11, 12, 13, 13,
   15, 20, 20, 22, 27, 29, 29, 31, 33, 33, 33, 36, 37, 37, 39, 40, 40, 40, 40, 40, 40, 40, 40};
 
-static const char *confchk_access_pattern_hint4_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint4_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
 
-static const char *confchk_block_allocation3_choices[] = {"best", "first", NULL};
+static const char *confchk_block_allocation3_choices[] = {
+  __WT_CONFIG_CHOICE_best, __WT_CONFIG_CHOICE_first, NULL};
 
-static const char *confchk_checksum3_choices[] = {"on", "off", "uncompressed", "unencrypted", NULL};
+static const char *confchk_checksum3_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
+  __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
-static const char *confchk_format3_choices[] = {"btree", NULL};
+static const char *confchk_format3_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 
-static const char *confchk_verbose6_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose6_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage5_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage5_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_file_meta[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -1638,10 +1831,11 @@ static const uint8_t confchk_file_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 13, 14, 15, 16, 16, 18,
   24, 24, 26, 31, 33, 33, 35, 37, 37, 38, 41, 43, 43, 46, 47, 47, 47, 47, 47, 47, 47, 47};
 
-static const char *confchk_verbose7_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose7_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage6_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage6_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_index_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 0,
@@ -1682,18 +1876,22 @@ static const uint8_t confchk_index_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 5, 5, 5, 5, 7,
   7, 8, 8, 8, 8, 8, 8, 8, 8, 9, 10, 10, 12, 13, 13, 13, 13, 13, 13, 13, 13};
 
-static const char *confchk_access_pattern_hint5_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint5_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
 
-static const char *confchk_block_allocation4_choices[] = {"best", "first", NULL};
+static const char *confchk_block_allocation4_choices[] = {
+  __WT_CONFIG_CHOICE_best, __WT_CONFIG_CHOICE_first, NULL};
 
-static const char *confchk_checksum4_choices[] = {"on", "off", "uncompressed", "unencrypted", NULL};
+static const char *confchk_checksum4_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
+  __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
-static const char *confchk_format4_choices[] = {"btree", NULL};
+static const char *confchk_format4_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 
-static const char *confchk_verbose8_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose8_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage7_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage7_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -1804,18 +2002,22 @@ static const uint8_t confchk_lsm_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 11, 12, 13, 14, 14, 16,
   21, 21, 23, 30, 32, 32, 35, 37, 37, 37, 40, 41, 41, 43, 44, 44, 44, 44, 44, 44, 44, 44};
 
-static const char *confchk_access_pattern_hint6_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint6_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
 
-static const char *confchk_block_allocation5_choices[] = {"best", "first", NULL};
+static const char *confchk_block_allocation5_choices[] = {
+  __WT_CONFIG_CHOICE_best, __WT_CONFIG_CHOICE_first, NULL};
 
-static const char *confchk_checksum5_choices[] = {"on", "off", "uncompressed", "unencrypted", NULL};
+static const char *confchk_checksum5_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
+  __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
-static const char *confchk_format5_choices[] = {"btree", NULL};
+static const char *confchk_format5_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 
-static const char *confchk_verbose9_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose9_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage8_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage8_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_object_meta[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -1935,10 +2137,11 @@ static const uint8_t confchk_object_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 13, 14, 15, 18, 18,
   20, 26, 26, 28, 33, 35, 35, 37, 39, 39, 40, 43, 45, 45, 48, 49, 49, 49, 49, 49, 49, 49, 49};
 
-static const char *confchk_verbose10_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose10_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage9_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage9_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_table_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 0,
@@ -1971,18 +2174,22 @@ static const uint8_t confchk_table_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 5, 5, 5, 5, 5, 5, 5,
   5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 8, 9, 9, 9, 9, 9, 9, 9, 9};
 
-static const char *confchk_access_pattern_hint7_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint7_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
 
-static const char *confchk_block_allocation6_choices[] = {"best", "first", NULL};
+static const char *confchk_block_allocation6_choices[] = {
+  __WT_CONFIG_CHOICE_best, __WT_CONFIG_CHOICE_first, NULL};
 
-static const char *confchk_checksum6_choices[] = {"on", "off", "uncompressed", "unencrypted", NULL};
+static const char *confchk_checksum6_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
+  __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
-static const char *confchk_format6_choices[] = {"btree", NULL};
+static const char *confchk_format6_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 
-static const char *confchk_verbose11_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose11_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage10_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage10_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_tier_meta[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -2104,18 +2311,22 @@ static const uint8_t confchk_tier_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 8, 16, 17, 18, 19, 19, 21,
   27, 27, 29, 34, 36, 36, 38, 40, 40, 41, 44, 46, 46, 49, 50, 50, 50, 50, 50, 50, 50, 50};
 
-static const char *confchk_access_pattern_hint8_choices[] = {"none", "random", "sequential", NULL};
+static const char *confchk_access_pattern_hint8_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
 
-static const char *confchk_block_allocation7_choices[] = {"best", "first", NULL};
+static const char *confchk_block_allocation7_choices[] = {
+  __WT_CONFIG_CHOICE_best, __WT_CONFIG_CHOICE_first, NULL};
 
-static const char *confchk_checksum7_choices[] = {"on", "off", "uncompressed", "unencrypted", NULL};
+static const char *confchk_checksum7_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
+  __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
-static const char *confchk_format7_choices[] = {"btree", NULL};
+static const char *confchk_format7_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 
-static const char *confchk_verbose12_choices[] = {"write_timestamp", NULL};
+static const char *confchk_verbose12_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
-static const char *confchk_write_timestamp_usage11_choices[] = {
-  "always", "key_consistent", "mixed_mode", "never", "none", "ordered", NULL};
+static const char *confchk_write_timestamp_usage11_choices[] = {__WT_CONFIG_CHOICE_always,
+  __WT_CONFIG_CHOICE_key_consistent, __WT_CONFIG_CHOICE_mixed_mode, __WT_CONFIG_CHOICE_never,
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_ordered, NULL};
 
 static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0,
@@ -2241,9 +2452,13 @@ static const uint8_t confchk_tiered_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 13, 14, 15, 18, 18,
   20, 26, 26, 28, 34, 36, 36, 39, 41, 41, 42, 45, 48, 48, 51, 52, 52, 52, 52, 52, 52, 52, 52};
 
-static const char *confchk_checkpoint_cleanup2_choices[] = {"none", "reclaim_space", NULL};
+static const char *confchk_checkpoint_cleanup2_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_reclaim_space, NULL};
+const char __WT_CONFIG_CHOICE_FILE[] = "FILE";
+const char __WT_CONFIG_CHOICE_DRAM[] = "DRAM";
 
-static const char *confchk_type_choices[] = {"FILE", "DRAM", NULL};
+static const char *confchk_type_choices[] = {
+  __WT_CONFIG_CHOICE_FILE, __WT_CONFIG_CHOICE_DRAM, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_chunk_cache_subconfigs[] = {
   {"capacity", "int", NULL, "min=512KB,max=100TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 270,
@@ -2288,8 +2503,10 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+const char __WT_CONFIG_CHOICE_data[] = "data";
 
-static const char *confchk_direct_io_choices[] = {"checkpoint", "data", "log", NULL};
+static const char *confchk_direct_io_choices[] = {
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_encryption_subconfigs[] = {
   {"keyid", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
@@ -2306,11 +2523,15 @@ static const uint8_t confchk_wiredtiger_open_encryption_subconfigs_jump[WT_CONFI
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
-static const char *confchk_extra_diagnostics2_choices[] = {"all", "checkpoint_validate",
-  "cursor_check", "disk_validate", "eviction_check", "generation_check", "hs_validate",
-  "key_out_of_order", "log_validate", "prepared", "slow_operation", "txn_visibility", NULL};
+static const char *confchk_extra_diagnostics2_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
+  __WT_CONFIG_CHOICE_disk_validate, __WT_CONFIG_CHOICE_eviction_check,
+  __WT_CONFIG_CHOICE_generation_check, __WT_CONFIG_CHOICE_hs_validate,
+  __WT_CONFIG_CHOICE_key_out_of_order, __WT_CONFIG_CHOICE_log_validate, __WT_CONFIG_CHOICE_prepared,
+  __WT_CONFIG_CHOICE_slow_operation, __WT_CONFIG_CHOICE_txn_visibility, NULL};
 
-static const char *confchk_file_extend_choices[] = {"data", "log", NULL};
+static const char *confchk_file_extend_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_hash_subconfigs[] = {
   {"buckets", "int", NULL, "min=64,max=65536", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 284, 64,
@@ -2325,9 +2546,11 @@ static const uint8_t confchk_wiredtiger_open_hash_subconfigs_jump[WT_CONFIG_JUMP
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
-static const char *confchk_json_output2_choices[] = {"error", "message", NULL};
+static const char *confchk_json_output2_choices[] = {
+  __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_message, NULL};
 
-static const char *confchk_recover_choices[] = {"error", "on", NULL};
+static const char *confchk_recover_choices[] = {
+  __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_on, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_log_subconfigs[] = {
   {"archive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 235, INT64_MIN,
@@ -2373,8 +2596,9 @@ static const uint8_t confchk_wiredtiger_open_prefetch_subconfigs_jump[WT_CONFIG_
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
   1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
-static const char *confchk_statistics3_choices[] = {
-  "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
+static const char *confchk_statistics3_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_fast, __WT_CONFIG_CHOICE_none,
+  __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_statistics_log_subconfigs[] = {
   {"json", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 250, INT64_MIN,
@@ -2423,16 +2647,26 @@ static const uint8_t confchk_tiered_storage_subconfigs_jump[WT_CONFIG_JUMP_TABLE
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 4, 4,
   4, 4, 4, 4, 5, 5, 5, 6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8};
 
-static const char *confchk_timing_stress_for_test2_choices[] = {"aggressive_stash_free",
-  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
-  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
-  "failpoint_eviction_split", "failpoint_history_store_delete_key_from_ts",
-  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
-  "prefix_compare", "prepare_checkpoint_delay", "prepare_resolution_1", "prepare_resolution_2",
-  "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
-  "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
+static const char *confchk_timing_stress_for_test2_choices[] = {
+  __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
+  __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
+  __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
+  __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefix_compare,
+  __WT_CONFIG_CHOICE_prepare_checkpoint_delay, __WT_CONFIG_CHOICE_prepare_resolution_1,
+  __WT_CONFIG_CHOICE_prepare_resolution_2, __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage,
+  __WT_CONFIG_CHOICE_split_1, __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3,
+  __WT_CONFIG_CHOICE_split_4, __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6,
+  __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish,
+  NULL};
+const char __WT_CONFIG_CHOICE_dsync[] = "dsync";
+const char __WT_CONFIG_CHOICE_fsync[] = "fsync";
 
-static const char *confchk_method_choices[] = {"dsync", "fsync", "none", NULL};
+static const char *confchk_method_choices[] = {
+  __WT_CONFIG_CHOICE_dsync, __WT_CONFIG_CHOICE_fsync, __WT_CONFIG_CHOICE_none, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_transaction_sync_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 37, INT64_MIN,
@@ -2448,15 +2682,24 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
-static const char *confchk_verbose13_choices[] = {"all", "api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
-  "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
-  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
-  "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
-  "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
+static const char *confchk_verbose13_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
+  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
+  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
+  __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
+  __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group,
+  __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction,
+  __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
 
-static const char *confchk_write_through_choices[] = {"data", "log", NULL};
+static const char *confchk_write_through_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 266,
@@ -2650,39 +2893,63 @@ static const uint8_t confchk_wiredtiger_open_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 17, 19, 32, 34,
   35, 38, 40, 41, 41, 43, 46, 46, 48, 49, 49, 50, 57, 60, 62, 64, 65, 65, 65, 65, 65, 65, 65, 65};
 
-static const char *confchk_checkpoint_cleanup3_choices[] = {"none", "reclaim_space", NULL};
+static const char *confchk_checkpoint_cleanup3_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_reclaim_space, NULL};
 
-static const char *confchk_direct_io2_choices[] = {"checkpoint", "data", "log", NULL};
+static const char *confchk_direct_io2_choices[] = {
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
-static const char *confchk_extra_diagnostics3_choices[] = {"all", "checkpoint_validate",
-  "cursor_check", "disk_validate", "eviction_check", "generation_check", "hs_validate",
-  "key_out_of_order", "log_validate", "prepared", "slow_operation", "txn_visibility", NULL};
+static const char *confchk_extra_diagnostics3_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
+  __WT_CONFIG_CHOICE_disk_validate, __WT_CONFIG_CHOICE_eviction_check,
+  __WT_CONFIG_CHOICE_generation_check, __WT_CONFIG_CHOICE_hs_validate,
+  __WT_CONFIG_CHOICE_key_out_of_order, __WT_CONFIG_CHOICE_log_validate, __WT_CONFIG_CHOICE_prepared,
+  __WT_CONFIG_CHOICE_slow_operation, __WT_CONFIG_CHOICE_txn_visibility, NULL};
 
-static const char *confchk_file_extend2_choices[] = {"data", "log", NULL};
+static const char *confchk_file_extend2_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
-static const char *confchk_json_output3_choices[] = {"error", "message", NULL};
+static const char *confchk_json_output3_choices[] = {
+  __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_message, NULL};
 
-static const char *confchk_statistics4_choices[] = {
-  "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
+static const char *confchk_statistics4_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_fast, __WT_CONFIG_CHOICE_none,
+  __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
-static const char *confchk_timing_stress_for_test3_choices[] = {"aggressive_stash_free",
-  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
-  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
-  "failpoint_eviction_split", "failpoint_history_store_delete_key_from_ts",
-  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
-  "prefix_compare", "prepare_checkpoint_delay", "prepare_resolution_1", "prepare_resolution_2",
-  "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
-  "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
+static const char *confchk_timing_stress_for_test3_choices[] = {
+  __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
+  __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
+  __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
+  __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefix_compare,
+  __WT_CONFIG_CHOICE_prepare_checkpoint_delay, __WT_CONFIG_CHOICE_prepare_resolution_1,
+  __WT_CONFIG_CHOICE_prepare_resolution_2, __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage,
+  __WT_CONFIG_CHOICE_split_1, __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3,
+  __WT_CONFIG_CHOICE_split_4, __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6,
+  __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish,
+  NULL};
 
-static const char *confchk_verbose14_choices[] = {"all", "api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
-  "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
-  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
-  "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
-  "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
+static const char *confchk_verbose14_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
+  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
+  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
+  __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
+  __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group,
+  __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction,
+  __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
 
-static const char *confchk_write_through2_choices[] = {"data", "log", NULL};
+static const char *confchk_write_through2_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 266,
@@ -2879,39 +3146,63 @@ static const uint8_t confchk_wiredtiger_open_all_jump[WT_CONFIG_JUMP_TABLE_SIZE]
   34, 35, 38, 40, 41, 41, 43, 46, 46, 48, 49, 49, 50, 57, 60, 62, 65, 66, 66, 66, 66, 66, 66, 66,
   66};
 
-static const char *confchk_checkpoint_cleanup4_choices[] = {"none", "reclaim_space", NULL};
+static const char *confchk_checkpoint_cleanup4_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_reclaim_space, NULL};
 
-static const char *confchk_direct_io3_choices[] = {"checkpoint", "data", "log", NULL};
+static const char *confchk_direct_io3_choices[] = {
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
-static const char *confchk_extra_diagnostics4_choices[] = {"all", "checkpoint_validate",
-  "cursor_check", "disk_validate", "eviction_check", "generation_check", "hs_validate",
-  "key_out_of_order", "log_validate", "prepared", "slow_operation", "txn_visibility", NULL};
+static const char *confchk_extra_diagnostics4_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
+  __WT_CONFIG_CHOICE_disk_validate, __WT_CONFIG_CHOICE_eviction_check,
+  __WT_CONFIG_CHOICE_generation_check, __WT_CONFIG_CHOICE_hs_validate,
+  __WT_CONFIG_CHOICE_key_out_of_order, __WT_CONFIG_CHOICE_log_validate, __WT_CONFIG_CHOICE_prepared,
+  __WT_CONFIG_CHOICE_slow_operation, __WT_CONFIG_CHOICE_txn_visibility, NULL};
 
-static const char *confchk_file_extend3_choices[] = {"data", "log", NULL};
+static const char *confchk_file_extend3_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
-static const char *confchk_json_output4_choices[] = {"error", "message", NULL};
+static const char *confchk_json_output4_choices[] = {
+  __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_message, NULL};
 
-static const char *confchk_statistics5_choices[] = {
-  "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
+static const char *confchk_statistics5_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_fast, __WT_CONFIG_CHOICE_none,
+  __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
-static const char *confchk_timing_stress_for_test4_choices[] = {"aggressive_stash_free",
-  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
-  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
-  "failpoint_eviction_split", "failpoint_history_store_delete_key_from_ts",
-  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
-  "prefix_compare", "prepare_checkpoint_delay", "prepare_resolution_1", "prepare_resolution_2",
-  "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
-  "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
+static const char *confchk_timing_stress_for_test4_choices[] = {
+  __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
+  __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
+  __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
+  __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefix_compare,
+  __WT_CONFIG_CHOICE_prepare_checkpoint_delay, __WT_CONFIG_CHOICE_prepare_resolution_1,
+  __WT_CONFIG_CHOICE_prepare_resolution_2, __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage,
+  __WT_CONFIG_CHOICE_split_1, __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3,
+  __WT_CONFIG_CHOICE_split_4, __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6,
+  __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish,
+  NULL};
 
-static const char *confchk_verbose15_choices[] = {"all", "api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
-  "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
-  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
-  "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
-  "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
+static const char *confchk_verbose15_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
+  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
+  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
+  __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
+  __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group,
+  __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction,
+  __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
 
-static const char *confchk_write_through3_choices[] = {"data", "log", NULL};
+static const char *confchk_write_through3_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 266,
@@ -3096,39 +3387,63 @@ static const uint8_t confchk_wiredtiger_open_basecfg_jump[WT_CONFIG_JUMP_TABLE_S
   29, 31, 32, 35, 36, 37, 37, 39, 42, 42, 44, 45, 45, 46, 53, 56, 56, 59, 60, 60, 60, 60, 60, 60,
   60, 60};
 
-static const char *confchk_checkpoint_cleanup5_choices[] = {"none", "reclaim_space", NULL};
+static const char *confchk_checkpoint_cleanup5_choices[] = {
+  __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_reclaim_space, NULL};
 
-static const char *confchk_direct_io4_choices[] = {"checkpoint", "data", "log", NULL};
+static const char *confchk_direct_io4_choices[] = {
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
-static const char *confchk_extra_diagnostics5_choices[] = {"all", "checkpoint_validate",
-  "cursor_check", "disk_validate", "eviction_check", "generation_check", "hs_validate",
-  "key_out_of_order", "log_validate", "prepared", "slow_operation", "txn_visibility", NULL};
+static const char *confchk_extra_diagnostics5_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
+  __WT_CONFIG_CHOICE_disk_validate, __WT_CONFIG_CHOICE_eviction_check,
+  __WT_CONFIG_CHOICE_generation_check, __WT_CONFIG_CHOICE_hs_validate,
+  __WT_CONFIG_CHOICE_key_out_of_order, __WT_CONFIG_CHOICE_log_validate, __WT_CONFIG_CHOICE_prepared,
+  __WT_CONFIG_CHOICE_slow_operation, __WT_CONFIG_CHOICE_txn_visibility, NULL};
 
-static const char *confchk_file_extend4_choices[] = {"data", "log", NULL};
+static const char *confchk_file_extend4_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
-static const char *confchk_json_output5_choices[] = {"error", "message", NULL};
+static const char *confchk_json_output5_choices[] = {
+  __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_message, NULL};
 
-static const char *confchk_statistics6_choices[] = {
-  "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
+static const char *confchk_statistics6_choices[] = {__WT_CONFIG_CHOICE_all,
+  __WT_CONFIG_CHOICE_cache_walk, __WT_CONFIG_CHOICE_fast, __WT_CONFIG_CHOICE_none,
+  __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
-static const char *confchk_timing_stress_for_test5_choices[] = {"aggressive_stash_free",
-  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
-  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
-  "failpoint_eviction_split", "failpoint_history_store_delete_key_from_ts",
-  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
-  "prefix_compare", "prepare_checkpoint_delay", "prepare_resolution_1", "prepare_resolution_2",
-  "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3", "split_4", "split_5",
-  "split_6", "split_7", "split_8", "tiered_flush_finish", NULL};
+static const char *confchk_timing_stress_for_test5_choices[] = {
+  __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
+  __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
+  __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
+  __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
+  __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefix_compare,
+  __WT_CONFIG_CHOICE_prepare_checkpoint_delay, __WT_CONFIG_CHOICE_prepare_resolution_1,
+  __WT_CONFIG_CHOICE_prepare_resolution_2, __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage,
+  __WT_CONFIG_CHOICE_split_1, __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3,
+  __WT_CONFIG_CHOICE_split_4, __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6,
+  __WT_CONFIG_CHOICE_split_7, __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish,
+  NULL};
 
-static const char *confchk_verbose16_choices[] = {"all", "api", "backup", "block", "block_cache",
-  "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
-  "compact_progress", "error_returns", "evict", "evict_stuck", "evictserver", "fileops",
-  "generation", "handleops", "history_store", "history_store_activity", "log", "lsm", "lsm_manager",
-  "metadata", "mutex", "out_of_order", "overflow", "read", "reconcile", "recovery",
-  "recovery_progress", "rts", "salvage", "shared_cache", "split", "temporary", "thread_group",
-  "tiered", "timestamp", "transaction", "verify", "version", "write", NULL};
+static const char *confchk_verbose16_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
+  __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
+  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
+  __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
+  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
+  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
+  __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
+  __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group,
+  __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction,
+  __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
 
-static const char *confchk_write_through4_choices[] = {"data", "log", NULL};
+static const char *confchk_write_through4_choices[] = {
+  __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 266,

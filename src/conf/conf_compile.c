@@ -36,6 +36,7 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
   bool is_default)
 {
     uint32_t bind_offset;
+    const char **choice;
 
     if (value->len > 0 && value->str[0] == '%') {
         /* We must be doing an explicit compilation. */
@@ -63,6 +64,7 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
 
         conf_key->type = CONF_KEY_BIND_DESC;
         conf_key->u.bind_desc.type = check_type;
+        conf_key->u.bind_desc.choices = check->choices;
         conf_key->u.bind_desc.offset = bind_offset;
         WT_RET(__wt_realloc_def(session, &top_conf->binding_allocated, top_conf->binding_count,
           &top_conf->binding_descriptions));
@@ -89,6 +91,20 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
         case WT_CONFIG_ITEM_STRING:
             /* Any value passed in, whether it is "123", "true", etc. can be interpreted as a
              * string. */
+            if (check->choices != NULL) {
+                /* It's legal to specify a choice as nothing. */
+                if (value->len == 0)
+                    value->str = __WT_CONFIG_CHOICE_NULL;
+                else {
+                    for (choice = check->choices; *choice != NULL; ++choice)
+                        if (WT_STRING_MATCH(*choice, value->str, value->len))
+                            break;
+                    if (*choice == NULL)
+                        WT_RET_MSG(session, EINVAL, "Value '%.*s' is not a valid choice",
+                          (int)value->len, value->str);
+                    value->str = *choice;
+                }
+            }
             break;
         case WT_CONFIG_ITEM_ID:
         case WT_CONFIG_ITEM_STRUCT: /* actually handled previous to this call, case added for picky
@@ -259,10 +275,6 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             conf->conf_key_count += (sub_conf->conf_key_count - subconf_keys);
             conf->conf_count += (sub_conf->conf_count - subconf_count);
         } else
-            /*
-             * TODO: if check->checks starts with "choices=[...]", we should make sure the value
-             * matches one.
-             */
             WT_ERR(__conf_compile_value(
               session, top_conf, check_type, conf_key, check, &value, bind_allowed, is_default));
     }

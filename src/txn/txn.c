@@ -589,9 +589,9 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     WT_ERR(__wt_conf_gets_def(session, conf, isolation, 0, &cval));
     if (cval.len != 0)
-        txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ? WT_ISO_SNAPSHOT :
-          WT_STRING_MATCH("read-committed", cval.str, cval.len)          ? WT_ISO_READ_COMMITTED :
-                                                                           WT_ISO_READ_UNCOMMITTED;
+        txn->isolation = WT_CONF_STRING_MATCH(snapshot, cval) ? WT_ISO_SNAPSHOT :
+          WT_CONF_STRING_MATCH(read_committed, cval)          ? WT_ISO_READ_COMMITTED :
+                                                                WT_ISO_READ_UNCOMMITTED;
 
     WT_ERR(__txn_conf_operation_timeout(session, conf, false));
 
@@ -618,7 +618,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     /* Check if prepared updates should be ignored during reads. */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_prepare, 0, &cval));
-    if (cval.len > 0 && WT_STRING_MATCH("force", cval.str, cval.len))
+    if (cval.len > 0 && WT_CONF_STRING_MATCH(force, cval))
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
     else if (cval.val)
         F_SET(txn, WT_TXN_IGNORE_PREPARE | WT_TXN_READONLY);

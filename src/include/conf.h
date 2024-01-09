@@ -1093,6 +1093,7 @@ struct __wt_conf_bindings {
  */
 struct __wt_conf_bind_desc {
     WT_CONFIG_ITEM_TYPE type; /* WT_CONFIG_ITEM.type */
+    const char **choices;     /* Choices for the value if applicable. */
     u_int offset;             /* offset into WT_SESSION::conf_bindings.values table */
 };
 
@@ -1169,6 +1170,8 @@ struct __wt_conf_key {
     sizeof(WT_CONF_API_TYPE(c, m)), WT_CONF_API_COUNT(c, m), WT_CONF_API_KEY_COUNT(c, m)
 
 #define WT_CONF_SIZING_NONE 0, 0, 0
+
+#define WT_CONF_STRING_MATCH(name, cval) ((cval).str == __WT_CONFIG_CHOICE_##name)
 
 /*
  * DO NOT EDIT: automatically built by dist/api_config.py.

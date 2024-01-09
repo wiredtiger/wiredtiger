@@ -8,6 +8,11 @@
 
 #include "wt_internal.h"
 
+/* This is a faster version of WT_STRING_MATCH. */
+#define WT_FAST_STRING_MATCH(str, bytes, len)                                                   \
+    (((const char *)(str))[0] == ((const char *)(bytes))[0] && strncmp(str, bytes, len) == 0 && \
+      (str)[len] == '\0')
+
 /*
  * __wt_conf_bind --
  *     Bind values to a configuration string.
@@ -22,7 +27,8 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
     WT_CONNECTION_IMPL *conn;
     size_t len;
     uint64_t i;
-    const char *str;
+    const char *choice, *str;
+    const char **choices;
 
     conn = S2C(session);
     if (!__wt_conf_get_compiled(conn, compiled_str, &conf))
@@ -61,12 +67,24 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
              * Even when the bind format uses %s, we must check it against the numeric and boolean
              * values, as the base config parser does the same.
              */
-            if (WT_STRING_MATCH("false", str, len)) {
+            if (WT_FAST_STRING_MATCH("false", str, len)) {
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 0;
-            } else if (WT_STRING_MATCH("true", str, len)) {
+            } else if (WT_FAST_STRING_MATCH("true", str, len)) {
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 1;
+            }
+            choices = bind_desc->choices;
+            if (choices != NULL) {
+                for (; (choice = *choices) != NULL; ++choices) {
+                    if (WT_FAST_STRING_MATCH(choice, str, len)) {
+                        value->str = choice;
+                        break;
+                    }
+                }
+                if (choice == NULL)
+                    WT_RET_MSG(
+                      session, EINVAL, "Value '%.*s' is not a valid choice", (int)len, str);
             }
             break;
         case WT_CONFIG_ITEM_STRUCT:

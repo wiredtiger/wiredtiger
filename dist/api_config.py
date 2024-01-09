@@ -43,6 +43,11 @@ class KeyNumber:
     def get(self, name):
         return self.numbering[name]
 
+# A "choice" value is typically an identifier, but we allow hyphens as part of the identifier.
+# This function convert hyphens to underscores to allow us to use the name as a C identifier.
+def gen_choice_name(name):
+    return name.replace('-', '_')
+
 def gen_id_name(name, ty):
     id_name = name
     if ty == 'category':
@@ -152,6 +157,8 @@ def getcompnum(s):
     return num + mult
 
 choices_names = set()
+choices_values = set()
+
 # Get fields that assist the configuration compiler.
 def getcompstr(c, keynumber):
     comptype = -1
@@ -176,6 +183,12 @@ def getcompstr(c, keynumber):
             suffix += 1
             name = c.name + str(suffix)
         choices_names.add(name)
+
+        for raw_choice in choices:
+            choice = gen_choice_name(raw_choice)
+            if not choice in choices_values:
+                tfile.write('const char __WT_CONFIG_CHOICE_{}[] = "{}";\n'.format(choice, choice))
+                choices_values.add(choice)
         choices_ref = 'confchk_' + name + '_choices'
         tfile.write('''
         %(name)s[] = {
@@ -184,7 +197,8 @@ def getcompstr(c, keynumber):
         };
         ''' % {
             'name' : '\n'.join(ws.wrap('static const char *' + choices_ref)),
-            'values' : '\n\t'.join('"' + choice + '",' for choice in choices),
+            'values' : '\n\t'.join('__WT_CONFIG_CHOICE_' + gen_choice_name(raw_choice) + ',' \
+                for raw_choice in choices),
         })
 
     return ', {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref)
@@ -456,6 +470,9 @@ def getsubconfigstr(c, keynumber):
     else:
         return 'NULL, 0, NULL'
 
+if not test_config:
+    tfile.write('const char __WT_CONFIG_CHOICE_NULL[] = ""; /* not set in configuration */\n')
+
 # Write structures of arrays of allowable configuration options, including a
 # NULL as a terminator for iteration.
 for name in sorted(api_data_def.methods.keys()):
@@ -702,6 +719,10 @@ if not test_config:
 
     with config_h.replace_fragment('configuration section') as tfile:
         tfile.write(config_defines)
+        tfile.write('\n')
+        tfile.write('extern const char __WT_CONFIG_CHOICE_NULL[]; /* not set in configuration */\n')
+        for choice in sorted(choices_values):
+            tfile.write('extern const char __WT_CONFIG_CHOICE_{}[];\n'.format(choice))
 
     conf_keys = dict()
 
