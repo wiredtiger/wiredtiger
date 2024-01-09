@@ -25,14 +25,10 @@ while len(pids):
 CLRL=$'\e[K'     # Clear to the end of line.
 CLRS=$'\e[0J'    # Clear to the bottom of screen.
 BOL=$'\r'        # Move cursor to the beginning of line.
-# `stty` unfortunately uses stdin (not stdout) to locate the tty so have to check both.
+# stty unfortunately uses stdin (not stdout) to locate the tty so have to check both.
 [[ -t 1 && -t 0 ]] && { ISTTY=1; CLRIFTTY="$CLRS"; }
 
 status() {
-    # Single line version: ensures that the status soesn't span for more than one line.
-    # [[ -n "$ISTTY" ]] && echo -n "${1:0:`stty size | sed -n 's/^[0-9]* //p'`}$CLRL$BOL"
-
-    # Multiline version: counts the number of lines and moves the cursor up accordingly.
     [[ -n "$ISTTY" ]] || return
     local text="$1"
     [[ -z "$text" ]] && { echo -n $CLRS; return; }  # Short path to just clear the status
@@ -106,21 +102,23 @@ done
 
 errchk()
 {
-    if [[ ! -s $2 ]]; then
-        rm -f $2
+    local file="$2"
+
+    if [[ ! -s "$file" ]]; then
+        rm -f "$file"
         return
     fi
 
-    echo $CLRIFTTY'#########' s_all run of: "$1" resulted in:$'\n'"$(cat $2)"$'\n''#########'
+    echo $CLRIFTTY'#########' s_all run of: "$1" resulted in:$'\n'"$(cat "$file")"$'\n''#########'
 
-    if grep -q "$1.*skipped" $2 || [[ "$3" = "--warning-only" ]]; then
+    if grep -q "$1.*skipped" "$file" || [[ "$3" = "--warning-only" ]]; then
         : # If the test was skipped or marked warning only, ignore the failure.
     else
         errfound=1;
         echo "$1" >> "${t_pfx}_errfound"
     fi
 
-    rm -f $2
+    rm -f "$file"
 }
 
 run()
@@ -137,9 +135,13 @@ run()
     errchk "$name" "$t" "$flags"
 }
 
+# The s_version script doesn't produce output to the temporary file,
+# exempt it from normal error processing.
+status "Running: s_version"
+/bin/bash ./s_version $force   # Update files that include the package version.
+
 # Non parallelizable scripts.
 # The following scripts either modify files or already parallelize internally.
-run "s_version $force"     # Update files that include the package version.
 run "s_readme $force"
 run "s_install $force"
 run "api_config_gen.py"
