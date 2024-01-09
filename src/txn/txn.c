@@ -131,6 +131,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
       "A transactions pinned id cannot become globally visible before its snapshot is released");
 
     txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
+    F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
     /* Clear a checkpoint's pinned ID and timestamp. */
