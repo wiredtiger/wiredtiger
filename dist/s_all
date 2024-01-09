@@ -102,20 +102,20 @@ done
 
 errchk()
 {
-    local file="$2"
+    local name="$1" file="$2" flags="$3"
 
     if [[ ! -s "$file" ]]; then
         rm -f "$file"
         return
     fi
 
-    echo $CLRIFTTY'#########' s_all run of: "$1" resulted in:$'\n'"$(cat "$file")"$'\n''#########'
+    echo $CLRIFTTY'#########' s_all run of: "$name" resulted in:$'\n'"$(cat "$file")"$'\n''#########'
 
-    if grep -q "$1.*skipped" "$file" || [[ "$3" = "--warning-only" ]]; then
+    if grep -q "$name.*skipped" "$file" || [[ "$flags" = "--warning-only" ]]; then
         : # If the test was skipped or marked warning only, ignore the failure.
     else
         errfound=1;
-        echo "$1" >> "${t_pfx}_errfound"
+        echo "$name" >> "${t_pfx}_errfound"
     fi
 
     rm -f "$file"
