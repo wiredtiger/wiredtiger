@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 
-cd ../test/suite
-if [[ $(find . -executable -type f | grep -v -w "./run.py") ]]; then
-    echo "The following files should not be executable: " &&
-    find . -executable -type f | grep -v -w "./run.py"
+# All test scripts should be routed through "run.py", running them directly is an anti-pattern.
+# Use the executable bits on the scripts as weak evidence of the anti-pattern.
+workspace=$(git rev-parse --show-toplevel)
+exes=$(find $workspace/test/suite -type f \( -perm -u+x -o -perm -g+x -o -perm -o+x \) -a ! -name 'run.py' -print)
+if [[ ! -z "$exes" ]]; then
+    echo "The following files should not be executable: "
+    for x in $exes; do echo $x; done
 fi
 
 exit 0
