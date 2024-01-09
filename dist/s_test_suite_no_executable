@@ -7,6 +7,6 @@ exes=$(find $workspace/test/suite -type f \( -perm -u+x -o -perm -g+x -o -perm -
 if [[ ! -z "$exes" ]]; then
     echo "The following files should not be executable: "
     for x in $exes; do echo $x; done
+    exit 1
 fi
-
 exit 0
