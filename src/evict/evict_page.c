@@ -882,10 +882,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * back to the original.
          */
         if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT)) {
-            F_CLR(session->txn, WT_TXN_REFRESH_SNAPSHOT);
-
             WT_RET(__wt_txn_snapshot_save_and_refresh(session));
-
             is_application_thread_snapshot_refreshed = true;
             WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
         }
