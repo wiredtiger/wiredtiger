@@ -876,9 +876,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         __wt_txn_bump_snapshot(session);
     else if (use_snapshot_for_app_thread) {
         /*
-         * Application threads entering into eviction saves the existing snapshots and refresh to
-         * acquire a new snapshot to evict the latest data, once the application threads are done
-         * with eviction then the snapshots are switched back to its original snapshots.
+         * If we couldn't make progress with the application thread's existing snapshot, save the
+         * existing snapshot and refresh to acquire a new one. Then try eviction again. Once the
+         * application threads are done with eviction, the application thread's snapshot is switched
+         * back to the original.
          */
         if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT)) {
             F_CLR(session->txn, WT_TXN_REFRESH_SNAPSHOT);
