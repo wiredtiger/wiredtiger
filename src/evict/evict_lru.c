@@ -1234,7 +1234,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * If the queue we are filling is empty, pages are being requested faster than they are being
      * queued.
      */
-    if (__evict_queue_empty(queue, false)) {
+    if (__evict_queue_empty(queue, false) &&
+      __evict_queue_empty(cache->evict_urgent_queue, false)) {
         if (F_ISSET(cache, WT_CACHE_EVICT_HARD))
             cache->evict_empty_score =
               WT_MIN(cache->evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
