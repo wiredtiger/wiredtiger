@@ -449,8 +449,17 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 #if !defined(HAVE_DIAGNOSTIC)
         /* Need verbose check only if not in diagnostic build */
         if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
-#endif
             __wt_epoch(session, &cache->stuck_time);
+#else
+        /* If eviction is not stuck, should restore the origin verbose level */
+        if (cache->adjust_evict_server_verbose == true) {
+            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT);
+            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICTSERVER);
+            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK);
+            cache->adjust_evict_server_verbose = false;
+        }
+        __wt_epoch(session, &cache->stuck_time);
+#endif
         return (0);
     }
 
@@ -506,15 +515,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
                 __wt_epoch(session, &cache->stuck_time);
             }
 #endif
-        } else {
-            if (cache->adjust_evict_server_verbose == true) {
-#ifdef HAVE_DIAGNOSTIC
-                WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT);
-                WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICTSERVER);
-                WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK);
-                cache->adjust_evict_server_verbose = false;
-#endif
-            }
         }
     }
     return (0);
