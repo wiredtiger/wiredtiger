@@ -1795,7 +1795,8 @@ methods = {
         transaction, if any, must not be older than the current oldest timestamp and must be after
         the current stable timestamp. For prepared transactions, a commit timestamp is required,
         must not be older than the prepare timestamp, can be set only once, and must not be
-        set until after the transaction has successfully prepared. See @ref transaction_timestamps'''),
+        set until after the transaction has successfully prepared. See 
+        @ref transaction_timestamps'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the commit of a
         prepared transaction, and otherwise not permitted. Can only be set after the transaction
