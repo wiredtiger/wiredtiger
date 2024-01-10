@@ -59,9 +59,10 @@ static uint32_t
 __wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
 {
     uint32_t crc;
-    size_t nqwords;
-    const uint8_t *p;
     const uint64_t *p64;
+    const uint32_t *p32;
+    const uint16_t *p16;
+    const uint8_t *p8;
 
     crc = ~seed;
 
@@ -72,16 +73,31 @@ __wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
 
     p64 = (const uint64_t *)p;
     /* Checksum in 8B chunks. */
-    for (nqwords = len / sizeof(uint64_t); nqwords; nqwords--) {
+    for (; len >= 16; p64 = p64 + 2, len -= 16) {
+        CRC32CX(crc, *p64);
+        CRC32CX(crc, *(p64 + 1));
+    }
+
+    if (len & 8 > 0) {
         CRC32CX(crc, *p64);
         p64++;
     }
 
-    /* Checksum trailing bytes one byte at a time. */
-    p = (const uint8_t *)p64;
-    for (len &= 0x7; len > 0; ++p, len--) {
-        CRC32CB(crc, *p);
+    p32 = (const uint32_t *)p64;
+    if (len & 4 > 0) {
+        CRC32CW(crc, *p32);
+        p32++;
     }
+
+    p16 = (const uint16_t *)p32;
+    if (len & 2 > 0) {
+        CRC32CH(crc, *p16);
+        p16++;
+    }
+
+    p8 = (const uint8_t *)p16;
+    if (len & 1 > 0)
+        CRC32CB(crc, *p8);
 
     return (~crc);
 }
