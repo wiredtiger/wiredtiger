@@ -111,7 +111,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         case 'u':
             dump_app_data = true;
             break;
-        case 'v':
+        case 'q':
             dump_app_values = true;
             break;
         case '?':
