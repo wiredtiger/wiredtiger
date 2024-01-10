@@ -72,7 +72,7 @@ __wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
 
     p64 = (const uint64_t *)p8;
     /* Checksum in 16B chunks. */
-    for (; len >= 16; p64 = p64 + 2, len -= 16) {
+    for (; len >= 16; p64 += 2, len -= 16) {
         CRC32CX(crc, *p64);
         CRC32CX(crc, *(p64 + 1));
     }
