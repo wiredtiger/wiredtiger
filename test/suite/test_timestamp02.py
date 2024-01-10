@@ -216,7 +216,6 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             self.conn.query_timestamp("get=stable_timestamp"), self.timestamp_str(302))
 
         # Forcibly set the oldest timestamp as larger than the stable timestamp.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
         self.assertEqual(self.get_stat(stat.conn.txn_set_ts_force), 0)
         self.conn.set_timestamp('force,oldest_timestamp=' + self.timestamp_str(303))
         self.ignoreStdoutPatternIfExists('oldest timestamp \(0, 303\) must not be later than stable timestamp \(0, 0\)')
