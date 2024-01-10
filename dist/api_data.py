@@ -1949,7 +1949,7 @@ methods = {
         timestamp moves the tracked durable timestamp forwards.  This is only
         intended for use where the application is rolling back locally committed
         transactions. The value must not be older than the current
-        oldest and stable timestamps.  See @ref timestamp_global_api'''),
+        oldest and stable timestamps.  See @ref transaction_timestamps'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
         For example allow the \c oldest_timestamp to move backwards''',
@@ -1959,7 +1959,7 @@ methods = {
         timestamp. Values must be monotonically increasing, any
         attempt to set the value to older than the current is silently ignored.
         The value must not be newer than the current
-        stable timestamp.  See @ref timestamp_global_api'''),
+        stable timestamp.  See @ref transaction_timestamps'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified
         timestamp in tables configured with \c log=(enabled=false).
