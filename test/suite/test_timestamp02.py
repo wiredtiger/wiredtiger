@@ -33,6 +33,7 @@
 import random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from wiredtiger import stat
 from wtscenario import make_scenarios
 
 class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
@@ -131,7 +132,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         # Perform validation on setting the oldest and the stable timestamps:
         # - It is a success, but a no-op, to set them behind their existing values.
         # - Oldest timestamp can't be more than the stable. It is reported as an error if an attempt
-        #   is made to set that way.
+        #   is made to set that way. If forcibly set in the wrong order, a stat should indicate it.
         # - If both the oldest and the stable are provided in the same call, the test to check if
         #   they are being moved backwards is done first. The value that is being set backwards is
         #   silently dropped, as if not provided at all. This is followed by the test on the oldest
@@ -197,6 +198,19 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             self.conn.query_timestamp("get=oldest_timestamp"), self.timestamp_str(302))
         self.assertTimestampsEqual(\
             self.conn.query_timestamp("get=stable_timestamp"), self.timestamp_str(302))
+
+        # Forcibly set the oldest timestamp as larger than the stable timestamp.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        force = stat_cursor[stat.conn.txn_set_ts_force][2]
+        stat_cursor.close()
+        self.assertEqual(force, 0)
+        self.conn.set_timestamp('force,oldest_timestamp=' + self.timestamp_str(303))
+        self.ignoreStdoutPatternIfExists('oldest timestamp \(0, 303\) must not be later than stable timestamp \(0, 0\)')
+        # Verify the ooo ts has been detected.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        force = stat_cursor[stat.conn.txn_set_ts_force][2]
+        stat_cursor.close()
+        self.assertEqual(force, 1)
 
     def test_read_your_writes(self):
         self.session.create(self.uri,
