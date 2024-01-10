@@ -67,11 +67,10 @@ __wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
     crc = ~seed;
 
     /* Checksum one byte at a time to the first 4B boundary. */
-    for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len) {
+    for (p8 = chunk; ((uintptr_t)p8 & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p8, --len)
         CRC32CB(crc, *p);
-    }
 
-    p64 = (const uint64_t *)p;
+    p64 = (const uint64_t *)p8;
     /* Checksum in 16B chunks. */
     for (; len >= 16; p64 = p64 + 2, len -= 16) {
         CRC32CX(crc, *p64);
