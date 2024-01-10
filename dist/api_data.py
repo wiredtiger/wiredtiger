@@ -1760,12 +1760,12 @@ methods = {
         transaction, if any, must not be older than the current oldest timestamp and must
         be after the current stable timestamp. For prepared transactions, a commit timestamp
         is required, must not be older than the prepare timestamp and can be set only once.
-        See @ref timestamp_txn_api and @ref timestamp_prepare'''),
+        See @ref timestamp_txn_api and @ref transaction_timestamps'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the commit of a
         prepared transaction, and otherwise not permitted. The value must also be after the
         current oldest and stable timestamps and must not be older than the commit timestamp.
-        See @ref timestamp_prepare'''),
+        See @ref transaction_timestamps'''),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger
@@ -1785,7 +1785,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The value must not be older than any active read timestamps, and must
-        be newer than the current stable timestamp. See @ref timestamp_prepare'''),
+        be newer than the current stable timestamp. See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
@@ -1796,20 +1796,20 @@ methods = {
         the current stable timestamp. For prepared transactions, a commit timestamp is required,
         must not be older than the prepare timestamp, can be set only once, and must not be
         set until after the transaction has successfully prepared. See @ref timestamp_txn_api
-        and @ref timestamp_prepare'''),
+        and @ref transaction_timestamps'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction. Required for the commit of a
         prepared transaction, and otherwise not permitted. Can only be set after the transaction
         has been prepared and a commit timestamp has been set. The value must be after the
         current oldest and stable timestamps and must not be older than the commit timestamp. See
-        @ref timestamp_prepare'''),
+        @ref transaction_timestamps'''),
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The value must not be older than any active read timestamps,
         and must be newer than the current stable timestamp. Can be set only
         once per transaction. Setting the prepare timestamp does not by itself
         prepare the transaction, but does oblige the application to eventually
-        prepare the transaction before committing it. See @ref timestamp_prepare'''),
+        prepare the transaction before committing it. See @ref transaction_timestamps'''),
     Config('read_timestamp', '', r'''
         read using the specified timestamp.  The value must not be
         older than the current oldest timestamp.  This can only be set once
