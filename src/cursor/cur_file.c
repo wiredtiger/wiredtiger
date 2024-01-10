@@ -47,6 +47,8 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
                 __saved_txn = NULL;                                                         \
             } else {                                                                        \
                 (session)->txn = (cbt)->checkpoint_txn;                                     \
+                /* Reconciliation is disabled when reading a checkpoint. */                 \
+                F_SET((session), WT_SESSION_NO_RECONCILE);                                  \
                 if ((cbt)->checkpoint_hs_dhandle != NULL) {                                 \
                     WT_ASSERT(session, (session)->hs_checkpoint == NULL);                   \
                     (session)->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;    \
@@ -59,6 +61,7 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
         op;                                                                                 \
         if (__saved_txn != NULL) {                                                          \
             (session)->txn = __saved_txn;                                                   \
+            F_CLR((session), WT_SESSION_NO_RECONCILE);                                      \
             (session)->hs_checkpoint = NULL;                                                \
             (session)->checkpoint_write_gen = __saved_write_gen;                            \
         }                                                                                   \
