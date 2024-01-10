@@ -405,7 +405,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 set:
     /*
      * Even if the timestamps have been forcibly set, they must always satisfy the condition that
-     * oldest <= stable. Don't fail as MongoDB violates this rule is very specific scenarios.
+     * oldest <= stable. Don't fail as MongoDB violates this rule in very specific scenarios.
      */
     if ((has_oldest || has_stable) && (has_oldest || txn_global->has_oldest_timestamp) &&
       (has_stable || txn_global->has_stable_timestamp) && oldest_ts > stable_ts) {
