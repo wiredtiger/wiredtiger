@@ -70,7 +70,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 2),
-                '/after the oldest timestamp/')
+                '/less than the oldest timestamp/')
         self.session.rollback_transaction()
 
         self.session.begin_transaction()
@@ -105,10 +105,10 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_COMMIT, 7)
         self.session.commit_transaction()
 
-        # Read timestamp >= oldest timestamp
+        # Read timestamp < oldest timestamp
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(7) +
             ',stable_timestamp=' + self.timestamp_str(7))
-        with self.expectedStdoutPattern('after the oldest timestamp'):
+        with self.expectedStdoutPattern('less than the oldest timestamp'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.begin_transaction('read_timestamp=' + self.timestamp_str(6)))
 
@@ -133,7 +133,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         # We can move the oldest timestamp backwards with "force"
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) + ',force')
         self.session.begin_transaction()
-        with self.expectedStdoutPattern('after the oldest timestamp'):
+        with self.expectedStdoutPattern('less than the oldest timestamp'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
                 self.session.timestamp_transaction_uint(wiredtiger.WT_TS_TXN_TYPE_READ, 4))
         self.session.rollback_transaction()
