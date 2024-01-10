@@ -77,21 +77,21 @@ __wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
         CRC32CX(crc, *(p64 + 1));
     }
 
-    if (len & 0x10) {
+    if (len & 0x8) {
         CRC32CX(crc, *p64);
-        p64++;
+        ++p64;
     }
 
     p32 = (const uint32_t *)p64;
     if (len & 0x4) {
         CRC32CW(crc, *p32);
-        p32++;
+        ++p32;
     }
 
     p16 = (const uint16_t *)p32;
     if (len & 0x2) {
         CRC32CH(crc, *p16);
-        p16++;
+        ++p16;
     }
 
     p8 = (const uint8_t *)p16;
