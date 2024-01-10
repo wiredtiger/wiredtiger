@@ -68,7 +68,8 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 1;
             } else
-                WT_RET(__wt_conf_compile_choice(session, bind_desc->choices, str, len, &value->str));
+                WT_RET(
+                  __wt_conf_compile_choice(session, bind_desc->choices, str, len, &value->str));
             break;
         case WT_CONFIG_ITEM_STRUCT:
         default:

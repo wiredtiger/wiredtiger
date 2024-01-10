@@ -86,8 +86,8 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
              * Any value passed in, whether it is "123", "true", etc. can be interpreted as a
              * string. If it must be one of a choice of strings, check that now.
              */
-            WT_RET(__wt_conf_compile_choice(session, check->choices, value->str, value->len,
-                &value->str));
+            WT_RET(__wt_conf_compile_choice(
+              session, check->choices, value->str, value->len, &value->str));
             break;
         case WT_CONFIG_ITEM_ID:
         case WT_CONFIG_ITEM_STRUCT: /* struct handled previously, needed for picky compilers */
