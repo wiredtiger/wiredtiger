@@ -6970,51 +6970,55 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1644
 /*! transaction: set timestamp durable updates */
 #define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1645
+/*! transaction: set timestamp force calls */
+#define	WT_STAT_CONN_TXN_SET_TS_FORCE			1646
 /*! transaction: set timestamp oldest calls */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1646
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1647
 /*! transaction: set timestamp oldest updates */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1647
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1648
+/*! transaction: set timestamp resulted in out-of-order timestamps */
+#define	WT_STAT_CONN_TXN_SET_TS_OUT_OF_ORDER		1649
 /*! transaction: set timestamp stable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1648
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1650
 /*! transaction: set timestamp stable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1649
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1651
 /*! transaction: transaction begins */
-#define	WT_STAT_CONN_TXN_BEGIN				1650
+#define	WT_STAT_CONN_TXN_BEGIN				1652
 /*!
  * transaction: transaction checkpoint history store file duration
  * (usecs)
  */
-#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1651
+#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1653
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1652
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1654
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1653
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1655
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1654
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1656
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1655
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1657
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1656
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1658
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1657
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1659
 /*! transaction: transaction read timestamp of the oldest active reader */
-#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1658
+#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1660
 /*! transaction: transaction rollback to stable currently running */
-#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1659
+#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1661
 /*! transaction: transaction walk of concurrent sessions */
-#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1660
+#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1662
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1661
+#define	WT_STAT_CONN_TXN_COMMIT				1663
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1662
+#define	WT_STAT_CONN_TXN_ROLLBACK			1664
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1663
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1665
 
 /*!
  * @}
