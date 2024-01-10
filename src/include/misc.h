@@ -313,6 +313,14 @@ __wt_string_match(const char *str, const char *bytes, size_t len)
 }
 
 /*
+ * This is a faster version of WT_STRING_MATCH, and should be used where
+ * performance matters.  bytes or str should never be NULL.
+ * */
+#define WT_FAST_STRING_MATCH(str, bytes, len)                           \
+    (((const char *)(str))[0] == ((const char *)(bytes))[0] && strncmp(str, bytes, len) == 0 && \
+      (str)[len] == '\0')
+
+/*
  * Macro that produces a string literal that isn't wrapped in quotes, to avoid tripping up spell
  * checkers.
  */

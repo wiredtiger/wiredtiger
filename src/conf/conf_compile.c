@@ -36,7 +36,6 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
   bool is_default)
 {
     uint32_t bind_offset;
-    const char **choice;
 
     if (value->len > 0 && value->str[0] == '%') {
         /* We must be doing an explicit compilation. */
@@ -69,12 +68,6 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
         WT_RET(__wt_realloc_def(session, &top_conf->binding_allocated, top_conf->binding_count,
           &top_conf->binding_descriptions));
         top_conf->binding_descriptions[bind_offset] = &conf_key->u.bind_desc;
-    } else if (check_type == WT_CONFIG_ITEM_STRUCT) {
-        if (value->type != WT_CONFIG_ITEM_STRUCT || value->str[0] != '[')
-            WT_RET_MSG(session, EINVAL, "Value '%.*s' expected to be a category", (int)value->len,
-              value->str);
-        conf_key->type = CONF_KEY_SUB_INFO;
-        abort(); /* TODO: more to do here, call into a variant of __wt_conf_compile */
     } else {
         switch (check_type) {
         case WT_CONFIG_ITEM_NUM:
@@ -89,26 +82,15 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
                   (int)value->len, value->str);
             break;
         case WT_CONFIG_ITEM_STRING:
-            /* Any value passed in, whether it is "123", "true", etc. can be interpreted as a
-             * string. */
-            if (check->choices != NULL) {
-                /* It's legal to specify a choice as nothing. */
-                if (value->len == 0)
-                    value->str = __WT_CONFIG_CHOICE_NULL;
-                else {
-                    for (choice = check->choices; *choice != NULL; ++choice)
-                        if (WT_STRING_MATCH(*choice, value->str, value->len))
-                            break;
-                    if (*choice == NULL)
-                        WT_RET_MSG(session, EINVAL, "Value '%.*s' is not a valid choice",
-                          (int)value->len, value->str);
-                    value->str = *choice;
-                }
-            }
+            /*
+             * Any value passed in, whether it is "123", "true", etc. can be interpreted as a
+             * string. If it must be one of a choice of strings, check that now.
+             */
+            WT_RET(__wt_conf_compile_choice(session, check->choices, value->str, value->len,
+                &value->str));
             break;
         case WT_CONFIG_ITEM_ID:
-        case WT_CONFIG_ITEM_STRUCT: /* actually handled previous to this call, case added for picky
-                                       compilers */
+        case WT_CONFIG_ITEM_STRUCT: /* struct handled previously, needed for picky compilers */
             return (__wt_illegal_value(session, (int)check_type));
         }
 
@@ -196,8 +178,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
          * parentheses.
          */
         if (check_type == WT_CONFIG_ITEM_STRUCT && check->choices != NULL &&
-          value.type == WT_CONFIG_ITEM_STRING && check->choices != NULL) {
-            /* TODO: is this already checked before this?  Is this combination even possible? */
+          value.type == WT_CONFIG_ITEM_STRING) {
             if (!__wt_config_get_choice(check->choices, &value))
                 WT_ERR_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
                   (int)value.len, value.str, (int)key.len, key.str);

@@ -8,11 +8,6 @@
 
 #include "wt_internal.h"
 
-/* This is a faster version of WT_STRING_MATCH. */
-#define WT_FAST_STRING_MATCH(str, bytes, len)                                                   \
-    (((const char *)(str))[0] == ((const char *)(bytes))[0] && strncmp(str, bytes, len) == 0 && \
-      (str)[len] == '\0')
-
 /*
  * __wt_conf_bind --
  *     Bind values to a configuration string.
@@ -27,8 +22,7 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
     WT_CONNECTION_IMPL *conn;
     size_t len;
     uint64_t i;
-    const char *choice, *str;
-    const char **choices;
+    const char *str;
 
     conn = S2C(session);
     if (!__wt_conf_get_compiled(conn, compiled_str, &conf))
@@ -73,19 +67,8 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
             } else if (WT_FAST_STRING_MATCH("true", str, len)) {
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 1;
-            }
-            choices = bind_desc->choices;
-            if (choices != NULL) {
-                for (; (choice = *choices) != NULL; ++choices) {
-                    if (WT_FAST_STRING_MATCH(choice, str, len)) {
-                        value->str = choice;
-                        break;
-                    }
-                }
-                if (choice == NULL)
-                    WT_RET_MSG(
-                      session, EINVAL, "Value '%.*s' is not a valid choice", (int)len, str);
-            }
+            } else
+                WT_RET(__wt_conf_compile_choice(session, bind_desc->choices, str, len, &value->str));
             break;
         case WT_CONFIG_ITEM_STRUCT:
         default:
