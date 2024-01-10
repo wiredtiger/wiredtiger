@@ -47,6 +47,12 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         ('row', dict(extra_config='')),
     ])
 
+    def get_stat(self, stat_name):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        value = stat_cursor[stat_name][2]
+        stat_cursor.close()
+        return value
+
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
     def check(self, session, txn_config, expected):
@@ -90,6 +96,8 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Bump the oldest timestamp, we're not going back...
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100))
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_oldest), 1)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_oldest_upd), 1)
 
         # Update them and retry.
         random.shuffle(keys)
@@ -105,9 +113,13 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(150))
         self.assertTimestampsEqual(self.conn.query_timestamp(), self.timestamp_str(150))
         self.conn.set_timestamp('durable_timestamp=' + self.timestamp_str(200))
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_durable), 2)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_durable_upd), 2)
 
         # Now the stable timestamp before we read.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(200))
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable), 1)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_upd), 1)
 
         for i, t in enumerate(orig_keys):
             self.check(self.session, 'read_timestamp=' + self.timestamp_str(t + 100),
@@ -115,6 +127,8 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Bump the oldest timestamp, we're not going back...
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(200))
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_oldest), 2)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_oldest_upd), 2)
 
         # Remove them and retry
         random.shuffle(keys)
@@ -125,6 +139,8 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We have to continue to advance the stable timestamp before reading.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(300))
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable), 2)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_upd), 2)
         for i, t in enumerate(orig_keys):
             self.check(self.session, 'read_timestamp=' + self.timestamp_str(t + 200),
                 dict((k, 2) for k in orig_keys[i+1:]))
@@ -201,16 +217,11 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Forcibly set the oldest timestamp as larger than the stable timestamp.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        force = stat_cursor[stat.conn.txn_set_ts_force][2]
-        stat_cursor.close()
-        self.assertEqual(force, 0)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_force), 0)
         self.conn.set_timestamp('force,oldest_timestamp=' + self.timestamp_str(303))
         self.ignoreStdoutPatternIfExists('oldest timestamp \(0, 303\) must not be later than stable timestamp \(0, 0\)')
         # Verify the ooo ts has been detected.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        force = stat_cursor[stat.conn.txn_set_ts_force][2]
-        stat_cursor.close()
-        self.assertEqual(force, 1)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_force), 1)
 
     def test_read_your_writes(self):
         self.session.create(self.uri,
