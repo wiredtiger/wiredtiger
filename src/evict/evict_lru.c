@@ -481,9 +481,13 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         /* Enable extra logs 20ms before timing out. */
         if (cache->cache_stuck_timeout_ms < 20 ||
           (time_diff_ms > cache->cache_stuck_timeout_ms - 20)) {
-            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
+            WT_VERBOSE_SET_AND_SAVE(
+              session, cache->verbose_orig_level, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+            WT_VERBOSE_SET_AND_SAVE(
+              session, cache->verbose_orig_level, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+            WT_VERBOSE_SET_AND_SAVE(
+              session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
+            cache->adjust_evict_server_verbose = true;
         }
 #endif
 
@@ -502,6 +506,15 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
                 __wt_epoch(session, &cache->stuck_time);
             }
 #endif
+        } else {
+            if (cache->adjust_evict_server_verbose == true) {
+#ifdef HAVE_DIAGNOSTIC
+                WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT);
+                WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICTSERVER);
+                WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK);
+                cache->adjust_evict_server_verbose = false;
+#endif
+            }
         }
     }
     return (0);
