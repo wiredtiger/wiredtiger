@@ -445,7 +445,8 @@ set:
      * Even if the timestamps have been forcibly set, they must always satisfy the condition that
      * oldest <= stable. Don't fail as MongoDB violates this rule in very specific scenarios.
      */
-    if (txn_global->oldest_timestamp > txn_global->stable_timestamp) {
+    if (txn_global->has_stable_timestamp && txn_global->has_oldest_timestamp &&
+      txn_global->oldest_timestamp > txn_global->stable_timestamp) {
         WT_STAT_CONN_INCR(session, txn_set_ts_out_of_order);
         __wt_verbose_warning(session, WT_VERB_TIMESTAMP,
           "set_timestamp: oldest timestamp %s must not be later than stable timestamp %s",
