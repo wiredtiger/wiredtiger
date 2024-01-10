@@ -94,8 +94,10 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         # Everything up to and including timestamp 100 has been committed.
         self.assertTimestampsEqual(self.conn.query_timestamp(), self.timestamp_str(100))
 
-        # Bump the oldest timestamp, we're not going back...
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100))
+        # Bump the oldest and stable timestamps.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100) + ',oldest_timestamp=' + self.timestamp_str(100))
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable), 1)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_upd), 1)
         self.assertEqual(self.get_stat(stat.conn.txn_set_ts_oldest), 1)
         self.assertEqual(self.get_stat(stat.conn.txn_set_ts_oldest_upd), 1)
 
@@ -118,8 +120,8 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Now the stable timestamp before we read.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(200))
-        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable), 1)
-        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_upd), 1)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable), 2)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_upd), 2)
 
         for i, t in enumerate(orig_keys):
             self.check(self.session, 'read_timestamp=' + self.timestamp_str(t + 100),
@@ -139,8 +141,8 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We have to continue to advance the stable timestamp before reading.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(300))
-        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable), 2)
-        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_upd), 2)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable), 3)
+        self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_upd), 3)
         for i, t in enumerate(orig_keys):
             self.check(self.session, 'read_timestamp=' + self.timestamp_str(t + 200),
                 dict((k, 2) for k in orig_keys[i+1:]))
