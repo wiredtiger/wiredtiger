@@ -510,7 +510,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
-        passed = not (self.failed() or teardown_failed)
+        passed = "None" if self.skipped else not (self.failed() or teardown_failed)
 
         try:
             self.platform_api.tearDown()
@@ -579,11 +579,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             self.pr('preserving directory ' + self.testdir)
         if WiredTigerTestCase._verbose > 2:
             self.prhead('TEST COMPLETED')
-
-    # Returns None if testcase is running.  If during (or after) tearDown,
-    # will return True or False depending if the test case failed.
-    def failed(self):
-        return self._failed
 
     def backup(self, backup_dir, session=None):
         if session is None:
