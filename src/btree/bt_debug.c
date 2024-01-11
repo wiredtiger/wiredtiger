@@ -644,11 +644,25 @@ __debug_cell_kv(
     if (unpack->cell == NULL)
         return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
     // i am confused
-    if (F_ISSET(ds, WT_DEBUG_UNREDACT) || F_ISSET(ds, WT_DEBUG_UNREDACT_VALUES))
+    if (F_ISSET(ds, WT_DEBUG_UNREDACT))
         WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
-    else
-        WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
-
+    else if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
+      unpack->raw == WT_CELL_KEY_OVFL || unpack->raw == WT_CELL_KEY_SHORT ||
+      unpack->raw == WT_CELL_KEY_SHORT_PFX || unpack->raw == WT_CELL_KEY_OVFL_RM) {
+        if (F_ISSET(ds, WT_DEBUG_UNREDACT_KEYS))
+            WT_RET(
+              ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+        else
+            WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
+    } else if (unpack->raw == WT_CELL_VALUE || unpack->raw == WT_CELL_VALUE_COPY ||
+      unpack->raw == WT_CELL_VALUE_OVFL || unpack->raw == WT_CELL_VALUE_SHORT ||
+      unpack->raw == WT_CELL_VALUE_OVFL_RM) {
+        if (F_ISSET(ds, WT_DEBUG_UNREDACT_VALUES))
+            WT_RET(
+              ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+        else
+            WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
+    }
     /* Dump per-disk page type information. */
     switch (page_type) {
     case WT_PAGE_COL_FIX:
@@ -1055,8 +1069,8 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 
     /*
      * If the cursor is a checkpoint cursor and we don't already have a history store checkpoint
-     * name in the session, substitute the one from this cursor. This allows the dump to print from
-     * the history store, which otherwise will get skipped.
+     * name in the session, substitute the one from this cursor. This allows the dump to print
+     * from the history store, which otherwise will get skipped.
      */
     if (cbt->checkpoint_hs_dhandle != NULL && session->hs_checkpoint == NULL) {
         session->hs_checkpoint = cbt->checkpoint_hs_dhandle->checkpoint;
