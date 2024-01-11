@@ -437,6 +437,10 @@ __verify_tree(
     unpack = &_unpack;
     page = ref->page;
 
+    ret = __wt_scr_alloc(session, 0, &(vs->tmp2));
+    if (ret != 0)
+        __wt_scr_free(session, &(vs->tmp2));
+    WT_RET(ret);
     /*
      * The verify operation does not go through the same tree walk flow as other operations
      * utilizing the regular tree walk function. Check for potential pages to pre-fetch here as
