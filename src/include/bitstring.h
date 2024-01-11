@@ -62,7 +62,7 @@
 
 /*
  * This code has been split into a header file and an inline header.
- * This file contains only the preprocessor macros.
+ * This file contains only the pre-processor macros.
  */
 
 				/* byte of the bitstring bit is in */
