@@ -21,8 +21,12 @@ usage(void)
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
       "-u",
       "display the application data when dumping with configuration dump_blocks or dump_pages",
-      "-k", "display the keys in the application data", "-v",
-      "display the values in the application data", "-?", "show this message", NULL, NULL};
+      "-k",
+      "display only the keys in the application data with configuration dump_blocks or dump_pages",
+      "-v",
+      "display only the values in the application data with configuration dump_blocks or "
+      "dump_pages",
+      "-?", "show this message", NULL, NULL};
 
     util_usage(
       "verify [-ackSstuv] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# "
