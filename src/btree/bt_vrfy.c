@@ -423,15 +423,15 @@ static int
 __verify_tree(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
 {
+    WT_ADDR_COPY addr;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR *unpack, _unpack;
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
     uint32_t entry;
-    WT_ADDR_COPY addr;
-    WT_DECL_ITEM(tmp);
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -666,7 +666,7 @@ celltype_err:
              */
             WT_RET(__wt_scr_alloc(session, 0, &tmp));
             if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
-                WT_RET(__wt_msg(session, "Potentially corrupt block at: %s",
+                WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
                   __wt_addr_string(session, addr.addr, addr.size, tmp)));
             }
             if (vs->read_corrupt && ret != 0) {
@@ -712,7 +712,7 @@ celltype_err:
              */
             WT_RET(__wt_scr_alloc(session, 0, &tmp));
             if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
-                WT_RET(__wt_msg(session, "Adeline's potentially corrupt block at: %s",
+                WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
                   __wt_addr_string(session, addr.addr, addr.size, tmp)));
             }
 
