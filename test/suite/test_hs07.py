@@ -84,6 +84,7 @@ class test_hs07(wttest.WiredTigerTestCase):
 
         bigvalue = "aaaaa" * 100
         bigvalue2 = "ddddd" * 100
+
         # Commit at timestamp 1.
         self.large_updates(uri, bigvalue, ds, nrows, 1)
 

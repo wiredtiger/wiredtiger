@@ -578,7 +578,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
 #else
-        /* Don't change this error message, MongoDB servers check for it. */
+        /* Don't change this error message, MongoDB checks for it. */
         if (has_stable_ts && commit_ts < stable_ts)
             WT_RET_MSG(session, EINVAL, "commit timestamp %s is less than the stable timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
@@ -599,8 +599,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
     } else {
         /*
          * For a prepared transaction, the commit timestamp should not be less than the prepare
-         * timestamp. Also, the commit timestamp cannot be set before the transaction has actually
-         * been prepared.
+         * timestamp.
          *
          * If the commit timestamp is less than the oldest timestamp and transaction is configured
          * to roundup timestamps of a prepared transaction, then we will roundup the commit
