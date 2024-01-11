@@ -70,3 +70,25 @@ __wt_conf_compile_choice(
     }
     return (0);
 }
+
+/*
+ * __wt_conf_gets_def_func --
+ *     Get a value from the compiled configuration. If the value is a default, return that.
+ */
+static inline int
+__wt_conf_gets_def_func(
+  WT_SESSION_IMPL *session, const WT_CONF *conf, uint64_t keys, int def, WT_CONFIG_ITEM *value)
+{
+    WT_CONFIG_ITEM_STATIC_INIT(false_value);
+
+    /*
+     * A shortcut - if the value in the compiled config is a default, return the default that the
+     * caller gave.
+     */
+    if (WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys)) {
+        *value = false_value;
+        value->val = def;
+        return (0);
+    }
+    return (__wt_conf_gets_func(session, conf, keys, def, true, value));
+}

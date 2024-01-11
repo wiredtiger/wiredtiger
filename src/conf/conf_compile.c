@@ -255,9 +255,14 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
               is_default));
             conf->conf_key_count += (sub_conf->conf_key_count - subconf_keys);
             conf->conf_count += (sub_conf->conf_count - subconf_count);
-        } else
+        } else {
             WT_ERR(__conf_compile_value(
               session, top_conf, check_type, conf_key, check, &value, bind_allowed, is_default));
+            if (is_default)
+                __bit_set(conf->bitmap_default, key_id);
+            else
+                __bit_clear(conf->bitmap_default, key_id);
+        }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:

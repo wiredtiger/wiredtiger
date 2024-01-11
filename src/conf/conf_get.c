@@ -73,6 +73,12 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
 
         case CONF_KEY_SUB_INFO:
             conf = &conf[conf_key->u.sub_conf_index];
+
+            if (use_def && WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys)) {
+                *value = false_value;
+                value->val = def;
+                return (0);
+            }
             break;
         }
     }

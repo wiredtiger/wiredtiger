@@ -16,7 +16,7 @@
     __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, cval)
 
 #define __wt_conf_gets_def(s, conf, key, def, cval) \
-    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, def, true, cval)
+    __wt_conf_gets_def_func(s, conf, WT_CONF_ID_STRUCTURE.key, def, cval)
 
 /*******************************************
  * API configuration keys.
@@ -1113,6 +1113,9 @@ struct __wt_conf_bind_desc {
  * copy so we can add modifications), we must copy the entire superstructure.
  */
 struct __wt_conf {
+#define __conf_bitstr_size(nbits) (((nbits) + 7) >> 3) /* from bitstring_inline.h */
+    uint8_t bitmap_default[__conf_bitstr_size(WT_CONF_ID_COUNT)];
+
     const WT_CONFIG_ENTRY *compile_time_entry; /* May be used for diagnostic checks. */
     char *orig_config;
 
@@ -1152,6 +1155,9 @@ struct __wt_conf_key {
     } u;
 };
 
+#define WT_SIZEOF_FIELD(t, f) (sizeof(((t *)0)->f))
+#define WT_FIELD_ELEMENTS(t, f) (WT_SIZEOF_FIELD(t, f) / WT_SIZEOF_FIELD(t, f[0]))
+
 #define WT_CONF_API_TYPE(c, m) struct __wt_conf_api_##c##_##m
 #define WT_CONF_API_DECLARE(c, m, nconf, nitem) \
     WT_CONF_API_TYPE(c, m)                      \
@@ -1160,8 +1166,8 @@ struct __wt_conf_key {
         WT_CONF_KEY conf_key[nitem];            \
     }
 
-#define WT_SIZEOF_FIELD(t, f) (sizeof(((t *)0)->f))
-#define WT_FIELD_ELEMENTS(t, f) (WT_SIZEOF_FIELD(t, f) / WT_SIZEOF_FIELD(t, f[0]))
+#define WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys) \
+    ((keys) < WT_CONF_ID_COUNT && __bit_test(&(conf)->bitmap_default[0], (keys)))
 
 #define WT_CONF_API_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf))
 #define WT_CONF_API_KEY_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf_key))
