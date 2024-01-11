@@ -1222,7 +1222,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     WT_EVICT_QUEUE *queue, *other_queue;
     WT_TRACK_OP_DECL;
     uint64_t read_gen_oldest;
-    uint32_t candidates, entries, remaining;
+    uint32_t candidates, entries, queue_remaining;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
@@ -1259,14 +1259,14 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     } else
         WT_STAT_CONN_INCR(session, cache_eviction_queue_not_empty);
 
-    remaining = __evict_queue_remaining(queue);
+    queue_remaining = __evict_queue_remaining(queue);
     /*
      * Get some more pages to consider for eviction.
      *
      * If the walk is interrupted, we still need to sort the queue: the next walk assumes there are
      * no entries beyond WT_EVICT_WALK_BASE.
      */
-    if (remaining < WT_EVICT_WALK_BASE) {
+    if (queue_remaining < WT_EVICT_WALK_BASE) {
         if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY)
             ret = 0;
         WT_ERR_NOTFOUND_OK(ret, false);
