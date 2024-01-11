@@ -18,7 +18,7 @@ static int __evict_pass(WT_SESSION_IMPL *);
 static int __evict_server(WT_SESSION_IMPL *, bool *);
 static void __evict_tune_workers(WT_SESSION_IMPL *session);
 static int __evict_walk(WT_SESSION_IMPL *, WT_EVICT_QUEUE *);
-static int __evict_walk_tree(WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, u_int *);
+static int __evict_walk_tree(WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, uint32_t, u_int *);
 
 #define WT_EVICT_HAS_WORKERS(s) (S2C(s)->evict_threads.current_threads > 1)
 
@@ -244,6 +244,23 @@ static inline bool
 __evict_queue_full(WT_EVICT_QUEUE *queue)
 {
     return (queue->evict_current == queue->evict_queue && queue->evict_candidates != 0);
+}
+
+/*
+ * __evict_queue_remain --
+ *     Return remaining pages in the queue
+ */
+static inline uint32_t
+__evict_queue_remaining(WT_EVICT_QUEUE *queue)
+{
+    uint32_t used, remaining;
+
+    if (queue->evict_current == NULL)
+        return (0);
+
+    used = (uint32_t)(queue->evict_current - queue->evict_queue);
+    remaining = queue->evict_entries - used;
+    return (remaining);
 }
 
 /*
@@ -1205,7 +1222,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     WT_EVICT_QUEUE *queue, *other_queue;
     WT_TRACK_OP_DECL;
     uint64_t read_gen_oldest;
-    uint32_t candidates, entries;
+    uint32_t candidates, entries, remaining;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
@@ -1242,16 +1259,18 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     } else
         WT_STAT_CONN_INCR(session, cache_eviction_queue_not_empty);
 
+    remaining = __evict_queue_remaining(queue);
     /*
      * Get some more pages to consider for eviction.
      *
      * If the walk is interrupted, we still need to sort the queue: the next walk assumes there are
      * no entries beyond WT_EVICT_WALK_BASE.
      */
-    if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY)
-        ret = 0;
-    WT_ERR_NOTFOUND_OK(ret, false);
-
+    if (remaining < WT_EVICT_WALK_BASE) {
+        if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY)
+            ret = 0;
+        WT_ERR_NOTFOUND_OK(ret, false);
+    }
     /* Sort the list into LRU order and restart. */
     __wt_spin_lock(session, &queue->evict_lock);
 
@@ -1431,8 +1450,8 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
-    u_int loop_count, max_entries, retries, slot, start_slot;
-    u_int total_candidates;
+    uint32_t already_select_pages, need_select_pages, queue_remaining;
+    u_int last_slot, loop_count, max_entries, retries, slot, start_slot, total_candidates;
     bool dhandle_locked, incr;
 
     WT_TRACK_OP_INIT(session);
@@ -1447,8 +1466,13 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     /*
      * Set the starting slot in the queue and the maximum pages added per walk.
      */
-    start_slot = slot = queue->evict_entries;
+    start_slot = last_slot = slot = queue->evict_entries;
     max_entries = WT_MIN(slot + WT_EVICT_WALK_INCR, cache->evict_slots);
+
+    already_select_pages = 0;
+    queue_remaining = __evict_queue_remaining(queue);
+    WT_ASSERT(session, queue_remaining < WT_EVICT_WALK_BASE);
+    need_select_pages = WT_EVICT_WALK_BASE - queue_remaining;
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -1564,14 +1588,15 @@ retry:
          * If a handle is being discarded, it will still be marked open, but won't have a root page.
          */
         if (btree->evict_disabled == 0 && !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
+
             if (btree->evict_disabled == 0 && btree->root.page != NULL) {
                 /*
                  * Remember the file to visit first, next loop.
                  */
                 cache->walk_tree = dhandle;
-                WT_WITH_DHANDLE(
-                  session, dhandle, ret = __evict_walk_tree(session, queue, max_entries, &slot));
-
+                last_slot = slot;
+                WT_WITH_DHANDLE(session, dhandle,
+                  ret = __evict_walk_tree(session, queue, max_entries, need_select_pages, &slot));
                 WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) == 0);
             }
             __wt_spin_unlock(session, &cache->evict_walk_lock);
@@ -1586,6 +1611,11 @@ retry:
                 __wt_sleep(0, 10);
                 WT_STAT_CONN_INCR(session, cache_eviction_walk_sleeps);
             }
+
+            already_select_pages = slot - last_slot;
+            need_select_pages -= already_select_pages;
+            if (need_select_pages <= 0)
+                break;
         }
     }
 
@@ -1749,7 +1779,8 @@ __evict_walk_target(WT_SESSION_IMPL *session)
  *     Get a few page eviction candidates from a single underlying file.
  */
 static int
-__evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp)
+__evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_entries,
+  uint32_t need_select_pages, u_int *slotp)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -2101,6 +2132,9 @@ fast:
 
         __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
           page->memory_footprint);
+
+        if (pages_queued >= need_select_pages)
+            break;
     }
     WT_RET_NOTFOUND_OK(ret);
 
