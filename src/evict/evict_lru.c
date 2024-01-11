@@ -784,7 +784,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * rolling back transactions and writing updates to the history store table.
          */
         if (eviction_progress == cache->eviction_progress) {
-            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
+            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
                 if (cache->evict_aggressive_score < WT_EVICT_SCORE_MAX)
                     ++cache->evict_aggressive_score;
                 oldest_id = txn_global->oldest_id;
