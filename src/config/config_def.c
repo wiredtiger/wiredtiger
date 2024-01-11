@@ -71,8 +71,8 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
-const char __WT_CONFIG_CHOICE_read_uncommitted[] = "read_uncommitted";
-const char __WT_CONFIG_CHOICE_read_committed[] = "read_committed";
+const char __WT_CONFIG_CHOICE_read_uncommitted[] = "read-uncommitted";
+const char __WT_CONFIG_CHOICE_read_committed[] = "read-committed";
 const char __WT_CONFIG_CHOICE_snapshot[] = "snapshot";
 
 static const char *confchk_isolation_choices[] = {__WT_CONFIG_CHOICE_read_uncommitted,
