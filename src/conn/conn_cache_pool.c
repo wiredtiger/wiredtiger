@@ -472,7 +472,7 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
          * Figure out a delta since the last time we did an assessment for each metric we are
          * tracking. Watch out for wrapping of values.
          *
-         * Count pages read, virtual memory page size.
+         * Count pages read, using virtual memory page size.
          */
         tmp = cache->bytes_read / (uint64_t)entry->page_size;
         if (tmp >= cache->cp_saved_read)
