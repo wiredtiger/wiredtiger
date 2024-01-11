@@ -61,15 +61,15 @@
  */
 
 /*
- * This code has been split into a header file and an inline header.
- * This file contains only the pre-processor macros.
+ * This code has been split into a header file and an inline header. This file contains only the
+ * pre-processor macros.
  */
 
-				/* byte of the bitstring bit is in */
-#define	__bit_byte(bit)	((bit) >> 3)
+/* byte of the bitstring bit is in */
+#define __bit_byte(bit) ((bit) >> 3)
 
-				/* mask for the bit within its byte */
-#define	__bit_mask(bit)	(1 << ((bit) & 0x7))
+/* mask for the bit within its byte */
+#define __bit_mask(bit) (1 << ((bit)&0x7))
 
-				/* Bytes in a bitstring of nbits */
-#define	__bitstr_size(nbits) (((nbits) + 7) >> 3)
+/* Bytes in a bitstring of nbits */
+#define __bitstr_size(nbits) (((nbits) + 7) >> 3)

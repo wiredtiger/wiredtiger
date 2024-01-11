@@ -187,7 +187,8 @@ def getcompstr(c, keynumber):
         for raw_choice in choices:
             choice = gen_choice_name(raw_choice)
             if not choice in choices_values:
-                tfile.write('const char __WT_CONFIG_CHOICE_{}[] = "{}";\n'.format(choice, raw_choice))
+                tfile.write('const char __WT_CONFIG_CHOICE_{}[] = "{}";\n'.format(
+                    choice, raw_choice))
                 choices_values.add(choice)
         choices_ref = 'confchk_' + name + '_choices'
         tfile.write('''
