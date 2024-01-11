@@ -500,8 +500,8 @@ __verify_tree(
         WT_RET(__wt_debug_disk(
           session, page->dsk, NULL, vs->dump_app_data, vs->dump_app_keys, vs->dump_app_values));
     if (vs->dump_pages)
-        WT_RET(__wt_debug_disk(
-          session, page->dsk, NULL, vs->dump_app_data, vs->dump_app_keys, vs->dump_app_values));
+        WT_RET(__wt_debug_page(
+          session, NULL, ref, NULL, vs->dump_app_data, vs->dump_app_keys, vs->dump_app_values));
 #endif
 
     /* Make sure the page we got belongs in this kind of tree. */
