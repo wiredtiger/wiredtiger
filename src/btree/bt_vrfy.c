@@ -427,7 +427,6 @@ __verify_tree(
     WT_BM *bm;
     WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR *unpack, _unpack;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
@@ -664,10 +663,9 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
              */
-            WT_RET(__wt_scr_alloc(session, 0, &tmp));
             if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
                 WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
-                  __wt_addr_string(session, addr.addr, addr.size, tmp)));
+                  __wt_addr_string(session, addr.addr, addr.size, vs->tmp2)));
             }
             if (vs->read_corrupt && ret != 0) {
                 if (vs->verify_err == 0)
@@ -710,10 +708,9 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
              */
-            WT_RET(__wt_scr_alloc(session, 0, &tmp));
             if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
                 WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
-                  __wt_addr_string(session, addr.addr, addr.size, tmp)));
+                  __wt_addr_string(session, addr.addr, addr.size, vs->tmp2)));
             }
 
             if (vs->read_corrupt && ret != 0) {
