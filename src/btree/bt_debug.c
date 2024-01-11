@@ -643,7 +643,6 @@ __debug_cell_kv(
     /* Row-store references to empty cells return a NULL on-page reference. */
     if (unpack->cell == NULL)
         return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
-    // i am confused
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
         WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
     else if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
@@ -1069,8 +1068,8 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 
     /*
      * If the cursor is a checkpoint cursor and we don't already have a history store checkpoint
-     * name in the session, substitute the one from this cursor. This allows the dump to print
-     * from the history store, which otherwise will get skipped.
+     * name in the session, substitute the one from this cursor. This allows the dump to print from
+     * the history store, which otherwise will get skipped.
      */
     if (cbt->checkpoint_hs_dhandle != NULL && session->hs_checkpoint == NULL) {
         session->hs_checkpoint = cbt->checkpoint_hs_dhandle->checkpoint;
@@ -1312,7 +1311,6 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
         numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
 
         WT_COL_FIX_FOREACH_BITS (btree, dsk, v, i) {
-            // i am confused
             if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
                 WT_RET(ds->f(ds, "\t%" PRIu64 "\t{", recno));
                 WT_RET(__debug_hex_byte(ds, v));
