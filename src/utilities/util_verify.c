@@ -20,7 +20,7 @@ usage(void)
       "display underlying information during verification", "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
       "-u",
-      "display the application data when dumping with configuration dump_blocks or dump_pages",
+      "display all the application data when dumping with configuration dump_blocks or dump_pages",
       "-k",
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
       "-v",
@@ -66,11 +66,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     size_t size;
     int ch;
     char *config, *dump_offsets, *key, *uri;
-    bool abort_on_error, do_not_clear_txn_id, dump_address, dump_app_data, dump_app_keys,
-      dump_app_values, dump_blocks, dump_layout, dump_pages, read_corrupt, stable_timestamp, strict;
+    bool abort_on_error, do_not_clear_txn_id, dump_address, dump_all_data, dump_key_data,
+      dump_value_data, dump_blocks, dump_layout, dump_pages, read_corrupt, stable_timestamp, strict;
 
-    abort_on_error = do_not_clear_txn_id = dump_address = dump_app_data = dump_app_keys =
-      dump_app_values = dump_blocks = dump_layout = dump_pages = read_corrupt = stable_timestamp =
+    abort_on_error = do_not_clear_txn_id = dump_address = dump_all_data = dump_key_data =
+      dump_value_data = dump_blocks = dump_layout = dump_pages = read_corrupt = stable_timestamp =
         strict = false;
     config = dump_offsets = uri = NULL;
 
@@ -102,7 +102,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 return (usage());
             break;
         case 'k':
-            dump_app_keys = true;
+            dump_key_data = true;
             break;
         case 'S':
             strict = true;
@@ -114,10 +114,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             do_not_clear_txn_id = true;
             break;
         case 'u':
-            dump_app_data = true;
+            dump_all_data = true;
             break;
         case 'v':
-            dump_app_values = true;
+            dump_value_data = true;
             break;
         case '?':
             usage();
@@ -126,16 +126,16 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             return (usage());
         }
 
-    if (dump_app_data && (dump_app_keys || dump_app_values))
+    if (dump_all_data && (dump_key_data || dump_value_data))
         return (usage());
 
     argc -= __wt_optind;
     argv += __wt_optind;
 
-    if (do_not_clear_txn_id || dump_address || dump_app_data || dump_blocks || dump_layout ||
+    if (do_not_clear_txn_id || dump_address || dump_all_data || dump_blocks || dump_layout ||
       dump_offsets != NULL || dump_pages || read_corrupt || stable_timestamp || strict) {
-        size = strlen("do_not_clear_txn_id,") + strlen("dump_address,") + strlen("dump_app_data,") +
-          strlen("dump_app_keys,") + strlen("dump_app_values,") + strlen("dump_blocks,") +
+        size = strlen("do_not_clear_txn_id,") + strlen("dump_address,") + strlen("dump_all_data,") +
+          strlen("dump_key_data,") + strlen("dump_value_data,") + strlen("dump_blocks,") +
           strlen("dump_layout,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
           (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("history_store") +
           strlen("read_corrupt,") + strlen("stable_timestamp,") + strlen("strict") + 20;
@@ -145,8 +145,8 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         }
         if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
                do_not_clear_txn_id ? "do_not_clear_txn_id," : "",
-               dump_address ? "dump_address," : "", dump_app_data ? "dump_app_data," : "",
-               dump_app_keys ? "dump_app_keys," : "", dump_app_values ? "dump_app_values," : "",
+               dump_address ? "dump_address," : "", dump_all_data ? "dump_all_data," : "",
+               dump_key_data ? "dump_key_data," : "", dump_value_data ? "dump_value_data," : "",
                dump_blocks ? "dump_blocks," : "", dump_layout ? "dump_layout," : "",
                dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
