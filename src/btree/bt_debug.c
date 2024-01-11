@@ -160,7 +160,7 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
         return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
           __wt_buf_set_printable(session, data_arg, size, false, ds->t1)));
 
-    if (F_ISSET(ds, WT_DEBUG_UNREDACT) || F_ISSET(ds, WT_DEBUG_UNREDACT_VALUES))
+    if (!F_ISSET(ds, WT_DEBUG_UNREDACT) && !F_ISSET(ds, WT_DEBUG_UNREDACT_VALUES))
         return (ds->f(ds, "\t%s%s{REDACTED}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
 
     /*
