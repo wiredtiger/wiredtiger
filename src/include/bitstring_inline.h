@@ -60,15 +60,6 @@
  * $FreeBSD: src/sys/sys/bitstring.h,v 1.5 2005/01/07 02:29:23 imp Exp $
  */
 
-				/* byte of the bitstring bit is in */
-#define	__bit_byte(bit)	((bit) >> 3)
-
-				/* mask for the bit within its byte */
-#define	__bit_mask(bit)	(1 << ((bit) & 0x7))
-
-				/* Bytes in a bitstring of nbits */
-#define	__bitstr_size(nbits) (((nbits) + 7) >> 3)
-
 /*
  * __bit_alloc --
  *	Allocate a bitstring.

@@ -1113,8 +1113,7 @@ struct __wt_conf_bind_desc {
  * copy so we can add modifications), we must copy the entire superstructure.
  */
 struct __wt_conf {
-#define __conf_bitstr_size(nbits) (((nbits) + 7) >> 3) /* from bitstring_inline.h */
-    uint8_t bitmap_default[__conf_bitstr_size(WT_CONF_ID_COUNT)];
+    uint8_t bitmap_default[__bitstr_size(WT_CONF_ID_COUNT)];
 
     const WT_CONFIG_ENTRY *compile_time_entry; /* May be used for diagnostic checks. */
     char *orig_config;

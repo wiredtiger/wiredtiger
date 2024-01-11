@@ -487,6 +487,7 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp.h" /* required by reconcile.h */
 
 #include "api.h"
+#include "bitstring.h"
 #include "block.h"
 #include "block_cache.h"
 #include "block_chunkcache.h"
