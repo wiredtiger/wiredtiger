@@ -436,10 +436,6 @@ set:
         txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
-    __wt_writeunlock(session, &txn_global->rwlock);
-
-    if (has_oldest || has_stable)
-        __wt_txn_update_pinned_timestamp(session, force);
 
     /*
      * Even if the timestamps have been forcibly set, they must always satisfy the condition that
@@ -453,6 +449,11 @@ set:
           __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
     }
+
+    __wt_writeunlock(session, &txn_global->rwlock);
+
+    if (has_oldest || has_stable)
+        __wt_txn_update_pinned_timestamp(session, force);
 
     return (0);
 }
