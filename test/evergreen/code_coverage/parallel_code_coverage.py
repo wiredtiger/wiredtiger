@@ -46,6 +46,7 @@ def main():
     parser.add_argument('-c', '--config_path', required=True, help='Path to the json config file')
     parser.add_argument('-b', '--build_dir_base', required=True, help='Base name for the build directories')
     parser.add_argument('-j', '--parallel', default=1, type=int, help='How many tests to run in parallel')
+    parser.add_argument('-s', '--setup', action="store_true", help='Perform setup actions from the config in each build directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
     args = parser.parse_args()
 
@@ -53,6 +54,7 @@ def main():
     config_path = args.config_path
     build_dir_base = args.build_dir_base
     parallel_tests = args.parallel
+    setup = args.setup
 
     if verbose:
         print('Code Coverage')
@@ -61,6 +63,7 @@ def main():
         print('  Config file                      {}'.format(config_path))
         print('  Base name for build directories: {}'.format(build_dir_base))
         print('  Number of parallel tests:        {}'.format(parallel_tests))
+        print('  Perform setup actions:           {}'.format(setup))
 
     if parallel_tests < 1:
         os.error("Number of parallel tests must be >= 1")
@@ -76,13 +79,23 @@ def main():
     if len(config['test_tasks']) < 1:
         sys.exit("No test tasks")
 
+    setup_actions = config['setup_actions']
+
+    if setup and len(setup_actions) < 1:
+        sys.exit("No sectup actions")
+
+    if verbose:
+        print('  Setup actions: {}'.format(setup_actions))
+
     build_dirs = list()
 
     # Check the relevant build directories exist and have the correct status
     for build_num in range(parallel_tests):
         this_build_dir = "{}{}".format(build_dir_base, build_num)
+
         if not os.path.exists(this_build_dir):
             sys.exit("Build directory {} doesn't exist".format(this_build_dir))
+
         build_dirs.append(this_build_dir)
 
         found_compile_time_coverage_files = False
@@ -102,9 +115,9 @@ def main():
             print('Found run time coverage files in {}     = {}'.
                   format(this_build_dir, found_run_time_coverage_files))
 
-        if not found_compile_time_coverage_files:
+        if not setup and not found_compile_time_coverage_files:
             sys.exit('No compile time coverage files found within {}. Please build for code coverage.'
-                     .format(args.build_dir))
+                     .format(this_build_dir))
 
         # if found_run_time_coverage_files:
         #     sys.exit('Run time coverage files found within {}. Please remove them.'.format(this_build_dir))
@@ -112,10 +125,19 @@ def main():
     if verbose:
         print("Build dirs: {}".format(build_dirs))
 
-    # task_info = []
     task_bucket_info = []
+    setup_bucket_info = []
     for build_dir in build_dirs:
+        if setup_actions:
+            if len(os.listdir(build_dir)) > 0:
+                sys.exit("Directory {} is not empty".format(build_dir))
+            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions']})
         task_bucket_info.append({'build_dir': build_dir, 'task_bucket': []})
+
+    if setup:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_tests) as executor:
+            for e in executor.map(run_task_list, setup_bucket_info):
+                print('Setup')
 
     for test_num in range(len(config['test_tasks'])):
         test = config['test_tasks'][test_num]
@@ -125,7 +147,6 @@ def main():
             print("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
 
         task_bucket_info[build_dir_number]['task_bucket'].append(test)
-        # task_info.append({'build_dir': build_dirs[build_dir_number], 'task' : test})
 
     print("task_bucket_info: {}".format(task_bucket_info))
 
