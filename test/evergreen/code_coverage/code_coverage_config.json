@@ -1,0 +1,12 @@
+{
+  "test_tasks" : [
+    "test/unittest/catch2-unittests                          ",
+    "python3 ../test/suite/run.py test_prepare01             ",
+    "python3 ../test/suite/run.py -p test_prepare02          ",
+    "python3 ../test/suite/run.py test_prepare03             ",
+    "python3 ../test/suite/run.py test_prepare04             ",
+    "python3 ../test/suite/run.py test_shared_cache01        ",
+    "python3 ../test/suite/run.py test_rollback_to_stable03  ",
+    "python3 ../test/suite/run.py lsm                        "
+  ]
+  }
