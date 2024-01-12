@@ -218,7 +218,6 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         # Forcibly set the oldest timestamp greater than the stable timestamp.
         self.assertEqual(self.get_stat(stat.conn.txn_set_ts_force), 0)
         self.conn.set_timestamp('force,oldest_timestamp=' + self.timestamp_str(303))
-        self.ignoreStdoutPatternIfExists('oldest timestamp \(0, 303\) must not be later than stable timestamp \(0, 302\)')
         # Verify the ooo ts has been detected.
         self.assertEqual(self.get_stat(stat.conn.txn_set_ts_force), 1)
 

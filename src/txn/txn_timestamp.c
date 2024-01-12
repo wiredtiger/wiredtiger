@@ -444,7 +444,7 @@ set:
     if (txn_global->has_stable_timestamp && txn_global->has_oldest_timestamp &&
       txn_global->oldest_timestamp > txn_global->stable_timestamp) {
         WT_STAT_CONN_INCR(session, txn_set_ts_out_of_order);
-        __wt_verbose_warning(session, WT_VERB_TIMESTAMP,
+        __wt_verbose_debug1(session, WT_VERB_TIMESTAMP,
           "set_timestamp: oldest timestamp %s must not be later than stable timestamp %s",
           __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
