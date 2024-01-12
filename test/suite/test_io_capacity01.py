@@ -34,10 +34,10 @@ import random, string, time
 
 # test_io_capacity_01.py
 #   Max waiting period for background fsync. If the written threshold is not met in this time,
-#   a background fsync is done.
+#   A background fsync is done.
 class test_io_capacity_01(wttest.WiredTigerTestCase):
     uri = 'table:test_io_capacity_01'
-    collection_cfg = 'key_format=q, value_format=S'
+    collection_cfg = 'key_format=q,value_format=S'
     fsync_time = 1
     #Set the io_capacity config
     open_config = 'create,statistics=(all),io_capacity=(' + 'fsync_maximum_wait_period=' + str(fsync_time) + ',total=1M)'
@@ -58,8 +58,8 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         # Close the initial connection. We will be opening new connections for this test.
         self.close_conn()
 
-        #For a total of 1024 data writes of 1024 bytes each, the total number of bytes written is exactly 1M.
-        #The reconcile operation will add some additional data to ensure that the "total=1M" is triggered
+        # For a total of 1024 data writes of 1024 bytes each, the total number of bytes written is exactly 1M.
+        # The reconcile operation will add some additional data to ensure that the "total=1M" is triggered
         insert_count = 1024
         value_size = 1024
         random_string = self.generate_random_string(value_size)
@@ -73,19 +73,19 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
             cursor.set_value(random_string)
             cursor.insert()
 
-        #Take a checkpoint to ensure that the data is written to the disk
+        # Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
 
-        #Background fsync statistics
+        # Background fsync statistics
         self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
                 
-    #The number of written bytes not exceeded the threshold, but the running period is exceeded
+    # The number of written bytes not exceeded the threshold, but the running period is exceeded
     def test_io_capacity_fsync_background_period(self):
-        #Close the initial connection. We will be opening new connections for this test.
+        # Close the initial connection. We will be opening new connections for this test.
         self.close_conn()
 
-        #Only insert 1 data, the write bytes is well below 1M
-        #If the written conditions are not met fsync_maximum_wait_period, force background fsync
+        # Only insert 1 data, the write bytes is well below 1M
+        # If the written conditions are not met fsync_maximum_wait_period, force background fsync
         insert_count = 1
         value_size = 1024
         retry_times = 0
@@ -101,10 +101,10 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
             cursor.set_value(random_string)
             cursor.insert()
 
-        #Take a checkpoint to ensure that the data is written to the disk
+        # Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
 
-        #Background fsync statistics
+        # Background fsync statistics
         while (self.get_stat(stat.conn.fsync_all_fh_total) == 0):
             retry_times += 1
             time.sleep(0.1)
