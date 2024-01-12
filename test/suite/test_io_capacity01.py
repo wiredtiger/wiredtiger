@@ -39,7 +39,7 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
     uri = 'table:test_io_capacity_01'
     collection_cfg = 'key_format=q,value_format=S'
     fsync_time = 1
-    #Set the io_capacity config
+    # Set the io_capacity config
     open_config = 'create,statistics=(all),io_capacity=(' + 'fsync_maximum_wait_period=' + str(fsync_time) + ',total=1M)'
 
     def generate_random_string(self, length):
