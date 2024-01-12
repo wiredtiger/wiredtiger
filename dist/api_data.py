@@ -1683,17 +1683,17 @@ methods = {
         Display page addresses, time windows, and page types as pages are verified, using the
         application's message handler, intended for debugging''',
         type='boolean'),
-    Config('dump_app_data', 'false', r'''
+    Config('dump_all_data', 'false', r'''
         Display application data as pages or blocks are verified, using the application's message
         handler, intended for debugging. Disabling this does not guarantee that no user data will
         be output''',
         type='boolean'),
-    Config('dump_app_keys', 'false', r'''
+    Config('dump_key_data', 'false', r'''
         Display application data keys as pages or blocks are verified, using the application's
         message handler, intended for debugging. Disabling this does not guarantee that no user
         data will be output''',
         type='boolean'),
-    Config('dump_app_values', 'false', r'''
+    Config('dump_value_data', 'false', r'''
         Display application data values as pages or blocks are verified, using the application's
         message handler, intended for debugging. Disabling this does not guarantee that no user
         data will be output''',
