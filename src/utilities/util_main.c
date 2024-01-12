@@ -215,8 +215,15 @@ main(int argc, char *argv[])
             func = util_downgrade;
         else if (strcmp(command, "drop") == 0)
             func = util_drop;
-        else if (strcmp(command, "dump") == 0)
+        else if (strcmp(command, "dump") == 0) {
             func = util_dump;
+            // If ./wt dump called with no args
+            if (argc == 1)
+                return (usage_dump());
+            if (strstr(argv[1], "help") != NULL || strstr(argv[1], "?") != NULL) {
+                return (usage_dump());
+            }
+        }
         break;
     case 'l':
         if (strcmp(command, "list") == 0)

@@ -41,8 +41,8 @@ static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
  * usage --
  *     Display a usage message for the dump command.
  */
-static int
-usage(void)
+int
+usage_dump(void)
 {
     static const char *options[] = {"-c checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)", "-e",
@@ -159,23 +159,23 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             break;
         case 'w':
             if ((ret = util_str2num(session, __wt_optarg, true, &window)) != 0)
-                return (usage());
+                return (usage_dump());
             break;
         case 'x':
             hex = true;
             break;
         case '?':
-            usage();
+            usage_dump();
             return (0);
         default:
-            return (usage());
+            return (usage_dump());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
 
     /* The remaining argument is the uri. */
     if (argc < 1 || (argc != 1 && !json))
-        return (usage());
+        return (usage_dump());
 
     /* -j, -p and -x are incompatible. */
     format_specifiers = 0;
@@ -192,7 +192,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
           "%s: the only possible options are -j, -p, -x and a combination of -p and -x. Other "
           "options are incompatible\n",
           progname);
-        return (usage());
+        return (usage_dump());
     }
 
     /* Open any optional output file. */
@@ -200,7 +200,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         fp = stdout;
     else if (explore) {
         fprintf(stderr, "%s: the options -e and -f are incompatible\n", progname);
-        return (usage());
+        return (usage_dump());
     } else if ((fp = fopen(ofile, "w")) == NULL)
         return (util_err(session, errno, "%s: open", ofile));
 
