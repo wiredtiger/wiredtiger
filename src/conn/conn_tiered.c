@@ -215,8 +215,8 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     WT_ASSERT(session, tiered->bstorage != NULL);
     if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
         __wt_verbose(session, WT_VERB_TIERED,
-          "DO_OP: DH flags 0x%" PRIx32 " not open or dropped tiered %p.", dhandle->flags,
-          (void *)tiered);
+          "DO_OP: DH %s flags 0x%" PRIx32 " not open or dropped tiered %p.", dhandle->name,
+          dhandle->flags, (void *)tiered);
         return (0);
     }
     storage_source = tiered->bstorage->storage_source;
