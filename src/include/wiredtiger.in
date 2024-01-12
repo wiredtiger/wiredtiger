@@ -6974,12 +6974,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1646
 /*! transaction: set timestamp force calls */
 #define	WT_STAT_CONN_TXN_SET_TS_FORCE			1647
+/*!
+ * transaction: set timestamp global oldest timestamp set to be more
+ * recent than the global stable timestamp
+ */
+#define	WT_STAT_CONN_TXN_SET_TS_OUT_OF_ORDER		1648
 /*! transaction: set timestamp oldest calls */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1648
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1649
 /*! transaction: set timestamp oldest updates */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1649
-/*! transaction: set timestamp resulted in out-of-order timestamps */
-#define	WT_STAT_CONN_TXN_SET_TS_OUT_OF_ORDER		1650
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1650
 /*! transaction: set timestamp stable calls */
 #define	WT_STAT_CONN_TXN_SET_TS_STABLE			1651
 /*! transaction: set timestamp stable updates */
