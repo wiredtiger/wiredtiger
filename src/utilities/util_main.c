@@ -217,9 +217,10 @@ main(int argc, char *argv[])
             func = util_drop;
         else if (strcmp(command, "dump") == 0) {
             func = util_dump;
-            // If ./wt dump called with no args
+            // If ./wt dump called with no arguments
             if (argc == 1)
                 return (usage_dump());
+            // If /wt dump called with help incorrectly, still provide help message
             if (strstr(argv[1], "help") != NULL || strstr(argv[1], "?") != NULL) {
                 return (usage_dump());
             }
