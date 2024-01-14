@@ -73,12 +73,12 @@ class test_compact12(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(uri, None)
         for k in range(num_keys // 10 * 9):
             self.session.begin_transaction()
-            c[k] = ('%07d' % k) + '_' + 'aaaa' * ((self.value_size // 4) - 2)
+            c[k] = ('%07d' % k) + '_' + 'a' * self.value_size
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
 
         for k in range(num_keys // 10 * 9, num_keys):
             self.session.begin_transaction()
-            c[k] = ('%07d' % k) + '_' + 'bbbb' * ((self.value_size // 4) - 2)
+            c[k] = ('%07d' % k) + '_' + 'b' * self.value_size
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
         c.close()
 
@@ -108,6 +108,9 @@ class test_compact12(wttest.WiredTigerTestCase):
         c.close()
 
         self.session.checkpoint()
+        
+        # Reopen connection to ensure everything is on disk.
+        self.reopen_conn()
 
         # Move the oldest timestamp forward to make the previously removed keys obsolete.
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(4)}')
