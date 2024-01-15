@@ -2837,12 +2837,12 @@ tasks:
 
             # Create directories for 8 builds
             mkdir build_0 build_1 build_2 build_3 build_4 build_5 build_6 build_7
-            
+
             # Record the start time, in seconds
             date +%s > time.txt
 
             ${python_binary|python3} test/evergreen/code_coverage/parallel_code_coverage.py -v -c test/evergreen/code_coverage/code_coverage_config.json -b $(pwd)/build_ -j ${num_jobs} -s
-  
+
             # Record the end time, in seconds
             date +%s >> time.txt
       - func: "code coverage analysis"
