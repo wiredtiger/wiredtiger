@@ -6780,58 +6780,58 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL		1567
 /*! session: table compact failed calls due to cache pressure */
 #define	WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL_CACHE_PRESSURE	1568
-/*! session: table compact passes */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_PASSES	1569
 /*! session: table compact running */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_RUNNING	1570
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_RUNNING	1569
 /*! session: table compact skipped as process would not reduce file size */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_SKIPPED	1571
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_SKIPPED	1570
 /*! session: table compact successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_SUCCESS	1572
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_SUCCESS	1571
 /*! session: table compact timeout */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_TIMEOUT	1573
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_TIMEOUT	1572
 /*! session: table create failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_CREATE_FAIL		1574
+#define	WT_STAT_CONN_SESSION_TABLE_CREATE_FAIL		1573
 /*! session: table create successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_CREATE_SUCCESS	1575
+#define	WT_STAT_CONN_SESSION_TABLE_CREATE_SUCCESS	1574
 /*! session: table create with import failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_FAIL	1576
+#define	WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_FAIL	1575
 /*! session: table create with import successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_SUCCESS	1577
+#define	WT_STAT_CONN_SESSION_TABLE_CREATE_IMPORT_SUCCESS	1576
 /*! session: table drop failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_DROP_FAIL		1578
+#define	WT_STAT_CONN_SESSION_TABLE_DROP_FAIL		1577
 /*! session: table drop successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_DROP_SUCCESS		1579
+#define	WT_STAT_CONN_SESSION_TABLE_DROP_SUCCESS		1578
 /*! session: table rename failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_RENAME_FAIL		1580
+#define	WT_STAT_CONN_SESSION_TABLE_RENAME_FAIL		1579
 /*! session: table rename successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_RENAME_SUCCESS	1581
+#define	WT_STAT_CONN_SESSION_TABLE_RENAME_SUCCESS	1580
 /*! session: table salvage failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_SALVAGE_FAIL		1582
+#define	WT_STAT_CONN_SESSION_TABLE_SALVAGE_FAIL		1581
 /*! session: table salvage successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_SALVAGE_SUCCESS	1583
+#define	WT_STAT_CONN_SESSION_TABLE_SALVAGE_SUCCESS	1582
 /*! session: table truncate failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_TRUNCATE_FAIL	1584
+#define	WT_STAT_CONN_SESSION_TABLE_TRUNCATE_FAIL	1583
 /*! session: table truncate successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_TRUNCATE_SUCCESS	1585
+#define	WT_STAT_CONN_SESSION_TABLE_TRUNCATE_SUCCESS	1584
 /*! session: table verify failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_VERIFY_FAIL		1586
+#define	WT_STAT_CONN_SESSION_TABLE_VERIFY_FAIL		1585
 /*! session: table verify successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_VERIFY_SUCCESS	1587
+#define	WT_STAT_CONN_SESSION_TABLE_VERIFY_SUCCESS	1586
 /*! session: tiered operations dequeued and processed */
-#define	WT_STAT_CONN_TIERED_WORK_UNITS_DEQUEUED		1588
+#define	WT_STAT_CONN_TIERED_WORK_UNITS_DEQUEUED		1587
 /*! session: tiered operations removed without processing */
-#define	WT_STAT_CONN_TIERED_WORK_UNITS_REMOVED		1589
+#define	WT_STAT_CONN_TIERED_WORK_UNITS_REMOVED		1588
 /*! session: tiered operations scheduled */
-#define	WT_STAT_CONN_TIERED_WORK_UNITS_CREATED		1590
+#define	WT_STAT_CONN_TIERED_WORK_UNITS_CREATED		1589
 /*! session: tiered storage local retention time (secs) */
-#define	WT_STAT_CONN_TIERED_RETENTION			1591
+#define	WT_STAT_CONN_TIERED_RETENTION			1590
 /*! thread-state: active filesystem fsync calls */
-#define	WT_STAT_CONN_THREAD_FSYNC_ACTIVE		1592
+#define	WT_STAT_CONN_THREAD_FSYNC_ACTIVE		1591
 /*! thread-state: active filesystem read calls */
-#define	WT_STAT_CONN_THREAD_READ_ACTIVE			1593
+#define	WT_STAT_CONN_THREAD_READ_ACTIVE			1592
 /*! thread-state: active filesystem write calls */
-#define	WT_STAT_CONN_THREAD_WRITE_ACTIVE		1594
+#define	WT_STAT_CONN_THREAD_WRITE_ACTIVE		1593
+/*! thread-yield: application thread snapshot refreshed for eviction */
+#define	WT_STAT_CONN_APPLICATION_EVICT_SNAPSHOT_REFRESHED	1594
 /*! thread-yield: application thread time evicting (usecs) */
 #define	WT_STAT_CONN_APPLICATION_EVICT_TIME		1595
 /*! thread-yield: application thread time waiting for cache (usecs) */
