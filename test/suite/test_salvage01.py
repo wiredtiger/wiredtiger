@@ -329,7 +329,6 @@ class test_salvage01(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, None),
             "/read checksum error/")
-        self.ignoreStdoutPatternIfExists('ERROR unreadable block at: ')
 
         self.session.salvage('file:' + self.tablename + ".wt", None)
         self.check_damaged(self.tablename)
