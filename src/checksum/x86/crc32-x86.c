@@ -93,40 +93,29 @@ static uint32_t
 __wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
 {
     uint32_t crc;
+    size_t nqwords;
+    const uint8_t *p;
     const uint64_t *p64;
-    const uint32_t *p32;
-    const uint16_t *p16;
-    const uint8_t *p8;
 
     crc = ~seed;
 
-    p64 = (const uint64_t *)chunk;
-    /* Checksum in 16B chunks. */
-    for (; len >= 16; p64 += 2, len -= 16) {
+    /* Checksum one byte at a time to the first 4B boundary. */
+    for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len) {
+        crc = _mm_crc32_u8(crc, *p);
+    }
+
+    p64 = (const uint64_t *)p;
+    /* Checksum in 8B chunks. */
+    for (nqwords = len / sizeof(uint64_t); nqwords; nqwords--) {
         crc = (uint32_t)_mm_crc32_u64(crc, *p64);
-        crc = (uint32_t)_mm_crc32_u64(crc, *(p64 + 1));
+        p64++;
     }
 
-    if (len & 0x8) {
-        crc = (uint32_t)_mm_crc32_u64(crc, *p64);
-        ++p64;
+    /* Checksum trailing bytes one byte at a time. */
+    p = (const uint8_t *)p64;
+    for (len &= 0x7; len > 0; ++p, len--) {
+        crc = _mm_crc32_u8(crc, *p);
     }
-
-    p32 = (const uint32_t *)p64;
-    if (len & 0x4) {
-        crc = _mm_crc32_u32(crc, *p32);
-        ++p32;
-    }
-
-    p16 = (const uint16_t *)p32;
-    if (len & 0x2) {
-        crc = (uint32_t)_mm_crc32_u16(crc, *p16);
-        ++p16;
-    }
-
-    p8 = (const uint8_t *)p16;
-    if (len & 0x1)
-        crc = _mm_crc32_u8(crc, *p8);
 
     return (~crc);
 }
