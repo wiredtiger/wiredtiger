@@ -307,6 +307,9 @@ open:
     config = p;
 
     if ((ret = wiredtiger_open(home, verbose ? verbose_handler : NULL, config, &conn)) != 0) {
+        fprintf(stderr,
+          "Note: Check if home directory issue (not provided or incorrect) is contributing to this "
+          "error.\n");
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
