@@ -663,16 +663,18 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
              */
-            if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
-                WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
-                  __wt_addr_string(session, addr.addr, addr.size, vs->tmp2)));
+            if (ret != 0) {
+                if (__wt_ref_addr_copy(session, ref, &addr) && (WT_VRFY_DUMP(vs))) {
+                    WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
+                      __wt_addr_string(session, addr.addr, addr.size, vs->tmp2)));
+                }
+                if (vs->read_corrupt) {
+                    if (vs->verify_err == 0)
+                        vs->verify_err = ret;
+                    continue;
+                } else
+                    WT_RET(ret);
             }
-            if (vs->read_corrupt && ret != 0) {
-                if (vs->verify_err == 0)
-                    vs->verify_err = ret;
-                continue;
-            } else
-                WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
@@ -708,17 +710,18 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
              */
-            if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
-                WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
-                  __wt_addr_string(session, addr.addr, addr.size, vs->tmp2)));
+            if (ret != 0) {
+                if (__wt_ref_addr_copy(session, ref, &addr) && (WT_VRFY_DUMP(vs))) {
+                    WT_RET(__wt_msg(session, "ERROR unreadable block at: %s",
+                      __wt_addr_string(session, addr.addr, addr.size, vs->tmp2)));
+                }
+                if (vs->read_corrupt) {
+                    if (vs->verify_err == 0)
+                        vs->verify_err = ret;
+                    continue;
+                } else
+                    WT_RET(ret);
             }
-
-            if (vs->read_corrupt && ret != 0) {
-                if (vs->verify_err == 0)
-                    vs->verify_err = ret;
-                continue;
-            } else
-                WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
