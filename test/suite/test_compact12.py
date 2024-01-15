@@ -107,8 +107,6 @@ class test_compact12(wttest.WiredTigerTestCase):
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(3)}')
         c.close()
 
-        self.session.checkpoint()
-        
         # Reopen connection to ensure everything is on disk.
         self.reopen_conn()
 
