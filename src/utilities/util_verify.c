@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the verify command.
  */
-static int
-usage(void)
+int
+usage_verify(void)
 {
     static const char *options[] = {"-a", "abort on error during verification of all tables", "-c",
       "continue to the next page after encountering error during verification", "-d config",
@@ -86,13 +86,13 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 if (dump_offsets != NULL) {
                     fprintf(
                       stderr, "%s: only a single 'dump_offsets' argument supported\n", progname);
-                    return (usage());
+                    return (usage_verify());
                 }
                 dump_offsets = __wt_optarg + strlen("dump_offsets=");
             } else if (strcmp(__wt_optarg, "dump_pages") == 0)
                 dump_pages = true;
             else
-                return (usage());
+                return (usage_verify());
             break;
         case 'S':
             strict = true;
@@ -107,10 +107,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             dump_app_data = true;
             break;
         case '?':
-            usage();
+            usage_verify();
             return (0);
         default:
-            return (usage());
+            return (usage_verify());
         }
 
     argc -= __wt_optind;

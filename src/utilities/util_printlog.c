@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the printlog command.
  */
-static int
-usage(void)
+int
+usage_printlog(void)
 {
     static const char *options[] = {"-f", "output to the specified file", "-l",
       "the start LSN from which the log will be printed, optionally the end LSN can also be "
@@ -69,7 +69,7 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
                 WT_SET_LSN(&end_lsn, end_lsnfile, end_lsnoffset);
                 end_set = start_set = true;
             } else
-                return (usage());
+                return (usage_printlog());
             break;
         case 'm': /* messages only */
             LF_SET(WT_TXN_PRINTLOG_MSG);
@@ -81,16 +81,16 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
             LF_SET(WT_TXN_PRINTLOG_HEX);
             break;
         case '?':
-            usage();
+            usage_printlog();
             return (0);
         default:
-            return (usage());
+            return (usage_printlog());
         }
     argc -= __wt_optind;
 
     /* There should not be any more arguments. */
     if (argc != 0)
-        return (usage());
+        return (usage_printlog());
 
     if ((ret = __wt_txn_printlog(session, ofile, flags, start_set == true ? &start_lsn : NULL,
            end_set == true ? &end_lsn : NULL)) != 0)

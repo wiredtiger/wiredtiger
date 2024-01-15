@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the read command.
  */
-static int
-usage(void)
+int
+usage_read(void)
 {
     static const char *options[] = {"-?", "show this message", NULL, NULL};
 
@@ -39,17 +39,17 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
         switch (ch) {
         case '?':
-            usage();
+            usage_read();
             return (0);
         default:
-            return (usage());
+            return (usage_read());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
 
     /* The remaining arguments are a uri followed by a list of keys. */
     if (argc < 2)
-        return (usage());
+        return (usage_read());
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
 

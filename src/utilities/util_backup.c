@@ -14,8 +14,8 @@ static int copy(WT_SESSION *, const char *, const char *);
  * usage --
  *     Display a usage message for the backup command.
  */
-static int
-usage(void)
+int
+usage_backup(void)
 {
     static const char *options[] = {"-t uri",
       "backup the named data sources (by default the entire database is backed up)", "-?",
@@ -54,17 +54,17 @@ util_backup(WT_SESSION *session, int argc, char *argv[])
             target = true;
             break;
         case '?':
-            usage();
+            usage_backup();
             ret = 0;
             goto done;
         default:
-            WT_ERR(usage());
+            WT_ERR(usage_backup());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
 
     if (argc != 1) {
-        (void)usage();
+        (void)usage_backup();
         ret = EXIT_FAILURE;
         goto err;
     }

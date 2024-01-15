@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the upgrade command.
  */
-static int
-usage(void)
+int
+usage_upgrade(void)
 {
     static const char *options[] = {"-?", "show this message", NULL, NULL};
 
@@ -36,17 +36,17 @@ util_upgrade(WT_SESSION *session, int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
         switch (ch) {
         case '?':
-            usage();
+            usage_upgrade();
             return (0);
         default:
-            return (usage());
+            return (usage_upgrade());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
 
     /* The remaining argument is the table name. */
     if (argc != 1)
-        return (usage());
+        return (usage_upgrade());
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
 

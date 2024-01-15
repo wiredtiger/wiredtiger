@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the stat command.
  */
-static int
-usage(void)
+int
+usage_stat(void)
 {
     static const char *options[] = {"-f", "include only \"fast\" statistics in the output", "-?",
       "show this message", NULL, NULL};
@@ -54,10 +54,10 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
             config = "statistics=(fast)";
             break;
         case '?':
-            usage();
+            usage_stat();
             return (0);
         default:
-            return (usage());
+            return (usage_stat());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
@@ -76,7 +76,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
         objname_free = true;
         break;
     default:
-        return (usage());
+        return (usage_stat());
     }
 
     urilen = strlen("statistics:") + strlen(objname) + 1;

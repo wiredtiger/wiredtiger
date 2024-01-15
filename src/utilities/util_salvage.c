@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the salvage command.
  */
-static int
-usage(void)
+int
+usage_salvage(void)
 {
     static const char *options[] = {"-F",
       "force salvage (by default salvage will refuse to salvage tables that fail basic tests)",
@@ -43,17 +43,17 @@ util_salvage(WT_SESSION *session, int argc, char *argv[])
             force = "force";
             break;
         case '?':
-            usage();
+            usage_salvage();
             return (0);
         default:
-            return (usage());
+            return (usage_salvage());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
 
     /* The remaining argument is the file name. */
     if (argc != 1)
-        return (usage());
+        return (usage_salvage());
     if ((uri = util_uri(session, *argv, "file")) == NULL)
         return (1);
 

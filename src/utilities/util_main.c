@@ -188,6 +188,8 @@ main(int argc, char *argv[])
     }
     command = argv[0];
 
+    WT_RET(util_command_usage(argc, argv, command));
+
     /* Reset getopt. */
     __wt_optreset = __wt_optind = 1;
     switch (command[0]) {
@@ -215,16 +217,8 @@ main(int argc, char *argv[])
             func = util_downgrade;
         else if (strcmp(command, "drop") == 0)
             func = util_drop;
-        else if (strcmp(command, "dump") == 0) {
+        else if (strcmp(command, "dump") == 0)
             func = util_dump;
-            // If ./wt dump called with no arguments
-            if (argc == 1)
-                return (usage_dump());
-            // If /wt dump called with help incorrectly, still provide help message
-            if (strstr(argv[1], "help") != NULL || strstr(argv[1], "?") != NULL) {
-                return (usage_dump());
-            }
-        }
         break;
     case 'l':
         if (strcmp(command, "list") == 0)
@@ -369,6 +363,72 @@ done:
     }
 
     return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+/*
+ * Provide wt command usage help if prompted with "./wt <command>" or for help with "./wt <command>
+ * -help" or "./wt <command> -?"
+ */
+int
+util_command_usage(int argc, char *argv[], const char *cmd)
+{
+    int (*func)(void);
+    char *usage_command = malloc(strlen("usage_") + strlen(cmd) + 1); // +1 for the null terminator
+    if (usage_command == NULL) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+
+    strcpy(usage_command, "usage_");
+    strcat(usage_command, cmd);
+    if (strcmp(usage_command, "usage_alter") == 0)
+        func = usage_alter;
+    else if (strcmp(usage_command, "usage_dump") == 0)
+        func = usage_dump;
+    else if (strcmp(usage_command, "usage_backup") == 0)
+        func = usage_backup;
+    else if (strcmp(usage_command, "usage_compact") == 0)
+        func = usage_compact;
+    else if (strcmp(usage_command, "usage_list") == 0)
+        func = usage_list;
+    else if (strcmp(usage_command, "usage_load") == 0)
+        func = usage_load;
+    else if (strcmp(usage_command, "usage_printlog") == 0)
+        func = usage_printlog;
+    else if (strcmp(usage_command, "usage_read") == 0)
+        func = usage_read;
+    else if (strcmp(usage_command, "usage_rename") == 0)
+        func = usage_rename;
+    else if (strcmp(usage_command, "usage_salvage") == 0)
+        func = usage_salvage;
+    else if (strcmp(usage_command, "usage_stat") == 0)
+        func = usage_stat;
+    else if (strcmp(usage_command, "usage_truncate") == 0)
+        func = usage_truncate;
+    else if (strcmp(usage_command, "usage_upgrade") == 0)
+        func = usage_upgrade;
+    else if (strcmp(usage_command, "usage_verify") == 0)
+        func = usage_verify;
+    else if (strcmp(usage_command, "usage_write") == 0)
+        func = usage_write;
+    else
+        func = NULL;
+
+    free(usage_command);
+
+    if (func == NULL)
+        return 0;
+    // If ./wt cmd called with no arguments, still provide help message
+    if (argc == 1) {
+        func();
+        return -1;
+    }
+    // If /wt command called with help incorrectly, still provide help message
+    else if (strstr(argv[1], "help") != NULL || strstr(argv[1], "?") != NULL) {
+        func();
+        return -1;
+    }
+    return 0;
 }
 
 /*

@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the write command.
  */
-static int
-usage(void)
+int
+usage_write(void)
 {
     static const char *options[] = {"-a", "append each value as a new record in the data source",
       "-o", "allow overwrite of previously existing records", "-r", "remove an existing record",
@@ -51,10 +51,10 @@ util_write(WT_SESSION *session, int argc, char *argv[])
             remove = true;
             break;
         case '?':
-            usage();
+            usage_write();
             return (0);
         default:
-            return (usage());
+            return (usage_write());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
@@ -67,13 +67,13 @@ util_write(WT_SESSION *session, int argc, char *argv[])
      */
     if (append) {
         if (argc < 2)
-            return (usage());
+            return (usage_write());
     } else if (remove) {
         if (argc != 2)
-            return (usage());
+            return (usage_write());
     } else {
         if (argc < 3 || ((argc - 1) % 2 != 0))
-            return (usage());
+            return (usage_write());
     }
 
     if ((uri = util_uri(session, *argv, "table")) == NULL)

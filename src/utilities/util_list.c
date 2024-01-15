@@ -16,8 +16,8 @@ static int list_print_checkpoint(WT_SESSION *, const char *);
  * usage --
  *     Display a usage message for the list command.
  */
-static int
-usage(void)
+int
+usage_list(void)
 {
     static const char *options[] = {"-c",
       "display checkpoints in human-readable format (by default checkpoints are not displayed)",
@@ -51,10 +51,10 @@ util_list(WT_SESSION *session, int argc, char *argv[])
             vflag = true;
             break;
         case '?':
-            usage();
+            usage_list();
             return (0);
         default:
-            return (usage());
+            return (usage_list());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
@@ -67,7 +67,7 @@ util_list(WT_SESSION *session, int argc, char *argv[])
             return (1);
         break;
     default:
-        return (usage());
+        return (usage_list());
     }
 
     ret = list_print(session, uri, cflag, vflag);

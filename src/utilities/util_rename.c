@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the rename command.
  */
-static int
-usage(void)
+int
+usage_rename(void)
 {
     static const char *options[] = {"-?", "show this message", NULL, NULL};
 
@@ -36,17 +36,17 @@ util_rename(WT_SESSION *session, int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
         switch (ch) {
         case '?':
-            usage();
+            usage_rename();
             return (0);
         default:
-            return (usage());
+            return (usage_rename());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
 
     /* The remaining arguments are the object uri and new name. */
     if (argc != 2)
-        return (usage());
+        return (usage_rename());
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
     newuri = argv[1];

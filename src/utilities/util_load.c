@@ -25,8 +25,8 @@ static bool no_overwrite = false; /* -n don't overwrite existing data */
  * usage --
  *     Display a usage message for the load command.
  */
-static int
-usage(void)
+int
+usage_load(void)
 {
     static const char *options[] = {"-a",
       "ignore record number keys in the input and assign new record number keys", "-f input",
@@ -75,10 +75,10 @@ util_load(WT_SESSION *session, int argc, char *argv[])
             cmdname = __wt_optarg;
             break;
         case '?':
-            usage();
+            usage_load();
             return (0);
         default:
-            return (usage());
+            return (usage_load());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
@@ -91,7 +91,7 @@ util_load(WT_SESSION *session, int argc, char *argv[])
     /* The remaining arguments are configuration uri/string pairs. */
     if (argc != 0) {
         if (argc % 2 != 0)
-            return (usage());
+            return (usage_load());
         cmdconfig = argv;
     }
 

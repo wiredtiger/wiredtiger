@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the compact command.
  */
-static int
-usage(void)
+int
+usage_compact(void)
 {
     static const char *options[] = {"-c config",
       "a configuration string to be passed to WT_SESSION.compact", "-?", "show this message", NULL,
@@ -41,17 +41,17 @@ util_compact(WT_SESSION *session, int argc, char *argv[])
             config = __wt_optarg;
             break;
         case '?':
-            usage();
+            usage_compact();
             return (0);
         default:
-            return (usage());
+            return (usage_compact());
         }
     argc -= __wt_optind;
     argv += __wt_optind;
 
     /* The remaining argument is the table name. */
     if (argc != 1)
-        return (usage());
+        return (usage_compact());
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
 

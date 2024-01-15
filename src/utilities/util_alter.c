@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the alter command.
  */
-static int
-usage(void)
+int
+usage_alter(void)
 {
     static const char *options[] = {"-?", "show this message", NULL, NULL};
 
@@ -35,10 +35,10 @@ util_alter(WT_SESSION *session, int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
         switch (ch) {
         case '?':
-            usage();
+            usage_alter();
             return (0);
         default:
-            return (usage());
+            return (usage_alter());
         }
 
     argc -= __wt_optind;
@@ -46,7 +46,7 @@ util_alter(WT_SESSION *session, int argc, char *argv[])
 
     /* The remaining arguments are uri/string pairs. */
     if (argc == 0 || argc % 2 != 0)
-        return (usage());
+        return (usage_alter());
 
     for (configp = argv; *configp != NULL; configp += 2)
         if ((ret = session->alter(session, configp[0], configp[1])) != 0) {

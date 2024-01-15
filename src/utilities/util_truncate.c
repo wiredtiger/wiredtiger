@@ -12,8 +12,8 @@
  * usage --
  *     Display a usage message for the truncate command.
  */
-static int
-usage(void)
+int
+usage_truncate(void)
 {
     static const char *options[] = {"-?", "show this message", NULL, NULL};
 
@@ -36,10 +36,10 @@ util_truncate(WT_SESSION *session, int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
         switch (ch) {
         case '?':
-            usage();
+            usage_truncate();
             return (0);
         default:
-            return (usage());
+            return (usage_truncate());
         }
 
     argc -= __wt_optind;
@@ -47,7 +47,7 @@ util_truncate(WT_SESSION *session, int argc, char *argv[])
 
     /* The remaining argument is the uri. */
     if (argc != 1)
-        return (usage());
+        return (usage_truncate());
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
 
