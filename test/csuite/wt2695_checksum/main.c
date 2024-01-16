@@ -57,7 +57,7 @@ main(int argc, char *argv[])
     uint32_t hw, sw;
     uint8_t *data;
     uint8_t data_ff[32];
-    u_int i, j, k, length, misalignment;
+    u_int i, j, length, misalignment;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
