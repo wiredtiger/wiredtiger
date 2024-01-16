@@ -659,6 +659,11 @@ celltype_err:
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
 
+            if (ret != 0 && unpack->data != NULL) {
+                WT_RET(__wt_msg(session, "%p: %s - potential hardware corruption", unpack->data,
+                  __wt_page_type_string(ref->page->type)));
+            }
+
             /*
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
@@ -700,6 +705,10 @@ celltype_err:
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
 
+            if (ret != 0 && unpack->data != NULL) {
+                WT_RET(__wt_msg(session, "%p: %s - potential hardware corruption", unpack->data,
+                  __wt_page_type_string(ref->page->type)));
+            }
             /*
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
