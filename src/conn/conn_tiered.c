@@ -208,11 +208,10 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     tmp = NULL;
     /*
      * The work unit holds a reference on the dhandle so that the structure is valid to look at, but
-     * the dhandle could have been dropped or under exclusive use. If it isn't open or it is dropped
-     * there is nothing to do.
+     * the dhandle could have been dropped. If it is, there is nothing to do.
      */
     WT_ASSERT(session, tiered->bstorage != NULL);
-    if (tiered->obj_config == NULL || F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
+    if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
         __wt_verbose(session, WT_VERB_TIERED,
           "DO_OP: DH %s flags 0x%" PRIx32 " not open or dropped tiered %p.", dhandle->name,
           dhandle->flags, (void *)tiered);
