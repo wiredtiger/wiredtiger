@@ -102,6 +102,7 @@ static bool columns, stress, use_backups, use_lazyfs, use_ts, verify_model;
 static uint32_t backup_force_stop_interval, backup_full_interval, backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
+static WT_LAZY_FS lazyfs;
 
 static int recover_and_verify(uint32_t backup_index, uint32_t workload_iteration);
 extern int __wt_optind;
@@ -1508,9 +1509,12 @@ handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+
+    /* Clean up LazyFS. */
+    if (use_lazyfs)
+        testutil_lazyfs_cleanup(&lazyfs);
+
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -1522,10 +1526,9 @@ int
 main(int argc, char *argv[])
 {
     struct sigaction sa;
-    WT_LAZY_FS lazyfs;
     pid_t pid;
     uint32_t iteration, num_iterations, rand_value, timeout, tmp;
-    int ch, status, ret;
+    int ch, ret, status, wait_time;
     char buf[PATH_MAX], bucket[512];
     char cwd_start[PATH_MAX]; /* The working directory when we started */
     bool rand_th, rand_time, verify_only;
@@ -1759,8 +1762,25 @@ main(int argc, char *argv[])
              * from the time we notice that the file has been created. That allows the test to run
              * correctly on really slow machines.
              */
-            while (!testutil_exists(NULL, ckpt_file))
+            wait_time = 0;
+            while (!testutil_exists(NULL, ckpt_file)) {
                 testutil_sleep_wait(1, pid);
+                ++wait_time;
+                /*
+                 * We want to wait the MAX_TIME not the timeout because the timeout chosen could be
+                 * smaller than the time it takes to start up the child and complete the first
+                 * checkpoint. If there's an issue creating the first checkpoint we just want to
+                 * eventually exit and not have the parent process hang.
+                 */
+                if (wait_time > MAX_TIME) {
+                    sa.sa_handler = SIG_DFL;
+                    testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
+                    testutil_assert_errno(kill(pid, SIGABRT) == 0);
+                    testutil_assert_errno(waitpid(pid, &status, 0) != -1);
+                    testutil_die(
+                      ENOENT, "waited %" PRIu32 " seconds for checkpoint file creation", wait_time);
+                }
+            }
             sleep(timeout);
             sa.sa_handler = SIG_DFL;
             testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
