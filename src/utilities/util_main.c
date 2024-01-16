@@ -309,7 +309,7 @@ open:
     if ((ret = wiredtiger_open(home, verbose ? verbose_handler : NULL, config, &conn)) != 0) {
         (void)util_err(NULL, ret, NULL);
         fprintf(stderr,
-          "Note: This issue typically arises from running wt util in an incorrect directory or not "
+          "Note: this issue typically arises from running wt util in an incorrect directory or not "
           "specifying one. Ensure you execute wt within a WiredTiger directory, or use the -h flag "
           "to direct it to one.\n");
         goto err;
