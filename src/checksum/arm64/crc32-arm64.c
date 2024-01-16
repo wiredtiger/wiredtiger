@@ -79,25 +79,25 @@ __wt_checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
         CRC32CX(crc, uint64_v);
     }
 
-    if (len & sizeof(uint64_t) > 0) {
+    if (len & sizeof(uint64_t)) {
         memcpy(&uint64_v, p, sizeof(uint64_t));
         CRC32CX(crc, uint64_v);
         p += sizeof(uint64_t);
     }
 
-    if (len & sizeof(uint32_t) > 0) {
+    if (len & sizeof(uint32_t)) {
         memcpy(&uint32_v, p, sizeof(uint32_t));
         CRC32CW(crc, uint32_v);
         p += sizeof(uint32_t);
     }
 
-    if (len & sizeof(uint16_t) > 0) {
+    if (len & sizeof(uint16_t)) {
         memcpy(&uint16_v, p, sizeof(uint16_t));
         CRC32CH(crc, uint16_v);
         p += sizeof(uint16_t);
     }
 
-    if (len & sizeof(uint8_t) > 0)
+    if (len & sizeof(uint8_t))
         CRC32CB(crc, *p);
 
     return (~crc);
