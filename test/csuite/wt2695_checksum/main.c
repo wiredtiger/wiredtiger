@@ -162,10 +162,6 @@ main(int argc, char *argv[])
         }
     }
 
-#if defined(__s390x__)
-    WT_UNUSED(cumulative_sw);
-#endif
-
     free(data);
     testutil_cleanup(opts);
     return (EXIT_SUCCESS);
