@@ -19,10 +19,10 @@ usage(void)
       "continue to the next page after encountering error during verification", "-d config",
       "display underlying information during verification", "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
-      "-u",
-      "display all the application data when dumping with configuration dump_blocks or dump_pages",
       "-k",
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
+      "-u",
+      "display all the application data when dumping with configuration dump_blocks or dump_pages",
       "-v",
       "display only the values in the application data with configuration dump_blocks or "
       "dump_pages",
@@ -74,7 +74,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         strict = false;
     config = dump_offsets = uri = NULL;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:Ssktuv?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstuv?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
@@ -127,18 +127,22 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         }
 
     if (dump_all_data && (dump_key_data || dump_value_data))
-        return (usage());
+        WT_RET_MSG(session, ENOTSUP, "%s",
+          "dump_all_data, which unredacts both keys and values, should not be set to true "
+          "simultaneously with dump_key_data or dump_value_data.");
 
     argc -= __wt_optind;
     argv += __wt_optind;
 
-    if (do_not_clear_txn_id || dump_address || dump_all_data || dump_blocks || dump_layout ||
-      dump_offsets != NULL || dump_pages || read_corrupt || stable_timestamp || strict) {
+    if (do_not_clear_txn_id || dump_address || dump_all_data || dump_blocks || dump_key_data ||
+      dump_layout || dump_offsets != NULL || dump_pages || dump_value_data || read_corrupt ||
+      stable_timestamp || strict) {
         size = strlen("do_not_clear_txn_id,") + strlen("dump_address,") + strlen("dump_all_data,") +
-          strlen("dump_key_data,") + strlen("dump_value_data,") + strlen("dump_blocks,") +
-          strlen("dump_layout,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
-          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("history_store") +
-          strlen("read_corrupt,") + strlen("stable_timestamp,") + strlen("strict") + 20;
+          strlen("dump_blocks,") + strlen("dump_key_data,") + strlen("dump_layout,") +
+          strlen("dump_pages,") + strlen("dump_offsets[],") +
+          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("dump_value_data,") +
+          strlen("history_store") + strlen("read_corrupt,") + strlen("stable_timestamp,") +
+          strlen("strict") + 20;
         if ((config = util_malloc(size)) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
@@ -146,12 +150,12 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
                do_not_clear_txn_id ? "do_not_clear_txn_id," : "",
                dump_address ? "dump_address," : "", dump_all_data ? "dump_all_data," : "",
-               dump_key_data ? "dump_key_data," : "", dump_value_data ? "dump_value_data," : "",
-               dump_blocks ? "dump_blocks," : "", dump_layout ? "dump_layout," : "",
-               dump_offsets != NULL ? "dump_offsets=[" : "",
+               dump_blocks ? "dump_blocks," : "", dump_key_data ? "dump_key_data," : "",
+               dump_layout ? "dump_layout," : "", dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", read_corrupt ? "read_corrupt," : "",
-               stable_timestamp ? "stable_timestamp," : "", strict ? "strict," : "")) != 0) {
+               dump_pages ? "dump_pages," : "", dump_value_data ? "dump_value_data," : "",
+               read_corrupt ? "read_corrupt," : "", stable_timestamp ? "stable_timestamp," : "",
+               strict ? "strict," : "")) != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
         }
@@ -176,9 +180,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 WT_ERR(util_cerr(cursor, "get_key", ret));
 
             /*
-             * Typically each WT file will have multiple entries, and so only run verify on table
-             * and lsm entries to prevent unnecessary work. Skip over the double up entries and also
-             * any entries that are not supported with verify.
+             * Typically each WT file will have multiple entries, and so only run verify on
+             * table and lsm entries to prevent unnecessary work. Skip over the double up
+             * entries and also any entries that are not supported with verify.
              */
             if ((WT_PREFIX_MATCH(key, "table:") || WT_PREFIX_MATCH(key, "lsm:")) &&
               !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX)) {

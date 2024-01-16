@@ -105,6 +105,10 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
               "cannot verify against the stable timestamp if it has not been set");
         vs->stable_timestamp = txn_global->stable_timestamp;
     }
+    if (vs->dump_all_data && (vs->dump_key_data || vs->dump_value_data))
+        WT_RET_MSG(session, ENOTSUP, "%s",
+          "dump_all_data, which unredacts both keys and values, should not be set to true "
+          "simultaneously with dump_key_data or dump_value_data.");
 
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
