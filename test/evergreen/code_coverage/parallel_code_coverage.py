@@ -35,38 +35,33 @@ import sys
 from datetime import datetime
 
 
-def run_task(task_info):
-    build_dir = task_info["build_dir"]
-    task = task_info["task"]
-    print("Running task {} in {}".format(task, build_dir))
-    try:
-        os.chdir(build_dir)
-        split_command = task.split()
-        subprocess.run(split_command, check=True)
-    except subprocess.CalledProcessError as exception:
-        print(f'Command {exception.cmd} failed with error {exception.returncode}')
-    print("Finished task {} in {}".format(task, build_dir))
-
-
 def run_task_list(task_list_info):
     build_dir = task_list_info["build_dir"]
     task_list = task_list_info["task_bucket"]
+    verbose = task_list_info['verbose']
     list_start_time = datetime.now()
     for task in task_list:
-        print("Running task {} in {}".format(task, build_dir))
+        if verbose:
+            print("Running task {} in {}".format(task, build_dir))
+
         start_time = datetime.now()
         try:
             os.chdir(build_dir)
             split_command = task.split()
-            subprocess.run(split_command, check=True)
+            subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as exception:
             print(f'Command {exception.cmd} failed with error {exception.returncode}')
         end_time = datetime.now()
         diff = end_time - start_time
-        print("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
+
+        if verbose:
+            print("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
+
     list_end_time = datetime.now()
     diff = list_end_time - list_start_time
-    print("Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds()))
+
+    if verbose:
+        print("Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds()))
 
 
 def main():
@@ -74,7 +69,8 @@ def main():
     parser.add_argument('-c', '--config_path', required=True, help='Path to the json config file')
     parser.add_argument('-b', '--build_dir_base', required=True, help='Base name for the build directories')
     parser.add_argument('-j', '--parallel', default=1, type=int, help='How many tests to run in parallel')
-    parser.add_argument('-s', '--setup', action="store_true", help='Perform setup actions from the config in each build directory')
+    parser.add_argument('-s', '--setup', action="store_true",
+                        help='Perform setup actions from the config in each build directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
     args = parser.parse_args()
 
@@ -153,20 +149,29 @@ def main():
     if verbose:
         print("Build dirs: {}".format(build_dirs))
 
-    task_bucket_info = []
     setup_bucket_info = []
+    task_bucket_info = []
     for build_dir in build_dirs:
-        if setup_actions:
+        if setup:
             if len(os.listdir(build_dir)) > 0:
                 sys.exit("Directory {} is not empty".format(build_dir))
-            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions']})
-        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': []})
+            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions'],
+                                      'verbose':verbose})
+        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': [], 'verbose':verbose})
 
+    # Perform setup operations
     if setup:
+        setup_start_time = datetime.now()
         with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_tests) as executor:
             for e in executor.map(run_task_list, setup_bucket_info):
                 print('Setup')
+        setup_end_time = datetime.now()
+        setup_diff = setup_end_time - setup_start_time
 
+        if verbose:
+            print("Time taken to perform the setup: {} seconds".format(setup_diff.total_seconds()))
+
+    # Prepare to run the tasks in the list
     for test_num in range(len(config['test_tasks'])):
         test = config['test_tasks'][test_num]
         build_dir_number = test_num % parallel_tests
@@ -176,17 +181,21 @@ def main():
 
         task_bucket_info[build_dir_number]['task_bucket'].append(test)
 
-    print("task_bucket_info: {}".format(task_bucket_info))
+    if verbose:
+        print("task_bucket_info: {}".format(task_bucket_info))
 
-    start_time = datetime.now()
+    # Perform task operations in parallel across the build directories
+    task_start_time = datetime.now()
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_tests) as executor:
         for e in executor.map(run_task_list, task_bucket_info):
             print('Test')
 
-    end_time = datetime.now()
-    diff = end_time - start_time
-    print("Time taken {} seconds".format(diff.total_seconds()))
+    task_end_time = datetime.now()
+    task_diff = task_end_time - task_start_time
+
+    if verbose:
+        print("Time taken to perform the tasks: {} seconds".format(task_diff.total_seconds()))
 
 
 if __name__ == '__main__':
