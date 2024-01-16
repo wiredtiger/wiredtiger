@@ -209,11 +209,10 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     /*
      * The work unit holds a reference on the dhandle so that the structure is valid to look at, but
      * the dhandle could have been dropped or under exclusive use. If it isn't open or it is dropped
-     * there is nothing to do. If the bucket storage is gone there is nothing to do. (see if this is
-     * valid still our ref may keep it around).
+     * there is nothing to do.
      */
     WT_ASSERT(session, tiered->bstorage != NULL);
-    if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
+    if (tiered->obj_config == NULL || F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
         __wt_verbose(session, WT_VERB_TIERED,
           "DO_OP: DH %s flags 0x%" PRIx32 " not open or dropped tiered %p.", dhandle->name,
           dhandle->flags, (void *)tiered);
@@ -227,7 +226,6 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     WT_PREFIX_SKIP_REQUIRED(session, local_name, "file:");
     obj_name = obj_uri;
     WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
-    WT_ASSERT(session, tiered->obj_config != NULL);
     cfg[0] = tiered->obj_config;
     cfg[1] = NULL;
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &pfx));

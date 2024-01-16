@@ -71,9 +71,18 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
             # Do a regular checkpoint first, technically shouldn't be needed?
             self.session.checkpoint()
             self.session.checkpoint('flush_tier=(enabled,force=true)')
+            # Do another checkpoint because it waits for the previous flush to complete.
+            self.session.checkpoint()
+            got = sorted(list(os.listdir(self.bucket)))
+            # Make sure it was flushed to the bucket
+            self.assertTrue(len(got) != 0)
             self.session.drop(uri, "remove_files=true,remove_shared={}".format(wt_boolean(remove_shared)))
         else:
             self.session.drop(uri, "force=true")
+            # Make sure it is still in the bucket if needed.
+            if (not remove_shared):
+                got = sorted(list(os.listdir(self.bucket)))
+                self.assertTrue(len(got) != 0)
 
     # Return True iff the binary file contains the given string.
     def file_contains(self, fname, match):
