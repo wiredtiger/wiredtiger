@@ -666,12 +666,11 @@ celltype_err:
                  * If configured, continue traversing through the pages of the tree even after
                  * encountering errors reading in the page.
                  */
-                if (vs->read_corrupt) {
-                    if (vs->verify_err == 0)
-                        vs->verify_err = ret;
-                    continue;
-                } else
+                if (!vs->read_corrupt)
                     WT_RET(ret);
+                if (vs->verify_err == 0)
+                    vs->verify_err = ret;
+                continue;
             }
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
@@ -712,12 +711,11 @@ celltype_err:
                  * If configured, continue traversing through the pages of the tree even after
                  * encountering errors reading in the page.
                  */
-                if (vs->read_corrupt) {
-                    if (vs->verify_err == 0)
-                        vs->verify_err = ret;
-                    continue;
-                } else
+                if (!vs->read_corrupt)
                     WT_RET(ret);
+                if (vs->verify_err == 0)
+                    vs->verify_err = ret;
+                continue;
             }
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
