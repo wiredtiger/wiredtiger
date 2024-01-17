@@ -115,6 +115,9 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
                 c1[i] = 100
             else:
                 c1[i] = i
+	    if i % 101 == 0:
+                s.commit_transaction()
+                s.begin_transaction()
         c1.close()
         s.commit_transaction()
         s.checkpoint()
