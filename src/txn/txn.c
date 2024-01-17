@@ -139,6 +139,9 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
         txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
         txn_global->checkpoint_timestamp = WT_TS_NONE;
     }
+
+    /* Leave the generation after releasing the snapshot. */
+    __wt_session_gen_leave(session, WT_GEN_COMMIT);
 }
 
 /*
@@ -210,6 +213,11 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     if ((commit_gen = __wt_session_gen(session, WT_GEN_COMMIT)) != 0) {
         if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) && commit_gen == __wt_gen(session, WT_GEN_COMMIT))
             return;
+        /*
+         * Leave the generation here and enter again later to acquire a new snapshot if any
+         * concurrent transactions after we entered the generation have been committed and changed
+         * the global commit generation.
+         */
         __wt_session_gen_leave(session, WT_GEN_COMMIT);
     }
     __wt_session_gen_enter(session, WT_GEN_COMMIT);
