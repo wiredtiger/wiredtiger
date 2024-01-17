@@ -1693,11 +1693,6 @@ methods = {
         message handler, intended for debugging. Disabling this does not guarantee that no user
         data will be output''',
         type='boolean'),
-    Config('dump_value_data', 'false', r'''
-        Display application data values as pages or blocks are verified, using the application's
-        message handler, intended for debugging. Disabling this does not guarantee that no user
-        data will be output''',
-        type='boolean'),
     Config('dump_blocks', 'false', r'''
         Display the contents of on-disk blocks as they are verified, using the application's
         message handler, intended for debugging''',
