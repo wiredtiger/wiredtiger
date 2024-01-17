@@ -167,6 +167,7 @@ function(get_clang_base_flags flags)
         # compatible with some of the code patterns in WiredTiger.
         list(APPEND clang_flags "-Wno-implicit-fallthrough")
         list(APPEND clang_flags "-Wno-implicit-int-float-conversion")
+        list(APPEND clang_flags "-Wno-maybe-uninitialized")
     endif()
 
     set(${flags} ${clang_flags} PARENT_SCOPE)
