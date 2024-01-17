@@ -22,6 +22,7 @@ __wt_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     uint32_t session_flags;
 
     conn = S2C(session);
@@ -43,10 +44,15 @@ __wt_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
     F_SET(conn, WT_CONN_PREFETCH_RUN);
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
-    WT_RET(__wt_thread_group_create(session, &conn->prefetch_threads, "prefetch-server", 8, 8,
+    WT_ERR(__wt_thread_group_create(session, &conn->prefetch_threads, "prefetch-server", 8, 8,
       session_flags, __wt_prefetch_thread_chk, __wt_prefetch_thread_run, NULL));
 
     return (0);
+
+err:
+    /* Quit the prefetch server. */
+    WT_TRET(__wt_prefetch_destroy(session));
+    return (ret);
 }
 
 /*
@@ -79,6 +85,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     conn = S2C(session);
     locked = false;
+
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     while (F_ISSET(conn, WT_CONN_PREFETCH_RUN)) {
@@ -100,8 +107,10 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         TAILQ_REMOVE(&conn->pfqh, pe, q);
         --conn->prefetch_queue_count;
-        WT_ASSERT_ALWAYS(session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH),
-          "Any ref on the pre-fetch queue needs to have the pre-fetch flag set");
+
+        WT_PREFETCH_ASSERT(
+          session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), block_prefetch_skipped_no_flag_set);
+
         __wt_spin_unlock(session, &conn->prefetch_lock);
         locked = false;
 
@@ -154,7 +163,13 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     pe->first_home = ref->home;
     pe->dhandle = session->dhandle;
     __wt_spin_lock(session, &conn->prefetch_lock);
-    if (F_ISSET(ref, WT_REF_FLAG_PREFETCH))
+
+    /*
+     * Don't add refs from trees that have eviction disabled since they are probably being closed,
+     * also never add the same ref twice. These checks need to be carried out while holding the
+     * pre-fetch lock - which is why they are internal to the push function.
+     */
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET(ref, WT_REF_FLAG_PREFETCH))
         ret = EBUSY;
     else {
         F_SET(ref, WT_REF_FLAG_PREFETCH);
@@ -196,7 +211,8 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
             --conn->prefetch_queue_count;
         }
     }
-    WT_ASSERT(session, conn->prefetch_queue_count == 0);
+    if (all)
+        WT_ASSERT(session, conn->prefetch_queue_count == 0);
     __wt_spin_unlock(session, &conn->prefetch_lock);
 
     return (0);
