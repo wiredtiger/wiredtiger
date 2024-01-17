@@ -30,7 +30,7 @@
 from wtscenario import make_scenarios
 import wiredtiger, wttest
 from wiredtiger import stat
-import random, string, time
+import os, random, string, time
 
 # test_io_capacity_01.py
 #   Max waiting period for background fsync. If the written threshold is not met in this time,
@@ -75,9 +75,10 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
 
         # Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
-        if os.name == "nt":
-            self.skipTest('skipped on Windows as the capacity server will not run without support for background fsync')
-        else
+
+        if os.name == 'nt':
+           self.skipTest('skipped on Windows as the capacity server will not run without support for background fsync')
+        else:
             # Background fsync statistics
             self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
 
@@ -106,8 +107,8 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
         # Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
 
-       if os.name == "nt":
-            self.skipTest('skipped on Windows as the capacity server will not run without support for background fsync')
+        if os.name == "nt":
+           self.skipTest('skipped on Windows as the capacity server will not run without support for background fsync')
 
         # Background fsync statistics
         while (self.get_stat(stat.conn.fsync_all_fh_total) == 0):
