@@ -930,6 +930,7 @@ struct __wt_connection_stats {
     int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
+    int64_t session_table_compact_passes;
     int64_t session_table_compact_running;
     int64_t session_table_compact_skipped;
     int64_t session_table_compact_success;
@@ -1008,6 +1009,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
+    int64_t txn_set_ts_force;
+    int64_t txn_set_ts_out_of_order;
     int64_t txn_set_ts_oldest;
     int64_t txn_set_ts_oldest_upd;
     int64_t txn_set_ts_stable;
