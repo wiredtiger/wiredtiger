@@ -660,14 +660,16 @@ celltype_err:
 
             if (ret != 0) {
                 if (vs->dump_address)
-                    WT_TRET(__wt_msg(session, "ERROR unreadable column internal page: %s",
-                      __verify_addr_string(session, ref, vs->tmp1)));
-                /*
-                 * If configured, continue traversing through the pages of the tree even after
-                 * encountering errors reading in the page.
-                 */
+                    WT_TRET(__wt_msg(session,
+                      "%s Read failure while accessing a page from the column internal page (ret = "
+                      "%d).",
+                      __verify_addr_string(session, ref, vs->tmp1), ret));
                 if (!vs->read_corrupt)
                     WT_RET(ret);
+                /*
+                 * If read_corrupt configured, continue traversing through the pages of the tree
+                 * even after encountering errors reading in the page.
+                 */
                 if (vs->verify_err == 0)
                     vs->verify_err = ret;
                 continue;
@@ -705,14 +707,16 @@ celltype_err:
 
             if (ret != 0) {
                 if (vs->dump_address)
-                    WT_TRET(__wt_msg(session, "ERROR unreadable row internal page: %s",
-                      __verify_addr_string(session, ref, vs->tmp1)));
-                /*
-                 * If configured, continue traversing through the pages of the tree even after
-                 * encountering errors reading in the page.
-                 */
+                    WT_TRET(__wt_msg(session,
+                      "%s Read failure while accessing a page from the row internal page (ret = "
+                      "%d).",
+                      __verify_addr_string(session, ref, vs->tmp1), ret));
                 if (!vs->read_corrupt)
                     WT_RET(ret);
+                /*
+                 * If read_corrupt is configured, continue traversing through the pages of the tree
+                 * even after encountering errors reading in the page.
+                 */
                 if (vs->verify_err == 0)
                     vs->verify_err = ret;
                 continue;
