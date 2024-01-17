@@ -3447,7 +3447,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.verify",
     "do_not_clear_txn_id=false,dump_address=false,dump_all_data=false"
     ",dump_blocks=false,dump_key_data=false,dump_layout=false,"
-    "dump_offsets=,dump_pages=false,dump_value_data=false,"
+    "dump_offsets=,dump_pages=false,"
     "read_corrupt=false,stable_timestamp=false,strict=false",
     confchk_WT_SESSION_verify, 12, confchk_WT_SESSION_verify_jump},
   {"colgroup.meta",

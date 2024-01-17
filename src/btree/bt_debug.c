@@ -652,7 +652,8 @@ __debug_cell_kv(
               ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
         else
             WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
-    }
+    } else
+        WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
     /* Dump per-disk page type information. */
     switch (page_type) {
     case WT_PAGE_COL_FIX:
