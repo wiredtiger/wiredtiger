@@ -23,13 +23,10 @@ usage(void)
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
       "-u",
       "display all the application data when dumping with configuration dump_blocks or dump_pages",
-      "-v",
-      "display only the values in the application data with configuration dump_blocks or "
-      "dump_pages",
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "verify [-ackSstuv] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# "
+      "verify [-ackSstu] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# "
       "| dump_pages] [uri]",
       "options:", options);
 
@@ -124,7 +121,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 
     if (dump_all_data && dump_key_data)
         WT_RET_MSG((WT_SESSION_IMPL *)session, ENOTSUP, "%s",
-          "dump_all_data, which unredacts both keys and values, should not be set to true "
+          "dump_all_data, which unredacts all data, should not be set to true "
           "simultaneously with dump_key_data");
 
     argc -= __wt_optind;
@@ -174,9 +171,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 WT_ERR(util_cerr(cursor, "get_key", ret));
 
             /*
-             * Typically each WT file will have multiple entries, and so only run verify on
-             * table and lsm entries to prevent unnecessary work. Skip over the double up
-             * entries and also any entries that are not supported with verify.
+             * Typically each WT file will have multiple entries, and so only run verify on table
+             * and lsm entries to prevent unnecessary work. Skip over the double up entries and also
+             * any entries that are not supported with verify.
              */
             if ((WT_PREFIX_MATCH(key, "table:") || WT_PREFIX_MATCH(key, "lsm:")) &&
               !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX)) {

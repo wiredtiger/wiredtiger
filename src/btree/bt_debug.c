@@ -38,10 +38,10 @@ struct __wt_dbg {
     WT_ITEM *t1, *t2; /* Temporary space */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DEBUG_TREE_LEAF 0x01u     /* Debug leaf pages */
-#define WT_DEBUG_TREE_WALK 0x02u     /* Descend the tree */
-#define WT_DEBUG_UNREDACT_ALL 0x04u  /* Dump application data when walking the tree */
-#define WT_DEBUG_UNREDACT_KEYS 0x08u /* Dump application key data when walking the tree */
+#define WT_DEBUG_TREE_LEAF 0x1u     /* Debug leaf pages */
+#define WT_DEBUG_TREE_WALK 0x2u     /* Descend the tree */
+#define WT_DEBUG_UNREDACT_ALL 0x4u  /* Dump application data when walking the tree */
+#define WT_DEBUG_UNREDACT_KEYS 0x8u /* Dump application key data when walking the tree */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
