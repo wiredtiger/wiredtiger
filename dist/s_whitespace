@@ -3,6 +3,7 @@
 # Single space, newline at the end of file, and remove trailing whitespace from source files.
 t=__wt.$$
 trap 'rm -f $t' 0 1 2 3 13 15
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"/.. || exit $?
 
 # Clear lines that only contain whitespace, compress multiple empty lines
 # into a single line, discard trailing empty lines.
@@ -23,26 +24,53 @@ whitespace()
     cmp $t $1 > /dev/null 2>&1 || (echo "$1" && cp $t $1)
 }
 
-cd ..
+SUBDIRS="bench examples ext src test"
+{
+    if [[ "$1" = "-F" ]]; then
+        last_commit_from_dev=$(python3 dist/common_functions.py last_commit_from_dev)
+        git diff --name-only "${last_commit_from_dev}" $SUBDIRS | \
+            dist/pygrep.py \
+                '\.[ch]$' \
+                '\.cpp$' \
+                '\.dox$' \
+                '\.in$' \
+                '\.py$' \
+                '\.sh$' \
+                '\.yaml$' \
+                '\.yml$' \
+                '(^|/)s_' \
+                '(^|/)CONFIG\.' \
+                '(^|/)Makefile.am$' | \
+            dist/pygrep.py -fv \
+                'Makefile.in' \
+                'checksum/power8' \
+                '3rdparty' \
+                'docs/tools' \
+                'log/log_auto' \
+                ;
 
-find bench dist examples ext src test \
-    -name '*.[ch]' -o \
-    -name '*.cpp' -o \
-    -name '*.dox' -o \
-    -name '*.in' -o \
-    -name '*.py' -o \
-    -name '*.sh' -o \
-    -name '*.yaml' -o \
-    -name '*.yml' -o \
-    -name 's_*' -o \
-    -name 'CONFIG.*' -o \
-    -name 'Makefile.am' |
-    sed -e '/Makefile.in/d' \
-        -e '/checksum\/power8/d' \
-        -e '/3rdparty/d' \
-        -e '/docs\/tools/d' \
-        -e '/log\/log_auto/d' \
-| while read f ; do
+    else
+        find $SUBDIRS \
+            -name '*.[ch]' -o \
+            -name '*.cpp' -o \
+            -name '*.dox' -o \
+            -name '*.in' -o \
+            -name '*.py' -o \
+            -name '*.sh' -o \
+            -name '*.yaml' -o \
+            -name '*.yml' -o \
+            -name 's_*' -o \
+            -name 'CONFIG.*' -o \
+            -name 'Makefile.am' | \
+            dist/pygrep.py -fv \
+                'Makefile.in' \
+                'checksum/power8' \
+                '3rdparty' \
+                'docs/tools' \
+                'log/log_auto' \
+                ;
+    fi
+} | while read f ; do
     whitespace $f
 done
 
