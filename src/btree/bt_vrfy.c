@@ -103,8 +103,8 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     }
     if (vs->dump_all_data && vs->dump_key_data)
         WT_RET_MSG(session, ENOTSUP, "%s",
-          "dump_all_data, which unredacts all data, should not be set to true "
-          "simultaneously with dump_key_data");
+          "-u (unredact all data), should not be set to true simultaneously with -k (unredact only "
+          "keys)");
 
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
