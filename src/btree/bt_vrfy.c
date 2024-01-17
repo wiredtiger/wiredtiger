@@ -28,7 +28,6 @@ typedef struct {
     bool dump_address; /* Configure: dump special */
     bool dump_all_data;
     bool dump_key_data;
-    bool dump_value_data;
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
@@ -81,9 +80,6 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_key_data", &cval));
     vs->dump_key_data = cval.val != 0;
 
-    WT_RET(__wt_config_gets(session, cfg, "dump_value_data", &cval));
-    vs->dump_value_data = cval.val != 0;
-
     WT_RET(__wt_config_gets(session, cfg, "dump_blocks", &cval));
     vs->dump_blocks = cval.val != 0;
 
@@ -105,10 +101,10 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
               "cannot verify against the stable timestamp if it has not been set");
         vs->stable_timestamp = txn_global->stable_timestamp;
     }
-    if (vs->dump_all_data && (vs->dump_key_data || vs->dump_value_data))
+    if (vs->dump_all_data && vs->dump_key_data)
         WT_RET_MSG(session, ENOTSUP, "%s",
           "dump_all_data, which unredacts both keys and values, should not be set to true "
-          "simultaneously with dump_key_data or dump_value_data.");
+          "simultaneously with dump_key_data");
 
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
@@ -501,11 +497,9 @@ __verify_tree(
 #ifdef HAVE_DIAGNOSTIC
     /* Optionally dump the blocks or page in debugging mode. */
     if (vs->dump_blocks)
-        WT_RET(__wt_debug_disk(
-          session, page->dsk, NULL, vs->dump_all_data, vs->dump_key_data, vs->dump_value_data));
+        WT_RET(__wt_debug_disk(session, page->dsk, NULL, vs->dump_all_data, vs->dump_key_data));
     if (vs->dump_pages)
-        WT_RET(__wt_debug_page(
-          session, NULL, ref, NULL, vs->dump_all_data, vs->dump_key_data, vs->dump_value_data));
+        WT_RET(__wt_debug_page(session, NULL, ref, NULL, vs->dump_all_data, vs->dump_key_data));
 #endif
 
     /* Make sure the page we got belongs in this kind of tree. */

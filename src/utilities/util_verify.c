@@ -67,14 +67,13 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     int ch;
     char *config, *dump_offsets, *key, *uri;
     bool abort_on_error, do_not_clear_txn_id, dump_address, dump_all_data, dump_key_data,
-      dump_value_data, dump_blocks, dump_layout, dump_pages, read_corrupt, stable_timestamp, strict;
+      dump_blocks, dump_layout, dump_pages, read_corrupt, stable_timestamp, strict;
 
     abort_on_error = do_not_clear_txn_id = dump_address = dump_all_data = dump_key_data =
-      dump_value_data = dump_blocks = dump_layout = dump_pages = read_corrupt = stable_timestamp =
-        strict = false;
+      dump_blocks = dump_layout = dump_pages = read_corrupt = stable_timestamp = strict = false;
     config = dump_offsets = uri = NULL;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstuv?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstu?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
@@ -116,9 +115,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         case 'u':
             dump_all_data = true;
             break;
-        case 'v':
-            dump_value_data = true;
-            break;
         case '?':
             usage();
             return (0);
@@ -126,36 +122,34 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             return (usage());
         }
 
-    if (dump_all_data && (dump_key_data || dump_value_data))
-        WT_RET_MSG(session, ENOTSUP, "%s",
+    if (dump_all_data && dump_key_data)
+        WT_RET_MSG((WT_SESSION_IMPL *)session, ENOTSUP, "%s",
           "dump_all_data, which unredacts both keys and values, should not be set to true "
-          "simultaneously with dump_key_data or dump_value_data.");
+          "simultaneously with dump_key_data");
 
     argc -= __wt_optind;
     argv += __wt_optind;
 
     if (do_not_clear_txn_id || dump_address || dump_all_data || dump_blocks || dump_key_data ||
-      dump_layout || dump_offsets != NULL || dump_pages || dump_value_data || read_corrupt ||
-      stable_timestamp || strict) {
+      dump_layout || dump_offsets != NULL || dump_pages || read_corrupt || stable_timestamp ||
+      strict) {
         size = strlen("do_not_clear_txn_id,") + strlen("dump_address,") + strlen("dump_all_data,") +
           strlen("dump_blocks,") + strlen("dump_key_data,") + strlen("dump_layout,") +
           strlen("dump_pages,") + strlen("dump_offsets[],") +
-          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("dump_value_data,") +
-          strlen("history_store") + strlen("read_corrupt,") + strlen("stable_timestamp,") +
-          strlen("strict") + 20;
+          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("history_store") +
+          strlen("read_corrupt,") + strlen("stable_timestamp,") + strlen("strict") + 20;
         if ((config = util_malloc(size)) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }
-        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s%s%s%s",
                do_not_clear_txn_id ? "do_not_clear_txn_id," : "",
                dump_address ? "dump_address," : "", dump_all_data ? "dump_all_data," : "",
                dump_blocks ? "dump_blocks," : "", dump_key_data ? "dump_key_data," : "",
                dump_layout ? "dump_layout," : "", dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", dump_value_data ? "dump_value_data," : "",
-               read_corrupt ? "read_corrupt," : "", stable_timestamp ? "stable_timestamp," : "",
-               strict ? "strict," : "")) != 0) {
+               dump_pages ? "dump_pages," : "", read_corrupt ? "read_corrupt," : "",
+               stable_timestamp ? "stable_timestamp," : "", strict ? "strict," : "")) != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
         }
