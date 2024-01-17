@@ -75,10 +75,12 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
 
         # Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
+        if os.name == "nt":
+            self.skipTest('skipped on Windows as the capacity server will not run without support for background fsync')
+        else
+            # Background fsync statistics
+            self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
 
-        # Background fsync statistics
-        self.assertGreater(self.get_stat(stat.conn.fsync_all_fh_total), 0)
-                
     # The number of written bytes not exceeded the threshold, but the running period is exceeded
     def test_io_capacity_fsync_background_period(self):
         # Close the initial connection. We will be opening new connections for this test.
@@ -103,6 +105,9 @@ class test_io_capacity_01(wttest.WiredTigerTestCase):
 
         # Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
+
+       if os.name == "nt":
+            self.skipTest('skipped on Windows as the capacity server will not run without support for background fsync')
 
         # Background fsync statistics
         while (self.get_stat(stat.conn.fsync_all_fh_total) == 0):
