@@ -19,12 +19,11 @@ if args[0][0] == "-": opts, args = args[0], args[1:]
 regex = "|".join(args)
 
 for opt in [c for c in opts]:
-    match opt:
-        case 'e': regex = "|".join(args)
-        case 'f': regex = "|".join([re.escape(arg) for arg in args])
-        case 'w': regex = '\\b(?:' + regex + ')\\b'
-        case 'v': inverse = True; match = matchLine;
-        case 'o': match = matchSearch
+    if opt == 'e': regex = "|".join(args)
+    elif opt == 'f': regex = "|".join([re.escape(arg) for arg in args])
+    elif opt == 'w': regex = '\\b(?:' + regex + ')\\b'
+    elif opt == 'v': inverse = True; match = matchLine;
+    elif opt == 'o': match = matchSearch
 
 regex = re.compile(regex)
 
