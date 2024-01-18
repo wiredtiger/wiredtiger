@@ -8,7 +8,7 @@
 
     "examples/c/ex_all/ex_all",
     "examples/c/ex_schema/ex_schema",
-    "test/unittest/catch2-unittests                          ",
+    "test/unittest/catch2-unittests",
 
     "python3 ../test/suite/run.py lsm",
     "python3 ../test/suite/run.py test_prepare01",
