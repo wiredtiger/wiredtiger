@@ -68,6 +68,7 @@ static const char *const __stats_dsrc_desc[] = {
   "selected on disk update",
   "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
   "is running",
+  "cache: eviction gave up due to no progress being made",
   "cache: eviction walk passes of a file",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
@@ -114,6 +115,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction",
   "cache: modified pages evicted",
+  "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -413,6 +415,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
+    stats->cache_eviction_blocked_no_progress = 0;
     stats->cache_eviction_walk_passes = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
@@ -453,6 +456,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_split_internal = 0;
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_dirty = 0;
+    stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -733,6 +737,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_blocked_no_ts_checkpoint_race_4;
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       from->cache_eviction_blocked_remove_hs_race_with_checkpoint;
+    to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
     to->cache_eviction_walk_passes += from->cache_eviction_walk_passes;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
@@ -775,6 +780,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_split_internal += from->cache_eviction_split_internal;
     to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
     to->cache_eviction_dirty += from->cache_eviction_dirty;
+    to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
+      from->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
@@ -1053,6 +1060,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       WT_STAT_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
+    to->cache_eviction_blocked_no_progress +=
+      WT_STAT_READ(from, cache_eviction_blocked_no_progress);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
     to->cache_eviction_target_page_lt10 += WT_STAT_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_READ(from, cache_eviction_target_page_lt32);
@@ -1101,6 +1110,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_split_internal += WT_STAT_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_READ(from, cache_eviction_split_leaf);
     to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
+    to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
@@ -1414,6 +1425,7 @@ static const char *const __stats_connection_desc[] = {
   "selected on disk update",
   "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
   "is running",
+  "cache: eviction gave up due to no progress being made",
   "cache: eviction passes of a file",
   "cache: eviction server candidate queue empty when topping up",
   "cache: eviction server candidate queue not empty when topping up",
@@ -1508,6 +1520,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: maximum page size seen at eviction",
   "cache: modified pages evicted",
   "cache: modified pages evicted by application threads",
+  "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -1746,17 +1759,9 @@ static const char *const __stats_connection_desc[] = {
   "lock: dhandle lock internal thread time waiting (usecs)",
   "lock: dhandle read lock acquisitions",
   "lock: dhandle write lock acquisitions",
-  "lock: durable timestamp queue lock application thread time waiting (usecs)",
-  "lock: durable timestamp queue lock internal thread time waiting (usecs)",
-  "lock: durable timestamp queue read lock acquisitions",
-  "lock: durable timestamp queue write lock acquisitions",
   "lock: metadata lock acquisitions",
   "lock: metadata lock application thread wait time (usecs)",
   "lock: metadata lock internal thread wait time (usecs)",
-  "lock: read timestamp queue lock application thread time waiting (usecs)",
-  "lock: read timestamp queue lock internal thread time waiting (usecs)",
-  "lock: read timestamp queue read lock acquisitions",
-  "lock: read timestamp queue write lock acquisitions",
   "lock: schema lock acquisitions",
   "lock: schema lock application thread wait time (usecs)",
   "lock: schema lock internal thread wait time (usecs)",
@@ -1898,6 +1903,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table compact dhandle successful calls",
   "session: table compact failed calls",
   "session: table compact failed calls due to cache pressure",
+  "session: table compact passes",
   "session: table compact running",
   "session: table compact skipped as process would not reduce file size",
   "session: table compact successful calls",
@@ -1923,6 +1929,7 @@ static const char *const __stats_connection_desc[] = {
   "thread-state: active filesystem fsync calls",
   "thread-state: active filesystem read calls",
   "thread-state: active filesystem write calls",
+  "thread-yield: application thread snapshot refreshed for eviction",
   "thread-yield: application thread time evicting (usecs)",
   "thread-yield: application thread time waiting for cache (usecs)",
   "thread-yield: connection close blocked waiting for transaction state stabilization",
@@ -1980,6 +1987,9 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp calls",
   "transaction: set timestamp durable calls",
   "transaction: set timestamp durable updates",
+  "transaction: set timestamp force calls",
+  "transaction: set timestamp global oldest timestamp set to be more recent than the global stable "
+  "timestamp",
   "transaction: set timestamp oldest calls",
   "transaction: set timestamp oldest updates",
   "transaction: set timestamp stable calls",
@@ -2137,6 +2147,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
+    stats->cache_eviction_blocked_no_progress = 0;
     stats->cache_eviction_walk_passes = 0;
     stats->cache_eviction_queue_empty = 0;
     stats->cache_eviction_queue_not_empty = 0;
@@ -2221,6 +2232,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_eviction_maximum_page_size */
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_app_dirty = 0;
+    stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
     stats->cache_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -2455,17 +2467,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->lock_dhandle_wait_internal = 0;
     stats->lock_dhandle_read_count = 0;
     stats->lock_dhandle_write_count = 0;
-    stats->lock_durable_timestamp_wait_application = 0;
-    stats->lock_durable_timestamp_wait_internal = 0;
-    stats->lock_durable_timestamp_read_count = 0;
-    stats->lock_durable_timestamp_write_count = 0;
     stats->lock_metadata_count = 0;
     stats->lock_metadata_wait_application = 0;
     stats->lock_metadata_wait_internal = 0;
-    stats->lock_read_timestamp_wait_application = 0;
-    stats->lock_read_timestamp_wait_internal = 0;
-    stats->lock_read_timestamp_read_count = 0;
-    stats->lock_read_timestamp_write_count = 0;
     stats->lock_schema_count = 0;
     stats->lock_schema_wait_application = 0;
     stats->lock_schema_wait_internal = 0;
@@ -2605,6 +2609,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->session_table_compact_dhandle_success = 0;
     /* not clearing session_table_compact_fail */
     /* not clearing session_table_compact_fail_cache_pressure */
+    stats->session_table_compact_passes = 0;
     /* not clearing session_table_compact_running */
     /* not clearing session_table_compact_skipped */
     /* not clearing session_table_compact_success */
@@ -2630,6 +2635,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing thread_fsync_active */
     /* not clearing thread_read_active */
     /* not clearing thread_write_active */
+    stats->application_evict_snapshot_refreshed = 0;
     stats->application_evict_time = 0;
     stats->application_cache_time = 0;
     stats->txn_release_blocked = 0;
@@ -2682,6 +2688,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts = 0;
     stats->txn_set_ts_durable = 0;
     stats->txn_set_ts_durable_upd = 0;
+    stats->txn_set_ts_force = 0;
+    stats->txn_set_ts_out_of_order = 0;
     stats->txn_set_ts_oldest = 0;
     stats->txn_set_ts_oldest_upd = 0;
     stats->txn_set_ts_stable = 0;
@@ -2830,6 +2838,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       WT_STAT_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
+    to->cache_eviction_blocked_no_progress +=
+      WT_STAT_READ(from, cache_eviction_blocked_no_progress);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
     to->cache_eviction_queue_empty += WT_STAT_READ(from, cache_eviction_queue_empty);
     to->cache_eviction_queue_not_empty += WT_STAT_READ(from, cache_eviction_queue_not_empty);
@@ -2932,6 +2942,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_maximum_page_size += WT_STAT_READ(from, cache_eviction_maximum_page_size);
     to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
     to->cache_eviction_app_dirty += WT_STAT_READ(from, cache_eviction_app_dirty);
+    to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
     to->cache_timed_out_ops += WT_STAT_READ(from, cache_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_READ(from, cache_eviction_blocked_overflow_keys);
@@ -3191,21 +3203,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->lock_dhandle_wait_internal += WT_STAT_READ(from, lock_dhandle_wait_internal);
     to->lock_dhandle_read_count += WT_STAT_READ(from, lock_dhandle_read_count);
     to->lock_dhandle_write_count += WT_STAT_READ(from, lock_dhandle_write_count);
-    to->lock_durable_timestamp_wait_application +=
-      WT_STAT_READ(from, lock_durable_timestamp_wait_application);
-    to->lock_durable_timestamp_wait_internal +=
-      WT_STAT_READ(from, lock_durable_timestamp_wait_internal);
-    to->lock_durable_timestamp_read_count += WT_STAT_READ(from, lock_durable_timestamp_read_count);
-    to->lock_durable_timestamp_write_count +=
-      WT_STAT_READ(from, lock_durable_timestamp_write_count);
     to->lock_metadata_count += WT_STAT_READ(from, lock_metadata_count);
     to->lock_metadata_wait_application += WT_STAT_READ(from, lock_metadata_wait_application);
     to->lock_metadata_wait_internal += WT_STAT_READ(from, lock_metadata_wait_internal);
-    to->lock_read_timestamp_wait_application +=
-      WT_STAT_READ(from, lock_read_timestamp_wait_application);
-    to->lock_read_timestamp_wait_internal += WT_STAT_READ(from, lock_read_timestamp_wait_internal);
-    to->lock_read_timestamp_read_count += WT_STAT_READ(from, lock_read_timestamp_read_count);
-    to->lock_read_timestamp_write_count += WT_STAT_READ(from, lock_read_timestamp_write_count);
     to->lock_schema_count += WT_STAT_READ(from, lock_schema_count);
     to->lock_schema_wait_application += WT_STAT_READ(from, lock_schema_wait_application);
     to->lock_schema_wait_internal += WT_STAT_READ(from, lock_schema_wait_internal);
@@ -3358,6 +3358,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_compact_fail += WT_STAT_READ(from, session_table_compact_fail);
     to->session_table_compact_fail_cache_pressure +=
       WT_STAT_READ(from, session_table_compact_fail_cache_pressure);
+    to->session_table_compact_passes += WT_STAT_READ(from, session_table_compact_passes);
     to->session_table_compact_running += WT_STAT_READ(from, session_table_compact_running);
     to->session_table_compact_skipped += WT_STAT_READ(from, session_table_compact_skipped);
     to->session_table_compact_success += WT_STAT_READ(from, session_table_compact_success);
@@ -3384,6 +3385,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
     to->thread_read_active += WT_STAT_READ(from, thread_read_active);
     to->thread_write_active += WT_STAT_READ(from, thread_write_active);
+    to->application_evict_snapshot_refreshed +=
+      WT_STAT_READ(from, application_evict_snapshot_refreshed);
     to->application_evict_time += WT_STAT_READ(from, application_evict_time);
     to->application_cache_time += WT_STAT_READ(from, application_cache_time);
     to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
@@ -3438,6 +3441,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
     to->txn_set_ts_durable += WT_STAT_READ(from, txn_set_ts_durable);
     to->txn_set_ts_durable_upd += WT_STAT_READ(from, txn_set_ts_durable_upd);
+    to->txn_set_ts_force += WT_STAT_READ(from, txn_set_ts_force);
+    to->txn_set_ts_out_of_order += WT_STAT_READ(from, txn_set_ts_out_of_order);
     to->txn_set_ts_oldest += WT_STAT_READ(from, txn_set_ts_oldest);
     to->txn_set_ts_oldest_upd += WT_STAT_READ(from, txn_set_ts_oldest_upd);
     to->txn_set_ts_stable += WT_STAT_READ(from, txn_set_ts_stable);
