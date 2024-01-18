@@ -22,10 +22,7 @@ are saved in files (`.gcda`) for later analysis by [gcovr](https://gcovr.com/en/
 
 ## The challenges with parallel code coverage measurement
 
-Being able to run that set of tests in parallel on a multicore machine will mean that the elapsed wall-clock time to 
-execute the set of tests will be reduced. 
-
-However, this raises a number of challenges, including:
+Running test in parallel speeds up execution, however this raises a number of challenges, including:
 * gcov saves its run-time data in `.gcda` files, but when running tests in parallel there is no synchronisation of 
   writing the data from each parallel test and so it is possible that coverage data will be lost.
 * WiredTiger tests typically generate databases in subdirectories, and so running multiple tests in the same directory
