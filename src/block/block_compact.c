@@ -418,7 +418,7 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     __wt_epoch(session, &cur_time);
 
-    /* Log one progress message every twenty seconds. */
+    /* Log one progress message periodically. */
     time_diff_msg = WT_TIMEDIFF_SEC(cur_time, session->compact->last_progress);
     time_diff_start = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
     if (time_diff_msg > WT_PROGRESS_MSG_PERIOD) {
