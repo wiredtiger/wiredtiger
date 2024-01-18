@@ -60,61 +60,36 @@ def run_task_list(task_list_info):
     list_end_time = datetime.now()
     diff = list_end_time - list_start_time
 
-    if verbose:
-        print("Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds()))
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config_path', required=True, help='Path to the json config file')
-    parser.add_argument('-b', '--build_dir_base', required=True, help='Base name for the build directories')
-    parser.add_argument('-j', '--parallel', default=1, type=int, help='How many tests to run in parallel')
-    parser.add_argument('-s', '--setup', action="store_true",
-                        help='Perform setup actions from the config in each build directory')
-    parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
-    args = parser.parse_args()
-
-    verbose = args.verbose
-    config_path = args.config_path
-    build_dir_base = args.build_dir_base
-    parallel_tests = args.parallel
-    setup = args.setup
+    return_value = "Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds())
 
     if verbose:
-        print('Code Coverage')
-        print('=============')
-        print('Configuration:')
-        print('  Config file                      {}'.format(config_path))
-        print('  Base name for build directories: {}'.format(build_dir_base))
-        print('  Number of parallel tests:        {}'.format(parallel_tests))
-        print('  Perform setup actions:           {}'.format(setup))
+        print(return_value)
 
-    if parallel_tests < 1:
-        os.error("Number of parallel tests must be >= 1")
+    return return_value
 
-    # Load test config json file
-    with open(config_path) as json_file:
-        config = json.load(json_file)
 
-    if verbose:
-        print('Configuration:')
-        print(config)
+# Execute each list of tasks in parallel
+def run_task_lists_in_parallel(label, task_bucket_info):
+    parallel = len(task_bucket_info)
+    verbose = task_bucket_info[0]['verbose']
+    task_start_time = datetime.now()
 
-    if len(config['test_tasks']) < 1:
-        sys.exit("No test tasks")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
+        for e in executor.map(run_task_list, task_bucket_info):
+            print('{}'.format(e))
 
-    setup_actions = config['setup_actions']
-
-    if setup and len(setup_actions) < 1:
-        sys.exit("No sectup actions")
+    task_end_time = datetime.now()
+    task_diff = task_end_time - task_start_time
 
     if verbose:
-        print('  Setup actions: {}'.format(setup_actions))
+        print("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
 
+
+# Check the relevant build directories exist and have the correct status
+def check_build_dirs(build_dir_base, parallel, setup, verbose):
     build_dirs = list()
 
-    # Check the relevant build directories exist and have the correct status
-    for build_num in range(parallel_tests):
+    for build_num in range(parallel):
         this_build_dir = "{}{}".format(build_dir_base, build_num)
 
         if not os.path.exists(this_build_dir):
@@ -143,9 +118,60 @@ def main():
             sys.exit('No compile time coverage files found within {}. Please build for code coverage.'
                      .format(this_build_dir))
 
-
     if verbose:
         print("Build dirs: {}".format(build_dirs))
+
+    return build_dirs
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config_path', required=True, help='Path to the json config file')
+    parser.add_argument('-b', '--build_dir_base', required=True, help='Base name for the build directories')
+    parser.add_argument('-j', '--parallel', default=1, type=int, help='How many tests to run in parallel')
+    parser.add_argument('-s', '--setup', action="store_true",
+                        help='Perform setup actions from the config in each build directory')
+    parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
+    args = parser.parse_args()
+
+    verbose = args.verbose
+    config_path = args.config_path
+    build_dir_base = args.build_dir_base
+    parallel_tests = args.parallel
+    setup = args.setup
+
+    if verbose:
+        print('Code Coverage')
+        print('=============')
+        print('Configuration:')
+        print('  Config file                      {}'.format(config_path))
+        print('  Base name for build directories: {}'.format(build_dir_base))
+        print('  Number of parallel tests:        {}'.format(parallel_tests))
+        print('  Perform setup actions:           {}'.format(setup))
+
+    if parallel_tests < 1:
+        sys.exit("Number of parallel tests must be >= 1")
+
+    # Load test config json file
+    with open(config_path) as json_file:
+        config = json.load(json_file)
+
+    if verbose:
+        print('  Configuration:')
+        print(config)
+
+    if len(config['test_tasks']) < 1:
+        sys.exit("No test tasks")
+
+    setup_actions = config['setup_actions']
+
+    if setup and len(setup_actions) < 1:
+        sys.exit("No sectup actions")
+
+    if verbose:
+        print('  Setup actions: {}'.format(setup_actions))
+
+    build_dirs = check_build_dirs(build_dir_base=build_dir_base, parallel=parallel_tests, setup=setup, verbose=verbose)
 
     setup_bucket_info = []
     task_bucket_info = []
@@ -154,20 +180,12 @@ def main():
             if len(os.listdir(build_dir)) > 0:
                 sys.exit("Directory {} is not empty".format(build_dir))
             setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions'],
-                                      'verbose':verbose})
-        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': [], 'verbose':verbose})
+                                      'verbose': verbose})
+        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': [], 'verbose': verbose})
 
-    # Perform setup operations
     if setup:
-        setup_start_time = datetime.now()
-        with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_tests) as executor:
-            for e in executor.map(run_task_list, setup_bucket_info):
-                print('Setup')
-        setup_end_time = datetime.now()
-        setup_diff = setup_end_time - setup_start_time
-
-        if verbose:
-            print("Time taken to perform the setup: {} seconds".format(setup_diff.total_seconds()))
+        # Perform setup operations
+        run_task_lists_in_parallel(label="setup", task_bucket_info=setup_bucket_info)
 
     # Prepare to run the tasks in the list
     for test_num in range(len(config['test_tasks'])):
@@ -183,17 +201,7 @@ def main():
         print("task_bucket_info: {}".format(task_bucket_info))
 
     # Perform task operations in parallel across the build directories
-    task_start_time = datetime.now()
-
-    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_tests) as executor:
-        for e in executor.map(run_task_list, task_bucket_info):
-            print('Test')
-
-    task_end_time = datetime.now()
-    task_diff = task_end_time - task_start_time
-
-    if verbose:
-        print("Time taken to perform the tasks: {} seconds".format(task_diff.total_seconds()))
+    run_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
 
 
 if __name__ == '__main__':
