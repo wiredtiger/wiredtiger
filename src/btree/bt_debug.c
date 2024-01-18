@@ -533,29 +533,6 @@ __debug_hs_key(WT_DBG *ds)
 }
 
 /*
- * __debug_cell_int_data --
- *     Dump a single WT_COL_INT or WT_ROW_INT disk image cell's data in debugging mode.
- */
-static int
-__debug_cell_int_data(WT_DBG *ds, WT_CELL_UNPACK_ADDR *unpack)
-{
-    const char *p;
-
-    switch (unpack->raw) {
-    case WT_CELL_ADDR_DEL:
-    case WT_CELL_ADDR_INT:
-    case WT_CELL_ADDR_LEAF:
-    case WT_CELL_ADDR_LEAF_NO:
-        p = __wt_cell_type_string(unpack->raw);
-        // WT_UNUSED(p);
-        // WT_UNUSED(ds);
-
-        return (__debug_item(ds, NULL, p, strlen(p)));
-    }
-    return (0);
-}
-
-/*
  * __debug_cell_int --
  *     Dump a single unpacked WT_COL_INT or WT_ROW_INT disk image WT_CELL.
  */
@@ -605,7 +582,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     }
     WT_RET(ds->f(ds, "]\n"));
 
-    return (__debug_cell_int_data(ds, unpack));
+    return (0);
 }
 
 /*
