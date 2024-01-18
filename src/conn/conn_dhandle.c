@@ -313,13 +313,13 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
     btree = is_btree ? dhandle->handle : NULL;
 
     if (is_btree) {
-
         /* Don't close the btree if there are changes not yet globally visible. */
         /*
-         * !! Check if we have exclusive access here, else a transaction can start on this btree after
-         * this check !!
+         * !! Check if we have exclusive access here, else a transaction can start on this btree
+         * after this check !!
          */
-        if (!__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
+        if (!WT_DHANDLE_IS_CHECKPOINT(dhandle) && (session != conn->sweep_session) &&
+          !__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
             return (EBUSY);
 
         /* Turn off eviction. */
@@ -781,7 +781,7 @@ __conn_dhandle_close_one(
         if (ret == 0)
             ret = __wt_meta_track_sub_off(session);
     }
-    if (removed)
+    if (removed && (ret != EBUSY))
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
 
     if (!WT_META_TRACKING(session))

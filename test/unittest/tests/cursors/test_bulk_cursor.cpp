@@ -189,7 +189,7 @@ cache_destroy_memory_check(
  */
 static void
 cursor_test(std::string const &config, bool close, int expected_open_cursor_result,
-  int expected_commit_result, bool diagnostics)
+  int expected_commit_result, int expected_commit_result_with_drop, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -245,7 +245,7 @@ cursor_test(std::string const &config, bool close, int expected_open_cursor_resu
                 REQUIRE(cursor->close(cursor) == 0);
             }
 
-            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
+            REQUIRE(session->commit_transaction(session, "") == expected_commit_result_with_drop);
         }
 
         SECTION("Checkpoint in 2nd thread during transaction then rollback: config = " + config +
@@ -367,10 +367,10 @@ TEST_CASE("Cursor: bulk, non-bulk, checkpoint and drop combinations", "[cursor]"
     cache_destroy_memory_check("", 0, diagnostics);
     cache_destroy_memory_check("bulk", EINVAL, diagnostics);
 
-    cursor_test("", false, 0, EINVAL, diagnostics);
-    // cursor_test("", true, 0, EINVAL, diagnostics);
-    cursor_test("bulk", false, EINVAL, 0, diagnostics);
-    cursor_test("bulk", true, EINVAL, 0, diagnostics);
+    cursor_test("", false, 0, EINVAL, 0, diagnostics);
+    // cursor_test("", true, 0, EINVAL, 0, diagnostics);
+    cursor_test("bulk", false, EINVAL, 0, 0, diagnostics);
+    cursor_test("bulk", true, EINVAL, 0, 0, diagnostics);
 
     // multiple_drop_test("", 0, EINVAL, false, diagnostics);
     // multiple_drop_test("", 0, EINVAL, true, diagnostics);

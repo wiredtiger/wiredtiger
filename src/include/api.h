@@ -96,11 +96,11 @@
         if ((config) != NULL)                                                               \
     WT_ERR(__wt_config_check((s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0))
 
-#define API_END(s, ret)                                                                    \
+#define API_END_OK(s, ret, okerr)                                                          \
     if ((s) != NULL) {                                                                     \
         WT_TRACK_OP_END(s);                                                                \
         WT_SINGLE_THREAD_CHECK_STOP(s);                                                    \
-        if ((ret) != 0)                                                                    \
+        if ((ret) != 0 && (ret) != (okerr))                                                \
             __wt_txn_err_set(s, ret);                                                      \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                \
             __wt_op_timer_stop(s);                                                         \
@@ -117,6 +117,8 @@
     }                                                                                      \
     }                                                                                      \
     while (0)
+
+#define API_END(s, ret) API_END_OK((s), (ret), 0)
 
 /* An API call wrapped in a transaction if necessary. */
 #define TXN_API_CALL(s, struct_name, func_name, dh, config, cfg)            \
@@ -204,6 +206,10 @@
 
 #define API_END_RET_NOTFOUND_MAP(s, ret) \
     API_END(s, ret);                     \
+    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+
+#define API_END_RET_NOTFOUND_MAP_OK(s, ret, okerr) \
+    API_END_OK((s), (ret), (okerr));               \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
 /*

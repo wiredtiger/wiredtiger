@@ -1271,7 +1271,7 @@ err:
         WT_STAT_CONN_INCR(session, session_table_drop_success);
 
     /* Note: drop operations cannot be unrolled (yet?). */
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    API_END_RET_NOTFOUND_MAP_OK(session, ret, EBUSY);
 }
 
 /*
