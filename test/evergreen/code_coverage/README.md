@@ -70,6 +70,10 @@ The configuration of the setup operations and the test tasks is defined in
 directory in parallel, and the test tasks are put into buckets (one for each build tree) and then each bucket
 is executed in parallel.
 
+`gcovr` searches a directory (in this case the `wiredtiger` directory) and all subdirectories (ie including all the
+`build_` directories) for code coverage data. This means that it is not necessary to tell `gcovr` how many build 
+directories there are.
+
 
 ## Potential areas for improvement
 
