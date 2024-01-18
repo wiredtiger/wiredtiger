@@ -166,7 +166,7 @@ def main():
     setup_actions = config['setup_actions']
 
     if setup and len(setup_actions) < 1:
-        sys.exit("No sectup actions")
+        sys.exit("No setup actions")
 
     if verbose:
         print('  Setup actions: {}'.format(setup_actions))
