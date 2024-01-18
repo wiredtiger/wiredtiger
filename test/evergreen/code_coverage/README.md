@@ -20,6 +20,18 @@ Once the code has been built, a set of tests is executed which will generate run
 are saved in files (`.gcda`) for later analysis by [gcovr](https://gcovr.com/en/stable/).
 
 
+## Test selection
+
+The current test selection is based on the results of the Code Coverage Competition to achieve approx 50%
+in about 30 minutes using serial testing. Subsequently, a small number of longer running tests which did not
+add significantly increase code coverage have been removed. 
+
+Test selection details:
+* RTS testing is slow, so it was important to skip slow tests (RTS tests 10,12,14,20,26,35,37,38,39).
+
+The code coverage test set does not currently reach a high enough coverage, but is a good starting point.
+
+
 ## The challenges with parallel code coverage measurement
 
 Running test in parallel speeds up execution, however this raises a number of challenges, including:
