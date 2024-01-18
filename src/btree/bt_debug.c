@@ -135,7 +135,7 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 
     session = ds->session;
 
-    return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+    return (ds->f(ds, "\t%s%s{ccc%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
       (F_ISSET(ds, WT_DEBUG_UNREDACT_ALL | WT_DEBUG_UNREDACT_KEYS)) ?
         __wt_key_string(session, data_arg, size, ds->key_format, ds->t1) :
         "REDACTED"));
@@ -156,7 +156,7 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
         return (ds->f(ds, "\t%s%s{}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
 
     if (session->dump_raw)
-        return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+        return (ds->f(ds, "\t%s%s{bbb%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
           __wt_buf_set_printable(session, data_arg, size, false, ds->t1)));
 
     if (!F_ISSET(ds, WT_DEBUG_UNREDACT_ALL))
@@ -170,7 +170,7 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
         data_arg = ds->t2->data;
         size = ds->t2->size + 1;
     }
-    return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+    return (ds->f(ds, "\t%s%s{aaa%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
       __wt_buf_set_printable_format(session, data_arg, size, ds->value_format, false, ds->t1)));
 }
 
