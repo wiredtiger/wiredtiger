@@ -1,4 +1,17 @@
 {
+  "_comments" : [
+    "// Note: As the JSON file format does not support comments it is necessary to use workarounds such",
+    "// as creating elements like this one to hold comments.",
+    "//",
+    "// In 'setup_actions', the code uses '-j 2' to compile two files at once.",
+    "// There is a balance between using more cores for executing tests and thereby requiring more build",
+    "// directories, and the time taken to set up those directories. The current best balance is to use",
+    "// half the number of cores to run tests, and then use '-j 2' to use all the cores  the build.",
+
+    "// Note: RTS testing is slow, so it was important to skip slow tests (RTS tests 10,12,14,20,26,35,37,38,39).",
+
+    "// See the README.md file in this directory for details."
+  ],
   "setup_actions" : [
     "cmake -DHAVE_UNITTEST=1 -DCMAKE_BUILD_TYPE=Coverage -G Ninja ../.",
     "ninja -j 2"
