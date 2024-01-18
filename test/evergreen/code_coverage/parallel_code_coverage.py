@@ -143,8 +143,6 @@ def main():
             sys.exit('No compile time coverage files found within {}. Please build for code coverage.'
                      .format(this_build_dir))
 
-        # if found_run_time_coverage_files:
-        #     sys.exit('Run time coverage files found within {}. Please remove them.'.format(this_build_dir))
 
     if verbose:
         print("Build dirs: {}".format(build_dirs))
