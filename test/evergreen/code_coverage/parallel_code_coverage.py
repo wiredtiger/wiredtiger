@@ -76,7 +76,8 @@ def run_task_lists_in_parallel(label, task_bucket_info):
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
         for e in executor.map(run_task_list, task_bucket_info):
-            print('{}'.format(e))
+             if verbose:
+                print(e)
 
     task_end_time = datetime.now()
     task_diff = task_end_time - task_start_time
