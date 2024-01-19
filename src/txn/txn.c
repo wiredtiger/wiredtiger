@@ -211,7 +211,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
 
     /* Fast path if we already have the current snapshot. */
     if ((commit_gen = __wt_session_gen(session, WT_GEN_COMMIT)) != 0) {
-        if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) && commit_gen == __wt_gen(session, WT_GEN_COMMIT))
+        WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
+        if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) && commit_gen == __wt_gen(session, WT_GEN_COMMIT))
             return;
         /*
          * Leave the generation here and enter again later to acquire a new snapshot if any
@@ -351,12 +352,6 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
 
     /* Swap the snapshot pointers. */
     __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
-
-    /*
-     * __txn_get_snapshot_int will return without getting the new snapshot if the transaction
-     * already has a snapshot so clear the flag WT_TXN_HAS_SNAPSHOT.
-     */
-    F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
     /* Get the snapshot without publishing the shared ids. */
     __wt_txn_bump_snapshot(session);
