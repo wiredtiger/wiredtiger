@@ -111,7 +111,7 @@ TEST_CASE("Vector bool: test operations", "[vector]")
         std::vector<bool> v_and(v1 & v2);
         std::vector<bool> v_xor(v1 ^ v2);
 
-        REQUIRE(v_and == vector_bool_from_hex_string("014d"));
+        REQUIRE(v_and == vector_bool_from_hex_string("14d"));
         REQUIRE(v_xor == vector_bool_from_hex_string("aaa2"));
     }
 
@@ -126,7 +126,7 @@ TEST_CASE("Vector bool: test operations", "[vector]")
         std::vector<bool> v_and(v1 & v2);
         std::vector<bool> v_xor(v1 ^ v2);
 
-        REQUIRE(v_and == vector_bool_from_hex_string("01"));
+        REQUIRE(v_and == vector_bool_from_hex_string("1"));
         REQUIRE(v_xor == vector_bool_from_hex_string("fe"));
     }
 
@@ -139,6 +139,9 @@ TEST_CASE("Vector bool: test operations", "[vector]")
         REQUIRE(v1.size() == 4);
         REQUIRE(v2.empty());
         REQUIRE(v3.empty());
+
+        trim_most_significant_false_values(v1);
+        REQUIRE(v1.size() == 1);
 
         REQUIRE(get_true_count(v1) == 1);
         REQUIRE(get_true_count(v2) == 0);
@@ -153,7 +156,7 @@ TEST_CASE("Vector bool: test operations", "[vector]")
         REQUIRE(v2_and_v3.empty());
 
         REQUIRE(get_true_count(v1_and_v2) == 0);
-        REQUIRE(v1_and_v2.size() == 4);
+        REQUIRE(v1_and_v2.empty());
         trim_most_significant_false_values(v1_and_v2);
         REQUIRE(v1_and_v2.empty());
     }

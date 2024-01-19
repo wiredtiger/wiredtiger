@@ -133,7 +133,7 @@ vector_bool_to_binary_string(std::vector<bool> const &vector_bool)
  *
  * Perform a bitwise AND operation between two std::vector<bool> values.
  *
- * The result will have the number of bits of the input vector with the most bits.
+ * The result will have the number of bits of the input vector with the least bits.
  */
 std::vector<bool>
 operator&(std::vector<bool> const &a, std::vector<bool> const &b)
@@ -142,13 +142,10 @@ operator&(std::vector<bool> const &a, std::vector<bool> const &b)
     const size_t larger = std::max(a.size(), b.size());
 
     std::vector<bool> result;
-    result.reserve(larger);
+    result.reserve(smaller);
 
     for (size_t i = 0; i < smaller; i++)
         result.push_back(a[i] & b[i]);
-
-    for (size_t i = smaller; i < larger; i++)
-        result.push_back(false);
 
     return result;
 }
