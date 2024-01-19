@@ -212,7 +212,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     /* Fast path if we already have the current snapshot. */
     if ((commit_gen = __wt_session_gen(session, WT_GEN_COMMIT)) != 0) {
         WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
-        if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) && commit_gen == __wt_gen(session, WT_GEN_COMMIT))
+        if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) &&
+          commit_gen == __wt_gen(session, WT_GEN_COMMIT))
             return;
         /*
          * Leave the generation here and enter again later to acquire a new snapshot if any
