@@ -780,7 +780,7 @@ __wt_debug_disk(
     flags = dump_app_data ? WT_DEBUG_UNREDACT : 0;
     WT_RET(__debug_config(session, ds, ofile, flags));
 
-    WT_ERR(ds->f(ds, "- %s page - [", __wt_page_type_string(dsk->type)));
+    WT_ERR(ds->f(ds, "- %s page\n\t[", __wt_page_type_string(dsk->type)));
     switch (dsk->type) {
     case WT_PAGE_BLOCK_MANAGER:
         break;
