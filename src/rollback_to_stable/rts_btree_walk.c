@@ -145,6 +145,106 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 }
 
 /*
+ * __wt_rts_work_free --
+ *     Free a work unit and account.
+ */
+void
+__wt_rts_work_free(WT_SESSION_IMPL *session, WT_RTS_WORK_UNIT *entry)
+{
+    __wt_free(session, entry->uri);
+    __wt_free(session, entry);
+}
+
+/*
+ * __wt_rts_pop_work --
+ *     Pop a work unit from the queue.
+ */
+void
+__wt_rts_pop_work(WT_SESSION_IMPL *session, WT_RTS_WORK_UNIT **entryp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_RTS_WORK_UNIT *entry;
+
+    *entryp = entry = NULL;
+
+    conn = S2C(session);
+    if (TAILQ_EMPTY(&conn->rts->rtsqh))
+        return;
+
+    __wt_spin_lock(session, &conn->rts->rts_lock);
+
+    /* Recheck again to confirm whether the queue is empty or not? */
+    if (TAILQ_EMPTY(&conn->rts->rtsqh)) {
+        __wt_spin_unlock(session, &conn->rts->rts_lock);
+        return;
+    }
+
+    entry = TAILQ_FIRST(&conn->rts->rtsqh);
+    TAILQ_REMOVE(&conn->rts->rtsqh, entry, q);
+    *entryp = entry;
+
+    __wt_spin_unlock(session, &conn->rts->rts_lock);
+    return;
+}
+
+/*
+ * __wt_rts_push_work --
+ *     Push a work unit to the queue.
+ */
+int
+__wt_rts_push_work(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_timestamp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_RTS_WORK_UNIT *entry;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, uri, &entry->uri));
+    entry->rollback_timestamp = rollback_timestamp;
+
+    __wt_spin_lock(session, &conn->rts->rts_lock);
+    TAILQ_INSERT_TAIL(&conn->rts->rtsqh, entry, q);
+    __wt_spin_unlock(session, &conn->rts->rts_lock);
+    __wt_cond_signal(session, conn->rts->thread_cond);
+
+    return (0);
+err:
+    __wt_free(session, entry);
+    return (ret);
+}
+
+/*
+ * __rts_btree --
+ *     Perform rollback to stable on a single uri.
+ */
+static int
+__rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_timestamp)
+{
+    WT_DECL_RET;
+
+    /* Open a handle for processing. */
+    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+    if (ret != 0)
+        WT_RET_MSG(session, ret, "%s: unable to open handle%s", uri,
+          ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
+    ret = __wt_rts_btree_walk_btree(session, rollback_timestamp);
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
+ * __wt_rts_btree_work_unit --
+ *     Perform rollback to stable on a single work unit.
+ */
+int
+__wt_rts_btree_work_unit(WT_SESSION_IMPL *session, WT_RTS_WORK_UNIT *entry)
+{
+    return (__rts_btree(session, entry->uri, entry->rollback_timestamp));
+}
+
+/*
  * __wt_rts_btree_walk_btree_apply --
  *     Perform rollback to stable on a single file.
  */
@@ -152,7 +252,6 @@ int
 __wt_rts_btree_walk_btree_apply(
   WT_SESSION_IMPL *session, const char *uri, const char *config, wt_timestamp_t rollback_timestamp)
 {
-    WT_BTREE *btree;
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, value, key;
     WT_DECL_RET;
@@ -161,8 +260,7 @@ __wt_rts_btree_walk_btree_apply(
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dhandle_allocated, has_txn_updates_gt_than_ckpt_snap, modified;
-    bool prepared_updates;
+    bool has_txn_updates_gt_than_ckpt_snap, modified, prepared_updates, table_skipped;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
     if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
@@ -171,8 +269,7 @@ __wt_rts_btree_walk_btree_apply(
     addr_size = 0;
     rollback_txnid = 0;
     write_gen = 0;
-    dhandle_allocated = false;
-    btree = NULL;
+    table_skipped = false;
 
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
@@ -262,27 +359,23 @@ __wt_rts_btree_walk_btree_apply(
 
     if (modified || max_durable_ts > rollback_timestamp || prepared_updates ||
       has_txn_updates_gt_than_ckpt_snap) {
-        /* Open a handle for processing. */
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-        if (ret != 0)
-            WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
-              ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
-        dhandle_allocated = true;
-        btree = S2BT(session);
-
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          WT_RTS_VERB_TAG_TREE "rolling back tree. uri=%s, btree_id=%" PRIu32
-                               ", modified=%s, durable_timestamp=%s > stable_timestamp=%s: %s, "
-                               "has_prepared_updates=%s, txnid=%" PRIu64
-                               " > recovery_checkpoint_snap_min=%" PRIu64 ": %s",
-          uri, btree->id, btree->modified ? "true" : "false",
-          __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+          WT_RTS_VERB_TAG_TREE
+          "rolling back tree. uri=%s"
+          ", modified=%s, durable_timestamp=%s > stable_timestamp=%s: %s, "
+          "has_prepared_updates=%s, txnid=%" PRIu64 " > recovery_checkpoint_snap_min=%" PRIu64
+          ": %s",
+          uri, modified ? "true" : "false", __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
           max_durable_ts > rollback_timestamp ? "true" : "false",
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-        WT_ERR(__wt_rts_btree_walk_btree(session, rollback_timestamp));
+        if (S2C(session)->rts->threads == 0)
+            WT_ERR(__rts_btree(session, uri, rollback_timestamp));
+        else
+            WT_ERR(__wt_rts_push_work(session, uri, rollback_timestamp));
+        table_skipped = false;
     } else
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
           WT_RTS_VERB_TAG_TREE_SKIP
@@ -303,7 +396,7 @@ __wt_rts_btree_walk_btree_apply(
      * timestamp to WT_TS_NONE, we need this exception.
      * 2. In-memory database - In this scenario, there is no history store to truncate.
      */
-    if ((!dhandle_allocated || !btree->modified) && max_durable_ts == WT_TS_NONE &&
+    if ((table_skipped || !modified) && max_durable_ts == WT_TS_NONE &&
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
@@ -311,8 +404,6 @@ __wt_rts_btree_walk_btree_apply(
     }
 
 err:
-    if (dhandle_allocated)
-        WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
 

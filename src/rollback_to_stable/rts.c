@@ -106,6 +106,133 @@ __wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64
 }
 
 /*
+ * __wt_rts_thread_chk --
+ *     Check to decide if the rts thread should continue running.
+ */
+bool
+__wt_rts_thread_chk(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(S2C(session), WT_CONN_RTS_THREAD_RUN));
+}
+
+/*
+ * __wt_rts_thread_run --
+ *     Entry function for an rts thread. This is called repeatedly from the thread group code so it
+ *     does not need to loop itself.
+ */
+int
+__wt_rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
+{
+    WT_DECL_RET;
+    WT_RTS_WORK_UNIT *entry;
+
+    WT_UNUSED(thread);
+
+    /* Mark the session as an eviction thread session. */
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
+
+    while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
+        __wt_rts_pop_work(session, &entry);
+        if (entry == NULL)
+            return (0);
+
+        WT_ERR(__wt_rts_btree_work_unit(session, entry));
+    }
+
+    if (0) {
+err:
+        WT_RET_PANIC(session, ret, "rts thread error");
+    }
+    return (ret);
+}
+
+/*
+ * __wt_rts_thread_stop --
+ *     Shutdown function for an rts thread.
+ */
+int
+__wt_rts_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
+{
+    if (thread->id != 0)
+        return (0);
+
+    /* Clear the eviction thread session flag. */
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    return (0);
+}
+
+/*
+ * __wt_rts_thread_create --
+ *     Start rts threads.
+ */
+static int
+__wt_rts_thread_create(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint32_t session_flags;
+
+    conn = S2C(session);
+
+    if (conn->rts->threads == 0)
+        return (0);
+
+    /* Set first, the thread might run before we finish up. */
+    F_SET(conn, WT_CONN_RTS_THREAD_RUN);
+
+    TAILQ_INIT(&conn->rts->rtsqh); /* RTS work unit list */
+    WT_RET(__wt_spin_init(session, &conn->rts->rts_lock, "rts work unit list"));
+    WT_RET(__wt_cond_auto_alloc(
+      session, "rts threads", 10 * WT_THOUSAND, WT_MILLION, &conn->rts->thread_cond));
+
+    /*
+     * Create the rts thread group. Set the group size to the maximum allowed sessions.
+     */
+    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
+    WT_RET(__wt_thread_group_create(session, &conn->rts->thread_group, "rts-threads",
+      conn->rts->threads, conn->rts->threads, session_flags, __wt_rts_thread_chk,
+      __wt_rts_thread_run, __wt_rts_thread_stop));
+
+    return (0);
+}
+
+/*
+ * __wt_rts_thread_destroy --
+ *     Destroy the rts threads.
+ */
+static int
+__wt_rts_thread_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    if (conn->rts->threads == 0)
+        return (0);
+
+    /* Wait for any rts thread group changes to stabilize. */
+    __wt_writelock(session, &conn->rts->thread_group.lock);
+
+    /*
+     * Signal the threads to finish and stop populating the queue.
+     */
+    F_CLR(conn, WT_CONN_RTS_THREAD_RUN);
+    __wt_cond_signal(session, conn->rts->thread_cond);
+
+    __wt_verbose(
+      session, WT_VERB_RTS, WT_RTS_VERB_TAG_WAIT_THREADS "%s", "waiting for helper threads");
+
+    /*
+     * We call the destroy function still holding the write lock. It assumes it is called locked.
+     */
+    WT_TRET(__wt_thread_group_destroy(session, &conn->rts->thread_group));
+    __wt_spin_destroy(session, &conn->rts->rts_lock);
+    __wt_cond_destroy(session, &conn->rts->thread_cond);
+
+    return (ret);
+}
+
+/*
  * __wt_rts_btree_apply_all --
  *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
  *     history store files.
@@ -115,16 +242,21 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_RTS_WORK_UNIT *entry;
     WT_TIMER timer;
     uint64_t rollback_count, rollback_msg_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
+    bool rts_threads_started;
 
     __wt_timer_start(session, &timer);
     rollback_count = 0;
     rollback_msg_count = 0;
 
-    WT_RET(__wt_metadata_cursor(session, &cursor));
+    WT_RET(__wt_rts_thread_create(session));
+    rts_threads_started = true;
+
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a progress message. */
         __wt_rts_progress_msg(session, &timer, rollback_count, &rollback_msg_count, false);
@@ -153,6 +285,21 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
+     * Wait for the entire rts queue is finished processing before performing the history store
+     * final pass.
+     */
+    while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
+        __wt_rts_pop_work(session, &entry);
+        if (entry == NULL)
+            break;
+        WT_ERR(__wt_rts_btree_work_unit(session, entry));
+        __wt_rts_work_free(session, entry);
+    }
+
+    WT_ERR(__wt_rts_thread_destroy(session));
+    rts_threads_started = false;
+
+    /*
      * Performing eviction in parallel to a checkpoint can lead to a situation where the history
      * store has more updates than its corresponding data store. Performing history store cleanup at
      * the end can enable the removal of any such unstable updates that are written to the history
@@ -171,5 +318,7 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     }
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    if (rts_threads_started)
+        WT_TRET(__wt_rts_thread_destroy(session));
     return (ret);
 }

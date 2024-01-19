@@ -52,6 +52,7 @@
 #define WT_RTS_VERB_TAG_TREE_SKIP "[TREE_SKIP] "
 #define WT_RTS_VERB_TAG_UPDATE_ABORT "[UPDATE_ABORT] "
 #define WT_RTS_VERB_TAG_UPDATE_CHAIN_VERIFY "[UPDATE_CHAIN_VERIFY] "
+#define WT_RTS_VERB_TAG_WAIT_THREADS "[WAIT_THREADS] "
 
 #define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid)                                           \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && S2C(session)->recovery_ckpt_snap_min != 0 && \
@@ -82,6 +83,16 @@
     } while (0)
 
 /*
+ * WT_RTS_WORK_UNIT --
+ *	A definition of maintenance that a RTS tree needs done.
+ */
+struct __wt_rts_work_unit {
+    TAILQ_ENTRY(__wt_rts_work_unit) q; /* Worker unit queue */
+    char *uri;
+    wt_timestamp_t rollback_timestamp;
+};
+
+/*
  * WT_ROLLBACK_TO_STABLE --
  *	Rollback to stable singleton, contains the interface to rollback to stable along
  *	with context used by rollback to stable.
@@ -90,6 +101,15 @@ struct __wt_rollback_to_stable {
     /* Methods. */
     int (*rollback_to_stable_one)(WT_SESSION_IMPL *, const char *, bool *);
     int (*rollback_to_stable)(WT_SESSION_IMPL *, const char *[], bool);
+
+    /* RTS thread information. */
+    WT_CONDVAR *thread_cond; /* RTS thread condition */
+    WT_THREAD_GROUP thread_group;
+    uint32_t threads; /* RTS threads */
+
+    /* Locked: rts system work queue. */
+    TAILQ_HEAD(__wt_rts_qh, __wt_rts_work_unit) rtsqh;
+    WT_SPINLOCK rts_lock; /* RTS work queue spinlock */
 
     /* Configuration. */
     bool dryrun;
