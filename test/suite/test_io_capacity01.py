@@ -32,11 +32,11 @@ import wiredtiger, wttest
 from wiredtiger import stat
 import os, random, string, time
 
-# test_io_capacity_01.py
+# test_io_capacity01.py
 #   Max waiting period for background fsync. If the written threshold is not met in this time,
 #   A background fsync is done.
-class test_io_capacity_01(wttest.WiredTigerTestCase):
-    uri = 'table:test_io_capacity_01'
+class test_io_capacity01(wttest.WiredTigerTestCase):
+    uri = 'table:test_io_capacity01'
     collection_cfg = 'key_format=q,value_format=S'
     fsync_time = 1
     # Set the io_capacity config
