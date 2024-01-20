@@ -2296,6 +2296,7 @@ __wt_btcur_skip_page(
 {
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
+    WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
     uint8_t previous_state;
     bool clean_page;
 
@@ -2306,6 +2307,7 @@ __wt_btcur_skip_page(
 
     btree = S2BT(session);
     clean_page = false;
+    walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
 
     /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
     if (btree->type == BTREE_COL_FIX)
@@ -2346,7 +2348,7 @@ __wt_btcur_skip_page(
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
-        WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
+        walk_skip_stats->total_del_pages_skipped++;
         goto unlock;
     }
 
@@ -2358,7 +2360,7 @@ __wt_btcur_skip_page(
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
+            walk_skip_stats->total_del_pages_skipped++;
             goto unlock;
         }
 
@@ -2370,13 +2372,13 @@ __wt_btcur_skip_page(
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
+            walk_skip_stats->total_del_pages_skipped++;
         }
     } else if (clean_page && ref->page->modify != NULL && ref->page->modify->ta != NULL &&
       __wt_txn_snap_min_visible(session, ref->page->modify->ta->newest_stop_txn,
         ref->page->modify->ta->newest_stop_ts, ref->page->modify->ta->newest_stop_durable_ts)) {
         *skipp = true;
-        WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_inmem_del_page_skip);
+        walk_skip_stats->total_inmem_del_pages_skipped++;
     }
 
 unlock:

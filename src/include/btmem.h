@@ -794,6 +794,15 @@ struct __wt_page {
 #define WT_PAGE_REF_OFFSET(page, o) ((void *)((uint8_t *)((page)->dsk) + (o)))
 
 /*
+ * WT_PAGE_WALK_SKIP_STATS --
+ *	Statistics to track how many deleted pages are skipped as part of the tree walk.
+ */
+struct __wt_page_walk_skip_stats {
+    size_t total_del_pages_skipped;
+    size_t total_inmem_del_pages_skipped;
+};
+
+/*
  * Prepare update states.
  *
  * Prepare update synchronization is based on the state field, which has the
