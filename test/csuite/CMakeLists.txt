@@ -409,3 +409,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_futex
+    SOURCES futex/main.c
+    DIR_NAME futex
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
