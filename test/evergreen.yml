@@ -2823,6 +2823,7 @@ tasks:
   - name: coverage-report
     # This task will measure code coverage across a range of tests, including, but not limited to,
     # the Catch2-based unit tests. The tests are run in parallel.
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - command: shell.exec
@@ -2860,6 +2861,7 @@ tasks:
 
   - name: coverage-report-catch2
     # This task measures code coverage achieved by only the Catch2-based unit tests.
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2889,6 +2891,7 @@ tasks:
       - func: "code coverage publish report"
 
   - name: code-change-report
+    tags: [ "pull_request" ]
     depends_on:
       - name: "coverage-report"
     commands:
@@ -3836,6 +3839,7 @@ tasks:
       - func: "cleanup"
 
   - name: cyclomatic-complexity
+    tags: [ "pull_request" ]
     commands:
       - func: "get project"
       - command: shell.exec
