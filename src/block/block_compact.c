@@ -441,9 +441,13 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block)
               100);
             __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
               "compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64
-              " pages, rewritten %" PRIu64 " pages (%" PRIu64 "MB), approx. %d%% done",
+              " pages, rewritten %" PRIu64 " pages (%" PRIu64
+              "MB). Approx. %d%% of the estimated work done.%s",
               block->name, time_diff, block->compact_pages_reviewed, block->compact_pages_rewritten,
-              block->compact_bytes_rewritten / WT_MEGABYTE, progress);
+              block->compact_bytes_rewritten / WT_MEGABYTE, progress,
+              progress == 100 ?
+                " More work might have been detected since the start of the operation." :
+                "");
         }
     }
 }
