@@ -663,7 +663,7 @@ celltype_err:
                     WT_TRET(__wt_msg(session,
                       "%s Read failure while accessing a page from the column internal page (ret = "
                       "%d).",
-                      __verify_addr_string(session, ref, vs->tmp1), ret));
+                      __verify_addr_string(session, child_ref, vs->tmp1), ret));
                 if (!vs->read_corrupt)
                     WT_RET(ret);
                 /*
@@ -710,7 +710,7 @@ celltype_err:
                     WT_TRET(__wt_msg(session,
                       "%s Read failure while accessing a page from the row internal page (ret = "
                       "%d).",
-                      __verify_addr_string(session, ref, vs->tmp1), ret));
+                      __verify_addr_string(session, child_ref, vs->tmp1), ret));
                 if (!vs->read_corrupt)
                     WT_RET(ret);
                 /*
