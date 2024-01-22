@@ -3821,10 +3821,12 @@ struct __wt_config_item {
 /*
  * This is needed for compatible usage of this embedded enum type.
  */
+#if !defined(SWIG) && !defined(DOXYGEN)
 #if defined(__cplusplus)
 typedef enum __wt_config_item::WT_CONFIG_ITEM_TYPE WT_CONFIG_ITEM_TYPE;
 #else
 typedef enum WT_CONFIG_ITEM_TYPE WT_CONFIG_ITEM_TYPE;
+#endif
 #endif
 
 #if !defined(SWIG) && !defined(DOXYGEN)
