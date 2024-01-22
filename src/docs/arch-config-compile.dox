@@ -113,11 +113,11 @@ The \c WT_CONF struct is meant to be position independent. A position independen
 moved to another memory location without "fixing up" any internal pointers, or allocating new structs.
 The only pointers in \c WT_CONF are to items that are immutable and will never change locations, like strings.
 For example, when we do a compilation, we make a copy of the source string. That copy will always exist for
-as long as we have the connection open. The \c WT_CONFIG_ITEM entries that are are referenced by \c WT_CONF have
+as long as we have the connection open. The \c WT_CONFIG_ITEM entries that are referenced by \c WT_CONF have
 pointers to parts of that immutable string.  But the references in \c WT_CONF to \c WT_CONFIG_ITEM entries, though, are not
 pointers.  The reference is achieved by using an offset to an adjacent piece of memory.
 
-What if the the \c WT_CONF_KEY array was not adjacent to the WT_CONF? They could be allocated
+What if the \c WT_CONF_KEY array was not adjacent to the WT_CONF? They could be allocated
 separately, but then the \c WT_CONF would need a pointer to where the array was allocated.
 Then, copying the \c WT_CONF would probably need a new \c WT_CONF_KEY array to be allocated
 and copied, and the pointer adjusted in the copy. And copies are needed to make changes to a base configuration. When we
@@ -159,7 +159,7 @@ That's fine, but...
 
 WiredTiger also makes heavy use of composite keys to reach down into sub-configurations (or "categories").  For example, suppose
 our fictional configuration string looks like \c "blah=7,foo=(bar=123,hello=456)" and we want to get the value for \c foo.bar .
-How do we identify these multiple parts to our access functions?  And note that we have have depths of sub-configuration
+How do we identify these multiple parts to our access functions?  And note that we have depths of sub-configuration
 greater than two.  Ideally, we want to take code that currently looks like this:
 \code
     WT_ERR(__wt_config_gets_def(session, cfg, "foo.bar", 0, &cval));
