@@ -137,7 +137,7 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
     return (ds->f(ds, "\t%s%s%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": ",
       F_ISSET(ds, WT_DEBUG_UNREDACT) ?
         __wt_key_string(session, data_arg, size, ds->key_format, ds->t1) :
-        "{REDACTED}"));
+        "REDACTED"));
 }
 
 /*
@@ -159,7 +159,7 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
           __wt_buf_set_printable(session, data_arg, size, false, ds->t1)));
 
     if (!F_ISSET(ds, WT_DEBUG_UNREDACT))
-        return (ds->f(ds, "\t%s%s{REDACTED}\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
+        return (ds->f(ds, "\t%s%sREDACTED\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
 
     /*
      * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
@@ -169,7 +169,7 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
         data_arg = ds->t2->data;
         size = ds->t2->size + 1;
     }
-    return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": ",
+    return (ds->f(ds, "\t%s%s%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": ",
       __wt_buf_set_printable_format(session, data_arg, size, ds->value_format, false, ds->t1)));
 }
 
@@ -483,7 +483,7 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
             WT_RET(__debug_modify(ds, ds->hs_value->data));
             WT_RET(ds->f(ds, "\n"));
         } else
-            WT_RET(ds->f(ds, "\tV: {REDACTED}\n"));
+            WT_RET(ds->f(ds, "\tV: REDACTED\n"));
         break;
     case WT_UPDATE_STANDARD:
         WT_RET(ds->f(ds,
@@ -644,9 +644,9 @@ __debug_cell_kv(
 
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
         WT_RET(
-          ds->f(ds, "\t%s: {len: %" PRIu32 "}", __wt_cell_type_string(unpack->raw), unpack->size));
+          ds->f(ds, "\traw_type: %s, len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
     else
-        WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
+        WT_RET(ds->f(ds, "\tREDACTED"));
 
     /* Dump per-disk page type information. */
     switch (page_type) {
@@ -1217,7 +1217,7 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     WT_RET(ds->f(ds, ", entries: %" PRIu32, entries));
     WT_RET(ds->f(ds, ", state: %s", __wt_page_is_modified(page) ? "dirty" : "clean"));
 
-    WT_RET(ds->f(ds, ", flags: {"));
+    WT_RET(ds->f(ds, ", flags: ["));
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_BUILD_KEYS)) {
         WT_RET(flag_num == 0 ? ds->f(ds, "keys-built") : ds->f(ds, ", keys-built"));
         flag_num++;
@@ -1246,7 +1246,7 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_RET(flag_num == 0 ? ds->f(ds, "update-ignore") : ds->f(ds, ", update-ignore"));
         flag_num++;
     }
-    WT_RET(ds->f(ds, "}"));
+    WT_RET(ds->f(ds, "]"));
 
     if (mod != NULL)
         switch (mod->rec_result) {
@@ -1309,7 +1309,7 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
                 WT_RET(ds->f(ds, "\t%" PRIu64 ": ", recno));
                 WT_RET(__debug_hex_byte(ds, v));
             } else
-                WT_RET(ds->f(ds, "\t%" PRIu64 ": {REDACTED}", recno));
+                WT_RET(ds->f(ds, "\t%" PRIu64 ": REDACTED", recno));
             if (curtw < numtws && recno - ref->ref_recno == page->pg_fix_tws[curtw].recno_offset) {
                 cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[curtw]);
                 __wt_cell_unpack_kv(ds->session, page->dsk, cell, &unpack);
@@ -1325,7 +1325,7 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
                 if (F_ISSET(ds, WT_DEBUG_UNREDACT))
                     WT_RET(ds->f(ds, "\tupdate: %" PRIu64 "\n", WT_INSERT_RECNO(ins)));
                 else
-                    WT_RET(ds->f(ds, "\tupdate: {REDACTED}\n"));
+                    WT_RET(ds->f(ds, "\tupdate: REDACTED\n"));
                 WT_RET(__debug_update(ds, ins->upd, true));
                 ins = WT_SKIP_NEXT(ins);
             }
@@ -1518,7 +1518,7 @@ __debug_col_skip(
         if (F_ISSET(ds, WT_DEBUG_UNREDACT))
             WT_RET(ds->f(ds, "\t%s: %" PRIu64 "\n", tag, WT_INSERT_RECNO(ins)));
         else
-            WT_RET(ds->f(ds, "\t%s: {REDACTED}\n", tag));
+            WT_RET(ds->f(ds, "\t%s: REDACTED\n", tag));
         WT_RET(__debug_update(ds, ins->upd, hexbyte));
 
         if (!WT_IS_HS(session->dhandle) && hs_cursor != NULL) {
