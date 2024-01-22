@@ -117,7 +117,7 @@ __debug_bytes(WT_DBG *ds, const void *data_arg, size_t size)
 static int
 __debug_item(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 {
-    WT_RET(ds->f(ds, "\t%s%s{", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
+    WT_RET(ds->f(ds, "\t%s%s{", tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
     WT_RET(__debug_bytes(ds, data_arg, size));
     WT_RET(ds->f(ds, "}\n"));
     return (0);
@@ -134,10 +134,10 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 
     session = ds->session;
 
-    return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+    return (ds->f(ds, "\t%s%s%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": ",
       F_ISSET(ds, WT_DEBUG_UNREDACT) ?
         __wt_key_string(session, data_arg, size, ds->key_format, ds->t1) :
-        "REDACTED"));
+        "{REDACTED}"));
 }
 
 /*
@@ -152,14 +152,14 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
     session = ds->session;
 
     if (size == 0)
-        return (ds->f(ds, "\t%s%s{}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
+        return (ds->f(ds, "\t%s%s{}\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
 
     if (session->dump_raw)
-        return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+        return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": ",
           __wt_buf_set_printable(session, data_arg, size, false, ds->t1)));
 
     if (!F_ISSET(ds, WT_DEBUG_UNREDACT))
-        return (ds->f(ds, "\t%s%s{REDACTED}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
+        return (ds->f(ds, "\t%s%s{REDACTED}\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
 
     /*
      * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
@@ -169,7 +169,7 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
         data_arg = ds->t2->data;
         size = ds->t2->size + 1;
     }
-    return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+    return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": ",
       __wt_buf_set_printable_format(session, data_arg, size, ds->value_format, false, ds->t1)));
 }
 
@@ -479,11 +479,11 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
           "hs-modify: %s\n",
           __wt_time_window_to_string(&cbt->upd_value->tw, time_string)));
         if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
-            WT_RET(ds->f(ds, "\tV "));
+            WT_RET(ds->f(ds, "\tV: "));
             WT_RET(__debug_modify(ds, ds->hs_value->data));
             WT_RET(ds->f(ds, "\n"));
         } else
-            WT_RET(ds->f(ds, "\tV {REDACTED}\n"));
+            WT_RET(ds->f(ds, "\tV: {REDACTED}\n"));
         break;
     case WT_UPDATE_STANDARD:
         WT_RET(ds->f(ds,
@@ -643,7 +643,8 @@ __debug_cell_kv(
         return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
 
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
-        WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+        WT_RET(
+          ds->f(ds, "\t%s: {len: %" PRIu32 "}", __wt_cell_type_string(unpack->raw), unpack->size));
     else
         WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
 
@@ -673,7 +674,7 @@ __debug_cell_kv(
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
         if (!WT_TIME_WINDOW_IS_EMPTY(&unpack->tw))
-            WT_RET(ds->f(ds, ", %s", __wt_time_window_to_string(&unpack->tw, time_string)));
+            WT_RET(ds->f(ds, ", time: %s", __wt_time_window_to_string(&unpack->tw, time_string)));
         break;
     }
 
@@ -688,7 +689,8 @@ __debug_cell_kv(
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
     case WT_CELL_VALUE_OVFL:
-        WT_RET(ds->f(ds, ", %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
+        WT_RET(
+          ds->f(ds, ", addr: %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
         break;
     }
     WT_RET(ds->f(ds, "\n"));
@@ -1166,27 +1168,27 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     WT_SESSION_IMPL *session;
     uint64_t split_gen;
     uint32_t entries;
+    uint16_t flag_num;
 
     page = ref->page;
     session = ds->session;
     mod = page->modify;
     split_gen = 0;
-
-    WT_RET(ds->f(ds, "%p", (void *)ref));
+    flag_num = 0;
 
     switch (page->type) {
     case WT_PAGE_COL_INT:
-        WT_RET(ds->f(ds, " recno %" PRIu64, ref->ref_recno));
+        WT_RET(ds->f(ds, " recno: %" PRIu64, ref->ref_recno));
         WT_INTL_INDEX_GET(session, page, pindex);
         entries = pindex->entries;
         split_gen = page->pg_intl_split_gen;
         break;
     case WT_PAGE_COL_FIX:
-        WT_RET(ds->f(ds, " recno %" PRIu64, ref->ref_recno));
+        WT_RET(ds->f(ds, " recno: %" PRIu64, ref->ref_recno));
         entries = page->entries;
         break;
     case WT_PAGE_COL_VAR:
-        WT_RET(ds->f(ds, " recno %" PRIu64, ref->ref_recno));
+        WT_RET(ds->f(ds, " recno: %" PRIu64, ref->ref_recno));
         entries = page->entries;
         break;
     case WT_PAGE_ROW_INT:
@@ -1201,44 +1203,61 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         return (__wt_illegal_value(session, page->type));
     }
 
-    WT_RET(ds->f(ds, ": %s\n", __wt_page_type_string(page->type)));
+    WT_RET(ds->f(ds, "- %s ", __wt_page_type_string(page->type)));
+    WT_RET(ds->f(ds, "%p:\n", (void *)ref));
     WT_RET(__debug_ref(ds, ref));
 
     WT_RET(ds->f(ds,
       "\t"
-      "disk %p",
+      "disk_img: %p",
       (void *)page->dsk));
     if (page->dsk != NULL)
         WT_RET(ds->f(ds, ", dsk_mem_size %" PRIu32 ", write_gen: %" PRIu64, page->dsk->mem_size,
           page->dsk->write_gen));
-    WT_RET(ds->f(ds, ", entries %" PRIu32, entries));
-    WT_RET(ds->f(ds, ", %s", __wt_page_is_modified(page) ? "dirty" : "clean"));
+    WT_RET(ds->f(ds, ", entries: %" PRIu32, entries));
+    WT_RET(ds->f(ds, ", state: %s", __wt_page_is_modified(page) ? "dirty" : "clean"));
 
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_BUILD_KEYS))
-        WT_RET(ds->f(ds, ", keys-built"));
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
-        WT_RET(ds->f(ds, ", disk-alloc"));
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED))
-        WT_RET(ds->f(ds, ", disk-mapped"));
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU))
-        WT_RET(ds->f(ds, ", evict-lru"));
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_INTL_OVERFLOW_KEYS))
-        WT_RET(ds->f(ds, ", overflow-keys"));
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_SPLIT_INSERT))
-        WT_RET(ds->f(ds, ", split-insert"));
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE))
-        WT_RET(ds->f(ds, ", update-ignore"));
+    WT_RET(ds->f(ds, ", flags: {"));
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_BUILD_KEYS)) {
+        WT_RET(flag_num == 0 ? ds->f(ds, "keys-built") : ds->f(ds, ", keys-built"));
+        flag_num++;
+    }
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC)) {
+        WT_RET(flag_num == 0 ? ds->f(ds, "disk-alloc") : ds->f(ds, ", disk-alloc"));
+        flag_num++;
+    }
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED)) {
+        WT_RET(flag_num == 0 ? ds->f(ds, "disk-mapped") : ds->f(ds, ", disk-mapped"));
+        flag_num++;
+    }
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
+        WT_RET(flag_num == 0 ? ds->f(ds, "evict-lru") : ds->f(ds, ", evict-lru"));
+        flag_num++;
+    }
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_INTL_OVERFLOW_KEYS)) {
+        WT_RET(flag_num == 0 ? ds->f(ds, "overflow-keys") : ds->f(ds, ", overflow-keys"));
+        flag_num++;
+    }
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_SPLIT_INSERT)) {
+        WT_RET(flag_num == 0 ? ds->f(ds, "split-insert") : ds->f(ds, ", split-insert"));
+        flag_num++;
+    }
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE)) {
+        WT_RET(flag_num == 0 ? ds->f(ds, "update-ignore") : ds->f(ds, ", update-ignore"));
+        flag_num++;
+    }
+    WT_RET(ds->f(ds, "}"));
 
     if (mod != NULL)
         switch (mod->rec_result) {
         case WT_PM_REC_EMPTY:
-            WT_RET(ds->f(ds, ", empty"));
+            WT_RET(ds->f(ds, ", rec_state: empty"));
             break;
         case WT_PM_REC_MULTIBLOCK:
-            WT_RET(ds->f(ds, ", multiblock"));
+            WT_RET(ds->f(ds, ", rec_state: multiblock"));
             break;
         case WT_PM_REC_REPLACE:
-            WT_RET(ds->f(ds, ", replaced"));
+            WT_RET(ds->f(ds, ", rec_state: replaced"));
             break;
         case 0:
             break;
@@ -1246,10 +1265,10 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
             return (__wt_illegal_value(session, mod->rec_result));
         }
     if (split_gen != 0)
-        WT_RET(ds->f(ds, ", split-gen=%" PRIu64, split_gen));
+        WT_RET(ds->f(ds, ", split_ gen: %" PRIu64, split_gen));
     if (mod != NULL)
-        WT_RET(ds->f(ds, ", page-state=%" PRIu32, mod->page_state));
-    WT_RET(ds->f(ds, ", memory-size %" WT_SIZET_FMT, page->memory_footprint));
+        WT_RET(ds->f(ds, ", page_state: %" PRIu32, mod->page_state));
+    WT_RET(ds->f(ds, ", memory_size: %" WT_SIZET_FMT, page->memory_footprint));
     return (ds->f(ds, "\n"));
 }
 
@@ -1287,16 +1306,16 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
 
         WT_COL_FIX_FOREACH_BITS (btree, dsk, v, i) {
             if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
-                WT_RET(ds->f(ds, "\t%" PRIu64 "\t{", recno));
+                WT_RET(ds->f(ds, "\t%" PRIu64 ": ", recno));
                 WT_RET(__debug_hex_byte(ds, v));
-                WT_RET(ds->f(ds, "}"));
             } else
-                WT_RET(ds->f(ds, "\t%" PRIu64 "\t{REDACTED}", recno));
+                WT_RET(ds->f(ds, "\t%" PRIu64 ": {REDACTED}", recno));
             if (curtw < numtws && recno - ref->ref_recno == page->pg_fix_tws[curtw].recno_offset) {
                 cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[curtw]);
                 __wt_cell_unpack_kv(ds->session, page->dsk, cell, &unpack);
                 if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
-                    WT_RET(ds->f(ds, ", %s", __wt_time_window_to_string(&unpack.tw, time_string)));
+                    WT_RET(
+                      ds->f(ds, ", time: %s", __wt_time_window_to_string(&unpack.tw, time_string)));
                 curtw++;
             }
             WT_RET(ds->f(ds, "\n"));
@@ -1304,9 +1323,9 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
             /* Check for a match on the update list. */
             if (ins != NULL && WT_INSERT_RECNO(ins) == recno) {
                 if (F_ISSET(ds, WT_DEBUG_UNREDACT))
-                    WT_RET(ds->f(ds, "\tupdate %" PRIu64 "\n", WT_INSERT_RECNO(ins)));
+                    WT_RET(ds->f(ds, "\tupdate: %" PRIu64 "\n", WT_INSERT_RECNO(ins)));
                 else
-                    WT_RET(ds->f(ds, "\tupdate {REDACTED}\n"));
+                    WT_RET(ds->f(ds, "\tupdate: {REDACTED}\n"));
                 WT_RET(__debug_update(ds, ins->upd, true));
                 ins = WT_SKIP_NEXT(ins);
             }
@@ -1338,7 +1357,7 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page)
     session = ds->session;
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_RET(ds->f(ds, "\trecno %" PRIu64 "\n", ref->ref_recno));
+        WT_RET(ds->f(ds, "\trecno: %" PRIu64 "\n", ref->ref_recno));
         WT_RET(__debug_ref(ds, ref));
     }
     WT_INTL_FOREACH_END;
@@ -1497,9 +1516,9 @@ __debug_col_skip(
 
     WT_SKIP_FOREACH (ins, head) {
         if (F_ISSET(ds, WT_DEBUG_UNREDACT))
-            WT_RET(ds->f(ds, "\t%s %" PRIu64 "\n", tag, WT_INSERT_RECNO(ins)));
+            WT_RET(ds->f(ds, "\t%s: %" PRIu64 "\n", tag, WT_INSERT_RECNO(ins)));
         else
-            WT_RET(ds->f(ds, "\t%s {REDACTED}\n", tag));
+            WT_RET(ds->f(ds, "\t%s: {REDACTED}\n", tag));
         WT_RET(__debug_update(ds, ins->upd, hexbyte));
 
         if (!WT_IS_HS(session->dhandle) && hs_cursor != NULL) {
@@ -1551,6 +1570,7 @@ __debug_modify(WT_DBG *ds, const uint8_t *data)
     data += sizeof(size_t) + (nentries * 3 * sizeof(size_t));
 
     WT_RET(ds->f(ds, "%" WT_SIZET_FMT ": ", nentries));
+    WT_RET(ds->f(ds, "%s", nentries > 0 ? "[" : ""));
     for (; nentries-- > 0; data += data_size) {
         memcpy(&data_size, p++, sizeof(size_t));
         memcpy(&offset, p++, sizeof(size_t));
@@ -1558,7 +1578,7 @@ __debug_modify(WT_DBG *ds, const uint8_t *data)
         WT_RET(ds->f(ds, "{%" WT_SIZET_FMT ", %" WT_SIZET_FMT ", %" WT_SIZET_FMT ", ", data_size,
           offset, size));
         WT_RET(__debug_bytes(ds, data, data_size));
-        WT_RET(ds->f(ds, "}%s", nentries == 0 ? "" : ", "));
+        WT_RET(ds->f(ds, "}%s", nentries == 0 ? "]" : ", "));
     }
 
     return (0);
@@ -1577,18 +1597,18 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
     for (; upd != NULL; upd = upd->next) {
         switch (upd->type) {
         case WT_UPDATE_INVALID:
-            WT_RET(ds->f(ds, "\tvalue {invalid}\n"));
+            WT_RET(ds->f(ds, "\tV: INVALID\n"));
             break;
         case WT_UPDATE_MODIFY:
             if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
-                WT_RET(ds->f(ds, "\tvalue {modify: "));
+                WT_RET(ds->f(ds, "\tV: {modify: "));
                 WT_RET(__debug_modify(ds, upd->data));
                 WT_RET(ds->f(ds, "}\n"));
             } else
-                WT_RET(ds->f(ds, "\tvalue {modify REDACTED}\n"));
+                WT_RET(ds->f(ds, "\tV: {modify: REDACTED}\n"));
             break;
         case WT_UPDATE_RESERVE:
-            WT_RET(ds->f(ds, "\tvalue {reserve}\n"));
+            WT_RET(ds->f(ds, "\tV: {reserve}\n"));
             break;
         case WT_UPDATE_STANDARD:
             if (hexbyte && F_ISSET(ds, WT_DEBUG_UNREDACT)) {
@@ -1596,21 +1616,21 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
                 WT_RET(__debug_hex_byte(ds, *upd->data));
                 WT_RET(ds->f(ds, "}\n"));
             } else
-                WT_RET(__debug_item_value(ds, "\tvalue", upd->data, upd->size));
+                WT_RET(__debug_item_value(ds, "\tV", upd->data, upd->size));
             break;
         case WT_UPDATE_TOMBSTONE:
-            WT_RET(ds->f(ds, "\tvalue {tombstone}\n"));
+            WT_RET(ds->f(ds, "\tV: {tombstone}\n"));
             break;
         }
 
         if (upd->txnid == WT_TXN_ABORTED)
             WT_RET(ds->f(ds,
               "\t"
-              "txn id aborted"));
+              "txn_id_aborted"));
         else
             WT_RET(ds->f(ds,
               "\t"
-              "txn id %" PRIu64,
+              "txn_id %" PRIu64,
               upd->txnid));
 
         WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->start_ts, ts_string)));
@@ -1633,9 +1653,9 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
             break;
         }
         if (prepare_state != NULL)
-            WT_RET(ds->f(ds, ", prepare %s", prepare_state));
+            WT_RET(ds->f(ds, ", prepare: %s", prepare_state));
 
-        WT_RET(ds->f(ds, ", flags 0x%" PRIx8 "\n", upd->flags));
+        WT_RET(ds->f(ds, ", flags: 0x%" PRIx8 "\n", upd->flags));
     }
     return (0);
 }
@@ -1678,21 +1698,23 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
     session = ds->session;
 
-    WT_RET(ds->f(ds, "\t%p, ", (void *)ref));
-    WT_RET(ds->f(ds, "%s", __debug_ref_state(ref->state)));
+    WT_RET(ds->f(ds, "\tV: {ref: %p, ", (void *)ref));
+    WT_RET(ds->f(ds, "ref_state: %s", __debug_ref_state(ref->state)));
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        WT_RET(ds->f(ds, ", %s", "internal"));
+        WT_RET(ds->f(ds, ", page_type: %s", "internal"));
     if (F_ISSET(ref, WT_REF_FLAG_LEAF))
-        WT_RET(ds->f(ds, ", %s", "leaf"));
+        WT_RET(ds->f(ds, ", page_type: %s", "leaf"));
     if (F_ISSET(ref, WT_REF_FLAG_READING))
-        WT_RET(ds->f(ds, ", %s", "reading"));
+        WT_RET(ds->f(ds, ", page_type: %s", "reading"));
+    WT_RET(ds->f(ds, "%s", "}"));
 
     if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
-        WT_RET(ds->f(ds, ", %s, %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
+        WT_RET(ds->f(ds, ", time_agg: %s, addr: %s",
+          __wt_time_aggregate_to_string(&addr.ta, time_string),
           __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
     if (ref->page_del != NULL) {
         page_del = ref->page_del;
-        WT_RET(ds->f(ds, ", page_del : %s",
+        WT_RET(ds->f(ds, ", page_del: %s",
           __wt_time_point_to_string(
             page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
     }

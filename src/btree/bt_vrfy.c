@@ -261,9 +261,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
 
             if (WT_VRFY_DUMP(vs))
-                WT_ERR(__wt_msg(session, "Root: %s %s",
-                  __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1),
-                  __wt_page_type_string(btree->root.page->type)));
+                WT_ERR(__wt_msg(session, "- Root: \n\taddr: %s",
+                  __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
             __wt_evict_file_exclusive_off(session);
 
