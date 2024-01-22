@@ -258,7 +258,7 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
             WT_ERR(__compact_page(session, ref, &skipp));
             if (!skipp)
                 overall_progress = true;
-            else if(session->compact_state == WT_COMPACT_EXITING)
+            else if (session->compact_state == WT_COMPACT_EXITING)
                 break;
         }
     }

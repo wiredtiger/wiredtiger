@@ -137,7 +137,12 @@ struct __wt_session_impl {
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 
     WT_COMPACT_STATE *compact; /* Compaction information */
-    enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS, WT_COMPACT_EXITING } compact_state;
+    enum {
+        WT_COMPACT_NONE = 0,
+        WT_COMPACT_RUNNING,
+        WT_COMPACT_SUCCESS,
+        WT_COMPACT_EXITING
+    } compact_state;
 
     WT_IMPORT_LIST *import_list; /* List of metadata entries to import from file. */
 
