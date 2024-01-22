@@ -203,7 +203,8 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
 
 /*
  * __block_compact_estimate_remaining_work --
- *     Estimate how much more work the compaction needs to do for the given file.
+ *     Estimate how much more work the compaction needs to do for the given file. The function
+ * assumes that enough pages have been reviewed for the statistics to be meaningful.
  */
 static void
 __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *block)
