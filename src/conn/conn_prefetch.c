@@ -173,18 +173,17 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
      * evaluate to false and the counter will be reset, effectively marking the ref as available to
      * pre-fetch from.
      */
-
     if (session->pf.prefetch_prev_ref->page == ref->home) {
         if (session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
             ++session->pf.prefetch_skipped_with_parent;
             WT_STAT_CONN_INCR(session, block_prefetch_skipped_same_ref);
             WT_STAT_CONN_INCR(session, block_prefetch_skipped);
             return (0);
-        } else {
-            session->pf.prefetch_skipped_with_parent = 0;
+        } else
             WT_STAT_CONN_INCR(session, block_prefetch_attempts);
-        }
     }
+
+    session->pf.prefetch_skipped_with_parent = 0;
 
     WT_RET(__wt_calloc_one(session, &pe));
     pe->ref = ref;
