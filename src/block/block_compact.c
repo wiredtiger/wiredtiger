@@ -212,7 +212,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     WT_EXT *ext;
     wt_off_t avg_block_size, avg_internal_block_size, depth1_subtree_size, leaves_per_internal_page;
     wt_off_t compact_start_off, extra_space, file_size, last, off, rewrite_size, size, write_off;
-    uint64_t n, pages_to_move, total_pages_to_move;
+    uint64_t n, pages_to_move, pages_to_move_orig, total_pages_to_move;
     int compact_pct_tenths, iteration;
     bool skip;
 
@@ -339,6 +339,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             break;
 
         /* Estimate where in the file we would be when we finish moving those pages. */
+        pages_to_move_orig = pages_to_move;
         WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, write_off)
         {
             off = ext->off;
@@ -366,7 +367,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         __wt_verbose_debug2(session, WT_VERB_COMPACT,
           "%s: estimating -- pass %d: will rewrite %" PRIu64 " pages, next write offset: %" PRId64
           ", extra space: %" PRId64,
-          block->name, iteration, total_pages_to_move, write_off, extra_space);
+          block->name, iteration, pages_to_move_orig - pages_to_move, write_off, extra_space);
 
         /* See if we ran out of pages to move. */
         if (pages_to_move > 0)
