@@ -801,13 +801,13 @@ __wt_debug_disk(
     }
 
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
-        WT_ERR(ds->f(ds, "compressed, "));
+        WT_ERR(ds->f(ds, "page_state: compressed, "));
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED))
-        WT_ERR(ds->f(ds, "encrypted, "));
+        WT_ERR(ds->f(ds, "page_state: encrypted, "));
     if (F_ISSET(dsk, WT_PAGE_EMPTY_V_ALL))
-        WT_ERR(ds->f(ds, "empty-all, "));
+        WT_ERR(ds->f(ds, "page_state: empty-all, "));
     if (F_ISSET(dsk, WT_PAGE_EMPTY_V_NONE))
-        WT_ERR(ds->f(ds, "empty-none, "));
+        WT_ERR(ds->f(ds, "page_state: empty-none, "));
 
     WT_ERR(ds->f(ds, "generation: %" PRIu64 "\n", dsk->write_gen));
 
