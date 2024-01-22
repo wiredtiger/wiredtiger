@@ -643,8 +643,8 @@ __debug_cell_kv(
         return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
 
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
-        WT_RET(
-          ds->f(ds, "\traw_type: %s, len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+        WT_RET(ds->f(
+          ds, "\traw_type: %s, len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
     else
         WT_RET(ds->f(ds, "\tREDACTED"));
 

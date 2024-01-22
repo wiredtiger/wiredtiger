@@ -460,6 +460,7 @@ addr
 addrs
 addtw
 agc
+agg
 ajn
 alloc
 allocator
@@ -1172,6 +1173,7 @@ rw
 rwlock
 sH
 sHQ
+sREDACTED
 sXXXXXX
 sanitizer
 sanitizers
@@ -1258,8 +1260,10 @@ sysinfo
 sz
 t's
 tIf
+tREDACTED
 tV
 tablename
+taddr
 td
 teardown
 tempdir
@@ -1282,6 +1286,7 @@ toolchain
 totalsec
 transactional
 transactionally
+traw
 trecno
 trk
 trk's
