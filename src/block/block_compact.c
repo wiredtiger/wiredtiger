@@ -215,13 +215,6 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     int compact_pct_tenths, iteration;
     bool skip;
 
-    /*
-     * We must have reviewed at least some interesting number of pages for any estimates below to be
-     * worthwhile.
-     */
-    if (block->compact_pages_reviewed < WT_THOUSAND)
-        return;
-
     /* Assume that we have already checked whether this file can be skipped. */
     WT_ASSERT(session, block->compact_pct_tenths > 0);
 
@@ -538,8 +531,11 @@ __compact_page_skip(
     else
         ++block->compact_pages_rewritten;
 
-    /* Estimate how much work is left. */
-    if (block->compact_pages_rewritten_expected == 0)
+    /*
+     * We must have reviewed at least some interesting number of pages for any estimates below to be
+     * worthwhile.
+     */
+    if (block->compact_pages_reviewed >= WT_THOUSAND && block->compact_pages_rewritten_expected == 0)
         __block_compact_estimate_remaining_work(session, block);
 }
 
