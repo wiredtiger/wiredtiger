@@ -626,7 +626,7 @@ __debug_cell_kv(
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
         WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
     else
-        WT_RET(ds->f(ds, "\t%s: REDACTED", __wt_cell_type_string(unpack->raw)));
+        WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
 
     /* Dump per-disk page type information. */
     switch (page_type) {
@@ -780,7 +780,7 @@ __wt_debug_disk(
     flags = dump_app_data ? WT_DEBUG_UNREDACT : 0;
     WT_RET(__debug_config(session, ds, ofile, flags));
 
-    WT_ERR(ds->f(ds, "- %s page\n\t", __wt_page_type_string(dsk->type)));
+    WT_ERR(ds->f(ds, "- %s page\n\t< ", __wt_page_type_string(dsk->type)));
     switch (dsk->type) {
     case WT_PAGE_BLOCK_MANAGER:
         break;
@@ -809,7 +809,7 @@ __wt_debug_disk(
     if (F_ISSET(dsk, WT_PAGE_EMPTY_V_NONE))
         WT_ERR(ds->f(ds, "page_state: empty-none, "));
 
-    WT_ERR(ds->f(ds, "generation: %" PRIu64 "\n", dsk->write_gen));
+    WT_ERR(ds->f(ds, "generation: %" PRIu64 " >\n", dsk->write_gen));
 
     switch (dsk->type) {
     case WT_PAGE_BLOCK_MANAGER:

@@ -249,7 +249,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         if (WT_VRFY_DUMP(vs)) {
             WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
-            WT_ERR(__wt_msg(session, "%s: checkpoint %s", name, ckpt->name));
+            WT_ERR(__wt_msg(session, "%s, ckpt_name: %s", name, ckpt->name));
         }
 
         /* Load the checkpoint. */
