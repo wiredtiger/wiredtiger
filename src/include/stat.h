@@ -780,17 +780,9 @@ struct __wt_connection_stats {
     int64_t lock_dhandle_wait_internal;
     int64_t lock_dhandle_read_count;
     int64_t lock_dhandle_write_count;
-    int64_t lock_durable_timestamp_wait_application;
-    int64_t lock_durable_timestamp_wait_internal;
-    int64_t lock_durable_timestamp_read_count;
-    int64_t lock_durable_timestamp_write_count;
     int64_t lock_metadata_count;
     int64_t lock_metadata_wait_application;
     int64_t lock_metadata_wait_internal;
-    int64_t lock_read_timestamp_wait_application;
-    int64_t lock_read_timestamp_wait_internal;
-    int64_t lock_read_timestamp_read_count;
-    int64_t lock_read_timestamp_write_count;
     int64_t lock_schema_count;
     int64_t lock_schema_wait_application;
     int64_t lock_schema_wait_internal;
@@ -930,6 +922,7 @@ struct __wt_connection_stats {
     int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
+    int64_t session_table_compact_passes;
     int64_t session_table_compact_running;
     int64_t session_table_compact_skipped;
     int64_t session_table_compact_success;
@@ -1008,6 +1001,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
+    int64_t txn_set_ts_force;
+    int64_t txn_set_ts_out_of_order;
     int64_t txn_set_ts_oldest;
     int64_t txn_set_ts_oldest_upd;
     int64_t txn_set_ts_stable;

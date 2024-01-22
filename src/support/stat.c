@@ -1759,17 +1759,9 @@ static const char *const __stats_connection_desc[] = {
   "lock: dhandle lock internal thread time waiting (usecs)",
   "lock: dhandle read lock acquisitions",
   "lock: dhandle write lock acquisitions",
-  "lock: durable timestamp queue lock application thread time waiting (usecs)",
-  "lock: durable timestamp queue lock internal thread time waiting (usecs)",
-  "lock: durable timestamp queue read lock acquisitions",
-  "lock: durable timestamp queue write lock acquisitions",
   "lock: metadata lock acquisitions",
   "lock: metadata lock application thread wait time (usecs)",
   "lock: metadata lock internal thread wait time (usecs)",
-  "lock: read timestamp queue lock application thread time waiting (usecs)",
-  "lock: read timestamp queue lock internal thread time waiting (usecs)",
-  "lock: read timestamp queue read lock acquisitions",
-  "lock: read timestamp queue write lock acquisitions",
   "lock: schema lock acquisitions",
   "lock: schema lock application thread wait time (usecs)",
   "lock: schema lock internal thread wait time (usecs)",
@@ -1911,6 +1903,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table compact dhandle successful calls",
   "session: table compact failed calls",
   "session: table compact failed calls due to cache pressure",
+  "session: table compact passes",
   "session: table compact running",
   "session: table compact skipped as process would not reduce file size",
   "session: table compact successful calls",
@@ -1994,6 +1987,9 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp calls",
   "transaction: set timestamp durable calls",
   "transaction: set timestamp durable updates",
+  "transaction: set timestamp force calls",
+  "transaction: set timestamp global oldest timestamp set to be more recent than the global stable "
+  "timestamp",
   "transaction: set timestamp oldest calls",
   "transaction: set timestamp oldest updates",
   "transaction: set timestamp stable calls",
@@ -2471,17 +2467,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->lock_dhandle_wait_internal = 0;
     stats->lock_dhandle_read_count = 0;
     stats->lock_dhandle_write_count = 0;
-    stats->lock_durable_timestamp_wait_application = 0;
-    stats->lock_durable_timestamp_wait_internal = 0;
-    stats->lock_durable_timestamp_read_count = 0;
-    stats->lock_durable_timestamp_write_count = 0;
     stats->lock_metadata_count = 0;
     stats->lock_metadata_wait_application = 0;
     stats->lock_metadata_wait_internal = 0;
-    stats->lock_read_timestamp_wait_application = 0;
-    stats->lock_read_timestamp_wait_internal = 0;
-    stats->lock_read_timestamp_read_count = 0;
-    stats->lock_read_timestamp_write_count = 0;
     stats->lock_schema_count = 0;
     stats->lock_schema_wait_application = 0;
     stats->lock_schema_wait_internal = 0;
@@ -2621,6 +2609,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->session_table_compact_dhandle_success = 0;
     /* not clearing session_table_compact_fail */
     /* not clearing session_table_compact_fail_cache_pressure */
+    stats->session_table_compact_passes = 0;
     /* not clearing session_table_compact_running */
     /* not clearing session_table_compact_skipped */
     /* not clearing session_table_compact_success */
@@ -2699,6 +2688,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts = 0;
     stats->txn_set_ts_durable = 0;
     stats->txn_set_ts_durable_upd = 0;
+    stats->txn_set_ts_force = 0;
+    stats->txn_set_ts_out_of_order = 0;
     stats->txn_set_ts_oldest = 0;
     stats->txn_set_ts_oldest_upd = 0;
     stats->txn_set_ts_stable = 0;
@@ -3212,21 +3203,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->lock_dhandle_wait_internal += WT_STAT_READ(from, lock_dhandle_wait_internal);
     to->lock_dhandle_read_count += WT_STAT_READ(from, lock_dhandle_read_count);
     to->lock_dhandle_write_count += WT_STAT_READ(from, lock_dhandle_write_count);
-    to->lock_durable_timestamp_wait_application +=
-      WT_STAT_READ(from, lock_durable_timestamp_wait_application);
-    to->lock_durable_timestamp_wait_internal +=
-      WT_STAT_READ(from, lock_durable_timestamp_wait_internal);
-    to->lock_durable_timestamp_read_count += WT_STAT_READ(from, lock_durable_timestamp_read_count);
-    to->lock_durable_timestamp_write_count +=
-      WT_STAT_READ(from, lock_durable_timestamp_write_count);
     to->lock_metadata_count += WT_STAT_READ(from, lock_metadata_count);
     to->lock_metadata_wait_application += WT_STAT_READ(from, lock_metadata_wait_application);
     to->lock_metadata_wait_internal += WT_STAT_READ(from, lock_metadata_wait_internal);
-    to->lock_read_timestamp_wait_application +=
-      WT_STAT_READ(from, lock_read_timestamp_wait_application);
-    to->lock_read_timestamp_wait_internal += WT_STAT_READ(from, lock_read_timestamp_wait_internal);
-    to->lock_read_timestamp_read_count += WT_STAT_READ(from, lock_read_timestamp_read_count);
-    to->lock_read_timestamp_write_count += WT_STAT_READ(from, lock_read_timestamp_write_count);
     to->lock_schema_count += WT_STAT_READ(from, lock_schema_count);
     to->lock_schema_wait_application += WT_STAT_READ(from, lock_schema_wait_application);
     to->lock_schema_wait_internal += WT_STAT_READ(from, lock_schema_wait_internal);
@@ -3379,6 +3358,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_compact_fail += WT_STAT_READ(from, session_table_compact_fail);
     to->session_table_compact_fail_cache_pressure +=
       WT_STAT_READ(from, session_table_compact_fail_cache_pressure);
+    to->session_table_compact_passes += WT_STAT_READ(from, session_table_compact_passes);
     to->session_table_compact_running += WT_STAT_READ(from, session_table_compact_running);
     to->session_table_compact_skipped += WT_STAT_READ(from, session_table_compact_skipped);
     to->session_table_compact_success += WT_STAT_READ(from, session_table_compact_success);
@@ -3461,6 +3441,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
     to->txn_set_ts_durable += WT_STAT_READ(from, txn_set_ts_durable);
     to->txn_set_ts_durable_upd += WT_STAT_READ(from, txn_set_ts_durable_upd);
+    to->txn_set_ts_force += WT_STAT_READ(from, txn_set_ts_force);
+    to->txn_set_ts_out_of_order += WT_STAT_READ(from, txn_set_ts_out_of_order);
     to->txn_set_ts_oldest += WT_STAT_READ(from, txn_set_ts_oldest);
     to->txn_set_ts_oldest_upd += WT_STAT_READ(from, txn_set_ts_oldest_upd);
     to->txn_set_ts_stable += WT_STAT_READ(from, txn_set_ts_stable);

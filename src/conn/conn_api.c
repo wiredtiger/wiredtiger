@@ -1363,16 +1363,6 @@ err:
 }
 
 /*
- * __conn_get_configuration --
- *     WT_CONNECTION.get_configuration method.
- */
-static const char *
-__conn_get_configuration(WT_CONNECTION *wt_conn)
-{
-    return (((WT_CONNECTION_IMPL *)wt_conn)->cfg);
-}
-
-/*
  * __conn_open_session --
  *     WT_CONNECTION->open_session method.
  */
@@ -2790,11 +2780,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
   WT_CONNECTION **connectionp)
 {
     static const WT_CONNECTION stdc = {__conn_close, __conn_debug_info, __conn_reconfigure,
-      __conn_get_configuration, __conn_get_home, __conn_compile_configuration,
-      __conn_configure_method, __conn_is_new, __conn_open_session, __conn_query_timestamp,
-      __conn_set_timestamp, __conn_rollback_to_stable, __conn_load_extension,
-      __conn_add_data_source, __conn_add_collator, __conn_add_compressor, __conn_add_encryptor,
-      __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
+      __conn_get_home, __conn_compile_configuration, __conn_configure_method, __conn_is_new,
+      __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
+      __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
+      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
       __conn_get_storage_source, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
       {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};
