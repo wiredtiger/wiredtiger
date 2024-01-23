@@ -547,7 +547,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
 
     session = ds->session;
 
-    WT_RET(ds->f(ds, "\t%s: [len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+    WT_RET(ds->f(ds, "\t%s: len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
 
     /* Dump the cell's per-disk page type information. */
     switch (dsk->type) {
@@ -580,7 +580,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
         WT_RET(ret);
         break;
     }
-    WT_RET(ds->f(ds, "]\n"));
+    WT_RET(ds->f(ds, "\n"));
 
     return (0);
 }
@@ -775,12 +775,14 @@ __wt_debug_disk(
     WT_DBG *ds, _ds;
     WT_DECL_RET;
     uint32_t flags;
+    bool is_first_flag;
 
     ds = &_ds;
     flags = dump_app_data ? WT_DEBUG_UNREDACT : 0;
+    is_first_flag = true;
     WT_RET(__debug_config(session, ds, ofile, flags));
 
-    WT_ERR(ds->f(ds, "- %s page\n\t< ", __wt_page_type_string(dsk->type)));
+    WT_ERR(ds->f(ds, "- %s page\n\t> ", __wt_page_type_string(dsk->type)));
     switch (dsk->type) {
     case WT_PAGE_BLOCK_MANAGER:
         break;
@@ -800,16 +802,36 @@ __wt_debug_disk(
         WT_ERR(__wt_illegal_value(session, dsk->type));
     }
 
-    if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
-        WT_ERR(ds->f(ds, "page_state: compressed, "));
-    if (F_ISSET(dsk, WT_PAGE_ENCRYPTED))
-        WT_ERR(ds->f(ds, "page_state: encrypted, "));
-    if (F_ISSET(dsk, WT_PAGE_EMPTY_V_ALL))
-        WT_ERR(ds->f(ds, "page_state: empty-all, "));
-    if (F_ISSET(dsk, WT_PAGE_EMPTY_V_NONE))
-        WT_ERR(ds->f(ds, "page_state: empty-none, "));
+    if (dsk->flags != 0) {
+        WT_ERR(ds->f(ds, "page_state: ["));
 
-    WT_ERR(ds->f(ds, "generation: %" PRIu64 " >\n", dsk->write_gen));
+        if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
+            WT_ERR(ds->f(ds, "compressed"));
+            is_first_flag = false;
+        }
+        if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
+            WT_ERR(ds->f(ds, "%sencrypted", is_first_flag ? "" : ", "));
+            is_first_flag = false;
+        }
+        if (F_ISSET(dsk, WT_PAGE_EMPTY_V_ALL)) {
+            WT_ERR(ds->f(ds, "%sempty_all", is_first_flag ? "" : ", "));
+            is_first_flag = false;
+        }
+        if (F_ISSET(dsk, WT_PAGE_EMPTY_V_NONE)) {
+            WT_ERR(ds->f(ds, "%sempty_none", is_first_flag ? "" : ", "));
+            is_first_flag = false;
+        }
+        if (F_ISSET(dsk, WT_PAGE_UNUSED)) {
+            WT_ERR(ds->f(ds, "%sunused", is_first_flag ? "" : ", "));
+            is_first_flag = false;
+        }
+        if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
+            WT_ERR(ds->f(ds, "%sfast_trunc_update", is_first_flag ? "" : ", "));
+        }
+        WT_ERR(ds->f(ds, "], "));
+    }
+
+    WT_ERR(ds->f(ds, "generation: %" PRIu64 "\n", dsk->write_gen));
 
     switch (dsk->type) {
     case WT_PAGE_BLOCK_MANAGER:
