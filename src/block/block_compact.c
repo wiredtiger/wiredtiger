@@ -26,6 +26,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* Reset the compaction state information. */
     block->compact_session_id = session->id;
+    block->compact_estimated = false;
     block->compact_pct_tenths = 0;
     block->compact_bytes_reviewed = 0;
     block->compact_bytes_rewritten = 0;
@@ -218,6 +219,8 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     /* Assume that we have already checked whether this file can be skipped. */
     WT_ASSERT(session, block->compact_pct_tenths > 0);
+    /* We should estimate the work only once. */
+    WT_ASSERT(session, !block->compact_estimated);
 
     /*
      * Get the average block size that we encountered so far during compaction. Note that we are not
@@ -386,6 +389,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     __wt_spin_unlock(session, &block->live_lock);
 
+    block->compact_estimated = true;
     block->compact_pages_rewritten_expected = block->compact_pages_rewritten + total_pages_to_move;
     __wt_verbose_debug1(session, WT_VERB_COMPACT,
       "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
