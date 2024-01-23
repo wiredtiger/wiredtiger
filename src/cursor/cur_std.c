@@ -34,7 +34,7 @@ __wt_cur2bt(WT_CURSOR *cursor)
 
     cursor_btree = (WT_CURSOR_BTREE *)cursor;
 
-    return __wt_curbt2bt(cursor_btree);
+    return (__wt_curbt2bt(cursor_btree));
 }
 #endif
 
