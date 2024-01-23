@@ -376,14 +376,15 @@ __wt_debug_addr_print(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
  *     Read and dump a disk page in debugging mode, using an addr/size pair.
  */
 int
-__wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, const char *ofile)
+__wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, const char *ofile,
+  bool dump_app_data)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_blkcache_read(session, buf, addr, addr_size));
-    ret = __wt_debug_disk(session, buf->mem, ofile, false);
+    ret = __wt_debug_disk(session, buf->mem, ofile, dump_app_data);
 
 err:
     __wt_scr_free(session, &buf);
@@ -395,7 +396,8 @@ err:
  *     Read and dump a disk page in debugging mode, using a file offset.
  */
 int
-__wt_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *ofile)
+__wt_debug_offset_blind(
+  WT_SESSION_IMPL *session, wt_off_t offset, const char *ofile, bool dump_app_data)
 {
     uint32_t checksum, size;
 
@@ -406,7 +408,7 @@ __wt_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *o
      * of a file offset, length, and checksum. This is for debugging only.
      */
     WT_RET(__wt_block_read_off_blind(session, S2BT(session)->bm->block, offset, &size, &checksum));
-    return (__wt_debug_offset(session, offset, size, checksum, ofile));
+    return (__wt_debug_offset(session, offset, size, checksum, ofile, dump_app_data));
 }
 
 /*
@@ -414,8 +416,8 @@ __wt_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *o
  *     Read and dump a disk page in debugging mode, using a file offset/size/checksum triplet.
  */
 int
-__wt_debug_offset(
-  WT_SESSION_IMPL *session, wt_off_t offset, uint32_t size, uint32_t checksum, const char *ofile)
+__wt_debug_offset(WT_SESSION_IMPL *session, wt_off_t offset, uint32_t size, uint32_t checksum,
+  const char *ofile, bool dump_app_data)
 {
     WT_BLOCK *block;
     WT_DECL_ITEM(buf);
@@ -442,7 +444,7 @@ __wt_debug_offset(
      */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_blkcache_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
-    ret = __wt_debug_disk(session, buf->mem, ofile, false);
+    ret = __wt_debug_disk(session, buf->mem, ofile, dump_app_data);
 
 err:
     __wt_scr_free(session, &buf);

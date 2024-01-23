@@ -7,6 +7,7 @@
  */
 
 #include "util.h"
+#include "wt_internal.h"
 
 /*
  * usage --
@@ -63,6 +64,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     char *config, *dump_offsets, *key, *uri;
     bool abort_on_error, do_not_clear_txn_id, dump_address, dump_app_data, dump_blocks, dump_layout,
       dump_pages, read_corrupt, stable_timestamp, strict;
+#if !defined(HAVE_DIAGNOSTIC)
+    WT_SESSION_IMPL *session_impl;
+#endif
 
     abort_on_error = do_not_clear_txn_id = dump_address = dump_app_data = dump_blocks =
       dump_layout = dump_pages = read_corrupt = stable_timestamp = strict = false;
@@ -115,6 +119,14 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 
     argc -= __wt_optind;
     argv += __wt_optind;
+
+#if !defined(HAVE_DIAGNOSTIC)
+    if (dump_blocks || dump_pages) {
+        session_impl = (WT_SESSION_IMPL *)session;
+        WT_RET_MSG(
+          session_impl, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
+    }
+#endif
 
     if (do_not_clear_txn_id || dump_address || dump_app_data || dump_blocks || dump_layout ||
       dump_offsets != NULL || dump_pages || read_corrupt || stable_timestamp || strict) {
