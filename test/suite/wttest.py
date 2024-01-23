@@ -510,7 +510,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
-        passed = "None" if self.skipped else not (self.failed() or teardown_failed)
+        passed = not (self.failed() or teardown_failed)
 
         try:
             self.platform_api.tearDown()
@@ -552,7 +552,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             # always get back to original directory
             os.chdir(self.origcwd)
 
-        self.pr('passed=' + str(passed))
+        if not self.skipped:
+            self.pr('passed=' + str(passed))
         self.pr('skipped=' + str(self.skipped))
 
         # Clean up unless there's a failure
