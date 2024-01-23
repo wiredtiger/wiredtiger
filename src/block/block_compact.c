@@ -537,8 +537,8 @@ __compact_page_skip(
      * We must have reviewed at least some interesting number of pages for any estimates below to be
      * worthwhile.
      */
-    if (block->compact_pages_rewritten_expected != 0 &&
-      block->compact_pages_reviewed >= WT_THOUSAND) {
+    if (block->compact_pages_reviewed >= WT_THOUSAND &&
+      block->compact_pages_rewritten_expected == 0) {
         __block_compact_estimate_remaining_work(session, block);
         /* If no potential work has been found, exit compaction. */
         if (block->compact_pages_rewritten_expected == 0)
