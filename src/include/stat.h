@@ -460,6 +460,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
+    int64_t cache_eviction_blocked_no_progress;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
@@ -544,6 +545,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_maximum_page_size;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
+    int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     int64_t cache_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -778,17 +780,9 @@ struct __wt_connection_stats {
     int64_t lock_dhandle_wait_internal;
     int64_t lock_dhandle_read_count;
     int64_t lock_dhandle_write_count;
-    int64_t lock_durable_timestamp_wait_application;
-    int64_t lock_durable_timestamp_wait_internal;
-    int64_t lock_durable_timestamp_read_count;
-    int64_t lock_durable_timestamp_write_count;
     int64_t lock_metadata_count;
     int64_t lock_metadata_wait_application;
     int64_t lock_metadata_wait_internal;
-    int64_t lock_read_timestamp_wait_application;
-    int64_t lock_read_timestamp_wait_internal;
-    int64_t lock_read_timestamp_read_count;
-    int64_t lock_read_timestamp_write_count;
     int64_t lock_schema_count;
     int64_t lock_schema_wait_application;
     int64_t lock_schema_wait_internal;
@@ -928,6 +922,7 @@ struct __wt_connection_stats {
     int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
+    int64_t session_table_compact_passes;
     int64_t session_table_compact_running;
     int64_t session_table_compact_skipped;
     int64_t session_table_compact_success;
@@ -953,6 +948,7 @@ struct __wt_connection_stats {
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
+    int64_t application_evict_snapshot_refreshed;
     int64_t application_evict_time;
     int64_t application_cache_time;
     int64_t txn_release_blocked;
@@ -1005,6 +1001,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
+    int64_t txn_set_ts_force;
+    int64_t txn_set_ts_out_of_order;
     int64_t txn_set_ts_oldest;
     int64_t txn_set_ts_oldest_upd;
     int64_t txn_set_ts_stable;
@@ -1090,6 +1088,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
+    int64_t cache_eviction_blocked_no_progress;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
@@ -1130,6 +1129,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_dirty;
+    int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
