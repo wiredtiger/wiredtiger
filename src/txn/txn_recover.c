@@ -777,11 +777,13 @@ __recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *igno
 {
     WT_CURSOR *c;
     WT_DECL_RET;
+    uint64_t file_count;
     int cmp;
     const char *uri, *config;
 
     /* Scan through all entries in the metadata matching the prefix. */
     c = r->files[0].c;
+    file_count = 0;
     c->set_key(c, prefix);
     if ((ret = c->search_near(c, &cmp)) != 0) {
         /* Is the metadata empty? */
@@ -799,10 +801,17 @@ __recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *igno
             break;
         if (ignore_suffix != NULL && WT_SUFFIX_MATCH(uri, ignore_suffix))
             continue;
+        /*
+         * NOTE: currently the only prefixes passed in by callers always use btree prefixes, this
+         * protects against any future changes. So the if statement here is not strictly needed.
+         */
+        if (WT_BTREE_PREFIX(uri))
+            ++file_count;
         WT_RET(c->get_value(c, &config));
         WT_RET(__recovery_setup_file(r, uri, config));
     }
     WT_RET_NOTFOUND_OK(ret);
+    S2C(r->session)->recovery_files += file_count;
     return (0);
 }
 

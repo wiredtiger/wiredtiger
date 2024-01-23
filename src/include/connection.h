@@ -359,6 +359,7 @@ struct __wt_connection_impl {
     int is_new;               /* Connection created database */
 
     WT_VERSION recovery_version; /* Version of the database being recovered */
+    uint64_t recovery_files;     /* Number of file URIs found in metadata during recovery. */
 
 #ifndef WT_STANDALONE_BUILD
     bool unclean_shutdown; /* Flag to indicate the earlier shutdown status */

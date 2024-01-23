@@ -88,7 +88,6 @@ __wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64
 
     /* Time since the rollback started. */
     __wt_timer_evaluate_ms(session, rollback_start, &time_diff_ms);
-
     if ((time_diff_ms / (1000 * WT_PROGRESS_MSG_PERIOD)) > *rollback_msg_count) {
         if (walk)
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
@@ -98,9 +97,9 @@ __wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64
         else
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
               "Rollback to stable has been running for %" PRIu64
-              " milliseconds and has inspected %" PRIu64
-              " files. For more detailed logging, enable WT_VERB_RTS",
-              time_diff_ms, rollback_count);
+              " milliseconds and has inspected %" PRIu64 " files of %" PRIu64
+              ". For more detailed logging, enable WT_VERB_RTS",
+              time_diff_ms, rollback_count, S2C(session)->recovery_files);
         *rollback_msg_count = time_diff_ms / (1000 * WT_PROGRESS_MSG_PERIOD);
     }
 }
@@ -126,12 +125,12 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
-        /* Log a progress message. */
-        __wt_rts_progress_msg(session, &timer, rollback_count, &rollback_msg_count, false);
-        ++rollback_count;
-
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
+        /* Log a progress message. */
+        if (WT_BTREE_PREFIX(uri))
+            ++rollback_count;
+        __wt_rts_progress_msg(session, &timer, rollback_count, &rollback_msg_count, false);
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
