@@ -67,6 +67,7 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_INCR(session, block_prefetch_attempts);
         return (true);
     }
+    WT_STAT_CONN_INCR(session, block_prefetch_attempts);
 
     return (true);
 }
