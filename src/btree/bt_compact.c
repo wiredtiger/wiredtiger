@@ -264,6 +264,10 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     }
     WT_INTL_FOREACH_END;
 
+    /* If compaction should quit, we're done. */
+    if (session->compact_state == WT_COMPACT_EXITING)
+        goto err;
+
     /*
      * If we moved a leaf page, we'll write the parent. If we didn't move a leaf page, check pages
      * other than the root to see if we want to move the internal page itself. (Skip the root as a
@@ -407,6 +411,10 @@ __wt_compact(WT_SESSION_IMPL *session)
         }
 
         WT_ERR(ret);
+
+        /* Check whether compaction should quit. */
+        if (session->compact_state == WT_COMPACT_EXITING)
+            break;
     }
 
 err:
