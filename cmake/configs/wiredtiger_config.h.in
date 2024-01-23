@@ -47,6 +47,8 @@
 /* Define to 1 for unit tests. */
 #cmakedefine HAVE_UNITTEST 0
 
+#cmakedefine CODE_COVERAGE_MEASUREMENT 0
+
 /* 
  * Define to 1 for unit testing assertions. 
  * This overrides normal abort logic and should be used *only* when unit testing assertions.

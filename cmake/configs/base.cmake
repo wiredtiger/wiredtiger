@@ -140,6 +140,12 @@ config_bool(
 )
 
 config_bool(
+        CODE_COVERAGE_MEASUREMENT
+        "Enable alternative code that is specifically used when measuring code coverage"
+        DEFAULT ON
+)
+
+config_bool(
     HAVE_ATTACH
     "Enable to pause for debugger attach on failure"
     DEFAULT OFF

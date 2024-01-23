@@ -196,7 +196,7 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    hs_btree = CUR2BT(hs_cbt);
+    hs_btree = CURBT2BT(hs_cbt);
     session = CUR2S(hs_cbt);
 
 #ifdef HAVE_DIAGNOSTIC

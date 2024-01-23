@@ -124,7 +124,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)a;
-    CURSOR_API_CALL(a, session, compare, CUR2BT(cbt));
+    CURSOR_API_CALL(a, session, compare, CURBT2BT(cbt));
 
     /*
      * Check both cursors are a btree type then call the underlying function, it can handle cursors
@@ -154,7 +154,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)a;
-    CURSOR_API_CALL(a, session, equals, CUR2BT(cbt));
+    CURSOR_API_CALL(a, session, equals, CURBT2BT(cbt));
 
     /*
      * Check both cursors are a btree type then call the underlying function, it can handle cursors
@@ -184,7 +184,7 @@ __curfile_next(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, next, CURBT2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -218,7 +218,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, next, CURBT2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
@@ -247,7 +247,7 @@ __curfile_prev(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, prev, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, prev, CURBT2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -280,7 +280,7 @@ __curfile_reset(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CUR2BT(cbt));
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CURBT2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
     ret = __wt_btcur_reset(cbt);
@@ -315,7 +315,7 @@ __curfile_search(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, search, CURBT2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -353,7 +353,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, search_near, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, search_near, CURBT2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -538,7 +538,7 @@ __curfile_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
+    CURSOR_REMOVE_API_CALL(cursor, session, CURBT2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -622,7 +622,7 @@ __curfile_close(WT_CURSOR *cursor)
     bool dead, released;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, CUR2BT(cbt));
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, CURBT2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 err:
 

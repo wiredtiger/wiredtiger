@@ -41,7 +41,7 @@ __curbulk_insert_fix(WT_CURSOR *cursor)
     uint64_t recno;
 
     cbulk = (WT_CURSOR_BULK *)cursor;
-    btree = CUR2BT(&cbulk->cbt);
+    btree = CURBT2BT(&cbulk->cbt);
 
     /*
      * Bulk cursor inserts are updates, but don't need auto-commit transactions because they are
@@ -90,7 +90,7 @@ __curbulk_insert_fix_bitmap(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbulk = (WT_CURSOR_BULK *)cursor;
-    btree = CUR2BT(&cbulk->cbt);
+    btree = CURBT2BT(&cbulk->cbt);
 
     /*
      * Bulk cursor inserts are updates, but don't need auto-commit transactions because they are
@@ -122,7 +122,7 @@ __curbulk_insert_var(WT_CURSOR *cursor)
     uint64_t recno;
 
     cbulk = (WT_CURSOR_BULK *)cursor;
-    btree = CUR2BT(&cbulk->cbt);
+    btree = CURBT2BT(&cbulk->cbt);
 
     /*
      * Bulk cursor inserts are updates, but don't need auto-commit transactions because they are
@@ -227,7 +227,7 @@ __curbulk_insert_row(WT_CURSOR *cursor)
     int cmp;
 
     cbulk = (WT_CURSOR_BULK *)cursor;
-    btree = CUR2BT(&cbulk->cbt);
+    btree = CURBT2BT(&cbulk->cbt);
 
     /*
      * Bulk cursor inserts are updates, but don't need auto-commit transactions because they are
@@ -272,7 +272,7 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbulk = (WT_CURSOR_BULK *)cursor;
-    btree = CUR2BT(&cbulk->cbt);
+    btree = CURBT2BT(&cbulk->cbt);
 
     /*
      * Bulk cursor inserts are updates, but don't need auto-commit transactions because they are
@@ -306,7 +306,7 @@ __wt_curbulk_init(
 
     /* Bulk cursors only support insert and close (reset is a no-op). */
     __wt_cursor_set_notsup(cursor);
-    switch (CUR2BT(cbt)->type) {
+    switch (CURBT2BT(cbt)->type) {
     case BTREE_COL_FIX:
         cursor->insert = bitmap ? __curbulk_insert_fix_bitmap : __curbulk_insert_fix;
         break;

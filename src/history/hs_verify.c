@@ -61,7 +61,7 @@ __hs_verify_id(
             continue;
 
         /* Check the key can be found in the data store.*/
-        if (CUR2BT(ds_cbt)->type == BTREE_ROW) {
+        if (CURBT2BT(ds_cbt)->type == BTREE_ROW) {
             WT_WITH_PAGE_INDEX(
               session, ret = __wt_row_search(ds_cbt, &key, false, NULL, false, NULL));
         } else {
@@ -76,7 +76,7 @@ __hs_verify_id(
             /* Note that we are reformatting the HS key here. */
             WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
-              __wt_key_string(session, key.data, key.size, CUR2BT(ds_cbt)->key_format, &key),
+              __wt_key_string(session, key.data, key.size, CURBT2BT(ds_cbt)->key_format, &key),
               session->dhandle->name);
         }
 

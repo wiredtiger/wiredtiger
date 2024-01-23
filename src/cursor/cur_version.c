@@ -496,7 +496,7 @@ __curversion_search(WT_CURSOR *cursor)
     file_cursor = version_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
 
-    CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, search, CURBT2BT(cbt));
     txn = session->txn;
 
     /*
