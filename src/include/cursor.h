@@ -270,8 +270,6 @@ struct __wt_cursor_btree {
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
 #ifdef CODE_COVERAGE_MEASUREMENT
-extern WT_BTREE *__wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree);
-extern WT_BTREE *__wt_cur2bt(WT_CURSOR *cursor);
 #define CUR2BT(c) __wt_cur2bt(c)
 #define CURBT2BT(cursor_btree) __wt_curbt2bt(cursor_btree)
 #else
