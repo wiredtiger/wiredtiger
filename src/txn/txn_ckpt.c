@@ -140,16 +140,17 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                 }
             }
             /* Only instantiate the handle if we need to flush. */
-            ret = __wt_session_get_dhandle(session, key, NULL, NULL, 0);
-            /* If we get back EBUSY, this handle may be open with bulk or other special flags. We
-             * need to skip it this tree. We fake checkpoints for them, i.e. we never really write
-             * a checkpoint to the disk and we cannot get the dhandle now.
+            WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, key, NULL, NULL, 0), EBUSY, true);
+
+            /*
+             * If we get back EBUSY, this handle may be open with bulk or other special flags. We
+             * need to skip this tree. We fake checkpoints for such trees, i.e. we never really
+             * write a checkpoint to the disk and we cannot get the dhandle now.
              */
             if (ret == EBUSY) {
                 WT_STAT_CONN_INCR(session, flush_tier_skipped);
                 continue;
-            } else
-                WT_ERR(ret);
+            }
             release = true;
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
