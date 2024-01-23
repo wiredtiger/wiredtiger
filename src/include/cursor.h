@@ -89,7 +89,6 @@ struct __wt_cursor_backup {
     uint32_t flags;
 };
 
-
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
@@ -282,7 +281,7 @@ extern WT_BTREE *__wt_cur2bt(WT_CURSOR *cursor);
         (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
 
 #define CURBT2BT(cursor_btree) CUR2BT(cursor_btree)
-#endif // CODE_COVERAGE_MEASUREMENT */
+#endif /* CODE_COVERAGE_MEASUREMENT */
 
 struct __wt_cursor_bulk {
     WT_CURSOR_BTREE cbt;

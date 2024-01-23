@@ -11,7 +11,7 @@
 #ifdef CODE_COVERAGE_MEASUREMENT
 /*
  * __wt_curbt2bt --
- *      Safely return the WT_BTREE pointed to by the cursor_btree's dhandle.
+ *     Safely return the WT_BTREE pointed to by the cursor_btree's dhandle.
  */
 WT_BTREE *
 __wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
@@ -25,7 +25,7 @@ __wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
 
 /*
  * __wt_cur2bt --
- *      Safely return the WT_BTREE pointed to by the cursor's dhandle.
+ *     Safely return the WT_BTREE pointed to by the cursor's dhandle.
  */
 WT_BTREE *
 __wt_cur2bt(WT_CURSOR *cursor)
