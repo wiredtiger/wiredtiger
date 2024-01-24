@@ -61,10 +61,10 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
              * Even when the bind format uses %s, we must check it against the numeric and boolean
              * values, as the base config parser does the same.
              */
-            if (WT_FAST_STRING_MATCH("false", str, len)) {
+            if (WT_RESTRICTED_STRING_MATCH(session, "false", str, len)) {
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 0;
-            } else if (WT_FAST_STRING_MATCH("true", str, len)) {
+            } else if (WT_RESTRICTED_STRING_MATCH(session, "true", str, len)) {
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 1;
             } else
