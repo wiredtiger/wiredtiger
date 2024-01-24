@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-
 /*
  * __curstd_config_value_for --
  *     Returns NULL if the string being searched for isn't found, or the string after the "=" sign

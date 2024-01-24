@@ -2873,7 +2873,7 @@ tasks:
             test/evergreen/find_cmake.sh
 
             # Create directories for 1 builds, as only one test will be run at once
-            mkdir build_0 
+            mkdir build_0
 
             # Record the start time, in seconds
             date +%s > time.txt

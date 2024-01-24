@@ -448,7 +448,7 @@ __verify_tree(
          * diagnostic information, then continue the rest of verify as normal.
          */
         WT_PREFETCH_ASSERT(session, ret != WT_ERROR, block_prefetch_failed_start);
-        ret = 0;
+        WT_NOT_READ(ret, 0);
     }
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),

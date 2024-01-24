@@ -37,6 +37,7 @@ BLKCACHE
 BLmRrSVv
 BOOL
 BSR
+BT
 BTREE
 BUF
 Bitfield
@@ -63,6 +64,7 @@ CPP
 CPUs
 CRC
 CSV
+CURBT
 CURSORs
 CURSTD
 CallsCustDate

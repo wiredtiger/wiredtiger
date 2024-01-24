@@ -274,8 +274,7 @@ struct __wt_cursor_btree {
  * __wt_curbt2bt --
  *     Safely return the WT_BTREE pointed to by the cursor_btree's dhandle.
  */
-static WT_BTREE *
-NO_INLINE_FOR_CODE_COVERAGE
+static WT_BTREE *NO_INLINE_FOR_CODE_COVERAGE
 __wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
 {
     WT_DATA_HANDLE *dhandle;
@@ -290,8 +289,7 @@ __wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
  *     Safely return the WT_BTREE pointed to by the cursor's dhandle.
  */
 
-static WT_BTREE *
-  NO_INLINE_FOR_CODE_COVERAGE
+static WT_BTREE *NO_INLINE_FOR_CODE_COVERAGE
 __wt_cur2bt(WT_CURSOR *cursor)
 {
     WT_CURSOR_BTREE *cursor_btree;
@@ -302,9 +300,9 @@ __wt_cur2bt(WT_CURSOR *cursor)
 }
 
 /*
- * The original CUR2BT macro was called on both cursors and cursor_btrees. However, when converting to inline
- * functions a separate function (__wt_curbt2bt) and macro (CURBT2BT) are also required to avoid type errors at compile
- * time.
+ * The original CUR2BT macro was called on both cursors and cursor_btrees. However, when converting
+ * to inline functions a separate function (__wt_curbt2bt) and macro (CURBT2BT) are also required to
+ * avoid type errors at compile time.
  */
 #define CUR2BT(c) __wt_cur2bt(c)
 #define CURBT2BT(cursor_btree) __wt_curbt2bt(cursor_btree)

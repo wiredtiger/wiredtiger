@@ -321,9 +321,9 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
      * have moved this value to the history store as a full value. Therefore, we can safely ignore
      * the on page value if it is overflow removed.
      */
-    if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
-        ret = 0;
-    else
+    if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM) {
+        WT_NOT_READ(ret, 0);
+    } else
         WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
 
     /* Retrieve the time window from the unpacked value cell. */
