@@ -547,7 +547,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
 
     session = ds->session;
 
-    WT_RET(ds->f(ds, "\t%s > len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+    WT_RET(ds->f(ds, "\t%s: len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
 
     /* Dump the cell's per-disk page type information. */
     switch (dsk->type) {
@@ -623,9 +623,9 @@ __debug_cell_kv(
         return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
 
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
-        WT_RET(ds->f(ds, "\t%s > len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+        WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
     else
-        WT_RET(ds->f(ds, "\t%s > {REDACTED}", __wt_cell_type_string(unpack->raw)));
+        WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
 
     /* Dump per-disk page type information. */
     switch (page_type) {
@@ -803,7 +803,7 @@ __wt_debug_disk(
     }
 
     if (dsk->flags != 0) {
-        WT_ERR(ds->f(ds, "page_state: ["));
+        WT_ERR(ds->f(ds, "page_flags: ["));
 
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
             WT_ERR(ds->f(ds, "compressed"));
