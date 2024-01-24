@@ -47,7 +47,11 @@
 /* Define to 1 for unit tests. */
 #cmakedefine HAVE_UNITTEST 0
 
+/* Define to 1 to when measuring code coverage to make measurements more accurate, by switching code where needed. */
 #cmakedefine CODE_COVERAGE_MEASUREMENT 0
+
+/* define 1 to to switch code that exists in both inline function and macro versions to use the inline versions. */
+#cmakedefine INLINE_FUNCTIONS_INSTEAD_OF_MACROS 0
 
 /* 
  * Define to 1 for unit testing assertions. 

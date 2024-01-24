@@ -98,9 +98,10 @@
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
 
-#ifdef CODE_COVERAGE_MEASUREMENT
+#ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
 /* Set "ret" if not already set. */
-inline static void
+static void
+NO_INLINE_FOR_CODE_COVERAGE
 __wt_tret(int *pret, int a)
 {
     int __ret;
@@ -114,7 +115,8 @@ __wt_tret(int *pret, int a)
 }
 #define WT_TRET(a) __wt_tret(&ret, a)
 
-inline static void
+static void
+NO_INLINE_FOR_CODE_COVERAGE
 __wt_tret_error_ok(int *pret, int a, int e)
 {
     int __ret;
@@ -145,7 +147,7 @@ __wt_tret_error_ok(int *pret, int a, int e)
             ret == WT_RESTART))                                                              \
             ret = __ret;                                                                     \
     } while (0)
-#endif /* CODE_COVERAGE_MEASUREMENT */
+#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
 
 #define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)

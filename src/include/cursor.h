@@ -269,7 +269,38 @@ struct __wt_cursor_btree {
 };
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
-#ifdef CODE_COVERAGE_MEASUREMENT
+#ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+/*
+ * __wt_curbt2bt --
+ *     Safely return the WT_BTREE pointed to by the cursor_btree's dhandle.
+ */
+static WT_BTREE *
+NO_INLINE_FOR_CODE_COVERAGE
+__wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
+{
+    WT_DATA_HANDLE *dhandle;
+
+    dhandle = cursor_btree->dhandle;
+
+    return (dhandle == NULL ? NULL : (WT_BTREE *)(dhandle->handle));
+}
+
+/*
+ * __wt_cur2bt --
+ *     Safely return the WT_BTREE pointed to by the cursor's dhandle.
+ */
+
+static WT_BTREE *
+  NO_INLINE_FOR_CODE_COVERAGE
+__wt_cur2bt(WT_CURSOR *cursor)
+{
+    WT_CURSOR_BTREE *cursor_btree;
+
+    cursor_btree = (WT_CURSOR_BTREE *)cursor;
+
+    return (__wt_curbt2bt(cursor_btree));
+}
+
 #define CUR2BT(c) __wt_cur2bt(c)
 #define CURBT2BT(cursor_btree) __wt_curbt2bt(cursor_btree)
 #else
@@ -279,7 +310,7 @@ struct __wt_cursor_btree {
         (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
 
 #define CURBT2BT(cursor_btree) CUR2BT(cursor_btree)
-#endif /* CODE_COVERAGE_MEASUREMENT */
+#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
 
 struct __wt_cursor_bulk {
     WT_CURSOR_BTREE cbt;

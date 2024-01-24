@@ -8,35 +8,6 @@
 
 #include "wt_internal.h"
 
-#ifdef CODE_COVERAGE_MEASUREMENT
-/*
- * __wt_curbt2bt --
- *     Safely return the WT_BTREE pointed to by the cursor_btree's dhandle.
- */
-WT_BTREE *
-__wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
-{
-    WT_DATA_HANDLE *dhandle;
-
-    dhandle = cursor_btree->dhandle;
-
-    return (dhandle == NULL ? NULL : (WT_BTREE *)(dhandle->handle));
-}
-
-/*
- * __wt_cur2bt --
- *     Safely return the WT_BTREE pointed to by the cursor's dhandle.
- */
-WT_BTREE *
-__wt_cur2bt(WT_CURSOR *cursor)
-{
-    WT_CURSOR_BTREE *cursor_btree;
-
-    cursor_btree = (WT_CURSOR_BTREE *)cursor;
-
-    return (__wt_curbt2bt(cursor_btree));
-}
-#endif
 
 /*
  * __curstd_config_value_for --
