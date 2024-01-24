@@ -571,8 +571,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
         if (!WT_TIME_AGGREGATE_IS_EMPTY(&unpack->ta))
-            WT_RET(
-              ds->f(ds, " | time: %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
+            WT_RET(ds->f(ds, " | %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
 
         WT_RET(__wt_scr_alloc(session, 128, &buf));
         ret = ds->f(ds, " | addr: %s", __wt_addr_string(session, unpack->data, unpack->size, buf));
@@ -633,13 +632,13 @@ __debug_cell_kv(
     case WT_PAGE_COL_FIX:
         break;
     case WT_PAGE_COL_VAR:
-        WT_RET(ds->f(ds, ", rle: %" PRIu64, __wt_cell_rle(unpack)));
+        WT_RET(ds->f(ds, " | rle: %" PRIu64, __wt_cell_rle(unpack)));
         break;
     case WT_PAGE_ROW_LEAF:
         switch (unpack->raw) {
         case WT_CELL_KEY_PFX:
         case WT_CELL_KEY_SHORT_PFX:
-            WT_RET(ds->f(ds, ", pfx: %" PRIu8, unpack->prefix));
+            WT_RET(ds->f(ds, " | pfx: %" PRIu8, unpack->prefix));
             break;
         }
         break;
@@ -654,7 +653,7 @@ __debug_cell_kv(
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
         if (!WT_TIME_WINDOW_IS_EMPTY(&unpack->tw))
-            WT_RET(ds->f(ds, ", %s", __wt_time_window_to_string(&unpack->tw, time_string)));
+            WT_RET(ds->f(ds, " | %s", __wt_time_window_to_string(&unpack->tw, time_string)));
         break;
     }
 
@@ -669,7 +668,7 @@ __debug_cell_kv(
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
     case WT_CELL_VALUE_OVFL:
-        WT_RET(ds->f(ds, ", %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
+        WT_RET(ds->f(ds, " | %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
         break;
     }
     WT_RET(ds->f(ds, "\n"));
@@ -734,6 +733,7 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 
     WT_RET(__wt_col_fix_read_auxheader(ds->session, dsk, &auxhdr));
 
+    WT_RET(ds->f(ds, "\t> "));
     switch (auxhdr.version) {
     case WT_COL_FIX_VERSION_NIL:
         WT_RET(ds->f(ds, "page version 0, no auxiliary data\n"));
@@ -789,14 +789,14 @@ __wt_debug_disk(
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
     case WT_PAGE_COL_VAR:
-        WT_ERR(ds->f(ds, "recno: %" PRIu64 ", ", dsk->recno));
+        WT_ERR(ds->f(ds, "recno: %" PRIu64 " | ", dsk->recno));
     /* FALLTHROUGH */
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        WT_ERR(ds->f(ds, "entries: %" PRIu32 ", ", dsk->u.entries));
+        WT_ERR(ds->f(ds, "entries: %" PRIu32 " | ", dsk->u.entries));
         break;
     case WT_PAGE_OVFL:
-        WT_ERR(ds->f(ds, "datalen: %" PRIu32 ", ", dsk->u.datalen));
+        WT_ERR(ds->f(ds, "datalen: %" PRIu32 " | ", dsk->u.datalen));
         break;
     default:
         WT_ERR(__wt_illegal_value(session, dsk->type));
@@ -828,7 +828,7 @@ __wt_debug_disk(
         if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
             WT_ERR(ds->f(ds, "%sfast_trunc_update", is_first_flag ? "" : ", "));
         }
-        WT_ERR(ds->f(ds, "], "));
+        WT_ERR(ds->f(ds, "] | "));
     }
 
     WT_ERR(ds->f(ds, "generation: %" PRIu64 "\n", dsk->write_gen));
