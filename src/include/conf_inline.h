@@ -32,12 +32,12 @@ __wt_conf_is_compiled(WT_CONNECTION_IMPL *conn, const char *config)
 }
 
 /*
- * __wt_conf_compile_choice --
+ * __wt_conf_check_choice --
  *     Check the string value against a list of choices, if it is found, set up the value so it can
  *     be checked against a particular choice quickly.
  */
 static inline int
-__wt_conf_compile_choice(
+__wt_conf_check_choice(
   WT_SESSION_IMPL *session, const char **choices, const char *str, size_t len, const char **result)
 {
     const char *choice;

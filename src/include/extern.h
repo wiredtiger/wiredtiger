@@ -2266,7 +2266,7 @@ static inline int __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *curso
 static inline int __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
   const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp, size_t *matchp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_conf_compile_choice(
+static inline int __wt_conf_check_choice(
   WT_SESSION_IMPL *session, const char **choices, const char *str, size_t len, const char **result)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_conf_gets_def_func(WT_SESSION_IMPL *session, const WT_CONF *conf,

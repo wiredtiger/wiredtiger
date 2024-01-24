@@ -58,18 +58,23 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
             value->len = len;
 
             /*
-             * Even when the bind format uses %s, we must check it against the numeric and boolean
-             * values, as the base config parser does the same.
+             * Even when the bind format uses %s, we must check it against boolean constants. This
+             * is done for the non-compiled cases and WiredTiger configuration processing code may
+             * depend on it. We also change the string to point to fixed values of these constants
+             * to have a consistent way to fast match strings that are part of choices. "false" and
+             * "true" are legal as parts of a set of choices, and so can be used with
+             * WT_CONF_STRING_MATCH.
              */
             if (WT_RESTRICTED_STRING_MATCH(session, "false", str, len)) {
+                value->str = WT_CONFIG_CHOICE_false;
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 0;
             } else if (WT_RESTRICTED_STRING_MATCH(session, "true", str, len)) {
+                value->str = WT_CONFIG_CHOICE_true;
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 1;
             } else
-                WT_RET(
-                  __wt_conf_compile_choice(session, bind_desc->choices, str, len, &value->str));
+                WT_RET(__wt_conf_check_choice(session, bind_desc->choices, str, len, &value->str));
             break;
         case WT_CONFIG_ITEM_STRUCT:
         default:
