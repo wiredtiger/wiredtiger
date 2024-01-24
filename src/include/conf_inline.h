@@ -14,7 +14,7 @@
 static inline bool
 __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF **confp)
 {
-    if (config < conn->conf_dummy || config >= conn->conf_dummy + conn->conf_size)
+    if (!__wt_conf_is_compiled(conn, config))
         return (false);
 
     *confp = conn->conf_array[(uint32_t)(config - conn->conf_dummy)];
