@@ -260,16 +260,16 @@ __wt_rts_btree_walk_btree_apply(
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool has_txn_updates_gt_than_ckpt_snap, modified, prepared_updates, table_skipped;
+    bool file_skipped, has_txn_updates_gt_than_ckpt_snap, modified, prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
     if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);
 
     addr_size = 0;
+    file_skipped = true;
     rollback_txnid = 0;
     write_gen = 0;
-    table_skipped = false;
 
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
@@ -375,7 +375,7 @@ __wt_rts_btree_walk_btree_apply(
             WT_ERR(__rts_btree(session, uri, rollback_timestamp));
         else
             WT_ERR(__wt_rts_push_work(session, uri, rollback_timestamp));
-        table_skipped = false;
+        file_skipped = false;
     } else
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
           WT_RTS_VERB_TAG_TREE_SKIP
@@ -396,7 +396,7 @@ __wt_rts_btree_walk_btree_apply(
      * timestamp to WT_TS_NONE, we need this exception.
      * 2. In-memory database - In this scenario, there is no history store to truncate.
      */
-    if ((table_skipped || !modified) && max_durable_ts == WT_TS_NONE &&
+    if ((file_skipped && !modified) && max_durable_ts == WT_TS_NONE &&
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
