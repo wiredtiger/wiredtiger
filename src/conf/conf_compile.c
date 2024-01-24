@@ -107,7 +107,7 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
  *     the second is the key within a configuration check structure, it is that structure we receive
  *     as our second argument. The C standard allows the two arguments of this function to be of
  *     different types, and specifies that the first argument will always be the key passed to
- *     bsearch and the second is an element of the array being searched.
+ *     the binary search and the second is an element of the array being searched.
  */
 static int
 __conf_check_compare(const void *keyvoid, const void *check)
