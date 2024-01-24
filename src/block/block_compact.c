@@ -549,7 +549,7 @@ __compact_page_skip(
         /* If no potential work has been found, exit compaction. */
         if (block->compact_pages_rewritten_expected == 0) {
             session->compact_state = WT_COMPACT_EXITING;
-            ret = WT_ERROR;
+            ret = EINTR;
         }
     }
 

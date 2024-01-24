@@ -361,8 +361,8 @@ __compact_worker(WT_SESSION_IMPL *session)
                   session->op_handle[i]->name);
             }
 
-            /* Ignore the error if the estimation came back with no work to do. */
-            else if (ret == WT_ERROR && session->compact_state == WT_COMPACT_EXITING)
+            /* Compaction was interrupted internally. */
+            else if (ret == EINTR && session->compact_state == WT_COMPACT_EXITING)
                 ret = 0;
             WT_ERR(ret);
         }
