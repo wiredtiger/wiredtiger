@@ -89,10 +89,23 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
           dump_session->dhandle == NULL ? "NONE" : dump_session->dhandle->name));
         WT_ERR(__wt_msg(
           session, "  Backup in progress: %s", dump_session->bkp_cursor == NULL ? "no" : "yes"));
-        WT_ERR(__wt_msg(session, "  Compact state: %s",
-          dump_session->compact_state == WT_COMPACT_NONE ?
-            "none" :
-            (dump_session->compact_state == WT_COMPACT_RUNNING ? "running" : "success")));
+
+        switch (dump_session->compact_state) {
+        case WT_COMPACT_NONE:
+            WT_ERR(__wt_buf_fmt(session, buf, "none"));
+            break;
+        case WT_COMPACT_RUNNING:
+            WT_ERR(__wt_buf_fmt(session, buf, "running"));
+            break;
+        case WT_COMPACT_SUCCESS:
+            WT_ERR(__wt_buf_fmt(session, buf, "success"));
+            break;
+        case WT_COMPACT_EXITING:
+            WT_ERR(__wt_buf_fmt(session, buf, "exiting"));
+            break;
+        }
+
+        WT_ERR(__wt_msg(session, "  Compact state: %s", (const char *)buf->data));
         WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx32, dump_session->flags));
         WT_ERR(__wt_msg(session, "  Isolation level: %s",
           dump_session->isolation == WT_ISO_READ_COMMITTED ?
