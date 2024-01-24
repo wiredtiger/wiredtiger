@@ -441,5 +441,5 @@ union __wt_rand_state {
 #ifdef CODE_COVERAGE_MEASUREMENT
 #define NO_INLINE_FOR_CODE_COVERAGE __attribute__((noinline))
 #else
-#define NO_INLINE_FOR_CODE_COVERAGE
+#define NO_INLINE_FOR_CODE_COVERAGE inline
 #endif
