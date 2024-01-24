@@ -362,7 +362,7 @@ __compact_worker(WT_SESSION_IMPL *session)
             }
 
             /* Compaction was interrupted internally. */
-            else if (ret == EINTR && session->compact_state == WT_COMPACT_EXITING)
+            else if (ret == EINTR)
                 ret = 0;
             WT_ERR(ret);
         }

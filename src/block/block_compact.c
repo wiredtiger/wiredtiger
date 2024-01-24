@@ -547,10 +547,8 @@ __compact_page_skip(
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
         __block_compact_estimate_remaining_work(session, block);
         /* If no potential work has been found, exit compaction. */
-        if (block->compact_pages_rewritten_expected == 0) {
-            session->compact_state = WT_COMPACT_EXITING;
+        if (block->compact_pages_rewritten_expected == 0)
             ret = EINTR;
-        }
     }
 
     return (ret);
