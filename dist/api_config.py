@@ -32,16 +32,16 @@ cbegin_re = re.compile(r'(\s*\*\s*)@config(?:empty|start)\{(.*?),.*\}')
 class KeyNumber:
     def __init__(self):
         self.numbering = dict()
-        self.count = 0
 
     def add(self, name):
         if not name in self.numbering:
-            num = self.count
-            self.count += 1
-            self.numbering[name] = num
+            self.numbering[name] = len(self.numbering)
 
     def get(self, name):
         return self.numbering[name]
+
+    def count(self):
+        return len(self.numbering)
 
 # A "choice" value is typically an identifier, but we allow hyphens as part of the identifier.
 # This function convert hyphens to underscores to allow us to use the name as a C identifier.
@@ -279,15 +279,13 @@ def get_method_name_parts(name):
         # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
         return ('GLOBAL', name)
 
-for name in api_data_def.methods.keys():
-    method = api_data_def.methods[name]
+for name, method in api_data_def.methods.items():
     config = method.config
     if config:
         add_keys(keynumber, config, '')
 
 if not test_config:
-    for name in sorted(config_names):
-        config_key.append(name)
+    config_key.extend(sorted(config_names))
 
     skip = False
     for line in open(f, 'r'):
@@ -476,8 +474,8 @@ if not test_config:
 
 # Write structures of arrays of allowable configuration options, including a
 # NULL as a terminator for iteration.
-for name in sorted(api_data_def.methods.keys()):
-    config = api_data_def.methods[name].config
+for name, method in sorted(api_data_def.methods.items()):
+    config = method.config
     if config:
         jump = build_jump([c.name for c in config])
         tfile.write('''
@@ -501,8 +499,7 @@ tfile.write('static const WT_CONFIG_ENTRY config_entries[] = {')
 
 slot=-1
 config_defines = ''
-for name in sorted(api_data_def.methods.keys()):
-    method = api_data_def.methods[name]
+for name, method in sorted(api_data_def.methods.items()):
     config = method.config
     compilable = method.compilable
     slot += 1
@@ -732,14 +729,11 @@ if not test_config:
     # Assign unique numbers to all keys used in configuration, regardless of "level".
     with conf_h.replace_fragment('API configuration keys') as tfile:
         count = 0
-        a = keynumber.numbering
-        b = dict()
         for name in sorted(keynumber.numbering.keys()):
             off = keynumber.get(name)
             tfile.write('#define WT_CONF_ID_{} {}ULL\n'.format(name, off))
             count += 1
-            b[name] = name
-        assert count == keynumber.count
+        assert count == keynumber.count()
         tfile.write('\n#define WT_CONF_ID_COUNT {}\n'.format(count))
 
     with conf_h.replace_fragment('Configuration key structure') as tfile:
@@ -752,8 +746,7 @@ if not test_config:
 
     with conf_h.replace_fragment('Per-API configuration structure declarations') as tfile:
         method_to_counts = dict()
-        for name in api_data_def.methods.keys():
-            method = api_data_def.methods[name]
+        for name, method in api_data_def.methods.items():
             config = method.config
             if config:
                 method_to_counts[name] = get_conf_counts(config)
@@ -769,12 +762,7 @@ if not test_config:
             (nconf, nitem) = method_to_counts[name]
             if nitem == 0:
                 continue
-            if '.' in name:
-                (clname, mname) = name.split('.')
-            else:
-                # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
-                clname = 'GLOBAL'
-                mname = name
+            (clname, mname) = get_method_name_parts(name)
             tfile.write(
                 'WT_CONF_API_DECLARE({}, {}, {}, {});\n'.format(clname, mname, nconf, nitem))
 
