@@ -301,6 +301,11 @@ __wt_cur2bt(WT_CURSOR *cursor)
     return (__wt_curbt2bt(cursor_btree));
 }
 
+/*
+ * The original CUR2BT macro was called on both cursors and cursor_btrees. However, when converting to inline
+ * functions a separate function (__wt_curbt2bt) and macro (CURBT2BT) are also required to avoid type errors at compile
+ * time.
+ */
 #define CUR2BT(c) __wt_cur2bt(c)
 #define CURBT2BT(cursor_btree) __wt_curbt2bt(cursor_btree)
 #else
