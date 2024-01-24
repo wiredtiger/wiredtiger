@@ -309,7 +309,7 @@
 static inline bool
 __wt_string_match(const char *str, const char *bytes, size_t len)
 {
-    return (strncmp(str, bytes, len) == 0 && str[len] == '\0');
+    return (len == 0 || (strncmp(str, bytes, len) == 0 && str[len] == '\0'));
 }
 
 /*
