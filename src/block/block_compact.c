@@ -501,10 +501,11 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
  * __compact_page_skip --
  *     Return if writing a particular page will shrink the file.
  */
-static void
+static int
 __compact_page_skip(
   WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset, uint32_t size, bool *skipp)
 {
+    WT_DECL_RET;
     WT_EXT *ext;
     WT_EXTLIST *el;
     wt_off_t limit;
@@ -546,9 +547,13 @@ __compact_page_skip(
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
         __block_compact_estimate_remaining_work(session, block);
         /* If no potential work has been found, exit compaction. */
-        if (block->compact_pages_rewritten_expected == 0)
+        if (block->compact_pages_rewritten_expected == 0) {
             session->compact_state = WT_COMPACT_EXITING;
+            ret = WT_ERROR;
+        }
     }
+
+    return (ret);
 }
 
 /*
@@ -570,9 +575,7 @@ __wt_block_compact_page_skip(
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
-    __compact_page_skip(session, block, offset, size, skipp);
-
-    return (0);
+    return (__compact_page_skip(session, block, offset, size, skipp));
 }
 
 /*
@@ -599,7 +602,7 @@ __wt_block_compact_page_rewrite(
       session, block, addr, *addr_sizep, &objectid, &offset, &size, &checksum));
 
     /* Check if the block is worth rewriting. */
-    __compact_page_skip(session, block, offset, size, skipp);
+    WT_ERR(__compact_page_skip(session, block, offset, size, skipp));
 
     if (*skipp)
         return (0);
