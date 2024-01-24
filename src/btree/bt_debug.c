@@ -623,7 +623,7 @@ __debug_cell_kv(
         return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
 
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
-        WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+        WT_RET(ds->f(ds, "\t%s: len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
     else
         WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
 
@@ -668,7 +668,8 @@ __debug_cell_kv(
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
     case WT_CELL_VALUE_OVFL:
-        WT_RET(ds->f(ds, " | %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
+        WT_RET(
+          ds->f(ds, " | addr: %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
         break;
     }
     WT_RET(ds->f(ds, "\n"));
