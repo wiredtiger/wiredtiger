@@ -552,7 +552,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     /* Dump the cell's per-disk page type information. */
     switch (dsk->type) {
     case WT_PAGE_COL_INT:
-        WT_RET(ds->f(ds, ", recno: %" PRIu64, unpack->v));
+        WT_RET(ds->f(ds, " | recno: %" PRIu64, unpack->v));
         break;
     }
 
@@ -562,7 +562,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
         /* Dump the deleted pages transaction ID, commit timestamp, and durable timestamp. */
         if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
             page_del = &unpack->page_del;
-            WT_RET(ds->f(ds, ", page_del : %s",
+            WT_RET(ds->f(ds, " | page_del : %s",
               __wt_time_point_to_string(
                 page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
         }
@@ -572,10 +572,10 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     case WT_CELL_ADDR_LEAF_NO:
         if (!WT_TIME_AGGREGATE_IS_EMPTY(&unpack->ta))
             WT_RET(
-              ds->f(ds, ", time: %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
+              ds->f(ds, " | time: %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
 
         WT_RET(__wt_scr_alloc(session, 128, &buf));
-        ret = ds->f(ds, ", addr: %s", __wt_addr_string(session, unpack->data, unpack->size, buf));
+        ret = ds->f(ds, " | addr: %s", __wt_addr_string(session, unpack->data, unpack->size, buf));
         __wt_scr_free(session, &buf);
         WT_RET(ret);
         break;
