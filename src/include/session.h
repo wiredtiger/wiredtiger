@@ -278,6 +278,11 @@ struct __wt_session_impl {
     /*AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t lock_flags;
 
+/*
+ * Note: The WT_SESSION_PREFETCH_THREAD flag is set for prefetch server threads whereas the
+ * WT_SESSION_PREFETCH_THREAD flag is set when prefetch has been enabled on the session.
+ */
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_SESSION_BACKUP_CURSOR 0x000001u
 #define WT_SESSION_BACKUP_DUP 0x000002u
