@@ -321,6 +321,17 @@ private:
 };
 
 /*
+ * one_of --
+ *   Check it the first argument is equal to one or more of the other arguments.
+ */
+template <typename T>
+inline bool
+one_of(T v, T arg1, T arg2)
+{
+    return v == arg1 || v == arg2;
+}
+
+/*
  * starts_with --
  *     Check whether the string has the given prefix. (C++ does not have this until C++20.)
  */

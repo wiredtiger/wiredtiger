@@ -39,6 +39,7 @@ extern "C" {
 }
 
 #include "model/driver/kv_workload.h"
+#include "model/driver/kv_workload_generator.h"
 #include "model/test/util.h"
 #include "model/test/wiredtiger_util.h"
 #include "model/kv_database.h"
@@ -246,6 +247,28 @@ test_workload_restart(void)
 }
 
 /*
+ * test_workload_generator --
+ *     Test the workload generator.
+ */
+static void
+test_workload_generator(void)
+{
+    model::kv_workload_generator generator;
+    generator.generate();
+
+    std::shared_ptr<model::kv_workload> workload = generator.workload();
+    std::cout << workload;
+
+    /* Run the workload in the model. */
+    model::kv_database database;
+    workload->run(database);
+
+    /* Run the workload in WiredTiger and verify. */
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
+    verify_workload(*workload, opts, test_home, ENV_CONFIG);
+}
+
+/*
  * usage --
  *     Print usage help for the program.
  */
@@ -298,6 +321,7 @@ main(int argc, char *argv[])
         test_workload_txn();
         test_workload_prepared();
         test_workload_restart();
+        test_workload_generator();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;
         ret = EXIT_FAILURE;
