@@ -216,11 +216,11 @@ err:
 }
 
 /*
- * __rts_btree --
- *     Perform rollback to stable on a single uri.
+ * __rts_btree_int --
+ *     Internal function to perform rollback to stable on a single uri.
  */
 static int
-__rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_timestamp)
+__rts_btree_int(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_timestamp)
 {
     WT_DECL_RET;
 
@@ -231,6 +231,30 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
           ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
     ret = __wt_rts_btree_walk_btree(session, rollback_timestamp);
     WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
+ * __rts_btree --
+ *     Perform rollback to stable on a single uri.
+ */
+static int
+__rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_timestamp)
+{
+    WT_DECL_RET;
+
+    ret = __rts_btree_int(session, uri, rollback_timestamp);
+    /*
+     * Ignore rollback to stable failures on files that don't exist or files where corruption is
+     * detected.
+     */
+    if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
+        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+          WT_RTS_VERB_TAG_SKIP_DAMAGE
+          "%s: skipped performing rollback to stable because the file %s",
+          uri, ret == ENOENT ? "does not exist" : "is corrupted.");
+        ret = 0;
+    }
     return (ret);
 }
 

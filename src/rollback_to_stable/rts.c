@@ -136,21 +136,7 @@ __wt_rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (entry == NULL)
             return (0);
 
-        ret = __wt_rts_btree_work_unit(session, entry);
-
-        /*
-         * Ignore rollback to stable failures on files that don't exist or files where corruption is
-         * detected.
-         */
-        if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              WT_RTS_VERB_TAG_SKIP_DAMAGE
-              "%s: skipped performing rollback to stable because the file %s",
-              entry->uri, ret == ENOENT ? "does not exist" : "is corrupted.");
-            ret = 0;
-            continue;
-        }
-        WT_ERR(ret);
+        WT_ERR(__wt_rts_btree_work_unit(session, entry));
     }
 
     if (0) {
@@ -301,17 +287,6 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
         ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
-        /*
-         * Ignore rollback to stable failures on files that don't exist or files where corruption is
-         * detected.
-         */
-        if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              WT_RTS_VERB_TAG_SKIP_DAMAGE
-              "%s: skipped performing rollback to stable because the file %s",
-              uri, ret == ENOENT ? "does not exist" : "is corrupted.");
-            continue;
-        }
         WT_ERR(ret);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
