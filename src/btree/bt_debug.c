@@ -137,7 +137,7 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
     return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : ": ",
       F_ISSET(ds, WT_DEBUG_UNREDACT) ?
         __wt_key_string(session, data_arg, size, ds->key_format, ds->t1) :
-        "{REDACTED}"));
+        "REDACTED"));
 }
 
 /*
@@ -476,21 +476,21 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
     case WT_UPDATE_MODIFY:
         WT_RET(ds->f(ds,
           "\t"
-          "hs_modify: {%s}\n",
+          "%s\n",
           __wt_time_window_to_string(&cbt->upd_value->tw, time_string)));
         if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
-            WT_RET(ds->f(ds, "\tV: "));
+            WT_RET(ds->f(ds, "\ths_modify: "));
             WT_RET(__debug_modify(ds, ds->hs_value->data));
             WT_RET(ds->f(ds, "\n"));
         } else
-            WT_RET(ds->f(ds, "\tV: {REDACTED}\n"));
+            WT_RET(ds->f(ds, "\ths_modify: {REDACTED}\n"));
         break;
     case WT_UPDATE_STANDARD:
         WT_RET(ds->f(ds,
           "\t"
-          "hs_update: {%s}\n",
+          "%s\n",
           __wt_time_window_to_string(&cbt->upd_value->tw, time_string)));
-        WT_RET(__debug_item_value(ds, "V", ds->hs_value->data, ds->hs_value->size));
+        WT_RET(__debug_item_value(ds, "hs_update", ds->hs_value->data, ds->hs_value->size));
         break;
     default:
         /*
@@ -640,7 +640,7 @@ __debug_cell_kv(
 
     /* Row-store references to empty cells return a NULL on-page reference. */
     if (unpack->cell == NULL)
-        return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
+        return (__debug_item(ds, tag, "zero_length", strlen("zero_length")));
 
     if (F_ISSET(ds, WT_DEBUG_UNREDACT))
         WT_RET(ds->f(
@@ -697,10 +697,6 @@ __debug_cell_kv(
 
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
-
-    /* If redacting user data, we're done after dumping the header. */
-    if (!F_ISSET(ds, WT_DEBUG_UNREDACT))
-        return (0);
 
     /* Standard key/value cells. */
     switch (unpack->raw) {
@@ -1699,7 +1695,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
     session = ds->session;
 
-    WT_RET(ds->f(ds, "ref_state: %s", __debug_ref_state(ref->state)));
+    WT_RET(ds->f(ds, "ref: %p", (void *)ref));
+    WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(ref->state)));
     if (ref->flags != 0) {
         WT_RET(ds->f(ds, " | page_type: ["));
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
