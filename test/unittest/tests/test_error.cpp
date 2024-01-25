@@ -1,16 +1,14 @@
 /*-
-* Copyright (c) 2014-present MongoDB, Inc.
-* Copyright (c) 2008-2014 WiredTiger, Inc.
-*	All rights reserved.
-*
-* See the file LICENSE for redistribution information.
-*/
-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
 
 #include <catch2/catch.hpp>
 #include "wiredtiger.h"
 #include "wt_internal.h"
-
 
 TEST_CASE("Error: simple macros and inline functions - WT_TRET", "[error]")
 {
@@ -76,7 +74,6 @@ TEST_CASE("Error: simple macros and inline functions - WT_TRET", "[error]")
         REQUIRE(ret == WT_RUN_RECOVERY);
     }
 }
-
 
 TEST_CASE("Error: simple macros and inline functions - WT_TRET_ERROR_OK", "[error]")
 {
@@ -148,4 +145,3 @@ TEST_CASE("Error: simple macros and inline functions - WT_TRET_ERROR_OK", "[erro
         REQUIRE(ret == WT_RUN_RECOVERY);
     }
 }
-
