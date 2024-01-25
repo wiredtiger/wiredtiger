@@ -283,9 +283,10 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         if (write_off >= compact_start_off)
             break;
         __wt_verbose_debug2(session, WT_VERB_COMPACT,
-          "%s: estimating -- pass %d: file size: %" PRId64 ", compact offset: %" PRId64
-          ", will move blocks from the last %d%% of the file",
-          block->name, iteration, file_size, compact_start_off, compact_pct_tenths * 10);
+          "%s: estimating -- pass %d: file size: %" PRId64 " MB (%" PRId64
+          "B), compact offset: %" PRId64 ", will move blocks from the last %d%% of the file",
+          block->name, iteration, file_size / WT_MEGABYTE, file_size, compact_start_off,
+          compact_pct_tenths * 10);
 
         /*
          * Estimate how many pages we would like to move, just using the live checkpoint. The
