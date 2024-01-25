@@ -7,10 +7,9 @@
 #define WT_SIZE_CHECK_UNPACK_PTR0(p, end) WT_RET_TEST(!(p) || !(end) || (p) > (end), EINVAL)
 
 /*
- * __pack_encode__WT_ITEM --
- *     Pack a WT_ITEM structure.
+ * __pack_encode__uintAny --
+ *     Pack an unsigned integer.
  */
-
 static inline int
 __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
 {
@@ -20,6 +19,10 @@ __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
     return (__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item));
 }
 
+/*
+ * __pack_encode__WT_ITEM --
+ *     Pack a WT_ITEM structure - size and WT_ITEM.
+ */
 static inline int
 __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 {
@@ -30,6 +33,10 @@ __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
     return (0);
 }
 
+/*
+ * __pack_encode__WT_ITEM_last --
+ *     Pack a WT_ITEM structure without its size.
+ */
 static inline int
 __pack_encode__WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 {
@@ -39,6 +46,10 @@ __pack_encode__WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
     return (0);
 }
 
+/*
+ * __pack_encode__string --
+ *     Pack a string.
+ */
 static inline int
 __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
 {
@@ -134,7 +145,7 @@ __wt_logrec_read(
 
 /*
  * __wt_logop_read --
- *     PEEK the operation type.
+ *     Peek at the operation type.
  */
 int
 __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp2, const uint8_t *end,
