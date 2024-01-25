@@ -1012,8 +1012,9 @@ __wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
     WT_SESSION_IMPL *session;
     uint32_t flags;
 
+    session = (WT_SESSION_IMPL *)session_arg;
     flags = WT_DEBUG_TREE_LEAF;
-    WT_ASSERT(NULL, !(dump_all_data && dump_key_data));
+    WT_ASSERT(session, !(dump_all_data && dump_key_data));
     if (dump_all_data)
         LF_SET(WT_DEBUG_UNREDACT_ALL);
     if (dump_key_data)
@@ -1022,7 +1023,6 @@ __wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
     /*
      * Allow an explicit btree as an argument, as one may not yet be set on the session.
      */
-    session = (WT_SESSION_IMPL *)session_arg;
     if (btree == NULL)
         btree = S2BT(session);
 
