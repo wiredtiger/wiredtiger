@@ -549,7 +549,7 @@ __compact_page_skip(
         __block_compact_estimate_remaining_work(session, block);
         /* If no potential work has been found, exit compaction. */
         if (block->compact_pages_rewritten_expected == 0)
-            ret = EINTR;
+            ret = ECANCELED;
     }
 
     return (ret);
