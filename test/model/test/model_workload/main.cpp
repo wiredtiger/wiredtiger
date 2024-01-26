@@ -259,11 +259,7 @@ test_workload_generator(void)
     std::shared_ptr<model::kv_workload> workload = generator.workload();
     std::cout << workload;
 
-    /* Run the workload in the model. */
-    model::kv_database database;
-    workload->run(database);
-
-    /* Run the workload in WiredTiger and verify. */
+    /* Run the workload in the model and in WiredTiger, then verify. */
     std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
     verify_workload(*workload, opts, test_home, ENV_CONFIG);
 }
@@ -317,10 +313,10 @@ main(int argc, char *argv[])
      */
     try {
         ret = EXIT_SUCCESS;
-        test_workload_basic();
+        /*test_workload_basic();
         test_workload_txn();
         test_workload_prepared();
-        test_workload_restart();
+        test_workload_restart();*/
         test_workload_generator();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;

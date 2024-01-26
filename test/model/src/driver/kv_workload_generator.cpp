@@ -44,14 +44,14 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     prepared_transaction_rollback_after_prepare = 0.1;
     prepared_transaction_rollback_before_prepare = 0.1;
 
-    insert = 0.7;
-    finish_transaction = 0.05;
+    insert = 0.75;
+    finish_transaction = 0.08;
     remove = 0.15;
     set_commit_timestamp = 0.05;
-    truncate = 0.05;
+    truncate = 0.005;
 
-    checkpoint = 0.1;
-    restart = 0.01;
+    checkpoint = 0.02;
+    restart = 0.001;
     set_stable_timestamp = 0.2;
 
     max_concurrent_transactions = 3;
@@ -92,7 +92,9 @@ kv_workload_generator::generate_transaction()
     /* Add all operations. But do not actually fill in timestamps; we'll do that later. */
     bool done = false;
     while (!done) {
-        probability_switch(_random.next_float())
+        float total = _spec.insert + _spec.finish_transaction + _spec.remove +
+          _spec.set_commit_timestamp + _spec.truncate;
+        probability_switch(_random.next_float() * total)
         {
             probability_case(_spec.insert)
             {
@@ -161,7 +163,7 @@ kv_workload_generator::fill_in_timestamps(
     if (!sequence.transaction()) {
         for (operation::any &op : sequence.operations()) {
             if (std::holds_alternative<operation::set_stable_timestamp>(op)) {
-                timestamp_t t = first + _random.next_uint64(last - first);
+                timestamp_t t = first + _random.next_uint64(last - first) - 1000 /*XXX*/;
                 std::get<operation::set_stable_timestamp>(op).stable_timestamp = t;
                 /* The "set stable timestamp" sequence has only one operation, so we're done. */
                 break;
@@ -246,7 +248,7 @@ kv_workload_generator::generate()
 
     /* Generate a serialized workload. We'll fill in timestamps and shuffle it later. */
     /* TODO: Should not be hard-coded. */
-    size_t length = 100 + (size_t)_random.next_uint64(10);
+    size_t length = 1000 + (size_t)_random.next_uint64(10);
     for (size_t i = 0; i < length; i++)
         probability_switch(_random.next_float())
         {
@@ -260,19 +262,23 @@ kv_workload_generator::generate()
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>();
                 *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
-                // XXX _sequences.push_back(p);
+                _sequences.push_back(p);
             }
             probability_case(_spec.restart)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>();
                 *p << operation::restart();
-                // XXX _sequences.push_back(p);
+                _sequences.push_back(p);
             }
             probability_default
             {
                 _sequences.push_back(generate_transaction());
             }
         }
+
+    /* Remember the positions in the list; we'll need it to enforce partial ordering later. */
+    for (size_t i = 0; i < _sequences.size(); i++)
+        _sequences[i]->_index = i;
 
     /* Position special sequences that are not transactions. */
     size_t last_special = 0;
@@ -287,57 +293,99 @@ kv_workload_generator::generate()
         last_special = i;
     }
 
-    /* Add initial partial order, so that we don't have to do full N^2 dependency check. */
-    size_t concurrency_lookahead = 100;
-    for (size_t i = 0; i + concurrency_lookahead < _sequences.size(); i++)
-        _sequences[i]->must_finish_before_starting(*_sequences[i + concurrency_lookahead].get());
-
     /*
      * Find dependencies between the workload subsequences: If two sequences operate on the same
      * keys, they must be run sequentially. If there is any overlap, the transaction in the
      * second sequence will abort.
      */
     for (size_t i = 0; i < _sequences.size(); i++)
-        for (size_t j = i + 1; j < _sequences.size() && j < i + concurrency_lookahead; j++)
+        for (size_t j = i + 1; j < _sequences.size(); j++)
             if (_sequences[i]->overlaps_with(*_sequences[j].get()))
                 _sequences[i]->must_finish_before_starting(*_sequences[j].get());
 
     /* Fill in the timestamps based on the partial order. */
     std::deque<kv_workload_sequence *> runnable;
+    std::deque<kv_workload_sequence *> next;
+
+    size_t next_barrier = 0;
+    for (kv_workload_sequence_ptr &seq : _sequences)
+        if (!seq->transaction()) {
+            next_barrier = seq->_index;
+            break;
+        }
+
     for (kv_workload_sequence_ptr &seq : _sequences) {
         seq->prepare_to_run();
-        if (seq->_unsatisfied_dependencies == 0)
-            runnable.push_front(seq.get());
+        if (seq->_unsatisfied_dependencies == 0) {
+            if (seq->_index <= next_barrier)
+                runnable.push_back(seq.get());
+            else
+                next.push_back(seq.get());
+        }
     }
 
-    timestamp_t first = 1;
-    timestamp_t step = 1000 - 1;
+    timestamp_t step = 1000;
+    timestamp_t first = step + 1;
     timestamp_t last = first + step;
-    while (!runnable.empty()) {
-        for (kv_workload_sequence *seq : runnable)
-            fill_in_timestamps(*seq, first, last);
+    while (!runnable.empty() || !next.empty()) {
 
-        std::deque<kv_workload_sequence *> next;
-        for (kv_workload_sequence *seq : runnable)
-            for (kv_workload_sequence *n : seq->runnable_after_finish())
-                if (n->_unsatisfied_dependencies.fetch_sub(1, std::memory_order_seq_cst) == 1)
-                    next.push_back(n);
+        /*
+         * Assign timestamps in a way that satisfies the partial order until the next timestamp
+         * barrier.
+         */
+        while (!runnable.empty()) {
+            for (kv_workload_sequence *seq : runnable)
+                fill_in_timestamps(*seq, first, last);
 
-        runnable = next;
-        first = last + 1;
-        last = first + step;
+            std::deque<kv_workload_sequence *> next_runnable;
+            for (kv_workload_sequence *seq : runnable)
+                for (kv_workload_sequence *n : seq->runnable_after_finish())
+                    if (n->_unsatisfied_dependencies.fetch_sub(1, std::memory_order_seq_cst) == 1) {
+                        if (n->_index <= next_barrier)
+                            next_runnable.push_back(n);
+                        else
+                            next.push_back(n);
+                    }
+
+            runnable = next_runnable;
+            first = last + 1;
+            last = first + step - 1;
+        }
+
+        /*
+         * By now, we have assigned timestamps to everything up until (and including) the operation
+         * sequence at the "next barrier" index. Find the next barrier and get ready for the next
+         * operation.
+         */
+        bool found = false;
+        for (size_t i = next_barrier + 1; i < _sequences.size(); i++)
+            if (!_sequences[i]->transaction()) {
+                found = true;
+                next_barrier = i;
+                break;
+            }
+        if (!found)
+            next_barrier = _sequences.size();
+
+        std::deque<kv_workload_sequence *> next_next;
+        for (kv_workload_sequence *n : next)
+            if (n->_index <= next_barrier)
+                runnable.push_back(n);
+            else
+                next_next.push_back(n);
+        next = next_next;
     }
 
     /* Create an execution schedule, mixing operations from different transactions. */
 
-    // std::deque<kv_workload_sequence *> runnable;
     runnable.clear();
     for (kv_workload_sequence_ptr &seq : _sequences) {
         seq->prepare_to_run();
         if (seq->_unsatisfied_dependencies == 0)
-            runnable.push_front(seq.get());
+            runnable.push_back(seq.get());
     }
 
+    timestamp_t stable = k_timestamp_none;
     while (!runnable.empty()) {
 
         /* Take the next operation from one of the runnable sequences. */
@@ -347,19 +395,85 @@ kv_workload_generator::generate()
 
         /* Assert that there is at least one operation left. */
         const auto &next_sequence_operations = next_sequence->operations();
-        if (next_sequence->_index >= next_sequence_operations.size())
+        if (next_sequence->_next_operation_index >= next_sequence_operations.size())
             throw model_exception("Internal error: No more operations left in a sequence");
 
         /* Get the next operation. */
-        _workload << next_sequence_operations[next_sequence->_index++];
+        const operation::any &op = next_sequence_operations[next_sequence->_next_operation_index++];
+        _workload << op;
+
+        /* Verify timestamps. */
+        if (std::holds_alternative<operation::set_stable_timestamp>(op)) {
+            timestamp_t t = std::get<operation::set_stable_timestamp>(op).stable_timestamp;
+            if (t < stable)
+                std::cerr << "Warning: Stable timestamp went backwards: " << stable << " -> " << t
+                          << std::endl;
+            stable = t;
+        }
+        if (std::holds_alternative<operation::prepare_transaction>(op)) {
+            timestamp_t t = std::get<operation::prepare_transaction>(op).prepare_timestamp;
+            if (t < stable)
+                std::cerr << "Warning: Prepare timestamp is before the stable timestamp: " << t
+                          << " < " << stable << " (sequence " << next_sequence->_index << ")"
+                          << std::endl;
+        }
+        if (std::holds_alternative<operation::set_commit_timestamp>(op)) {
+            timestamp_t t = std::get<operation::set_commit_timestamp>(op).commit_timestamp;
+            if (t < stable)
+                std::cerr << "Warning: Commit timestamp is before the stable timestamp: " << t
+                          << " < " << stable << std::endl;
+        }
+        if (std::holds_alternative<operation::commit_transaction>(op)) {
+            timestamp_t t = std::get<operation::commit_transaction>(op).commit_timestamp;
+            if (t < stable)
+                std::cerr << "Warning: Commit timestamp is before the stable timestamp: " << t
+                          << " < " << stable << std::endl;
+            t = std::get<operation::commit_transaction>(op).durable_timestamp;
+            if (t < stable && t != k_timestamp_none)
+                std::cerr << "Warning: Durable timestamp is before the stable timestamp: " << t
+                          << " < " << stable << std::endl;
+        }
+
+        /* If the operation resulted in a database restart, skip the rest of started operations. */
+        if (std::holds_alternative<operation::restart>(op)) {
+            std::deque<kv_workload_sequence *> next_runnable;
+            for (kv_workload_sequence *r : runnable) {
+                if (r->_next_operation_index > 0) {
+                    for (kv_workload_sequence *n : r->runnable_after_finish())
+                        if (n->_unsatisfied_dependencies.fetch_sub(1, std::memory_order_seq_cst) ==
+                          1) {
+                            if (n->transaction())
+                                next_runnable.push_back(n);
+                            else
+                                /*
+                                 * We need to do this to keep non-transaction sequences at roughly
+                                 * the expected positions.
+                                 */
+                                next_runnable.push_front(n);
+                        }
+                } else {
+                    next_runnable.push_back(r);
+                }
+            }
+            runnable = next_runnable;
+            continue;
+        }
 
         /* If this is the last operation, complete the sequence execution. */
-        if (next_sequence->_index >= next_sequence_operations.size()) {
+        if (next_sequence->_next_operation_index >= next_sequence_operations.size()) {
             next_sequence->_done = true;
             runnable.erase(runnable.begin() + next_sequence_index);
             for (kv_workload_sequence *n : next_sequence->runnable_after_finish())
-                if (n->_unsatisfied_dependencies.fetch_sub(1, std::memory_order_seq_cst) == 1)
-                    runnable.push_back(n);
+                if (n->_unsatisfied_dependencies.fetch_sub(1, std::memory_order_seq_cst) == 1) {
+                    if (n->transaction())
+                        runnable.push_back(n);
+                    else
+                        /*
+                         * We need to do this to keep non-transaction sequences at roughly the
+                         * expected positions.
+                         */
+                        runnable.push_front(n);
+                }
         }
     }
 }

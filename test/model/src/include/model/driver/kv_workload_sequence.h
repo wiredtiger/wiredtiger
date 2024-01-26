@@ -129,12 +129,13 @@ public:
 
     bool _done;
     size_t _index;
+    size_t _next_operation_index;
 
     inline void
     prepare_to_run()
     {
         _done = false;
-        _index = 0;
+        _next_operation_index = 0;
         _unsatisfied_dependencies = _dependencies_start.size() + _dependencies_finish.size();
     }
 
