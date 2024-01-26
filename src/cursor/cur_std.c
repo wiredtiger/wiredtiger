@@ -850,8 +850,45 @@ __wt_cursor_get_hash(
 }
 
 /*
+ * __cursor_reuse_or_init --
+ *     Initialization shared between reuse of a cached cursor and initialization of a new cursor.
+ *
+ * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
+ *     Flags not changed by this function: WT_CBT_READ_ONCE, WT_CURSTD_CACHEABLE, WT_CURSTD_OPEN.
+ */
+static int
+__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
+  uint64_t overwrite_flag, bool have_config)
+{
+    WT_CONFIG_ITEM cval;
+    /* Clear all flags not assumed set by __wt_cursor_cache_get(). */
+    F_CLR(cursor, ~(WT_CBT_READ_ONCE | WT_CURSTD_CACHEABLE | WT_CURSTD_OPEN));
+    /* overwrite */
+    F_SET(cursor, overwrite_flag);
+
+    if (have_config) {
+        /*
+         * The append flag is only relevant to column stores.
+         */
+        if (WT_CURSOR_RECNO(cursor)) {
+            WT_RET(__wt_config_gets_def(session, cfg, "append", 0, &cval));
+            if (cval.val != 0)
+                F_SET(cursor, WT_CURSTD_APPEND);
+        }
+
+        /* raw */
+        WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
+        if (cval.val != 0)
+            F_SET(cursor, WT_CURSTD_RAW);
+    }
+    return (0);
+}
+
+/*
  * __wt_cursor_cache_get --
  *     Open a matching cursor from the cache.
+ *
+ * Flags set or cleared by this function: WT_CBT_READ_ONCE, plus __cursor_reuse_or_init().
  */
 int
 __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_value,
@@ -930,8 +967,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
-            F_SET(cursor, overwrite_flag);
+            __cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, true);
+
             /*
              * If this is a btree cursor, clear its read_once flag.
              */
@@ -942,37 +979,19 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
                 cbt = NULL;
             }
 
-            if (have_config) {
-                /*
-                 * The append flag is only relevant to column stores.
-                 */
-                if (WT_CURSOR_RECNO(cursor)) {
-                    WT_RET(__wt_config_gets_def(session, cfg, "append", 0, &cval));
-                    if (cval.val != 0)
-                        F_SET(cursor, WT_CURSTD_APPEND);
-                }
-
-                WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
-                if (cval.val == 0)
-                    F_CLR(cursor, WT_CURSTD_OVERWRITE);
-
-                WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
-                if (cval.val != 0)
-                    F_SET(cursor, WT_CURSTD_RAW);
-
-                if (cbt) {
+            if (cbt) {
+                if (have_config) {
                     WT_RET(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
                     if (cval.val != 0)
                         F_SET(cbt, WT_CBT_READ_ONCE);
                 }
-            }
 
-            /*
-             * A side effect of a cursor open is to leave the session's data handle set. Honor that
-             * for a "reopen".
-             */
-            if (cbt != NULL)
+                /*
+                 * A side effect of a cursor open is to leave the session's data handle set. Honor
+                 * that for a "reopen".
+                 */
                 session->dhandle = cbt->dhandle;
+            }
 
             *cursorp = cursor;
             return (0);
@@ -1413,6 +1432,10 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
 /*
  * __wt_cursor_init --
  *     Default cursor initialization.
+ *
+ * Flags set or cleared by this function: WT_CURSTD_CACHEABLE, WT_CURSTD_DUMP_HEX,
+ *     WT_CURSTD_DUMP_JSON, WT_CURSTD_DUMP_JSON, WT_CURSTD_DUMP_PRETTY, WT_CURSTD_DUMP_PRINT,
+ *     WT_CURSTD_OPEN, plus __cursor_reuse_or_init().
  */
 int
 __wt_cursor_init(
@@ -1421,6 +1444,7 @@ __wt_cursor_init(
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cdump;
     WT_SESSION_IMPL *session;
+    uint64_t overwrite_flag;
     bool readonly;
 
     session = CUR2S(cursor);
@@ -1431,14 +1455,10 @@ __wt_cursor_init(
         WT_RET(__wt_strdup(session, uri, &cursor->internal_uri));
     }
 
-    /*
-     * append The append flag is only relevant to column stores.
-     */
-    if (WT_CURSOR_RECNO(cursor)) {
-        WT_RET(__wt_config_gets_def(session, cfg, "append", 0, &cval));
-        if (cval.val != 0)
-            F_SET(cursor, WT_CURSTD_APPEND);
-    }
+    WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
+    overwrite_flag = cval.val ? WT_CURSTD_OVERWRITE : 0;
+
+    __cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, true);
 
     /*
      * checkpoint, readonly Checkpoint cursors are permanently read-only, avoid the extra work of
@@ -1491,18 +1511,6 @@ __wt_cursor_init(
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
     } else
         cdump = NULL;
-
-    /* overwrite */
-    WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
-    if (cval.val)
-        F_SET(cursor, WT_CURSTD_OVERWRITE);
-    else
-        F_CLR(cursor, WT_CURSTD_OVERWRITE);
-
-    /* raw */
-    WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
-    if (cval.val != 0)
-        F_SET(cursor, WT_CURSTD_RAW);
 
     /*
      * WT_CURSOR.modify supported on 'S' and 'u' value formats, but may have been already
