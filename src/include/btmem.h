@@ -431,7 +431,11 @@ struct __wt_page_modify {
     /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
 
-    /* Stop aggregated timestamp information. */
+    /*
+     * Stop aggregated timestamp information when all the keys on the page are removed. This time
+     * aggregate information is used to skip these deleted pages as part of the tree walk if the
+     * delete operation is visible to the reader.
+     */
     WT_TIME_AGGREGATE *stop_ta;
 
     /*
