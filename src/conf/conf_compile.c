@@ -25,6 +25,9 @@ static const WT_CONFIG_ITEM_TYPE __compiled_type_to_item_type[] = {
 static int __conf_compile_config_strings(
   WT_SESSION_IMPL *, const WT_CONFIG_ENTRY *, const char **, u_int, bool, WT_CONF *);
 static void __conf_compile_free(WT_SESSION_IMPL *, WT_CONF *);
+static int __conf_verbose(WT_SESSION_IMPL *, WT_CONF *, const char *, WT_CONF *conf);
+static int __conf_verbose_cat_config(
+  WT_SESSION_IMPL *, WT_CONF *, uint64_t, WT_ITEM *, const WT_CONFIG_CHECK *, u_int);
 
 /*
  * __conf_compile_value --
@@ -80,6 +83,23 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
               (value->type != WT_CONFIG_ITEM_NUM || (value->val != 0 && value->val != 1)))
                 WT_RET_MSG(session, EINVAL, "Value '%.*s' expected to be a boolean",
                   (int)value->len, value->str);
+
+            /*
+             * We want the strings associated with boolean values to use the string values at
+             * particular addresses to allow fast matches. However, if there is no string, we want
+             * to leave the length as zero, as callers may interpret that specially. A blank value
+             * for a boolean is considered to be true.
+             */
+            if (value->len == 0) {
+                WT_ASSERT(session, value->val == 1);
+                value->str = __WT_CONFIG_CHOICE_true;
+            } else if (value->val == 0) {
+                value->str = __WT_CONFIG_CHOICE_false;
+                value->len = strlen("false");
+            } else {
+                value->str = __WT_CONFIG_CHOICE_true;
+                value->len = strlen("true");
+            }
             break;
         case WT_CONFIG_ITEM_STRING:
             /*
@@ -392,6 +412,9 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
 
     *confp = conf;
 
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CONFIGURATION, WT_VERBOSE_NOTICE))
+        WT_ERR(__conf_verbose(session, preconf, config, conf));
+
 err:
     return (ret);
 }
@@ -519,4 +542,119 @@ __wt_conf_compile_discard(WT_SESSION_IMPL *session)
             __conf_compile_free(session, conn->conf_array[i]);
         __wt_free(session, conn->conf_array);
     }
+}
+
+/*
+ * __conf_verbose --
+ *     Print some verbose information about a completed compilation.
+ */
+static int
+__conf_verbose(WT_SESSION_IMPL *session, WT_CONF *preconf, const char *config, WT_CONF *conf)
+{
+    const WT_CONFIG_ENTRY *centry;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &buf));
+
+    __wt_verbose_notice(session, WT_VERB_CONFIGURATION, "config parsing for method: \"%s\"",
+      preconf->compile_time_entry->method);
+    __wt_verbose_notice(
+      session, WT_VERB_CONFIGURATION, "base config: \"%s\"", preconf->compile_time_entry->base);
+    __wt_verbose_notice(session, WT_VERB_CONFIGURATION, "calling config: \"%s\"", config);
+
+    /*
+     * Get the list of keys for this API.
+     */
+    centry = conf->compile_time_entry;
+    WT_ERR(
+      __conf_verbose_cat_config(session, conf, 0, buf, centry->checks, centry->checks_entries));
+    __wt_verbose_notice(
+      session, WT_VERB_CONFIGURATION, "reconstructed config: %s", (const char *)buf->data);
+
+err:
+    __wt_scr_free(session, &buf);
+    return (ret);
+}
+
+/*
+ * __conf_verbose_cat_config --
+ *     Build up a configuration string from the conf structure.
+ */
+static int
+__conf_verbose_cat_config(WT_SESSION_IMPL *session, WT_CONF *conf, uint64_t subkey_id, WT_ITEM *buf,
+  const WT_CONFIG_CHECK *ccheck, u_int count)
+{
+    WT_CONFIG_ITEM value;
+    uint64_t key_id, mask;
+    u_int i, type;
+    int ret, shift;
+
+    /*
+     * Get the shift amount.
+     */
+    shift = 0;
+    mask = 0xffff;
+    while ((mask & subkey_id) != 0) {
+        WT_ASSERT(session, shift < 64);
+        mask <<= 16;
+        shift += 16;
+    }
+
+    for (i = 0; i < count; ++i, ++ccheck) {
+        if (i != 0)
+            WT_RET(__wt_buf_catfmt(session, buf, ","));
+        WT_RET(__wt_buf_catfmt(session, buf, "%s=", ccheck->name));
+        key_id = (ccheck->key_id << shift) | subkey_id;
+        type = ccheck->compiled_type;
+        if (ccheck->subconfigs != NULL) {
+            WT_RET(__wt_buf_catfmt(session, buf, "("));
+            WT_RET(__conf_verbose_cat_config(
+              session, conf, key_id, buf, ccheck->subconfigs, ccheck->subconfigs_entries));
+            WT_RET(__wt_buf_catfmt(session, buf, ")"));
+        } else {
+            ret = __wt_conf_gets_func(session, conf, key_id, 0, false, &value);
+            if (ret == WT_NOTFOUND) {
+                WT_RET(__wt_buf_catfmt(session, buf, "GET_RETURN(%d)", ret));
+                continue;
+            }
+            WT_RET(ret);
+
+            switch (type) {
+            case WT_CONFIG_COMPILED_TYPE_INT:
+                WT_RET(__wt_buf_catfmt(session, buf, "%lld", value.val));
+                break;
+            case WT_CONFIG_COMPILED_TYPE_BOOLEAN:
+                if (value.len == 0)
+                    /*
+                     * Keys with no value default to true.
+                     */
+                    WT_ASSERT(session, value.val == 1);
+                else {
+                    /*
+                     * If we have a value for booleans, the string must compare to true or false,
+                     * and fast compare to true/false constants must also work.
+                     */
+                    if (value.val == 0) {
+                        WT_ASSERT(session, WT_STRING_MATCH("false", value.str, value.len));
+                        WT_ASSERT(session, WT_CONF_STRING_MATCH(false, value));
+                    } else {
+                        WT_ASSERT(
+                          session, value.val == 1 && WT_STRING_MATCH("true", value.str, value.len));
+                        WT_ASSERT(session, WT_CONF_STRING_MATCH(true, value));
+                    }
+                }
+                WT_RET(__wt_buf_catfmt(session, buf, "%*s", (int)value.len, value.str));
+                break;
+            case WT_CONFIG_COMPILED_TYPE_STRING:
+            case WT_CONFIG_COMPILED_TYPE_LIST:
+            case WT_CONFIG_COMPILED_TYPE_FORMAT:
+                WT_RET(__wt_buf_catfmt(session, buf, "\"%*s\"", (int)value.len, value.str));
+                break;
+            default:
+                return (__wt_illegal_value(session, type));
+            }
+        }
+    }
+    return (0);
 }

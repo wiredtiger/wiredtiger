@@ -848,6 +848,7 @@ connection_runtime_config = [
             'chunkcache',
             'compact',
             'compact_progress',
+            'configuration',
             'error_returns',
             'evict',
             'evict_stuck',

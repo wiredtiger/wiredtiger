@@ -502,6 +502,7 @@ const char __WT_CONFIG_CHOICE_checkpoint_progress[] = "checkpoint_progress";
 const char __WT_CONFIG_CHOICE_chunkcache[] = "chunkcache";
 const char __WT_CONFIG_CHOICE_compact[] = "compact";
 const char __WT_CONFIG_CHOICE_compact_progress[] = "compact_progress";
+const char __WT_CONFIG_CHOICE_configuration[] = "configuration";
 const char __WT_CONFIG_CHOICE_error_returns[] = "error_returns";
 const char __WT_CONFIG_CHOICE_evict[] = "evict";
 const char __WT_CONFIG_CHOICE_evict_stuck[] = "evict_stuck";
@@ -538,9 +539,10 @@ static const char *confchk_verbose_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CON
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
-  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
-  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict, __WT_CONFIG_CHOICE_evict_stuck,
+  __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation,
+  __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
   __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
   __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
   __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
@@ -663,14 +665,15 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"generation\",\"handleops\","
-    "\"history_store\",\"history_store_activity\",\"log\",\"lsm\","
-    "\"lsm_manager\",\"metadata\",\"mutex\",\"out_of_order\","
-    "\"overflow\",\"read\",\"reconcile\",\"recovery\","
-    "\"recovery_progress\",\"rts\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"tiered\","
-    "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"compact_progress\",\"configuration\",\"error_returns\","
+    "\"evict\",\"evict_stuck\",\"evictserver\",\"fileops\","
+    "\"generation\",\"handleops\",\"history_store\","
+    "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
+    "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"tiered\",\"timestamp\",\"transaction\","
+    "\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX, confchk_verbose_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2686,9 +2689,10 @@ static const char *confchk_verbose13_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
-  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
-  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict, __WT_CONFIG_CHOICE_evict_stuck,
+  __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation,
+  __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
   __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
   __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
   __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
@@ -2871,14 +2875,15 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"generation\",\"handleops\","
-    "\"history_store\",\"history_store_activity\",\"log\",\"lsm\","
-    "\"lsm_manager\",\"metadata\",\"mutex\",\"out_of_order\","
-    "\"overflow\",\"read\",\"reconcile\",\"recovery\","
-    "\"recovery_progress\",\"rts\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"tiered\","
-    "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"compact_progress\",\"configuration\",\"error_returns\","
+    "\"evict\",\"evict_stuck\",\"evictserver\",\"fileops\","
+    "\"generation\",\"handleops\",\"history_store\","
+    "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
+    "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"tiered\",\"timestamp\",\"transaction\","
+    "\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose13_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 305,
@@ -2936,9 +2941,10 @@ static const char *confchk_verbose14_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
-  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
-  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict, __WT_CONFIG_CHOICE_evict_stuck,
+  __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation,
+  __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
   __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
   __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
   __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
@@ -3121,14 +3127,15 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"generation\",\"handleops\","
-    "\"history_store\",\"history_store_activity\",\"log\",\"lsm\","
-    "\"lsm_manager\",\"metadata\",\"mutex\",\"out_of_order\","
-    "\"overflow\",\"read\",\"reconcile\",\"recovery\","
-    "\"recovery_progress\",\"rts\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"tiered\","
-    "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"compact_progress\",\"configuration\",\"error_returns\","
+    "\"evict\",\"evict_stuck\",\"evictserver\",\"fileops\","
+    "\"generation\",\"handleops\",\"history_store\","
+    "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
+    "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"tiered\",\"timestamp\",\"transaction\","
+    "\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose14_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 305,
@@ -3189,9 +3196,10 @@ static const char *confchk_verbose15_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
-  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
-  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict, __WT_CONFIG_CHOICE_evict_stuck,
+  __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation,
+  __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
   __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
   __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
   __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
@@ -3362,14 +3370,15 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"generation\",\"handleops\","
-    "\"history_store\",\"history_store_activity\",\"log\",\"lsm\","
-    "\"lsm_manager\",\"metadata\",\"mutex\",\"out_of_order\","
-    "\"overflow\",\"read\",\"reconcile\",\"recovery\","
-    "\"recovery_progress\",\"rts\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"tiered\","
-    "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"compact_progress\",\"configuration\",\"error_returns\","
+    "\"evict\",\"evict_stuck\",\"evictserver\",\"fileops\","
+    "\"generation\",\"handleops\",\"history_store\","
+    "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
+    "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"tiered\",\"timestamp\",\"transaction\","
+    "\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose15_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 305,
@@ -3430,9 +3439,10 @@ static const char *confchk_verbose16_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
-  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict,
-  __WT_CONFIG_CHOICE_evict_stuck, __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
+  __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_evict, __WT_CONFIG_CHOICE_evict_stuck,
+  __WT_CONFIG_CHOICE_evictserver, __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation,
+  __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
   __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_lsm,
   __WT_CONFIG_CHOICE_lsm_manager, __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex,
   __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_read,
@@ -3603,14 +3613,15 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"generation\",\"handleops\","
-    "\"history_store\",\"history_store_activity\",\"log\",\"lsm\","
-    "\"lsm_manager\",\"metadata\",\"mutex\",\"out_of_order\","
-    "\"overflow\",\"read\",\"reconcile\",\"recovery\","
-    "\"recovery_progress\",\"rts\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"tiered\","
-    "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
+    "\"compact_progress\",\"configuration\",\"error_returns\","
+    "\"evict\",\"evict_stuck\",\"evictserver\",\"fileops\","
+    "\"generation\",\"handleops\",\"history_store\","
+    "\"history_store_activity\",\"log\",\"lsm\",\"lsm_manager\","
+    "\"metadata\",\"mutex\",\"out_of_order\",\"overflow\",\"read\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"tiered\",\"timestamp\",\"transaction\","
+    "\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose16_choices},
   {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 305,
