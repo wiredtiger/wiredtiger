@@ -2387,7 +2387,11 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
     if (p == NULL)
         return;
 
-    *ta = NULL;
+    do {
+        WT_ORDERED_READ(p, *ta);
+        if (p == NULL)
+            break;
+    } while (!__wt_atomic_cas_ptr(ta, p, NULL));
 
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
 
@@ -2409,7 +2413,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
-    WT_TIME_AGGREGATE stop_ta, ta;
+    WT_TIME_AGGREGATE stop_ta, *stop_tap, ta;
     uint32_t i;
     uint8_t previous_ref_state;
 
@@ -2489,7 +2493,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
-    __rec_page_modify_ta_safe_free(session, &mod->ta);
+    __rec_page_modify_ta_safe_free(session, &mod->stop_ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
@@ -2618,8 +2622,9 @@ split:
     }
 
     if (WT_TIME_AGGREGATE_HAS_STOP(&stop_ta)) {
-        WT_RET(__wt_calloc_one(session, &mod->ta));
-        *mod->ta = stop_ta;
+        WT_RET(__wt_calloc_one(session, &stop_tap));
+        WT_TIME_AGGREGATE_COPY(stop_tap, &stop_ta);
+        mod->stop_ta = stop_tap;
     }
 
     return (0);

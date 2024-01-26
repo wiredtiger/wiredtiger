@@ -431,8 +431,8 @@ struct __wt_page_modify {
     /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
 
-    /* Aggregated timestamp information. */
-    WT_TIME_AGGREGATE *ta;
+    /* Stop aggregated timestamp information. */
+    WT_TIME_AGGREGATE *stop_ta;
 
     /*
      * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
