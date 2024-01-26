@@ -324,9 +324,9 @@ check_single_result_against_inputs(
     WT_CONFIG_ITEM got_value;
     WT_CONFIG_PARSER *parser;
     int pos;
+    int ret;
     char keystr[100];
     const char *s;
-    int ret;
 
     testutil_assert(key->len + 1 < sizeof(keystr));
     strncpy(keystr, key->str, key->len);
@@ -428,7 +428,12 @@ handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const 
         ++custom->state.completed;
         free_state(&custom->state);
     } else {
+        /*
+         * We know how to handle every verbose message from configuration.
+         * Yell if that changes.
+         */
         printf("UNKNOWN: %s\n", message);
+        return (1);
     }
     return (0);
 }

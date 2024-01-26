@@ -595,13 +595,13 @@ __conf_verbose_cat_config(WT_SESSION_IMPL *session, const char **cfg, WT_CONF *c
   const char *subconf_name)
 {
     WT_CONFIG_ITEM value, config_value;
+    size_t name_remainder;
     uint64_t key_id, mask;
     u_int i, type;
     int shift;
-    size_t name_remainder;
+    char keyname[256];
     char *namep;
     const char *p;
-    char keyname[256];
     bool need_quotes;
 
     /*
@@ -649,7 +649,7 @@ __conf_verbose_cat_config(WT_SESSION_IMPL *session, const char **cfg, WT_CONF *c
 
             switch (type) {
             case WT_CONFIG_COMPILED_TYPE_INT:
-                WT_RET(__wt_buf_catfmt(session, buf, "%lld", value.val));
+                WT_RET(__wt_buf_catfmt(session, buf, "%" PRIi64, value.val));
                 break;
             case WT_CONFIG_COMPILED_TYPE_BOOLEAN:
                 if (value.len == 0)
