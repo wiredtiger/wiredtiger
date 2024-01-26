@@ -521,7 +521,7 @@ __wt_logop_%(name)s_unpack(
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifndef NO_STRICT_PACKING_CHECK
+#if !defined(NO_STRICT_PACKING_CHECK) || defined(PACKING_COMPATIBILITY_MODE)
     const uint8_t *pp_orig;
     pp_orig = *pp;
 #endif
@@ -532,11 +532,14 @@ __wt_logop_%(name)s_unpack(
 
     WT_ASSERT(session, optype == %(macro)s);
 
-#ifndef NO_STRICT_PACKING_CHECK
-    if (WT_PTRDIFF(end, pp_orig) != size) {
+#if !defined(NO_STRICT_PACKING_CHECK)
+    if (WT_PTRDIFF(*pp, pp_orig) != size) {
         WT_RET_MSG(session, EINVAL, "logop_%(name)s: size mismatch: expected %%u, got %%" PRIuPTR,
-            size, WT_PTRDIFF(end, pp_orig));
+            size, WT_PTRDIFF(*pp, pp_orig));
     }
+#endif
+#if defined(PACKING_COMPATIBILITY_MODE)
+    *pp = pp_orig + size;
 #endif
 
     return (0);
