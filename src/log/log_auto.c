@@ -307,9 +307,9 @@ __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -317,8 +317,12 @@ __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
         WT_RET_MSG(session, ret, "logop_col_modify: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_COL_MODIFY);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_col_modify: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -439,9 +443,9 @@ __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -449,8 +453,12 @@ __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
         WT_RET_MSG(session, ret, "logop_col_put: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_COL_PUT);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_col_put: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -568,9 +576,9 @@ __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -578,8 +586,12 @@ __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
         WT_RET_MSG(session, ret, "logop_col_remove: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_COL_REMOVE);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_col_remove: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -687,9 +699,9 @@ __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -697,8 +709,12 @@ __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
         WT_RET_MSG(session, ret, "logop_col_truncate: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_COL_TRUNCATE);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_col_truncate: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -808,9 +824,9 @@ __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -818,8 +834,12 @@ __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
         WT_RET_MSG(session, ret, "logop_row_modify: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_ROW_MODIFY);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_row_modify: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -945,9 +965,9 @@ __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -955,8 +975,12 @@ __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
         WT_RET_MSG(session, ret, "logop_row_put: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_ROW_PUT);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_row_put: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -1079,9 +1103,9 @@ __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -1089,8 +1113,12 @@ __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
         WT_RET_MSG(session, ret, "logop_row_remove: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_ROW_REMOVE);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_row_remove: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -1212,9 +1240,9 @@ __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -1222,8 +1250,12 @@ __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
         WT_RET_MSG(session, ret, "logop_row_truncate: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_ROW_TRUNCATE);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_row_truncate: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -1344,9 +1376,9 @@ __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -1354,8 +1386,13 @@ __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
         WT_RET_MSG(session, ret, "logop_checkpoint_start: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_CHECKPOINT_START);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL,
+          "logop_checkpoint_start: size mismatch: expected %u, got %" PRIuPTR, size,
+          WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -1451,9 +1488,9 @@ __wt_logop_prev_lsn_unpack(
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -1461,8 +1498,12 @@ __wt_logop_prev_lsn_unpack(
         WT_RET_MSG(session, ret, "logop_prev_lsn: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_PREV_LSN);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_prev_lsn: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -1565,9 +1606,9 @@ __wt_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const 
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -1575,8 +1616,12 @@ __wt_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const 
         WT_RET_MSG(session, ret, "logop_backup_id: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_BACKUP_ID);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_backup_id: size mismatch: expected %u, got %" PRIuPTR,
+          size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
@@ -1699,9 +1744,9 @@ __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, co
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -1710,8 +1755,13 @@ __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, co
         WT_RET_MSG(session, ret, "logop_txn_timestamp: unpack failure");
 
     WT_ASSERT(session, optype == WT_LOGOP_TXN_TIMESTAMP);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL,
+          "logop_txn_timestamp: size mismatch: expected %u, got %" PRIuPTR, size,
+          WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);

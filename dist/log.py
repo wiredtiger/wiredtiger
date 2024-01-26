@@ -521,9 +521,9 @@ __wt_logop_%(name)s_unpack(
     WT_DECL_RET;
     uint32_t optype, size;
 
-#ifdef HAVE_DIAGNOSTIC
-    const uint8_t **pp_orig;
-    pp_orig = pp;
+#ifndef NO_STRICT_PACKING_CHECK
+    const uint8_t *pp_orig;
+    pp_orig = *pp;
 #endif
 
     if ((ret = __wt_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
@@ -531,8 +531,12 @@ __wt_logop_%(name)s_unpack(
         WT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 
     WT_ASSERT(session, optype == %(macro)s);
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, WT_PTRDIFF(end, pp_orig) >= size);
+
+#ifndef NO_STRICT_PACKING_CHECK
+    if (WT_PTRDIFF(end, pp_orig) != size) {
+        WT_RET_MSG(session, EINVAL, "logop_%(name)s: size mismatch: expected %%u, got %%" PRIuPTR,
+            size, WT_PTRDIFF(end, pp_orig));
+    }
 #endif
 
     return (0);
