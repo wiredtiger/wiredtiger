@@ -79,12 +79,37 @@ public:
         return (uint64_t)(next_double() * max);
     }
 
+    /*
+     * random::next_uint64 --
+     *     Get the next integer.
+     */
+    inline uint64_t
+    next_uint64(uint64_t min, uint64_t max)
+    {
+        return min + next_uint64(max - min);
+    }
+
 private:
     WT_RAND_STATE _random_state;
 };
 
-#define probability_switch(p) for (auto __r = (p); __r >= 0; __r = -1)
+/*
+ * probability_switch --
+ *     A convenience macro for situations where we need to make different decisions with different
+ *     probabilities.
+ */
+#define probability_switch(r) for (auto __r = (r); __r >= 0; __r = -1)
+
+/*
+ * probability_case --
+ *     A case within a probability switch.
+ */
 #define probability_case(p) if (__r >= 0 && (__r -= (p)) < 0)
+
+/*
+ * probability_default --
+ *     The default case within a probability switch.
+ */
 #define probability_default if (__r >= 0)
 
 } /* namespace model */

@@ -106,25 +106,14 @@ kv_workload_sequence::contains_key(
 }
 
 /*
- * kv_workload_sequence::must_start_before_starting --
- *     Declare that the other sequence cannot start until this sequence starts.
- */
-void
-kv_workload_sequence::must_start_before_starting(kv_workload_sequence &other)
-{
-    other._dependencies_start.push_back(this);
-    _runnable_after_start.push_back(&other);
-}
-
-/*
- * kv_workload_sequence::must_finish_before_starting --
+ * kv_workload_sequence::must_finish_before --
  *     Declare that the other sequence cannot start until this sequence finishes.
  */
 void
-kv_workload_sequence::must_finish_before_starting(kv_workload_sequence &other)
+kv_workload_sequence::must_finish_before(kv_workload_sequence *other)
 {
-    other._dependencies_finish.push_back(this);
-    _runnable_after_finish.push_back(&other);
+    other->_dependencies.push_back(this);
+    _unblocks.push_back(other);
 }
 
 } /* namespace model */

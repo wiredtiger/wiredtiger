@@ -29,7 +29,6 @@
 #ifndef MODEL_DRIVER_KV_WORKLOAD_SEQUENCE_H
 #define MODEL_DRIVER_KV_WORKLOAD_SEQUENCE_H
 
-#include <atomic>
 #include <deque>
 #include <memory>
 #include "model/driver/kv_workload.h"
@@ -37,6 +36,16 @@
 #include "model/data_value.h"
 
 namespace model {
+
+/*
+ * kv_workload_sequence_type --
+ *     A type of the sequence.
+ */
+enum class kv_workload_sequence_type {
+    none,
+    set_stable_timestamp,
+    transaction,
+};
 
 /*
  * kv_workload_sequence --
@@ -49,16 +58,30 @@ public:
      * kv_workload_sequence::kv_workload_sequence --
      *     Create a new sequence of operations.
      */
-    inline kv_workload_sequence() {}
+    inline kv_workload_sequence(
+      size_t seq_no, kv_workload_sequence_type type = kv_workload_sequence_type::none)
+        : _seq_no(seq_no), _type(type)
+    {
+    }
 
     /*
-     * kv_workload_sequence::transaction --
-     *     Check if this sequence represents a transaction.
+     * kv_workload_sequence::seq_no --
+     *     Get the sequence's position in the equivalent serial schedule.
      */
-    virtual bool
-    transaction() const noexcept
+    inline size_t
+    seq_no() const noexcept
     {
-        return false;
+        return _seq_no;
+    }
+
+    /*
+     * kv_workload_sequence::type --
+     *     Get the type of the sequence, if any.
+     */
+    inline kv_workload_sequence_type
+    type() const noexcept
+    {
+        return _type;
     }
 
     /*
@@ -73,22 +96,34 @@ public:
     }
 
     /*
-     * kv_workload_sequence::overlaps_with --
-     *     Check whether this sequence overlaps in any key ranges with the other sequence.
+     * kv_workload_sequence::size --
+     *     Get the length of the sequence.
      */
-    bool overlaps_with(const kv_workload_sequence &other) const;
+    inline size_t
+    size() const noexcept
+    {
+        return _operations.size();
+    }
 
     /*
-     * kv_workload_sequence::must_start_before_starting --
-     *     Declare that the other sequence cannot start until this sequence starts.
+     * kv_workload_sequence::operator[] --
+     *     Get an operation in the sequence.
      */
-    void must_start_before_starting(kv_workload_sequence &other);
+    inline operation::any &
+    operator[](size_t index)
+    {
+        return _operations[index];
+    }
 
     /*
-     * kv_workload_sequence::must_finish_before_starting --
-     *     Declare that the other sequence cannot start until this sequence finishes.
+     * kv_workload_sequence::operator[] --
+     *     Get an operation in the sequence.
      */
-    void must_finish_before_starting(kv_workload_sequence &other);
+    inline const operation::any &
+    operator[](size_t index) const
+    {
+        return _operations[index];
+    }
 
     /*
      * kv_workload_sequence::operations --
@@ -113,30 +148,60 @@ public:
     }
 
     /*
+     * kv_workload_sequence::overlaps_with --
+     *     Check whether this sequence overlaps in any key ranges with the other sequence.
+     */
+    bool overlaps_with(const kv_workload_sequence &other) const;
+
+    /*
+     * kv_workload_sequence::overlaps_with --
+     *     Check whether this sequence overlaps in any key ranges with the other sequence.
+     */
+    inline bool
+    overlaps_with(std::shared_ptr<kv_workload_sequence> other) const
+    {
+        return overlaps_with(*other.get());
+    }
+
+    /*
+     * kv_workload_sequence::dependencies --
+     *     Get the list of sequences that must run before this sequence can run. Note that the
+     *     lifetime of this reference is constrained to the lifetime of this object.
+     */
+    inline const std::deque<kv_workload_sequence *> &
+    dependencies() const noexcept
+    {
+        return _dependencies;
+    }
+
+    /*
      * kv_workload_sequence::runnable_after_finish --
      *     Get the list of sequences that are unblocked after this sequence completes. Note that the
      *     lifetime of this reference is constrained to the lifetime of this object.
      */
-    inline const std::deque<kv_workload_sequence *>
-    runnable_after_finish() const noexcept
+    inline const std::deque<kv_workload_sequence *> &
+    unblocks() const noexcept
     {
-        return _runnable_after_finish;
+        return _unblocks;
     }
+
+    /*
+     * kv_workload_sequence::must_finish_before --
+     *     Declare that the other sequence cannot start until this sequence finishes.
+     */
+    void must_finish_before(kv_workload_sequence *other);
 
     // XXX
     /* The number of unsatisfied dependencies before this sequence can run. */
     std::atomic<size_t> _unsatisfied_dependencies;
 
-    bool _done;
-    size_t _index;
     size_t _next_operation_index;
 
     inline void
     prepare_to_run()
     {
-        _done = false;
         _next_operation_index = 0;
-        _unsatisfied_dependencies = _dependencies_start.size() + _dependencies_finish.size();
+        _unsatisfied_dependencies = _dependencies.size();
     }
 
 protected:
@@ -147,15 +212,16 @@ protected:
     bool contains_key(table_id_t table_id, const data_value &start, const data_value &stop) const;
 
 protected:
+    size_t _seq_no;
+    kv_workload_sequence_type _type;
+
     std::deque<operation::any> _operations;
 
-    /* Sequences that must start before this sequence can start, and the inverse. */
-    std::deque<kv_workload_sequence *> _dependencies_start;
-    std::deque<kv_workload_sequence *> _runnable_after_start;
+    /* Sequences that must finish before this sequence can start. */
+    std::deque<kv_workload_sequence *> _dependencies;
 
-    /* Sequences that must finish before this sequence can start, and the inverse. */
-    std::deque<kv_workload_sequence *> _dependencies_finish;
-    std::deque<kv_workload_sequence *> _runnable_after_finish;
+    /* Sequences that may be unblocked after this sequence finishes. */
+    std::deque<kv_workload_sequence *> _unblocks;
 };
 
 /*
@@ -163,60 +229,6 @@ protected:
  *     Pointer to a sequence.
  */
 using kv_workload_sequence_ptr = std::shared_ptr<kv_workload_sequence>;
-
-/*
- * kv_workload_transaction --
- *     A single workload transaction.
- */
-class kv_workload_transaction : public kv_workload_sequence {
-
-public:
-    /*
-     * kv_workload_transaction::kv_workload_transaction --
-     *     Create a new sequence of operations.
-     */
-    inline kv_workload_transaction(txn_id_t id, bool prepared) : _id(id), _prepared(prepared) {}
-
-    /*
-     * kv_workload_sequence::transaction --
-     *     Check if this sequence represents a transaction.
-     */
-    virtual bool
-    transaction() const noexcept
-    {
-        return true;
-    }
-
-    /*
-     * kv_workload_transaction::id --
-     *     Get the transaction ID.
-     */
-    inline txn_id_t
-    id() const noexcept
-    {
-        return _id;
-    }
-
-    /*
-     * kv_workload_transaction::prepared --
-     *     Check if this is a prepared transaction.
-     */
-    inline bool
-    prepared() const noexcept
-    {
-        return _prepared;
-    }
-
-protected:
-    txn_id_t _id;
-    bool _prepared;
-};
-
-/*
- * kv_workload_sequence_ptr --
- *     Pointer to a transaction.
- */
-using kv_workload_transaction_ptr = std::shared_ptr<kv_workload_transaction>;
 
 } /* namespace model */
 #endif

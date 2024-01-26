@@ -322,7 +322,7 @@ private:
 
 /*
  * one_of --
- *   Check it the first argument is equal to one or more of the other arguments.
+ *     Check it the first argument is equal to one or more of the other arguments.
  */
 template <typename T>
 inline bool
