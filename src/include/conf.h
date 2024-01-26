@@ -1079,8 +1079,6 @@ static const struct {
  *	A set of values bound.
  */
 struct __wt_conf_bindings {
-    u_int bind_values; /* position of top of values (next available) */
-
     struct {
         WT_CONF_BIND_DESC *desc;
         WT_CONFIG_ITEM item;

@@ -63,11 +63,13 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
             if (keys != 0)
                 return (WT_NOTFOUND);
             bind_desc = &conf_key->u.bind_desc;
-            values_off = bind_desc->offset + session->conf_bindings.bind_values;
+            values_off = bind_desc->offset;
             WT_ASSERT(session,
               bind_desc->offset < orig_conf->binding_count &&
                 values_off <= WT_CONF_BIND_VALUES_LEN);
-            WT_ASSERT(session, session->conf_bindings.values[values_off].desc == bind_desc);
+            if (session->conf_bindings.values[values_off].desc != bind_desc)
+                WT_RET_MSG(session, EINVAL,
+                  "configuration value(s) have not been bound with bind_configuration");
             *value = session->conf_bindings.values[values_off].item;
             return (0);
 

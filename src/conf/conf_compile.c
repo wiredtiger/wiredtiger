@@ -25,9 +25,9 @@ static const WT_CONFIG_ITEM_TYPE __compiled_type_to_item_type[] = {
 static int __conf_compile_config_strings(
   WT_SESSION_IMPL *, const WT_CONFIG_ENTRY *, const char **, u_int, bool, WT_CONF *);
 static void __conf_compile_free(WT_SESSION_IMPL *, WT_CONF *);
-static int __conf_verbose(WT_SESSION_IMPL *, WT_CONF *, const char *, WT_CONF *conf);
-static int __conf_verbose_cat_config(
-  WT_SESSION_IMPL *, WT_CONF *, uint64_t, WT_ITEM *, const WT_CONFIG_CHECK *, u_int);
+static int __conf_verbose(WT_SESSION_IMPL *, const char *, const char **, WT_CONF *conf);
+static int __conf_verbose_cat_config(WT_SESSION_IMPL *, const char **, WT_CONF *, uint64_t,
+  WT_ITEM *, const WT_CONFIG_CHECK *, u_int, const char *);
 
 /*
  * __conf_compile_value --
@@ -378,6 +378,7 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
 {
     WT_CONF *conf, *preconf;
     WT_DECL_RET;
+    const char *cfg[3];
 
     if (!centry->compilable)
         WT_RET_MSG(session, ENOTSUP,
@@ -412,8 +413,12 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
 
     *confp = conf;
 
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CONFIGURATION, WT_VERBOSE_NOTICE))
-        WT_ERR(__conf_verbose(session, preconf, config, conf));
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CONFIGURATION, WT_VERBOSE_DEBUG_2)) {
+        cfg[0] = preconf->compile_time_entry->base;
+        cfg[1] = config;
+        cfg[2] = NULL;
+        WT_ERR(__conf_verbose(session, preconf->compile_time_entry->method, cfg, conf));
+    }
 
 err:
     return (ret);
@@ -450,6 +455,9 @@ __conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *c
 
     WT_ASSERT_ALWAYS(session, conf->conf_key_count <= nkey, "conf: key count overflow");
     WT_ASSERT_ALWAYS(session, conf->conf_count <= nconf, "conf: sub-conf count overflow");
+
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CONFIGURATION, WT_VERBOSE_DEBUG_2))
+        WT_RET(__conf_verbose(session, centry->method, cfg, conf));
 
     return (0);
 }
@@ -549,27 +557,27 @@ __wt_conf_compile_discard(WT_SESSION_IMPL *session)
  *     Print some verbose information about a completed compilation.
  */
 static int
-__conf_verbose(WT_SESSION_IMPL *session, WT_CONF *preconf, const char *config, WT_CONF *conf)
+__conf_verbose(WT_SESSION_IMPL *session, const char *method, const char **cfg, WT_CONF *conf)
 {
     const WT_CONFIG_ENTRY *centry;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    const char **c;
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
-    __wt_verbose_notice(session, WT_VERB_CONFIGURATION, "config parsing for method: \"%s\"",
-      preconf->compile_time_entry->method);
-    __wt_verbose_notice(
-      session, WT_VERB_CONFIGURATION, "base config: \"%s\"", preconf->compile_time_entry->base);
-    __wt_verbose_notice(session, WT_VERB_CONFIGURATION, "calling config: \"%s\"", config);
+    __wt_verbose_debug2(
+      session, WT_VERB_CONFIGURATION, "config parsing for method: \"%s\"", method);
+    for (c = cfg; *c != NULL; ++c)
+        __wt_verbose_debug2(session, WT_VERB_CONFIGURATION, "input config: \"%s\"", *c);
 
     /*
      * Get the list of keys for this API.
      */
     centry = conf->compile_time_entry;
-    WT_ERR(
-      __conf_verbose_cat_config(session, conf, 0, buf, centry->checks, centry->checks_entries));
-    __wt_verbose_notice(
+    WT_ERR(__conf_verbose_cat_config(
+      session, cfg, conf, 0, buf, centry->checks, centry->checks_entries, ""));
+    __wt_verbose_debug2(
       session, WT_VERB_CONFIGURATION, "reconstructed config: %s", (const char *)buf->data);
 
 err:
@@ -582,13 +590,19 @@ err:
  *     Build up a configuration string from the conf structure.
  */
 static int
-__conf_verbose_cat_config(WT_SESSION_IMPL *session, WT_CONF *conf, uint64_t subkey_id, WT_ITEM *buf,
-  const WT_CONFIG_CHECK *ccheck, u_int count)
+__conf_verbose_cat_config(WT_SESSION_IMPL *session, const char **cfg, WT_CONF *conf,
+  uint64_t subkey_id, WT_ITEM *buf, const WT_CONFIG_CHECK *ccheck, u_int count,
+  const char *subconf_name)
 {
-    WT_CONFIG_ITEM value;
+    WT_CONFIG_ITEM value, config_value;
     uint64_t key_id, mask;
     u_int i, type;
-    int ret, shift;
+    int shift;
+    size_t name_remainder;
+    char *namep;
+    const char *p;
+    char keyname[256];
+    bool need_quotes;
 
     /*
      * Get the shift amount.
@@ -600,25 +614,38 @@ __conf_verbose_cat_config(WT_SESSION_IMPL *session, WT_CONF *conf, uint64_t subk
         mask <<= 16;
         shift += 16;
     }
+    if (subconf_name[0] != '\0')
+        WT_RET(__wt_snprintf(keyname, sizeof(keyname), "%s.", subconf_name));
+    else
+        keyname[0] = '\0';
+    namep = &keyname[strlen(keyname)];
+    name_remainder = sizeof(keyname) - strlen(keyname);
 
     for (i = 0; i < count; ++i, ++ccheck) {
         if (i != 0)
             WT_RET(__wt_buf_catfmt(session, buf, ","));
         WT_RET(__wt_buf_catfmt(session, buf, "%s=", ccheck->name));
+
+        /*
+         * First get the value using the config functions.
+         */
+        WT_RET(__wt_snprintf(namep, name_remainder, "%s", ccheck->name));
+        WT_RET(__wt_config_gets(session, cfg, keyname, &config_value));
+        if (config_value.len > 0 && config_value.str[0] == '%') {
+            /* This parameter needs a binding, so we'll just show the unbound format */
+            WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)config_value.len, config_value.str));
+            continue;
+        }
+
         key_id = (ccheck->key_id << shift) | subkey_id;
         type = ccheck->compiled_type;
         if (ccheck->subconfigs != NULL) {
             WT_RET(__wt_buf_catfmt(session, buf, "("));
-            WT_RET(__conf_verbose_cat_config(
-              session, conf, key_id, buf, ccheck->subconfigs, ccheck->subconfigs_entries));
+            WT_RET(__conf_verbose_cat_config(session, cfg, conf, key_id, buf, ccheck->subconfigs,
+              ccheck->subconfigs_entries, ccheck->name));
             WT_RET(__wt_buf_catfmt(session, buf, ")"));
         } else {
-            ret = __wt_conf_gets_func(session, conf, key_id, 0, false, &value);
-            if (ret == WT_NOTFOUND) {
-                WT_RET(__wt_buf_catfmt(session, buf, "GET_RETURN(%d)", ret));
-                continue;
-            }
-            WT_RET(ret);
+            WT_RET(__wt_conf_gets_func(session, conf, key_id, 0, false, &value));
 
             switch (type) {
             case WT_CONFIG_COMPILED_TYPE_INT:
@@ -644,12 +671,29 @@ __conf_verbose_cat_config(WT_SESSION_IMPL *session, WT_CONF *conf, uint64_t subk
                         WT_ASSERT(session, WT_CONF_STRING_MATCH(true, value));
                     }
                 }
-                WT_RET(__wt_buf_catfmt(session, buf, "%*s", (int)value.len, value.str));
+                WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)value.len, value.str));
                 break;
             case WT_CONFIG_COMPILED_TYPE_STRING:
             case WT_CONFIG_COMPILED_TYPE_LIST:
             case WT_CONFIG_COMPILED_TYPE_FORMAT:
-                WT_RET(__wt_buf_catfmt(session, buf, "\"%*s\"", (int)value.len, value.str));
+                /*
+                 * For strings, we only use quotes when there may be special characters. This also
+                 * sidesteps some strange problems that may occur if "true" or "false" strings are
+                 * used in a context where we expect a string. key="true" vs. key=true actually give
+                 * different results from the traditional config parser, the latter will set val to
+                 * 1. Fallout from this difference is avoided by eliminating quotes in those cases.
+                 */
+                need_quotes = false;
+                for (p = value.str; p < &value.str[value.len]; ++p) {
+                    if (!isalnum(*p) && *p != '-' && *p != '_') {
+                        need_quotes = true;
+                        break;
+                    }
+                }
+                if (need_quotes)
+                    WT_RET(__wt_buf_catfmt(session, buf, "\"%.*s\"", (int)value.len, value.str));
+                else
+                    WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)value.len, value.str));
                 break;
             default:
                 return (__wt_illegal_value(session, type));

@@ -29,6 +29,7 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
         return (EINVAL);
 
     bound = &session->conf_bindings;
+    WT_CLEAR(*bound);
 
     for (i = 0; i < conf->binding_count; ++i) {
         bind_desc = conf->binding_descriptions[i];
