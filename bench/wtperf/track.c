@@ -361,6 +361,62 @@ sum_update_latency(WTPERF *wtperf, TRACK *total)
     sum_latency(wtperf, offsetof(WTPERF_THREAD, update), total);
 }
 
+/*
+ * Return track latency.
+ */
+uint64_t
+get_track_latency(WTPERF *wtperf, size_t field_offset, int type)
+{
+    CONFIG_OPTS *opts;
+    TRACK *track;
+    WTPERF_THREAD *thread;
+    int64_t i, th_cnt;
+    uint32_t max_latency, min_latency, average_latency;
+    uint64_t latency_ops, latency;
+
+    opts = wtperf->opts;
+    max_latency = min_latency = average_latency = 0;
+    latency = latency_ops = 0;
+
+    if (wtperf->popthreads == NULL) {
+        thread = wtperf->workers;
+        th_cnt = wtperf->workers_cnt;
+    } else {
+        thread = wtperf->popthreads;
+        th_cnt = opts->populate_threads;
+    }
+
+    for (i = 0; thread != NULL && i < th_cnt; ++i, ++thread) {
+        track = (TRACK *)((uint8_t *)thread + field_offset);
+
+        if (i == 0) {
+            max_latency = track->total_max_latency;
+            min_latency = track->total_min_latency;
+        }
+
+        if (track->total_max_latency > max_latency)
+            max_latency = track->total_max_latency;
+
+        if (track->total_min_latency < min_latency)
+            min_latency = track->total_min_latency;
+
+        latency_ops += track->latency_ops;
+        latency += track->latency;
+    }
+
+    switch (type) {
+    case TRACK_MIN_LATENCY:
+        return (uint64_t)min_latency;
+    case TRACK_MAX_LATENCY:
+        return (uint64_t)max_latency;
+    case TRACK_AVERAGE_LATENCY:
+        average_latency = latency_ops == 0 ? 0 : latency / latency_ops;
+        return (uint64_t)average_latency;
+    default:
+        return 0;
+    }
+}
+
 static void
 latency_print_single(WTPERF *wtperf, TRACK *total, const char *name)
 {

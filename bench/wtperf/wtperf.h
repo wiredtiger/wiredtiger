@@ -242,7 +242,12 @@ typedef struct {
      */
     uint64_t ops;         /* Total operations */
     uint64_t latency_ops; /* Total ops sampled for latency */
-    uint64_t latency;     /* Total latency */
+#define TRACK_MIN_LATENCY 0
+#define TRACK_MAX_LATENCY 1
+#define TRACK_AVERAGE_LATENCY 2
+    uint64_t latency;           /* Total latency */
+    uint64_t total_min_latency; /* Total min latency */
+    uint64_t total_max_latency; /* Total max latency */
 
     uint64_t last_latency_ops; /* Last read by monitor thread */
     uint64_t last_latency;
@@ -304,6 +309,7 @@ char *config_reopen(CONFIG_OPTS *);
 int config_sanity(WTPERF *);
 void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
+uint64_t get_track_latency(WTPERF *wtperf, size_t field_offset, int type);
 void latency_print(WTPERF *);
 void latency_read(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_update(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
