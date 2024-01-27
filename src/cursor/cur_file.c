@@ -640,8 +640,10 @@ err:
     dead = F_ISSET(cursor, WT_CURSTD_DEAD);
 
     /* Free the bulk-specific resources. */
-    if (F_ISSET(cursor, WT_CURSTD_BULK))
+    if (F_ISSET(cursor, WT_CURSTD_BULK)) {
         WT_TRET(__wt_curbulk_close(session, (WT_CURSOR_BULK *)cursor));
+        WT_STAT_CONN_DECR_ATOMIC(session, cursor_bulk_count);
+    }
 
     WT_TRET(__wt_btcur_close(cbt, false));
     /* The URI is owned by the btree handle. */
@@ -1210,6 +1212,9 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 
     WT_ERR(
       __curfile_create(session, owner, cfg, bulk, bitmap, hs_dhandle, &ckpt_snapshot, cursorp));
+
+    if(bulk)
+        WT_STAT_CONN_INCR_ATOMIC(session, cursor_bulk_count);
 
     return (0);
 
