@@ -626,7 +626,7 @@ __curfile_close(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 err:
 
-    /* Only try to cache the cursor if there's no error. */
+    /* Only try to remove the cursor from the cache if there's no error. */
     if (ret == 0) {
         /*
          * If releasing the cursor fails in any way, it will be left in a state that allows it to be
