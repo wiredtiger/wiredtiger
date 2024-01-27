@@ -510,7 +510,6 @@ __compact_page_skip(
     WT_EXT *ext;
     WT_EXTLIST *el;
     wt_off_t limit;
-    uint64_t compact_pages_rewritten_expected_prev;
 
     *skipp = true; /* Return a default skip. */
 
@@ -550,10 +549,9 @@ __compact_page_skip(
       block->compact_pages_rewritten > block->compact_pages_rewritten_expected)
         block->compact_estimated = false;
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
-        compact_pages_rewritten_expected_prev = block->compact_pages_rewritten_expected;
         __block_compact_estimate_remaining_work(session, block);
         /* If no potential work has been found, exit compaction. */
-        if (compact_pages_rewritten_expected_prev == block->compact_pages_rewritten_expected)
+        if (block->compact_pages_rewritten_expected == 0)
             ret = ECANCELED;
     }
 
