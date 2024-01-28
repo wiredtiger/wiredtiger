@@ -318,7 +318,7 @@ class Operation:
         self.type = OpType.HS_UPDATE_VALID
         self.file = self.__extract_file(line)
 
-        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+        matches = re.search('start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) \| stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
         durable_start_start = int(matches.group(1))
         durable_start_end = int(matches.group(2))
