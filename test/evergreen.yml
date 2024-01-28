@@ -1138,6 +1138,7 @@ functions:
           done
           if [ $failure -eq 1 ]; then
             exit $fail_ret
+          fi
         done
 
   "compatibility test":
