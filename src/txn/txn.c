@@ -141,7 +141,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     }
 
     /* Leave the generation after releasing the snapshot. */
-    __wt_session_gen_leave(session, WT_GEN_COMMIT);
+    __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
 }
 
 /*
@@ -210,19 +210,19 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     n = 0;
 
     /* Fast path if we already have the current snapshot. */
-    if ((commit_gen = __wt_session_gen(session, WT_GEN_COMMIT)) != 0) {
-        WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
+    if ((commit_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
+        WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || !F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT));
         if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) &&
-          commit_gen == __wt_gen(session, WT_GEN_COMMIT))
+          commit_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT))
             return;
         /*
          * Leave the generation here and enter again later to acquire a new snapshot if any
-         * concurrent transactions after we entered the generation have been committed and changed
-         * the global commit generation.
+         * concurrent transactions have been committed and changed the global snapshot generation
+         * after we entered the generation.
          */
-        __wt_session_gen_leave(session, WT_GEN_COMMIT);
+        __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
     }
-    __wt_session_gen_enter(session, WT_GEN_COMMIT);
+    __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
@@ -1899,11 +1899,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_readunlock(session, &txn_global->visibility_rwlock);
 
     /*
-     * If we have made some updates visible, start a new commit generation: any cached snapshots
+     * If we have made some updates visible, start a new snapshot generation: any cached snapshots
      * have to be refreshed.
      */
     if (!readonly)
-        __wt_gen_next(session, WT_GEN_COMMIT, NULL);
+        __wt_gen_next(session, WT_GEN_HAS_SNAPSHOT, NULL);
 
     /* First check if we've made something durable in the future. */
     update_durable_ts = false;
