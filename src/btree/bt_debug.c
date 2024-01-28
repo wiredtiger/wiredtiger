@@ -610,7 +610,6 @@ __debug_cell_kv(
 {
     WT_SESSION_IMPL *session;
     char time_string[WT_TIME_STRING_SIZE];
-    const char *p;
 
     session = ds->session;
 
@@ -655,12 +654,6 @@ __debug_cell_kv(
         if (!WT_TIME_WINDOW_IS_EMPTY(&unpack->tw))
             WT_RET(ds->f(ds, " | %s", __wt_time_window_to_string(&unpack->tw, time_string)));
         break;
-    }
-
-    /* Column-store deleted cells. */
-    if (WT_CELL_DEL != 0) {
-        p = __wt_cell_type_string(unpack->raw);
-        return (__debug_item(ds, tag, p, strlen(p)));
     }
 
     /* Overflow addresses. */
