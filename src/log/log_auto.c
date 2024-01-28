@@ -6,6 +6,12 @@
 #define WT_SIZE_CHECK_UNPACK_PTR(p, end) WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
 #define WT_SIZE_CHECK_UNPACK_PTR0(p, end) WT_RET_TEST(!(p) || !(end) || (p) > (end), EINVAL)
 
+#ifndef WT_CHECK_OPTYPE
+#define WT_CHECK_OPTYPE(session, opvar, op) \
+    if (opvar != op)                        \
+        WT_RET_MSG(session, EINVAL, "unpacking " #op ": optype mismatch");
+#endif
+
 /*
  * __pack_encode__uintAny --
  *     Pack an unsigned integer.
@@ -316,7 +322,7 @@ __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
       (ret = __wt_struct_unpack_col_modify(pp, end, fileidp, recnop, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_col_modify: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_COL_MODIFY);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_COL_MODIFY);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -455,7 +461,7 @@ __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
       (ret = __wt_struct_unpack_col_put(pp, end, fileidp, recnop, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_col_put: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_COL_PUT);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_COL_PUT);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -591,7 +597,7 @@ __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
       (ret = __wt_struct_unpack_col_remove(pp, end, fileidp, recnop)) != 0)
         WT_RET_MSG(session, ret, "logop_col_remove: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_COL_REMOVE);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_COL_REMOVE);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -717,7 +723,7 @@ __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
       (ret = __wt_struct_unpack_col_truncate(pp, end, fileidp, startp, stopp)) != 0)
         WT_RET_MSG(session, ret, "logop_col_truncate: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_COL_TRUNCATE);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_COL_TRUNCATE);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -845,7 +851,7 @@ __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
       (ret = __wt_struct_unpack_row_modify(pp, end, fileidp, keyp, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_modify: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_ROW_MODIFY);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_ROW_MODIFY);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -989,7 +995,7 @@ __wt_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const ui
       (ret = __wt_struct_unpack_row_put(pp, end, fileidp, keyp, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_put: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_ROW_PUT);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_ROW_PUT);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -1130,7 +1136,7 @@ __wt_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
       (ret = __wt_struct_unpack_row_remove(pp, end, fileidp, keyp)) != 0)
         WT_RET_MSG(session, ret, "logop_row_remove: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_ROW_REMOVE);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_ROW_REMOVE);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -1270,7 +1276,7 @@ __wt_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, con
       (ret = __wt_struct_unpack_row_truncate(pp, end, fileidp, startp, stopp, modep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_truncate: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_ROW_TRUNCATE);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_ROW_TRUNCATE);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -1409,7 +1415,7 @@ __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
       (ret = __wt_struct_unpack_checkpoint_start(pp, end)) != 0)
         WT_RET_MSG(session, ret, "logop_checkpoint_start: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_CHECKPOINT_START);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_CHECKPOINT_START);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -1524,7 +1530,7 @@ __wt_logop_prev_lsn_unpack(
       (ret = __wt_struct_unpack_prev_lsn(pp, end, prev_lsnp)) != 0)
         WT_RET_MSG(session, ret, "logop_prev_lsn: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_PREV_LSN);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_PREV_LSN);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -1645,7 +1651,7 @@ __wt_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const 
       (ret = __wt_struct_unpack_backup_id(pp, end, indexp, granularityp, idp)) != 0)
         WT_RET_MSG(session, ret, "logop_backup_id: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_BACKUP_ID);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_BACKUP_ID);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
@@ -1787,7 +1793,7 @@ __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, co
          durable_tsp, first_commit_tsp, prepare_tsp, read_tsp)) != 0)
         WT_RET_MSG(session, ret, "logop_txn_timestamp: unpack failure");
 
-    WT_ASSERT(session, optype == WT_LOGOP_TXN_TIMESTAMP);
+    WT_CHECK_OPTYPE(session, optype, WT_LOGOP_TXN_TIMESTAMP);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {

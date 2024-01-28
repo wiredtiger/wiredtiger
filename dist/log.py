@@ -217,6 +217,12 @@ def run():
 #define WT_SIZE_CHECK_UNPACK_PTR(p, end)   WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
 #define WT_SIZE_CHECK_UNPACK_PTR0(p, end)  WT_RET_TEST(!(p) || !(end) || (p) >  (end), EINVAL)
 
+#ifndef WT_CHECK_OPTYPE
+#define WT_CHECK_OPTYPE(session, opvar, op) \
+    if (opvar != op) \
+        WT_RET_MSG(session, EINVAL, "unpacking " #op ": optype mismatch");
+#endif
+
 /*
  * __pack_encode__uintAny --
  *    Pack an unsigned integer.
@@ -530,7 +536,7 @@ __wt_logop_%(name)s_unpack(
             (ret = __wt_struct_unpack_%(name)s(pp, end%(comma)s%(unpack_args)s)) != 0)
         WT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 
-    WT_ASSERT(session, optype == %(macro)s);
+    WT_CHECK_OPTYPE(session, optype, %(macro)s);
 
 #if !defined(NO_STRICT_PACKING_CHECK)
     if (WT_PTRDIFF(*pp, pp_orig) != size) {
