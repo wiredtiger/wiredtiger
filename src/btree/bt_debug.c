@@ -658,8 +658,7 @@ __debug_cell_kv(
     }
 
     /* Column-store deleted cells. */
-    switch (unpack->raw) {
-    case WT_CELL_DEL:
+    if (WT_CELL_DEL != 0) {
         p = __wt_cell_type_string(unpack->raw);
         return (__debug_item(ds, tag, p, strlen(p)));
     }
@@ -776,11 +775,11 @@ __wt_debug_disk(
     WT_DBG *ds, _ds;
     WT_DECL_RET;
     uint32_t flags;
-    bool is_first_flag;
+    bool is_first;
 
     ds = &_ds;
     flags = dump_app_data ? WT_DEBUG_UNREDACT : 0;
-    is_first_flag = true;
+    is_first = true;
     WT_RET(__debug_config(session, ds, ofile, flags));
 
     WT_ERR(ds->f(ds, "- %s page\n\t> ", __wt_page_type_string(dsk->type)));
@@ -804,30 +803,30 @@ __wt_debug_disk(
     }
 
     if (dsk->flags != 0) {
-        WT_ERR(ds->f(ds, "page_flags: ["));
+        WT_ERR(ds->f(ds, "dsk_flags: ["));
 
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
             WT_ERR(ds->f(ds, "compressed"));
-            is_first_flag = false;
+            is_first = false;
         }
         if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
-            WT_ERR(ds->f(ds, "%sencrypted", is_first_flag ? "" : ", "));
-            is_first_flag = false;
+            WT_ERR(ds->f(ds, "%sencrypted", is_first ? "" : ", "));
+            is_first = false;
         }
         if (F_ISSET(dsk, WT_PAGE_EMPTY_V_ALL)) {
-            WT_ERR(ds->f(ds, "%sempty_all", is_first_flag ? "" : ", "));
-            is_first_flag = false;
+            WT_ERR(ds->f(ds, "%sempty_all", is_first ? "" : ", "));
+            is_first = false;
         }
         if (F_ISSET(dsk, WT_PAGE_EMPTY_V_NONE)) {
-            WT_ERR(ds->f(ds, "%sempty_none", is_first_flag ? "" : ", "));
-            is_first_flag = false;
+            WT_ERR(ds->f(ds, "%sempty_none", is_first ? "" : ", "));
+            is_first = false;
         }
         if (F_ISSET(dsk, WT_PAGE_UNUSED)) {
-            WT_ERR(ds->f(ds, "%sunused", is_first_flag ? "" : ", "));
-            is_first_flag = false;
+            WT_ERR(ds->f(ds, "%sunused", is_first ? "" : ", "));
+            is_first = false;
         }
         if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
-            WT_ERR(ds->f(ds, "%sfast_trunc_update", is_first_flag ? "" : ", "));
+            WT_ERR(ds->f(ds, "%sfast_trunc_update", is_first ? "" : ", "));
         }
         WT_ERR(ds->f(ds, "] | "));
     }
