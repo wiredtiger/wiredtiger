@@ -86,19 +86,6 @@ __wt_strcat(char *dest, size_t size, const char *src)
 }
 
 /*
- * __wt_restricted_string_match --
- *     Implementation function for WT_RESTRICTED_STRING_MATCH macro.
- */
-static inline bool
-__wt_restricted_string_match(
-  WT_SESSION_IMPL *session, const char *str, const char *bytes, size_t len)
-{
-    WT_ASSERT(session, str != NULL && bytes != NULL && (len > 0 || strlen(str) > 0));
-    return (((const char *)(str))[0] == ((const char *)(bytes))[0] &&
-      strncmp(str, bytes, len) == 0 && (str)[len] == '\0');
-}
-
-/*
  * __wt_snprintf --
  *     snprintf convenience function, ignoring the returned size.
  */

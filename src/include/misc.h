@@ -313,14 +313,6 @@ __wt_string_match(const char *str, const char *bytes, size_t len)
 }
 
 /*
- * This is a faster version of WT_STRING_MATCH, and should be used where performance matters. It
- * comes with restrictions: bytes or str should never be NULL, and both strings cannot be zero
- * length.
- */
-#define WT_RESTRICTED_STRING_MATCH(session, str, bytes, len)    \
-    __wt_restricted_string_match(session, str, bytes, len)
-
-/*
  * Macro that produces a string literal that isn't wrapped in quotes, to avoid tripping up spell
  * checkers.
  */

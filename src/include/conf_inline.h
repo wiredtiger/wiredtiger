@@ -52,7 +52,7 @@ __wt_conf_check_choice(
      * the WT_CONF_STRING_MATCH macro.
      */
     for (; (choice = *choices) != NULL; ++choices)
-        if (WT_RESTRICTED_STRING_MATCH(session, choice, str, len)) {
+        if (WT_STRING_MATCH(choice, str, len)) {
             *result = choice;
             break;
         }

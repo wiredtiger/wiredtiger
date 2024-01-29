@@ -66,11 +66,11 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
              * "true" are legal as parts of a set of choices, and so can be used with
              * WT_CONF_STRING_MATCH.
              */
-            if (WT_RESTRICTED_STRING_MATCH(session, "false", str, len)) {
+            if (WT_STRING_MATCH("false", str, len)) {
                 value->str = __WT_CONFIG_CHOICE_false;
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 0;
-            } else if (WT_RESTRICTED_STRING_MATCH(session, "true", str, len)) {
+            } else if (WT_STRING_MATCH("true", str, len)) {
                 value->str = __WT_CONFIG_CHOICE_true;
                 value->type = WT_CONFIG_ITEM_BOOL;
                 value->val = 1;
