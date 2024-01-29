@@ -64,7 +64,8 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
              * depend on it. We also change the string to point to fixed values of these constants
              * to have a consistent way to fast match strings that are part of choices. "false" and
              * "true" are legal as parts of a set of choices, and so can be used with
-             * WT_CONF_STRING_MATCH.
+             * WT_CONF_STRING_MATCH. In addition, the value must be set, as the resulting
+             * configuration item can be subsequently interpreted both as a boolean or as a string.
              */
             if (WT_STRING_MATCH("false", str, len)) {
                 value->str = __WT_CONFIG_CHOICE_false;
