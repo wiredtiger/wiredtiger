@@ -216,11 +216,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
         if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) &&
           snapshot_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT))
             return;
-        /*
-         * Leave the generation here and enter again later to acquire a new snapshot if any
-         * concurrent transactions have been committed and changed the global snapshot generation
-         * after we entered the generation.
-         */
+
+        /* Leave the generation here and enter again later to acquire a new snapshot */
         __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
     }
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
