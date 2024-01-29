@@ -45,7 +45,7 @@
  */
 #define MAX_INPUT_CONFIG 5
 typedef struct {
-    u_int completed;
+    int completed;
     char *method_name;
     char *input_config[MAX_INPUT_CONFIG];
     u_int input_config_count;
@@ -64,7 +64,7 @@ typedef struct {
  * A list of valid and invalid value combinations for a given key.
  */
 typedef struct key_values {
-    char *key;
+    const char *key;
     const char **valid;
     const char **invalid;
     struct key_values *subcategory;
