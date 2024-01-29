@@ -491,7 +491,10 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
           "%s: skipping because the number of available bytes %" PRIu64
           "B is less than the configured threshold %" PRIu64 "B.",
           block->name, block->live.avail.bytes, session->compact->free_space_target);
-    /* Do not continue compacting if the file size has grown between iterations. */
+    /*
+     * The file can grow due to parallel activity, it is better to stop compacting to avoid
+     * conflicting behavior.
+     */
     else if (block->size > block->compact_prev_size)
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the file has grown between compact passes.", block->name);
