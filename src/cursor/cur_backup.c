@@ -348,7 +348,8 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     if (othercb != NULL)
         WT_CURSOR_BACKUP_CHECK_STOP(othercb);
 
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BACKUP, WT_VERBOSE_LEVEL_DEFAULT) && cfg[1] != NULL)
+    if (cfg != NULL && cfg[1] != NULL &&
+      WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BACKUP, WT_VERBOSE_LEVEL_DEFAULT))
         __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", cfg[1]);
 
     /* Special backup cursor to query incremental IDs. */
