@@ -25,8 +25,6 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     __wt_block_configure_first_fit(block, true);
 
     /* Reset the compaction state information. */
-    block->compact_session_id = session->id;
-    block->compact_pct_tenths = 0;
     block->compact_bytes_reviewed = 0;
     block->compact_bytes_rewritten = 0;
     block->compact_internal_pages_reviewed = 0;
@@ -34,7 +32,9 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
+    block->compact_pct_tenths = 0;
     block->compact_prev_size = block->size;
+    block->compact_session_id = session->id;
 
     if (session == S2C(session)->background_compact.session)
         WT_RET(__wt_background_compact_start(session));

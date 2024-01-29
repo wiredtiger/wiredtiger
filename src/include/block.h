@@ -298,8 +298,8 @@ struct __wt_block {
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
     uint32_t compact_session_id;               /* Session compacting */
-    wt_off_t compact_prev_size;                /* File size at the start of compact */
 
     /* Salvage support */
     wt_off_t slvg_off; /* Salvage file offset */
