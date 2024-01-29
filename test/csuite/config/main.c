@@ -312,6 +312,7 @@ handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const 
         /* printf("CHECKING: %s\n", output); */
         check_configuration_result(&custom->state, "", output, strlen(output));
         ++custom->state.completed;
+        free(output);
         free_parse_state(&custom->state);
     } else {
         /*
