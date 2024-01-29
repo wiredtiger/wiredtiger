@@ -34,7 +34,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
     block->compact_pct_tenths = 0;
-    block->compact_prev_size = block->size;
+    block->compact_prev_size = 0;
     block->compact_session_id = session->id;
 
     if (session == S2C(session)->background_compact.session)
@@ -494,7 +494,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * The file can grow due to parallel activity, it is better to stop compacting to avoid
      * conflicting behavior.
      */
-    else if (block->size > block->compact_prev_size)
+    else if (block->compact_prev_size > 0 && block->size > block->compact_prev_size)
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the file has grown between compact passes.", block->name);
     else
