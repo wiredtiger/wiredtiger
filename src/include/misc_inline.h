@@ -86,16 +86,6 @@ __wt_strcat(char *dest, size_t size, const char *src)
 }
 
 /*
- * __wt_string_match --
- *     Implementation function for WT_STRING_MATCH macro.
- */
-static inline bool
-__wt_string_match(const char *str, const char *bytes, size_t len)
-{
-    return (len > 0 && (strlen(str) == len) && (strncmp(str, bytes, len) == 0));
-}
-
-/*
  * __wt_restricted_string_match --
  *     Implementation function for WT_RESTRICTED_STRING_MATCH macro.
  */

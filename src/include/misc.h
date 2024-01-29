@@ -306,12 +306,18 @@
  */
 #define WT_STRING_MATCH(str, bytes, len) __wt_string_match(str, bytes, len)
 
+static inline bool
+__wt_string_match(const char *str, const char *bytes, size_t len)
+{
+    return (len == 0 || (strncmp(str, bytes, len) == 0 && str[len] == '\0'));
+}
+
 /*
  * This is a faster version of WT_STRING_MATCH, and should be used where performance matters. It
  * comes with restrictions: bytes or str should never be NULL, and both strings cannot be zero
  * length.
  */
-#define WT_RESTRICTED_STRING_MATCH(session, str, bytes, len) \
+#define WT_RESTRICTED_STRING_MATCH(session, str, bytes, len)    \
     __wt_restricted_string_match(session, str, bytes, len)
 
 /*
