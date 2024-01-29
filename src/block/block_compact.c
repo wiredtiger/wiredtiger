@@ -34,6 +34,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
+    block->compact_prev_size = block->size;
 
     if (session == S2C(session)->background_compact.session)
         WT_RET(__wt_background_compact_start(session));
@@ -490,9 +491,15 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
           "%s: skipping because the number of available bytes %" PRIu64
           "B is less than the configured threshold %" PRIu64 "B.",
           block->name, block->live.avail.bytes, session->compact->free_space_target);
+    /* Do not continue compacting if the file size has grown between iterations. */
+    else if (block->size > block->compact_prev_size)
+        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+          "%s: skipping because the file has grown between compact passes.", block->name);
     else
         __block_compact_skip_internal(
           session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+
+    block->compact_prev_size = block->size;
 
     __wt_spin_unlock(session, &block->live_lock);
 
