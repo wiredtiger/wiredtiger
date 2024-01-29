@@ -410,7 +410,7 @@ check_compiling_configurations(TEST_OPTS *opts, CUSTOM_EVENT_HANDLER *handler)
 {
     int ret;
     const char **bad_config;
-    const char *compiled_ptr;
+    const char *compiled_ptr, *compiled_ptr2;
     static const char *bad_configs[] = {
       "789=value", "=value", "unknown_key=value", "++", "%s", "%", NULL};
 
@@ -425,6 +425,22 @@ check_compiling_configurations(TEST_OPTS *opts, CUSTOM_EVENT_HANDLER *handler)
           opts->conn, "WT_SESSION.begin_transaction", *bad_config, &compiled_ptr);
         testutil_assert(ret != 0);
     }
+
+    /* We shouldn't be able to compile for a method that doesn't support it. */
+    ret = opts->conn->compile_configuration(opts->conn, "WT_SESSION.create", "", &compiled_ptr);
+    testutil_assert(ret != 0);
+
+    /* We should be able to compile an empty string. */
+    handler->expect_errors = false;
+    ret = opts->conn->compile_configuration(
+      opts->conn, "WT_SESSION.begin_transaction", "", &compiled_ptr);
+    testutil_assert(ret == 0);
+
+    /* We shouldn't be able to use the result of a successful compile. */
+    handler->expect_errors = true;
+    ret = opts->conn->compile_configuration(
+      opts->conn, "WT_SESSION.begin_transaction", compiled_ptr, &compiled_ptr2);
+    testutil_assert(ret != 0);
 
     /* Check that the parser rejects invalid values for every key. */
     check_compiling_invalid_configurations(
@@ -470,7 +486,7 @@ main(int argc, char *argv[])
      */
     printf(
       "checked %d successful configuration compilation outputs\n", event_handler.state.completed);
-    testutil_assert(event_handler.state.completed == 42);
+    testutil_assert(event_handler.state.completed == 43);
 
     free_parse_state(&event_handler.state);
     testutil_cleanup(opts);
