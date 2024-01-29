@@ -633,10 +633,8 @@ err:
          * normally closed.
          */
         ret = __wt_cursor_cache_release(session, cursor, &released);
-        if (released) {
-            // TODO - Could we end up here when closing a bulk cursor?
+        if (released)
             goto done;
-        }
     }
 
     dead = F_ISSET(cursor, WT_CURSTD_DEAD);
