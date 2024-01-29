@@ -72,6 +72,40 @@ __wt_conf_check_choice(
 }
 
 /*
+ * __wt_conf_check_one --
+ *     Do all configuration checks for a single value.
+ */
+static inline int
+__wt_conf_check_one(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value)
+{
+    if (check->checkf != NULL)
+        WT_RET(check->checkf(session, value));
+
+    /*
+     * If the checks string is empty, there are no additional checks we need to make. This is the
+     * only point we need the checks string, as the information for checking is also in the checks
+     * structure.
+     */
+    if (check->checks != NULL) {
+
+        /*
+         * If it must be one of a choice of strings, check that now.
+         */
+        WT_RET(
+          __wt_conf_check_choice(session, check->choices, value->str, value->len, &value->str));
+
+        if (value->val < check->min_value)
+            WT_RET_MSG(session, EINVAL, "Value '%.*s' too small, the minimum is %" PRIi64,
+              (int)value->len, value->str, check->min_value);
+
+        if (value->val > check->max_value)
+            WT_RET_MSG(session, EINVAL, "Value '%.*s' too large, the maximum is %" PRIi64,
+              (int)value->len, value->str, check->max_value);
+    }
+    return (0);
+}
+
+/*
  * __wt_conf_gets_def_func --
  *     Get a value from the compiled configuration. If the value is a default, return that.
  */

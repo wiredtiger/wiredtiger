@@ -282,163 +282,6 @@ do_config_run(TEST_OPTS *opts, int variant, const char *compiled, const char **c
 }
 
 /*
- * For extra checking, we turn on verbose when we compile configurations. We get callbacks for these
- * verbose messages, and we collect the set of inputs going into each compilation, so that when we
- * receive a reconstituted result of the compilation, we can check to make sure it matches. This
- * structure saves the inputs.
- */
-#define MAX_INPUT_CONFIG 5
-typedef struct {
-    u_int completed;
-    char *method_name;
-    char *input_config[MAX_INPUT_CONFIG];
-    u_int input_config_count;
-} CONFIGURATION_PARSING_STATE;
-
-/*
- * free_state --
- *     Free and zero the state to prepare for another set of callbacks.
- */
-static void
-free_state(CONFIGURATION_PARSING_STATE *state)
-{
-    int i;
-
-    free(state->method_name);
-    state->method_name = NULL;
-    for (i = 0; i < MAX_INPUT_CONFIG; ++i) {
-        free(state->input_config[i]);
-        state->input_config[i] = NULL;
-    }
-    state->input_config_count = 0;
-}
-
-/*
- * check_single_result_against_inputs --
- *     Check to see that a k/v pair obtained from a compilation result matches one of the inputs.
- */
-static void
-check_single_result_against_inputs(
-  CONFIGURATION_PARSING_STATE *state, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
-{
-    WT_CONFIG_ITEM got_value;
-    WT_CONFIG_PARSER *parser;
-    int pos;
-    int ret;
-    char keystr[100];
-    const char *s;
-
-    testutil_assert(key->len + 1 < sizeof(keystr));
-    strncpy(keystr, key->str, key->len);
-    keystr[key->len] = '\0';
-
-    /*
-     * Check the inputs in reverse order. The zero-th would be the default, and we want to check
-     * that last. This is slow, but we don't care too much.
-     */
-    for (pos = (int)state->input_config_count - 1; pos >= 0; --pos) {
-        s = state->input_config[pos];
-        testutil_check(wiredtiger_config_parser_open(NULL, s, strlen(s), &parser));
-        ret = parser->get(parser, keystr, &got_value);
-        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-        testutil_check(parser->close(parser));
-        if (ret == 0) {
-            testutil_assert(value->len == got_value.len);
-            testutil_assert(strncmp(value->str, got_value.str, value->len) == 0);
-            testutil_assert(value->val == got_value.val);
-            testutil_assert(value->type == got_value.type);
-            return;
-        }
-    }
-
-    /*
-     * This should never happen, we should always find the key, at least in the defaults. The
-     * compiled result seems to show a key that isn't in the allowed list of keys.
-     */
-    testutil_assert(false);
-}
-
-/*
- * check_configuration_result --
- *     Check a configuration compilation result against saved state about the inputs.
- */
-static void
-check_configuration_result(CONFIGURATION_PARSING_STATE *state, const char *result)
-{
-    WT_CONFIG_ITEM key, value;
-    WT_CONFIG_PARSER *parser;
-    int ret;
-
-    testutil_check(wiredtiger_config_parser_open(NULL, result, strlen(result), &parser));
-    while ((ret = parser->next(parser, &key, &value)) == 0)
-        check_single_result_against_inputs(state, &key, &value);
-    testutil_assert(ret == WT_NOTFOUND);
-    testutil_check(parser->close(parser));
-}
-
-/*
- * Create our own event handler structure, it will be given back to use in event handler callbacks.
- */
-typedef struct {
-    WT_EVENT_HANDLER h;
-    CONFIGURATION_PARSING_STATE state;
-} CUSTOM_EVENT_HANDLER;
-
-#define COPY_CONTENT(dest, src)                \
-    do {                                       \
-        char *_dest, *_src, *_trailing;        \
-                                               \
-        _src = strchr(src, ':') + 1;           \
-        while (*_src == ' ')                   \
-            ++_src;                            \
-        if (*_src == '"')                      \
-            ++_src;                            \
-        _dest = dstrdup(_src);                 \
-        _trailing = &_dest[strlen(_dest) - 1]; \
-        if (*_trailing == '"')                 \
-            *_trailing = '\0';                 \
-        dest = _dest;                          \
-    } while (0)
-
-/*
- * handle_wiredtiger_message --
- *     Function to handle message callbacks from WiredTiger.
- */
-static int
-handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
-{
-    CUSTOM_EVENT_HANDLER *custom;
-    char *output, *p;
-
-    (void)session;
-
-    /* Cast the handler back to our custom handler. */
-    custom = (CUSTOM_EVENT_HANDLER *)handler;
-
-    /* printf("MESSAGE: %s\n", message); */
-    if ((p = strstr(message, "for method:")) != NULL) {
-        free_state(&custom->state);
-        COPY_CONTENT(custom->state.method_name, p);
-    } else if ((p = strstr(message, "input config:")) != NULL) {
-        testutil_assert(custom->state.input_config_count < MAX_INPUT_CONFIG);
-        COPY_CONTENT(custom->state.input_config[custom->state.input_config_count++], p);
-    } else if ((p = strstr(message, "reconstructed config:")) != NULL) {
-        COPY_CONTENT(output, p);
-        check_configuration_result(&custom->state, output);
-        ++custom->state.completed;
-        free_state(&custom->state);
-    } else {
-        /*
-         * We know how to handle every verbose message from configuration.
-         * Yell if that changes.
-         */
-        printf("UNKNOWN: %s\n", message);
-        return (1);
-    }
-    return (0);
-}
-
-/*
  * main --
  *     The main entry point for a simple test/benchmark for compiling configuration strings.
  */
@@ -449,31 +292,18 @@ main(int argc, char *argv[])
     uint64_t base_ns, ns, nsecs[N_VARIANTS];
     int variant, runs;
     const char *compiled_config, **compiled_config_array;
-    CUSTOM_EVENT_HANDLER event_handler;
-
-    memset(&event_handler, 0, sizeof(event_handler));
-    event_handler.h.handle_message = handle_wiredtiger_message;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_recreate_dir(opts->home);
-    testutil_check(wiredtiger_open(opts->home, &event_handler.h,
-      "create,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=(configuration:2)",
-      &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "create,statistics=(all),statistics_log=(json,on_close,wait=1)", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &opts->session));
 
     begin_transaction_medium_init();
     begin_transaction_fast_init(opts->conn, &compiled_config);
     begin_transaction_fast_alternate_init(opts->conn, &compiled_config_array);
-
-    /*
-     * Make sure we've been able to successfully check at least one configuration compilation.
-     */
-    testutil_assert(event_handler.state.completed > 1);
-    printf("checked %d configuration compilation outputs\n", event_handler.state.completed);
-
-    testutil_check(opts->conn->reconfigure(opts->conn, "verbose=(configuration:0)"));
 
     memset(nsecs, 0, sizeof(nsecs));
 
@@ -494,7 +324,6 @@ main(int argc, char *argv[])
           variant, nsecs[variant], ns, ((double)base_ns) / ns);
     }
 
-    free_state(&event_handler.state);
     testutil_cleanup(opts);
     return (EXIT_SUCCESS);
 }
