@@ -2630,7 +2630,7 @@ split:
     if (WT_TIME_AGGREGATE_HAS_STOP(&stop_ta)) {
         WT_RET(__wt_calloc_one(session, &stop_tap));
         WT_TIME_AGGREGATE_COPY(stop_tap, &stop_ta);
-        mod->stop_ta = stop_tap;
+        WT_PUBLISH(mod->stop_ta, stop_tap);
     }
 
     return (0);
