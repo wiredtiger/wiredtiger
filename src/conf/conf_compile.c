@@ -685,7 +685,7 @@ __conf_verbose_cat_config(WT_SESSION_IMPL *session, const char **cfg, WT_CONF *c
                  */
                 need_quotes = false;
                 for (p = value.str; p < &value.str[value.len]; ++p) {
-                    if (!isalnum(*p) && *p != '-' && *p != '_') {
+                    if (!__wt_isalnum((u_char)*p) && *p != '-' && *p != '_') {
                         need_quotes = true;
                         break;
                     }

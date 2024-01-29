@@ -95,11 +95,6 @@ typedef struct key_values {
 /*
  * For various standard types, a list of valid and invalid strings to try.
  */
-
-/* Not currently used.
-static const char *valid_int[] = { "1", "0", "-1", NULL};
-static const char *invalid_int[] = { "foo", "", "--9", NULL};
-*/
 static const char *valid_bool[] = {"true", "false", "0", "1", "", NULL};
 static const char *invalid_bool[] = {"foo", "TRUE", "FALSE", "-2", NULL};
 
@@ -186,7 +181,7 @@ check_single_result_against_inputs(
     const char *s;
 
     testutil_assert(key->len + strlen(prefix) + 1 < sizeof(keystr));
-    snprintf(keystr, sizeof(keystr), "%s%.*s", prefix, (int)key->len, key->str);
+    testutil_snprintf(keystr, sizeof(keystr), "%s%.*s", prefix, (int)key->len, key->str);
 
     /*
      * Check the inputs in reverse order. The zero-th would be the default, and we want to check
@@ -207,7 +202,7 @@ check_single_result_against_inputs(
                  * 1. Because of this, numerical 0 and 1 are allowed in input for cases that expect
                  * boolean. Since the original config parsing allows for this, the config compiler
                  * does too, but it silently converts the 0 and 1 numeric item to boolean items so
-                 * they can be accessed quickly and uniformily. When we reconstruct the
+                 * they can be accessed quickly and uniformly. When we reconstruct the
                  * configuration string from the compiled string, it is a standard "true"/"false",
                  * even when the input is 1/0.
                  */
@@ -251,7 +246,8 @@ check_configuration_result(
     while ((ret = parser->next(parser, &key, &value)) == 0) {
         if (value.type == WT_CONFIG_ITEM_STRUCT) {
             testutil_assert(value.str[0] == '(' && value.str[value.len - 1] == ')');
-            snprintf(new_prefix, sizeof(new_prefix), "%s%.*s.", prefix, (int)key.len, key.str);
+            testutil_snprintf(
+              new_prefix, sizeof(new_prefix), "%s%.*s.", prefix, (int)key.len, key.str);
             check_configuration_result(state, new_prefix, &value.str[1], value.len - 2);
         } else
             check_single_result_against_inputs(state, prefix, &key, &value);
@@ -262,7 +258,7 @@ check_configuration_result(
 
 /*
  * handle_wiredtiger_error --
- *     Function to handle error callbacks from WiredTiger.
+ *     Handle error callbacks from WiredTiger.
  */
 static int
 handle_wiredtiger_error(
@@ -284,7 +280,7 @@ handle_wiredtiger_error(
 
 /*
  * handle_wiredtiger_message --
- *     Function to handle message callbacks from WiredTiger.
+ *     Handle message callbacks from WiredTiger.
  */
 static int
 handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
@@ -327,19 +323,23 @@ handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const 
     return (0);
 }
 
+/*
+ * check_compiling_one_configuration --
+ *     Compile a configuration setting a key to a given value.
+ */
 static void
 check_compiling_one_configuration(WT_CONNECTION *conn, const char *method_name,
   const char *subcat_name, const char *key, const char *val, bool expect_success)
 {
-    const char *compiled_ptr;
     int ret;
     char config[1024];
+    const char *compiled_ptr;
     bool got_success;
 
     if (subcat_name != NULL)
-        snprintf(config, sizeof(config), "%s=(%s=%s)", subcat_name, key, val);
+        testutil_snprintf(config, sizeof(config), "%s=(%s=%s)", subcat_name, key, val);
     else
-        snprintf(config, sizeof(config), "%s=%s", key, val);
+        testutil_snprintf(config, sizeof(config), "%s=%s", key, val);
     ret = conn->compile_configuration(conn, method_name, config, &compiled_ptr);
     got_success = (ret == 0);
     if (got_success != expect_success)
@@ -348,6 +348,10 @@ check_compiling_one_configuration(WT_CONNECTION *conn, const char *method_name,
     testutil_assert(got_success == expect_success);
 }
 
+/*
+ * check_compiling_invalid_configurations --
+ *     Walk through the key/value list, compiling each combination. Each is expected to fail.
+ */
 static void
 check_compiling_invalid_configurations(
   WT_CONNECTION *conn, const char *method_name, const char *subcat_name, KEY_VALUES *kv_list)
@@ -369,6 +373,10 @@ check_compiling_invalid_configurations(
                   conn, method_name, subcat_name, kv->key, *values, false);
 }
 
+/*
+ * check_compiling_valid_configurations --
+ *     Walk through the key/value list, compiling each combination. Each is expected to succeed.
+ */
 static void
 check_compiling_valid_configurations(
   WT_CONNECTION *conn, const char *method_name, const char *subcat_name, KEY_VALUES *kv_list)
@@ -403,7 +411,7 @@ check_compiling_configurations(TEST_OPTS *opts, CUSTOM_EVENT_HANDLER *handler)
     const char **bad_config;
     const char *compiled_ptr;
     static const char *bad_configs[] = {
-      "789=abc", "=abc", "unknown_key=abc", "++", "%s", "%", NULL};
+      "789=value", "=value", "unknown_key=value", "++", "%s", "%", NULL};
 
     handler->expect_errors = true;
 
