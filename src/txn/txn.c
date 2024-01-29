@@ -200,7 +200,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
-    uint64_t snapshot_gen, current_id, id, prev_oldest_id, pinned_id;
+    uint64_t current_id, id, prev_oldest_id, pinned_id, snapshot_gen;
     uint32_t i, n, session_cnt;
 
     conn = S2C(session);
@@ -217,7 +217,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
           snapshot_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT))
             return;
 
-        /* Leave the generation here and enter again later to acquire a new snapshot */
+        /* Leave the generation here and enter again later to acquire a new snapshot. */
         __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
     }
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
