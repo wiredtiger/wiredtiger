@@ -48,8 +48,8 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     max_value_uint64 = 1'000'000;
 
-    insert = 0.75;
     finish_transaction = 0.08;
+    insert = 0.75;
     remove = 0.15;
     set_commit_timestamp = 0.05;
     truncate = 0.005;
@@ -371,17 +371,10 @@ kv_workload_generator::generate_transaction(size_t seq_no)
     /* Add all operations. But do not actually fill in timestamps; we'll do that later. */
     bool done = false;
     while (!done) {
-        float total = _spec.insert + _spec.finish_transaction + _spec.remove +
+        float total = _spec.finish_transaction + _spec.insert + _spec.remove +
           _spec.set_commit_timestamp + _spec.truncate;
         probability_switch(_random.next_float() * total)
         {
-            probability_case(_spec.insert)
-            {
-                table_context_ptr table = choose_table(txn_ptr);
-                data_value key = generate_key(table);
-                data_value value = generate_value(table);
-                txn << operation::insert(table->id(), txn_id, key, value);
-            }
             probability_case(_spec.finish_transaction)
             {
                 if (prepared) {
@@ -398,6 +391,13 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                 } else
                     txn << operation::commit_transaction(txn_id);
                 done = true;
+            }
+            probability_case(_spec.insert)
+            {
+                table_context_ptr table = choose_table(txn_ptr);
+                data_value key = generate_key(table);
+                data_value value = generate_value(table);
+                txn << operation::insert(table->id(), txn_id, key, value);
             }
             probability_case(_spec.remove)
             {
@@ -473,18 +473,18 @@ kv_workload_generator::run()
                 *p << operation::checkpoint();
                 _sequences.push_back(p);
             }
-            probability_case(_spec.set_stable_timestamp)
-            {
-                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
-                  _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
-                *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
-                _sequences.push_back(p);
-            }
             probability_case(_spec.restart)
             {
                 kv_workload_sequence_ptr p =
                   std::make_shared<kv_workload_sequence>(_sequences.size());
                 *p << operation::restart();
+                _sequences.push_back(p);
+            }
+            probability_case(_spec.set_stable_timestamp)
+            {
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
+                *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
                 _sequences.push_back(p);
             }
             probability_default

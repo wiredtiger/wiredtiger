@@ -191,19 +191,6 @@ public:
      */
     void must_finish_before(kv_workload_sequence *other);
 
-    // XXX
-    /* The number of unsatisfied dependencies before this sequence can run. */
-    std::atomic<size_t> _unsatisfied_dependencies;
-
-    size_t _next_operation_index;
-
-    inline void
-    prepare_to_run()
-    {
-        _next_operation_index = 0;
-        _unsatisfied_dependencies = _dependencies.size();
-    }
-
 protected:
     /*
      * kv_workload_sequence::contains_key --

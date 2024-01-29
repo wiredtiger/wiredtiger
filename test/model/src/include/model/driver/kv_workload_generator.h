@@ -64,8 +64,8 @@ struct kv_workload_generator_spec {
     float use_set_commit_timestamp;
 
     /* Probabilities of operations within a transaction. */
-    float insert;
     float finish_transaction; /* Commit, prepare, or rollback. */
+    float insert;
     float remove;
     float set_commit_timestamp; /* If allowed. */
     float truncate;
