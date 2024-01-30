@@ -48,6 +48,7 @@ __clsm_close_bulk(WT_CURSOR *cursor)
 
     /* Close the LSM cursor */
     WT_RET(__wt_clsm_close(cursor));
+    WT_STAT_CONN_DECR_ATOMIC(session, cursor_bulk_count);
 
     return (0);
 }
