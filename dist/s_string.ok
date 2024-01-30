@@ -1166,6 +1166,7 @@ rotn
 rpc
 rts
 ru
+runnable
 runone
 runtime
 rw
@@ -1180,12 +1181,15 @@ scr
 sd
 sdk
 secretkey
+sempty
+sencrypted
 sessionp
 setkv
 setname
 setstr
 setv
 setvbuf
+sfast
 shareability
 sig
 sigchld
@@ -1248,6 +1252,7 @@ subtest
 subtree
 sumv
 sunique
+sunused
 supd
 superset
 sw
