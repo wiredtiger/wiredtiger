@@ -9,11 +9,14 @@ add_library(wiredtiger_model SHARED
     src/core/kv_table.cpp
     src/core/kv_transaction.cpp
     src/core/kv_transaction_snapshot.cpp
+    src/core/random.cpp
     src/core/util.cpp
     src/core/verify.cpp
     src/driver/debug_log_parser.cpp
     src/driver/kv_workload.cpp
+    src/driver/kv_workload_generator.cpp
     src/driver/kv_workload_runner_wt.cpp
+    src/driver/kv_workload_sequence.cpp
 )
 
 target_include_directories(
