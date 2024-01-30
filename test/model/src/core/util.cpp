@@ -233,7 +233,7 @@ shared_memory::shared_memory(size_t size) : _data(nullptr), _size(size)
     }
 
     /* Set the initial size. */
-    ret = ftruncate64(fd, (loff_t)size);
+    ret = ftruncate(fd, (off_t)size);
     if (ret < 0) {
         (void)close(fd);
         throw std::runtime_error("Setting shared memory size failed");

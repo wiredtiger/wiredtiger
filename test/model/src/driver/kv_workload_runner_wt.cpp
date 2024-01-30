@@ -31,7 +31,9 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
+#include <signal.h>
 #include <sstream>
+#include <unistd.h>
 #include "model/driver/kv_workload_runner_wt.h"
 #include "model/util.h"
 
