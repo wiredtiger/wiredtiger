@@ -121,19 +121,19 @@ class Field:
     # struct_unpack_body functions
 
     def struct_unpack_body(self):
-        return '__pack_decode_uintAny(%s, %sp);\n' % (self.cintype, self.fieldname)
+        return '__pack_decode_uintAny(pp, end, %s, %sp);\n' % (self.cintype, self.fieldname)
 
     def struct_unpack_body_WT_LSN(self):
-        return '''__pack_decode_uintAny(uint32_t, &%(name)sp->l.file);
-    __pack_decode_uintAny(uint32_t, &%(name)sp->l.offset);
+        return '''__pack_decode_uintAny(pp, end, uint32_t, &%(name)sp->l.file);
+    __pack_decode_uintAny(pp, end, uint32_t, &%(name)sp->l.offset);
 ''' % {'name':self.fieldname}
 
     def struct_unpack_body_WT_ITEM(self):
         fn = '__pack_decode_WT_ITEM' if not self.is_last_field else '__pack_decode_WT_ITEM_last'
-        return fn+'('+self.fieldname+'p);\n'
+        return fn+'(pp, end, '+self.fieldname+'p);\n'
 
     def struct_unpack_body_string(self):
-        return '__pack_decode_string(%sp);\n' % self.fieldname
+        return '__pack_decode_string(pp, end, %sp);\n' % self.fieldname
 
 
 for op in log_data.optypes:
@@ -282,7 +282,7 @@ __pack_encode_string(uint8_t **pp, uint8_t *end, const char *item)
     return (0);
 }
 
-#define __pack_decode_uintAny(TYPE, pval)  do { \
+#define __pack_decode_uintAny(pp, end, TYPE, pval)  do { \
         uint64_t v; \
         /* Check that there is at least one byte available: \
 the low-level routines treat zero length as unchecked. */ \
@@ -291,21 +291,21 @@ the low-level routines treat zero length as unchecked. */ \
         *(pval) = (TYPE)v; \
     } while (0)
 
-#define __pack_decode_WT_ITEM(val)  do { \
-        __pack_decode_uintAny(size_t, &val->size); \
+#define __pack_decode_WT_ITEM(pp, end, val)  do { \
+        __pack_decode_uintAny(pp, end, size_t, &val->size); \
         WT_SIZE_CHECK_UNPACK(val->size, WT_PTRDIFF(end, *pp)); \
         val->data = *pp; \
         *pp += val->size; \
     } while (0)
 
-#define __pack_decode_WT_ITEM_last(val)  do { \
+#define __pack_decode_WT_ITEM_last(pp, end, val)  do { \
         WT_SIZE_CHECK_UNPACK_PTR0(*pp, end); \
         val->size = WT_PTRDIFF(end, *pp); \
         val->data = *pp; \
         *pp += val->size; \
     } while (0)
 
-#define __pack_decode_string(val)  do { \
+#define __pack_decode_string(pp, end, val)  do { \
         size_t s; \
         *val = (const char *)*pp; \
         s = strlen((const char *)*pp) + 1; \
@@ -353,7 +353,7 @@ __wt_logrec_read(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
 {
     WT_UNUSED(session);
-    __pack_decode_uintAny(uint32_t, rectypep);
+    __pack_decode_uintAny(pp, end, uint32_t, rectypep);
     return (0);
 }
 
@@ -363,16 +363,16 @@ __wt_logrec_read(WT_SESSION_IMPL *session,
  */
 int
 __wt_logop_read(WT_SESSION_IMPL *session,
-    const uint8_t **pp2, const uint8_t *end,
+    const uint8_t **pp_peek, const uint8_t *end,
     uint32_t *optypep, uint32_t *opsizep)
 {
     const uint8_t *p, **pp;
     WT_UNUSED(session);
 
-    p = *pp2;
+    p = *pp_peek;
     pp = &p;
-    __pack_decode_uintAny(uint32_t, optypep);
-    __pack_decode_uintAny(uint32_t, opsizep);
+    __pack_decode_uintAny(pp, end, uint32_t, optypep);
+    __pack_decode_uintAny(pp, end, uint32_t, opsizep);
     return (0);
 }
 
@@ -386,8 +386,8 @@ __wt_logop_unpack(WT_SESSION_IMPL *session,
     uint32_t *optypep, uint32_t *opsizep)
 {
     WT_UNUSED(session);
-    __pack_decode_uintAny(uint32_t, optypep);
-    __pack_decode_uintAny(uint32_t, opsizep);
+    __pack_decode_uintAny(pp, end, uint32_t, optypep);
+    __pack_decode_uintAny(pp, end, uint32_t, opsizep);
     return (0);
 }
 
