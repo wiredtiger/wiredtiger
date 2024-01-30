@@ -374,6 +374,38 @@ private:
 };
 
 /*
+ * at_cleanup --
+ *     Run an action at the time this object falls out of scope.
+ */
+class at_cleanup {
+
+public:
+    /*
+     * at_cleanup::at_cleanup --
+     *     Create the cleanup object.
+     */
+    inline at_cleanup(std::function<void()> fn) : _fn(fn){};
+
+    /* Delete the copy constructor. */
+    at_cleanup(const at_cleanup &) = delete;
+
+    /* Delete the copy operator. */
+    at_cleanup &operator=(const at_cleanup &) = delete;
+
+    /*
+     * at_cleanup::~at_cleanup --
+     *     Free the object and run the clean up function.
+     */
+    inline ~at_cleanup()
+    {
+        _fn();
+    }
+
+private:
+    std::function<void()> _fn;
+};
+
+/*
  * starts_with --
  *     Check whether the string has the given prefix. (C++ does not have this until C++20.)
  */

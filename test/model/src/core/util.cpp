@@ -209,7 +209,7 @@ shared_memory::shared_memory(size_t size) : _data(nullptr), _size(size)
 {
     /* Create a unique name using the PID and the memory offset of this object. */
     std::ostringstream name_stream;
-    name_stream << "/shm-" << getpid() << "-" << this;
+    name_stream << "/wt-" << getpid() << "-" << this;
     _name = name_stream.str();
 
     /* Create the shared memory object. */

@@ -101,8 +101,15 @@ kv_workload_runner_wt::~kv_workload_runner_wt()
 void
 kv_workload_runner_wt::run(const kv_workload &workload)
 {
+    /*
+     * Initialize the shared memory state, that we will share between the controller (parent)
+     * process, and the process that will actually run the workload.
+     */
     shared_memory shm_state(sizeof(shared_state));
     _state = (shared_state *)shm_state.data();
+
+    /* Clean up the pointer at the end, just before the actual shared memory gets cleaned up. */
+    at_cleanup cleanup_state([this]() { _state = nullptr; });
 
     /*
      * Run the workload in a child process, so that we can properly handle crashes. If the child
@@ -187,7 +194,7 @@ kv_workload_runner_wt::run(const kv_workload &workload)
 
         if (WIFSIGNALED(pid_status))
             /* The child process died due to a signal. */
-            throw model_exception("The workload process was terminated with singal " +
+            throw model_exception("The workload process was terminated with signal " +
               std::to_string(WTERMSIG(pid_status)));
 
         /* Otherwise the workload failed in some other way. */
@@ -288,7 +295,6 @@ kv_workload_runner_wt::do_operation(const operation::commit_transaction &op)
 int
 kv_workload_runner_wt::do_operation(const operation::crash &op)
 {
-    std::unique_lock lock(_connection_lock);
     (void)op;
 
     /*
