@@ -26,6 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <cassert>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -92,6 +95,138 @@ kv_workload_runner_wt::~kv_workload_runner_wt()
 }
 
 /*
+ * kv_workload_runner_wt::run --
+ *     Run the workload in WiredTiger.
+ */
+void
+kv_workload_runner_wt::run(const kv_workload &workload)
+{
+    shared_memory shm_state(sizeof(shared_state));
+    _state = (shared_state *)shm_state.data();
+
+    /*
+     * Run the workload in a child process, so that we can properly handle crashes. If the child
+     * process crashes intentionally, we'll learn about it through the shared state.
+     */
+    size_t p = 0; /* Position in the workload. */
+    while (p < workload.size()) {
+        bool crashed = _state->expect_crash;
+        _state->expect_crash = false;
+
+        pid_t child = fork();
+        if (child < 0)
+            throw model_exception(std::string("Could not fork the process: ") + strerror(errno) +
+              " (" + std::to_string(errno) + ")");
+
+        if (child == 0) {
+            int ret = 0;
+            try {
+                /* Subprocess. */
+                wiredtiger_open();
+
+                /* If we just crashed, we may need to recover some of the lost runtime state. */
+                if (crashed) {
+                    if (_state->num_tables >= sizeof(_state->tables) / sizeof(_state->tables[0]))
+                        throw model_exception("Invalid number of tables");
+                    for (size_t i = 0; i < _state->num_tables; i++)
+                        add_table_uri(
+                          _state->tables[i].id, _state->tables[i].uri, true /* recovery */);
+                }
+
+                /* Run (or resume) the workload. */
+                for (; p < workload.size(); p++) {
+                    const operation::any &op = workload[p];
+                    if (std::holds_alternative<operation::crash>(op)) {
+                        _state->expect_crash = true;
+                        _state->crash_index = p;
+                    }
+                    run_operation(op);
+                }
+
+                wiredtiger_close();
+            } catch (std::exception &e) {
+                _state->exception = true;
+                _state->failed_operation = p;
+                snprintf(
+                  _state->exception_message, sizeof(_state->exception_message), "%s", e.what());
+                ret = 1;
+            }
+
+            exit(ret);
+            /* Not reached. */
+        }
+
+        /* Parent process. */
+        int pid_status;
+        int ret = waitpid(child, &pid_status, 0);
+        if (ret < 0)
+            throw model_exception(std::string("Waiting for a child process failed: ") +
+              strerror(errno) + " (" + std::to_string(errno) + ")");
+
+        if (WIFEXITED(pid_status) && WEXITSTATUS(pid_status) == 0)
+            /* Clean exit. */
+            break;
+
+        if (_state->expect_crash) {
+            /* The crash was intentional. Continue the workload. */
+            if (p >= _state->crash_index)
+                throw model_exception("Workload crash did not advance the operation index");
+            p = _state->crash_index + 1;
+            continue;
+        }
+
+        if (_state->exception)
+            /* The child process died due to an exception. */
+            throw model_exception("Workload was terminated due to an exception at operation " +
+              std::to_string(_state->failed_operation) + ": " + _state->exception_message);
+
+        if (WIFEXITED(pid_status))
+            /* The child process exited with an error code. */
+            throw model_exception(
+              "The workload process exited with code " + std::to_string(WEXITSTATUS(pid_status)));
+
+        if (WIFSIGNALED(pid_status))
+            /* The child process died due to a signal. */
+            throw model_exception("The workload process was terminated with singal " +
+              std::to_string(WTERMSIG(pid_status)));
+
+        /* Otherwise the workload failed in some other way. */
+        throw model_exception("The workload process terminated in an unexpected way.");
+    }
+}
+
+/*
+ * kv_workload_runner_wt::add_table_uri --
+ *     Add a table URI.
+ */
+void
+kv_workload_runner_wt::add_table_uri(table_id_t id, std::string uri, bool recovery)
+{
+    std::unique_lock lock(_table_uris_lock);
+    if (uri.empty())
+        throw model_exception("Invalid table URI");
+
+    /* Add to the runtime map. */
+    auto iter = _table_uris.find(id);
+    if (iter != _table_uris.end())
+        throw model_exception("A table with the given ID already exists");
+    _table_uris.insert_or_assign(iter, id, uri);
+
+    /* Add to the workload recovery state. */
+    if (!recovery) {
+        size_t i = _state->num_tables;
+        if (i >= sizeof(_state->tables) / sizeof(_state->tables[0]))
+            throw model_exception("Too many tables");
+        if (uri.length() + 1 /* for the terminating byte */ > sizeof(_state->tables[i].uri))
+            throw model_exception("The table URI is too long");
+
+        _state->tables[i].id = id;
+        (void)snprintf(_state->tables[i].uri, sizeof(_state->tables[i].uri), "%s", uri.c_str());
+        _state->num_tables++;
+    }
+}
+
+/*
  * kv_workload_runner_wt::do_operation --
  *     Execute the given workload operation in WiredTiger.
  */
@@ -144,6 +279,35 @@ kv_workload_runner_wt::do_operation(const operation::commit_transaction &op)
 
     std::string config_str = config.str();
     return session->session()->commit_transaction(session->session(), config_str.c_str());
+}
+
+/*
+ * kv_workload_runner_wt::do_operation --
+ *     Execute the given workload operation in WiredTiger.
+ */
+int
+kv_workload_runner_wt::do_operation(const operation::crash &op)
+{
+    std::unique_lock lock(_connection_lock);
+    (void)op;
+
+    /*
+     * Communicating to the parent process that this crash was intentional is done by the caller,
+     * because it knows additional information such as at which point to restart the workload, which
+     * is lost by the time we get here.
+     */
+    assert(_state->expect_crash);
+
+    /* Terminate self with a signal that doesn't produce a core file. */
+    (void)kill(getpid(), SIGKILL);
+
+    /*
+     * Well, if that somehow failed due to slow signal delivery or some weird behavior of kill,
+     * abort. This should not happen, but the person writing this code is a pessimist.
+     */
+    abort();
+
+    /* Not reached. */
 }
 
 /*

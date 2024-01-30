@@ -321,6 +321,59 @@ private:
 };
 
 /*
+ * shared_memory --
+ *     Shared memory with a child process. After creating this object, the shared memory would be
+ *     available in both the parent and the child process. The memory object will be automatically
+ *     cleaned up when it falls out of scope.
+ */
+class shared_memory {
+
+public:
+    /*
+     * shared_memory::shared_memory --
+     *     Create a shared memory object of the given size.
+     */
+    shared_memory(size_t size);
+
+    /* Delete the copy constructor. */
+    shared_memory(const shared_memory &) = delete;
+
+    /* Delete the copy operator. */
+    shared_memory &operator=(const shared_memory &) = delete;
+
+    /*
+     * shared_memory::~shared_memory --
+     *     Free the memory object.
+     */
+    ~shared_memory();
+
+    /*
+     * shared_memory::data --
+     *     Get the data pointer.
+     */
+    inline void *
+    data() noexcept
+    {
+        return _data;
+    }
+
+    /*
+     * shared_memory::size --
+     *     Get the data size.
+     */
+    inline size_t
+    size() noexcept
+    {
+        return _size;
+    }
+
+private:
+    void *_data;
+    size_t _size;
+    std::string _name;
+};
+
+/*
  * starts_with --
  *     Check whether the string has the given prefix. (C++ does not have this until C++20.)
  */
