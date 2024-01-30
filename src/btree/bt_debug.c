@@ -477,11 +477,15 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
     case WT_UPDATE_MODIFY:
         WT_RET(ds->f(ds, "\t%s\n", __wt_time_window_to_string(&cbt->upd_value->tw, time_string)));
         if (F_ISSET(ds, WT_DEBUG_UNREDACT_ALL)) {
-            WT_RET(ds->f(ds, "\ths_modify: "));
+            WT_RET(ds->f(ds,
+              "\t"
+              "hs_modify: "));
             WT_RET(__debug_modify(ds, ds->hs_value->data));
             WT_RET(ds->f(ds, "\n"));
         } else
-            WT_RET(ds->f(ds, "\ths_modify: {REDACTED}\n"));
+            WT_RET(ds->f(ds,
+              "\t"
+              "hs_modify: {REDACTED}\n"));
         break;
     case WT_UPDATE_STANDARD:
         WT_RET(ds->f(ds,
@@ -639,6 +643,7 @@ __debug_cell_kv(
     /* Row-store references to empty cells return a NULL on-page reference. */
     if (unpack->cell == NULL)
         return (__debug_item(ds, tag, "zero_length", strlen("zero_length")));
+
     if (F_ISSET(ds, WT_DEBUG_UNREDACT_ALL))
         WT_RET(ds->f(
           ds, "\tcell_type: %s | len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
@@ -1275,7 +1280,7 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, " | split_gen: %" PRIu64, split_gen));
     if (mod != NULL)
         WT_RET(ds->f(ds, " | page_state: %" PRIu32, mod->page_state));
-    WT_RET(ds->f(ds, " | memory_size: %" WT_SIZET_FMT, page->memory_footprint));
+    WT_RET(ds->f(ds, " | page_mem_size: %" WT_SIZET_FMT, page->memory_footprint));
     return (ds->f(ds, "\n"));
 }
 
@@ -1364,7 +1369,6 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page)
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
         WT_RET(ds->f(ds, "\trecno: %" PRIu64 "\n", ref->ref_recno));
-        WT_RET(ds->f(ds, "\tV: "));
         WT_RET(__debug_ref(ds, ref));
     }
     WT_INTL_FOREACH_END;
@@ -1407,7 +1411,7 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
         cell = WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(ds->session, page->dsk, cell, unpack);
         rle = __wt_cell_rle(unpack);
-        WT_RET(ds->f(ds, "\trecno: %" PRIu64 " | rle: %" PRIu64 "\n", recno, rle));
+        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 " | rle: %" PRIu64 "}\n", recno, rle));
         WT_RET(__debug_cell_kv(ds, page, WT_PAGE_COL_VAR, "V", unpack));
 
         if (!WT_IS_HS(session->dhandle) && ds->hs_cursor != NULL) {
