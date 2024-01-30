@@ -1116,7 +1116,9 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 
     WT_ASSERT(session, WT_BTREE_PREFIX(uri));
 
-    /* Decode the bulk configuration settings. In memory databases ignore bulk load. */
+    /*
+     * Decode the bulk configuration settings. In memory databases ignore bulk load.
+     */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
         if (cval.type == WT_CONFIG_ITEM_BOOL ||
