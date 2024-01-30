@@ -118,7 +118,7 @@ kv_workload_runner_wt::run(const kv_workload &workload)
      * process crashes intentionally, we'll learn about it through the shared state.
      */
     size_t p = 0; /* Position in the workload. */
-    while (p < workload.size()) {
+    for (;;) {
         bool crashed = _state->expect_crash;
         _state->expect_crash = false;
 
