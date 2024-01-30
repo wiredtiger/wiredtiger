@@ -854,15 +854,14 @@ __wt_cursor_get_hash(
  *     Initialization shared between reuse of a cached cursor and initialization of a new cursor.
  *
  * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
- *     Flags not changed by this function: WT_CBT_READ_ONCE, WT_CURSTD_CACHEABLE, WT_CURSTD_OPEN.
  */
 static int
 __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
   uint64_t overwrite_flag, bool have_config)
 {
     WT_CONFIG_ITEM cval;
-    /* Clear all flags not assumed set by __wt_cursor_cache_get(). */
-    F_CLR(cursor, ~(WT_CBT_READ_ONCE | WT_CURSTD_CACHEABLE | WT_CURSTD_OPEN));
+    /* Default cleared all flags set by this func. */
+    F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
     /* overwrite */
     F_SET(cursor, overwrite_flag);
 
