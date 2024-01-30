@@ -13,11 +13,11 @@
 #endif
 
 /*
- * __pack_encode__uintAny --
+ * __pack_encode_uintAny --
  *     Pack an unsigned integer.
  */
 static inline int
-__pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
+__pack_encode_uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
 {
     /* Check that there is at least one byte available:
      * the low-level routines treat zero length as unchecked. */
@@ -26,11 +26,11 @@ __pack_encode__uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
 }
 
 /*
- * __pack_encode__WT_ITEM --
+ * __pack_encode_WT_ITEM --
  *     Pack a WT_ITEM structure - size and WT_ITEM.
  */
 static inline int
-__pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
+__pack_encode_WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 {
     WT_RET(__wt_vpack_uint(pp, WT_PTRDIFF(end, *pp), item->size));
     WT_SIZE_CHECK_PACK(item->size, WT_PTRDIFF(end, *pp));
@@ -40,11 +40,11 @@ __pack_encode__WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 }
 
 /*
- * __pack_encode__WT_ITEM_last --
+ * __pack_encode_WT_ITEM_last --
  *     Pack a WT_ITEM structure without its size.
  */
 static inline int
-__pack_encode__WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
+__pack_encode_WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 {
     WT_SIZE_CHECK_PACK(item->size, WT_PTRDIFF(end, *pp));
     memcpy(*pp, item->data, item->size);
@@ -53,11 +53,11 @@ __pack_encode__WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 }
 
 /*
- * __pack_encode__string --
+ * __pack_encode_string --
  *     Pack a string.
  */
 static inline int
-__pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
+__pack_encode_string(uint8_t **pp, uint8_t *end, const char *item)
 {
     size_t s, sz;
 
@@ -71,7 +71,7 @@ __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
     return (0);
 }
 
-#define __pack_decode__uintAny(TYPE, pval)                                                     \
+#define __pack_decode_uintAny(TYPE, pval)                                                      \
     do {                                                                                       \
         uint64_t v; /* Check that there is at least one byte available: the low-level routines \
                        treat zero length as unchecked. */                                      \
@@ -80,15 +80,15 @@ __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
         *(pval) = (TYPE)v;                                                                     \
     } while (0)
 
-#define __pack_decode__WT_ITEM(val)                            \
+#define __pack_decode_WT_ITEM(val)                             \
     do {                                                       \
-        __pack_decode__uintAny(size_t, &val->size);            \
+        __pack_decode_uintAny(size_t, &val->size);             \
         WT_SIZE_CHECK_UNPACK(val->size, WT_PTRDIFF(end, *pp)); \
         val->data = *pp;                                       \
         *pp += val->size;                                      \
     } while (0)
 
-#define __pack_decode__WT_ITEM_last(val)     \
+#define __pack_decode_WT_ITEM_last(val)      \
     do {                                     \
         WT_SIZE_CHECK_UNPACK_PTR0(*pp, end); \
         val->size = WT_PTRDIFF(end, *pp);    \
@@ -96,7 +96,7 @@ __pack_encode__string(uint8_t **pp, uint8_t *end, const char *item)
         *pp += val->size;                    \
     } while (0)
 
-#define __pack_decode__string(val)                     \
+#define __pack_decode_string(val)                      \
     do {                                               \
         size_t s;                                      \
         *val = (const char *)*pp;                      \
@@ -145,7 +145,7 @@ __wt_logrec_read(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
 {
     WT_UNUSED(session);
-    __pack_decode__uintAny(uint32_t, rectypep);
+    __pack_decode_uintAny(uint32_t, rectypep);
     return (0);
 }
 
@@ -162,8 +162,8 @@ __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp2, const uint8_t *en
 
     p = *pp2;
     pp = &p;
-    __pack_decode__uintAny(uint32_t, optypep);
-    __pack_decode__uintAny(uint32_t, opsizep);
+    __pack_decode_uintAny(uint32_t, optypep);
+    __pack_decode_uintAny(uint32_t, opsizep);
     return (0);
 }
 
@@ -176,8 +176,8 @@ __wt_logop_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *e
   uint32_t *optypep, uint32_t *opsizep)
 {
     WT_UNUSED(session);
-    __pack_decode__uintAny(uint32_t, optypep);
-    __pack_decode__uintAny(uint32_t, opsizep);
+    __pack_decode_uintAny(uint32_t, optypep);
+    __pack_decode_uintAny(uint32_t, opsizep);
     return (0);
 }
 
@@ -190,8 +190,8 @@ __wt_logop_write(
   WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end, uint32_t optype, uint32_t opsize)
 {
     WT_UNUSED(session);
-    WT_RET(__pack_encode__uintAny(pp, end, optype));
-    WT_RET(__pack_encode__uintAny(pp, end, opsize));
+    WT_RET(__pack_encode_uintAny(pp, end, optype));
+    WT_RET(__pack_encode_uintAny(pp, end, opsize));
     return (0);
 }
 
@@ -253,9 +253,9 @@ static inline int
 __wt_struct_pack_col_modify(
   uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__uintAny(pp, end, recno));
-    WT_RET(__pack_encode__WT_ITEM_last(pp, end, value));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_uintAny(pp, end, recno));
+    WT_RET(__pack_encode_WT_ITEM_last(pp, end, value));
 
     return (0);
 }
@@ -269,9 +269,9 @@ static inline int
 __wt_struct_unpack_col_modify(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__uintAny(uint64_t, recnop);
-    __pack_decode__WT_ITEM_last(valuep);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_uintAny(uint64_t, recnop);
+    __pack_decode_WT_ITEM_last(valuep);
 
     return (0);
 }
@@ -392,9 +392,9 @@ static inline int
 __wt_struct_pack_col_put(
   uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__uintAny(pp, end, recno));
-    WT_RET(__pack_encode__WT_ITEM_last(pp, end, value));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_uintAny(pp, end, recno));
+    WT_RET(__pack_encode_WT_ITEM_last(pp, end, value));
 
     return (0);
 }
@@ -408,9 +408,9 @@ static inline int
 __wt_struct_unpack_col_put(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__uintAny(uint64_t, recnop);
-    __pack_decode__WT_ITEM_last(valuep);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_uintAny(uint64_t, recnop);
+    __pack_decode_WT_ITEM_last(valuep);
 
     return (0);
 }
@@ -530,8 +530,8 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_col_remove(uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t recno)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__uintAny(pp, end, recno));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_uintAny(pp, end, recno));
 
     return (0);
 }
@@ -545,8 +545,8 @@ static inline int
 __wt_struct_unpack_col_remove(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__uintAny(uint64_t, recnop);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_uintAny(uint64_t, recnop);
 
     return (0);
 }
@@ -654,9 +654,9 @@ static inline int
 __wt_struct_pack_col_truncate(
   uint8_t **pp, uint8_t *end, uint32_t fileid, uint64_t start, uint64_t stop)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__uintAny(pp, end, start));
-    WT_RET(__pack_encode__uintAny(pp, end, stop));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_uintAny(pp, end, start));
+    WT_RET(__pack_encode_uintAny(pp, end, stop));
 
     return (0);
 }
@@ -670,9 +670,9 @@ static inline int
 __wt_struct_unpack_col_truncate(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__uintAny(uint64_t, startp);
-    __pack_decode__uintAny(uint64_t, stopp);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_uintAny(uint64_t, startp);
+    __pack_decode_uintAny(uint64_t, stopp);
 
     return (0);
 }
@@ -782,9 +782,9 @@ static inline int
 __wt_struct_pack_row_modify(
   uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__WT_ITEM(pp, end, key));
-    WT_RET(__pack_encode__WT_ITEM_last(pp, end, value));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_WT_ITEM(pp, end, key));
+    WT_RET(__pack_encode_WT_ITEM_last(pp, end, value));
 
     return (0);
 }
@@ -798,9 +798,9 @@ static inline int
 __wt_struct_unpack_row_modify(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(keyp);
-    __pack_decode__WT_ITEM_last(valuep);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_WT_ITEM(keyp);
+    __pack_decode_WT_ITEM_last(valuep);
 
     return (0);
 }
@@ -926,9 +926,9 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_row_put(uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__WT_ITEM(pp, end, key));
-    WT_RET(__pack_encode__WT_ITEM_last(pp, end, value));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_WT_ITEM(pp, end, key));
+    WT_RET(__pack_encode_WT_ITEM_last(pp, end, value));
 
     return (0);
 }
@@ -942,9 +942,9 @@ static inline int
 __wt_struct_unpack_row_put(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(keyp);
-    __pack_decode__WT_ITEM_last(valuep);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_WT_ITEM(keyp);
+    __pack_decode_WT_ITEM_last(valuep);
 
     return (0);
 }
@@ -1070,8 +1070,8 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_row_remove(uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *key)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__WT_ITEM_last(pp, end, key));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_WT_ITEM_last(pp, end, key));
 
     return (0);
 }
@@ -1085,8 +1085,8 @@ static inline int
 __wt_struct_unpack_row_remove(
   const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM_last(keyp);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_WT_ITEM_last(keyp);
 
     return (0);
 }
@@ -1205,10 +1205,10 @@ static inline int
 __wt_struct_pack_row_truncate(
   uint8_t **pp, uint8_t *end, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, fileid));
-    WT_RET(__pack_encode__WT_ITEM(pp, end, start));
-    WT_RET(__pack_encode__WT_ITEM(pp, end, stop));
-    WT_RET(__pack_encode__uintAny(pp, end, mode));
+    WT_RET(__pack_encode_uintAny(pp, end, fileid));
+    WT_RET(__pack_encode_WT_ITEM(pp, end, start));
+    WT_RET(__pack_encode_WT_ITEM(pp, end, stop));
+    WT_RET(__pack_encode_uintAny(pp, end, mode));
 
     return (0);
 }
@@ -1222,10 +1222,10 @@ static inline int
 __wt_struct_unpack_row_truncate(const uint8_t **pp, const uint8_t *end, uint32_t *fileidp,
   WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
 {
-    __pack_decode__uintAny(uint32_t, fileidp);
-    __pack_decode__WT_ITEM(startp);
-    __pack_decode__WT_ITEM(stopp);
-    __pack_decode__uintAny(uint32_t, modep);
+    __pack_decode_uintAny(uint32_t, fileidp);
+    __pack_decode_WT_ITEM(startp);
+    __pack_decode_WT_ITEM(stopp);
+    __pack_decode_uintAny(uint32_t, modep);
 
     return (0);
 }
@@ -1465,8 +1465,8 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_pack_prev_lsn(uint8_t **pp, uint8_t *end, WT_LSN *prev_lsn)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, prev_lsn->l.file));
-    WT_RET(__pack_encode__uintAny(pp, end, prev_lsn->l.offset));
+    WT_RET(__pack_encode_uintAny(pp, end, prev_lsn->l.file));
+    WT_RET(__pack_encode_uintAny(pp, end, prev_lsn->l.offset));
 
     return (0);
 }
@@ -1479,8 +1479,8 @@ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
 __wt_struct_unpack_prev_lsn(const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
 {
-    __pack_decode__uintAny(uint32_t, &prev_lsnp->l.file);
-    __pack_decode__uintAny(uint32_t, &prev_lsnp->l.offset);
+    __pack_decode_uintAny(uint32_t, &prev_lsnp->l.file);
+    __pack_decode_uintAny(uint32_t, &prev_lsnp->l.offset);
 
     return (0);
 }
@@ -1582,9 +1582,9 @@ static inline int
 __wt_struct_pack_backup_id(
   uint8_t **pp, uint8_t *end, uint32_t index, uint64_t granularity, const char *id)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, index));
-    WT_RET(__pack_encode__uintAny(pp, end, granularity));
-    WT_RET(__pack_encode__string(pp, end, id));
+    WT_RET(__pack_encode_uintAny(pp, end, index));
+    WT_RET(__pack_encode_uintAny(pp, end, granularity));
+    WT_RET(__pack_encode_string(pp, end, id));
 
     return (0);
 }
@@ -1598,9 +1598,9 @@ static inline int
 __wt_struct_unpack_backup_id(const uint8_t **pp, const uint8_t *end, uint32_t *indexp,
   uint64_t *granularityp, const char **idp)
 {
-    __pack_decode__uintAny(uint32_t, indexp);
-    __pack_decode__uintAny(uint64_t, granularityp);
-    __pack_decode__string(idp);
+    __pack_decode_uintAny(uint32_t, indexp);
+    __pack_decode_uintAny(uint64_t, granularityp);
+    __pack_decode_string(idp);
 
     return (0);
 }
@@ -1710,13 +1710,13 @@ __wt_struct_pack_txn_timestamp(uint8_t **pp, uint8_t *end, uint64_t time_sec, ui
   uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts, uint64_t prepare_ts,
   uint64_t read_ts)
 {
-    WT_RET(__pack_encode__uintAny(pp, end, time_sec));
-    WT_RET(__pack_encode__uintAny(pp, end, time_nsec));
-    WT_RET(__pack_encode__uintAny(pp, end, commit_ts));
-    WT_RET(__pack_encode__uintAny(pp, end, durable_ts));
-    WT_RET(__pack_encode__uintAny(pp, end, first_commit_ts));
-    WT_RET(__pack_encode__uintAny(pp, end, prepare_ts));
-    WT_RET(__pack_encode__uintAny(pp, end, read_ts));
+    WT_RET(__pack_encode_uintAny(pp, end, time_sec));
+    WT_RET(__pack_encode_uintAny(pp, end, time_nsec));
+    WT_RET(__pack_encode_uintAny(pp, end, commit_ts));
+    WT_RET(__pack_encode_uintAny(pp, end, durable_ts));
+    WT_RET(__pack_encode_uintAny(pp, end, first_commit_ts));
+    WT_RET(__pack_encode_uintAny(pp, end, prepare_ts));
+    WT_RET(__pack_encode_uintAny(pp, end, read_ts));
 
     return (0);
 }
@@ -1731,13 +1731,13 @@ __wt_struct_unpack_txn_timestamp(const uint8_t **pp, const uint8_t *end, uint64_
   uint64_t *time_nsecp, uint64_t *commit_tsp, uint64_t *durable_tsp, uint64_t *first_commit_tsp,
   uint64_t *prepare_tsp, uint64_t *read_tsp)
 {
-    __pack_decode__uintAny(uint64_t, time_secp);
-    __pack_decode__uintAny(uint64_t, time_nsecp);
-    __pack_decode__uintAny(uint64_t, commit_tsp);
-    __pack_decode__uintAny(uint64_t, durable_tsp);
-    __pack_decode__uintAny(uint64_t, first_commit_tsp);
-    __pack_decode__uintAny(uint64_t, prepare_tsp);
-    __pack_decode__uintAny(uint64_t, read_tsp);
+    __pack_decode_uintAny(uint64_t, time_secp);
+    __pack_decode_uintAny(uint64_t, time_nsecp);
+    __pack_decode_uintAny(uint64_t, commit_tsp);
+    __pack_decode_uintAny(uint64_t, durable_tsp);
+    __pack_decode_uintAny(uint64_t, first_commit_tsp);
+    __pack_decode_uintAny(uint64_t, prepare_tsp);
+    __pack_decode_uintAny(uint64_t, read_tsp);
 
     return (0);
 }
