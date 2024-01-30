@@ -1406,7 +1406,7 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
         cell = WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(ds->session, page->dsk, cell, unpack);
         rle = __wt_cell_rle(unpack);
-        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 " | rle: %" PRIu64 "}\n", recno, rle));
+        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n", recno));
         WT_RET(__debug_cell_kv(ds, page, WT_PAGE_COL_VAR, "V", unpack));
 
         if (!WT_IS_HS(session->dhandle) && ds->hs_cursor != NULL) {
