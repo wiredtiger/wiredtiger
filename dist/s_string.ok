@@ -457,7 +457,7 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
-acSstu
+ackSstu
 addl
 addr
 addrs
@@ -1186,12 +1186,15 @@ scr
 sd
 sdk
 secretkey
+sempty
+sencrypted
 sessionp
 setkv
 setname
 setstr
 setv
 setvbuf
+sfast
 shareability
 sig
 sigchld
@@ -1254,6 +1257,7 @@ subtest
 subtree
 sumv
 sunique
+sunused
 supd
 superset
 sw
@@ -1333,6 +1337,8 @@ unmodify
 unmount
 unpackv
 unpositioned
+unredact
+unredacts
 unreferenced
 unsized
 unterminated
