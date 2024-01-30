@@ -33,7 +33,8 @@ from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
 
 # test_rollback_to_stable43.py
-# Test that rollback to stable brings back the history value to replace on-disk value.
+# Test that rollback to stable brings back the history value to replace on-disk value
+# using worker threads.
 class test_rollback_to_stable43(test_rollback_to_stable_base):
 
     # For FLCS, set the page size down. Otherwise for the in-memory scenarios we get enough
