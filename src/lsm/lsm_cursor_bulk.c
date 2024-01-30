@@ -132,5 +132,7 @@ __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
     /* LSM cursors are always raw */
     F_SET(bulk_cursor, WT_CURSTD_RAW);
 
+    WT_STAT_CONN_INCR_ATOMIC(session, cursor_bulk_count);
+
     return (0);
 }

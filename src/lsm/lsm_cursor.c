@@ -1774,10 +1774,8 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
 
     WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
-    if (bulk) {
+    if (bulk)
         WT_ERR(__wt_clsm_open_bulk(clsm, cfg));
-        WT_STAT_CONN_INCR_ATOMIC(session, cursor_bulk_count);
-    }
 
     if (0) {
 err:

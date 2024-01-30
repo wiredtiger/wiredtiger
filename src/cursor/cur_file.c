@@ -1090,6 +1090,9 @@ err:
         *cursorp = NULL;
     }
 
+    if (ret == 0 && bulk)
+        WT_STAT_CONN_INCR_ATOMIC(session, cursor_bulk_count);
+
     return (ret);
 }
 
@@ -1210,9 +1213,6 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 
     WT_ERR(
       __curfile_create(session, owner, cfg, bulk, bitmap, hs_dhandle, &ckpt_snapshot, cursorp));
-
-    if (bulk)
-        WT_STAT_CONN_INCR_ATOMIC(session, cursor_bulk_count);
 
     return (0);
 
