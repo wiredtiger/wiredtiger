@@ -44,7 +44,7 @@ if not args.pattern:
 match = matchSearch if args.only_matching else matchLine
 if not args.is_regex:
     args.pattern = [re.escape(pat) for pat in args.pattern]
-regex = '|'.join(args.pattern)
+regex = '|'.join(['(?:' + pat + ')' for pat in args.pattern])
 if args.word:
     regex = '\\b(?:' + regex + ')\\b'
 
