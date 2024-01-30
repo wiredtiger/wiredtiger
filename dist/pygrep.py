@@ -31,22 +31,22 @@ argparser.add_argument('-o', '--only-matching', dest='only_matching', action='st
         help='Prints only the matching part of the lines.')
 argparser.add_argument('pattern', action='append', nargs='?',
         help='Search pattern.')
-#argparser.add_argument('files', action='append', nargs='*',
-#        help='Search pattern.')
 
-#args = argparser.parse_args(sys.argv[1:])
-args = argparser.parse_known_args(sys.argv[1:])[0]  # Ignore unknown options rathern than complain
+# Ignore unknown options rather than complain
+args = argparser.parse_known_args(sys.argv[1:])[0]
 args.pattern = [line
-                for pat in args.pattern if pat is not None
-                for line in pat.splitlines() if line != '']
+                for pat in args.pattern if pat
+                for line in pat.splitlines() if line]
 if not args.pattern:
     argparser.print_help()
     exit()
 
 match = matchSearch if args.only_matching else matchLine
-if not args.is_regex: args.pattern = [re.escape(pat) for pat in args.pattern]
+if not args.is_regex:
+    args.pattern = [re.escape(pat) for pat in args.pattern]
 regex = '|'.join(args.pattern)
-if args.word: regex = '\\b(?:' + regex + ')\\b'
+if args.word:
+    regex = '\\b(?:' + regex + ')\\b'
 
 regex = re.compile(regex)
 
