@@ -177,6 +177,7 @@ functions:
           ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
           ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
           ${HAVE_UNITTEST} \
+          ${CODE_COVERAGE_FLAGS} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
           ${GNU_C_VERSION|} \
@@ -1517,6 +1518,12 @@ tasks:
         vars:
           GNU_C_VERSION: -DGNU_C_VERSION=9
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
+      # Check that WiredTiger will compile for code coverage, as this may switch to alternative
+      # implementations of some code which may generate different compiler errors to a 'normal' build
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
+          CODE_COVERAGE_FLAGS: -DCODE_COVERAGE_MEASUREMENT=1 -DINLINE_FUNCTIONS_INSTEAD_OF_MACROS=1
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
