@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Complain about unused functions
-
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")" || exit $?
+[[ `uname -s` == Darwin ]] && EGREP="./pygrep.py -E" FGREP="./pygrep.py -F" || EGREP=egrep FGREP=fgrep
 
 # List of files to search.
 l=`sed -e '/^[a-z]/!d' -e 's/[	 ].*$//' -e 's,^,../,' filelist`
@@ -13,14 +13,14 @@ l="$l `echo ../src/*/*_inline.h ../src/utilities/*.c ../bench/wtperf/*.c ../benc
     sed -e '/^$/d' -e '/^#/d' < s_funcs.list
 
     # Get the list of functions
-    search=`cat $l | ./pygrep.py '^[a-zA-Z0-9_][a-zA-Z0-9_]*\(' | sed -e 's/(.*//' | sort -u`
+    search=`egrep -h '^[a-zA-Z0-9_][a-zA-Z0-9_]*\(' $l | sed -e 's/(.*//' | sort -u`
 
     # Print the list of functions, followed by the occurrences: we're looking for
     # functions that only appear once
     echo "$search"
-    sed -n '/{/,/^}/p' $l | ./pygrep.py -fwo $search
+    sed -n '/{/,/^}/p' $l | $FGREP -wo "$search"
 
-    sed -n '/^#define/,/[^\\]$/p' ../src/include/*.h ../src/include/*.in | ./pygrep.py -fwho $search
-} | ./pygrep.py -v '^__ut_' | sort | uniq -u
+    sed -n '/^#define/,/[^\\]$/p' ../src/include/*.h ../src/include/*.in | $FGREP -wo "$search"
+} | egrep -v '^__ut_' | sort | uniq -u
 
 exit 0

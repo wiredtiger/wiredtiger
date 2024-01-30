@@ -2,6 +2,7 @@
 
 # Complain about unused #defines.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")" || exit $?
+[[ `uname -s` == Darwin ]] && EGREP="./pygrep.py -E" FGREP="./pygrep.py -F" || EGREP=egrep FGREP=fgrep
 
 # List of source files to search.
 l=`sed -e '/^[a-z]/!d' -e 's/[	 ].*$//' -e 's,^,../,' filelist`
@@ -22,14 +23,14 @@ sed -e '/^$/d' -e '/^#/d' < s_define.list
 search=`cat $dl |
     sed -e '/configuration section: BEGIN/,/configuration section: END/d' \
         -e '/Statistics section: BEGIN/,/Statistics section: END/d' |
-    ./pygrep.py '^#define' |
+    egrep '^#define' |
     sed 's/#define[	 ][	 ]*\([A-Za-z_][A-Za-z0-9_]*\).*/\1/' |
     sort -u`
 
 # Print the list of macros, followed by the occurrences: we're looking for
 # macros that only appear once.
 echo "$search"
-cat $l | ./pygrep.py -fwho $search
+cat $l | $FGREP -wo -h "$search"
 
 } | sort | uniq -u
 
