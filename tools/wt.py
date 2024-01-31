@@ -2,7 +2,11 @@ import json
 import sys
 import matplotlib.pyplot as plt
 
+
 def print_output(output):
+    """
+    Print output for parsing script
+    """
     str = "{"
     for count, key in enumerate(output):
         value = output[key]
@@ -20,7 +24,10 @@ def print_output(output):
     print(str)
 
 
-def string_to_array(line):
+def string_to_type(line):
+    """
+    Helper that converts string to dictionaries and / or lists
+    """
     dict = {}
     for x in line.split(" | "):
         kv_pair = x.split(": ", 1)
