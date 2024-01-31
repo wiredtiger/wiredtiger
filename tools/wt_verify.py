@@ -76,9 +76,9 @@ def find_wt_exec_path():
     path = f"{wt_verify_dir_path}/../."
     result = []
 
-    for (root, dirs, files) in os.walk(path):
+    for (root, _, files) in os.walk(path):
         for name in files:
-            if fnmatch.fnmatch(name, "wt_verify.py"):
+            if fnmatch.fnmatch(name, "wt"):
                 result.append(os.path.join(root, name))
 
     if len(result) > 1:
