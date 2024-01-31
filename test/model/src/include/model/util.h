@@ -30,6 +30,7 @@
 #define MODEL_UTIL_H
 
 #include <cstring>
+#include <functional>
 #include <iomanip>
 #include <memory>
 #include <sstream>
