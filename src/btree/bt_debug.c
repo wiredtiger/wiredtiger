@@ -624,18 +624,28 @@ __debug_cell_kv(
         return (__debug_item(ds, tag, "zero_length", strlen("zero_length")));
 
     if (F_ISSET(ds, WT_DEBUG_UNREDACT_ALL))
-        WT_RET(ds->f(
-          ds, "\tcell_type: %s | len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+        WT_RET(ds->f(ds,
+          "\t"
+          "cell_type: %s | len: %" PRIu32,
+          __wt_cell_type_string(unpack->raw), unpack->size));
     else if (F_ISSET(ds, WT_DEBUG_UNREDACT_KEYS)) {
         if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
           unpack->raw == WT_CELL_KEY_OVFL || unpack->raw == WT_CELL_KEY_SHORT ||
           unpack->raw == WT_CELL_KEY_SHORT_PFX || unpack->raw == WT_CELL_KEY_OVFL_RM)
-            WT_RET(ds->f(ds, "\tcell_type: %s | len: %" PRIu32, __wt_cell_type_string(unpack->raw),
-              unpack->size));
+            WT_RET(ds->f(ds,
+              "\t"
+              "cell_type: %s | len: %" PRIu32,
+              __wt_cell_type_string(unpack->raw), unpack->size));
         else
-            WT_RET(ds->f(ds, "\t{REDACTED}"));
+            WT_RET(ds->f(ds,
+              "\t"
+              "cell_type: %s | len: {REDACTED}",
+              __wt_cell_type_string(unpack->raw)));
     } else
-        WT_RET(ds->f(ds, "\t{REDACTED}"));
+        WT_RET(ds->f(ds,
+          "\t"
+          "cell_type: %s | len: {REDACTED}",
+          __wt_cell_type_string(unpack->raw)));
 
     /* Dump per-disk page type information. */
     switch (page_type) {
@@ -1363,7 +1373,7 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page)
     session = ds->session;
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_RET(ds->f(ds, "\trecno: %" PRIu64 "\n", ref->ref_recno));
+        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n", ref->ref_recno));
         WT_RET(__debug_ref(ds, ref));
     }
     WT_INTL_FOREACH_END;
