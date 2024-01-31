@@ -25,16 +25,17 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     __wt_block_configure_first_fit(block, true);
 
     /* Reset the compaction state information. */
-    block->compact_session_id = session->id;
-    block->compact_estimated = false;
-    block->compact_pct_tenths = 0;
     block->compact_bytes_reviewed = 0;
     block->compact_bytes_rewritten = 0;
+    block->compact_estimated = false;
     block->compact_internal_pages_reviewed = 0;
     block->compact_pages_reviewed = 0;
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
+    block->compact_pct_tenths = 0;
+    block->compact_prev_size = 0;
+    block->compact_session_id = session->id;
 
     if (session == S2C(session)->background_compact.session)
         WT_RET(__wt_background_compact_start(session));
@@ -489,9 +490,18 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
           "%s: skipping because the number of available bytes %" PRIu64
           "B is less than the configured threshold %" PRIu64 "B.",
           block->name, block->live.avail.bytes, session->compact->free_space_target);
+    /*
+     * The file can grow due to parallel activity, it is better to stop compacting to avoid
+     * conflicting behavior.
+     */
+    else if (block->compact_prev_size > 0 && block->size > block->compact_prev_size)
+        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+          "%s: skipping because the file has grown between compact passes.", block->name);
     else
         __block_compact_skip_internal(
           session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+
+    block->compact_prev_size = block->size;
 
     __wt_spin_unlock(session, &block->live_lock);
 
@@ -543,11 +553,8 @@ __compact_page_skip(
 
     /*
      * We must have reviewed at least some interesting number of pages for any estimates below to be
-     * worthwhile. If compaction has rewritten more pages than expected, estimate the work again.
+     * worthwhile.
      */
-    if (block->compact_estimated &&
-      block->compact_pages_rewritten > block->compact_pages_rewritten_expected)
-        block->compact_estimated = false;
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
         __block_compact_estimate_remaining_work(session, block);
         /* If no potential work has been found, exit compaction. */
