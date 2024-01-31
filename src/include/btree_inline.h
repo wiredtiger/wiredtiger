@@ -2328,8 +2328,9 @@ __wt_btcur_skip_page(
     *skipp = false; /* Default to reading */
 
     btree = S2BT(session);
-    clean_page = false;
     walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
+    ta = NULL;
+    clean_page = false;
 
     /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
     if (btree->type == BTREE_COL_FIX)
