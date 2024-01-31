@@ -339,7 +339,8 @@ __wt_conf_compile(
     cfgs[1] = format_copy;
     WT_ERR(__wt_calloc(session, centry->conf_total_size, 1, &buf));
     conf = buf;
-    conf->orig_config = format_copy;
+    conf->source_config = format_copy;
+    conf->default_config = cfgs[0];
 
     WT_ERR(__conf_compile_config_strings(session, centry, cfgs, 1, true, conf));
 
@@ -405,6 +406,9 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
 
     memcpy(compile_buf, preconf, compile_buf_size);
     conf = compile_buf;
+
+    /* Save the config string from the API call, it can be helpful for debugging. */
+    conf->api_config = config;
 
     /* Add to it the user format if any. */
     if (config != NULL)
@@ -508,6 +512,9 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
 
             cfgs[0] = centry->base;
             WT_RET(__conf_compile_config_strings(session, centry, cfgs, 1, false, conf));
+
+            /* Stash the default configuration string, it can be helpful for debugging. */
+            conf->default_config = centry->base;
             conn->conf_api_array[i] = conf;
         }
     }
@@ -522,7 +529,7 @@ static void
 __conf_compile_free(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     if (conf != NULL) {
-        __wt_free(session, conf->orig_config);
+        __wt_free(session, conf->source_config);
         __wt_free(session, conf->binding_descriptions);
         __wt_free(session, conf);
     }

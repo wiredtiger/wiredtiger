@@ -1117,7 +1117,16 @@ struct __wt_conf {
     uint8_t bitmap_default[__bitstr_size(WT_CONF_ID_COUNT)];
 
     const WT_CONFIG_ENTRY *compile_time_entry; /* May be used for diagnostic checks. */
-    char *orig_config;
+
+    /*
+     * These strings are in this struct because they can be valuable during debugging. They are not
+     * otherwise used by the conf sources. The source configuration is owned by this struct and will
+     * be freed when the struct is freed. The others are not owned, but they are guaranteed to be
+     * valid throughout the lifetime of this struct.
+     */
+    char *source_config;        /* Source string used to pre-compile this struct */
+    const char *api_config;     /* String from an API call to compile this struct */
+    const char *default_config; /* Default string at the time of the compilation */
 
     uint8_t key_map[WT_CONF_ID_COUNT]; /* For each key, a 1-based index into conf_key */
 
