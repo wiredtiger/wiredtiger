@@ -76,12 +76,12 @@ def parse_dump_pages(file_path, allow_data, allow_hs):
             else:
                 pass
         elif line[0:3] == "\t> ": # metadata for new node
-            cur_node["metadata"].update(string_to_array(line[len("\t> "):-1]))
+            cur_node["metadata"].update(string_to_type(line[len("\t> "):-1]))
         elif allow_data and (line.startswith("\tK: ") or line.startswith("\trecno: ")): # actual data
             if "data" not in cur_node:
                 cur_node["data"] = {}
             key = line[1:-1].split(": ")[1][1:-1]
-            metadata = string_to_array(f.readline()[1:-1])
+            metadata = string_to_type(f.readline()[1:-1])
             if page_type == "leaf": 
                 value = f.readline()[4:-1][1:-1]
                 cur_node["data"][key] = {"value": value, "metadata": metadata}    
