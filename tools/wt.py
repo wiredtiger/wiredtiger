@@ -95,9 +95,10 @@ def parse_dump_pages(file_path, allow_data, allow_hs):
             cur_node[hs_key].append({hs_value[1:-1]: time_stamp})
             pass
         else: # timestamp 
-            time_stamp = string_to_array(line[1:-1])
+            time_stamp = string_to_type(line[1:-1])
         line = f.readline() 
     if cur_node_id is not None:
         output[cur_node_id] = cur_node
     f.close()
     return output
+
