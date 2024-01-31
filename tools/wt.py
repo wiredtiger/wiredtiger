@@ -92,31 +92,5 @@ def parse_dump_pages(file_path, allow_data, allow_hs):
         line = f.readline() 
     if cur_node_id is not None:
         output[cur_node_id] = cur_node
-    # pprint.pprint(output)
-    # print(json.dumps(output, indent=4))
-    #print_output(output)
     f.close()
     return output
-
-
-def visualise(output):
-    values = []
-    keys = []
-    all = list(output.keys())
-    for count, val in enumerate(output.values()):
-        if "dsk_mem_size" in val["metadata"]:
-            values.append(val["metadata"]["dsk_mem_size"])
-            keys.append(all[count])
-
-    plt.bar(keys, values, color='g')
-    plt.show()
-    print(keys, values)
-    
-
-def main():
-    file = sys.argv[1]
-    output = parse_dump_pages(file, True, True)
-    visualise(output)
-
-if __name__ == '__main__':
-    main()
