@@ -26,9 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# A python script to ru the WT tool
+# A python script to run the WT tool verify command.
 
-# This script only handles VLCS (variable length column store) and Row store, not column fix
+# This script only handles Row store and Variable Length Column Store (VLCS),
+# not Fixed Length Column Store (FLCS)
 
 import argparse
 import fnmatch
@@ -82,7 +83,7 @@ def find_wt_exec_path():
                 result.append(os.path.join(root, name))
 
     if len(result) > 1:
-        print("Error: multiple wt executables found. Please provide wt tool path using the -wt flag:")
+        print("Error: multiple wt executables found. Please provide wt executable path using the -wt flag:")
         for path in result:
             print(path)
         exit(1)
@@ -109,7 +110,7 @@ def construct_command(args):
     if args.dump_config:
         command += f" -d {args.dump_config}"
     if args.file_name:
-        command += f" {args.file_name}"
+        command += f" \"file:{args.file_name}\""
     return command
 
 
@@ -117,8 +118,9 @@ def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
     parser.add_argument('-hd', '--home_dir', required=True, help='Path to the WiredTiger database home directory.')
     parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify.')
-    parser.add_argument('-wt', '--wt_exec_path', required=False, help='Path of the WT tool.')
+    parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
     parser.add_argument('-o', '--output_path', default='.', help='Directory path where the output file will be saved (default: current directory).')
+    parser.add_argument('-n', '--output_file_name', help='Name of the output file (default wt_verify_output.txt)')
     parser.add_argument('-d', '--dump_config', choices=['dump_pages', 'dump_blocks'], help='Option to specify dump_pages or dump_blocks configuration.')
     parser.add_argument('-t', '--keep_tx_ids', action='store_true', help='Option to keep transaction IDs during verification.')
     parser.add_argument('-u', '--unredacted', action='store_true', help='Option to display unredacted output.')  
@@ -141,7 +143,10 @@ def main():
         sys.exit(1)
 
     parsed_data = parse_output(output)
-    output_file_path = Path(args.output_path) / "wt_verify_output.txt"
+    if args.output_file_name:
+        output_file_path = Path(args.output_path) / f"{args.output_file_name}"
+    else:
+        output_file_path = Path(args.output_path) / "wt_verify_output.txt"
 
     try:
         with open(output_file_path, 'w') as file:
