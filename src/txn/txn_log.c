@@ -47,7 +47,7 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     }
 
     WT_ASSERT_ALWAYS(session,
-      __wt_compare(session, CURBT2BT(cbt)->collator, &key, &cursor->key, &cmp) == 0,
+      __wt_compare(session, CUR2BT(cbt)->collator, &key, &cursor->key, &cmp) == 0,
       "Comparison of row store logging key and cursor key failed");
     WT_ASSERT_ALWAYS(
       session, cmp == 0, "Cursor is not referencing the expected key when logging an operation");
@@ -77,7 +77,7 @@ __txn_op_log(
      * Log the row- or column-store insert, modify, remove or update. Our caller doesn't log reserve
      * operations, we shouldn't see them here.
      */
-    if (CURBT2BT(cbt)->type == BTREE_ROW) {
+    if (CUR2BT(cbt)->type == BTREE_ROW) {
         if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_LOG_VALIDATE))
             __txn_op_log_row_key_check(session, cbt);
 

@@ -284,35 +284,12 @@ __wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
     return (dhandle == NULL ? NULL : (WT_BTREE *)(dhandle->handle));
 }
 
-/*
- * __wt_cur2bt --
- *     Safely return the WT_BTREE pointed to by the cursor's dhandle.
- */
-
-static NO_INLINE_FOR_CODE_COVERAGE WT_BTREE *
-__wt_cur2bt(WT_CURSOR *cursor)
-{
-    WT_CURSOR_BTREE *cursor_btree;
-
-    cursor_btree = (WT_CURSOR_BTREE *)cursor;
-
-    return (__wt_curbt2bt(cursor_btree));
-}
-
-/*
- * The original CUR2BT macro was called on both cursors and cursor_btrees. However, when converting
- * to inline functions a separate function (__wt_curbt2bt) and macro (CURBT2BT) are also required to
- * avoid type errors at compile time.
- */
-#define CUR2BT(c) __wt_cur2bt(c)
-#define CURBT2BT(cursor_btree) __wt_curbt2bt(cursor_btree)
+#define CUR2BT(c) __wt_curbt2bt((WT_CURSOR_BTREE *)(c))
 #else
 #define CUR2BT(c)                                \
     (((WT_CURSOR_BTREE *)(c))->dhandle == NULL ? \
         NULL :                                   \
         (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
-
-#define CURBT2BT(cursor_btree) CUR2BT(cursor_btree)
 #endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
 
 struct __wt_cursor_bulk {
