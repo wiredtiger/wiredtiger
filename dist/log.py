@@ -219,13 +219,13 @@ def run():
 
 #ifndef WT_CHECK_OPTYPE
 #define WT_CHECK_OPTYPE(session, opvar, op) \
-    if (opvar != op) \
+    if (opvar != op)                        \
         WT_RET_MSG(session, EINVAL, "unpacking " #op ": optype mismatch");
 #endif
 
 /*
  * __pack_encode_uintAny --
- *    Pack an unsigned integer.
+ *     Pack an unsigned integer.
  */
 static inline int
 __pack_encode_uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
@@ -238,7 +238,7 @@ __pack_encode_uintAny(uint8_t **pp, uint8_t *end, uint64_t item)
 
 /*
  * __pack_encode_WT_ITEM --
- *    Pack a WT_ITEM structure - size and WT_ITEM.
+ *     Pack a WT_ITEM structure - size and WT_ITEM.
  */
 static inline int
 __pack_encode_WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
@@ -252,7 +252,7 @@ __pack_encode_WT_ITEM(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 
 /*
  * __pack_encode_WT_ITEM_last --
- *    Pack a WT_ITEM structure without its size.
+ *     Pack a WT_ITEM structure without its size.
  */
 static inline int
 __pack_encode_WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
@@ -265,7 +265,7 @@ __pack_encode_WT_ITEM_last(uint8_t **pp, uint8_t *end, WT_ITEM *item)
 
 /*
  * __pack_encode_string --
- *    Pack a string.
+ *     Pack a string.
  */
 static inline int
 __pack_encode_string(uint8_t **pp, uint8_t *end, const char *item)
@@ -282,40 +282,43 @@ __pack_encode_string(uint8_t **pp, uint8_t *end, const char *item)
     return (0);
 }
 
-#define __pack_decode_uintAny(pp, end, TYPE, pval)  do { \
-        uint64_t v; \
-        /* Check that there is at least one byte available: \
-the low-level routines treat zero length as unchecked. */ \
-        WT_SIZE_CHECK_UNPACK_PTR(*pp, end); \
-        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v)); \
-        *(pval) = (TYPE)v; \
+#define __pack_decode_uintAny(pp, end, TYPE, pval)                                             \
+    do {                                                                                       \
+        uint64_t v; /* Check that there is at least one byte available: the low-level routines \
+                       treat zero length as unchecked. */                                      \
+        WT_SIZE_CHECK_UNPACK_PTR(*pp, end);                                                    \
+        WT_RET(__wt_vunpack_uint(pp, WT_PTRDIFF(end, *pp), &v));                               \
+        *(pval) = (TYPE)v;                                                                     \
     } while (0)
 
-#define __pack_decode_WT_ITEM(pp, end, val)  do { \
-        __pack_decode_uintAny(pp, end, size_t, &val->size); \
+#define __pack_decode_WT_ITEM(pp, end, val)                    \
+    do {                                                       \
+        __pack_decode_uintAny(pp, end, size_t, &val->size);    \
         WT_SIZE_CHECK_UNPACK(val->size, WT_PTRDIFF(end, *pp)); \
-        val->data = *pp; \
-        *pp += val->size; \
+        val->data = *pp;                                       \
+        *pp += val->size;                                      \
     } while (0)
 
-#define __pack_decode_WT_ITEM_last(pp, end, val)  do { \
-        WT_SIZE_CHECK_UNPACK_PTR0(*pp, end); \
-        val->size = WT_PTRDIFF(end, *pp); \
-        val->data = *pp; \
-        *pp += val->size; \
+#define __pack_decode_WT_ITEM_last(pp, end, val) \
+    do {                                         \
+        WT_SIZE_CHECK_UNPACK_PTR0(*pp, end);     \
+        val->size = WT_PTRDIFF(end, *pp);        \
+        val->data = *pp;                         \
+        *pp += val->size;                        \
     } while (0)
 
-#define __pack_decode_string(pp, end, val)  do { \
-        size_t s; \
-        *val = (const char *)*pp; \
-        s = strlen((const char *)*pp) + 1; \
+#define __pack_decode_string(pp, end, val)             \
+    do {                                               \
+        size_t s;                                      \
+        *val = (const char *)*pp;                      \
+        s = strlen((const char *)*pp) + 1;             \
         WT_SIZE_CHECK_UNPACK(s, WT_PTRDIFF(end, *pp)); \
-        *pp += s; \
+        *pp += s;                                      \
     } while (0)
 
 /*
  * __wt_logrec_alloc --
- *    Allocate a new WT_ITEM structure.
+ *     Allocate a new WT_ITEM structure.
  */
 int
 __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
@@ -336,7 +339,7 @@ __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 
 /*
  * __wt_logrec_free --
- *    Free the given WT_ITEM structure.
+ *     Free the given WT_ITEM structure.
  */
 void
 __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
@@ -346,11 +349,11 @@ __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 
 /*
  * __wt_logrec_read --
- *    Read the record type.
+ *     Read the record type.
  */
 int
-__wt_logrec_read(WT_SESSION_IMPL *session,
-    const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
+__wt_logrec_read(
+  WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
 {
     WT_UNUSED(session);
     __pack_decode_uintAny(pp, end, uint32_t, rectypep);
@@ -359,12 +362,11 @@ __wt_logrec_read(WT_SESSION_IMPL *session,
 
 /*
  * __wt_logop_read --
- *    Peek at the operation type.
+ *     Peek at the operation type.
  */
 int
-__wt_logop_read(WT_SESSION_IMPL *session,
-    const uint8_t **pp_peek, const uint8_t *end,
-    uint32_t *optypep, uint32_t *opsizep)
+__wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek, const uint8_t *end,
+  uint32_t *optypep, uint32_t *opsizep)
 {
     const uint8_t *p, **pp;
     WT_UNUSED(session);
@@ -378,12 +380,11 @@ __wt_logop_read(WT_SESSION_IMPL *session,
 
 /*
  * __wt_logop_unpack --
- *    Read the operation type.
+ *     Read the operation type.
  */
 int
-__wt_logop_unpack(WT_SESSION_IMPL *session,
-    const uint8_t **pp, const uint8_t *end,
-    uint32_t *optypep, uint32_t *opsizep)
+__wt_logop_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
+  uint32_t *optypep, uint32_t *opsizep)
 {
     WT_UNUSED(session);
     __pack_decode_uintAny(pp, end, uint32_t, optypep);
@@ -393,12 +394,11 @@ __wt_logop_unpack(WT_SESSION_IMPL *session,
 
 /*
  * __wt_logop_write --
- *    Write the operation type.
+ *     Write the operation type.
  */
 int
-__wt_logop_write(WT_SESSION_IMPL *session,
-    uint8_t **pp, uint8_t *end,
-    uint32_t optype, uint32_t opsize)
+__wt_logop_write(
+  WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end, uint32_t optype, uint32_t opsize)
 {
     WT_UNUSED(session);
     WT_RET(__pack_encode_uintAny(pp, end, optype));
@@ -408,7 +408,7 @@ __wt_logop_write(WT_SESSION_IMPL *session,
 
 /*
  * __logrec_make_json_str --
- *    Unpack a string into JSON escaped format.
+ *     Unpack a string into JSON escaped format.
  */
 static int
 __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
@@ -422,13 +422,13 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *it
     else
         WT_RET(__wt_buf_grow(session, *escapedp, needed));
     WT_IGNORE_RET(
-        __wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size));
+      __wt_json_unpack_str((*escapedp)->mem, (*escapedp)->memsize, item->data, item->size));
     return (0);
 }
 
 /*
  * __logrec_make_hex_str --
- *    Convert data to a hexadecimal representation.
+ *     Convert data to a hexadecimal representation.
  */
 static int
 __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
@@ -452,7 +452,7 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *ite
         tfile.write('''
 /*
  * __wt_struct_size_%(name)s --
- *    Calculate size of %(name)s struct.
+ *     Calculate size of %(name)s struct.
  */
 static inline size_t
 __wt_struct_size_%(name)s(%(arg_decls_in_or_void)s)
@@ -463,7 +463,7 @@ __wt_struct_size_%(name)s(%(arg_decls_in_or_void)s)
 
 /*
  * __wt_struct_pack_%(name)s --
- *    Pack the %(name)s struct.
+ *     Pack the %(name)s struct.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
@@ -476,7 +476,7 @@ __wt_struct_pack_%(name)s(uint8_t **pp, uint8_t *end%(comma)s
 
 /*
  * __wt_struct_unpack_%(name)s --
- *    Unpack the %(name)s struct.
+ *     Unpack the %(name)s struct.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 static inline int
@@ -490,7 +490,7 @@ __wt_struct_unpack_%(name)s(const uint8_t **pp, const uint8_t *end%(comma)s
 
 /*
  * __wt_logop_%(name)s_pack --
- *    Pack the log operation %(name)s.
+ *     Pack the log operation %(name)s.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
@@ -517,7 +517,7 @@ __wt_logop_%(name)s_pack(
 
 /*
  * __wt_logop_%(name)s_unpack --
- *    Unpack the log operation %(name)s.
+ *     Unpack the log operation %(name)s.
  */
 int
 __wt_logop_%(name)s_unpack(
@@ -615,7 +615,7 @@ __wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
     tfile.write('''
 /*
  * __wt_txn_op_printlog --
- *    Print operation from a log cookie.
+ *     Print operation from a log cookie.
  */
 int
 __wt_txn_op_printlog(WT_SESSION_IMPL *session,
