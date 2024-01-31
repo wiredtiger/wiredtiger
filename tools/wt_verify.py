@@ -31,6 +31,7 @@
 # This script only handles VLCS (variable length column store) and Row store, not column fix
 
 import argparse
+import fnmatch
 import os
 import subprocess
 import sys
@@ -47,6 +48,7 @@ def parse_output(file_path):
     """
     Parse the output file
     """
+    return ''
 
 
 def execute_command(command):
@@ -54,27 +56,51 @@ def execute_command(command):
     Execute a given command and return its output.
     """
     try:
-        result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, universal_newlines=True)
-        return result.stdout
+        result = subprocess.run(command, shell=True, check=True,
+                                stdout=subprocess.PIPE,
+                                universal_newlines=True)
     except subprocess.CalledProcessError as e:
-        # raise RuntimeError(f"Error executing command: {e}") from e
         print(f"Error executing command: {e}", file=sys.stderr)
         sys.exit(1)
+    
+    return result
 
 
-def find_wt_path():
+def find_wt_exec_path():
     """
-    Find the path of the WT tool or prompt user to provide path (if none or many paths found)
+    Find the path of the WT tool executable. 
+    
+    Prompt user to provide path (if none or many paths found)
     """
     wt_verify_dir_path = os.path.dirname(os.path.abspath(__file__))
-    return wt_verify_dir_path
+    path = f"{wt_verify_dir_path}/../."
+    result = []
+
+    for (root, dirs, files) in os.walk(path):
+        for name in files:
+            if fnmatch.fnmatch(name, "wt_verify.py"):
+                result.append(os.path.join(root, name))
+
+    if len(result) > 1:
+        print("Error: multiple wt executables found. Please provide wt tool path using the -wt flag:")
+        for path in result:
+            print(path)
+        exit(1)
+    if len(result) == 0:
+        print("Error: wt executable not found. Please provide path using the -wt flag.")
+        exit(1)
+
+    return result
 
 
 def construct_command(args):
     """
     Construct the WiredTiger verify command based on provided arguments.
     """
-    command = "{}/wt -h {} verify".format(find_wt_path(), args.home_dir)
+    if args.wt_exec_path:
+        command = f"{args.wt_exec_path} -h {args.home_dir} verify"
+    else:
+        command = "{} -h {} verify".format(''.join(find_wt_exec_path()), args.home_dir)
 
     if args.unredacted:
         command += " -u"
@@ -91,18 +117,16 @@ def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
     parser.add_argument('-hd', '--home_dir', required=True, help='Path to the WiredTiger database home directory.')
     parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify.')
-    parser.add_argument('-wt', '--wt_tool', required=False, help='Path of the WT tool.')
+    parser.add_argument('-wt', '--wt_exec_path', required=False, help='Path of the WT tool.')
     parser.add_argument('-o', '--output_path', default='.', help='Directory path where the output file will be saved (default: current directory).')
     parser.add_argument('-d', '--dump_config', choices=['dump_pages', 'dump_blocks'], help='Option to specify dump_pages or dump_blocks configuration.')
     parser.add_argument('-t', '--keep_tx_ids', action='store_true', help='Option to keep transaction IDs during verification.')
     parser.add_argument('-u', '--unredacted', action='store_true', help='Option to display unredacted output.')  
     parser.add_argument('-p', '--print_output', action='store_true', default=True, help='Print the output (default is on)')
-    parser.add_argument('-v', '--visualize', choices=['page_sizes'], help='Type of visualization')
+    parser.add_argument('-v', '--visualize', choices=['page_sizes', 'num_entries', 'dsk_image_sizes'], help='Type of visualization')
 
     args = parser.parse_args()
 
-    # command = construct_command(args)
-    # output = execute_command(command)
     try:
         command = construct_command(args)
         output = execute_command(command)
@@ -116,15 +140,9 @@ def main():
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-
     parsed_data = parse_output(output)
-
     output_file_path = Path(args.output_path) / "wt_verify_output.txt"
-    # output_file_path = Path(args.output_path) / "output.txt"
 
-    # with open(output_file_path, 'w') as file:
-    #     file.write(parsed_data)
-    # print(f"Output written to {output_file_path}")
     try:
         with open(output_file_path, 'w') as file:
             file.write(parsed_data)
@@ -142,6 +160,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# chmod +x wt_verify.py
-# ./wt_verify.py -hd /path/to/home_dir -f file_name -o /path/to/output -d dump_pages
