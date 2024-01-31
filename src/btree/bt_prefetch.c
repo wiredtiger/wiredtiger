@@ -27,8 +27,10 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Don't add refs from trees that have eviction disabled since they are probably being closed */
     if (!(F_ISSET(ref, WT_REF_FLAG_LEAF)) || S2BT(session)->evict_disabled > 0 ||
-      (__wt_session_gen(session, WT_GEN_SPLIT) == 0))
-        return (WT_ERROR);
+      (__wt_session_gen(session, WT_GEN_SPLIT) == 0)) {
+        WT_STAT_CONN_INCR(session, block_prefetch_failed_start);
+        return (0);
+    }
 
     /*
      * We want to avoid the scenario of requesting pre-fetch on one particular ref many times (e.g
@@ -85,7 +87,7 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     session->pf.prefetch_prev_ref_home = ref->home;
 
     WT_STAT_CONN_INCRV(session, block_prefetch_pages_queued, block_preload);
-    return (0);
+    return (ret);
 }
 
 /*
