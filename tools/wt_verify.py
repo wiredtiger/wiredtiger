@@ -104,14 +104,15 @@ def construct_command(args):
     Construct the WiredTiger verify command based on provided arguments.
     """
     if args.wt_exec_path:
-        command = f"{args.wt_exec_path} -h {args.home_dir} verify -t"
+        command = f"{args.wt_exec_path}"
     else:
-        command = f"{find_wt_exec_path()} -h {args.home_dir} verify -t"
+        command = f"{find_wt_exec_path()}"
 
+    command += f" -h {args.home_dir} verify -t"
     if args.dump:
         command += f" -d {args.dump}"
     if args.file_name:
-        command += f" \"file:{args.file_name}\""
+        command += f" \"{args.file_name}\""
     return command
 
 
