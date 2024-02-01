@@ -38,8 +38,6 @@ import argparse
 import os
 import subprocess
 import sys
-from pathlib import Path
-
 
 def visualize(data, visualization_type):
     """
@@ -106,14 +104,10 @@ def construct_command(args):
     Construct the WiredTiger verify command based on provided arguments.
     """
     if args.wt_exec_path:
-        command = f"{args.wt_exec_path} -h {args.home_dir} verify"
+        command = f"{args.wt_exec_path} -h {args.home_dir} verify -t"
     else:
-        command = f"{find_wt_exec_path()} -h {args.home_dir} verify"
+        command = f"{find_wt_exec_path()} -h {args.home_dir} verify -t"
 
-    if args.unredacted:
-        command += " -u"
-    if args.keep_tx_ids:
-        command += " -t"
     if args.dump_config:
         command += f" -d {args.dump_config}"
     if args.file_name:
@@ -123,13 +117,11 @@ def construct_command(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
-    parser.add_argument('-hd', '--home_dir', required=True, help='Path to the WiredTiger database home directory.')
+    parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory.')
     parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify.')
     parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
     parser.add_argument('-o', '--output_file', help='Option to save output in given output file.')
-    parser.add_argument('-d', '--dump_config', choices=['dump_pages', 'dump_blocks'], help='Option to specify dump_pages or dump_blocks configuration.')
-    parser.add_argument('-t', '--keep_tx_ids', action='store_true', help='Option to keep transaction IDs during verification.')
-    parser.add_argument('-u', '--unredacted', action='store_true', help='Option to display unredacted output.')  
+    parser.add_argument('-d', '--dump', choices=['dump_pages'], help='Option to specify dump_pages or dump_blocks configuration.')
     parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output (default is on)')
     parser.add_argument('-v', '--visualize', choices=['page_sizes', 'entries', 'dsk_image_sizes'], help='Type of visualization')
 
