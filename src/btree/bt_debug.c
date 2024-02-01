@@ -1714,7 +1714,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
     session = ds->session;
 
-    WT_RET(ds->f(ds, "ref: %p", (void *)ref));
+    WT_RET(ds->f(ds, "\tref: %p", (void *)ref));
     WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(ref->state)));
     if (ref->flags != 0) {
         WT_RET(ds->f(ds, " | page_type: ["));
