@@ -7,9 +7,9 @@ def print_output(output):
     """
     Print output for parsing script
     """
-    str = "{\n\t"
+    str = "{"
     for checkpoint in output:
-        str += "{ " + checkpoint + ": "
+        str += "\n\t" + checkpoint + ": {"
         for count, key in enumerate(output[checkpoint]):
             value = output[checkpoint][key]
             if count:
