@@ -370,11 +370,19 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     last_stable_ts = txn_global->stable_timestamp;
 
     /* It is a no-op to set the oldest or stable timestamps behind the global values. */
-    if (has_oldest && txn_global->has_oldest_timestamp && oldest_ts <= last_oldest_ts)
+    if (has_oldest && txn_global->has_oldest_timestamp && oldest_ts < last_oldest_ts) {
+        WT_ASSERT_ALWAYS(session, false,
+          "Cannot set oldest %" PRIu64 " less than current one %" PRIu64, oldest_ts,
+          last_oldest_ts);
         has_oldest = false;
+    }
 
-    if (has_stable && txn_global->has_stable_timestamp && stable_ts <= last_stable_ts)
+    if (has_stable && txn_global->has_stable_timestamp && stable_ts < last_stable_ts) {
+        WT_ASSERT_ALWAYS(session, false,
+          "Cannot set stable %" PRIu64 " less than current one %" PRIu64, stable_ts,
+          last_stable_ts);
         has_stable = false;
+    }
 
     /*
      * First do error checking on the timestamp values. The oldest timestamp must always be less
