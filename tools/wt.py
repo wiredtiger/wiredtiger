@@ -7,18 +7,21 @@ def print_output(output):
     """
     Print output for parsing script
     """
-    str = "{"
-    for count, key in enumerate(output):
-        value = output[key]
-        if count:
-            str += ", "
-        str += "\n\t" + key + ": {\n\t\t\"metadata\": " + json.dumps(value["metadata"]) 
-        if "data" in value:
-            str += "\n\t\t\"data\": " + json.dumps(value["data"]) 
-        if "hs_modify" in value:
-            str += "\n\t\t\"hs_modify\": " + json.dumps(value["hs_modify"]) 
-        if "hs_update" in value:
-            str += "\n\t\t\"hs_update\": " + json.dumps(value["hs_update"]) 
+    str = "{\n\t"
+    for checkpoint in output:
+        str += "{ " + checkpoint + ": "
+        for count, key in enumerate(output[checkpoint]):
+            value = output[checkpoint][key]
+            if count:
+                str += ", "
+            str += "\n\t\t" + key + ": {\n\t\t\t\"metadata\": " + json.dumps(value["metadata"]) 
+            if "data" in value:
+                str += "\n\t\t\t\"data\": " + json.dumps(value["data"]) 
+            if "hs_modify" in value:
+                str += "\n\t\t\t\"hs_modify\": " + json.dumps(value["hs_modify"]) 
+            if "hs_update" in value:
+                str += "\n\t\t\t\"hs_update\": " + json.dumps(value["hs_update"]) 
+            str += "\n\t\t}"
         str += "\n\t}"
     str += "\n}"
     print(str)
@@ -43,62 +46,69 @@ def string_to_type(line):
     return dict
 
 
-def parse_dump_pages(file_path, allow_data, allow_hs):
+def parse_dump_pages(file_path):
     """
     Parse the output file of dump_pages
     """
+    separator = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
     f = open(file_path, "r")
-    line = f.readline() # separator
     output = {}
+    checkpoint = {}
+    line = f.readline() # separator
     cur_node = {"metadata": {}}
     cur_node_id = None
     page_type = None
-    time_stamp = None
 
-    while line and line[0:2] != "- ": # checkpoints
-        line = f.readline()
     while line:
-        if line[0:2] == "- ": # start of a new node
-            line = line[len("- "):-1]
-            page_info = [line.split(": ")[0]] + line.split(": ")[1].split()
-            page_type = page_info[-1]
-            if page_info[0] == "Root":
-                cur_node_id = page_info[0]
-                cur_node["metadata"]["store_type"] = page_info[1]
-            elif page_type == "internal":
-                output[cur_node_id] = cur_node 
-                cur_node_id = line.split(": ")[0]
-                cur_node = {"metadata": {}}
-            elif page_type == "leaf":
-                output[cur_node_id] = cur_node 
-                cur_node_id = line.split(": ")[0]
-                cur_node = {"metadata": {}}
-            else:
-                pass
-        elif line[0:3] == "\t> ": # metadata for new node
-            cur_node["metadata"].update(string_to_type(line[len("\t> "):-1]))
-        elif allow_data and (line.startswith("\tK: ") or line.startswith("\trecno: ")): # actual data
-            if "data" not in cur_node:
-                cur_node["data"] = {}
-            key = line[1:-1].split(": ")[1][1:-1]
-            metadata = string_to_type(f.readline()[1:-1])
-            if page_type == "leaf": 
-                value = f.readline()[4:-1][1:-1]
-                cur_node["data"][key] = {"value": value, "metadata": metadata}    
-            elif page_type == "internal":
-                metadata["K"] = key
-                cur_node["data"][metadata.pop("ref")] = metadata
-        elif allow_hs and line.startswith("\ths_"): # hs info
-            [hs_key, hs_value] = line[1:-1].split(": ")
-            if hs_key not in cur_node:
-                cur_node[hs_key] = []
-            cur_node[hs_key].append({hs_value[1:-1]: time_stamp})
-            pass
-        else: # timestamp 
-            time_stamp = string_to_type(line[1:-1])
-        line = f.readline() 
-    if cur_node_id is not None:
-        output[cur_node_id] = cur_node
+        if line == separator:
+            line = f.readline() # checkpoint
+            checkpoint_name = line.split(", ")[-1].split(": ")[-1][:-1]
+            output[checkpoint_name] = checkpoint
+        while line != separator and line:
+            if line[0:2] == "- ": # start of a new node
+                line = line[len("- "):-1]
+                page_info = [line.split(": ")[0]] + line.split(": ")[1].split()
+                page_type = page_info[-1]
+                if page_info[0] == "Root":
+                    cur_node_id = page_info[0]
+                    cur_node["metadata"]["store_type"] = page_info[1]
+                elif page_type == "internal" or page_type == "leaf":
+                    checkpoint[cur_node_id] = cur_node 
+                    cur_node_id = line.split(": ")[0]
+                    cur_node = {"metadata": {}}
+                else:
+                    pass
+            elif line[0:3] == "\t> ": # metadata for new node
+                cur_node["metadata"].update(string_to_type(line[len("\t> "):-1]))
+            line = f.readline() 
+        if cur_node_id is not None:
+            checkpoint[cur_node_id] = cur_node
     f.close()
     return output
 
+
+def visualise(output, field, saved_path = "./"):
+    values = []
+    keys = []
+    all = list(output.keys())
+    for count, val in enumerate(output.values()):
+        if field in val["metadata"]:
+            values.append(val["metadata"][field])
+            keys.append(all[count])
+    plt.figure(figsize=(30,6))
+    plt.hist(values, bins=60, color='g', alpha=0.7)
+    plt.title('Histogram of ' + field + ' in Megabytes (MB)')
+    plt.xlabel(field + ' (MB)')
+    plt.ylabel('Frequency')
+    plt.savefig(saved_path + field)
+    plt.close()
+    
+
+def main():
+    file = sys.argv[1]
+    output = parse_dump_pages(file)
+    # visualise(output, "dsk_mem_size", "../WT_TEST/plot_images/")
+    print_output(output)
+
+if __name__ == '__main__':
+    main()
