@@ -43,7 +43,7 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
         WT_ASSERT(session, conf_key_index < conf->conf_key_count);
         conf_key = WT_CONF_KEY_TABLE_ENTRY(conf, conf_key_index);
 
-        /* Set up a new value of keys for use if we have a subconfiguration. */
+        /* Set up a new value of keys for use if we have a sub-configuration. */
         keys >>= 16;
 
         switch (conf_key->type) {
