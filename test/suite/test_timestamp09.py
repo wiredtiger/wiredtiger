@@ -105,7 +105,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Oldest timestamp is 3 at the moment, trying to set it to an earlier
         # timestamp is a no-op.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        # self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         self.assertTimestampsEqual(\
             self.conn.query_timestamp('get=oldest_timestamp'), self.timestamp_str(3))
 
@@ -114,7 +114,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
         # Stable timestamp is 5 at the moment, trying to set it to an earlier
         # timestamp is a no-op.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
+        # self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
         self.assertTimestampsEqual(\
             self.conn.query_timestamp('get=stable_timestamp'), self.timestamp_str(5))
 

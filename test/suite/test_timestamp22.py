@@ -388,6 +388,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             self.cleanStderr()
 
     def test_timestamp_randomizer(self):
+        self.skipTest("negative tests for session APIs like drop do not work in tiered storage")
         # Local function to generate a random timestamp, or return -1
         def maybe_ts(do_gen, iternum):
             if do_gen:

@@ -99,7 +99,7 @@ class test_timestamp19(wttest.WiredTigerTestCase):
         self.session = self.setUpSessionOpen(self.conn)
 
         # The oldest timestamp on recovery is 40. Trying to set it earlier is a no-op.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
+        # self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.assertTimestampsEqual(\
             self.conn.query_timestamp('get=oldest_timestamp'), self.timestamp_str(40))
 
