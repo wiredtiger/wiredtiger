@@ -161,7 +161,7 @@ def backup_analysis(args):
         print(dir1 + " is not a backup directory")
         usage_exit()
     if check_backup(dir2) == False:
-        print(dir1 + " is not a backup directory")
+        print(dir2 + " is not a backup directory")
         usage_exit()
     # Find the files that are in common or dropped or created between the backups
     # and compare them.
