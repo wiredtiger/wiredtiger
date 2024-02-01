@@ -42,6 +42,8 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
         --conf_key_index;
         WT_ASSERT(session, conf_key_index < conf->conf_key_count);
         conf_key = WT_CONF_KEY_TABLE_ENTRY(conf, conf_key_index);
+
+        /* Set up a new value of keys for use if we have a subconfiguration. */
         keys >>= 16;
 
         switch (conf_key->type) {
@@ -76,7 +78,8 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
         case CONF_KEY_SUB_INFO:
             conf = &conf[conf_key->u.sub_conf_index];
 
-            if (use_def && WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys)) {
+            /* Do a quick check to see if the sub-configuration value is the default. */
+            if (use_def && WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys & 0xffff)) {
                 *value = false_value;
                 value->val = def;
                 return (0);

@@ -119,7 +119,7 @@ __wt_conf_gets_def_func(
      * A shortcut - if the value in the compiled config is a default, return the default that the
      * caller gave.
      */
-    if (WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys)) {
+    if (WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys & 0xffff)) {
         *value = false_value;
         value->val = def;
         return (0);
