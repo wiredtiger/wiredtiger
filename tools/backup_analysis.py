@@ -128,6 +128,9 @@ def compare_backups(dir1, dir2, granularity):
     files2=set(fnmatch.filter(os.listdir(dir2), "*.wt"))
 
     common = files1.intersection(files2)
+    # For now assume the first directory is the older one. Once we add functionality to parse the
+    # text in WiredTiger.backup we can look at the checkpoint timestamp of a known table like the
+    # history store and figure out which is older.
     for file in files1.difference(files2):
         print(file + " dropped between backups")
     for file in files2.difference(files1):
