@@ -1593,27 +1593,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 }
 
 /*
- * __wt_get_page_modify_ta --
- *     Returns the page modify stop time aggregate information if exists.
- */
-static inline bool
-__wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TIME_AGGREGATE **ta)
-{
-    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
-      "Any thread accessing ref address must hold a valid split generation");
-
-    /* If NULL, there is no information. */
-    if (page->modify == NULL)
-        return (false);
-
-    if (page->modify->stop_ta == NULL)
-        return (false);
-
-    *ta = page->modify->stop_ta;
-    return (true);
-}
-
-/*
  * __wt_ref_block_free --
  *     Free the on-disk block for a reference and clear the address.
  */
@@ -2397,17 +2376,20 @@ __wt_btcur_skip_page(
             *skipp = true;
             walk_skip_stats->total_del_pages_skipped++;
         }
-    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) &&
-      __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+    } else if (clean_page && ref->page->modify != NULL) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate
          * information pointer because as part of the checkpoint operation, this pointer can be
          * released in parallel.
          */
-        *skipp = true;
-        walk_skip_stats->total_inmem_del_pages_skipped++;
+        WT_ORDERED_READ(ta, ref->page->modify->stop_ta);
+        if (ta != NULL &&
+          __wt_txn_snap_min_visible(
+            session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+            *skipp = true;
+            walk_skip_stats->total_inmem_del_pages_skipped++;
+        }
     }
 
 unlock:
