@@ -91,7 +91,7 @@
 /*
  * Sum the values from all structures in the array.
  */
-static inline int64_t
+static WT_INLINE int64_t
 __wt_stats_aggregate(void *stats_arg, int slot)
 {
     int64_t **stats, aggr_v;
@@ -122,7 +122,7 @@ __wt_stats_aggregate(void *stats_arg, int slot)
 /*
  * Clear the values in all structures in the array.
  */
-static inline void
+static WT_INLINE void
 __wt_stats_clear(void *stats_arg, int slot)
 {
     int64_t **stats;
@@ -274,7 +274,7 @@ __wt_stats_clear(void *stats_arg, int slot)
  * milliseconds or microseconds.
  */
 #define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                                                  \
-    static inline void __wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
+    static WT_INLINE void __wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
     {                                                                                             \
         WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs);                                   \
         if (msecs < 10)                                                                           \
@@ -294,7 +294,7 @@ __wt_stats_clear(void *stats_arg, int slot)
     }
 
 #define WT_STAT_USECS_HIST_INCR_FUNC(name, stat)                                                  \
-    static inline void __wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
+    static WT_INLINE void __wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
     {                                                                                             \
         WT_STAT_CONN_INCRV(session, stat##_total_usecs, usecs);                                   \
         if (usecs < 100)                                                                          \
@@ -312,7 +312,7 @@ __wt_stats_clear(void *stats_arg, int slot)
     }
 
 #define WT_STAT_COMPR_RATIO_READ_HIST_INCR_FUNC(ratio)                \
-    static inline void __wt_stat_compr_ratio_read_hist_incr(          \
+    static WT_INLINE void __wt_stat_compr_ratio_read_hist_incr(          \
       WT_SESSION_IMPL *session, uint64_t ratio)                       \
     {                                                                 \
         if (ratio < 2)                                                \
@@ -332,7 +332,7 @@ __wt_stats_clear(void *stats_arg, int slot)
     }
 
 #define WT_STAT_COMPR_RATIO_WRITE_HIST_INCR_FUNC(ratio)                \
-    static inline void __wt_stat_compr_ratio_write_hist_incr(          \
+    static WT_INLINE void __wt_stat_compr_ratio_write_hist_incr(          \
       WT_SESSION_IMPL *session, uint64_t ratio)                        \
     {                                                                  \
         if (ratio < 2)                                                 \
