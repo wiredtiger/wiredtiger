@@ -27,7 +27,17 @@ def print_output(output):
     print(str)
 
 
-def string_to_type(line):
+def is_int(string):
+    """
+    Check if string can be converted to an integer
+    """
+    if isinstance(string, str):
+        if string.isdigit():
+            return int(string)
+    return string
+
+
+def string_to_iterable(line):
     """
     Helper that converts string to dictionaries and / or lists
     """
@@ -35,14 +45,14 @@ def string_to_type(line):
     for x in line.split(" | "):
         kv_pair = x.split(": ", 1)
         if kv_pair[1][0] == "[" and kv_pair[1][-1] == "]":
-            kv_pair[1] = kv_pair[1][1:-1]
-            kv_pair[1] = kv_pair[1].split(", ")
+            kv_pair[1] = kv_pair[1][1:-1].split(", ")
+            kv_pair[1] = list(map(lambda n: is_int(n), kv_pair[1]))
         if kv_pair[0] == "addr": 
             temp = kv_pair[1][0].split(": ")
-            dict.update({"object_id": temp[0], "offset_range": temp[1], "size": kv_pair[1][1], 
-                         "checksum": kv_pair[1][2]})
+            dict.update({"object_id": is_int(temp[0]), "offset_range": temp[1], "size": is_int(kv_pair[1][1]), 
+                         "checksum": is_int(kv_pair[1][2])})
         else:
-            dict[kv_pair[0]] = kv_pair[1]
+            dict[kv_pair[0]] = is_int(kv_pair[1])
     return dict
 
 
@@ -74,40 +84,24 @@ def parse_dump_pages(file_path):
                     cur_node["metadata"]["store_type"] = page_info[1]
                 elif page_type == "internal" or page_type == "leaf":
                     checkpoint[cur_node_id] = cur_node 
-                    cur_node_id = line.split(": ")[0]
+                    cur_node_id = is_int(line.split(": ")[0])
                     cur_node = {"metadata": {}}
                 else:
                     pass
             elif line[0:3] == "\t> ": # metadata for new node
-                cur_node["metadata"].update(string_to_type(line[len("\t> "):-1]))
+                cur_node["metadata"].update(string_to_iterable(line[len("\t> "):-1]))
             line = f.readline() 
         if cur_node_id is not None:
             checkpoint[cur_node_id] = cur_node
     f.close()
     return output
-
-
-def visualise(output, field, saved_path = "./"):
-    values = []
-    keys = []
-    all = list(output.keys())
-    for count, val in enumerate(output.values()):
-        if field in val["metadata"]:
-            values.append(val["metadata"][field])
-            keys.append(all[count])
-    plt.figure(figsize=(30,6))
-    plt.hist(values, bins=60, color='g', alpha=0.7)
-    plt.title('Histogram of ' + field + ' in Megabytes (MB)')
-    plt.xlabel(field + ' (MB)')
-    plt.ylabel('Frequency')
-    plt.savefig(saved_path + field)
-    plt.close()
     
 
 def main():
     file = sys.argv[1]
     output = parse_dump_pages(file)
     # visualise(output, "dsk_mem_size", "../WT_TEST/plot_images/")
+    #print(json.dumps(output, indent=4))
     print_output(output)
 
 if __name__ == '__main__':
