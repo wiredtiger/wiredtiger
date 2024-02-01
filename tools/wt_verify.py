@@ -74,10 +74,10 @@ def find_wt_exec_path():
     
     We expect to find exactly one wt binary. Otherwise exit and prompt the user to provide an explicit path to the binary
     """
-    path = f"{os.path.dirname(os.path.abspath(__file__))}/../."
+    wiredtiger_root_dir = f"{os.path.dirname(os.path.abspath(__file__))}/../."
 
     try:
-        result = subprocess.run(['find', path, '-maxdepth', '2', '-name', 'wt'],
+        result = subprocess.run(['find', wiredtiger_root_dir, '-maxdepth', '2', '-name', 'wt'],
                                 stdout=subprocess.PIPE, text=True)
     except subprocess.CalledProcessError as e:
         print(f"Error executing command: {e}", file=sys.stderr)
@@ -119,12 +119,13 @@ def construct_command(args):
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
     parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
-    parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify.')
+    parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
     parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
-    parser.add_argument('-o', '--output_file', help='Option to save output in given output file.')
-    parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages or dump_blocks configuration.')
-    parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output (default is on)')
-    parser.add_argument('-v', '--visualize', choices=['page_sizes', 'entries', 'dsk_image_sizes'], help='Type of visualization')
+    parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
+    parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages configuration.')
+    parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output to stdout (default is off)')
+    parser.add_argument('-v', '--visualize', choices=['page_sizes', 'entries', 'dsk_image_sizes'], nargs='+',
+                        help='Type of visualization (multiple options allowed).')
 
     args = parser.parse_args()
 
