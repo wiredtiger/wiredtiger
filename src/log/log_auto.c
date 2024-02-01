@@ -6,10 +6,19 @@
 #define WT_SIZE_CHECK_UNPACK_PTR(p, end) WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
 #define WT_SIZE_CHECK_UNPACK_PTR0(p, end) WT_RET_TEST(!(p) || !(end) || (p) > (end), EINVAL)
 
-#ifndef WT_CHECK_OPTYPE
+/*
+ * Defining PACKING_COMPATIBILITY_MODE makes __wt_logop_*_unpack functions behave in a more
+ * compatible way with older versions of WiredTiger and wiredtiger_struct_unpack(...fmt...)
+ * function. This only alters the behavior for corrupted binary data, returning some value rather
+ * than failing with EINVAL.
+ */
+
+#ifndef PACKING_COMPATIBILITY_MODE
 #define WT_CHECK_OPTYPE(session, opvar, op) \
     if (opvar != op)                        \
         WT_RET_MSG(session, EINVAL, "unpacking " #op ": optype mismatch");
+#else
+#define WT_CHECK_OPTYPE(session, opvar, op)
 #endif
 
 /*
