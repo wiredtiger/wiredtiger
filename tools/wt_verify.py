@@ -108,8 +108,8 @@ def construct_command(args):
     else:
         command = f"{find_wt_exec_path()} -h {args.home_dir} verify -t"
 
-    if args.dump_config:
-        command += f" -d {args.dump_config}"
+    if args.dump:
+        command += f" -d {args.dump}"
     if args.file_name:
         command += f" \"file:{args.file_name}\""
     return command
