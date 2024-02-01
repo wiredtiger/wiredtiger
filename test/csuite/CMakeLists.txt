@@ -342,6 +342,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt9199_checkpoint_txn_commit_race
+    SOURCES wt9199_checkpoint_txn_commit_race/main.c
+    DIR_NAME wt9199_checkpoint_txn_commit_race
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_wt8057_compact_stress
     SOURCES wt8057_compact_stress/main.c
     DIR_NAME wt8057_compact_stress

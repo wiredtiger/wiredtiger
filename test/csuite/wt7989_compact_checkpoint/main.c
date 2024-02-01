@@ -157,7 +157,9 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     bool size_check_res;
 
     testutil_recreate_dir(home);
+    printf("Before WiredTiger Open Home - %s\n", home);
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
+    printf("After WiredTiger Open \n");
 
     if (stress_test) {
         /*
