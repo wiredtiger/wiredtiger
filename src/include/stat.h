@@ -273,46 +273,48 @@ __wt_stats_clear(void *stats_arg, int slot)
  * ranges, represented by various statistics, depend upon whether the passed value is in
  * milliseconds or microseconds.
  */
-#define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                                                  \
-    static WT_INLINE void __wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
-    {                                                                                             \
-        WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs);                                   \
-        if (msecs < 10)                                                                           \
-            WT_STAT_CONN_INCR(session, stat##_lt10);                                              \
-        else if (msecs < 50)                                                                      \
-            WT_STAT_CONN_INCR(session, stat##_lt50);                                              \
-        else if (msecs < 100)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt100);                                             \
-        else if (msecs < 250)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt250);                                             \
-        else if (msecs < 500)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt500);                                             \
-        else if (msecs < WT_THOUSAND)                                                             \
-            WT_STAT_CONN_INCR(session, stat##_lt1000);                                            \
-        else                                                                                      \
-            WT_STAT_CONN_INCR(session, stat##_gt1000);                                            \
+#define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                \
+    static WT_INLINE void __wt_stat_msecs_hist_incr_##name(     \
+      WT_SESSION_IMPL *session, uint64_t msecs)                 \
+    {                                                           \
+        WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
+        if (msecs < 10)                                         \
+            WT_STAT_CONN_INCR(session, stat##_lt10);            \
+        else if (msecs < 50)                                    \
+            WT_STAT_CONN_INCR(session, stat##_lt50);            \
+        else if (msecs < 100)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt100);           \
+        else if (msecs < 250)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt250);           \
+        else if (msecs < 500)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt500);           \
+        else if (msecs < WT_THOUSAND)                           \
+            WT_STAT_CONN_INCR(session, stat##_lt1000);          \
+        else                                                    \
+            WT_STAT_CONN_INCR(session, stat##_gt1000);          \
     }
 
-#define WT_STAT_USECS_HIST_INCR_FUNC(name, stat)                                                  \
-    static WT_INLINE void __wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
-    {                                                                                             \
-        WT_STAT_CONN_INCRV(session, stat##_total_usecs, usecs);                                   \
-        if (usecs < 100)                                                                          \
-            WT_STAT_CONN_INCR(session, stat##_lt100);                                             \
-        else if (usecs < 250)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt250);                                             \
-        else if (usecs < 500)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt500);                                             \
-        else if (usecs < WT_THOUSAND)                                                             \
-            WT_STAT_CONN_INCR(session, stat##_lt1000);                                            \
-        else if (usecs < 10 * WT_THOUSAND)                                                        \
-            WT_STAT_CONN_INCR(session, stat##_lt10000);                                           \
-        else                                                                                      \
-            WT_STAT_CONN_INCR(session, stat##_gt10000);                                           \
+#define WT_STAT_USECS_HIST_INCR_FUNC(name, stat)                \
+    static WT_INLINE void __wt_stat_usecs_hist_incr_##name(     \
+      WT_SESSION_IMPL *session, uint64_t usecs)                 \
+    {                                                           \
+        WT_STAT_CONN_INCRV(session, stat##_total_usecs, usecs); \
+        if (usecs < 100)                                        \
+            WT_STAT_CONN_INCR(session, stat##_lt100);           \
+        else if (usecs < 250)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt250);           \
+        else if (usecs < 500)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt500);           \
+        else if (usecs < WT_THOUSAND)                           \
+            WT_STAT_CONN_INCR(session, stat##_lt1000);          \
+        else if (usecs < 10 * WT_THOUSAND)                      \
+            WT_STAT_CONN_INCR(session, stat##_lt10000);         \
+        else                                                    \
+            WT_STAT_CONN_INCR(session, stat##_gt10000);         \
     }
 
 #define WT_STAT_COMPR_RATIO_READ_HIST_INCR_FUNC(ratio)                \
-    static WT_INLINE void __wt_stat_compr_ratio_read_hist_incr(          \
+    static WT_INLINE void __wt_stat_compr_ratio_read_hist_incr(       \
       WT_SESSION_IMPL *session, uint64_t ratio)                       \
     {                                                                 \
         if (ratio < 2)                                                \
@@ -332,7 +334,7 @@ __wt_stats_clear(void *stats_arg, int slot)
     }
 
 #define WT_STAT_COMPR_RATIO_WRITE_HIST_INCR_FUNC(ratio)                \
-    static WT_INLINE void __wt_stat_compr_ratio_write_hist_incr(          \
+    static WT_INLINE void __wt_stat_compr_ratio_write_hist_incr(       \
       WT_SESSION_IMPL *session, uint64_t ratio)                        \
     {                                                                  \
         if (ratio < 2)                                                 \

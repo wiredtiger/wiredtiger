@@ -6,8 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef _WT_MISC_H
-#define _WT_MISC_H
+#ifndef __WT_MISC_H
+#define __WT_MISC_H
 
 /*
  * When compiling for code coverage measurement it is necessary to ensure that inline functions in
@@ -446,4 +446,4 @@ union __wt_rand_state {
         }                                                                       \
     } while (0)
 
-#endif /* _WT_MISC_H */
+#endif /* __WT_MISC_H */
