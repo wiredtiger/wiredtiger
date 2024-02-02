@@ -68,6 +68,7 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
     # Time how long it takes to compare each file.
     start = time.asctime()
     # Compare the bytes in cmp_size blocks between both files.
+    print("")
     for b in range(0, num_blocks + 1):
         offset = cmp_size * b
         # Gather and report information when we cross a granularity boundary.
