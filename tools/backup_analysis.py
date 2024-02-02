@@ -147,10 +147,10 @@ def compare_backups(dir1, dir2, granularity):
     # history store and figure out which is older.
     # NOTE: Update the assumption in the usage statement also when this changes.
     for file in files1.difference(files2):
-        print(file + " dropped between backups")
+        print(file + ": dropped between backups")
     for file in files2.difference(files1):
-        print(file + " created between backups")
-    print(common)
+        print(file + ": created between backups")
+    #print(common)
     for f in common:
         # For now we're only concerned with changed blocks between backups.
         # So only compare the minimum size both files have in common.
