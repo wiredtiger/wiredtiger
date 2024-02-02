@@ -847,15 +847,15 @@ struct __wt_page {
  * be made stable by WiredTiger. The purpose of those timestamps is not something that will be
  * described here.
  *
- * When a transaction calls "prepare_transaction" the start_ts field on the update structure is used
- * to represent the prepare timestamp. The start_ts field is also used to represent the commit
- * timestamp of the transaction. The prepare state tells the reader which of the two timestamps are
- * available. However these two fields can't be written atomically and no lock is taken when
- * transitioning between prepared update states. So the writer must write one field then the other,
- * and a reader can read at any time. This introduces a need for the WT_PREPARE_LOCKED state.
+ * When a transaction calls prepare the start_ts field on the update structure is used to represent
+ * the prepare timestamp. The start_ts field is also used to represent the commit timestamp of the
+ * transaction. The prepare state tells the reader which of the two timestamps are available.
+ * However these two fields can't be written atomically and no lock is taken when transitioning
+ * between prepared update states. So the writer must write one field then the other, and a reader
+ * can read at any time. This introduces a need for the WT_PREPARE_LOCKED state and memory barriers.
  *
- * Let's construct an example:
- * We can assume then the writing thread does the sane thing by writing the timestamp and then the
+ * Let's construct a simplified example:
+ * We can assume the writing thread does the sane thing by writing the timestamp and then the
  * prepare state. We also assume the reader thread reads the state then the timestamp. If we ignore
  * the locked state we can construct a scenario where the reader can't tell which timestamp, commit
  * or prepare, exists on the update. Ignoring CPU instruction reordering for now.
@@ -875,7 +875,7 @@ struct __wt_page {
  *  3: start_ts = 10
  *  4: prepare_state = WT_PREPARE_RESOLVED
  *
- * The reader thread can in this scenario read any prepare state and behave correctly, if it reads
+ * The reader thread can, in this scenario, read any prepare state and behave correctly. If it reads
  * WT_PREPARE_INPROGRESS it knows the start_ts is the prepare timestamp. If it reads
  * WT_PREPARE_RESOLVED it knows the start_ts is the commit timestamp. If it reads WT_PREPARE_LOCKED
  * it will wait until it reads WT_PREPARE_RESOLVED.
@@ -886,12 +886,12 @@ struct __wt_page {
  * the ordering requirements somewhat more complex than the typical message passing scenario.
  *
  * The writer thread has two orderings:
- * 1:
+ * Prepare transaction:
  *  - start_ts = X
  *  - WT_WRITE_BARRIER
  *  - prepare_state = WT_PREPARE_INPROGRESS
  *
- * 2:
+ * Commit transaction:
  *  - prepare_state = WT_PREPARE_LOCKED
  *  - WT_WRITE_BARRIER
  *  - start_ts = Y
