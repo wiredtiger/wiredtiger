@@ -60,9 +60,9 @@ def compare_file(dir1, dir2, filename, cmp_size, granularity):
     # Initialize all of our counters per file.
     bytes_gran = 0
     gran_blocks = 0
-    num_blocks = min_size // cmp_size
+    num_cmp_blocks = min_size // cmp_size
     offset = 0
-    partial = min_size % cmp_size
+    partial_cmp = min_size % cmp_size
     pct20 = granularity // 5
     pct80 = pct20 * 4
     pct20_count = 0
@@ -75,7 +75,7 @@ def compare_file(dir1, dir2, filename, cmp_size, granularity):
     start = time.asctime()
     # Compare the bytes in cmp_size blocks between both files.
     print("")
-    for b in range(0, num_blocks + 1):
+    for b in range(0, num_cmp_blocks + 1):
         # Compare the two blocks. We know both files are at least min_size so all reads should work.
         buf1 = fp1.read(cmp_size)
         buf2 = fp2.read(cmp_size)
@@ -89,7 +89,7 @@ def compare_file(dir1, dir2, filename, cmp_size, granularity):
         # Gather and report block information when we cross a granularity boundary or we're on
         # the last iteration.
         offset += cmp_size
-        if offset % granularity == 0 or b == num_blocks:
+        if offset % granularity == 0 or b == num_cmp_blocks:
             if bytes_gran != 0:
                 print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {granularity} bytes')
             # Account for small or large block changes.
@@ -103,14 +103,15 @@ def compare_file(dir1, dir2, filename, cmp_size, granularity):
             bytes_gran = 0
 
     # Account for any partial blocks.
-    if partial != 0:
-        buf1 = fp1.read(partial)
-        buf2 = fp2.read(partial)
+    if partial_cmp != 0:
+        buf1 = fp1.read(partial_cmp)
+        buf2 = fp2.read(partial_cmp)
         # If they're different, gather information.
         if buf1 != buf2:
-            total_bytes_diff += partial
-            bytes_gran += partial
-            print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {partial} bytes')
+            total_bytes_diff += partial_cmp
+            bytes_gran += partial_cmp
+            part_bytes = offset + partial_cmp - start_off
+            print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {part_bytes} bytes')
     fp1.close()
     fp2.close()
     end = time.asctime()
