@@ -501,6 +501,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cell.h"
 #include "checkpoint.h"
 #include "compact.h"
+#include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
 #include "cursor.h"

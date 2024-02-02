@@ -710,10 +710,11 @@ def get_conf_counts(configs):
             nitem += subitem
     return (nconf, nitem)
 
-# Update the config.h and conf.h files with the #defines for the configuration entries.
+# Update config.h, conf.h and conf_keys.h with the definitions for the configuration entries.
 if not test_config:
     config_h = ModifyFile('../src/include/config.h')
     conf_h = ModifyFile('../src/include/conf.h')
+    conf_keys_h = ModifyFile('../src/include/conf_keys.h')
 
     with config_h.replace_fragment('configuration section') as tfile:
         tfile.write(config_defines)
@@ -727,7 +728,7 @@ if not test_config:
     add_conf_keys(api_data_def.methods, conf_keys, True)
 
     # Assign unique numbers to all keys used in configuration, regardless of "level".
-    with conf_h.replace_fragment('API configuration keys') as tfile:
+    with conf_keys_h.replace_fragment('API configuration keys') as tfile:
         count = 0
         for name in sorted(keynumber.numbering.keys()):
             off = keynumber.get(name)
@@ -736,7 +737,7 @@ if not test_config:
         assert count == keynumber.count()
         tfile.write('\n#define WT_CONF_ID_COUNT {}\n'.format(count))
 
-    with conf_h.replace_fragment('Configuration key structure') as tfile:
+    with conf_keys_h.replace_fragment('Configuration key structure') as tfile:
         (structs, inits) = gen_conf_key_struct_init('    ', [], conf_keys)
         tfile.write('static const struct {\n')
         tfile.write(structs)
@@ -770,3 +771,4 @@ if not test_config:
 
     config_h.done()
     conf_h.done()
+    conf_keys_h.done()
