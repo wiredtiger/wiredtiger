@@ -265,8 +265,8 @@ kv_workload_runner_wt::do_operation(const operation::checkpoint &op)
     std::ostringstream config;
     if (!op.name.empty())
         config << "name=" << op.name;
-
     std::string config_str = config.str();
+
     return session->checkpoint(session, config_str.c_str());
 }
 
@@ -277,16 +277,16 @@ kv_workload_runner_wt::do_operation(const operation::checkpoint &op)
 int
 kv_workload_runner_wt::do_operation(const operation::commit_transaction &op)
 {
-    std::shared_lock lock(_connection_lock);
-    session_context_ptr session = remove_txn_session(op.txn_id);
-
     std::ostringstream config;
     if (op.commit_timestamp != k_timestamp_none)
         config << ",commit_timestamp=" << std::hex << op.commit_timestamp;
     if (op.durable_timestamp != k_timestamp_none)
         config << ",durable_timestamp=" << std::hex << op.durable_timestamp;
-
     std::string config_str = config.str();
+
+    std::shared_lock lock(_connection_lock);
+    session_context_ptr session = remove_txn_session(op.txn_id);
+
     return session->session()->commit_transaction(session->session(), config_str.c_str());
 }
 
@@ -340,8 +340,8 @@ kv_workload_runner_wt::do_operation(const operation::create_table &op)
      */
     config << "log=(enabled=false)";
     config << ",key_format=" << op.key_format << ",value_format=" << op.value_format;
-
     std::string config_str = config.str();
+
     std::string uri = std::string("table:") + op.name;
     ret = session->create(session, uri.c_str(), config_str.c_str());
     if (ret == 0)
@@ -369,14 +369,14 @@ kv_workload_runner_wt::do_operation(const operation::insert &op)
 int
 kv_workload_runner_wt::do_operation(const operation::prepare_transaction &op)
 {
-    std::shared_lock lock(_connection_lock);
-    session_context_ptr session = txn_session(op.txn_id);
-
     std::ostringstream config;
     if (op.prepare_timestamp != k_timestamp_none)
         config << ",prepare_timestamp=" << std::hex << op.prepare_timestamp;
-
     std::string config_str = config.str();
+
+    std::shared_lock lock(_connection_lock);
+    session_context_ptr session = txn_session(op.txn_id);
+
     return session->session()->prepare_transaction(session->session(), config_str.c_str());
 }
 
@@ -416,8 +416,9 @@ kv_workload_runner_wt::do_operation(const operation::restart &op)
 int
 kv_workload_runner_wt::do_operation(const operation::rollback_to_stable &op)
 {
-    std::unique_lock lock(_connection_lock);
     (void)op;
+
+    std::unique_lock lock(_connection_lock);
     return _connection->rollback_to_stable(_connection, nullptr);
 }
 
@@ -440,14 +441,14 @@ kv_workload_runner_wt::do_operation(const operation::rollback_transaction &op)
 int
 kv_workload_runner_wt::do_operation(const operation::set_commit_timestamp &op)
 {
-    std::shared_lock lock(_connection_lock);
-    session_context_ptr session = txn_session(op.txn_id);
-
     std::ostringstream config;
     if (op.commit_timestamp != k_timestamp_none)
         config << ",commit_timestamp=" << std::hex << op.commit_timestamp;
-
     std::string config_str = config.str();
+
+    std::shared_lock lock(_connection_lock);
+    session_context_ptr session = txn_session(op.txn_id);
+
     return session->session()->timestamp_transaction(session->session(), config_str.c_str());
 }
 
@@ -458,11 +459,11 @@ kv_workload_runner_wt::do_operation(const operation::set_commit_timestamp &op)
 int
 kv_workload_runner_wt::do_operation(const operation::set_stable_timestamp &op)
 {
-    std::shared_lock lock(_connection_lock);
     std::ostringstream config;
     config << "stable_timestamp=" << std::hex << op.stable_timestamp;
-
     std::string config_str = config.str();
+
+    std::shared_lock lock(_connection_lock);
     return _connection->set_timestamp(_connection, config_str.c_str());
 }
 

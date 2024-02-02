@@ -277,7 +277,7 @@ shared_memory::~shared_memory()
     if (munmap(_data, _size) < 0)
         /* Cannot throw an exception from out of a destructor, so just complain. */
         std::cerr << "WARNING: Failed to unmap shared memory object \"" << _name
-                  << "\": " << strerror(errno) << " (" << errno << ")";
+                  << "\": " << strerror(errno) << " (" << errno << ")" << std::endl;
 }
 
 /*
