@@ -56,12 +56,13 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
     bytes_gran = 0
     gran_blocks = 0
     num_blocks = file_size // cmp_size
+    offset = 0
     partial = file_size % cmp_size
     pct20 = granularity // 5
     pct80 = pct20 * 4
     pct20_count = 0
     pct80_count = 0
-    start_off = 0
+    start_off = offset
     total_bytes_diff = 0
     fp1 = open(os.path.join(dir1, filename), "rb")
     fp2 = open(os.path.join(dir2, filename), "rb")
@@ -70,10 +71,21 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
     # Compare the bytes in cmp_size blocks between both files.
     print("")
     for b in range(0, num_blocks + 1):
-        offset = cmp_size * b
-        # Gather and report information when we cross a granularity boundary.
-        if offset % granularity == 0:
-            if offset != 0 and bytes_gran != 0:
+        # Compare the two blocks. We know both files are at least file_size so all reads should work.
+        buf1 = fp1.read(cmp_size)
+        buf2 = fp2.read(cmp_size)
+        # If they're different, gather information.
+        if buf1 != buf2:
+            total_bytes_diff += cmp_size
+            # Count how many granularity level blocks changed.
+            if bytes_gran == 0:
+                gran_blocks += 1
+            bytes_gran += cmp_size
+        # Gather and report block information when we cross a granularity boundary or we're on
+        # the last iteration.
+        offset += cmp_size
+        if offset % granularity == 0 or b == num_blocks:
+            if bytes_gran != 0:
                 print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {granularity} bytes')
             # Account for small or large block changes.
             if bytes_gran != 0:
@@ -85,17 +97,7 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
             start_off = offset
             bytes_gran = 0
 
-        # Compare the two blocks. We know both files are at least file_size so all reads should work.
-        buf1 = fp1.read(cmp_size)
-        buf2 = fp2.read(cmp_size)
-        # If they're different, gather information.
-        if buf1 != buf2:
-            total_bytes_diff += cmp_size
-            # Count how many granularity level blocks changed.
-            if bytes_gran == 0:
-                gran_blocks += 1
-            bytes_gran += cmp_size
-    # Account for anything from the final iteration of the loop and partial blocks.
+    # Account for any partial blocks.
     if partial != 0:
         buf1 = fp1.read(partial)
         buf2 = fp2.read(partial)
@@ -103,16 +105,10 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
         if buf1 != buf2:
             total_bytes_diff += partial
             bytes_gran += partial
+            print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {partial} bytes')
     fp1.close()
     fp2.close()
     end = time.asctime()
-    if bytes_gran != 0:
-        if offset != 0:
-            print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {granularity} bytes')
-        if bytes_gran <= pct20:
-            pct20_count += 1
-        elif bytes_gran >= pct80:
-            pct80_count += 1
 
     # Report for each file.
     print(f'{filename}: time: started {start} completed {end}')
