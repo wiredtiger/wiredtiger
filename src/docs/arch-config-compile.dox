@@ -80,19 +80,19 @@ The \c WT_CONF struct (which corresponds to \c conf in the second code snippet a
 WT_CONF_ID_*. That is here:
 \code
 struct __wt_conf {
-    uint8_t key_map[WT_CONF_ID_COUNT]; /* For each key, a 1-based index into conf_value */
+    uint8_t value_map[WT_CONF_ID_COUNT]; /* For each key, a 1-based index into conf_value */
     ...
 };
 \endcode
-The value of \c WT_CONF->key_map[conf_id] for a given \c conf_id gives us another index, which is called \c conf_value_index in the code.
+The value of \c WT_CONF->value_map[conf_id] for a given \c conf_id gives us another index, which is called \c conf_value_index in the code.
 This value is either \c 0, meaning the key is not in this \c WT_CONF, or it is an offset into an array of \c WT_CONF_VALUE entries.
 Typically, a WT_CONF_VALUE has an embedded WT_CONFIG_ITEM, which is what we want.  Thus, returning a value from a \c WT_CONF usually
 means two indirect references, and then we have a populated \c WT_CONFIG_ITEM to return.
 
-If we were looking for greater performance, we could have modified this to use one table access by skipping having a \c key_map.
+If we were looking for greater performance, we could have modified this to use one table access by skipping having a \c value_map.
 Since there are currently over 300 possible keys in the system, this would have meant having a larger chunk of memory
 for each compiled string, 12K for starters (300 * ~40 bytes for each WT_CONF_VALUE). But supporting composite keys means
-that most compiled strings would need some multiple of that value. For now, we use a \c key_map, this could be reassessed.
+that most compiled strings would need some multiple of that value. For now, we use a \c value_map, this could be reassessed.
 
 @section compile_conf_value The WT_CONF_VALUE structure
 
@@ -237,7 +237,7 @@ This looks like:
 +--------------------------+
 | WT_CONF                  |
 |                          |
-| - key_map array:         |
+| - value_map array:       |
 |  +------------+          |
 |  | 0          |          |
 |  +------------+          |
@@ -283,7 +283,7 @@ This looks like:
 | WT_CONF                  |<--|----------+
 |  for roundup_timestamps  |   |          |
 |                          |   |          |
-| - key_map array:         |   |          |
+| - value_map array:       |   |          |
 |  +------------+          |   |          |
 |  | 0          |          |   |          |
 |  +------------+          |   |          |
@@ -337,12 +337,12 @@ This looks like:
 @endditaa
 @plantuml_end
 
-You can see that \c key_map is a sparse array; only a small number of its 300 some entries are non-zero.  Both key_map arrays
+You can see that \c value_map is a sparse array; only a small number of its 300 some entries are non-zero.  Both value_map arrays
 are actually the same size, the second one is much more sparse, so the zeroed gaps are larger than they appear in this
 picture.  Each entry in the map is a byte, which currently limits the number of WT_CONF_VALUE array entries to 256.
 
 Let's look at how we would look up \c read_timestamp in this \c WT_CONF.  We'll always start at the top \c WT_CONF.
-\c WT_CONF_ID_read_timestamp is defined as \c 4, which means we'll look at \c key_map[4].  That is the entry that has \c 7.
+\c WT_CONF_ID_read_timestamp is defined as \c 4, which means we'll look at \c value_map[4].  That is the entry that has \c 7.
 We then use \c 7 along with the offset to the associated \c WT_CONF_VALUE array using a 1-based lookup.  And that leads
 us to the \c WT_CONF_VALUE for \c read_timestamp .  A \c WT_CONF_VALUE is a union, and its tag indicates that the \c WT_CONFIG_ITEM
 part of the union is used.  That \c WT_CONFIG_ITEM is filled in according to the value indicated in the default string, that is,
@@ -350,9 +350,9 @@ part of the union is used.  That \c WT_CONFIG_ITEM is filled in according to the
 
 For a composite key, let's examine looking up \c roundup_timestamps.read.
 The definition of \c WT_CONF_ID_roundup_timestamps is \c 157, the
-top level \c key_map[157] has \c 8, that takes us to the eighth \c WT_CONF_VALUE.
+top level \c value_map[157] has \c 8, that takes us to the eighth \c WT_CONF_VALUE.
 Its union tag indicates it has sub-configuration at offset 1.  That is,
-the second \c WT_CONF in the conf array.  \c WT_CONF_ID_read is \c 159, so now we use the \c key_map in the second \c WT_CONF,
+the second \c WT_CONF in the conf array.  \c WT_CONF_ID_read is \c 159, so now we use the \c value_map in the second \c WT_CONF,
 that takes us to entry 2.  We use the offset from the second \c WT_CONF to finally find the matching \c WT_CONF_VALUE
 for \c roundup_timestamps.read .  This is tagged as a \c WT_CONFIG_ITEM, so that's what we'll return.
 
