@@ -46,7 +46,7 @@ def die(reason):
 def check_backup(mydir):
     if not os.path.isdir(mydir):
         return False
-    backup_file=mydir + "/WiredTiger.backup"
+    backup_file = mydir + "/WiredTiger.backup"
     if not os.path.exists(backup_file):
         return False
     return True
@@ -73,7 +73,7 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
         # Gather and report information when we cross a granularity boundary.
         if offset % granularity == 0:
             if offset != 0 and bytes_gran != 0:
-                print("{}: Offset {}: {} bytes differ in {} bytes".format(filename, start_off, bytes_gran, granularity))
+                print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {granularity} bytes')
             # Account for small or large block changes.
             if bytes_gran != 0:
                 if bytes_gran <= pct20:
@@ -107,20 +107,20 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
     end = time.asctime()
     if bytes_gran != 0:
         if offset != 0:
-            print("{}: Offset {}: {} bytes differ in {} bytes".format(filename, start_off, bytes_gran, granularity))
+            print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {granularity} bytes')
         if bytes_gran <= pct20:
             pct20_count += 1
         elif bytes_gran >= pct80:
             pct80_count += 1
 
     # Report for each file.
-    print("{}: started {} completed {}".format(filename, start, end))
-    print("{} ({}) differs by {} bytes in {} granularity blocks".format(filename, file_size, total_bytes_diff, gran_blocks ))
+    print(f'{filename}: time: started {start} completed {end}')
+    print(f'{filename}: filesize: {file_size} differs by {total_bytes_diff} bytes in {gran_blocks} granularity blocks')
     if gran_blocks != 0:
         pct20_blocks = round(abs(pct20_count / gran_blocks * 100))
         pct80_blocks = round(abs(pct80_count / gran_blocks * 100))
-        print("{}: {} of {} blocks ({}%) differ by {} bytes or less of {} (20%)".format(filename, pct20_count, gran_blocks, pct20_blocks, pct20, granularity))
-        print("{}: {} of {} blocks ({}%) differ by {} bytes or more of {} (80%)".format(filename, pct80_count, gran_blocks, pct80_blocks, pct80, granularity))
+        print(f'{filename}: smallest 20%: {pct20_count} of {gran_blocks} blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
+        print(f'{filename}: largest 80%: {pct80_count} of {gran_blocks} blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
 
 def compare_backups(dir1, dir2, granularity):
     common=set()
