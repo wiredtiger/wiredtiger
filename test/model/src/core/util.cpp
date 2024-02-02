@@ -29,6 +29,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
@@ -274,10 +275,12 @@ shared_memory::~shared_memory()
     if (_data == nullptr)
         return;
 
-    if (munmap(_data, _size) < 0)
-        /* Cannot throw an exception from out of a destructor, so just complain. */
-        std::cerr << "WARNING: Failed to unmap shared memory object \"" << _name
+    if (munmap(_data, _size) < 0) {
+        /* Cannot throw an exception from out of a destructor, so just fail. */
+        std::cerr << "PANIC: Failed to unmap shared memory object \"" << _name
                   << "\": " << strerror(errno) << " (" << errno << ")" << std::endl;
+        abort();
+    }
 }
 
 /*
