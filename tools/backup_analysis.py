@@ -32,10 +32,12 @@ import fnmatch, glob, os, sys, time
 
 def usage_exit():
     print('Usage: backup_analysis.py dir1 dir2 [granularity]')
-    print('  dir1 and dir2 are POSIX pathnames to WiredTiger backup directories,')
+    print('  dir1 and dir2 are POSIX pathnames to WiredTiger backup directories.')
+    print('  dir1 is assumed to be an older/earlier backup to dir2.')
     print('Options:')
     print('  granularity - an (optional) positive integer indicating the granularity')
-    print('  of the incremental backup blocks. The default is 16MB')
+    print('  size in integer number of bytes of the incremental backup blocks.')
+    print('  The default is 16777216 (16MB).')
     sys.exit(1)
 
 def die(reason):
@@ -51,13 +53,16 @@ def check_backup(mydir):
         return False
     return True
 
-def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
+def compare_file(dir1, dir2, filename, cmp_size, granularity):
+    f1_size = os.stat(os.path.join(dir1, filename)).st_size
+    f2_size = os.stat(os.path.join(dir2, filename)).st_size
+    min_size = min(f1_size, f2_size)
     # Initialize all of our counters per file.
     bytes_gran = 0
     gran_blocks = 0
-    num_blocks = file_size // cmp_size
+    num_blocks = min_size // cmp_size
     offset = 0
-    partial = file_size % cmp_size
+    partial = min_size % cmp_size
     pct20 = granularity // 5
     pct80 = pct20 * 4
     pct20_count = 0
@@ -71,7 +76,7 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
     # Compare the bytes in cmp_size blocks between both files.
     print("")
     for b in range(0, num_blocks + 1):
-        # Compare the two blocks. We know both files are at least file_size so all reads should work.
+        # Compare the two blocks. We know both files are at least min_size so all reads should work.
         buf1 = fp1.read(cmp_size)
         buf2 = fp2.read(cmp_size)
         # If they're different, gather information.
@@ -112,7 +117,20 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
 
     # Report for each file.
     print(f'{filename}: time: started {start} completed {end}')
-    print(f'{filename}: filesize: {file_size} differs by {total_bytes_diff} bytes in {gran_blocks} granularity blocks')
+    if f1_size < f2_size:
+        change = "grew"
+        change_diff = f2_size - f1_size
+    elif f1_size > f2_size:
+        change = "shrank"
+        change_diff = f1_size - f2_size
+    else:
+        change = "remained equal"
+        change_diff = 0
+    if change_diff != 0:
+        print(f'{filename}: size: {f1_size} {f2_size} {change} by {change_diff} bytes')
+    else:
+        print(f'{filename}: size: {f1_size} {f2_size} {change}')
+    print(f'{filename}: common: {min_size} differs by {total_bytes_diff} bytes in {gran_blocks} granularity blocks')
     if gran_blocks != 0:
         pct20_blocks = round(abs(pct20_count / gran_blocks * 100))
         pct80_blocks = round(abs(pct80_count / gran_blocks * 100))
@@ -120,7 +138,6 @@ def compare_file(dir1, dir2, filename, file_size, cmp_size, granularity):
         print(f'{filename}: largest 80%: {pct80_count} of {gran_blocks} blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
 
 def compare_backups(dir1, dir2, granularity):
-    common=set()
     files1=set(fnmatch.filter(os.listdir(dir1), "*.wt"))
     files2=set(fnmatch.filter(os.listdir(dir2), "*.wt"))
 
@@ -128,19 +145,17 @@ def compare_backups(dir1, dir2, granularity):
     # For now assume the first directory is the older one. Once we add functionality to parse the
     # text in WiredTiger.backup we can look at the checkpoint timestamp of a known table like the
     # history store and figure out which is older.
+    # NOTE: Update the assumption in the usage statement also when this changes.
     for file in files1.difference(files2):
         print(file + " dropped between backups")
     for file in files2.difference(files1):
         print(file + " created between backups")
     print(common)
     for f in common:
-        f1_size = os.stat(os.path.join(dir1, f)).st_size
-        f2_size = os.stat(os.path.join(dir2, f)).st_size
-        min_size = min(f1_size, f2_size)
         # For now we're only concerned with changed blocks between backups.
         # So only compare the minimum size both files have in common.
         # FIXME: More could be done here to report extra blocks added/removed.
-        compare_file(dir1, dir2, f, min_size, 4096, granularity)
+        compare_file(dir1, dir2, f, 4096, granularity)
 
 def backup_analysis(args):
     if len(args) < 2:
