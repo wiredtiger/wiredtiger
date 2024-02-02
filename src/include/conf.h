@@ -48,7 +48,7 @@ struct __wt_conf_bind_desc {
  * to strdup any fields.
  *
  * We actually compile into a superstructure that has N WT_CONF struct in an array,
- * followed by M WT_CONF_KEY structs in another array.  N is the maximum conf count,
+ * followed by M WT_CONF_VALUE structs in another array.  N is the maximum conf count,
  * M is the maximum key count, these values are stored in this structure.  These two
  * values are dependent on the particular API we are compiling, and whether the API has
  * sub-configurations and how many keys the API uses.
@@ -71,15 +71,15 @@ struct __wt_conf {
     const char *api_config;     /* String from an API call to compile this struct */
     const char *default_config; /* Default string at the time of the compilation */
 
-    uint8_t key_map[WT_CONF_ID_COUNT]; /* For each key, a 1-based index into conf_key */
+    uint8_t value_map[WT_CONF_ID_COUNT]; /* For each key, a 1-based index into conf_value */
 
     uint32_t conf_count;
     uint32_t conf_max;
 
-    uint32_t conf_key_count;
-    uint32_t conf_key_max;
+    uint32_t conf_value_count;
+    uint32_t conf_value_max;
 
-    size_t conf_key_table_offset;
+    size_t conf_value_table_offset;
 
     uint32_t binding_count;
     size_t binding_allocated;
@@ -90,15 +90,15 @@ struct __wt_conf {
  * To keep the conf structure position independent, we cannot have a direct pointer to the key
  * table, we must deduce its position.
  */
-#define WT_CONF_KEY_TABLE_ENTRY(conf, n) \
-    &((WT_CONF_KEY *)((uint8_t *)conf + conf->conf_key_table_offset))[n]
+#define WT_CONF_VALUE_TABLE_ENTRY(conf, n) \
+    &((WT_CONF_VALUE *)((uint8_t *)conf + conf->conf_value_table_offset))[n]
 
-struct __wt_conf_key {
+struct __wt_conf_value {
     enum {
-        CONF_KEY_DEFAULT_ITEM,
-        CONF_KEY_NONDEFAULT_ITEM,
-        CONF_KEY_BIND_DESC,
-        CONF_KEY_SUB_INFO
+        CONF_VALUE_DEFAULT_ITEM,
+        CONF_VALUE_NONDEFAULT_ITEM,
+        CONF_VALUE_BIND_DESC,
+        CONF_VALUE_SUB_INFO
     } type;
     union {
         WT_CONFIG_ITEM item;
@@ -115,17 +115,17 @@ struct __wt_conf_key {
     WT_CONF_API_TYPE(c, m)                      \
     {                                           \
         WT_CONF conf[nconf];                    \
-        WT_CONF_KEY conf_key[nitem];            \
+        WT_CONF_VALUE conf_value[nitem];        \
     }
 
 #define WT_CONF_DEFAULT_VALUE_SHORTCUT(conf, keys) \
     ((keys) < WT_CONF_ID_COUNT && __bit_test(&(conf)->bitmap_default[0], (keys)))
 
 #define WT_CONF_API_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf))
-#define WT_CONF_API_KEY_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf_key))
+#define WT_CONF_API_VALUE_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf_value))
 
 #define WT_CONF_SIZING_INITIALIZE(c, m) \
-    sizeof(WT_CONF_API_TYPE(c, m)), WT_CONF_API_COUNT(c, m), WT_CONF_API_KEY_COUNT(c, m)
+    sizeof(WT_CONF_API_TYPE(c, m)), WT_CONF_API_COUNT(c, m), WT_CONF_API_VALUE_COUNT(c, m)
 
 #define WT_CONF_SIZING_NONE 0, 0, 0
 

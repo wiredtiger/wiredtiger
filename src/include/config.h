@@ -60,7 +60,7 @@ struct __wt_config_entry {
     u_int method_id;
     size_t conf_total_size; /* total size of the structures needed for precompiling */
     u_int conf_count;       /* number of WT_CONF structures needed for precompiling */
-    u_int conf_key_count;   /* number of WT_CONF_KEY structures needed for precompiling */
+    u_int conf_value_count; /* number of WT_CONF_VALUE structures needed for precompiling */
     bool compilable;
 };
 

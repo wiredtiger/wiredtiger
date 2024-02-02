@@ -35,7 +35,7 @@ static int __conf_verbose_cat_config(WT_SESSION_IMPL *, const char **, WT_CONF *
  */
 static int
 __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM_TYPE check_type,
-  WT_CONF_KEY *conf_key, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value, bool bind_allowed,
+  WT_CONF_VALUE *conf_value, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value, bool bind_allowed,
   bool is_default)
 {
     uint32_t bind_offset;
@@ -60,17 +60,17 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
 
         bind_offset = top_conf->binding_count++;
 
-        if (conf_key->type == CONF_KEY_BIND_DESC)
+        if (conf_value->type == CONF_VALUE_BIND_DESC)
             WT_RET_MSG(session, EINVAL, "Value '%.*s' cannot be used on the same key twice",
               (int)value->len, value->str);
 
-        conf_key->type = CONF_KEY_BIND_DESC;
-        conf_key->u.bind_desc.type = check_type;
-        conf_key->u.bind_desc.choices = check->choices;
-        conf_key->u.bind_desc.offset = bind_offset;
+        conf_value->type = CONF_VALUE_BIND_DESC;
+        conf_value->u.bind_desc.type = check_type;
+        conf_value->u.bind_desc.choices = check->choices;
+        conf_value->u.bind_desc.offset = bind_offset;
         WT_RET(__wt_realloc_def(session, &top_conf->binding_allocated, top_conf->binding_count,
           &top_conf->binding_descriptions));
-        top_conf->binding_descriptions[bind_offset] = &conf_key->u.bind_desc;
+        top_conf->binding_descriptions[bind_offset] = &conf_value->u.bind_desc;
     } else {
         switch (check_type) {
         case WT_CONFIG_ITEM_NUM:
@@ -114,8 +114,8 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
 
         WT_RET(__wt_conf_check_one(session, check, value));
 
-        conf_key->type = is_default ? CONF_KEY_DEFAULT_ITEM : CONF_KEY_NONDEFAULT_ITEM;
-        conf_key->u.item = *value;
+        conf_value->type = is_default ? CONF_VALUE_DEFAULT_ITEM : CONF_VALUE_NONDEFAULT_ITEM;
+        conf_value->u.item = *value;
     }
     return (0);
 }
@@ -152,10 +152,10 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
     const WT_CONFIG_CHECK *check;
     WT_CONFIG_ITEM key, value;
     WT_CONFIG_ITEM_TYPE check_type;
-    WT_CONF_KEY *conf_key;
+    WT_CONF_VALUE *conf_value;
     WT_DECL_RET;
-    uint32_t i, key_id, conf_key_pos, subconf_count, subconf_keys;
-    uint8_t *sub_conf_key_addr;
+    uint32_t i, key_id, conf_value_pos, subconf_count, subconf_values;
+    uint8_t *sub_conf_value_addr;
     bool existing;
 
     /*
@@ -177,23 +177,23 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             WT_ERR_MSG(session, EINVAL, "Error compiling '%s', unknown key '%.*s' for method '%s'",
               format, (int)key.len, key.str, api);
 
-        /* The key id is an offset into the key_map table. */
+        /* The key id is an offset into the value_map table. */
         key_id = check->key_id;
         WT_ASSERT(session, key_id < WT_CONF_ID_COUNT);
-        existing = (conf->key_map[key_id] != 0);
+        existing = (conf->value_map[key_id] != 0);
         if (existing)
             /* The position stored is one-based. */
-            conf_key_pos = (uint32_t)(conf->key_map[key_id] - 1);
+            conf_value_pos = (uint32_t)(conf->value_map[key_id] - 1);
         else {
             WT_ASSERT_ALWAYS(
-              session, conf->conf_key_count < conf->conf_key_max, "conf: key count overflow");
-            conf_key_pos = conf->conf_key_count++;
-            /* The position inserted to the key_map is one based, and must fit
+              session, conf->conf_value_count < conf->conf_value_max, "conf: key count overflow");
+            conf_value_pos = conf->conf_value_count++;
+            /* The position inserted to the value_map is one based, and must fit
              * into a byte */
-            WT_ASSERT(session, conf_key_pos + 1 <= 0xff);
-            conf->key_map[key_id] = (uint8_t)(conf_key_pos + 1);
+            WT_ASSERT(session, conf_value_pos + 1 <= 0xff);
+            conf->value_map[key_id] = (uint8_t)(conf_value_pos + 1);
         }
-        conf_key = WT_CONF_KEY_TABLE_ENTRY(conf, conf_key_pos);
+        conf_value = WT_CONF_VALUE_TABLE_ENTRY(conf, conf_value_pos);
 
         WT_ASSERT(session, check->compiled_type < WT_ELEMENTS(__compiled_type_to_item_type));
         check_type = __compiled_type_to_item_type[check->compiled_type];
@@ -207,8 +207,8 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             if (!__wt_config_get_choice(check->choices, &value))
                 WT_ERR_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
                   (int)value.len, value.str, (int)key.len, key.str);
-            conf_key->type = is_default ? CONF_KEY_DEFAULT_ITEM : CONF_KEY_NONDEFAULT_ITEM;
-            conf_key->u.item = value;
+            conf_value->type = is_default ? CONF_VALUE_DEFAULT_ITEM : CONF_VALUE_NONDEFAULT_ITEM;
+            conf_value->u.item = value;
         } else if (check_type == WT_CONFIG_ITEM_STRUCT) {
             /* If the item is a single id, it is ready to go, as a single entry in the category. */
             if (value.type != WT_CONFIG_ITEM_ID) {
@@ -237,27 +237,30 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             }
 
             if (existing) {
-                WT_ASSERT(session, conf_key->type == CONF_KEY_SUB_INFO);
+                WT_ASSERT(session, conf_value->type == CONF_VALUE_SUB_INFO);
                 WT_ASSERT(session,
-                  conf_key->u.sub_conf_index > 0 && conf_key->u.sub_conf_index < conf->conf_max);
+                  conf_value->u.sub_conf_index > 0 &&
+                    conf_value->u.sub_conf_index < conf->conf_max);
 
-                sub_conf = &conf[conf_key->u.sub_conf_index];
+                sub_conf = &conf[conf_value->u.sub_conf_index];
 
                 WT_ASSERT(session, sub_conf != NULL);
             } else {
                 WT_ASSERT_ALWAYS(
                   session, conf->conf_count < conf->conf_max, "conf: sub-configuration overflow");
 
-                conf_key->type = CONF_KEY_SUB_INFO;
-                conf_key->u.sub_conf_index = conf->conf_count;
+                conf_value->type = CONF_VALUE_SUB_INFO;
+                conf_value->u.sub_conf_index = conf->conf_count;
 
                 sub_conf = &conf[conf->conf_count];
                 sub_conf->compile_time_entry = top_conf->compile_time_entry;
-                sub_conf->conf_key_count = 0;
-                sub_conf_key_addr = (uint8_t *)WT_CONF_KEY_TABLE_ENTRY(conf, conf->conf_key_count);
-                WT_ASSERT(session, (uint8_t *)sub_conf < sub_conf_key_addr);
-                sub_conf->conf_key_table_offset = (size_t)(sub_conf_key_addr - (uint8_t *)sub_conf);
-                sub_conf->conf_key_max = conf->conf_key_max - conf->conf_key_count;
+                sub_conf->conf_value_count = 0;
+                sub_conf_value_addr =
+                  (uint8_t *)WT_CONF_VALUE_TABLE_ENTRY(conf, conf->conf_value_count);
+                WT_ASSERT(session, (uint8_t *)sub_conf < sub_conf_value_addr);
+                sub_conf->conf_value_table_offset =
+                  (size_t)(sub_conf_value_addr - (uint8_t *)sub_conf);
+                sub_conf->conf_value_max = conf->conf_value_max - conf->conf_value_count;
                 /*
                  * The sub-configuration count needs to count itself.
                  */
@@ -271,18 +274,18 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
              * Before we compile the sub-configuration, take note of the current counts there, we'll
              * need to adjust our counts when it's done.
              */
-            subconf_keys = sub_conf->conf_key_count;
+            subconf_values = sub_conf->conf_value_count;
             subconf_count = sub_conf->conf_count;
 
             /* Compile the sub-configuration and adjust our counts. */
             WT_ERR(__conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
               check->subconfigs_entries, check->subconfigs_jump, value.str, value.len, bind_allowed,
               is_default));
-            conf->conf_key_count += (sub_conf->conf_key_count - subconf_keys);
+            conf->conf_value_count += (sub_conf->conf_value_count - subconf_values);
             conf->conf_count += (sub_conf->conf_count - subconf_count);
         } else
             WT_ERR(__conf_compile_value(
-              session, top_conf, check_type, conf_key, check, &value, bind_allowed, is_default));
+              session, top_conf, check_type, conf_value, check, &value, bind_allowed, is_default));
 
         if (is_default)
             __bit_set(conf->bitmap_default, key_id);
@@ -439,15 +442,15 @@ __conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *c
     u_int i, nconf, nkey;
 
     nconf = centry->conf_count;
-    nkey = centry->conf_key_count;
+    nkey = centry->conf_value_count;
 
     /*
      * The layout of the final compiled conf starts with N conf structs, followed by M key structs.
      */
-    conf->conf_key_table_offset = sizeof(WT_CONF) * nconf;
+    conf->conf_value_table_offset = sizeof(WT_CONF) * nconf;
 
     conf->compile_time_entry = centry;
-    conf->conf_key_max = nkey;
+    conf->conf_value_max = nkey;
     conf->conf_max = nconf;
     conf->conf_count = 1; /* The current conf is counted. */
 
@@ -457,7 +460,7 @@ __conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *c
           centry->checks_entries, centry->checks_jump, cfg[i], strlen(cfg[i]), bind_allowed,
           i != user_supplied));
 
-    WT_ASSERT_ALWAYS(session, conf->conf_key_count <= nkey, "conf: key count overflow");
+    WT_ASSERT_ALWAYS(session, conf->conf_value_count <= nkey, "conf: key count overflow");
     WT_ASSERT_ALWAYS(session, conf->conf_count <= nconf, "conf: sub-conf count overflow");
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CONFIGURATION, WT_VERBOSE_DEBUG_2))
