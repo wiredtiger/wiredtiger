@@ -34,7 +34,6 @@
  */
 
 #define NUM_RECORDS WT_THOUSAND
-#define HOME_BUF_SIZE 512
 
 /* Constants and variables declaration. */
 
@@ -46,7 +45,7 @@ static const char table_config_row[] =
 static const char *const uri = "table:wt9199-checkpoint-txn-commit-race";
 uint64_t global_stable_ts;
 
-bool inserted = false;
+bool inserted;
 
 /* Structures definition. */
 struct thread_data {
@@ -56,12 +55,10 @@ struct thread_data {
 
 /* Forward declarations. */
 static void run_test(const char *);
-static void *thread_func_increment_stable_timestamp(void *);
 static void *thread_func_checkpoint(void *);
 static void *thread_func_insert_txn(void *);
 void validate(void *);
 static void populate(WT_SESSION *);
-static void thread_wait(void);
 
 /*
  * main --
@@ -98,9 +95,8 @@ run_test(const char *home)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     pthread_t thread_checkpoint, thread_insert_txn;
-    uint64_t pages_reviewed, pages_rewritten, pages_skipped;
-    bool size_check_res;
 
+    inserted = false;
     testutil_recreate_dir(home);
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -141,7 +137,6 @@ thread_func_checkpoint(void *arg)
     struct thread_data *td;
     WT_SESSION *session;
     uint64_t stable_ts;
-    int i;
     char ts_string[WT_TS_HEX_STRING_SIZE];
     char tscfg[64];
 
@@ -181,8 +176,7 @@ populate(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     WT_RAND_STATE rnd;
-    uint64_t i, str_len, val;
-    char tscfg[64];
+    uint64_t i, val;
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
@@ -213,7 +207,6 @@ thread_func_insert_txn(void *arg)
     WT_SESSION *session;
     uint64_t i;
     uint64_t val;
-    char ts_string[WT_TS_HEX_STRING_SIZE];
     char tscfg[64], tscfg_1[64];
 
     td = (struct thread_data *)arg;
@@ -263,8 +256,7 @@ validate(void *arg)
     struct thread_data *td;
     WT_CURSOR *cursor;
     WT_SESSION *session;
-    uint64_t i, str_len, val;
-    char tscfg[64];
+    uint64_t i, val;
 
     td = (struct thread_data *)arg;
 
