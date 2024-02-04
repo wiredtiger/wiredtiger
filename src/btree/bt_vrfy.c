@@ -269,7 +269,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
 
             if (WT_VRFY_DUMP(vs))
-                WT_ERR(__wt_msg(session, "- %p: root \n\t> addr: %s", root_addr,
+                WT_ERR(__wt_msg(session, "- %p: root\n\t> addr: %s", (void *)root_addr,
                   __wt_page_type_string(btree->root.page->type)));
 
             __wt_evict_file_exclusive_off(session);
