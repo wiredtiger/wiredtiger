@@ -28,10 +28,9 @@
 #include "test_util.h"
 
 /*
- * This test is to create a windoiw where a checkpoint can fail to include a transaction's 
- * updates with commit times before stable.
- * Added a WT_TIMING_STRESS_COMMIT_TRANSACTION_DELAY timing stress to add a 10 second
- * delay while commiting a transaction.
+ * This test is to create a window where a checkpoint can fail to include a transaction's updates
+ * with commit times before stable. Added a WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW timing stress
+ * to add a 10 second delay while committing a transaction.
  */
 
 #define NUM_RECORDS WT_THOUSAND
@@ -40,7 +39,8 @@
 /* Constants and variables declaration. */
 
 static const char conn_config[] =
-  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),,timing_stress_for_test=[commit_transaction_slow]";
+  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),,timing_stress_for_"
+  "test=[commit_transaction_slow]";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=Q";
 static const char *const uri = "table:wt9199-checkpoint-txn-commit-race";
@@ -59,7 +59,7 @@ static void run_test(const char *);
 static void *thread_func_increment_stable_timestamp(void *);
 static void *thread_func_checkpoint(void *);
 static void *thread_func_insert_txn(void *);
-int validate(void *);
+void validate(void *);
 static void populate(WT_SESSION *);
 static void thread_wait(void);
 
@@ -122,7 +122,7 @@ run_test(const char *home)
     (void)pthread_join(thread_insert_txn, NULL);
     (void)pthread_join(thread_checkpoint, NULL);
 
-    testutil_check(validate(&td));
+    validate(&td);
 
     testutil_check(session->close(session, NULL));
     session = NULL;
@@ -154,9 +154,9 @@ thread_func_checkpoint(void *arg)
             /* Wait for sometime to let the commit transaction checks the timestamp validity. */
             __wt_sleep(5, 0);
 
-            /* 
-             * Increment and set the stable timestamp so that checkpoint picks this timestamp as
-             * the checkpoint timestamp.
+            /*
+             * Increment and set the stable timestamp so that checkpoint picks this timestamp as the
+             * checkpoint timestamp.
              */
             global_stable_ts += 20;
             testutil_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%" PRIu64, global_stable_ts);
@@ -238,7 +238,7 @@ thread_func_insert_txn(void *arg)
 
     inserted = true;
 
-    /* 
+    /*
      * Increment the stable timestamp and commit the transaction with the incremented timestamp.
      */
     global_stable_ts += 20;
@@ -254,10 +254,10 @@ thread_func_insert_txn(void *arg)
 }
 
 /*
- * thread_func_increment_stable_timestamp --
+ * validate --
  *     Function to validate the checkpointed data.
  */
-int
+void
 validate(void *arg)
 {
     struct thread_data *td;
@@ -276,11 +276,7 @@ validate(void *arg)
 
     for (i = 0; i < NUM_RECORDS * 2; i++) {
         cursor->set_key(cursor, i + 1);
-        if (cursor->search(cursor) != 0)
-            return 1;
-
+        testutil_check(cursor->search(cursor));
         testutil_check(cursor->get_value(cursor, &val));
     }
-    testutil_check(session->commit_transaction(session, NULL));
-    return 0;
 }

@@ -1677,8 +1677,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!prepare)
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
+    /* Enter the commit generation before timestamp validity check. */
+    __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
+
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg, true));
+
+    __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW);
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1895,6 +1900,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_txn_release(session);
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
+
+    /* Leave the commit generation after all the updates are processed. */
+    __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
 
     /*
      * If we have made some updates visible, start a new snapshot generation: any cached snapshots
