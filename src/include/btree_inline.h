@@ -1609,8 +1609,8 @@ __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TIME_AGGREGA
     if (page->modify->stop_ta == NULL)
         return (false);
 
-    *ta = page->modify->stop_ta;
-    return (true);
+    WT_ORDERED_READ(*ta, page->modify->stop_ta);
+    return (*ta != NULL);
 }
 
 /*
