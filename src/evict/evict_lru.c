@@ -887,16 +887,17 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
 int
 __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_BTREE *btree;
     WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT_ENTRY *evict;
-    u_int i = 0, elem, q;
+    u_int i, elem, q;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
     conn = S2C(session);
+    i = 0;
 
     /* Hold the walk lock to turn off eviction. */
     __wt_spin_lock(session, &cache->evict_walk_lock);
