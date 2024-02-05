@@ -241,7 +241,7 @@
 
 #define SESSION_API_PREPARE_CHECK(s, struct_name, func_name)   \
     do {                                                       \
-        if ((s)->api_call_counter == 0) {                      \
+        if ((s)->api_call_counter == 1) {                      \
             int __prepare_ret;                                 \
             __prepare_ret = __wt_txn_context_prepare_check(s); \
             WT_ERR(__prepare_ret);                             \
