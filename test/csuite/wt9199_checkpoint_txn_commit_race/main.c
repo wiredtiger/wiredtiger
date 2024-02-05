@@ -43,9 +43,9 @@ static const char conn_config[] =
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=Q";
 static const char *const uri = "table:wt9199-checkpoint-txn-commit-race";
-uint64_t global_stable_ts;
+static uint64_t global_stable_ts;
 
-bool inserted;
+static bool inserted;
 
 /* Structures definition. */
 struct thread_data {
