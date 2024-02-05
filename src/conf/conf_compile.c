@@ -46,6 +46,9 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
             WT_RET_MSG(
               session, EINVAL, "Value '%.*s' is not valid here", (int)value->len, value->str);
 
+        if (value->len < 2)
+            WT_RET_MSG(session, EINVAL, "Percent binding format is incomplete");
+
         if (value->str[1] == 'd') {
             if (check_type != WT_CONFIG_ITEM_NUM && check_type != WT_CONFIG_ITEM_BOOL)
                 WT_RET_MSG(session, EINVAL, "Value '%.*s' is not compatible with %s type",
@@ -358,9 +361,11 @@ __wt_conf_compile(
     conn->conf_array[compiled_entry] = conf;
 
     /*
-     * Mark the entry so it won't be mistakenly freed when used for API calls.
+     * The result may look like a string, but it is really an offset into a dummy array. To use the
+     * compiled string, the caller must pass back the same address, so we can calculate the offset
+     * to get to the compiled entry. Said another way, the caller cannot make a copy of the string
+     * and use the copy with the API.
      */
-
     *resultp = &conn->conf_dummy[compiled_entry];
 
 err:
@@ -506,6 +511,11 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
     WT_RET(__wt_calloc_def(session, conn->conf_max, &conn->conf_array));
     conn->conf_size = 0;
 
+    /*
+     * This loop compiles the default configuration string for each "compilable" API, storing it in
+     * the conf_api_array. The conf_api_array is parallel to the config_entries array. In both
+     * cases, they are indexed by the WT_CONFIG_ENTRY_* definitions.
+     */
     WT_RET(__wt_calloc(session, WT_CONF_API_ELEMENTS, sizeof(WT_CONF *), &conn->conf_api_array));
     for (i = 0; i < WT_CONF_API_ELEMENTS; ++i) {
         centry = conn->config_entries[i];

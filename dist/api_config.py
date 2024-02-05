@@ -752,11 +752,9 @@ if not test_config:
             if config:
                 method_to_counts[name] = get_conf_counts(config)
 
-        count = 0
         for name in sorted(api_data_def.methods.keys()):
             # Extract class and method name
             (clname, mname) = get_method_name_parts(name)
-            count += 1
             if name not in method_to_counts:
                 continue
 
@@ -767,7 +765,9 @@ if not test_config:
             tfile.write(
                 'WT_CONF_API_DECLARE({}, {}, {}, {});\n'.format(clname, mname, nconf, nitem))
 
-        tfile.write('\n#define WT_CONF_API_ELEMENTS {}\n\n'.format(count))
+        # The conf system needs a total count of the number of API methods in the system.
+        n_apis = len(api_data_def.methods)
+        tfile.write('\n#define WT_CONF_API_ELEMENTS {}\n\n'.format(n_apis))
 
     config_h.done()
     conf_h.done()

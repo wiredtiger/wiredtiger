@@ -32,7 +32,7 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
     WT_ASSERT(session, keys != 0);
     while (keys != 0) {
         partkey = keys & 0xffff;
-        WT_ASSERT(session, partkey != 0);
+        WT_ASSERT(session, partkey != 0 && partkey < WT_CONF_ID_COUNT);
 
         conf_value_index = conf->value_map[partkey];
         if (conf_value_index == 0)
