@@ -67,6 +67,12 @@
     (s)->name = __oldname;  \
     --(s)->api_call_counter
 
+#define API_NAME_PUSH(s, struct_name, func_name) \
+    const char *__oldname;                       \
+    __oldname = (s)->name;                       \
+    (s)->name = (s)->lastop = #struct_name "." #func_name
+#define API_NAME_POP(s) (s)->name = __oldname;
+
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, struct_name, func_name, dh)                 \
     WT_TRACK_OP_DECL;                                                   \
@@ -243,9 +249,9 @@
     do {                                                       \
         if ((s)->api_call_counter == 0) {                      \
             int __prepare_ret;                                 \
-            API_SESSION_PUSH(s, WT_SESSION, func_name, NULL);  \
+            API_NAME_PUSH(s, WT_SESSION, func_name);           \
             __prepare_ret = __wt_txn_context_prepare_check(s); \
-            API_SESSION_POP(s);                                \
+            API_NAME_POP(s);                                   \
             WT_RET(__prepare_ret);                             \
         }                                                      \
     } while (0)
