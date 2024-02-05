@@ -1898,11 +1898,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         candidate_durable_timestamp = txn->commit_timestamp;
 
     __wt_txn_release(session);
+
+    /*
+     * Leave the commit generation after all the updates are processed and the snapshot is released.
+     */
+    __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
+
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
-
-    /* Leave the commit generation after all the updates are processed. */
-    __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
 
     /*
      * If we have made some updates visible, start a new snapshot generation: any cached snapshots
@@ -1955,6 +1958,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 
 err:
+
+    /* Leave the commit generation if there are any errors. */
+    __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
+
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
 
