@@ -409,7 +409,6 @@ struct __wt_connection_stats {
     int64_t block_prefetch_skipped_internal_session;
     int64_t block_prefetch_skipped_special_handle;
     int64_t block_prefetch_pages_fail;
-    int64_t block_prefetch_page_not_queued;
     int64_t block_prefetch_pages_queued;
     int64_t block_prefetch_pages_read;
     int64_t block_prefetch_attempts;
@@ -697,6 +696,7 @@ struct __wt_connection_stats {
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
     int64_t cursor_reposition;
+    int64_t cursor_bulk_count;
     int64_t cursor_cached_count;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;
