@@ -53,23 +53,25 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
+#define API_SESSION_PUSH(s, struct_name, func_name, dh)                                      \
+    WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
+    const char *__oldname;                                                                   \
+    /* If this isn't an API reentry, the name should be NULL and the counter should be 0. */ \
+    WT_ASSERT(s, (s)->name != NULL || (s)->api_call_counter == 0);                           \
+    __oldname = (s)->name;                                                                   \
+    ++(s)->api_call_counter;                                                                 \
+    (s)->dhandle = (dh);                                                                     \
+    (s)->name = (s)->lastop = #struct_name "." #func_name
+#define API_SESSION_POP(s)  \
+    (s)->dhandle = __olddh; \
+    (s)->name = __oldname;  \
+    --(s)->api_call_counter
+
 #define API_NAME_PUSH(s, struct_name, func_name) \
     const char *__oldname;                       \
     __oldname = (s)->name;                       \
     (s)->name = (s)->lastop = #struct_name "." #func_name
-#define API_NAME_POP(s) (s)->name = __oldname
-
-#define API_SESSION_PUSH(s, struct_name, func_name, dh)                                      \
-    WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
-    /* If this isn't an API reentry, the name should be NULL and the counter should be 0. */ \
-    WT_ASSERT(s, (s)->name != NULL || (s)->api_call_counter == 0);                           \
-    ++(s)->api_call_counter;                                                                 \
-    (s)->dhandle = (dh);                                                                     \
-    API_NAME_PUSH(s, struct_name, func_name)
-#define API_SESSION_POP(s)   \
-    (s)->dhandle = __olddh;  \
-    --(s)->api_call_counter; \
-    API_NAME_POP(s)
+#define API_NAME_POP(s) (s)->name = __oldname;
 
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, struct_name, func_name, dh)                 \
