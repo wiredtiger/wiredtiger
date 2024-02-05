@@ -69,4 +69,20 @@ track current progress. Some of the verbose logs for compaction can be activated
 verbose logs, WT also records statistics about compact progress that can be used to debug issues
 with the compaction process.
 
+# Background compaction #
+
+Background compaction is a WiredTiger service that runs compaction autonomously on all the eligible files
+present in the database while being the least disruptive as possible. Every file is eligible unless:
+
+    - it belongs to a tiered table or,
+    - is part of the exclude list that can be configured when enabling background compaction.
+
+To reduce disruption, background compaction reduces the number of checkpoints by skipping the first one
+described in the section above and gathers statistics over time to keep track of tables where compaction is successful.
+When compaction on a table is not deemed successful enough, it is skipped for some time.
+
+Background compaction can be enabled, configured and disabled through the same API \c WT_SESSION::compact.
+When disabled, background compaction goes off as soon as possible and when enabled again, it starts
+from the last processed table.
+
 */
