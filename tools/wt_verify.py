@@ -39,7 +39,6 @@ import os
 import subprocess
 import sys
 import json
-import sys
 import matplotlib.pyplot as plt
 
 def print_output(output):
@@ -101,13 +100,11 @@ def parse_node(line, output, checkpoint_name, cur_node, cur_node_id):
     line = line[len("- "):-1]
     page_type = ([line.split(": ")[0]] + line.split(": ")[1].split())[-1]
     if page_type == "root":
-        cur_node = {}
         cur_node_id = is_int(line.split(": ")[0])
         cur_node["page_type"] = [page_type]
     elif page_type == "internal" or page_type == "leaf":
         output[checkpoint_name][cur_node_id] = cur_node 
         cur_node_id = is_int(line.split(": ")[0])
-        cur_node = {}
     else:
         pass
     return cur_node_id
@@ -133,7 +130,7 @@ def parse_output(file_path):
             if line[0:2] == "- ": # start of a new node
                 cur_node_id = parse_node(line, output, checkpoint_name, cur_node, cur_node_id)
             elif line[0:3] == "\t> ": # metadata for new node
-                cur_node.update(string_to_iterable(line[len("\t> "):-1]))
+                cur_node = string_to_iterable(line[len("\t> "):-1])
             line = f.readline() 
         if cur_node_id is not None:
             output[checkpoint_name][cur_node_id] = cur_node
