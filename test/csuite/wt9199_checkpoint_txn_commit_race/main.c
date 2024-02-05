@@ -29,8 +29,14 @@
 
 /*
  * This test is to create a window where a checkpoint can fail to include a transaction's updates
- * with commit times before stable. Added a WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW timing stress
- * to add a 10 second delay while committing a transaction.
+ * with commit times before stable. Consider a situation like below.
+ * 1. In the commit transaction the commit timestamp is checked and the transaction sleeps.
+ * 2. Stable timestamp is then moved past the commit timestamp.
+ * 3. Checkpoint selects the stable timestamp and runs. This checkpoint will not include changes
+ *    for a commit timestamp that is before the checkpoint's stable timestamp.
+ *
+ * Added a WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW timing stress to add a delay
+ * while committing a transaction.
  */
 
 #define NUM_RECORDS WT_THOUSAND
@@ -38,14 +44,14 @@
 /* Constants and variables declaration. */
 
 static const char conn_config[] =
-  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),,timing_stress_for_"
+  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_"
   "test=[commit_transaction_slow]";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=Q";
 static const char *const uri = "table:wt9199-checkpoint-txn-commit-race";
 static uint64_t global_stable_ts;
 
-static bool inserted;
+static volatile bool inserted;
 
 /* Structures definition. */
 struct thread_data {
@@ -144,32 +150,33 @@ thread_func_checkpoint(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    while (1) {
-        if (inserted) {
-            /* Wait for sometime to let the commit transaction checks the timestamp validity. */
-            __wt_sleep(5, 0);
-
-            /*
-             * Increment and set the stable timestamp so that checkpoint picks this timestamp as the
-             * checkpoint timestamp.
-             */
-            global_stable_ts += 20;
-            testutil_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%" PRIu64, global_stable_ts);
-            testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-
-            testutil_check(session->checkpoint(session, NULL));
-            testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
-            testutil_assert(sscanf(ts_string, "%" SCNx64, &stable_ts) == 1);
-            break;
-        }
+    while (!inserted) {
+        __wt_sleep(0, 1000);
     }
+
+    /* Wait for sometime to let the commit transaction checks the timestamp validity. */
+    __wt_sleep(1, 0);
+
+    /*
+     * Increment and set the stable timestamp so that checkpoint picks this timestamp as the
+     * checkpoint timestamp.
+     */
+    global_stable_ts += 20;
+    testutil_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%" PRIu64, global_stable_ts);
+    testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+
+    testutil_check(session->checkpoint(session, NULL));
+    testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
+    testutil_assert(sscanf(ts_string, "%" SCNx64, &stable_ts) == 1);
+
     testutil_check(session->close(session, NULL));
     return (NULL);
 }
 
 /*
  * populate --
- *     Function to populate the database.
+ *     Function to populate the database just to ensure there will always be some data visible in
+ *     the checkpoint.
  */
 static void
 populate(WT_SESSION *session)

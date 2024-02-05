@@ -1634,6 +1634,7 @@ __txn_mod_compare(const void *a, const void *b)
 int
 __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec tsp;
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -1683,7 +1684,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg, true));
 
-    __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW);
+    /* Add a 2 second wait to simulate commit transaction slowness. */
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress_sleep_for_secs(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
