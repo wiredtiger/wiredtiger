@@ -18,12 +18,19 @@ the blocks at the end of the file to the reusable blocks at the start of the fil
 The compaction process starts with a system-wide checkpoint. There are potentially many dirty blocks
 in the cache, and the intention here is to write them out and then discard previous checkpoints so
 that there are as many blocks as possible on the file's "available for reuse" list when the compaction
-starts.  The compaction logic then starts examining the files that need to be compacted. Compaction
-ignores files smaller than 1MB and computes the available bytes in the initial 80% and 90% of the file.
-Compaction doesn't proceed if at least 1MB worth of space can not be recovered. If at least 20% of
-the space is available in the first 80% of the file, the compaction process will try to rewrite
-the last 20% of the file. Else if at least 10% of the total file is available in the first 90% of
-the file, compaction is tried on the last 10% of the file. Else the file is skipped.
+starts. The compaction logic then starts examining the files that need to be compacted. Compaction
+does not proceed if one of the following conditions is met:
+
+    - The file is smaller than 1MB.
+    - Less than the configured \c free_space_target (see \c WT_SESSION::compact) worth of space
+can be theoretically recovered.
+
+Once enough free space is available, one of the two following conditions has to be met for compaction to proceed:
+
+    - If at least 20% of the space is available in the first 80% of the file, the compaction process
+    will try to rewrite the last 20% of the file.
+    - If at least 10% of the total file is available in the first 90% of the file, compaction is
+    tried on the last 10% of the file.
 
 Compacting the object is done 10% at a time, that is, compaction tries to move blocks from the last 10% of the
 file into the beginning of the file (the 10% is hard-coded in the block manager).  The reason for
