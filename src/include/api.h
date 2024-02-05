@@ -67,9 +67,12 @@
     (s)->name = __oldname;  \
     --(s)->api_call_counter
 
-#define API_NAME_PUSH(s, struct_name, func_name) \
-    const char *__oldname;                       \
-    __oldname = (s)->name;                       \
+/* A lightweight version to only change api name for error handling. */
+#define API_NAME_PUSH(s, struct_name, func_name)                                             \
+    const char *__oldname;                                                                   \
+    /* If this isn't an API reentry, the name should be NULL and the counter should be 0. */ \
+    WT_ASSERT(s, (s)->name != NULL || (s)->api_call_counter == 0);                           \
+    __oldname = (s)->name;                                                                   \
     (s)->name = (s)->lastop = #struct_name "." #func_name
 #define API_NAME_POP(s) (s)->name = __oldname;
 
