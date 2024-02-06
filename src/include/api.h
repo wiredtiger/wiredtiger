@@ -103,7 +103,7 @@
         WT_TRACK_OP_END(s);                                                                \
         WT_SINGLE_THREAD_CHECK_STOP(s);                                                    \
         if ((ret) != 0 && __set_err)                                                       \
-            __wt_txn_err_set(s, (ret));                                                      \
+            __wt_txn_err_set(s, (ret));                                                    \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                \
             __wt_op_timer_stop(s);                                                         \
         /*                                                                                 \
