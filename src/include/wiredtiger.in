@@ -1124,17 +1124,19 @@ struct __wt_session {
     int __F(alter)(WT_SESSION *session,
         const char *name, const char *config);
 
-     /*!
-      * Bind values for a compiled configuration.  The bindings hold for API calls in this
-      * session that use the compiled string.  Strings passed into this call are not duplicated,
-      * the application must ensure that strings remain valid while the bindings are being
-      * used.
-      *
-      * @param session the session handle
-      * @param compiled a string returned from WT_CONNECTION::compile_configuration
-      * @errors
-      */
-     int __F(bind_configuration)(WT_SESSION *session, const char *compiled, ...);
+    /*!
+     * Bind values for a compiled configuration.  The bindings hold for API calls in this
+     * session that use the compiled string.  Strings passed into this call are not duplicated,
+     * the application must ensure that strings remain valid while the bindings are being
+     * used.
+     *
+     * This API may change in future releases.
+     *
+     * @param session the session handle
+     * @param compiled a string returned from WT_CONNECTION::compile_configuration
+     * @errors
+     */
+    int __F(bind_configuration)(WT_SESSION *session, const char *compiled, ...);
 
     /*!
      * Create a table, column group, index or file.
@@ -2526,6 +2528,8 @@ struct __wt_connection {
      *
      * Configuration strings containing '%d' or '%s' can have values bound, see
      * WT_SESSION::bind_configuration.
+     *
+     * This API may change in future releases.
      *
      * @param connection the connection handle
      * @param method the API to the configuration string applies to, e.g.
