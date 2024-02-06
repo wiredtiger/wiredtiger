@@ -43,7 +43,7 @@ import matplotlib.pyplot as plt
 
 separator = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
 
-def print_output(output):
+def output_pretty(output):
     """
     Print output for parsing script
     """
@@ -66,7 +66,7 @@ def print_output(output):
             str += "\n\t\t}"
         str += "\n\t}"
     str += "\n}"
-    print(str)
+    return str
 
 
 def is_int(string):
@@ -146,9 +146,9 @@ def visualize(data, visualization_type):
     pass
 
 
-def execute_command(command):
+def execute_command(command, output_file):
     """
-    Execute a given command and return its output.
+    Execute a given command and return its output in a file.
     """
     try:
         result = subprocess.run(command, shell=True, check=True,
@@ -158,7 +158,16 @@ def execute_command(command):
         print(f"Error executing command: {e}", file=sys.stderr)
         sys.exit(1)
     
-    return result.stdout
+    try:
+        with open(output_file, 'w') as file:
+            file.write(result.stdout)
+        print(f"Output written to {output_file}")
+    except IOError as e:
+        print(f"Failed to write output to file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    file.close()
+    return output_file
 
 
 def find_wt_exec_path():
@@ -224,28 +233,27 @@ def main():
 
     try:
         command = construct_command(args)
-        output = execute_command(command)
+        wt_output_file = execute_command(command, "wt_output_file.txt")
     except (RuntimeError, ValueError, TypeError) as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    parsed_data = parse_output(output)
+    parsed_data = parse_output(wt_output_file)
 
     if args.output_file:
         try:
             with open(args.output_file, 'w') as file:
-                file.write(parsed_data)
+                file.write(output_pretty(parsed_data))
             print(f"Output written to {args.output_file}")
         except IOError as e:
             print(f"Failed to write output to file: {e}", file=sys.stderr)
             sys.exit(1)
 
     if args.print_output:
-        print(parsed_data)
+        print(output_pretty(parsed_data))
 
     if args.visualize:
         visualize(parsed_data, args.visualize)
-
 
 if __name__ == "__main__":
     main()
