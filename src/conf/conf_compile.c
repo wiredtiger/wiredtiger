@@ -512,8 +512,8 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
     conn->conf_size = 0;
 
     /*
-     * This loop compiles the default configuration string for each "compilable" API, storing it in
-     * the conf_api_array. The conf_api_array is parallel to the config_entries array. In both
+     * This loop compiles the default configuration string for each API that supports it, storing it
+     * in the conf_api_array. The conf_api_array is parallel to the config_entries array. In both
      * cases, they are indexed by the WT_CONFIG_ENTRY_* definitions.
      */
     WT_RET(__wt_calloc(session, WT_CONF_API_ELEMENTS, sizeof(WT_CONF *), &conn->conf_api_array));
