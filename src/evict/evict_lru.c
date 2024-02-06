@@ -889,15 +889,12 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT_ENTRY *evict;
     u_int i, elem, q;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
-    conn = S2C(session);
-    i = 0;
 
     /* Hold the walk lock to turn off eviction. */
     __wt_spin_lock(session, &cache->evict_walk_lock);
@@ -914,19 +911,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
      * still present on the pre-fetch queue so that they are not accidentally accessed in an invalid
      * way later on.
      */
-    if (F_ISSET(session, WT_SESSION_PREFETCH_ENABLED))
-        WT_ERR(__wt_conn_prefetch_clear_tree(session, false));
-
-    /*
-     * To avoid a race condition, check if this dhandle is currently being operated on by any other
-     * prefetch thread. If so, wait for the thread to finish before proceeding with eviction.
-     */
-    while (i < WT_PREFETCH_THREAD_COUNT) {
-        if (conn->prefetch_dhandles[i] == session->dhandle) {
-            __wt_sleep(0, 100);
-        } else
-            i++;
-    }
+    WT_ERR(__wt_conn_prefetch_clear_tree(session, false));
 
     /*
      * Ensure no new pages from the file will be queued for eviction after this point, then clear
