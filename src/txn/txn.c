@@ -1634,6 +1634,7 @@ __txn_mod_compare(const void *a, const void *b)
 int
 __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec tsp;
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -1677,8 +1678,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!prepare)
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
+    /* Enter the commit generation before timestamp validity check. */
+    __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
+
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg, true));
+
+    /* Add a 2 second wait to simulate commit transaction slowness. */
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress_sleep_for_secs(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1893,6 +1902,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         candidate_durable_timestamp = txn->commit_timestamp;
 
     __wt_txn_release(session);
+
+    /*
+     * Leave the commit generation after all the updates are processed and the snapshot is released.
+     */
+    __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
+
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
 
@@ -1947,6 +1962,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 
 err:
+
+    /* Leave the commit generation if there are any errors. */
+    __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
+
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
 
