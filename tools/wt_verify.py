@@ -113,7 +113,7 @@ def parse_node(f, line, output, checkpoint_name, cur_node_id):
         raise RuntimeError("Unknown page type")
     line = f.readline()
     while line and line != separator and not line.startswith("- "):
-        if line.startswith("\t> "): # metadata for new node
+        if line.startswith("\t> "): 
             cur_node |= string_to_iterable(line[len("\t> "):-1])  
         line = f.readline()
     output[checkpoint_name][cur_node_id] = cur_node 
@@ -126,12 +126,12 @@ def parse_output(file_path):
     """
     with open(file_path, "r") as f:
         output = {}
-        line = f.readline() # separator
+        line = f.readline()
         cur_node_id = None
 
         while line:
             assert line == separator
-            line = f.readline() # checkpoint
+            line = f.readline() 
             checkpoint_name = ""
             if m := re.search("ckpt_name: (\S+)\s*", line):
                 checkpoint_name = m.group(1)
@@ -140,7 +140,7 @@ def parse_output(file_path):
             output[checkpoint_name] = {}
             line = f.readline()
             while line != separator and line:
-                assert line.startswith("- ") # start of a new node
+                assert line.startswith("- ") 
                 [cur_node_id, line] = parse_node(f, line, output, checkpoint_name, cur_node_id)
     return output
 
