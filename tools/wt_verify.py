@@ -40,6 +40,7 @@ import subprocess
 import sys
 import json
 import matplotlib.pyplot as plt
+import re
 
 separator = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
 
@@ -109,7 +110,7 @@ def parse_node(f, line, output, checkpoint_name, cur_node_id):
     elif page_type == "internal" or page_type == "leaf":
         cur_node_id = is_int(line.split(": ")[0])
     else:
-        pass
+        raise RuntimeError("Unknown page type")
     line = f.readline()
     while line and line != separator and not line.startswith("- "):
         if line.startswith("\t> "): # metadata for new node
@@ -131,7 +132,11 @@ def parse_output(file_path):
         while line:
             assert line == separator
             line = f.readline() # checkpoint
-            checkpoint_name = line.split(", ")[-1].split(": ")[-1][:-1]
+            checkpoint_name = ""
+            if m := re.search("ckpt_name: (\S+)\s*", line):
+                checkpoint_name = m.group(1)
+            else:
+                raise RuntimeError("Could not find checkpoint name")
             output[checkpoint_name] = {}
             line = f.readline()
             while line != separator and line:
