@@ -819,6 +819,7 @@ hashval
 havesize
 hdr
 hhh
+hijinx
 hpp
 hs
 html
@@ -1301,7 +1302,6 @@ trylock
 tryrdlock
 trywrlock
 tupdate
-tvalue
 tw
 txn
 txnid
@@ -1312,6 +1312,7 @@ typeof
 uS
 ui
 uint
+uintAny
 umount
 unallocated
 unbare
