@@ -42,7 +42,8 @@ import json
 import matplotlib.pyplot as plt
 import re
 
-separator = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
+SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
+WT_OUTPUT_FILE = "wt_output_file.txt"
 
 def output_pretty(output):
     """
@@ -112,7 +113,7 @@ def parse_node(f, line, output, checkpoint_name, cur_node_id):
     else:
         raise RuntimeError("Unknown page type")
     line = f.readline()
-    while line and line != separator and not line.startswith("- "):
+    while line and line != SEPARATOR and not line.startswith("- "):
         if line.startswith("\t> "): 
             cur_node |= string_to_iterable(line[len("\t> "):-1])  
         line = f.readline()
@@ -130,7 +131,7 @@ def parse_output(file_path):
         cur_node_id = None
 
         while line:
-            assert line == separator
+            assert line == SEPARATOR
             line = f.readline() 
             checkpoint_name = ""
             if m := re.search("ckpt_name: (\S+)\s*", line):
@@ -139,7 +140,7 @@ def parse_output(file_path):
                 raise RuntimeError("Could not find checkpoint name")
             output[checkpoint_name] = {}
             line = f.readline()
-            while line != separator and line:
+            while line != SEPARATOR and line:
                 assert line.startswith("- ") 
                 [cur_node_id, line] = parse_node(f, line, output, checkpoint_name, cur_node_id)
     return output
@@ -239,7 +240,7 @@ def main():
 
     try:
         command = construct_command(args)
-        wt_output_file = execute_command(command, "wt_output_file.txt")
+        wt_output_file = execute_command(command, WT_OUTPUT_FILE)
     except (RuntimeError, ValueError, TypeError) as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)
