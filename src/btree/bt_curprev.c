@@ -902,10 +902,12 @@ err:
     }
 
     WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_total, total_skipped);
-    WT_STAT_CONN_DATA_INCRV(
-      session, cursor_tree_walk_del_page_skip, walk_skip_stats.total_del_pages_skipped);
-    WT_STAT_CONN_DATA_INCRV(
-      session, cursor_tree_walk_inmem_del_page_skip, walk_skip_stats.total_inmem_del_pages_skipped);
+    if (walk_skip_stats.total_del_pages_skipped != 0)
+        WT_STAT_CONN_DATA_INCRV(
+          session, cursor_tree_walk_del_page_skip, walk_skip_stats.total_del_pages_skipped);
+    if (walk_skip_stats.total_inmem_del_pages_skipped != 0)
+        WT_STAT_CONN_DATA_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
+          walk_skip_stats.total_inmem_del_pages_skipped);
 
     switch (ret) {
     case 0:
