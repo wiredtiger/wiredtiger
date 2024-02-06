@@ -105,7 +105,11 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (pe == NULL)
             break;
 
-        /* Add this dhandle to the list of dhandles prefetch threads are currently working on. */
+        /*
+         * Add this dhandle to the list of dhandles prefetch threads are currently working on. We
+         * use WT_PUBLISH here to guarantee write_once semantics on prefetch_dhandles. We don't
+         * require its ordering constraints.
+         */
         WT_PUBLISH(conn->prefetch_dhandles[thread->id], pe->dhandle);
 
         TAILQ_REMOVE(&conn->pfqh, pe, q);
@@ -214,10 +218,14 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
      */
 
     while (i < WT_PREFETCH_THREAD_COUNT) {
-        WT_READ_ONCE(prefetch_dhandle, conn->prefetch_dhandles[i]);
-        if (prefetch_dhandle == dhandle) {
+        /*
+         * We use WT_ORDERED_READ here to guarantee read_once semantics on prefetch_dhandle. We
+         * don't require its ordering constraints.
+         */
+        WT_ORDERED_READ(prefetch_dhandle, conn->prefetch_dhandles[i]);
+        if (prefetch_dhandle == dhandle)
             __wt_sleep(0, 100);
-        } else
+        else
             i++;
     }
 
