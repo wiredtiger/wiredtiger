@@ -342,6 +342,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt9199_checkpoint_txn_commit_race
+    SOURCES wt9199_checkpoint_txn_commit_race/main.c
+    DIR_NAME wt9199_checkpoint_txn_commit_race
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt9199_checkpoint_txn_commit_race>/WT_HOME>
+    DEPENDS "WT_POSIX"
+    LABEL "long_running"
+)
+
+define_c_test(
     TARGET test_wt8057_compact_stress
     SOURCES wt8057_compact_stress/main.c
     DIR_NAME wt8057_compact_stress
