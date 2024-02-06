@@ -270,7 +270,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
             if (WT_VRFY_DUMP(vs))
                 WT_ERR(__wt_msg(session, "- %p: root\n\t> addr: %s", (void *)root_addr,
-                  __wt_page_type_string(btree->root.page->type)));
+                  __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
             __wt_evict_file_exclusive_off(session);
 

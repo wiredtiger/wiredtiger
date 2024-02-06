@@ -41,6 +41,8 @@ import sys
 import json
 import matplotlib.pyplot as plt
 
+separator = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
+
 def print_output(output):
     """
     Print output for parsing script
@@ -90,51 +92,50 @@ def string_to_iterable(line):
         if kv_pair[0] == "addr": 
             temp = kv_pair[1][0].split(": ")
             dict.update({"object_id": is_int(temp[0]), "offset_range": temp[1], "size": is_int(kv_pair[1][1]), 
-                         "checksum": is_int(kv_pair[1][2])})
+                        "checksum": is_int(kv_pair[1][2])})
+
         else:
             dict[kv_pair[0]] = is_int(kv_pair[1])
     return dict
 
 
-def parse_node(line, output, checkpoint_name, cur_node, cur_node_id):
+def parse_node(f, line, output, checkpoint_name, cur_node_id):
+    cur_node = {}
     line = line[len("- "):-1]
     page_type = ([line.split(": ")[0]] + line.split(": ")[1].split())[-1]
     if page_type == "root":
         cur_node_id = is_int(line.split(": ")[0])
+        cur_node["page_type"] = page_type
     elif page_type == "internal" or page_type == "leaf":
-        output[checkpoint_name][cur_node_id] = cur_node 
         cur_node_id = is_int(line.split(": ")[0])
     else:
         pass
-    return [cur_node_id, page_type]
+    line = f.readline()
+    while line and line != separator and not line.startswith("- "):
+        if line.startswith("\t> "): # metadata for new node
+            cur_node |= string_to_iterable(line[len("\t> "):-1], cur_node_id)  
+        line = f.readline()
+    output[checkpoint_name][cur_node_id] = cur_node 
+    return [cur_node_id, line]
 
 def parse_output(file_path):
     """
     Parse the output file of dump_pages
     """
-    separator = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
     f = open(file_path, "r")
     output = {}
     line = f.readline() # separator
-    cur_node = {}
     cur_node_id = None
 
     while line:
-        if line == separator:
-            line = f.readline() # checkpoint
-            checkpoint_name = line.split(", ")[-1].split(": ")[-1][:-1]
-            output[checkpoint_name] = {}
+        assert line == separator
+        line = f.readline() # checkpoint
+        checkpoint_name = line.split(", ")[-1].split(": ")[-1][:-1]
+        output[checkpoint_name] = {}
+        line = f.readline()
         while line != separator and line:
-            if line[0:2] == "- ": # start of a new node
-                [cur_node_id, page_type] = parse_node(line, output, checkpoint_name, cur_node, cur_node_id)
-                cur_node = {}
-                if page_type == "root":
-                    cur_node["page_type"] = page_type
-            elif line[0:3] == "\t> ": # metadata for new node
-                cur_node |= string_to_iterable(line[len("\t> "):-1])
-            line = f.readline() 
-        if cur_node_id is not None:
-            output[checkpoint_name][cur_node_id] = cur_node
+            assert line.startswith("- ") # start of a new node
+            [cur_node_id, line] = parse_node(f, line, output, checkpoint_name, cur_node_id)
     f.close()
     return output
 
