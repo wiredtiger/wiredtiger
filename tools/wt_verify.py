@@ -134,7 +134,7 @@ def parse_output(file_path):
             assert line == SEPARATOR
             line = f.readline() 
             checkpoint_name = ""
-            if m := re.search("ckpt_name: (\S+)\s*", line):
+            if m := re.search("\bckpt_name: (\S+)\s*", line):
                 checkpoint_name = m.group(1)
             else:
                 raise RuntimeError("Could not find checkpoint name")
