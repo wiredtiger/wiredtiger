@@ -2382,7 +2382,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
-    uint8_t previous_ref_state;
+    uint32_t previous_ref_state;
 
     btree = S2BT(session);
     bm = btree->bm;

@@ -1647,7 +1647,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     uint32_t prepare_count;
 #endif
-    uint8_t previous_state;
+    uint32_t previous_state;
     u_int i;
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
 

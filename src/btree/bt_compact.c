@@ -163,7 +163,7 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_BM *bm;
     WT_DECL_RET;
     size_t addr_size;
-    uint8_t previous_state;
+    volatile uint32_t previous_state;
 
     *skipp = true; /* Default skip. */
 

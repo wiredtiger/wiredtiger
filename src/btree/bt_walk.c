@@ -249,7 +249,7 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_REF *couple, *ref, *ref_orig;
     uint64_t restart_sleep, restart_yield;
     uint32_t slot;
-    uint8_t current_state;
+    uint32_t current_state;
     bool empty_internal, prev, skip;
 
     btree = S2BT(session);

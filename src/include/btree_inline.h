@@ -2296,7 +2296,7 @@ __wt_btcur_skip_page(
 {
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
-    uint8_t previous_state;
+    volatile uint32_t previous_state;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);

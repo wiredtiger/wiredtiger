@@ -1000,7 +1000,7 @@ struct __wt_page_deleted {
      * The previous state of the WT_REF; if the fast-truncate transaction is rolled back without the
      * page first being instantiated, this is the state to which the WT_REF returns.
      */
-    uint8_t previous_ref_state;
+    uint32_t previous_ref_state;
 
     /*
      * If the fast-truncate transaction has committed. If we're forced to instantiate the page, and
@@ -1270,7 +1270,7 @@ struct __wt_ref {
 
 #define WT_REF_LOCK(session, ref, previous_statep)                             \
     do {                                                                       \
-        uint8_t __previous_state;                                              \
+        volatile uint32_t __previous_state;                                    \
         for (;; __wt_yield()) {                                                \
             __previous_state = (ref)->state;                                   \
             if (__previous_state != WT_REF_LOCKED &&                           \
