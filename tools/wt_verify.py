@@ -80,6 +80,7 @@ def is_int(string):
             return int(string)
         except ValueError:
             return string
+    return string
 
 
 def string_to_iterable(line):
@@ -101,14 +102,13 @@ def string_to_iterable(line):
     return dict
 
 
-def parse_node(f, line, output, checkpoint_name, cur_node_id):
+def parse_node(f, line, output, checkpoint_name, root_addr, is_root_node):
     cur_node = {}
     line = line[len("- "):-1]
     page_type = ([line.split(": ")[0]] + line.split(": ")[1].split())[-1]
-    if page_type == "root":
-        cur_node_id = is_int(line.split(": ")[0])
-        cur_node["page_type"] = page_type
-    elif page_type == "internal" or page_type == "leaf":
+    if is_root_node:
+        cur_node |= root_addr
+    if page_type == "internal" or page_type == "leaf":
         cur_node_id = is_int(line.split(": ")[0])
     else:
         raise RuntimeError("Unknown page type")
@@ -118,7 +118,25 @@ def parse_node(f, line, output, checkpoint_name, cur_node_id):
             cur_node |= string_to_iterable(line[len("\t> "):-1])  
         line = f.readline()
     output[checkpoint_name][cur_node_id] = cur_node 
-    return [cur_node_id, line]
+    return line
+
+
+def parse_checkpoint(f):
+    """
+    Parse the checkpoint(s)
+    """
+    line = f.readline() 
+    checkpoint_name = ""
+    if m := re.search("\s*ckpt_name: (\S+)\s*", line):
+        checkpoint_name = m.group(1)
+    else:
+        raise RuntimeError("Could not find checkpoint name")
+    line = f.readline()
+    assert line.startswith("Root:")
+    line = f.readline()
+    root_addr = string_to_iterable(line[len("\t> "):-1]) 
+    line = f.readline()
+    return [root_addr, line, checkpoint_name]
 
 
 def parse_output(file_path):
@@ -128,21 +146,15 @@ def parse_output(file_path):
     with open(file_path, "r") as f:
         output = {}
         line = f.readline()
-        cur_node_id = None
-
         while line:
             assert line == SEPARATOR
-            line = f.readline() 
-            checkpoint_name = ""
-            if m := re.search("\bckpt_name: (\S+)\s*", line):
-                checkpoint_name = m.group(1)
-            else:
-                raise RuntimeError("Could not find checkpoint name")
+            [root_addr, line, checkpoint_name] = parse_checkpoint(f)
             output[checkpoint_name] = {}
-            line = f.readline()
+            is_root_node = True
             while line != SEPARATOR and line:
                 assert line.startswith("- ") 
-                [cur_node_id, line] = parse_node(f, line, output, checkpoint_name, cur_node_id)
+                line = parse_node(f, line, output, checkpoint_name, root_addr, is_root_node)
+                is_root_node = False
     return output
 
 
