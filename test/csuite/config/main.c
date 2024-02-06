@@ -430,6 +430,24 @@ check_compiling_configurations(TEST_OPTS *opts, CUSTOM_EVENT_HANDLER *handler)
     ret = opts->conn->compile_configuration(opts->conn, "WT_SESSION.create", "", &compiled_ptr);
     testutil_assert(ret != 0);
 
+    /* Compile with a parameter to be bound. */
+    handler->expect_errors = false;
+    testutil_check(opts->conn->compile_configuration(
+      opts->conn, "WT_SESSION.begin_transaction", "isolation=%s", &compiled_ptr));
+
+    /* We cannot use the resulting compiled string without binding it. */
+    handler->expect_errors = true;
+    ret = opts->session->begin_transaction(opts->session, compiled_ptr);
+    testutil_assert(ret != 0);
+
+    /* Bind the parameter now. */
+    handler->expect_errors = false;
+    testutil_check(opts->session->bind_configuration(opts->session, compiled_ptr, "snapshot"));
+
+    /* Now we can use the API. */
+    testutil_check(opts->session->begin_transaction(opts->session, compiled_ptr));
+    testutil_check(opts->session->rollback_transaction(opts->session, NULL));
+
     /* We should be able to compile an empty string. */
     handler->expect_errors = false;
     ret = opts->conn->compile_configuration(
@@ -486,7 +504,7 @@ main(int argc, char *argv[])
      */
     printf(
       "checked %d successful configuration compilation outputs\n", event_handler.state.completed);
-    testutil_assert(event_handler.state.completed == 43);
+    testutil_assert(event_handler.state.completed == 44);
 
     free_parse_state(&event_handler.state);
     testutil_cleanup(opts);
