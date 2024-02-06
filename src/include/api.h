@@ -87,10 +87,12 @@
 
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
     do {                                               \
+        bool __set_err = true;                         \
     API_SESSION_INIT(s, struct_name, func_name, dh)
 
 #define API_CALL(s, struct_name, func_name, dh, config, cfg)                                \
     do {                                                                                    \
+        bool __set_err = true;                                                              \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
         if ((config) != NULL)                                                               \
@@ -100,7 +102,7 @@
     if ((s) != NULL) {                                                                     \
         WT_TRACK_OP_END(s);                                                                \
         WT_SINGLE_THREAD_CHECK_STOP(s);                                                    \
-        if ((ret) != 0)                                                                    \
+        if ((ret) != 0 && __set_err)                                                       \
             __wt_txn_err_set(s, ret);                                                      \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                \
             __wt_op_timer_stop(s);                                                         \
@@ -244,7 +246,10 @@
         if ((s)->api_call_counter == 1) {                      \
             int __prepare_ret;                                 \
             __prepare_ret = __wt_txn_context_prepare_check(s); \
-            WT_ERR(__prepare_ret);                             \
+            if (__prepare_ret != 0) {                          \
+                __set_err = false;                             \
+                goto err;                                      \
+            }                                                  \
         }                                                      \
     } while (0)
 
