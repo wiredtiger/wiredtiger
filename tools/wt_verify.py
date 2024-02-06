@@ -113,7 +113,7 @@ def parse_node(f, line, output, checkpoint_name, cur_node_id):
     line = f.readline()
     while line and line != separator and not line.startswith("- "):
         if line.startswith("\t> "): # metadata for new node
-            cur_node |= string_to_iterable(line[len("\t> "):-1], cur_node_id)  
+            cur_node |= string_to_iterable(line[len("\t> "):-1])  
         line = f.readline()
     output[checkpoint_name][cur_node_id] = cur_node 
     return [cur_node_id, line]
