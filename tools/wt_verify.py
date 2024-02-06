@@ -74,9 +74,10 @@ def is_int(string):
     Check if string can be converted to an integer
     """
     if isinstance(string, str):
-        if string.isdigit():
+        try :
             return int(string)
-    return string
+        except ValueError:
+            return string
 
 
 def string_to_iterable(line):
@@ -93,7 +94,6 @@ def string_to_iterable(line):
             temp = kv_pair[1][0].split(": ")
             dict.update({"object_id": is_int(temp[0]), "offset_range": temp[1], "size": is_int(kv_pair[1][1]), 
                         "checksum": is_int(kv_pair[1][2])})
-
         else:
             dict[kv_pair[0]] = is_int(kv_pair[1])
     return dict
@@ -118,26 +118,27 @@ def parse_node(f, line, output, checkpoint_name, cur_node_id):
     output[checkpoint_name][cur_node_id] = cur_node 
     return [cur_node_id, line]
 
+
 def parse_output(file_path):
     """
     Parse the output file of dump_pages
     """
-    f = open(file_path, "r")
-    output = {}
-    line = f.readline() # separator
-    cur_node_id = None
+    with open(file_path, "r") as f:
+        output = {}
+        line = f.readline() # separator
+        cur_node_id = None
 
-    while line:
-        assert line == separator
-        line = f.readline() # checkpoint
-        checkpoint_name = line.split(", ")[-1].split(": ")[-1][:-1]
-        output[checkpoint_name] = {}
-        line = f.readline()
-        while line != separator and line:
-            assert line.startswith("- ") # start of a new node
-            [cur_node_id, line] = parse_node(f, line, output, checkpoint_name, cur_node_id)
-    f.close()
+        while line:
+            assert line == separator
+            line = f.readline() # checkpoint
+            checkpoint_name = line.split(", ")[-1].split(": ")[-1][:-1]
+            output[checkpoint_name] = {}
+            line = f.readline()
+            while line != separator and line:
+                assert line.startswith("- ") # start of a new node
+                [cur_node_id, line] = parse_node(f, line, output, checkpoint_name, cur_node_id)
     return output
+
 
 def visualize(data, visualization_type):
     """
