@@ -241,15 +241,19 @@
     API_CALL_NOCONF(s, WT_SESSION, func_name, NULL);                   \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)
 
-#define SESSION_API_PREPARE_CHECK(s, ret, struct_name, func_name) \
-    do {                                                          \
-        if ((s)->api_call_counter == 1) {                         \
-            (ret) = __wt_txn_context_prepare_check(s);            \
-            if ((ret) != 0) {                                     \
-                __set_err = false;                                \
-                goto err;                                         \
-            }                                                     \
-        }                                                         \
+#define SESSION_API_PREPARE_CHECK(s, ret, struct_name, func_name)                                \
+    do {                                                                                         \
+        if ((s)->api_call_counter == 1) {                                                        \
+            (ret) = __wt_txn_context_prepare_check(s);                                           \
+            if ((ret) != 0) {                                                                    \
+                /*                                                                               \
+                 * Don't set the error on transaction. We don't want to rollback the transaction \
+                 * because of this error.                                                        \
+                 */                                                                              \
+                __set_err = false;                                                               \
+                goto err;                                                                        \
+            }                                                                                    \
+        }                                                                                        \
     } while (0)
 
 #define SESSION_API_CALL(s, ret, func_name, config, cfg)   \
