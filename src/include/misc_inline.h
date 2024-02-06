@@ -211,10 +211,7 @@ __wt_timing_stress_sleep_for_secs(WT_SESSION_IMPL *session, uint32_t flag, struc
 
     conn = S2C(session);
 
-    /*
-     * We only want to sleep if the flag is set and the checkpoint comes from the API, so check if
-     * the session used is either of the two sessions set aside for internal checkpoints.
-     */
+    /* We only want to sleep if the flag is set. */
     if (FLD_ISSET(conn->timing_stress_flags, flag))
 #ifdef ENABLE_ANTITHESIS
         WT_UNUSED(tsp);

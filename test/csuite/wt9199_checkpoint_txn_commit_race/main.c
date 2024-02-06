@@ -271,8 +271,6 @@ validate(void *arg)
     testutil_check(
       session->open_cursor(session, uri, NULL, "checkpoint=WiredTigerCheckpoint", &cursor));
 
-    //testutil_check(session->begin_transaction(session, NULL));
-
     for (i = 0; i < NUM_RECORDS * 2; i++) {
         cursor->set_key(cursor, i + 1);
         testutil_check(cursor->search(cursor));
