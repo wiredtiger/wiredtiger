@@ -371,6 +371,7 @@ TID
 TMP
 TODO
 TORTIOUS
+TRET
 TRYLOCK
 TSO
 TW
@@ -397,6 +398,7 @@ Unbuffered
 Unencrypted
 Unhandled
 UnixLib
+Unlink
 UnlockFile
 Unmap
 UnmapViewOfFile
@@ -521,6 +523,7 @@ breakpoint
 bs
 bstorage
 bswap
+bt
 btcur
 btmem
 btree
@@ -611,6 +614,7 @@ csv
 ctime
 ctype
 curbackup
+curbt
 curbulk
 curconfig
 curdump
@@ -819,6 +823,7 @@ hashval
 havesize
 hdr
 hhh
+hijinx
 hpp
 hs
 html
@@ -856,6 +861,7 @@ initn
 initsize
 initval
 inlined
+inlining
 inmem
 inmemory
 inserters
@@ -1172,6 +1178,7 @@ rotn
 rpc
 rts
 ru
+runnable
 runone
 runtime
 rw
@@ -1186,12 +1193,15 @@ scr
 sd
 sdk
 secretkey
+sempty
+sencrypted
 sessionp
 setkv
 setname
 setstr
 setv
 setvbuf
+sfast
 shareability
 sig
 sigchld
@@ -1254,6 +1264,7 @@ subtest
 subtree
 sumv
 sunique
+sunused
 supd
 superset
 sw
@@ -1298,7 +1309,6 @@ trylock
 tryrdlock
 trywrlock
 tupdate
-tvalue
 tw
 txn
 txnid
@@ -1309,6 +1319,7 @@ typeof
 uS
 ui
 uint
+uintAny
 umount
 unallocated
 unbare

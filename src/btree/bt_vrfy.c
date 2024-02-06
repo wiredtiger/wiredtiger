@@ -257,7 +257,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         if (WT_VRFY_DUMP(vs)) {
             WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
-            WT_ERR(__wt_msg(session, "%s: checkpoint %s", name, ckpt->name));
+            WT_ERR(__wt_msg(session, "%s, ckpt_name: %s", name, ckpt->name));
         }
 
         /* Load the checkpoint. */
@@ -269,9 +269,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
 
             if (WT_VRFY_DUMP(vs))
-                WT_ERR(__wt_msg(session, "Root: %s %s",
+                WT_ERR(__wt_msg(session, "- Root: %s\n\t> addr: %s",
                   __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1),
-                  __wt_page_type_string(btree->root.page->type)));
+                  __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
             __wt_evict_file_exclusive_off(session);
 
@@ -449,15 +449,8 @@ __verify_tree(
      * utilizing the regular tree walk function. Check for potential pages to pre-fetch here as
      * well.
      */
-    if (__wt_session_prefetch_check(session, ref)) {
-        ret = __wt_btree_prefetch(session, ref);
-        /*
-         * It's okay for pre-fetch to fail to start here. We want to assert on an error to gain
-         * diagnostic information, then continue the rest of verify as normal.
-         */
-        WT_PREFETCH_ASSERT(session, ret != WT_ERROR, block_prefetch_failed_start);
-        ret = 0;
-    }
+    if (__wt_session_prefetch_check(session, ref))
+        WT_RET(__wt_btree_prefetch(session, ref));
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));

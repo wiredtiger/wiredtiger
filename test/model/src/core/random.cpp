@@ -26,37 +26,48 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-extern "C" {
-#include "wt_internal.h"
-}
-
-#include "model/driver/kv_workload.h"
-#include "model/driver/kv_workload_runner.h"
-#include "model/driver/kv_workload_runner_wt.h"
-#include "model/util.h"
+#include <limits>
+#include "model/random.h"
 
 namespace model {
 
 /*
- * kv_workload::run --
- *     Run the workload in the model.
+ * random::random --
+ *     Create a new instance of the random number generator.
  */
-void
-kv_workload::run(kv_database &database) const
+random::random(uint64_t seed) noexcept
 {
-    kv_workload_runner runner{database};
-    runner.run(*this);
+    __wt_random_init_custom_seed(&_random_state, seed);
 }
 
 /*
- * kv_workload::run_in_wiredtiger --
- *     Run the workload in WiredTiger.
+ * random::next_double --
+ *     Get the next double between 0 and 1.
  */
-void
-kv_workload::run_in_wiredtiger(const char *home, const char *connection_config) const
+double
+random::next_double() noexcept
 {
-    kv_workload_runner_wt runner{home, connection_config};
-    runner.run(*this);
+    return __wt_random(&_random_state) / (double)std::numeric_limits<uint32_t>::max();
+}
+
+/*
+ * random::next_float --
+ *     Get the next float between 0 and 1.
+ */
+float
+random::next_float() noexcept
+{
+    return __wt_random(&_random_state) / (float)std::numeric_limits<uint32_t>::max();
+}
+
+/*
+ * random::next_index --
+ *     Get the next index from the list of the given length.
+ */
+size_t
+random::next_index(size_t length)
+{
+    return (size_t)__wt_random(&_random_state) % length;
 }
 
 } /* namespace model */
