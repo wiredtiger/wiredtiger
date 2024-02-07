@@ -442,7 +442,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, reconfigure, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, reconfigure, config, cfg);
     WT_UNUSED(cfg);
 
     WT_ERR(__wt_txn_context_check(session, false));
@@ -728,7 +728,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, open_cursor, config, cfg);
+    SESSION_API_CALL(session, ret, open_cursor, config, cfg);
 
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
@@ -806,7 +806,7 @@ __session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *
 {
     WT_DECL_RET;
 
-    SESSION_API_CALL(session, alter, config, cfg);
+    SESSION_API_CALL(session, ret, alter, config, cfg);
 
     /* In-memory ignores alter operations. */
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -967,7 +967,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     is_import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
-    SESSION_API_CALL(session, create, config, cfg);
+    SESSION_API_CALL(session, ret, create, config, cfg);
     WT_UNUSED(cfg);
 
     /* Disallow objects in the WiredTiger name space. */
@@ -1046,7 +1046,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     uint32_t flags;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, log_flush, config, cfg);
+    SESSION_API_CALL(session, ret, log_flush, config, cfg);
     WT_STAT_CONN_INCR(session, log_flush);
 
     conn = S2C(session);
@@ -1143,7 +1143,7 @@ __session_rename(WT_SESSION *wt_session, const char *uri, const char *newuri, co
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, rename, config, cfg);
+    SESSION_API_CALL(session, ret, rename, config, cfg);
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
@@ -1195,7 +1195,7 @@ __session_reset(WT_SESSION *wt_session)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, reset);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, ret, reset);
 
     WT_ERR(__wt_txn_context_check(session, false));
 
@@ -1250,7 +1250,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     bool checkpoint_wait, lock_wait;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, drop, config, cfg);
+    SESSION_API_CALL(session, ret, drop, config, cfg);
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
@@ -1339,7 +1339,7 @@ __session_join(
     bool nested;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, join, config, cfg);
+    SESSION_API_CALL(session, ret, join, config, cfg);
 
     firstcg = NULL;
     table = NULL;
@@ -1492,7 +1492,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL(session, salvage, config, cfg);
+    SESSION_API_CALL(session, ret, salvage, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1762,7 +1762,7 @@ __session_truncate(
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_TXN_API_CALL(session, truncate, config, cfg);
+    SESSION_TXN_API_CALL(session, ret, truncate, config, cfg);
     WT_STAT_CONN_INCR(session, cursor_truncate);
 
     /*
@@ -1855,7 +1855,7 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL(session, upgrade, config, cfg);
+    SESSION_API_CALL(session, ret, upgrade, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1901,7 +1901,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, verify, config, cfg);
+    SESSION_API_CALL(session, ret, verify, config, cfg);
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
@@ -1950,7 +1950,7 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, begin_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, begin_transaction, config, cfg);
     SESSION_API_CONF(session, begin_transaction, cfg, conf);
     WT_STAT_CONN_INCR(session, txn_begin);
     WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
@@ -2070,7 +2070,7 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, prepare_transaction, config, cfg);
+    SESSION_API_CALL(session, ret, prepare_transaction, config, cfg);
     WT_STAT_CONN_INCR(session, txn_prepare);
     WT_STAT_CONN_INCR(session, txn_prepare_active);
 
@@ -2349,7 +2349,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
     uint64_t pinned;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, transaction_pinned_range);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, ret, transaction_pinned_range);
 
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
@@ -2414,7 +2414,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     WT_STAT_CONN_INCR(session, checkpoints_api);
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RUNNING);
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, checkpoint, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, checkpoint, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -2439,7 +2439,6 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_TRET(__wt_session_release_resources(session));
 
 err:
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
