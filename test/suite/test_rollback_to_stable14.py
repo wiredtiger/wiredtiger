@@ -114,7 +114,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         try:
             self.pr("start checkpoint")
             ckpt.start()
-            
+
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
@@ -336,7 +336,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         try:
             self.pr("start checkpoint")
             ckpt.start()
-            
+
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
@@ -392,6 +392,3 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_a, uri, nrows, None, 20)
         self.check(value_modQ, uri, nrows, None, 30)
-
-if __name__ == '__main__':
-    wttest.run()

@@ -29,7 +29,10 @@
 #include <algorithm>
 #include <iostream>
 
+#include "model/kv_database.h"
 #include "model/kv_table.h"
+#include "model/kv_transaction.h"
+#include "model/util.h"
 #include "wiredtiger.h"
 
 namespace model {
@@ -45,7 +48,21 @@ kv_table::contains_any(const data_value &key, const data_value &value, timestamp
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return false;
-    return item->contains_any(value, timestamp);
+    return item->contains_any(value, fix_timestamp(timestamp));
+}
+
+/*
+ * kv_table::contains_any --
+ *     Check whether the table contains the given key-value pair. If there are multiple values
+ *     associated with the given timestamp, return true if any of them match.
+ */
+bool
+kv_table::contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data_value &value) const
+{
+    const kv_table_item *item = item_if_exists(key);
+    if (item == nullptr)
+        return false;
+    return item->contains_any(ckpt, value);
 }
 
 /*
@@ -59,7 +76,7 @@ kv_table::get(const data_value &key, timestamp_t timestamp) const
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(timestamp);
+    return item->get(fix_timestamp(timestamp));
 }
 
 /*
@@ -73,10 +90,7 @@ kv_table::get(kv_checkpoint_ptr ckpt, const data_value &key, timestamp_t timesta
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    if (timestamp == k_timestamp_latest)
-        timestamp = ckpt->stable_timestamp() != k_timestamp_none ? ckpt->stable_timestamp() :
-                                                                   k_timestamp_latest;
-    return item->get(ckpt, timestamp);
+    return item->get(ckpt, fix_timestamp(timestamp));
 }
 
 /*
@@ -90,7 +104,7 @@ kv_table::get(kv_transaction_ptr txn, const data_value &key) const
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(txn);
+    return timestamped() ? item->get(txn) : item->get_latest(txn);
 }
 
 /*
@@ -101,7 +115,7 @@ int
 kv_table::get_ext(const data_value &key, data_value &out, timestamp_t timestamp) const
 {
     try {
-        out = get(key, timestamp);
+        out = get(key, fix_timestamp(timestamp));
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -118,7 +132,7 @@ kv_table::get_ext(
   kv_checkpoint_ptr ckpt, const data_value &key, data_value &out, timestamp_t timestamp) const
 {
     try {
-        out = get(ckpt, key, timestamp);
+        out = get(ckpt, key, fix_timestamp(timestamp));
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -144,18 +158,14 @@ kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out
 
 /*
  * kv_table::insert --
- *     Insert into the table.
+ *     Insert into the table (non-transactional API).
  */
 int
 kv_table::insert(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    try {
-        item(key).add_update(std::move(kv_update(value, timestamp)), false, !overwrite);
-        return 0;
-    } catch (wiredtiger_exception &e) {
-        return e.error();
-    }
+    return with_transaction(
+      [&](auto txn) { return insert(txn, key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -166,7 +176,7 @@ int
 kv_table::insert(
   kv_transaction_ptr txn, const data_value &key, const data_value &value, bool overwrite)
 {
-    std::shared_ptr<kv_update> update = std::make_shared<kv_update>(value, txn);
+    std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(value, txn));
     try {
         item(key).add_update(update, false, !overwrite);
         txn->add_update(*this, key, update);
@@ -178,20 +188,12 @@ kv_table::insert(
 
 /*
  * kv_table::remove --
- *     Delete a value from the table. Return true if the value was deleted.
+ *     Delete a value from the table (non-transactional API).
  */
 int
 kv_table::remove(const data_value &key, timestamp_t timestamp)
 {
-    kv_table_item *item = item_if_exists(key);
-    if (item == nullptr)
-        return WT_NOTFOUND;
-    try {
-        item->add_update(std::move(kv_update(NONE, timestamp)), true, false);
-        return 0;
-    } catch (wiredtiger_exception &e) {
-        return e.error();
-    }
+    return with_transaction([&](auto txn) { return remove(txn, key); }, timestamp);
 }
 
 /*
@@ -205,7 +207,7 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
     if (item == nullptr)
         return WT_NOTFOUND;
 
-    std::shared_ptr<kv_update> update = std::make_shared<kv_update>(NONE, txn);
+    std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(NONE, txn));
     try {
         item->add_update(update, true, false);
         txn->add_update(*this, key, update);
@@ -216,19 +218,53 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
 }
 
 /*
+ * kv_table::truncate --
+ *     Truncate a key range (non-transactional API).
+ */
+int
+kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t timestamp)
+{
+    return with_transaction([&](auto txn) { return truncate(txn, start, stop); }, timestamp);
+}
+
+/*
+ * kv_table::truncate --
+ *     Truncate a key range.
+ */
+int
+kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop)
+{
+    std::lock_guard lock_guard(_lock);
+    if (start != model::NONE && stop != model::NONE && start > stop)
+        throw model_exception("The start and the stop key are not in the right order");
+
+    auto start_iter = start == model::NONE ? _data.begin() : _data.lower_bound(start);
+    auto stop_iter = stop == model::NONE ? _data.end() : _data.upper_bound(stop);
+
+    try {
+        for (auto i = start_iter; i != stop_iter; i++) {
+            std::shared_ptr<kv_update> update =
+              fix_timestamps(std::make_shared<kv_update>(NONE, txn));
+            i->second.add_update(update, false, false);
+            txn->add_update(*this, i->first, update);
+        }
+    } catch (wiredtiger_exception &e) {
+        return e.error();
+    }
+
+    return 0;
+}
+
+/*
  * kv_table::update --
- *     Update a key in the table.
+ *     Update a key in the table (non-transactional API).
  */
 int
 kv_table::update(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
-    try {
-        item(key).add_update(std::move(kv_update(value, timestamp)), !overwrite, false);
-        return 0;
-    } catch (wiredtiger_exception &e) {
-        return e.error();
-    }
+    return with_transaction(
+      [&](auto txn) { return update(txn, key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -239,7 +275,7 @@ int
 kv_table::update(
   kv_transaction_ptr txn, const data_value &key, const data_value &value, bool overwrite)
 {
-    std::shared_ptr<kv_update> update = std::make_shared<kv_update>(value, txn);
+    std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(value, txn));
     try {
         item(key).add_update(update, !overwrite, false);
         txn->add_update(*this, key, update);
@@ -273,6 +309,34 @@ kv_table::rollback_updates(const data_value &key, txn_id_t txn_id)
 }
 
 /*
+ * kv_table::clear --
+ *     Clear the contents of the table.
+ */
+void
+kv_table::clear()
+{
+    std::lock_guard lock_guard(_lock);
+    _data.clear();
+}
+
+/*
+ * kv_table::rollback_to_stable --
+ *     Roll back the database table to the latest stable timestamp and transaction snapshot.
+ */
+void
+kv_table::rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot_ptr snapshot)
+{
+    std::lock_guard lock_guard(_lock);
+
+    /* RTS works only on timestamped tables. */
+    if (!timestamped())
+        return;
+
+    for (auto &p : _data)
+        p.second.rollback_to_stable(timestamp, snapshot);
+}
+
+/*
  * kv_table::verify_cursor --
  *     Create a verification cursor for the table. This method is not thread-safe. In fact, nothing
  *     is thread-safe until the returned cursor stops being used!
@@ -281,6 +345,20 @@ kv_table_verify_cursor
 kv_table::verify_cursor()
 {
     return std::move(kv_table_verify_cursor(_data));
+}
+
+/*
+ * kv_table::with_transaction --
+ *     Run the following function within a transaction and clean up afterwards, committing the
+ *     transaction if possible, and rolling it back if not.
+ */
+int
+kv_table::with_transaction(std::function<int(kv_transaction_ptr)> fn, timestamp_t commit_timestamp)
+{
+    kv_transaction_ptr txn = _database.begin_transaction();
+    kv_transaction_guard txn_guard(txn, commit_timestamp);
+
+    return fn(txn);
 }
 
 } /* namespace model */

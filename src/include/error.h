@@ -97,6 +97,37 @@
     } while (0)
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
+
+#ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+/* Set "ret" if not already set. */
+static NO_INLINE_FOR_CODE_COVERAGE void
+__wt_tret(int *pret, int a)
+{
+    int __ret;
+    WT_DECL_RET;
+
+    ret = *pret;
+    if ((__ret = (a)) != 0 &&
+      (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND ||
+        ret == WT_RESTART))
+        *pret = __ret;
+}
+#define WT_TRET(a) __wt_tret(&ret, a)
+
+static NO_INLINE_FOR_CODE_COVERAGE void
+__wt_tret_error_ok(int *pret, int a, int e)
+{
+    int __ret;
+    WT_DECL_RET;
+
+    ret = *pret;
+    if ((__ret = (a)) != 0 && __ret != (e) &&
+      (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND ||
+        ret == WT_RESTART))
+        *pret = __ret;
+}
+#define WT_TRET_ERROR_OK(a, e) __wt_tret_error_ok(&ret, a, e)
+#else
 /* Set "ret" if not already set. */
 #define WT_TRET(a)                                                                           \
     do {                                                                                     \
@@ -114,6 +145,8 @@
             ret == WT_RESTART))                                                              \
             ret = __ret;                                                                     \
     } while (0)
+#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
+
 #define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
@@ -272,4 +305,17 @@
             else                                              \
                 WT_RET_PANIC(session, v, __VA_ARGS__);        \
         }                                                     \
+    } while (0)
+
+/*
+ * WT_PREFETCH_ASSERT --
+ *  Assert an expression for prefetch if in diagnostic mode, or update the relevant statistic if
+ *  not. As pre-fetch is an optional optimization, we want to avoid crashing the application for
+ *  an error, but instead swallow errors where possible.
+ */
+#define WT_PREFETCH_ASSERT(session, exp, stat) \
+    do {                                       \
+        if (!(exp))                            \
+            WT_STAT_CONN_INCR(session, stat);  \
+        WT_ASSERT(session, exp);               \
     } while (0)

@@ -35,6 +35,7 @@ import fnmatch, os
 from suite_subprocess import suite_subprocess
 import helper, wttest
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - fails on tiered")
 class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn16_1'
     t2 = 'table:test_txn16_2'
@@ -120,6 +121,3 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
         self.close_conn()
         self.run_toggle(".")
         self.run_toggle("RESTART")
-
-if __name__ == '__main__':
-    wttest.run()

@@ -273,6 +273,7 @@ __config_add_checks(WT_SESSION_IMPL *session, WT_CONFIG_ENTRY *entry, WT_CONFIG_
                 __conn_foc_add(session, cp->choices);
             }
         }
+        WT_RET_NOTFOUND_OK(ret);
     }
     return (0);
 }
@@ -319,10 +320,6 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         WT_RET_MSG(session, EINVAL, "no configuration specified");
     if (type == NULL)
         WT_RET_MSG(session, EINVAL, "no configuration type specified");
-    if (strcmp(type, "boolean") != 0 && strcmp(type, "int") != 0 && strcmp(type, "list") != 0 &&
-      strcmp(type, "string") != 0)
-        WT_RET_MSG(
-          session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
 
     /* Determine the compiled type. */
     compiled_type = 0;

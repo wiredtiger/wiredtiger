@@ -287,7 +287,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
-            
+
             # Wait for checkpoint to start and acquire its snapshot before committing.
             ckpt_snapshot = 0
             while not ckpt_snapshot:
@@ -329,6 +329,3 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         self.assertGreaterEqual(inconsistent_ckpt, 0)
         self.assertEqual(keys_removed, 0)
-
-if __name__ == '__main__':
-    wttest.run()

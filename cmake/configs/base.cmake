@@ -140,6 +140,18 @@ config_bool(
 )
 
 config_bool(
+    CODE_COVERAGE_MEASUREMENT
+    "Enable alternative code that is specifically used when measuring code coverage"
+    DEFAULT OFF
+)
+
+config_bool(
+    INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+    "Switch from macros to inline functions where available"
+    DEFAULT OFF
+)
+
+config_bool(
     HAVE_ATTACH
     "Enable to pause for debugger attach on failure"
     DEFAULT OFF
@@ -167,6 +179,12 @@ config_bool(
 config_bool(
     ENABLE_STRICT
     "Compile with strict compiler warnings enabled"
+    DEFAULT ON
+)
+
+config_bool(
+    ENABLE_COLORIZE_OUTPUT
+    "Compile with build error colors enabled"
     DEFAULT ON
 )
 

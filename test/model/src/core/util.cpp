@@ -26,7 +26,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -73,7 +78,13 @@ config_map::from_string(const char *str, const char **end)
             /* Handle keys. */
             if (!in_quotes && c == '=')
                 in_key = false;
-            else
+            else if (!in_quotes && c == ',') {
+                /* Empty value. */
+                if (!key_buf.str().empty()) {
+                    m._map[key_buf.str()] = "";
+                    key_buf.str("");
+                }
+            } else
                 key_buf << c;
         } else {
             /* Handle nested config maps. */
@@ -83,6 +94,16 @@ config_map::from_string(const char *str, const char **end)
                 m._map[key_buf.str()] = std::make_shared<config_map>(from_string(p + 1, &p));
                 if (*p != ')')
                     throw model_exception("Invalid nesting within a configuration string");
+                key_buf.str("");
+                in_key = true;
+            }
+            /* Handle arrays. */
+            else if (!in_quotes && c == '[') {
+                if (value_buf.str() != "")
+                    throw model_exception("Invalid array in the configuration string");
+                m._map[key_buf.str()] = parse_array(p + 1, &p);
+                if (*p != ']')
+                    throw model_exception("Unmatched '[' in a configuration string");
                 key_buf.str("");
                 in_key = true;
             }
@@ -113,6 +134,153 @@ config_map::from_string(const char *str, const char **end)
         *end = p;
 
     return m;
+}
+
+/*
+ * config_map::parse_array --
+ *     Parse an array.
+ */
+std::shared_ptr<std::vector<std::string>>
+config_map::parse_array(const char *str, const char **end)
+{
+    std::shared_ptr<std::vector<std::string>> v = std::make_shared<std::vector<std::string>>();
+
+    std::ostringstream buf;
+    bool in_quotes = false;
+    const char *p;
+
+    for (p = str; *p != '\0' && (in_quotes || *p != ']'); p++) {
+        char c = *p;
+
+        /* Handle quotes. */
+        if (in_quotes) {
+            if (c == '\"') {
+                in_quotes = false;
+                continue;
+            }
+        } else if (c == '\"') {
+            in_quotes = true;
+            continue;
+        }
+
+        /* We found the end of the value. */
+        if (c == ',') {
+            std::string s = buf.str();
+            if (!s.empty()) {
+                v->push_back(s);
+                buf.str("");
+            }
+        }
+        /* Else we just get the next character. */
+        else
+            buf << c;
+    }
+
+    /* Handle the last value. */
+    if (in_quotes)
+        throw model_exception("Unmatched quotes within a configuration string");
+    std::string last = buf.str();
+    if (!last.empty())
+        v->push_back(last);
+
+    /* Handle the end of the array. */
+    if (end != nullptr)
+        *end = p;
+    return v;
+}
+
+/*
+ * config_map::merge --
+ *     Merge two config maps.
+ */
+config_map
+config_map::merge(const config_map &a, const config_map &b)
+{
+    config_map m;
+    std::merge(a._map.begin(), a._map.end(), b._map.begin(), b._map.end(),
+      std::inserter(m._map, m._map.begin()));
+    return m;
+}
+
+/*
+ * shared_memory::shared_memory --
+ *     Create a shared memory object of the given size.
+ */
+shared_memory::shared_memory(size_t size) : _data(nullptr), _size(size)
+{
+    /* Create a unique name using the PID and the memory offset of this object. */
+    std::ostringstream name_stream;
+    name_stream << "/wt-" << getpid() << "-" << this;
+    _name = name_stream.str();
+
+    /* Create the shared memory object. */
+    int fd = shm_open(_name.c_str(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        std::ostringstream err;
+        err << "Failed to open shared memory object \"" << _name << "\": " << strerror(errno)
+            << " (" << errno << ")";
+        throw std::runtime_error(err.str());
+    }
+
+    /* Unlink the object from the namespace, as it is no longer needed. */
+    int ret = shm_unlink(_name.c_str());
+    if (ret < 0) {
+        (void)close(fd);
+        std::ostringstream err;
+        err << "Failed to unlink shared memory object \"" << _name << "\": " << strerror(errno)
+            << " (" << errno << ")";
+        _data = nullptr;
+        throw std::runtime_error(err.str());
+    }
+
+    /* Set the initial size. */
+    ret = ftruncate(fd, (wt_off_t)size);
+    if (ret < 0) {
+        (void)close(fd);
+        throw std::runtime_error("Setting shared memory size failed");
+    }
+
+    /* Map the shared memory. */
+    _data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (_data == MAP_FAILED) {
+        (void)close(fd);
+        std::ostringstream err;
+        err << "Failed to map shared memory object \"" << _name << "\": " << strerror(errno) << " ("
+            << errno << ")";
+        _data = nullptr;
+        throw std::runtime_error(err.str());
+    }
+
+    /* Close the handle. */
+    ret = close(fd);
+    if (ret < 0) {
+        (void)munmap(_data, _size);
+        std::ostringstream err;
+        err << "Failed to close shared memory object \"" << _name << "\": " << strerror(errno)
+            << " (" << errno << ")";
+        _data = nullptr;
+        throw std::runtime_error(err.str());
+    }
+
+    /* Zero the object. */
+    memset(_data, 0, _size);
+}
+
+/*
+ * shared_memory::~shared_memory --
+ *     Free the memory object.
+ */
+shared_memory::~shared_memory()
+{
+    if (_data == nullptr)
+        return;
+
+    if (munmap(_data, _size) < 0) {
+        /* Cannot throw an exception from out of a destructor, so just fail. */
+        std::cerr << "PANIC: Failed to unmap shared memory object \"" << _name
+                  << "\": " << strerror(errno) << " (" << errno << ")" << std::endl;
+        abort();
+    }
 }
 
 /*

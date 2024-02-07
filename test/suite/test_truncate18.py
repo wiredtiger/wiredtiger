@@ -210,12 +210,9 @@ class test_truncate18(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(40))
         self.session.checkpoint()
-        
+
         # Reopen the connection yet again.
         self.reopen_conn()
 
         # Now verify the tree. In the problem scenario described above, this will assert.
         self.session.verify(ds.uri, None)
-
-if __name__ == '__main__':
-    wttest.run()

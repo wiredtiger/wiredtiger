@@ -31,6 +31,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "model/data_value.h"
 #include "wiredtiger.h"
@@ -76,14 +77,34 @@ public:
     bool has_next();
 
     /*
+     * kv_table_verify_cursor::set_checkpoint --
+     *     Set the checkpoint for verifying the table. This can be called only at the beginning.
+     */
+    inline void
+    set_checkpoint(kv_checkpoint_ptr ckpt)
+    {
+        if (_iterator != _data.begin())
+            throw model_exception("The cursor is not at the beginning");
+        _ckpt = ckpt;
+    }
+
+    /*
      * kv_table_verify_cursor::verify_next --
      *     Verify the next key-value pair. This method is not thread-safe.
      */
     bool verify_next(const data_value &key, const data_value &value);
 
+    /*
+     * kv_table_verify_cursor::get_prev --
+     *     Get the previous key-value pair, but do not move the iterator. This method is not
+     *     thread-safe.
+     */
+    std::pair<data_value, data_value> get_prev() const;
+
 private:
     std::map<data_value, kv_table_item> &_data;
     std::map<data_value, kv_table_item>::iterator _iterator;
+    kv_checkpoint_ptr _ckpt;
 };
 
 /*
@@ -101,10 +122,10 @@ public:
 
     /*
      * kv_table_verifier::verify --
-     *     Verify the table by comparing a WiredTiger table against the model. Throw an exception on
-     *     error.
+     *     Verify the table by comparing a WiredTiger table against the model, with or without using
+     *     a checkpoint. Throw an exception on error.
      */
-    void verify(WT_CONNECTION *connection);
+    void verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr));
 
     /*
      * kv_table_verifier::verify --
@@ -112,10 +133,11 @@ public:
      *     exceptions, but simply returns a boolean. This is useful for model's own unit testing.
      */
     inline bool
-    verify_noexcept(WT_CONNECTION *connection) noexcept
+    verify_noexcept(
+      WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr)) noexcept
     {
         try {
-            verify(connection);
+            verify(connection, ckpt);
         } catch (...) {
             return false;
         }

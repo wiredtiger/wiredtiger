@@ -49,7 +49,7 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
 
     def gen_value(self, i):
         return 'value' + str(i)
-    
+
     def get_num_data_lines_from_dump(self, file):
         """
         Get the number of lines corresponding to data from a dump file.
@@ -109,6 +109,3 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['dump', '-l', 'key50', '-u', 'key59', self.uri], outfilename=self.output)
         num_lines = self.get_num_data_lines_from_dump(self.output)
         assert num_lines == 10 * self.lines_per_record, num_lines
-
-if __name__ == '__main__':
-    wttest.run()

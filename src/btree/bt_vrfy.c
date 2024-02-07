@@ -26,7 +26,8 @@ typedef struct {
 #define WT_VRFY_DUMP(vs) \
     ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
     bool dump_address; /* Configure: dump special */
-    bool dump_app_data;
+    bool dump_all_data;
+    bool dump_key_data;
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
@@ -73,8 +74,11 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_address", &cval));
     vs->dump_address = cval.val != 0;
 
-    WT_RET(__wt_config_gets(session, cfg, "dump_app_data", &cval));
-    vs->dump_app_data = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "dump_all_data", &cval));
+    vs->dump_all_data = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "dump_key_data", &cval));
+    vs->dump_key_data = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "dump_blocks", &cval));
     vs->dump_blocks = cval.val != 0;
@@ -97,6 +101,10 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
               "cannot verify against the stable timestamp if it has not been set");
         vs->stable_timestamp = txn_global->stable_timestamp;
     }
+    if (vs->dump_all_data && vs->dump_key_data)
+        WT_RET_MSG(session, ENOTSUP, "%s",
+          "dump_all_data, which unredacts all data, should not be set to true "
+          "simultaneously with dump_key_data, which unredacts only the keys");
 
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
@@ -249,7 +257,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         if (WT_VRFY_DUMP(vs)) {
             WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
-            WT_ERR(__wt_msg(session, "%s: checkpoint %s", name, ckpt->name));
+            WT_ERR(__wt_msg(session, "%s, ckpt_name: %s", name, ckpt->name));
         }
 
         /* Load the checkpoint. */
@@ -261,9 +269,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
 
             if (WT_VRFY_DUMP(vs))
-                WT_ERR(__wt_msg(session, "Root: %s %s",
+                WT_ERR(__wt_msg(session, "- Root: %s\n\t> addr: %s",
                   __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1),
-                  __wt_page_type_string(btree->root.page->type)));
+                  __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
             __wt_evict_file_exclusive_off(session);
 
@@ -381,6 +389,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
     WT_DECL_RET;
     char time_string[WT_TIME_STRING_SIZE];
 
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
@@ -392,6 +401,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 
 err:
     __wt_scr_free(session, &tmp);
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     return (buf->data);
 }
 
@@ -447,8 +457,9 @@ __verify_tree(
 
     /* Optionally dump address information. */
     if (vs->dump_address)
-        WT_RET(__wt_msg(session, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
-          __wt_page_type_string(page->type)));
+        WT_RET(__wt_msg(session, "%s %s write gen: %" PRIu64,
+          __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
+          page->dsk->write_gen));
 
     /* Track the shape of the tree. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -480,9 +491,9 @@ __verify_tree(
 #ifdef HAVE_DIAGNOSTIC
     /* Optionally dump the blocks or page in debugging mode. */
     if (vs->dump_blocks)
-        WT_RET(__wt_debug_disk(session, page->dsk, NULL, vs->dump_app_data));
+        WT_RET(__wt_debug_disk(session, page->dsk, NULL, vs->dump_all_data, vs->dump_key_data));
     if (vs->dump_pages)
-        WT_RET(__wt_debug_page(session, NULL, ref, NULL, vs->dump_app_data));
+        WT_RET(__wt_debug_page(session, NULL, ref, NULL, vs->dump_all_data, vs->dump_key_data));
 #endif
 
     /* Make sure the page we got belongs in this kind of tree. */
@@ -649,16 +660,22 @@ celltype_err:
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
 
-            /*
-             * If configured, continue traversing through the pages of the tree even after
-             * encountering errors reading in the page.
-             */
-            if (vs->read_corrupt && ret != 0) {
+            if (ret != 0) {
+                if (vs->dump_address)
+                    WT_TRET(__wt_msg(session,
+                      "%s Read failure while accessing a page from the column internal page (ret = "
+                      "%d).",
+                      __verify_addr_string(session, child_ref, vs->tmp1), ret));
+                if (!vs->read_corrupt)
+                    WT_RET(ret);
+                /*
+                 * If read_corrupt configured, continue traversing through the pages of the tree
+                 * even after encountering errors reading in the page.
+                 */
                 if (vs->verify_err == 0)
                     vs->verify_err = ret;
                 continue;
-            } else
-                WT_RET(ret);
+            }
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
@@ -690,16 +707,22 @@ celltype_err:
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
 
-            /*
-             * If configured, continue traversing through the pages of the tree even after
-             * encountering errors reading in the page.
-             */
-            if (vs->read_corrupt && ret != 0) {
+            if (ret != 0) {
+                if (vs->dump_address)
+                    WT_TRET(__wt_msg(session,
+                      "%s Read failure while accessing a page from the row internal page (ret = "
+                      "%d).",
+                      __verify_addr_string(session, child_ref, vs->tmp1), ret));
+                if (!vs->read_corrupt)
+                    WT_RET(ret);
+                /*
+                 * If read_corrupt is configured, continue traversing through the pages of the tree
+                 * even after encountering errors reading in the page.
+                 */
                 if (vs->verify_err == 0)
                     vs->verify_err = ret;
                 continue;
-            } else
-                WT_RET(ret);
+            }
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;

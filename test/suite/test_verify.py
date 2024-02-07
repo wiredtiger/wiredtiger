@@ -99,7 +99,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp = open(filename, "r+b")
         fp.seek(position)
         return fp
-    
+
     def open_and_offset(self, tablename, offset):
         """
         Open the file for the table, position it at the given offset.
@@ -172,6 +172,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
             "/WT_SESSION.verify/")
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
         self.assertEqual(self.count_file_contains("stderr.txt",
             "calculated block checksum of"), 1)
 
@@ -193,6 +197,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
 
     def test_verify_api_corrupt_first_page(self):
         """
@@ -203,10 +211,11 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
 
-        # wt verify -d dump_address performs a depth-first traversal of the BTree. So the first 
+        # wt verify -d dump_address performs a depth-first traversal of the BTree. So the first
         # leaf page it prints is the first child of its parent. Grab the offset of this one so we
         # can corrupt it.
-        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'], outfilename='dump.out')
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump.out')
 
         # Grab the offset position of the first page.
         offset = 0
@@ -216,8 +225,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             if m:
                 offset = int((int(m.group(2)) - int(m.group(1)))/2)
                 break
-        
-        # Open the file and corrupt the first page. 
+
+        # Open the file and corrupt the first page.
         with self.open_and_offset(self.tablename, offset) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
@@ -225,12 +234,16 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # open_and_position closed the session/connection, reopen them now.
         self.conn = self.setUpConnectionOpen(".")
         self.session = self.setUpSessionOpen(self.conn)
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
             "/WT_SESSION.verify/")
 
         self.assertEqual(self.count_file_contains("stderr.txt",
             "calculated block checksum of"), 1)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
 
     def test_verify_process_75pct_null(self):
         """
@@ -243,6 +256,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 4096):
                 f.write(struct.pack('B', 0))
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
         self.runWt(["verify", "-c", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
         self.check_non_empty_file("verifyerr.out")
@@ -260,6 +277,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 25) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
         self.runWt(["verify", "-c", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
         self.check_non_empty_file("verifyerr.out")
@@ -287,6 +308,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(["verify", "-c", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
 
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
         self.check_non_empty_file("verifyerr.out")
 
         # It is expected that more than one checksum error is logged given
@@ -354,6 +379,3 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             "table:test_verify.a1: WT_ERROR"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "table:test_verify.a2: WT_ERROR"), 0)
-
-if __name__ == '__main__':
-    wttest.run()

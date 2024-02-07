@@ -30,6 +30,7 @@
 #define MODEL_TEST_UTIL_H
 
 #include <string>
+#include "model/driver/kv_workload.h"
 
 extern "C" {
 #include "test_util.h"
@@ -53,5 +54,18 @@ extern "C" {
  *     Create an empty temporary file and return its name.
  */
 std::string create_tmp_file(const char *dir, const char *prefix, const char *suffix = nullptr);
+
+/*
+ * verify_using_debug_log --
+ *     Verify the database using the debug log. Try both the regular and the JSON version.
+ */
+void verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing = false);
+
+/*
+ * verify_workload --
+ *     Verify the workload by running it in both the model and WiredTiger.
+ */
+void verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::string &home,
+  const char *env_config);
 
 #endif

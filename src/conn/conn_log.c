@@ -601,8 +601,13 @@ __log_file_server(void *arg)
         /*
          * If there is a log file to close, make sure any outstanding write operations have
          * completed, then fsync and close it.
+         *
+         * The read from the log close file handle is ordered with the read from the log close lsn.
+         * Writers will set the log close lsn first and then the log close file handle, so we need
+         * to read them in the reverse order to see a consistent state.
          */
-        if ((close_fh = log->log_close_fh) != NULL) {
+        WT_ORDERED_READ(close_fh, log->log_close_fh);
+        if (close_fh != NULL) {
             WT_ERR(__wt_log_extract_lognum(session, close_fh->name, &filenum));
             /*
              * The closing file handle should have a correct close LSN.
@@ -956,6 +961,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
+    uint64_t now;
 
     conn = S2C(session);
 
@@ -1001,6 +1007,9 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
     WT_RET(__wt_log_open(session));
     WT_RET(__wt_log_slot_init(session, true));
 
+    /* Write the start log record on creation, which is before recovery is run. */
+    __wt_seconds(session, &now);
+    WT_RET(__wt_log_printf(session, "SYSTEM: Log manager created at %" PRIu64, now));
     return (0);
 }
 
@@ -1012,6 +1021,7 @@ int
 __wt_logmgr_open(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    uint64_t now;
     uint32_t session_flags;
 
     conn = S2C(session);
@@ -1073,6 +1083,10 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
         conn->log_tid_set = true;
     }
 
+    /* Write another startup log record with timestamp after recovery completes. */
+    __wt_seconds(session, &now);
+    WT_RET(__wt_log_printf(
+      session, "SYSTEM: Log manager threads started post-recovery at %" PRIu64, now));
     return (0);
 }
 

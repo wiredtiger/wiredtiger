@@ -60,7 +60,11 @@
  * Now, to the actual process.  First, we checkpoint the database: there are
  * potentially many dirty blocks in the cache, and we want to write them out
  * and then discard previous checkpoints so we have as many blocks as possible
- * on the file's "available for reuse" list when we start compaction.
+ * on the file's "available for reuse" list when we start compaction. Note that
+ * this step is skipped for background compaction to limit the number of
+ * generated checkpoints. As this step comes before checking if compaction is
+ * possible, background compaction could potentially generate an unnecessary
+ * checkpoint every time it processes a file.
  *
  * Then, we compact the high-level object.
  *
@@ -294,8 +298,12 @@ __compact_worker(WT_SESSION_IMPL *session)
     for (i = 0; i < session->op_handle_next; ++i)
         session->op_handle[i]->compact_skip = false;
 
-    /* Perform an initial checkpoint (see this file's leading comment for details). */
-    WT_ERR(__compact_checkpoint(session));
+    /*
+     * Perform an initial checkpoint unless this is background compaction. See this file's leading
+     * comment for details.
+     */
+    if (session != S2C(session)->background_compact.session)
+        WT_ERR(__compact_checkpoint(session));
 
     /*
      * We compact 10% of a file on each pass (but the overall size of the file is decreasing each
@@ -303,6 +311,8 @@ __compact_worker(WT_SESSION_IMPL *session)
      * clearly more than we need); quit if we make no progress.
      */
     for (loop = 0; loop < 100; ++loop) {
+        WT_STAT_CONN_SET(session, session_table_compact_passes, loop);
+
         /* Step through the list of files being compacted. */
         for (another_pass = false, i = 0; i < session->op_handle_next; ++i) {
             /* Skip objects where there's no more work. */
@@ -315,7 +325,6 @@ __compact_worker(WT_SESSION_IMPL *session)
 
             session->compact_state = WT_COMPACT_RUNNING;
             WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
-            WT_ERR_ERROR_OK(ret, EBUSY, true);
             /*
              * If successful and we did work, schedule another pass. If successful and we did no
              * work, skip this file in the future.
@@ -336,18 +345,26 @@ __compact_worker(WT_SESSION_IMPL *session)
              *
              * Just quit if eviction is the problem.
              */
-            if (ret == EBUSY) {
+            else if (ret == EBUSY) {
                 if (__wt_cache_stuck(session)) {
                     WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
-                    WT_ERR_MSG(session, EBUSY, "compaction halted by eviction pressure");
+                    WT_ERR_MSG(session, EBUSY,
+                      "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
+                      session->op_handle[i]->name);
                 }
                 ret = 0;
                 another_pass = true;
 
-                __wt_verbose_info(session, WT_VERB_COMPACT, "%s",
-                  "Data handle compaction failed with EBUSY but the cache is not stuck. "
-                  "Will give it another go.");
+                __wt_verbose_info(session, WT_VERB_COMPACT,
+                  "The compaction of the data handle %s returned EBUSY due to an in-progress "
+                  "conflicting checkpoint. Compaction of this data handle will be retried.",
+                  session->op_handle[i]->name);
             }
+
+            /* Compaction was interrupted internally. */
+            else if (ret == ECANCELED)
+                ret = 0;
+            WT_ERR(ret);
         }
         if (!another_pass)
             break;
@@ -364,6 +381,7 @@ __compact_worker(WT_SESSION_IMPL *session)
 
 err:
     session->compact_state = WT_COMPACT_NONE;
+    WT_STAT_CONN_SET(session, session_table_compact_passes, 0);
 
     return (ret);
 }
@@ -402,7 +420,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     ignore_cache_size_set = false;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, compact, config, cfg);
+    SESSION_API_CALL(session, ret, compact, config, cfg);
 
     /* Trigger the background server. */
     if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
@@ -424,6 +442,11 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
             if (ret == 0)
                 WT_ERR_MSG(session, EINVAL,
                   "exclude configuration cannot be set when disabling the background compaction "
+                  "server.");
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "run_once", &cval), true);
+            if (ret == 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "run_once configuration cannot be set when disabling the background compaction "
                   "server.");
             WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
             if (ret == 0)

@@ -65,16 +65,17 @@ buildvariants:
     - name: doc-update
 
 - name: code-statistics
-  display_name: "Code statistics"
+  display_name: "Code statistics (ARM64)"
   run_on:
-  - ubuntu2004-test
+  - ubuntu2004-arm64-small
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     database: WTCodeStatisticsDB
-    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: coverage-report
+      distros: ubuntu2004-arm64-large
     - name: coverage-report-catch2
     - name: cyclomatic-complexity
     - name: code-change-report
@@ -133,3 +134,18 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: s-outdated-fixmes
       batchtime: 10080 # 7 days
+
+- name: lazyfs-tests
+  display_name: "~ LazyFS tests"
+  run_on:
+  - ubuntu2004-libfuse-small
+  batchtime: 1440 # 1 day
+  expansions:
+    ENABLE_LAZYFS: -DENABLE_LAZYFS=1
+    cmake_generator: Ninja
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+  stepback: false
+  tasks:
+    - name: csuite-random-abort-lazyfs
+    - name: csuite-schema-abort-lazyfs
+    - name: csuite-timestamp-abort-lazyfs

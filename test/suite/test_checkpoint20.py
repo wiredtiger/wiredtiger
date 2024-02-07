@@ -54,7 +54,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('unnamed', dict(first_checkpoint=None)),
     ]
     scenarios = make_scenarios(format_values, stable_ts_values, name_values)
-        
+
 
     def large_updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
@@ -171,6 +171,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #self.checkfail(ds, self.first_checkpoint, nrows // 2 + 1, 20)
         #if self.stable_ts >= 20:
         #    self.checkfail(ds, self.first_checkpoint, nrows // 2 + 1, None)
-
-if __name__ == '__main__':
-    wttest.run()

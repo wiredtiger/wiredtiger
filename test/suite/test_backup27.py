@@ -31,7 +31,7 @@ from wtbackup import backup_base
 from wtscenario import make_scenarios
 
 # test_backup27.py
-# Test selective backup with history store contents. Recovering a partial backup should 
+# Test selective backup with history store contents. Recovering a partial backup should
 # clear the history entries of the table that does not exist in the backup directory.
 class test_backup27(backup_base):
     dir='backup.dir'                    # Backup directory name
@@ -97,6 +97,3 @@ class test_backup27(backup_base):
         self.validate_timestamp_data(bkup_session, self.newuri, "key", None, wiredtiger.WT_NOTFOUND, 1)
         self.validate_timestamp_data(bkup_session, self.newuri, "key", None, wiredtiger.WT_NOTFOUND, 10)
         backup_conn.close()
-
-if __name__ == '__main__':
-    wttest.run()

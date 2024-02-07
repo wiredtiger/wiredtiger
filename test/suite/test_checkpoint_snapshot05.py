@@ -141,19 +141,19 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
             else:
                 cursor1.set_value(self.valueb + str(i))
             self.assertEqual(cursor1.update(), 0)
-        
+
         # Commit the transaction concurrently with the checkpoint.
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done, checkpoint_count_max=1)
         try:
             ckpt.start()
-            
+
             # Wait for checkpoint to acquire its snapshot executing the commit.
             ckpt_snapshot = 0
             while not ckpt_snapshot:
                 with open_cursor(self.session, 'statistics:') as stat_cursor:
                     ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
-                
+
                 # We want the checkpoint thread to advance without actually completing.
                 # Hence the configuration: timing_stress_for_test=[checkpoint_slow].
                 # Though the appropriate poll interval is really a guess, favor aggression
@@ -171,7 +171,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
         # Verify exactly one checkpoint is present: as required by the test assertions.
         # Assertion is NOT about the code under test, so use 'assert'.
         with open_cursor(self.session, 'statistics:') as stat_cursor:
-            assert stat_cursor[stat.conn.checkpoints][2] == 1
+            assert stat_cursor[stat.conn.checkpoints_api][2] == 1
             assert stat_cursor[stat.conn.checkpoint_skipped][2] == 0
 
         # The restoration of the backup is expected to fix the inconsistent checkpoint.
@@ -184,6 +184,3 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
         with open_cursor(self.session, 'statistics:') as stat_cursor:
             self.assertGreater(stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2], 0)
             self.assertEqual(stat_cursor[stat.conn.txn_rts_keys_removed][2], 0)
-
-if __name__ == '__main__':
-    wttest.run()

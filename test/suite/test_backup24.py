@@ -143,12 +143,9 @@ class test_backup24(backup_base):
         metadata_c.set_key(self.nolog_tnew_file)
         self.assertEqual(metadata_c.search(), wiredtiger.WT_NOTFOUND)
         metadata_c.close()
-        
+
         # Test that the database partial recovered successfully.
         self.check_data(self.log_t1, 'key', 'value')
         self.check_data(self.log_t2, 'key', 'value')
         self.check_data(self.nolog_t1, 'key', 'value')
         backup_conn.close()
-
-if __name__ == '__main__':
-    wttest.run()

@@ -26,16 +26,39 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     block_preload = 0;
 
     /*
-     * FIXME-WT-11759 Consider whether we should have these asserts here or swallow up the errors
-     * instead.
+     * Do not add refs from trees that have eviction disabled since they are probably being closed.
      */
-    WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
-      "Pre-fetch starts with a leaf page and reviews the parent");
+    if (!(F_ISSET(ref, WT_REF_FLAG_LEAF)) || S2BT(session)->evict_disabled > 0 ||
+      (__wt_session_gen(session, WT_GEN_SPLIT) == 0)) {
+        WT_STAT_CONN_INCR(session, block_prefetch_failed_start);
+        return (0);
+    }
 
-    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
-      "Pre-fetch requires a split generation to traverse internal page(s)");
+    /*
+     * We want to avoid the scenario of requesting pre-fetch on one particular ref many times (e.g
+     * when reading along a single page). We can identify this by checking if the previous pre-fetch
+     * was performed using the same home ref.
+     *
+     * In the event that we find this to be true, we perform pre-fetch for approximately the number
+     * of pages that were added to the queue (WT_PREFETCH_QUEUE_PER_TRIGGER). We then want to ensure
+     * that we will not pre-fetch from this ref for a while, and this is done by checking a counter.
+     *
+     * The counter variable prefetch_skipped_with_parent tracks the number of skips we have
+     * performed on a particular ref. If the number of skips surpasses the number of pages that have
+     * been queued for pre-fetch, we are okay to pre-fetch from this ref again. This condition will
+     * evaluate to false and the counter will be reset, effectively marking the ref as available to
+     * pre-fetch from.
+     */
+    if (session->pf.prefetch_prev_ref_home == ref->home &&
+      session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
+        ++session->pf.prefetch_skipped_with_parent;
+        WT_STAT_CONN_INCR(session, block_prefetch_skipped_same_ref);
+        WT_STAT_CONN_INCR(session, block_prefetch_skipped);
+        return (0);
+    }
 
-    session->pf.prefetch_prev_ref = ref;
+    session->pf.prefetch_skipped_with_parent = 0;
+
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
         /* Don't let the pre-fetch queue get overwhelmed. */
@@ -50,20 +73,23 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
          * that page was evicted and now a future page wants to be pre-fetched, this algorithm needs
          * a tweak. It would need to remember which child was last queued and start again from
          * there, rather than this approximation which assumes recently pre-fetched pages are still
-         * in cache.
+         * in cache. Don't prefetch fast deleted pages to avoid wasted effort. We can skip reading
+         * these deleted pages into the cache if the fast truncate information is visible in the
+         * session transaction snapshot.
          */
-        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
+        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
+          next_ref->page_del == NULL && !F_ISSET(next_ref, WT_REF_FLAG_PREFETCH)) {
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
-            if (ret == 0)
-                ++block_preload;
-            else if (ret != EBUSY)
-                WT_RET(ret);
+            if (ret != 0)
+                break;
+            ++block_preload;
         }
     }
     WT_INTL_FOREACH_END;
+    session->pf.prefetch_prev_ref_home = ref->home;
 
     WT_STAT_CONN_INCRV(session, block_prefetch_pages_queued, block_preload);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -75,18 +101,15 @@ int
 __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 {
     WT_ADDR_COPY addr;
+    WT_DECL_RET;
 
     if (pe->ref->home != pe->first_home)
         __wt_verbose(
           session, WT_VERB_PREFETCH, "The home changed while queued for pre-fetch %s", "");
 
-    /*
-     * FIXME-WT-11759 Consider whether we should have these asserts here or swallow up the errors
-     * instead.
-     */
-    WT_ASSERT_ALWAYS(session, pe->dhandle != NULL, "Pre-fetch needs to save a valid dhandle");
-    WT_ASSERT_ALWAYS(
-      session, !F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL), "Pre-fetch should only see leaf pages");
+    WT_PREFETCH_ASSERT(session, pe->dhandle != NULL, block_prefetch_skipped_no_valid_dhandle);
+    WT_PREFETCH_ASSERT(
+      session, !F_ISSET(pe->ref, WT_REF_FLAG_INTERNAL), block_prefetch_skipped_internal_page);
 
     if (pe->ref->state != WT_REF_DISK) {
         WT_STAT_CONN_INCR(session, block_prefetch_pages_fail);
@@ -95,11 +118,14 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     WT_STAT_CONN_INCR(session, block_prefetch_pages_read);
 
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
-        WT_RET(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
-        WT_RET(__wt_page_release(session, pe->ref, 0));
+        WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
+        WT_ERR(__wt_page_release(session, pe->ref, 0));
     } else
-        return (WT_ERROR);
+        ret = (WT_ERROR);
 
-    return (0);
+err:
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+    return (ret);
 }

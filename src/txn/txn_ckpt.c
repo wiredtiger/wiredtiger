@@ -31,8 +31,6 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
     yield_count = 0;
     now = start = 0;
 
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_FLUSH_TIER_WAIT);
-
     /*
      * The internal thread needs the schema lock to perform its operations and flush tier also
      * acquires the schema lock. We cannot be waiting in this function while holding that lock or no
@@ -72,6 +70,7 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
 static int
 __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
 {
+    WT_BTREE *btree;
     WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -79,14 +78,17 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     WT_DECL_RET;
     uint64_t ckpt_time;
     const char *key, *value;
+    bool release;
 
     __wt_verbose(session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: Called force %d", force);
 
     WT_STAT_CONN_INCR(session, flush_tier);
     conn = S2C(session);
     cursor = NULL;
+    release = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
 
     /*
      * For supporting splits and merge:
@@ -96,11 +98,10 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
      * - Move the objects.
      */
     conn->flush_state = 0;
-
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
     conn->flush_ckpt_complete = false;
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->flush_most_recent = session->current_ckpt_sec;
+    /* Storing the last flush timestamp here for the future and for debugging. */
     conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
@@ -131,20 +132,43 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                 WT_ERR(__wt_config_getones(session, value, "flush_time", &cval));
 
                 /* If nothing has changed, there's nothing to do. */
-                if (ckpt_time == 0 || (uint64_t)cval.val > ckpt_time) {
+                if (ckpt_time == 0 || (uint64_t)cval.val >= ckpt_time) {
                     WT_STAT_CONN_INCR(session, flush_tier_skipped);
                     continue;
                 }
             }
             /* Only instantiate the handle if we need to flush. */
-            WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, 0));
+            WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, key, NULL, NULL, 0), EBUSY, true);
+
+            /*
+             * If we get back EBUSY, this handle may be open with bulk or other special flags. We
+             * need to skip this tree. We fake checkpoints for such trees, i.e. we never really
+             * write a checkpoint to the disk and we cannot get the dhandle now.
+             */
+            if (ret == EBUSY) {
+                WT_STAT_CONN_INCR(session, flush_tier_skipped);
+                continue;
+            }
+            release = true;
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
-             * the arg is the config string that is currently in the metadata.
+             * the arg is the config string that is currently in the metadata. Also, mark the tree
+             * dirty to ensure it participates in the checkpoint process, even if clean.
              */
+            btree = S2BT(session);
+            if (btree->original) {
+                WT_STAT_CONN_INCR(session, flush_tier_skipped);
+                WT_ERR(__wt_session_release_dhandle(session));
+                release = false;
+                continue;
+            }
             WT_ERR(__wt_tiered_switch(session, value));
             WT_STAT_CONN_INCR(session, flush_tier_switched);
+            __wt_tree_modify_set(session);
+            btree->flush_most_recent_secs = session->current_ckpt_sec;
+            btree->flush_most_recent_ts = conn->txn_global.last_ckpt_timestamp;
             WT_ERR(__wt_session_release_dhandle(session));
+            release = false;
         }
     }
     WT_ERR(__wt_metadata_cursor_release(session, &cursor));
@@ -154,7 +178,8 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     return (0);
 
 err:
-    WT_TRET(__wt_session_release_dhandle(session));
+    if (release)
+        WT_TRET(__wt_session_release_dhandle(session));
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     WT_STAT_CONN_INCR(session, flush_tier_fail);
     return (ret);
@@ -500,8 +525,6 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     double current_dirty, prev_dirty;
     uint64_t bytes_written_start, bytes_written_total;
     uint64_t cache_size, max_write;
-    uint64_t time_start, time_stop;
-    uint64_t total_ms;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -510,7 +533,6 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     if (cache->eviction_checkpoint_target < DBL_EPSILON)
         return;
 
-    time_start = __wt_clock(session);
     bytes_written_start = cache->bytes_written;
 
     /*
@@ -530,7 +552,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
     /* Set the dirty trigger to the target value. */
     cache->eviction_scrub_target = cache->eviction_checkpoint_target;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)cache->eviction_scrub_target);
 
     /* Wait while the dirty level is going down. */
     for (;;) {
@@ -552,10 +574,6 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
         if (bytes_written_total > max_write)
             break;
     }
-
-    time_stop = __wt_clock(session);
-    total_ms = WT_CLOCKDIFF_MS(time_stop, time_start);
-    WT_STAT_CONN_SET(session, checkpoint_scrub_time, total_ms);
 }
 
 /*
@@ -603,7 +621,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
-    msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_scrub_end);
+    msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
 
     if (msec > conn->ckpt_time_max)
         conn->ckpt_time_max = msec;
@@ -611,6 +629,16 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
         conn->ckpt_time_min = msec;
     conn->ckpt_time_recent = msec;
     conn->ckpt_time_total += msec;
+
+    /* Compute timer statistics for the scrub. */
+    msec = WT_TIMEDIFF_MS(conn->ckpt_timer_scrub_end, conn->ckpt_timer_start);
+
+    if (msec > conn->ckpt_scrub_max)
+        conn->ckpt_scrub_max = msec;
+    if (msec < conn->ckpt_scrub_min)
+        conn->ckpt_scrub_min = msec;
+    conn->ckpt_scrub_recent = msec;
+    conn->ckpt_scrub_total += msec;
 
     /* Compute timer statistics for the checkpoint prepare. */
     msec = WT_TIMEDIFF_MS(conn->ckpt_prep_end, conn->ckpt_prep_start);
@@ -671,6 +699,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     struct timespec tsp;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_CONF(WT_SESSION, begin_transaction, txn_conf);
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -678,6 +707,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     uint64_t original_snap_min;
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool flush, flush_force, use_timestamp;
 
     conn = S2C(session);
@@ -685,13 +715,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
+    API_CONF(session, WT_SESSION, begin_transaction, txn_cfg, txn_conf);
+
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     use_timestamp = (cval.val != 0);
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
     flush = cval.val;
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.force", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.force", &cval));
     flush_force = cval.val;
 
     /*
@@ -703,20 +735,20 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 1);
     __wt_epoch(session, &conn->ckpt_prep_start);
 
-    WT_RET(__wt_txn_begin(session, txn_cfg));
+    WT_ERR(__wt_txn_begin(session, txn_conf));
     /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
     tsp.tv_sec = 0;
     tsp.tv_nsec = WT_MILLION;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY, &tsp);
-    original_snap_min = session->txn->snap_min;
+    original_snap_min = session->txn->snapshot_data.snap_min;
 
     WT_DIAGNOSTIC_YIELD;
 
     /* Ensure a transaction ID is allocated prior to sharing it globally */
-    WT_RET(__wt_txn_id_check(session));
+    WT_ERR(__wt_txn_id_check(session));
 
     /* Keep track of handles acquired for locking. */
-    WT_RET(__wt_meta_track_on(session));
+    WT_ERR(__wt_meta_track_on(session));
     *trackingp = true;
 
     /*
@@ -742,7 +774,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     __wt_writelock(session, &txn_global->rwlock);
     txn_global->checkpoint_txn_shared = *txn_shared;
-    txn_global->checkpoint_txn_shared.pinned_id = txn->snap_min;
+    txn_global->checkpoint_txn_shared.pinned_id = txn->snapshot_data.snap_min;
 
     /*
      * Sanity check that the oldest ID hasn't moved on before we have cleared our entry.
@@ -774,6 +806,16 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
         if (txn_global->has_stable_timestamp) {
+            /* A checkpoint should never proceed when timestamps are out of order. */
+            if (txn_global->has_oldest_timestamp &&
+              txn_global->oldest_timestamp > txn_global->stable_timestamp) {
+                __wt_readunlock(session, &txn_global->rwlock);
+                WT_ASSERT_ALWAYS(session, false,
+                  "oldest timestamp %s must not be later than stable timestamp %s when taking a "
+                  "checkpoint",
+                  __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
+                  __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
+            }
             txn_global->checkpoint_timestamp = txn_global->stable_timestamp;
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
@@ -796,7 +838,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     __wt_txn_bump_snapshot(session);
 
     /* Assert that our snapshot min didn't somehow move backwards. */
-    WT_ASSERT(session, session->txn->snap_min >= original_snap_min);
+    WT_ASSERT(session, session->txn->snapshot_data.snap_min >= original_snap_min);
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(original_snap_min);
 
@@ -811,7 +853,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * in this function.
      */
     if (flush)
-        WT_RET(__checkpoint_flush_tier(session, flush_force));
+        WT_ERR(__checkpoint_flush_tier(session, flush_force));
 
     /*
      * Get a list of handles we want to sync; for named checkpoints this may pull closed objects
@@ -827,6 +869,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     __wt_epoch(session, &conn->ckpt_prep_end);
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 0);
 
+err:
+    API_CONF_END(session, txn_conf);
     return (ret);
 }
 
@@ -879,6 +923,11 @@ __txn_checkpoint_can_skip(
 
     /* Never skip named checkpoints. */
     WT_RET(__wt_config_gets(session, cfg, "name", &cval));
+    if (cval.len != 0)
+        return (0);
+
+    /* Never skip if flushing objects. */
+    WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
     if (cval.len != 0)
         return (0);
 
@@ -1145,8 +1194,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
 
     /* Tell logging that we have started a database checkpoint. */
-    if (full && logging)
+    if (full && logging) {
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
+        WT_ERR(__wt_log_system_backup_id(session));
+    }
 
     /* Add a ten second wait to simulate checkpoint slowness. */
     tsp.tv_sec = 10;
@@ -1349,6 +1400,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
     }
 
+    WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
+
 err:
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
@@ -1366,8 +1419,10 @@ err:
      * so what ends up on disk is not consistent.
      */
     failed = ret != 0;
-    if (failed)
+    if (failed) {
         conn->modified = true;
+        WT_STAT_CONN_INCR(session, checkpoints_total_failed);
+    }
 
     session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
     if (tracking)
@@ -1421,6 +1476,8 @@ err:
     session->ckpt_handle_allocated = session->ckpt_handle_next = 0;
 
     session->isolation = txn->isolation = saved_isolation;
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
+
     return (ret);
 }
 
@@ -1482,7 +1539,6 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      * begin_transaction for the checkpoint, the checkpoint code will acquire the schema lock before
      * we do that, and some implementation of WT_CURSOR::reset might need the schema lock.
      */
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RESET_CURSORS);
     WT_RET(__wt_session_reset_cursors(session, false));
 
     /* Ensure the metadata table is open before taking any locks. */
@@ -1528,7 +1584,15 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
         WT_WITH_CHECKPOINT_LOCK(session, ret = __txn_checkpoint_wrapper(session, cfg));
     else
         WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret, ret = __txn_checkpoint_wrapper(session, cfg));
+    /*
+     * If this checkpoint is flushing objects, a failure can leave a tree's block manager pointing
+     * to incorrect blocks. Currently we can not recover from this situation. Panic!
+     */
+    if (ret != 0 && flush)
+        WT_IGNORE_RET(
+          __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
     WT_ERR(ret);
+
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
 err:
@@ -2274,10 +2338,12 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
 
     /* Flush the file from the cache, creating the checkpoint. */
     if (is_checkpoint) {
-        WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_SYNC_FILE);
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_SYNC_FILE);
         WT_ERR(__wt_sync_file(session, WT_SYNC_CHECKPOINT));
     } else {
-        WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_EVICT_FILE);
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_EVICT_FILE);
         WT_ERR(__wt_evict_file(session, WT_SYNC_CLOSE));
     }
 
@@ -2314,7 +2380,8 @@ fake:
      */
     if (!fake_ckpt) {
         resolve_bm = false;
-        WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RESOLVE);
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RESOLVE);
         if (WT_META_TRACKING(session) && is_checkpoint)
             WT_ERR(__wt_meta_track_checkpoint(session));
         else
@@ -2339,7 +2406,8 @@ err:
     }
 
     /* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_POSTPROCESS);
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_POSTPROCESS);
     if (ret != 0 || WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING))
         __wt_meta_saved_ckptlist_free(session);
     else {

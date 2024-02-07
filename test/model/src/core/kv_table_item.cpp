@@ -32,21 +32,11 @@
 #include <list>
 #include <sstream>
 
+#include "model/kv_table.h"
 #include "model/kv_table_item.h"
 #include "wiredtiger.h"
 
 namespace model {
-
-/*
- * kv_table_item::add_update --
- *     Add an update. Throw exception on error.
- */
-void
-kv_table_item::add_update(kv_update &&update, bool must_exist, bool must_not_exist)
-{
-    std::shared_ptr<kv_update> update_ptr = std::make_shared<kv_update>(std::move(update));
-    add_update(update_ptr, must_exist, must_not_exist);
-}
 
 /*
  * kv_table_item::add_update --
@@ -100,7 +90,7 @@ kv_table_item::add_update_nolock(
                 fail_with_rollback(update);
             case kv_transaction_state::committed:
             case kv_transaction_state::prepared:
-                if (!txn->visible_txn(u->txn_id()))
+                if (!txn->visible_update(*u))
                     fail_with_rollback(update);
                 break;
             case kv_transaction_state::rolled_back:
@@ -153,13 +143,14 @@ kv_table_item::fail_with_rollback(std::shared_ptr<kv_update> update)
  *     the given timestamp, return true if any of them match.
  */
 bool
-kv_table_item::contains_any(const data_value &value, timestamp_t timestamp) const
+kv_table_item::contains_any(const data_value &value, kv_transaction_snapshot_ptr txn_snapshot,
+  timestamp_t read_timestamp, timestamp_t stable_timestamp) const
 {
     std::lock_guard lock_guard(_lock);
     kv_update::timestamp_comparator cmp;
 
     /* Position the cursor on the update that is right after the provided timestamp. */
-    auto i = std::upper_bound(_updates.begin(), _updates.end(), timestamp, cmp);
+    auto i = std::upper_bound(_updates.begin(), _updates.end(), read_timestamp, cmp);
 
     /*
      * If we are positioned at the beginning of the list, there are no visible updates given the
@@ -169,16 +160,45 @@ kv_table_item::contains_any(const data_value &value, timestamp_t timestamp) cons
     if (i == _updates.begin())
         return false;
 
-    /* Read the timestamp of the latest visible update. */
-    timestamp_t t = (*(--i))->commit_timestamp();
+    /*
+     * Position the iterator to the latest visible update, if we consider only on the read
+     * timestamp.
+     */
+    i--;
 
-    /* Check all updates with that timestamp. */
-    for (; (*i)->commit_timestamp() == t; i--) {
-        if ((*i)->value() == value)
+    /* Skip any updates that are not visible due to the stable timestamp or the snapshot. */
+    auto update_visible = [&](const std::shared_ptr<kv_update> &u) -> bool {
+        return (!txn_snapshot || txn_snapshot->contains(*u)) &&
+          u->durable_timestamp() <= stable_timestamp;
+    };
+    for (;;) {
+        const std::shared_ptr<kv_update> &u = *i;
+
+        /* Check the update's visibility. */
+        if (update_visible(u))
+            break;
+
+        /* Otherwise go to the previous update (unless we are already at the beginning). */
+        if (i == _updates.begin())
+            return false; /* No more updates - we are done. */
+        i--;
+    }
+
+    /* Now check all updates with the same commit timestamp. */
+    timestamp_t t = (*i)->commit_timestamp();
+    while ((*i)->commit_timestamp() == t) {
+        const std::shared_ptr<kv_update> &u = *i;
+
+        /* Found one! */
+        if (update_visible(u) && u->value() == value)
             return true;
+
+        /* Otherwise go to the previous update (unless we are already at the beginning). */
         if (i == _updates.begin())
             break;
+        i--;
     }
+
     return false;
 }
 
@@ -190,6 +210,16 @@ bool
 kv_table_item::exists() const
 {
     return get(k_timestamp_latest) != NONE;
+}
+
+/*
+ * kv_table_item::exists --
+ *     Check whether the latest value exists in the given checkpoint.
+ */
+bool
+kv_table_item::exists(kv_checkpoint_ptr checkpoint) const
+{
+    return get(checkpoint) != NONE;
 }
 
 /*
@@ -226,9 +256,12 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
         if (stable_timestamp != k_timestamp_latest)
             throw model_exception(
               "If the stable timestamp is set, the transaction snapshot must be set also");
-        if (i == _updates.begin())
-            return NONE;
-        return (*(--i))->value();
+        while (i != _updates.begin()) {
+            const std::shared_ptr<kv_update> &u = *(--i);
+            if (u->committed())
+                return u->value();
+        }
+        return NONE;
     } else {
         while (i != _updates.begin()) {
             const std::shared_ptr<kv_update> &u = *(--i);
@@ -236,7 +269,7 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
              * The transaction snapshot includes only committed transactions, so no need to check
              * whether the update is actually committed.
              */
-            if (txn_snapshot->contains(u->txn_id()) && u->durable_timestamp() <= stable_timestamp) {
+            if (txn_snapshot->contains(*u) && u->durable_timestamp() <= stable_timestamp) {
                 assert(u->committed());
                 return u->value();
             }
@@ -317,6 +350,36 @@ kv_table_item::has_prepared_nolock(timestamp_t timestamp) const
     }
 
     return false;
+}
+
+/*
+ * kv_table_item::rollback_to_stable --
+ *     Roll back the table item to the latest stable timestamp and transaction snapshot.
+ */
+void
+kv_table_item::rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot_ptr snapshot)
+{
+    std::lock_guard lock_guard(_lock);
+    for (auto i = _updates.begin(); i != _updates.end();) {
+        std::shared_ptr<kv_update> u = *i;
+        kv_transaction_state state = u->txn_state();
+        if (state != kv_transaction_state::prepared && state != kv_transaction_state::committed)
+            throw model_exception("Unexpected transaction state during RTS");
+
+        /*
+         * Remove an update if one or more of the following conditions are satisfied:
+         *   1. It is not in the transaction snapshot (if provided).
+         *   2. It is a prepared transaction.
+         *   3. Its durable timestamp is after the stable timestamp.
+         */
+        if ((snapshot && !snapshot->contains(*u)) || (state == kv_transaction_state::prepared) ||
+          (u->durable_timestamp() > timestamp)) {
+            /* Need to remove the transaction object, so that we don't leak memory. */
+            (*i)->remove_txn();
+            i = _updates.erase(i);
+        } else
+            i++;
+    }
 }
 
 /*

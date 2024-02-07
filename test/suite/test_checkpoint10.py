@@ -69,7 +69,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
         if self.do_log:
             cfg += ',log=(enabled=true)'
-        return cfg 
+        return cfg
 
     def large_updates(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)
@@ -196,6 +196,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #    inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
         #    stat_cursor.close()
         #    self.assertGreater(inconsistent_ckpt, 0)
-
-if __name__ == '__main__':
-    wttest.run()

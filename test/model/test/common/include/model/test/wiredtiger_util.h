@@ -62,6 +62,13 @@ int wt_remove(WT_SESSION *session, const char *uri, const model::data_value &key
   model::timestamp_t timestamp = 0);
 
 /*
+ * wt_truncate --
+ *     Truncate a key range in WiredTiger.
+ */
+int wt_truncate(WT_SESSION *session, const char *uri, const model::data_value &start,
+  const model::data_value &stop, model::timestamp_t timestamp = 0);
+
+/*
  * wt_update --
  *     Update a key in WiredTiger.
  */
@@ -153,6 +160,16 @@ void wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp);
 void wt_print_debug_log(WT_CONNECTION *conn, const char *file);
 
 /*
+ * wt_rollback_to_stable --
+ *     Rollback to stable.
+ */
+inline void
+wt_rollback_to_stable(WT_CONNECTION *conn)
+{
+    testutil_check(conn->rollback_to_stable(conn, nullptr));
+}
+
+/*
  * wt_model_assert --
  *     Check that the key has the same value in the model as in the database.
  */
@@ -181,6 +198,14 @@ void wt_print_debug_log(WT_CONNECTION *conn, const char *file);
 #define wt_model_remove_both(table, uri, key, ...) \
     testutil_assert(                               \
       table->remove(key, ##__VA_ARGS__) == wt_remove(session, uri, key, ##__VA_ARGS__));
+
+/*
+ * wt_model_truncate_both --
+ *     Truncate in both from the model and from the database.
+ */
+#define wt_model_truncate_both(table, uri, start, ...) \
+    testutil_assert(                                   \
+      table->truncate(start, ##__VA_ARGS__) == wt_truncate(session, uri, start, ##__VA_ARGS__));
 
 /*
  * wt_model_update_both --
@@ -292,6 +317,16 @@ void wt_print_debug_log(WT_CONNECTION *conn, const char *file);
     {                                                 \
         wt_set_stable_timestamp(conn, timestamp);     \
         database.set_stable_timestamp(timestamp);     \
+    }
+
+/*
+ * wt_model_rollback_to_stable_both --
+ *     Rollback to stable in both the model and the database.
+ */
+#define wt_model_rollback_to_stable_both() \
+    {                                      \
+        wt_rollback_to_stable(conn);       \
+        database.rollback_to_stable();     \
     }
 
 #endif

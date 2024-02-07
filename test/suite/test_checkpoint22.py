@@ -90,7 +90,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('unnamed', dict(second_checkpoint=None)),
     ]
     scenarios = make_scenarios(format_values, first_name_values, second_name_values)
-        
+
 
     def do_checkpoint(self, ckpt_name):
         if ckpt_name is None:
@@ -190,6 +190,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Now read the first table in the second checkpoint. We should see value_b.
         self.check(ds, self.second_checkpoint, nrows, value_b)
-
-if __name__ == '__main__':
-    wttest.run()
