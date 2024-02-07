@@ -422,19 +422,14 @@ __wt_block_off_remove_overlap(
         b_off = off + size;
         b_size = ext->size - (a_size + size);
 
-        if (a_size > 0 && b_size > 0) {
-            __wt_verbose(session, WT_VERB_BLOCK,
-              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX
-              " and %" PRIdMAX "-%" PRIdMAX,
-              el->name, (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
-              (intmax_t)(a_off), (intmax_t)(a_off + a_size), (intmax_t)(b_off),
-              (intmax_t)(b_off + b_size));
-        } else if (a_size > 0) {
+        if (a_size > 0) {
             __wt_verbose(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
               (intmax_t)(a_off), (intmax_t)(a_off + a_size));
-        } else if (b_size > 0) {
+        }
+
+        if (b_size > 0) {
             __wt_verbose(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
@@ -1419,7 +1414,7 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
     if (block->verify_layout)
         level = WT_VERBOSE_NOTICE;
     else
-        level = WT_VERBOSE_LEVEL_DEFAULT;
+        level = WT_VERBOSE_DEBUG_2;
     __wt_verbose_level(session, WT_VERB_BLOCK, level,
       "%s extent list %s, %" PRIu32 " entries, %s bytes", tag, el->name, el->entries,
       __wt_buf_set_size(session, el->bytes, true, t1));
