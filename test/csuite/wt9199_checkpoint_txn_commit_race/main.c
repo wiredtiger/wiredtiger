@@ -64,7 +64,6 @@ static void run_test(const char *);
 static void *thread_func_checkpoint(void *);
 static void *thread_func_insert_txn(void *);
 void validate(void *);
-static void populate(WT_SESSION *);
 
 /*
  * main --
@@ -107,11 +106,8 @@ run_test(const char *home)
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create and populate table. Checkpoint the data after that. */
+    /* Create the table. */
     testutil_check(session->create(session, uri, table_config_row));
-
-    populate(session);
-    testutil_check(session->checkpoint(session, NULL));
 
     td.conn = conn;
     td.uri = uri;
@@ -174,35 +170,6 @@ thread_func_checkpoint(void *arg)
 }
 
 /*
- * populate --
- *     Function to populate the database just to ensure there will always be some data visible in
- *     the checkpoint.
- */
-static void
-populate(WT_SESSION *session)
-{
-    WT_CURSOR *cursor;
-    WT_RAND_STATE rnd;
-    uint64_t i, val;
-
-    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
-
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
-    testutil_check(session->begin_transaction(session, NULL));
-
-    for (i = 0; i < NUM_RECORDS; i++) {
-        cursor->set_key(cursor, i + 1);
-        val = i * 10;
-        cursor->set_value(cursor, val);
-        testutil_check(cursor->insert(cursor));
-    }
-
-    testutil_check(session->commit_transaction(session, NULL));
-    testutil_check(cursor->close(cursor));
-    cursor = NULL;
-}
-
-/*
  * thread_func_insert_txn --
  *     Function to insert the data with a transaction.
  */
@@ -224,7 +191,7 @@ thread_func_insert_txn(void *arg)
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
     testutil_check(session->begin_transaction(session, NULL));
-    for (i = NUM_RECORDS; i < NUM_RECORDS * 2; i++) {
+    for (i = 0; i < NUM_RECORDS * 2; i++) {
         cursor->set_key(cursor, i + 1);
         val = i * 10;
         cursor->set_value(cursor, val);
