@@ -32,7 +32,7 @@ then try to rewrite the last 20% of the file).
     - At least 10% of the total file is available in the first 90% of the file (compaction will then
 attempt to work on the last 10% of the file).
 
-Compacting the object is done 10% at a time, that is, compaction tries to move blocks from the last 10% of the
+Depending on the scenario, compaction the object is done 20% or 10% at a time, that is, compaction tries to move blocks from the last 20% or 10% of the
 file into the beginning of the file. This incremental step is hard-coded in the block manager. The reason for
 this is because compaction walks the file in a logical order, not block offset order, and compaction
 of a file can fail if the block from the end of the file is not written first. Note that the block manager
@@ -75,7 +75,7 @@ Background compaction is a WiredTiger service that runs compaction autonomously 
 present in the database while being the least disruptive as possible. Every file is eligible unless:
 
     - it belongs to a tiered table or,
-    - it is part of the exclude list that can be configured when enabling background compaction.
+    - it is a part of the exclude list that can be configured when enabling background compaction.
 
 To limit disruption, background compaction reduces the number of checkpoints by skipping the first one
 described in the section above. Furthermore, background compaction gathers statistics over time to
