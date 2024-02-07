@@ -369,19 +369,21 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     last_oldest_ts = txn_global->oldest_timestamp;
     last_stable_ts = txn_global->stable_timestamp;
 
-    /* It is a no-op to set the oldest or stable timestamps behind the global values. */
+    /* It is an invalid call to set the oldest or stable timestamps behind the global values. */
     if (has_oldest && txn_global->has_oldest_timestamp && oldest_ts < last_oldest_ts) {
-        WT_ASSERT_ALWAYS(session, false,
-          "Cannot set oldest %" PRIu64 " less than current one %" PRIu64, oldest_ts,
-          last_oldest_ts);
-        has_oldest = false;
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: oldest timestamp %s must not be older than current oldest timestamp %s",
+          __wt_timestamp_to_string(oldest_ts, ts_string[0]),
+          __wt_timestamp_to_string(last_oldest_ts, ts_string[1]));
     }
 
     if (has_stable && txn_global->has_stable_timestamp && stable_ts < last_stable_ts) {
-        WT_ASSERT_ALWAYS(session, false,
-          "Cannot set stable %" PRIu64 " less than current one %" PRIu64, stable_ts,
-          last_stable_ts);
-        has_stable = false;
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: stable timestamp %s must not be older than current stable timestamp %s",
+          __wt_timestamp_to_string(stable_ts, ts_string[0]),
+          __wt_timestamp_to_string(last_stable_ts, ts_string[1]));
     }
 
     /*
