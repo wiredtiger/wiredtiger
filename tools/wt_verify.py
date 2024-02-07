@@ -59,12 +59,6 @@ def output_pretty(output):
             if j:
                 str += ","
             str += "\n\t\t" + key + ": {\n\t\t\t" + json.dumps(value)
-            if "data" in value:
-                str += "\n\t\t\t\"data\": " + json.dumps(value["data"]) 
-            if "hs_modify" in value:
-                str += "\n\t\t\t\"hs_modify\": " + json.dumps(value["hs_modify"]) 
-            if "hs_update" in value:
-                str += "\n\t\t\t\"hs_update\": " + json.dumps(value["hs_update"]) 
             str += "\n\t\t}"
         str += "\n\t}"
     str += "\n}"
@@ -89,74 +83,71 @@ def string_to_iterable(line):
     """
     dict = {}
     for x in line.split(" | "):
-        kv_pair = x.split(": ", 1)
-        if kv_pair[1][0] == "[" and kv_pair[1][-1] == "]":
-            kv_pair[1] = kv_pair[1][1:-1].split(", ")
-            kv_pair[1] = list(map(lambda n: is_int(n), kv_pair[1]))
-        if kv_pair[0] == "addr": 
-            temp = kv_pair[1][0].split(": ")
-            dict.update({"object_id": is_int(temp[0]), "offset_range": temp[1], "size": is_int(kv_pair[1][1]), 
-                        "checksum": is_int(kv_pair[1][2])})
+        [key, value] = x.split(": ", 1)
+        if value[0] == "[" and value[-1] == "]":
+            value = value[1:-1].split(", ")
+            value = list(map(lambda n: is_int(n), value))
+        if key == "addr": 
+            temp = value[0].split(": ")
+            dict.update({"object_id": is_int(temp[0]), "offset_range": temp[1], "size": is_int(value[1]), 
+                         "checksum": is_int(value[2])})
         else:
-            dict[kv_pair[0]] = is_int(kv_pair[1])
+            dict[key] = is_int(value)
     return dict
 
 
-def parse_node(f, line, output, checkpoint_name, root_addr, is_root_node):
-    cur_node = {}
-    line = line[len("- "):-1]
-    page_type = ([line.split(": ")[0]] + line.split(": ")[1].split())[-1]
-    if is_root_node:
-        cur_node |= root_addr
-    if page_type == "internal" or page_type == "leaf":
-        cur_node_id = is_int(line.split(": ")[0])
-    else:
-        raise RuntimeError("Unknown page type")
+def parse_node(f, line, output, chkpt_info, root_addr, is_root_node):
+    node = {}
+    line = line[2:-1] # remove new node symbol
+    page_type = line.split()[-1]
+    assert page_type == "internal" or page_type == "leaf"
+    node_id = is_int(line.split(": ")[0])
     line = f.readline()
     while line and line != SEPARATOR and not line.startswith("- "):
         if line.startswith("\t> "): 
-            cur_node |= string_to_iterable(line[len("\t> "):-1])  
+            node.update(string_to_iterable(line[3:-1])) # remove metadata symbol
         line = f.readline()
-    output[checkpoint_name][cur_node_id] = cur_node 
+    if is_root_node:
+        node.update(root_addr)
+    output[chkpt_info][node_id] = node 
     return line
 
 
-def parse_checkpoint(f):
+def parse_chkpt_info(f):
     """
-    Parse the checkpoint(s)
+    Parse the checkpoint(s) name and root info
     """
     line = f.readline() 
-    checkpoint_name = ""
+    chkpt_info = ""
     if m := re.search("\s*ckpt_name: (\S+)\s*", line):
-        checkpoint_name = m.group(1)
+        chkpt_info = m.group(1)
     else:
         raise RuntimeError("Could not find checkpoint name")
     line = f.readline()
     assert line.startswith("Root:")
     line = f.readline()
-    root_addr = string_to_iterable(line[len("\t> "):-1]) 
+    root_addr = string_to_iterable(line[3:-1]) # remove metadata symbol
     line = f.readline()
-    return [root_addr, line, checkpoint_name]
+    return [root_addr, line, chkpt_info]
 
 
-def parse_output(file_path):
+def parse_output():
     """
     Parse the output file of dump_pages
     """
-    with open(file_path, "r") as f:
+    with open(WT_OUTPUT_FILE, "r") as f:
         output = {}
         line = f.readline()
         while line:
             assert line == SEPARATOR
-            [root_addr, line, checkpoint_name] = parse_checkpoint(f)
-            output[checkpoint_name] = {}
+            [root_addr, line, chkpt_info] = parse_chkpt_info(f)
+            output[chkpt_info] = {}
             is_root_node = True
-            while line != SEPARATOR and line:
+            while line and line != SEPARATOR:
                 assert line.startswith("- ") 
-                line = parse_node(f, line, output, checkpoint_name, root_addr, is_root_node)
+                line = parse_node(f, line, output, chkpt_info, root_addr, is_root_node)
                 is_root_node = False
     return output
-
 
 def visualize(data, visualization_type):
     """
@@ -165,7 +156,7 @@ def visualize(data, visualization_type):
     pass
 
 
-def execute_command(command, output_file):
+def execute_command(command):
     """
     Execute a given command and return its output in a file.
     """
@@ -178,15 +169,12 @@ def execute_command(command, output_file):
         sys.exit(1)
     
     try:
-        with open(output_file, 'w') as file:
+        with open(WT_OUTPUT_FILE, 'w') as file:
             file.write(result.stdout)
-        print(f"Output written to {output_file}")
+        print(f"WT tool output written to {WT_OUTPUT_FILE}")
     except IOError as e:
         print(f"Failed to write output to file: {e}", file=sys.stderr)
         sys.exit(1)
-
-    file.close()
-    return output_file
 
 
 def find_wt_exec_path():
@@ -252,18 +240,18 @@ def main():
 
     try:
         command = construct_command(args)
-        wt_output_file = execute_command(command, WT_OUTPUT_FILE)
+        execute_command(command)
     except (RuntimeError, ValueError, TypeError) as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    parsed_data = parse_output(wt_output_file)
+    parsed_data = parse_output()
 
     if args.output_file:
         try:
             with open(args.output_file, 'w') as file:
                 file.write(output_pretty(parsed_data))
-            print(f"Output written to {args.output_file}")
+            print(f"Parsed output written to {args.output_file}")
         except IOError as e:
             print(f"Failed to write output to file: {e}", file=sys.stderr)
             sys.exit(1)
