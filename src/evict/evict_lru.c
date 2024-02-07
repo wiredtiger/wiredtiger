@@ -1762,14 +1762,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
-    bool give_up, modified, urgent_queued, want_page;
+    bool give_up, modified, urgent_queued, urgent_queued_flag, want_page;
 
     conn = S2C(session);
     btree = S2BT(session);
     cache = conn->cache;
     last_parent = NULL;
     restarts = 0;
-    give_up = urgent_queued = false;
+    give_up = urgent_queued = urgent_queued_flag = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_walk_lock);
 
@@ -1968,8 +1968,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         ++pages_seen;
 
         /* Ignore root pages entirely. */
-        if (__wt_ref_is_root(ref))
+        if (__wt_ref_is_root(ref)) {
+            internal_pages_seen++;
             continue;
+        }
 
         page = ref->page;
         modified = __wt_page_is_modified(page);
@@ -2005,8 +2007,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (modified &&
           (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
-            if (__wt_page_evict_urgent(session, ref))
+            if (__wt_page_evict_urgent(session, ref)) {
                 urgent_queued = true;
+                urgent_queued_flag = true;
+                goto wark_statistical;
+            }
             continue;
         }
 
@@ -2018,8 +2023,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          */
         if (WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent_hs_dirty);
-            if (__wt_page_evict_urgent(session, ref))
+            if (__wt_page_evict_urgent(session, ref)) {
                 urgent_queued = true;
+                urgent_queued_flag = true;
+                goto wark_statistical;
+            }
             continue;
         }
 
@@ -2091,6 +2099,8 @@ fast:
         WT_ASSERT(session, evict->ref == NULL);
         if (!__evict_push_candidate(session, queue, evict, ref))
             continue;
+
+wark_statistical:
         ++evict;
         ++pages_queued;
         ++btree->evict_walk_progress;
@@ -2099,8 +2109,14 @@ fast:
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
 
-        __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
-          page->memory_footprint);
+        if (urgent_queued_flag)
+            __wt_verbose(session, WT_VERB_EVICTSERVER,
+              "select: %p, size %" WT_SIZET_FMT "add to urgent queue" , (void *)page,
+              page->memory_footprint);
+        else
+            __wt_verbose(session, WT_VERB_EVICTSERVER,
+              "select: %p, size %" WT_SIZET_FMT " add to queue", (void *)page, page->memory_footprint);
+        urgent_queued_flag = false;
     }
     WT_RET_NOTFOUND_OK(ret);
 
