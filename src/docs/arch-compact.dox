@@ -61,7 +61,8 @@ that were made available by compaction onto the checkpoint-available list, but t
 writes the checkpoint itself at the end of the file, which would prevent any file truncation. When
 the metadata is updated for the second checkpoint, the blocks freed by compaction become available for
 the third checkpoint, so the third checkpoint's blocks are written towards the beginning of the file,
-and then the file can be truncated.
+and then the file can be truncated. It is worth noting that the usage of named checkpoints may prevent
+compaction from accomplishing anything as they are not discarded until explicitly removed or replaced.
 
 Compaction is a time-consuming operation and therefore logs have been added in compaction logic to
 track current progress. Some of the verbose logs for compaction can be activated by setting
