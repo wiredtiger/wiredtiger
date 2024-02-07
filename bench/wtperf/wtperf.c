@@ -2423,7 +2423,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, insert), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " average latencay(us) %" PRIu64 " min latencay(us) %" PRIu64 " max latencay(us)",
+          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
+          " sample max latencay(us)",
           wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
           wtperf->insert_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2437,7 +2438,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, modify), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " modify operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " average latencay(us) %" PRIu64 " min latencay(us) %" PRIu64 " max latencay(us)",
+          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
+          " sample max latencay(us)",
           wtperf->modify_ops, (wtperf->modify_ops * 100) / total_ops,
           wtperf->modify_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2451,7 +2453,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, read), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " read operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " average latencay(us) %" PRIu64 " min latencay(us) %" PRIu64 " max latencay(us)",
+          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
+          " sample max latencay(us)",
           wtperf->read_ops, (wtperf->read_ops * 100) / total_ops,
           wtperf->read_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2465,7 +2468,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, truncate), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " truncate operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " average latencay(us) %" PRIu64 " min latencay(us) %" PRIu64 " max latencay(us)",
+          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
+          " sample max latencay(us)",
           wtperf->truncate_ops, (wtperf->truncate_ops * 100) / total_ops,
           wtperf->truncate_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2479,7 +2483,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, update), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " average latencay(us) %" PRIu64 " min latencay(us) %" PRIu64 " max latencay(us)",
+          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
+          " sample max latencay(us)",
           wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
           wtperf->update_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
