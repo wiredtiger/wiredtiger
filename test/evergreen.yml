@@ -44,7 +44,7 @@ functions:
             export WT_BUILDDIR=$WT_TOPDIR/cmake_build
 
             if [ "$OS" = "Windows_NT" ]; then
-              export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
+              export PATH=$(test/evergreen/find_python.sh -p):$PATH
               export PYTHONPATH="($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)"
             else
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
@@ -74,7 +74,7 @@ functions:
         - key: PREPARE_PATH
           value: |
             if [ "$OS" = "Windows_NT" ]; then
-              export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
+              export PATH=$(test/evergreen/find_python.sh -p):$PATH
             else
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
             fi
@@ -5395,7 +5395,7 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE:
     CMAKE_INSTALL_PREFIX:
     num_jobs:
-    python_binary: "/cygdrive/c/python/Python311/python"
+    python_binary: $(test/evergreen/find_python.sh)
   tasks:
     - name: compile
     - name: make-check-test
@@ -5410,7 +5410,7 @@ buildvariants:
     - macos-1100-arm64
   batchtime: 120 # 2 hours
   expansions:
-    python_binary: '/opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
+    python_binary: $(test/evergreen/find_python.sh)
     python_config_search_string: '_Python3_EXECUTABLE'
     <<: *mac_test_template_expansions
 
