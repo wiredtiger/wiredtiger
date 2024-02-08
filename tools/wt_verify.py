@@ -29,7 +29,7 @@
 # A python script to run the WT tool verify command.
 # This script wraps the wt util tool and takes in arguments for the tool,
 # handles the output and provides additional processing options on the output
-# such as pretty printed output and visualisation options.
+# such as pretty printed output and visualization options.
 
 # This script only supports Row store and Variable Length Column Store (VLCS).
 # Fixed Length Column Store (FLCS) is not supported.
@@ -37,13 +37,23 @@
 import argparse
 import os
 import subprocess
-import sys
 import json
-import matplotlib.pyplot as plt
+import sys
 import re
+import matplotlib
+matplotlib.use('WebAgg')
+import matplotlib.pyplot as plt,mpld3
+from mpld3._server import serve
 
 SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
 WT_OUTPUT_FILE = "wt_output_file.txt"
+ALL_VISUALIZATION_CHOICES = ["page_mem_size", "dsk_mem_size", "entries", "page_type"]
+PLOT_COLORS = {
+    "dsk_mem_size": ["#ff69b4", "#ffb3ba"], #pink
+    "page_mem_size": ["#4169e1", "#bae1ff"], #blue
+    "entries": ["#40e0d0", "#baffc9"], #green
+    "page_type": ["#ff7f50", "#ffdfba"]
+}
 
 def output_pretty(output):
     """
@@ -148,11 +158,80 @@ def parse_output():
                 is_root_node = False
     return output
 
-def visualize(data, visualization_type):
-    """
-    Visualizing data
-    """
-    pass
+
+def histogram_one_type(field, chkpt, chkpt_name):
+    values = []
+    for val in chkpt.values():
+        if field in val:
+            values.append(val[field])
+    fig = plt.figure(figsize=(15,6))
+    plt.hist(values, bins=100, color=PLOT_COLORS[field][0])
+    plt.title(chkpt_name + " - " + field + ' in bytes', fontsize=20)
+    plt.xlabel(field + ' (bytes)')
+    plt.ylabel('Frequency')
+    imgs = mpld3.fig_to_html(fig)
+    plt.close()
+    return imgs
+
+
+def histogram(field, chkpt, chkpt_name):
+    internal = []
+    leaf = []
+    for val in chkpt.values():
+        if field in val:
+            if "internal" in val["page_type"]:
+                internal.append(val[field])
+            elif "leaf" in val["page_type"]:
+                leaf.append(val[field])
+    fig, (ax1, ax2) = plt.subplots(2, figsize=(15, 10))
+    ax1.hist(internal, bins=100, color=PLOT_COLORS[field][0], label="internal")
+    ax2.hist(leaf, bins=100, color=PLOT_COLORS[field][1], label="leaf")
+    ax1.legend()
+    ax2.legend()
+    ax1.set_title(chkpt_name + " - Comparison between internal and leaf page " + field, fontsize=20)
+    ax1.set_xlabel(field + ' (bytes)')
+    ax1.set_ylabel('Frequency')
+    ax2.set_xlabel(field + ' (bytes)')
+    ax2.set_ylabel('Frequency')
+    imgs = mpld3.fig_to_html(fig) 
+    plt.close()
+    return imgs
+
+
+def pie_chart(field, chkpt, chkpt_name):
+    sizes = [0, 0]
+    for val in chkpt.values():
+        if field in val:
+            if "internal" in val["page_type"]:
+                sizes[0] += 1
+            elif "leaf" in val["page_type"]:
+                sizes[1] += 1
+    labels = ["internal - " + str(sizes[0]), "leaf - " + str(sizes[1])]
+    fig, ax = plt.subplots(figsize=(10, 10))
+    plt.title(chkpt_name + " - " + field, fontsize=20)
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=PLOT_COLORS[field])
+    imgs = mpld3.fig_to_html(fig)
+    plt.close()
+    return imgs
+
+
+def visualize_field(output, field):
+    imgs = ""
+    for chkpt_name, chkpt in output.items():
+        if field in ["page_mem_size", "dsk_mem_size", "entries"]:
+            imgs += histogram(field, chkpt, chkpt_name)
+        elif field == "page_type":
+            imgs += pie_chart(field, chkpt, chkpt_name)
+    return imgs
+
+
+def visualize(output, fields):
+    if not fields:
+        fields = ALL_VISUALIZATION_CHOICES
+    imgs = ""
+    for field in fields:
+        imgs += visualize_field(output, field)
+    serve(imgs)
 
 
 def execute_command(command):
@@ -232,7 +311,7 @@ def main():
     parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
     parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages configuration.')
     parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output to stdout (default is off)')
-    parser.add_argument('-v', '--visualize', choices=['page_sizes', 'entries', 'dsk_image_sizes'], nargs='+',
+    parser.add_argument('-v', '--visualize', choices=ALL_VISUALIZATION_CHOICES, nargs='*',
                         help='Type of visualization (multiple options allowed).')
 
     args = parser.parse_args()
@@ -257,7 +336,7 @@ def main():
     if args.print_output:
         print(output_pretty(parsed_data))
 
-    if args.visualize:
+    if args.visualize is not None:
         visualize(parsed_data, args.visualize)
 
 if __name__ == "__main__":
