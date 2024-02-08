@@ -69,30 +69,29 @@ def is_int(string):
     """
     Check if string can be converted to an integer
     """
-    if isinstance(string, str):
-        try :
-            return int(string)
-        except ValueError:
-            return string
-    return string
+    try :
+        return int(string)
+    except ValueError:
+        return string
 
 
-def string_to_iterable(line):
+def parse_metadata(line):
     """
-    Helper that converts string to dictionaries and / or lists
+    Parses the metadata 
     """
     dict = {}
-    for x in line.split(" | "):
-        [key, value] = x.split(": ", 1)
-        if value[0] == "[" and value[-1] == "]":
-            value = value[1:-1].split(", ")
-            value = list(map(lambda n: is_int(n), value))
-        if key == "addr": 
-            temp = value[0].split(": ")
-            dict.update({"object_id": is_int(temp[0]), "offset_range": temp[1], "size": is_int(value[1]), 
-                         "checksum": is_int(value[2])})
-        else:
-            dict[key] = is_int(value)
+    if line.startswith("\t> "): 
+        for x in line.split(" | "):
+            [key, value] = x.split(": ", 1)
+            if value[0] == "[" and value[-1] == "]":
+                value = value[1:-1].split(", ")
+                value = list(map(lambda n: is_int(n), value))
+            if key == "addr": 
+                temp = value[0].split(": ")
+                dict.update({"object_id": is_int(temp[0]), "offset_range": temp[1], "size": is_int(value[1]), 
+                            "checksum": is_int(value[2])})
+            else:
+                dict[key] = is_int(value)
     return dict
 
 
@@ -104,8 +103,7 @@ def parse_node(f, line, output, chkpt_info, root_addr, is_root_node):
     node_id = is_int(line.split(": ")[0])
     line = f.readline()
     while line and line != SEPARATOR and not line.startswith("- "):
-        if line.startswith("\t> "): 
-            node.update(string_to_iterable(line[3:-1])) # remove metadata symbol
+        node.update(parse_metadata(line[3:-1])) # remove metadata symbol
         line = f.readline()
     if is_root_node:
         node.update(root_addr)
@@ -126,7 +124,7 @@ def parse_chkpt_info(f):
     line = f.readline()
     assert line.startswith("Root:")
     line = f.readline()
-    root_addr = string_to_iterable(line[3:-1]) # remove metadata symbol
+    root_addr = parse_metadata(line[3:-1]) # remove metadata symbol
     line = f.readline()
     return [root_addr, line, chkpt_info]
 
@@ -237,9 +235,8 @@ def main():
                         help='Type of visualization (multiple options allowed).')
 
     args = parser.parse_args()
-
+    command = construct_command(args)
     try:
-        command = construct_command(args)
         execute_command(command)
     except (RuntimeError, ValueError, TypeError) as e:
         print(str(e), file=sys.stderr)
