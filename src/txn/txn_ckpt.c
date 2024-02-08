@@ -975,7 +975,7 @@ __txn_checkpoint_establish_time(WT_SESSION_IMPL *session)
 
     /*
      * If tiered storage is in use, move the time up to at least the most recent flush first. NOTE:
-     * reading the most recent flush time is not an ordered read (or repeated on retry) because
+     * reading the most recent flush time is not an acquire read (or repeated on retry) because
      * currently checkpoint and flush tier are mutually exclusive.
      *
      * Update the global value that tracks the most recent checkpoint, and use it to make sure the

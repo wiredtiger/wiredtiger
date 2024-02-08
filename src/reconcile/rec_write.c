@@ -595,7 +595,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->page = page;
 
     /*
-     * Save the transaction generations before reading the page. These are all ordered reads, but we
+     * Save the transaction generations before reading the page. These are all acquire reads, but we
      * only need one.
      */
     r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
