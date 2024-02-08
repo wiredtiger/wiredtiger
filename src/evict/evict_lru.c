@@ -1511,8 +1511,10 @@ retry:
 
         /* Skip files that don't allow eviction. */
         btree = dhandle->handle;
-        if (btree->evict_disabled > 0)
+        if (btree->evict_disabled > 0) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_eviction_disabled);
             continue;
+        }
 
         /*
          * Skip files that are checkpointing if we are only looking for dirty pages.
