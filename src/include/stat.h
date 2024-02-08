@@ -579,8 +579,14 @@ struct __wt_connection_stats {
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t cache_eviction_server_skip_metatdata_with_history;
     int64_t cache_eviction_server_skip_pages_last_running;
     int64_t cache_eviction_server_skip_pages_retry;
+    int64_t cache_eviction_server_skip_unwanted_pages;
+    int64_t cache_eviction_server_skip_trees_too_many_active_walks;
+    int64_t cache_eviction_server_skip_checkpointing_trees;
+    int64_t cache_eviction_server_skip_trees_stick_in_cache;
+    int64_t cache_eviction_server_skip_trees_not_useful_before;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_reentry_hs_eviction_milliseconds;
