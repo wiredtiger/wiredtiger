@@ -71,7 +71,7 @@ def is_int(string):
     """
     try :
         return int(string)
-    except ValueError:
+    except (TypeError, ValueError):
         return string
 
 
@@ -81,6 +81,7 @@ def parse_metadata(line):
     """
     dict = {}
     if line.startswith("\t> "): 
+        line = line[3:-1]
         for x in line.split(" | "):
             [key, value] = x.split(": ", 1)
             if value[0] == "[" and value[-1] == "]":
@@ -100,10 +101,10 @@ def parse_node(f, line, output, chkpt_info, root_addr, is_root_node):
     line = line[2:-1] # remove new node symbol
     page_type = line.split()[-1]
     assert page_type == "internal" or page_type == "leaf"
-    node_id = is_int(line.split(": ")[0])
+    node_id = line.split(": ")[0]
     line = f.readline()
     while line and line != SEPARATOR and not line.startswith("- "):
-        node.update(parse_metadata(line[3:-1])) # remove metadata symbol
+        node.update(parse_metadata(line)) # remove metadata symbol
         line = f.readline()
     if is_root_node:
         node.update(root_addr)
