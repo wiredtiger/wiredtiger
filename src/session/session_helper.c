@@ -46,7 +46,7 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
          * have been initialized properly. Any other ordering constraints, such as ensuring this
          * loop occurs in-order, are not intentional.
          */
-        WT_ORDERED_READ(active, array_session->active);
+        WT_ACQUIRE_READ_WITH_BARRIER(active, array_session->active);
 
         /* Skip inactive sessions. */
         if (!active)

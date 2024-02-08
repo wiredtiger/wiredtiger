@@ -1014,7 +1014,7 @@ __txn_checkpoint_establish_time(WT_SESSION_IMPL *session)
     ckpt_sec = WT_MAX(ckpt_sec, conn->flush_most_recent);
 
     for (;;) {
-        WT_ORDERED_READ(most_recent, conn->ckpt_most_recent);
+        WT_ACQUIRE_READ_WITH_BARRIER(most_recent, conn->ckpt_most_recent);
         if (ckpt_sec <= most_recent)
             ckpt_sec = most_recent + 1;
         if (__wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt_sec))
@@ -1182,7 +1182,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
      * reset to zero.
      */
-    WT_ORDERED_READ(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
