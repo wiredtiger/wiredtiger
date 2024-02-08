@@ -75,7 +75,6 @@ __bit_alloc(WT_SESSION_IMPL *session, uint64_t nbits, void *retp)
  * __bit_test --
  *	Test one bit in name.
  */
-
 static WT_INLINE bool
 __bit_test(const uint8_t *bitf, uint64_t bit)
 
