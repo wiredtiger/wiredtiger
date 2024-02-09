@@ -9,7 +9,6 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
-ANDed
 APIs
 ARG
 ARGS
@@ -59,6 +58,7 @@ CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
+CONF
 CONFIG
 CPP
 CPUs
@@ -298,6 +298,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Precompiled
 Preload
 Prepend
 Prepending
@@ -370,6 +371,7 @@ TID
 TMP
 TODO
 TORTIOUS
+TRET
 TRYLOCK
 TSO
 TW
@@ -396,6 +398,7 @@ Unbuffered
 Unencrypted
 Unhandled
 UnixLib
+Unlink
 UnlockFile
 Unmap
 UnmapViewOfFile
@@ -453,11 +456,9 @@ Zstd
 Zstd's
 aa
 aaa
-abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
-abcef
-acSstu
+ackSstu
 addl
 addr
 addrs
@@ -511,7 +512,6 @@ blk
 blkcache
 blkincr
 blkmod
-blkmods
 bm
 bnd
 bool
@@ -523,6 +523,7 @@ breakpoint
 bs
 bstorage
 bswap
+bt
 btcur
 btmem
 btree
@@ -593,7 +594,6 @@ config
 configs
 conn
 connectionp
-const
 constantp
 consts
 cookiep
@@ -614,6 +614,7 @@ csv
 ctime
 ctype
 curbackup
+curbt
 curbulk
 curconfig
 curdump
@@ -635,6 +636,7 @@ cust
 customizable
 customp
 cv
+cval
 cx
 cxa
 dT
@@ -740,7 +742,6 @@ fclose
 fcntl
 fd
 fdatasync
-fe
 fextend
 ffc
 fff
@@ -822,6 +823,7 @@ hashval
 havesize
 hdr
 hhh
+hijinx
 hpp
 hs
 html
@@ -859,6 +861,7 @@ initn
 initsize
 initval
 inlined
+inlining
 inmem
 inmemory
 inserters
@@ -1096,6 +1099,9 @@ pre
 pread
 prealloc
 precomp
+precompilation
+precompiled
+precompiling
 prefetch
 preload
 prepend
@@ -1166,13 +1172,13 @@ risc
 rl
 rle
 rmw
-rnd
 rng
 rotN
 rotn
 rpc
 rts
 ru
+runnable
 runone
 runtime
 rw
@@ -1187,12 +1193,15 @@ scr
 sd
 sdk
 secretkey
+sempty
+sencrypted
 sessionp
 setkv
 setname
 setstr
 setv
 setvbuf
+sfast
 shareability
 sig
 sigchld
@@ -1255,6 +1264,7 @@ subtest
 subtree
 sumv
 sunique
+sunused
 supd
 superset
 sw
@@ -1299,7 +1309,6 @@ trylock
 tryrdlock
 trywrlock
 tupdate
-tvalue
 tw
 txn
 txnid
@@ -1310,6 +1319,7 @@ typeof
 uS
 ui
 uint
+uintAny
 umount
 unallocated
 unbare
@@ -1334,6 +1344,8 @@ unmodify
 unmount
 unpackv
 unpositioned
+unredact
+unredacts
 unreferenced
 unsized
 unterminated

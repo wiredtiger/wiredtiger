@@ -52,7 +52,7 @@ struct __wt_hazard_array {
  *	Pre-fetch structure containing useful information for pre-fetch.
  */
 struct __wt_prefetch {
-    WT_REF *prefetch_prev_ref;
+    WT_PAGE *prefetch_prev_ref_home;
     uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
     uint64_t prefetch_skipped_with_parent;
 };
@@ -278,6 +278,11 @@ struct __wt_session_impl {
     /*AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t lock_flags;
 
+/*
+ * Note: The WT_SESSION_PREFETCH_THREAD flag is set for prefetch server threads whereas the
+ * WT_SESSION_PREFETCH_THREAD flag is set when prefetch has been enabled on the session.
+ */
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_SESSION_BACKUP_CURSOR 0x000001u
 #define WT_SESSION_BACKUP_DUP 0x000002u
@@ -294,12 +299,13 @@ struct __wt_session_impl {
 #define WT_SESSION_LOGGING_INMEM 0x001000u
 #define WT_SESSION_NO_DATA_HANDLES 0x002000u
 #define WT_SESSION_NO_RECONCILE 0x004000u
-#define WT_SESSION_PREFETCH 0x008000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x010000u
-#define WT_SESSION_READ_WONT_NEED 0x020000u
-#define WT_SESSION_RESOLVING_TXN 0x040000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x080000u
-#define WT_SESSION_SCHEMA_TXN 0x100000u
+#define WT_SESSION_PREFETCH_ENABLED 0x008000u
+#define WT_SESSION_PREFETCH_THREAD 0x010000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x020000u
+#define WT_SESSION_READ_WONT_NEED 0x040000u
+#define WT_SESSION_RESOLVING_TXN 0x080000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x100000u
+#define WT_SESSION_SCHEMA_TXN 0x200000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
@@ -325,13 +331,18 @@ struct __wt_session_impl {
     TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) * dhhash;
 
 /* Generations manager */
-#define WT_GEN_CHECKPOINT 0 /* Checkpoint generation */
-#define WT_GEN_COMMIT 1     /* Commit generation */
-#define WT_GEN_EVICT 2      /* Eviction generation */
-#define WT_GEN_HAZARD 3     /* Hazard pointer */
-#define WT_GEN_SPLIT 4      /* Page splits */
-#define WT_GENERATIONS 5    /* Total generation manager entries */
+#define WT_GEN_CHECKPOINT 0   /* Checkpoint generation */
+#define WT_GEN_EVICT 1        /* Eviction generation */
+#define WT_GEN_HAS_SNAPSHOT 2 /* Snapshot generation */
+#define WT_GEN_HAZARD 3       /* Hazard pointer */
+#define WT_GEN_SPLIT 4        /* Page splits */
+#define WT_GENERATIONS 5      /* Total generation manager entries */
     wt_shared volatile uint64_t generations[WT_GENERATIONS];
+
+    /*
+     * Bindings for compiled configurations.
+     */
+    WT_CONF_BINDINGS conf_bindings;
 
     /*
      * Session memory persists past session close because it's accessed by threads of control other

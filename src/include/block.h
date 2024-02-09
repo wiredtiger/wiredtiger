@@ -290,6 +290,7 @@ struct __wt_block {
     WT_CKPT *final_ckpt; /* Final live checkpoint write */
 
     /* Compaction support */
+    bool compact_estimated;                    /* If compaction work has been estimated */
     int compact_pct_tenths;                    /* Percent to compact */
     uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
     uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
@@ -298,6 +299,7 @@ struct __wt_block {
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
     uint32_t compact_session_id;               /* Session compacting */
 
     /* Salvage support */
