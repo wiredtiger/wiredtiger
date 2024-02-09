@@ -54,6 +54,7 @@ PLOT_COLORS = {
     "entries": ["#40e0d0", "#baffc9"], 
     "page_type": ["#ff7f50", "#ffdfba"]
 }
+TITLE_SIZE = 20
 
 def output_pretty(output):
     """
@@ -170,9 +171,9 @@ def histogram(field, chkpt, chkpt_name):
                 leaf.append(val[field])
     fig, (ax1, ax2) = plt.subplots(2, figsize=(15, 10))
     ax = (ax1, ax2)
-    ax1.hist(internal, bins=100, color=PLOT_COLORS[field][0], label="internal")
-    ax2.hist(leaf, bins=100, color=PLOT_COLORS[field][1], label="leaf")
-    ax1.set_title(chkpt_name + " - Comparison between internal and leaf page " + field, fontsize=20)
+    ax[0].hist(internal, bins=100, color=PLOT_COLORS[field][0], label="internal")
+    ax[1].hist(leaf, bins=100, color=PLOT_COLORS[field][1], label="leaf")
+    ax[0].set_title(chkpt_name + " - Comparison between internal and leaf page " + field, fontsize=TITLE_SIZE)
 
     for subplot in ax:
         subplot.legend()
@@ -196,9 +197,9 @@ def pie_chart(field, chkpt, chkpt_name):
             elif "leaf" in val["page_type"]:
                 sizes[1] += 1
     labels = ["internal - " + str(sizes[0]), "leaf - " + str(sizes[1])]
-    
+
     fig, ax = plt.subplots(figsize=(10, 10))
-    plt.title(chkpt_name + " - " + field, fontsize=20)
+    plt.title(chkpt_name + " - " + field, fontsize=TITLE_SIZE)
     ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=PLOT_COLORS[field])
     imgs = mpld3.fig_to_html(fig)
     plt.close()
