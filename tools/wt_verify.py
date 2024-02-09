@@ -49,9 +49,9 @@ SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
 WT_OUTPUT_FILE = "wt_output_file.txt"
 ALL_VISUALIZATION_CHOICES = ["page_mem_size", "dsk_mem_size", "entries", "page_type"]
 PLOT_COLORS = {
-    "dsk_mem_size": ["#ff69b4", "#ffb3ba"], #pink
-    "page_mem_size": ["#4169e1", "#bae1ff"], #blue
-    "entries": ["#40e0d0", "#baffc9"], #green
+    "dsk_mem_size": ["#ff69b4", "#ffb3ba"],
+    "page_mem_size": ["#4169e1", "#bae1ff"], 
+    "entries": ["#40e0d0", "#baffc9"], 
     "page_type": ["#ff7f50", "#ffdfba"]
 }
 
@@ -159,21 +159,6 @@ def parse_output():
     return output
 
 
-def histogram_one_type(field, chkpt, chkpt_name):
-    values = []
-    for val in chkpt.values():
-        if field in val:
-            values.append(val[field])
-    fig = plt.figure(figsize=(15,6))
-    plt.hist(values, bins=100, color=PLOT_COLORS[field][0])
-    plt.title(chkpt_name + " - " + field + ' in bytes', fontsize=20)
-    plt.xlabel(field + ' (bytes)')
-    plt.ylabel('Frequency')
-    imgs = mpld3.fig_to_html(fig)
-    plt.close()
-    return imgs
-
-
 def histogram(field, chkpt, chkpt_name):
     internal = []
     leaf = []
@@ -184,15 +169,19 @@ def histogram(field, chkpt, chkpt_name):
             elif "leaf" in val["page_type"]:
                 leaf.append(val[field])
     fig, (ax1, ax2) = plt.subplots(2, figsize=(15, 10))
+    ax = (ax1, ax2)
     ax1.hist(internal, bins=100, color=PLOT_COLORS[field][0], label="internal")
     ax2.hist(leaf, bins=100, color=PLOT_COLORS[field][1], label="leaf")
-    ax1.legend()
-    ax2.legend()
     ax1.set_title(chkpt_name + " - Comparison between internal and leaf page " + field, fontsize=20)
-    ax1.set_xlabel(field + ' (bytes)')
-    ax1.set_ylabel('Frequency')
-    ax2.set_xlabel(field + ' (bytes)')
-    ax2.set_ylabel('Frequency')
+
+    for subplot in ax:
+        subplot.legend()
+        if field == "entries":
+            subplot.set_xlabel(field)
+        else:
+            subplot.set_xlabel(field + ' (bytes)')
+        subplot.set_ylabel('Frequency')
+
     imgs = mpld3.fig_to_html(fig) 
     plt.close()
     return imgs
@@ -207,6 +196,7 @@ def pie_chart(field, chkpt, chkpt_name):
             elif "leaf" in val["page_type"]:
                 sizes[1] += 1
     labels = ["internal - " + str(sizes[0]), "leaf - " + str(sizes[1])]
+    
     fig, ax = plt.subplots(figsize=(10, 10))
     plt.title(chkpt_name + " - " + field, fontsize=20)
     ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=PLOT_COLORS[field])
