@@ -541,7 +541,7 @@ err:
         WT_ASSERT(session, ret != 0);
         __wt_free(session, conf);
     }
-    return (0);
+    return (ret);
 }
 
 /*
