@@ -338,5 +338,5 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
 #else
-#error "No write barrier implementation for this hardware"
+#error "No release barrier implementation for this hardware"
 #endif

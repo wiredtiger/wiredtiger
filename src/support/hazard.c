@@ -42,7 +42,7 @@ hazard_grow(WT_SESSION_IMPL *session)
     /*
      * Our larger hazard array means we can use larger indices for reading/writing hazard pointers.
      * However, if these larger indices become visible to other threads before the new hazard array
-     * we can have out of bounds accesses to the old hazard array. Set a write barrier here to
+     * we can have out of bounds accesses to the old hazard array. Set a release barrier here to
      * ensure the array pointer is always visible first.
      */
     WT_RELEASE_BARRIER();
@@ -109,7 +109,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
         /*
          * If we've grown the hazard array the inuse counter can be incremented beyond the size of
          * the old hazard array. We need to ensure the new hazard array pointer is visible before
-         * this increment of the inuse counter and do so with a write barrier in the hazard grow
+         * this increment of the inuse counter and do so with a release barrier in the hazard grow
          * logic.
          */
         hp = &session->hazards.arr[session->hazards.inuse++];

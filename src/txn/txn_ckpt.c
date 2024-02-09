@@ -1502,7 +1502,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * FIXME-WT-11149: Some reading threads rely on the value of checkpoint running flag being
      * published before the checkpoint generation number (set inside the checkpoint call below).
-     * Introduce a write barrier here to guarantee the right order.
+     * Introduce a release barrier here to guarantee the right order.
      */
     WT_RELEASE_BARRIER();
 

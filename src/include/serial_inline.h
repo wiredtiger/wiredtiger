@@ -26,8 +26,8 @@ __insert_simple_func(
      * back.
      *
      * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it. Don't pass complex arguments to the macro, some
-     * implementations read the old value multiple times.
+     * release barrier here, our callers depend on it. Don't pass complex arguments to the macro,
+     * some implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
         /*
@@ -69,8 +69,8 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
      * memory we allocated, we can't roll back.
      *
      * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it. Don't pass complex arguments to the macro, some
-     * implementations read the old value multiple times.
+     * release barrier here, our callers depend on it. Don't pass complex arguments to the macro,
+     * some implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
         /*
@@ -259,7 +259,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 
     /*
      * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it.
+     * release barrier here, our callers depend on it.
      *
      * Swap the update into place. If that fails, a new update was added after our search, we raced.
      * Check if our update is still permitted.
