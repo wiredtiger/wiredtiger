@@ -60,6 +60,13 @@ PLOT_COLORS = {
 }
 TITLE_SIZE = 20
 
+FIELD_TITLES = {
+    "dsk_mem_size": "on disk size",
+    "page_mem_size": "in memory size",
+    "entries": "entries",
+    "page_type": "page type ratio"
+}
+
 def output_pretty(output):
     """
     Print output for parsing script
@@ -181,7 +188,7 @@ def histogram(field, chkpt, chkpt_name):
     fig, ax = plt.subplots(2, figsize=(15, 10))
     ax[0].hist(internal, bins=50, color=PLOT_COLORS[field]["internal"], label="internal")
     ax[1].hist(leaf, bins=50, color=PLOT_COLORS[field]["leaf"], label="leaf")
-    ax[0].set_title(chkpt_name + " - Comparison between internal and leaf page " + field, fontsize=TITLE_SIZE)
+    ax[0].set_title(chkpt_name + " - Internal and leaf page " + FIELD_TITLES[field], fontsize=TITLE_SIZE)
 
     for subplot in ax:
         subplot.legend()
@@ -189,7 +196,7 @@ def histogram(field, chkpt, chkpt_name):
             subplot.set_xlabel(field)
         else:
             subplot.set_xlabel(field + ' (bytes)')
-        subplot.set_ylabel('Frequency')
+        subplot.set_ylabel('Number of pages')
 
     imgs = mpld3.fig_to_html(fig) 
     plt.close()
@@ -211,7 +218,7 @@ def pie_chart(field, chkpt, chkpt_name):
     labels = ["internal - " + str(num_internal), "leaf - " + str(num_leaf)]
 
     fig, ax = plt.subplots(figsize=(10, 10))
-    plt.title(chkpt_name + " - " + field, fontsize=TITLE_SIZE)
+    plt.title(chkpt_name + " - " + FIELD_TITLES[field], fontsize=TITLE_SIZE)
     ax.pie([num_internal, num_leaf], labels=labels, autopct='%1.1f%%', colors=PLOT_COLORS[field])
     imgs = mpld3.fig_to_html(fig)
     plt.close()
