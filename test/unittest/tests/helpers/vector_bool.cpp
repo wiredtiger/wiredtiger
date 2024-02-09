@@ -139,7 +139,6 @@ std::vector<bool>
 operator&(std::vector<bool> const &a, std::vector<bool> const &b)
 {
     const size_t smaller = std::min(a.size(), b.size());
-    const size_t larger = std::max(a.size(), b.size());
 
     std::vector<bool> result;
     result.reserve(smaller);

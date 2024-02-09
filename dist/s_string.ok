@@ -9,6 +9,7 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
+ANDed
 APIs
 ARG
 ARGS
@@ -456,8 +457,10 @@ Zstd
 Zstd's
 aa
 aaa
+abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
+abcef
 ackSstu
 addl
 addr
@@ -512,6 +515,7 @@ blk
 blkcache
 blkincr
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -594,6 +598,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -742,6 +747,7 @@ fclose
 fcntl
 fd
 fdatasync
+fe
 fextend
 ffc
 fff
@@ -1172,6 +1178,7 @@ risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
