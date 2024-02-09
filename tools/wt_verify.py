@@ -42,17 +42,18 @@ import sys
 import re
 import matplotlib
 matplotlib.use('WebAgg')
-import matplotlib.pyplot as plt,mpld3
+import matplotlib.pyplot as plt
+import mpld3
 from mpld3._server import serve
 
 SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
 WT_OUTPUT_FILE = "wt_output_file.txt"
 ALL_VISUALIZATION_CHOICES = ["page_mem_size", "dsk_mem_size", "entries", "page_type"]
 PLOT_COLORS = {
-    "dsk_mem_size": ["#ff69b4", "#ffb3ba"],
-    "page_mem_size": ["#4169e1", "#bae1ff"], 
-    "entries": ["#40e0d0", "#baffc9"], 
-    "page_type": ["#ff7f50", "#ffdfba"]
+    "dsk_mem_size": {"internal": "#ff69b4", "leaf": "#ffb3ba"},
+    "page_mem_size": {"internal": "#4169e1", "leaf": "#bae1ff"},
+    "entries": {"internal": "#40e0d0", "leaf": "#baffc9"},
+    "page_type": ["#ff7f50", "#ffdfba"],
 }
 TITLE_SIZE = 20
 
@@ -161,18 +162,22 @@ def parse_output():
 
 
 def histogram(field, chkpt, chkpt_name):
+    """
+    Rendering histogram in HTML for the specified field for leaf and internal pages 
+    """
     internal = []
     leaf = []
-    for val in chkpt.values():
-        if field in val:
-            if "internal" in val["page_type"]:
-                internal.append(val[field])
-            elif "leaf" in val["page_type"]:
-                leaf.append(val[field])
-    fig, (ax1, ax2) = plt.subplots(2, figsize=(15, 10))
-    ax = (ax1, ax2)
-    ax[0].hist(internal, bins=100, color=PLOT_COLORS[field][0], label="internal")
-    ax[1].hist(leaf, bins=100, color=PLOT_COLORS[field][1], label="leaf")
+    for metadata in chkpt.values():
+        if field in metadata:
+            if "internal" in metadata["page_type"]:
+                internal.append(metadata[field])
+            elif "leaf" in metadata["page_type"]:
+                leaf.append(metadata[field])
+
+    # plot the histograms
+    fig, ax = plt.subplots(2, figsize=(15, 10))
+    ax[0].hist(internal, bins=50, color=PLOT_COLORS[field]["internal"], label="internal")
+    ax[1].hist(leaf, bins=50, color=PLOT_COLORS[field]["leaf"], label="leaf")
     ax[0].set_title(chkpt_name + " - Comparison between internal and leaf page " + field, fontsize=TITLE_SIZE)
 
     for subplot in ax:
@@ -189,26 +194,33 @@ def histogram(field, chkpt, chkpt_name):
 
 
 def pie_chart(field, chkpt, chkpt_name):
-    sizes = [0, 0]
-    for val in chkpt.values():
-        if field in val:
-            if "internal" in val["page_type"]:
-                sizes[0] += 1
-            elif "leaf" in val["page_type"]:
-                sizes[1] += 1
-    labels = ["internal - " + str(sizes[0]), "leaf - " + str(sizes[1])]
+    """
+    Rendering pie chart in HTML for the specified field for leaf and internal pages 
+    """
+    num_internal = 0
+    num_leaf = 0
+    for metadata in chkpt.values():
+        if field in metadata:
+            if "internal" in metadata["page_type"]:
+                num_internal += 1
+            elif "leaf" in metadata["page_type"]:
+                num_leaf += 1
+    labels = ["internal - " + str(num_internal), "leaf - " + str(num_leaf)]
 
     fig, ax = plt.subplots(figsize=(10, 10))
     plt.title(chkpt_name + " - " + field, fontsize=TITLE_SIZE)
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=PLOT_COLORS[field])
+    ax.pie([num_internal, num_leaf], labels=labels, autopct='%1.1f%%', colors=PLOT_COLORS[field])
     imgs = mpld3.fig_to_html(fig)
     plt.close()
     return imgs
 
 
-def visualize_field(output, field):
+def visualize_chkpt(tree_data, field):
+    """
+    Visualize a specified field for every existing checkout
+    """
     imgs = ""
-    for chkpt_name, chkpt in output.items():
+    for chkpt_name, chkpt in tree_data.items():
         if field in ["page_mem_size", "dsk_mem_size", "entries"]:
             imgs += histogram(field, chkpt, chkpt_name)
         elif field == "page_type":
@@ -216,12 +228,13 @@ def visualize_field(output, field):
     return imgs
 
 
-def visualize(output, fields):
-    if not fields:
-        fields = ALL_VISUALIZATION_CHOICES
+def visualize(tree_data, fields):
+    """
+    Visualize all specified fields for all checkpoints
+    """
     imgs = ""
     for field in fields:
-        imgs += visualize_field(output, field)
+        imgs += visualize_chkpt(tree_data, field)
     serve(imgs)
 
 
@@ -303,7 +316,7 @@ def main():
     parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages configuration.')
     parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output to stdout (default is off)')
     parser.add_argument('-v', '--visualize', choices=ALL_VISUALIZATION_CHOICES, nargs='*',
-                        help='Type of visualization (multiple options allowed).')
+                        help='Type of visualization (multiple options allowed). If no options are provided, all available data is visualized.')
 
     args = parser.parse_args()
     command = construct_command(args)
@@ -328,6 +341,8 @@ def main():
         print(output_pretty(parsed_data))
 
     if args.visualize is not None:
+        if not args.visualize:
+            args.visualize = ALL_VISUALIZATION_CHOICES
         visualize(parsed_data, args.visualize)
 
 if __name__ == "__main__":
