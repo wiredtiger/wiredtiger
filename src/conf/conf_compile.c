@@ -485,6 +485,7 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
     const WT_CONFIG_ENTRY *centry;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     size_t i, lastlen;
     char *cs;
     const char *cfgs[2] = {NULL, NULL};
