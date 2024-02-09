@@ -48,7 +48,10 @@ from mpld3._server import serve
 
 SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
 WT_OUTPUT_FILE = "wt_output_file.txt"
-ALL_VISUALIZATION_CHOICES = ["page_mem_size", "dsk_mem_size", "entries", "page_type"]
+HISTOGRAM_CHOICES = ["page_mem_size", "dsk_mem_size", "entries"]
+PIE_CHART_CHOICES = ["page_type"]
+ALL_VISUALIZATION_CHOICES = HISTOGRAM_CHOICES + PIE_CHART_CHOICES
+
 PLOT_COLORS = {
     "dsk_mem_size": {"internal": "#ff69b4", "leaf": "#ffb3ba"},
     "page_mem_size": {"internal": "#4169e1", "leaf": "#bae1ff"},
@@ -217,13 +220,13 @@ def pie_chart(field, chkpt, chkpt_name):
 
 def visualize_chkpt(tree_data, field):
     """
-    Visualize a specified field for every existing checkout
+    Visualize a specified field for every existing checkpoint
     """
     imgs = ""
     for chkpt_name, chkpt in tree_data.items():
-        if field in ["page_mem_size", "dsk_mem_size", "entries"]:
+        if field in HISTOGRAM_CHOICES:
             imgs += histogram(field, chkpt, chkpt_name)
-        elif field == "page_type":
+        elif field in PIE_CHART_CHOICES:
             imgs += pie_chart(field, chkpt, chkpt_name)
     return imgs
 
