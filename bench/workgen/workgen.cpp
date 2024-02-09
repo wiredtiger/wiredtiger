@@ -555,17 +555,25 @@ WorkloadRunner::select_table_for_drop(std::vector<std::string> &pending_delete)
     ContextInternal *icontext = _workload->_context->_internal;
     auto table_itr = icontext->_dyn_tint.begin();
     std::advance(table_itr, workgen_random(_rand_state) % icontext->_dyn_tint.size());
+
+    bool has_mirror = icontext->_dyn_table_runtime[table_itr->second].has_mirror();
+    auto mirror_itr = has_mirror ?
+      icontext->_dyn_tint.find(icontext->_dyn_table_runtime[table_itr->second]._mirror) :
+      icontext->_dyn_tint.end();
+
     if (icontext->_dyn_table_runtime[table_itr->second]._pending_delete) {
+        // The mirror should have been marked as pending deletion too.
+        if (has_mirror)
+            ASSERT(mirror_itr != icontext->_dyn_tint.end() &&
+              icontext->_dyn_table_runtime[mirror_itr->second]._pending_delete);
         return EEXIST;
     }
+
     schedule_table_for_drop(table_itr, pending_delete);
 
     // If the table has a mirror, schedule the mirror table for deletion too.
-    if (icontext->_dyn_table_runtime[table_itr->second].has_mirror()) {
-        auto mirror_itr =
-          icontext->_dyn_tint.find(icontext->_dyn_table_runtime[table_itr->second]._mirror);
+    if (has_mirror)
         schedule_table_for_drop(mirror_itr, pending_delete);
-    }
     return 0;
 }
 
