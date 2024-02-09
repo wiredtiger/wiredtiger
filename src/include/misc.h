@@ -21,10 +21,13 @@
  * take place when performing code coverage.
  */
 #ifdef CODE_COVERAGE_MEASUREMENT
+#ifdef _WIN32
+#error "Code coverage measurement is not currently supported for WiredTiger on Windows."
+#endif /* _WIN32 */
 #define WT_INLINE __attribute__((noinline))
 #else
 #define WT_INLINE inline
-#endif
+#endif /* CODE_COVERAGE_MEASUREMENT */
 
 /*
  * Quiet compiler warnings about unused function parameters and variables, and unused function
