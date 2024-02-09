@@ -21,10 +21,10 @@
  * Publish a value to a shared location. All previous stores must complete before the value is made
  * public.
  */
-#define WT_PUBLISH(v, val)  \
-    do {                    \
-        WT_WRITE_BARRIER(); \
-        (v) = (val);        \
+#define WT_RELEASE_WRITE_WITH_BARRIER(v, val) \
+    do {                                      \
+        WT_RELEASE_BARRIER();                 \
+        (v) = (val);                          \
     } while (0)
 
 /*

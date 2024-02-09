@@ -84,7 +84,7 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 
     txn_shared = WT_SESSION_TXN_SHARED(session);
 #endif
-    WT_PUBLISH(txn_shared->id, WT_TXN_NONE);
+    WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, WT_TXN_NONE);
 }
 
 /*
@@ -904,7 +904,7 @@ __txn_prepare_rollback_restore_hs_update(
     }
 
     /* Append the update to the end of the chain. */
-    WT_PUBLISH(upd_chain->next, upd);
+    WT_RELEASE_WRITE_WITH_BARRIER(upd_chain->next, upd);
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 

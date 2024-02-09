@@ -56,7 +56,7 @@ __wt_gen_init(WT_SESSION_IMPL *session)
         S2C(session)->generations[i] = 1;
 
     /* Ensure threads see the state change. */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 }
 
 /*
@@ -384,7 +384,7 @@ __wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
     WT_ASSERT(session, session->id < S2C(session)->session_array.cnt);
 
     /* Ensure writes made by this thread are visible. */
-    WT_PUBLISH(session->generations[which], 0);
+    WT_RELEASE_WRITE_WITH_BARRIER(session->generations[which], 0);
 
     /* Let threads waiting for the resource to drain proceed quickly. */
     WT_FULL_BARRIER();

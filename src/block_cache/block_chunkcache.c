@@ -755,7 +755,7 @@ __chunkcache_read_into_chunk(
      * this chunk to become valid. The current thread will mark the chunk as valid, and any waiters
      * will unblock and proceed reading it.
      */
-    WT_PUBLISH(new_chunk->valid, true);
+    WT_RELEASE_WRITE_WITH_BARRIER(new_chunk->valid, true);
 
     /* Push the chunk into the work queue so it can get written to the chunk cache metadata. */
     if (chunkcache->type == WT_CHUNKCACHE_FILE)
@@ -1165,7 +1165,7 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
     newchunk->chunk_memory = chunkcache->memory + cache_offset;
 
     TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), newchunk, next_chunk);
-    WT_PUBLISH(newchunk->valid, true);
+    WT_RELEASE_WRITE_WITH_BARRIER(newchunk->valid, true);
 
     __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE,
       "new chunk instantiated from metadata during startup: %s(%u), offset=%" PRId64 ", size=%lu",

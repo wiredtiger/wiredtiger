@@ -37,7 +37,7 @@ hazard_grow(WT_SESSION_IMPL *session)
      * original to be freed.
      */
     old_hazard = session->hazards.arr;
-    WT_PUBLISH(session->hazards.arr, new_hazard);
+    WT_RELEASE_WRITE_WITH_BARRIER(session->hazards.arr, new_hazard);
 
     /*
      * Our larger hazard array means we can use larger indices for reading/writing hazard pointers.
@@ -45,7 +45,7 @@ hazard_grow(WT_SESSION_IMPL *session)
      * we can have out of bounds accesses to the old hazard array. Set a write barrier here to
      * ensure the array pointer is always visible first.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     session->hazards.size = (uint32_t)(size * 2);
 
@@ -215,7 +215,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
              * active references can never be less than the number of in-use slots.
              */
             if (--session->hazards.num_active == 0)
-                WT_PUBLISH(session->hazards.inuse, 0);
+                WT_RELEASE_WRITE_WITH_BARRIER(session->hazards.inuse, 0);
             return (0);
         }
 

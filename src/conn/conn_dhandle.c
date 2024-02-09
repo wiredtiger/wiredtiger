@@ -228,7 +228,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
      * However, the sweep server scans the list of handles without holding that lock, so we need a
      * write barrier here to ensure the sweep server doesn't see a partially filled in structure.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     /*
      * Prepend the handle to the connection list, assuming we're likely to need new files again

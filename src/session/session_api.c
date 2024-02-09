@@ -2668,7 +2668,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * to ensure structure fields are set before any other thread will consider the session, and to
      * push the session count to ensure the eviction thread can't review too few slots.
      */
-    WT_PUBLISH(session_ret->active, 1);
+    WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
 
     *sessionp = session_ret;
 

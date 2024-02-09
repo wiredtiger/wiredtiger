@@ -117,21 +117,21 @@ __wt_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_o
      */
     if (__posix_std_fallocate(file_handle, wt_session, offset) == 0) {
         file_handle->fh_extend_nolock = __posix_std_fallocate;
-        WT_PUBLISH(file_handle->fh_extend, NULL);
+        WT_RELEASE_WRITE_WITH_BARRIER(file_handle->fh_extend, NULL);
         return (0);
     }
     if (__posix_sys_fallocate(file_handle, wt_session, offset) == 0) {
         file_handle->fh_extend_nolock = __posix_sys_fallocate;
-        WT_PUBLISH(file_handle->fh_extend, NULL);
+        WT_RELEASE_WRITE_WITH_BARRIER(file_handle->fh_extend, NULL);
         return (0);
     }
     if (__posix_posix_fallocate(file_handle, wt_session, offset) == 0) {
 #if defined(__linux__)
         file_handle->fh_extend = __posix_posix_fallocate;
-        WT_WRITE_BARRIER();
+        WT_RELEASE_BARRIER();
 #else
         file_handle->fh_extend_nolock = __posix_posix_fallocate;
-        WT_PUBLISH(file_handle->fh_extend, NULL);
+        WT_RELEASE_WRITE_WITH_BARRIER(file_handle->fh_extend, NULL);
 #endif
         return (0);
     }
@@ -143,11 +143,11 @@ __wt_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_o
     if (file_handle->fh_truncate != NULL &&
       file_handle->fh_truncate(file_handle, wt_session, offset) == 0) {
         file_handle->fh_extend = file_handle->fh_truncate;
-        WT_WRITE_BARRIER();
+        WT_RELEASE_BARRIER();
         return (0);
     }
 
     file_handle->fh_extend = NULL;
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
     return (ENOTSUP);
 }

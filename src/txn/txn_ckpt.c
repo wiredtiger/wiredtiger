@@ -274,7 +274,7 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
     if (WT_IS_METADATA(session->dhandle))
         return;
 
-    WT_PUBLISH(btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+    WT_RELEASE_WRITE_WITH_BARRIER(btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
     WT_STAT_DATA_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
 }
 
@@ -1504,7 +1504,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
      * published before the checkpoint generation number (set inside the checkpoint call below).
      * Introduce a write barrier here to guarantee the right order.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     ret = __txn_checkpoint(session, cfg);
 

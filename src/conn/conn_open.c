@@ -44,7 +44,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      * Publish: there must be a barrier to ensure the connection structure fields are set before
      * other threads read from the pointer.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     /* Create the cache. */
     WT_RET(__wt_cache_create(session, cfg));
