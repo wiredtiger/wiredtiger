@@ -223,8 +223,8 @@ struct __wt_cache {
     wt_shared uint16_t pool_flags_atomic; /* Cache pool flags */
 
 #ifdef HAVE_DIAGNOSTIC
-    uint64_t no_page_queued_aggressive; /* The start time that eviction walk not queuing enough
-                                           pages in aggressive mode. */
+    uint64_t not_enough_page_queued_aggressive; /* The start time that eviction walk not queuing
+                                           enough pages in aggressive mode. */
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
