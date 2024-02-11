@@ -8,8 +8,8 @@ The data source does not have to be quiescent, compaction may be performed on an
 
 @section foreground Foreground compaction
 
-Foreground compaction is executed when a specific table is given to the WT_SESSION::compact method.
-The call returns once compaction has been executed on the table.
+Foreground compaction is executed when a specific URI is given to the WT_SESSION::compact method.
+The call returns once compaction has been executed on the specified URI.
 
 Example:
 @code
@@ -29,7 +29,7 @@ request has been submitted to WiredTiger.
 
 When background compaction is enabled, WiredTiger autonomously compacts the eligible files in the database.
 
-<b>Note:</b> When interacting with background compaction, NULL should be assigned to the argument corresponding to the table name.
+<b>Note:</b> When interacting with background compaction, NULL should be assigned to the argument corresponding to the URI.
 
 Example:
 @code
