@@ -77,14 +77,26 @@ def get_mirrors(db_dir, db_files):
     return mirrors
 
 # Get the mirror for the specified file by examining the file's metadata. Mirror names
-# are stored in the 'app_metadata' by workgen when mirroring is enabled. If the file has
+# are stored in the 'app_metadata' by Workgen when mirroring is enabled. If the file has
 # a mirror, the name of the mirror is returned. Otherwise, the function returns None.
+# It is possible that the requested file does not exist in the metadata file, return None in this
+# scenario as well.
 def get_mirror_file(db_dir, filename):
 
     connection = wiredtiger_open(db_dir, 'readonly')
     session = connection.open_session()
     c = session.open_cursor('metadata:', None, None)
-    metadata = c[filename]
+
+    # It is possible that the file requested does not exist in the metadata file.
+    try:
+       metadata = c[filename]
+    except Exception as e:
+        if e.__class__.__name__ == 'KeyError':
+            c.close()
+            session.close()
+            connection.close()
+            return None
+
     c.close()
 
     result = re.findall('app_metadata="([^"]*)"', metadata)
