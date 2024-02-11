@@ -56,14 +56,15 @@ def get_wiredtiger_db_files(dir):
 # Given a list of database tables, return a list of mirrored uri pairs.
 def get_mirrors(db_dir, db_files):
 
-    mirrors = []
+    connection = wiredtiger_open(db_dir, 'readonly')
     db_files_remaining = set(db_files)
+    mirrors = []
 
     for filename in db_files:
         if filename not in db_files_remaining:
             continue
         db_files_remaining.remove(filename)
-        mirror_filename = get_mirror_file(db_dir, f'table:{filename}')
+        mirror_filename = get_mirror_file(connection, f'table:{filename}')
 
         # At this point, there is no guarantee that the database contains all the base/mirror pairs.
         # It is possible to have a base and no associated mirror and vice-versa. This may happen
@@ -74,6 +75,7 @@ def get_mirrors(db_dir, db_files):
             mirrors.append([f'{db_dir}/table:{filename}',
                             f'{db_dir}/table:{mirror_filename}'])
 
+    connection.close()
     return mirrors
 
 # Get the mirror for the specified file by examining the file's metadata. Mirror names
@@ -81,9 +83,8 @@ def get_mirrors(db_dir, db_files):
 # a mirror, the name of the mirror is returned. Otherwise, the function returns None.
 # It is possible that the requested file does not exist in the metadata file, return None in this
 # scenario as well.
-def get_mirror_file(db_dir, filename):
+def get_mirror_file(connection, filename):
 
-    connection = wiredtiger_open(db_dir, 'readonly')
     session = connection.open_session()
     c = session.open_cursor('metadata:', None, None)
 
@@ -92,12 +93,8 @@ def get_mirror_file(db_dir, filename):
        metadata = c[filename]
     except Exception as e:
         if e.__class__.__name__ == 'KeyError':
-            c.close()
             session.close()
-            connection.close()
             return None
-
-    c.close()
 
     result = re.findall('app_metadata="([^"]*)"', metadata)
     mirror = None
@@ -113,7 +110,6 @@ def get_mirror_file(db_dir, filename):
             mirror = mirror.split(':')[1]
 
     session.close()
-    connection.close()
     return mirror
 
 # ------------------------------------------------------------------------------
