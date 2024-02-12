@@ -442,7 +442,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, reconfigure, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, reconfigure, config, cfg);
     WT_UNUSED(cfg);
 
     WT_ERR(__wt_txn_context_check(session, false));
@@ -728,7 +728,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, open_cursor, config, cfg);
+    SESSION_API_CALL(session, ret, open_cursor, config, cfg);
 
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
@@ -806,7 +806,7 @@ __session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *
 {
     WT_DECL_RET;
 
-    SESSION_API_CALL(session, alter, config, cfg);
+    SESSION_API_CALL(session, ret, alter, config, cfg);
 
     /* In-memory ignores alter operations. */
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -916,6 +916,29 @@ err:
 }
 
 /*
+ * __session_bind_configuration --
+ *     Bind values to a compiled configuration string.
+ */
+static int
+__session_bind_configuration(WT_SESSION *wt_session, const char *compiled, ...)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    va_list ap;
+
+    WT_UNUSED(compiled);
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    SESSION_API_CALL_NOCONF(session, alter);
+
+    va_start(ap, compiled);
+    ret = __wt_conf_bind(session, compiled, ap);
+    va_end(ap);
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __wt_session_create --
  *     Internal version of WT_SESSION::create.
  */
@@ -944,7 +967,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     is_import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
-    SESSION_API_CALL(session, create, config, cfg);
+    SESSION_API_CALL(session, ret, create, config, cfg);
     WT_UNUSED(cfg);
 
     /* Disallow objects in the WiredTiger name space. */
@@ -1023,7 +1046,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     uint32_t flags;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, log_flush, config, cfg);
+    SESSION_API_CALL(session, ret, log_flush, config, cfg);
     WT_STAT_CONN_INCR(session, log_flush);
 
     conn = S2C(session);
@@ -1120,7 +1143,7 @@ __session_rename(WT_SESSION *wt_session, const char *uri, const char *newuri, co
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, rename, config, cfg);
+    SESSION_API_CALL(session, ret, rename, config, cfg);
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
@@ -1172,7 +1195,7 @@ __session_reset(WT_SESSION *wt_session)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, reset);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, ret, reset);
 
     WT_ERR(__wt_txn_context_check(session, false));
 
@@ -1227,7 +1250,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     bool checkpoint_wait, lock_wait;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, drop, config, cfg);
+    SESSION_API_CALL(session, ret, drop, config, cfg);
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
@@ -1316,7 +1339,7 @@ __session_join(
     bool nested;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, join, config, cfg);
+    SESSION_API_CALL(session, ret, join, config, cfg);
 
     firstcg = NULL;
     table = NULL;
@@ -1469,7 +1492,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL(session, salvage, config, cfg);
+    SESSION_API_CALL(session, ret, salvage, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1739,7 +1762,7 @@ __session_truncate(
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_TXN_API_CALL(session, truncate, config, cfg);
+    SESSION_TXN_API_CALL(session, ret, truncate, config, cfg);
     WT_STAT_CONN_INCR(session, cursor_truncate);
 
     /*
@@ -1832,7 +1855,7 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL(session, upgrade, config, cfg);
+    SESSION_API_CALL(session, ret, upgrade, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1878,7 +1901,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, verify, config, cfg);
+    SESSION_API_CALL(session, ret, verify, config, cfg);
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
@@ -1922,22 +1945,25 @@ err:
 static int
 __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 {
+    WT_DECL_CONF(WT_SESSION, begin_transaction, conf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, begin_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, begin_transaction, config, cfg);
+    SESSION_API_CONF(session, begin_transaction, cfg, conf);
     WT_STAT_CONN_INCR(session, txn_begin);
     WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
 
     WT_ERR(__wt_txn_context_check(session, false));
 
-    ret = __wt_txn_begin(session, cfg);
+    ret = __wt_txn_begin(session, conf);
 
 err:
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_call_log_begin_transaction(session, config, ret));
 #endif
+    API_CONF_END(session, conf);
     API_END_RET(session, ret);
 }
 
@@ -2044,7 +2070,7 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, prepare_transaction, config, cfg);
+    SESSION_API_CALL(session, ret, prepare_transaction, config, cfg);
     WT_STAT_CONN_INCR(session, txn_prepare);
     WT_STAT_CONN_INCR(session, txn_prepare_active);
 
@@ -2323,7 +2349,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
     uint64_t pinned;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, transaction_pinned_range);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, ret, transaction_pinned_range);
 
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
@@ -2388,7 +2414,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     WT_STAT_CONN_INCR(session, checkpoints_api);
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RUNNING);
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, checkpoint, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, checkpoint, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -2413,7 +2439,6 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_TRET(__wt_session_release_resources(session));
 
 err:
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2473,33 +2498,35 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 {
     static const WT_SESSION
       stds = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
-        __session_open_cursor, __session_alter, __session_create, __wt_session_compact,
-        __session_drop, __session_join, __session_log_flush, __session_log_printf, __session_rename,
-        __session_reset, __session_salvage, __session_truncate, __session_upgrade, __session_verify,
-        __session_begin_transaction, __session_commit_transaction, __session_prepare_transaction,
-        __session_rollback_transaction, __session_query_timestamp, __session_timestamp_transaction,
+        __session_open_cursor, __session_alter, __session_bind_configuration, __session_create,
+        __wt_session_compact, __session_drop, __session_join, __session_log_flush,
+        __session_log_printf, __session_rename, __session_reset, __session_salvage,
+        __session_truncate, __session_upgrade, __session_verify, __session_begin_transaction,
+        __session_commit_transaction, __session_prepare_transaction, __session_rollback_transaction,
+        __session_query_timestamp, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_checkpoint, __session_reset_snapshot,
         __session_transaction_pinned_range, __session_get_rollback_reason, __wt_session_breakpoint},
       stds_min = {NULL, NULL, __session_close, __session_reconfigure_notsup, __wt_session_strerror,
-        __session_open_cursor, __session_alter_readonly, __session_create_readonly,
-        __wt_session_compact_readonly, __session_drop_readonly, __session_join_notsup,
-        __session_log_flush_readonly, __session_log_printf_readonly, __session_rename_readonly,
-        __session_reset_notsup, __session_salvage_readonly, __session_truncate_readonly,
-        __session_upgrade_readonly, __session_verify_notsup, __session_begin_transaction_notsup,
-        __session_commit_transaction_notsup, __session_prepare_transaction_readonly,
-        __session_rollback_transaction_notsup, __session_query_timestamp_notsup,
-        __session_timestamp_transaction_notsup, __session_timestamp_transaction_uint_notsup,
-        __session_checkpoint_readonly, __session_reset_snapshot_notsup,
-        __session_transaction_pinned_range_notsup, __session_get_rollback_reason,
-        __wt_session_breakpoint},
+        __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
+        __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
+        __session_join_notsup, __session_log_flush_readonly, __session_log_printf_readonly,
+        __session_rename_readonly, __session_reset_notsup, __session_salvage_readonly,
+        __session_truncate_readonly, __session_upgrade_readonly, __session_verify_notsup,
+        __session_begin_transaction_notsup, __session_commit_transaction_notsup,
+        __session_prepare_transaction_readonly, __session_rollback_transaction_notsup,
+        __session_query_timestamp_notsup, __session_timestamp_transaction_notsup,
+        __session_timestamp_transaction_uint_notsup, __session_checkpoint_readonly,
+        __session_reset_snapshot_notsup, __session_transaction_pinned_range_notsup,
+        __session_get_rollback_reason, __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
-        __session_open_cursor, __session_alter_readonly, __session_create_readonly,
-        __wt_session_compact_readonly, __session_drop_readonly, __session_join,
-        __session_log_flush_readonly, __session_log_printf_readonly, __session_rename_readonly,
-        __session_reset, __session_salvage_readonly, __session_truncate_readonly,
-        __session_upgrade_readonly, __session_verify, __session_begin_transaction,
-        __session_commit_transaction, __session_prepare_transaction_readonly,
-        __session_rollback_transaction, __session_query_timestamp, __session_timestamp_transaction,
+        __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
+        __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
+        __session_join, __session_log_flush_readonly, __session_log_printf_readonly,
+        __session_rename_readonly, __session_reset, __session_salvage_readonly,
+        __session_truncate_readonly, __session_upgrade_readonly, __session_verify,
+        __session_begin_transaction, __session_commit_transaction,
+        __session_prepare_transaction_readonly, __session_rollback_transaction,
+        __session_query_timestamp, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_checkpoint_readonly,
         __session_reset_snapshot, __session_transaction_pinned_range, __session_get_rollback_reason,
         __wt_session_breakpoint};

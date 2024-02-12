@@ -15,6 +15,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_config
+    SOURCES config/main.c
+    DIR_NAME config
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_config>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_incr_backup
     SOURCES incr_backup/main.c
     DIR_NAME incr_backup
@@ -399,6 +407,14 @@ define_c_test(
     TARGET test_wt10897_compact_quick_interrupt
     SOURCES wt10897_compact_quick_interrupt/main.c
     DIR_NAME wt10897_compact_quick_interrupt
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt11126_compile_config
+    SOURCES wt11126_compile_config/main.c
+    DIR_NAME wt11126_compile_config
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
