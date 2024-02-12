@@ -9,6 +9,20 @@
 #include "wt_internal.h"
 
 /*
+ * __f_areallset --
+ *     Returns true if all bits set in mask are set in cursor->flags.
+ *
+ * Not a macro since a macro would evaluate mask twice.
+ */
+static inline bool
+__f_areallset(const WT_CURSOR *cursor, uint64_t mask)
+{
+    return ((cursor->flags & mask) == mask);
+}
+
+static int __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[]);
+
+/*
  * __curstd_config_value_for --
  *     Returns NULL if the string being searched for isn't found, or the string after the "=" sign
  *     in the config string.
@@ -714,6 +728,8 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
     session = CUR2S(cursor);
     WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED) && dhandle != NULL);
+    /* Since open_cursor_count decremented below */
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_OPEN));
 
     WT_TRET(cursor->reset(cursor));
 
@@ -750,12 +766,20 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     WT_STAT_DATA_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
 
+    /* Document the flags cleared, and set by this function */
+    WT_ASSERT(session,
+      !F_ISSET(
+        cursor, WT_CURSTD_BOUND_ALL | WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE));
+    WT_ASSERT(session, __f_areallset(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
+
     API_RET_STAT(session, ret, cursor_cache);
 }
 
 /*
  * __wt_cursor_reopen --
  *     Reopen this cursor from the cached state.
+ *
+ * Flags cleared by this function: WT_CURSTD_CACHED.
  */
 void
 __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
@@ -850,24 +874,99 @@ __wt_cursor_get_hash(
 }
 
 /*
+ * __any_cursor_must_be_readonly --
+ *     Determine whether connection and/or cfg[] requires that a cursor be read-only.
+ */
+static int
+__any_cursor_must_be_readonly(WT_SESSION_IMPL *session, const char *cfg[], bool *readonlyp)
+{
+    WT_CONFIG_ITEM cval;
+    /*
+     * checkpoint, readonly Checkpoint cursors are permanently read-only, avoid the extra work of
+     * two configuration string checks.
+     */
+    bool readonly = F_ISSET(S2C(session), WT_CONN_READONLY);
+    if (!readonly && cfg != NULL) {
+        WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
+        readonly = cval.len != 0;
+
+        if (!readonly) {
+            WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
+            readonly = cval.val != 0;
+        }
+    }
+    *readonlyp = readonly;
+    return (0);
+}
+
+/*
+ * __any_cursor_can_be_cached --
+ *     Determine whether cfg[] allows that a cursor be cached.
+ */
+static int
+__any_cursor_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
+{
+    WT_CONFIG_ITEM cval;
+    /*
+     * Any cursors that have special configuration cannot be cached. There are some exceptions for
+     * configurations that only differ by a cursor flag, which we can patch up if we find a matching
+     * cursor.
+     */
+    WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
+    if (cval.val)
+        goto return_false;
+
+    WT_RET(__wt_config_gets_def(session, cfg, "debug", 0, &cval));
+    if (cval.len != 0)
+        goto return_false;
+
+    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+    if (cval.len != 0)
+        goto return_false;
+
+    WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
+    if (cval.val != 0)
+        goto return_false;
+
+    WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
+    if (cval.val)
+        goto return_false;
+
+    /* Checkpoints are readonly, we won't cache them. */
+    WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
+    if (cval.val) {
+return_false:
+        *cacheablep = false;
+    } else {
+        *cacheablep = true;
+    }
+
+    return (0);
+}
+
+/*
  * __cursor_reuse_or_init --
  *     Initialization shared between reuse of a cached cursor and initialization of a new cursor.
  *
- * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
+ * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_CACHEABLE,
+ *     WT_CURSTD_DEBUG_RESET_EVICT, WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
  */
 static int
 __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
-  uint64_t overwrite_flag, bool have_config)
+  uint64_t overwrite_flag, bool *readonlyp)
 {
     WT_CONFIG_ITEM cval;
     /* Default cleared all flags set by this func. */
-    F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
-    /* overwrite */
+    F_CLR(cursor,
+      WT_CURSTD_APPEND | WT_CURSTD_CACHEABLE | WT_CURSTD_DEBUG_RESET_EVICT | WT_CURSTD_OVERWRITE |
+        WT_CURSTD_RAW);
+
+    /* WT_CURSTD_OVERWRITE */
     F_SET(cursor, overwrite_flag);
 
-    if (have_config) {
+    if (cfg != NULL) {
         /*
-         * The append flag is only relevant to column stores.
+         * WT_CURSTD_APPEND is only relevant to column stores.
          */
         if (WT_CURSOR_RECNO(cursor)) {
             WT_RET(__wt_config_gets_def(session, cfg, "append", 0, &cval));
@@ -875,11 +974,27 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
                 F_SET(cursor, WT_CURSTD_APPEND);
         }
 
-        /* raw */
+        /* WT_CURSTD_OVERWRITE */
+        WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
+        if (cval.val == 0)
+            F_CLR(cursor, WT_CURSTD_OVERWRITE);
+
+        /* WT_CURSTD_RAW */
         WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
         if (cval.val != 0)
             F_SET(cursor, WT_CURSTD_RAW);
+
+        /* WT_CURSTD_DEBUG_RESET_EVICT */
+        WT_RET(__cursor_config_debug(cursor, cfg));
     }
+
+    /* Readonly? */
+    WT_RET(__any_cursor_must_be_readonly(session, cfg, readonlyp));
+
+    /* WT_CURSTD_CACHEABLE */
+    if (*readonlyp) /* We do not cache read-only cursors. */
+        F_CLR(cursor, WT_CURSTD_CACHEABLE);
+
     return (0);
 }
 
@@ -898,53 +1013,28 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     uint64_t bucket, overwrite_flag;
+    bool cacheable;
     bool have_config;
+    bool readonly;
 
+    /* cacheable */
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+        return (WT_NOTFOUND);
+
+    WT_RET(__any_cursor_can_be_cached(session, cfg, &cacheable));
+    if (!cacheable)
         return (WT_NOTFOUND);
 
     /* If original config string is NULL or "", don't check it. */
     have_config =
       (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL && (cfg[2] != NULL || cfg[1][0] != '\0'));
 
-    /* Fast path overwrite configuration */
+    /* WT_CURSTD_OVERWRITE: Fast path overwrite configuration */
     if (have_config && cfg[2] == NULL && strcmp(cfg[1], "overwrite=false") == 0) {
         have_config = false;
         overwrite_flag = 0;
     } else
         overwrite_flag = WT_CURSTD_OVERWRITE;
-
-    if (have_config) {
-        /*
-         * Any cursors that have special configuration cannot be cached. There are some exceptions
-         * for configurations that only differ by a cursor flag, which we can patch up if we find a
-         * matching cursor.
-         */
-        WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
-        if (cval.val)
-            return (WT_NOTFOUND);
-
-        WT_RET(__wt_config_gets_def(session, cfg, "debug", 0, &cval));
-        if (cval.len != 0)
-            return (WT_NOTFOUND);
-
-        WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
-        if (cval.len != 0)
-            return (WT_NOTFOUND);
-
-        WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
-        if (cval.val != 0)
-            return (WT_NOTFOUND);
-
-        WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
-        if (cval.val)
-            return (WT_NOTFOUND);
-
-        /* Checkpoints are readonly, we won't cache them. */
-        WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-        if (cval.val)
-            return (WT_NOTFOUND);
-    }
 
     if (to_dup != NULL)
         uri = to_dup->uri;
@@ -954,7 +1044,14 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
      */
     bucket = hash_value & (S2C(session)->hash_size - 1);
     TAILQ_FOREACH (cursor, &session->cursor_cache[bucket], q) {
+        /* Document some flags always set in the cache */
+        WT_ASSERT(session, __f_areallset(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
+
+        /* Document some flags always cleared in the cache */
+        WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE));
+
         if (cursor->uri_hash == hash_value && strcmp(cursor->uri, uri) == 0) {
+            /* cursor->reopen() */
             if ((ret = cursor->reopen(cursor, false)) != 0) {
                 F_CLR(cursor, WT_CURSTD_CACHEABLE);
                 session->dhandle = NULL;
@@ -966,7 +1063,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            __cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, true);
+            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly));
 
             /*
              * If this is a btree cursor, clear its read_once flag.
@@ -1090,6 +1187,8 @@ err:
 /*
  * __cursor_config_debug --
  *     Set configuration options for debug category.
+ *
+ * Flags set or cleared by this function: WT_CURSTD_DEBUG_RESET_EVICT.
  */
 static int
 __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
@@ -1117,6 +1216,9 @@ __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
 /*
  * __wt_cursor_reconfigure --
  *     Set runtime-configurable settings.
+ *
+ * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_DEBUG_RESET_EVICT,
+ *     WT_CURSTD_OVERWRITE, plus cursor->reset()
  */
 int
 __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
@@ -1154,6 +1256,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
 
+    /* WT_CURSTD_DEBUG_RESET_EVICT */
     WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
@@ -1448,6 +1551,12 @@ __wt_cursor_init(
 
     session = CUR2S(cursor);
 
+    /* Document some flags that are cleared when this is called */
+    WT_ASSERT(session,
+      !F_ISSET(cursor,
+        WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_JSON | WT_CURSTD_DUMP_JSON | WT_CURSTD_DUMP_PRETTY |
+          WT_CURSTD_DUMP_PRINT));
+
     if (cursor->internal_uri == NULL) {
         /* Various cursor code assumes there is an internal URI, so there better be one to set. */
         WT_ASSERT(session, uri != NULL);
@@ -1457,30 +1566,15 @@ __wt_cursor_init(
     WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
     overwrite_flag = cval.val ? WT_CURSTD_OVERWRITE : 0;
 
-    __cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, true);
+    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly));
 
-    /*
-     * checkpoint, readonly Checkpoint cursors are permanently read-only, avoid the extra work of
-     * two configuration string checks.
-     */
-    readonly = F_ISSET(S2C(session), WT_CONN_READONLY);
-    if (!readonly) {
-        WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-        readonly = cval.len != 0;
-    }
-    if (!readonly) {
-        WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
-        readonly = cval.val != 0;
-    }
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
         cursor->modify = __wt_cursor_modify_notsup;
         cursor->remove = __wt_cursor_notsup;
         cursor->reserve = __wt_cursor_notsup;
         cursor->update = __wt_cursor_notsup;
-        F_CLR(cursor, WT_CURSTD_CACHEABLE);
     }
-    WT_RET(__cursor_config_debug(cursor, cfg));
 
     /*
      * dump If an index cursor is opened with dump, then this function is called on the index files,
@@ -1534,6 +1628,7 @@ __wt_cursor_init(
     } else
         TAILQ_INSERT_HEAD(&session->cursors, cursor, q);
 
+    /* WT_CURSTD_OPEN */
     F_SET(cursor, WT_CURSTD_OPEN);
     (void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
     WT_STAT_DATA_INCR(session, cursor_open_count);
