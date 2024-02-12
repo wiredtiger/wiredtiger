@@ -208,10 +208,10 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
 static WT_INLINE int
 __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 {
+    WT_BTREE *btree;
     WT_TXN *txn;
     WT_TXN_OP *op;
     uint64_t btree_txn_id_prev;
-    WT_BTREE *btree;
     uint64_t txn_id;
 
     *opp = NULL;

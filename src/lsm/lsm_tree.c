@@ -843,18 +843,18 @@ __wt_lsm_tree_drop(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
     /* Drop the chunks. */
     for (i = 0; i < lsm_tree->nchunks; i++) {
         chunk = lsm_tree->chunk[i];
-        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, true));
+        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, false));
         if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
-            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, true));
+            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, false));
     }
 
     /* Drop any chunks on the obsolete list. */
     for (i = 0; i < lsm_tree->nold_chunks; i++) {
         if ((chunk = lsm_tree->old_chunks[i]) == NULL)
             continue;
-        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, true));
+        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, false));
         if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
-            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, true));
+            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, false));
     }
 
     locked = false;
