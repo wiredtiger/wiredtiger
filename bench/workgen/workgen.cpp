@@ -910,7 +910,7 @@ ContextInternal::~ContextInternal()
 }
 
 int
-ContextInternal::create_all(WT_CONNECTION *conn)
+ContextInternal::create_all(WT_CONNECTION *conn, bool mirror_enabled)
 {
     if (_table_runtime.size() <= _tint_last) {
         // The array references are 1-based, we'll waste one entry.
@@ -965,6 +965,9 @@ ContextInternal::create_all(WT_CONNECTION *conn)
             pos = value.find(MIRROR_TABLE_APP_METADATA);
             // If the table has a mirror, add the mirror name to the runtime data.
             if (pos != std::string::npos) {
+                // We should only process mirrored tables when the feature is enabled. We want to
+                // avoid scenarios where the option is enabled then disabled between two runs.
+                ASSERT(mirror_enabled);
                 start = value.find_first_of('=', pos);
                 end = value.find_first_of(",\"", start);
                 if (start == std::string::npos || end == std::string::npos) {
@@ -3263,7 +3266,7 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         WT_RET(runner->create_all(conn));
     }
 
-    WT_RET(context->_internal->create_all(conn));
+    WT_RET(context->_internal->create_all(conn, _workload->options.mirror_tables));
     return (0);
 }
 

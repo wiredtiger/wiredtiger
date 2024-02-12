@@ -245,7 +245,7 @@ struct ContextInternal {
 
     ContextInternal();
     ~ContextInternal();
-    int create_all(WT_CONNECTION *conn);
+    int create_all(WT_CONNECTION *conn, bool mirror_enabled);
 };
 
 struct OperationInternal {
