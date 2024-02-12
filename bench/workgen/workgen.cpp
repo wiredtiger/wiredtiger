@@ -1683,9 +1683,14 @@ ThreadRunner::op_run_setup(Operation *op)
 
         // Do we need to mirror operations? If not, we are done here.
         if (!_icontext->_dyn_table_runtime[op_tint].has_mirror()) {
+            // This is possible only if mirror is disabled.
+            ASSERT(!_workload->options.mirror_tables);
             op_set_table(op, op_uri);
             return op_run(op);
         }
+
+        // We must have enabled mirroring.
+        ASSERT(_workload->options.mirror_tables);
 
         // Copy this operation to two new operations on the base table and the mirror.
         base_op = *op;
