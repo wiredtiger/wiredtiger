@@ -1,0 +1,11 @@
+# Change directory to wiredtiger/tools/wt_verify
+
+# Activate venv in python
+virtualenv -p python venv
+source venv/bin/activate
+
+# Install dependencies/requirements
+pip install -r requirements
+
+# run script, use -v to visualise output
+python3 wt_verify.py -hd DB_DIR -f FILE_NAME -o OUTPUT.TXT -v -d dump_pages
