@@ -218,11 +218,11 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
 }
 
 /*
- * __wt_session_release_dhandle --
+ * __wt_session_release_dhandle_gen --
  *     Unlock a data handle.
  */
 int
-__wt_session_release_dhandle(WT_SESSION_IMPL *session)
+__wt_session_release_dhandle_gen(WT_SESSION_IMPL *session, bool check_visibility)
 {
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
@@ -258,13 +258,14 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
          * Acquire the schema lock while closing out the handles. This avoids racing with a
          * checkpoint while it gathers a set of handles.
          */
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_conn_dhandle_close(session, false, false, false));
+        WT_WITH_SCHEMA_LOCK(
+          session, ret = __wt_conn_dhandle_close(session, false, false, check_visibility));
     } else if ((btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) ||
       F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL)) {
         WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
 
-        ret =
-          __wt_conn_dhandle_close(session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL), false);
+        ret = __wt_conn_dhandle_close(
+          session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL), check_visibility);
         F_CLR(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL);
     }
 

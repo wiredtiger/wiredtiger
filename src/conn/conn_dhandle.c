@@ -830,7 +830,7 @@ __wt_conn_dhandle_close_all(
             continue;
 
         WT_ERR(__conn_dhandle_close_one(
-          session, dhandle->name, dhandle->checkpoint, removed, mark_dead, check_visibility));
+          session, dhandle->name, dhandle->checkpoint, removed, mark_dead, false));
     }
 
 err:

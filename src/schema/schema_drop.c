@@ -122,7 +122,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool 
      * table that are already open must at least be closed before this call proceeds.
      */
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
-    WT_ERR(__wt_schema_release_table(session, &table));
+    WT_ERR(__wt_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
 
     /* Drop the column groups. */
@@ -151,7 +151,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool 
     }
 
     /* Make sure the table data handle is closed. */
-    WT_ERR(__wt_schema_release_table(session, &table));
+    WT_ERR(__wt_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
     F_SET(&table->iface, WT_DHANDLE_DISCARD);
     if (WT_META_TRACKING(session)) {
@@ -243,7 +243,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
           session, WT_VERB_TIERED, "DROP_TIERED: drop %u local object %s", localid, tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
-            session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, true)));
+            session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
         if (remove_files) {
@@ -260,7 +260,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
           session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
-            session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, true)));
+            session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
     } else
