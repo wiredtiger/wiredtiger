@@ -29,6 +29,7 @@ request has been submitted to WiredTiger. For instance, if background compaction
 it is compacting a table, compaction will be stopped as soon as it is safe to do so.
 
 When background compaction is enabled, WiredTiger autonomously compacts the eligible files in the database.
+You can read more about eligible files on the following page: @ref arch-compact.
 
 <b>Note:</b> When interacting with background compaction, NULL should be assigned to the argument corresponding to the URI.
 
