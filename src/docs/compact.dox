@@ -1,7 +1,7 @@
 /*! @page compact Compaction
 
 The WT_SESSION::compact method can be used to compact data sources. Parallel activity can happen on
-the data sources while compaction is running but it might affect compaction's efficiency. Furthermore,
+the data sources while compaction is running but it might affect the efficiency of compaction. Furthermore,
 it is not possible to run compaction from multiple sessions on the same data source at the same time.
 
 <b>Note:</b> Because checkpoints named by the application are not discarded until explicitly removed or replaced, they may prevent WT_SESSION::compact from accomplishing anything.
