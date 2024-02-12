@@ -234,6 +234,8 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
      * give up if that update is newer than this one.
      */
     btree_txn_id_prev = op->btree->max_upd_txn;
+    WT_ASSERT_ALWAYS(session, txn->id != WT_TXN_ABORTED,
+      "Assert failure: session: %s: txn->id == WT_TXN_ABORTED", session->name);
     while (WT_TXNID_LT(btree_txn_id_prev, txn->id)) {
         if (__wt_atomic_cas64(&op->btree->max_upd_txn, btree_txn_id_prev, txn->id))
             break;

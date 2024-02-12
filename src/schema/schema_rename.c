@@ -33,7 +33,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     WT_RET(__wt_schema_backup_check(session, newfile));
     /* Close any btree handles in the file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = __wt_conn_dhandle_close_all(session, uri, true, false));
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, false, false));
     WT_ERR(ret);
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
