@@ -1874,13 +1874,10 @@ ThreadRunner::op_run(Operation *op)
                 cursor->reset(cursor);
             else {
                 /*
-                 * We don't retry on a WT_ROLLBACK error when:
-                 * - it is a mirrored operation as Workgen will create a new transaction and
-                 * - the mirror table is the one that faced the WT_ROLLBACK error as the operation
-                 * on the base table will be lost.
+                 * We don't retry on a WT_ROLLBACK error when it is a mirrored operation as Workgen
+                 * will create a new transaction.
                  */
-                if (op->_random_table && _icontext->_dyn_table_runtime[tint].has_mirror() &&
-                  !_icontext->_dyn_table_runtime[tint]._is_base) {
+                if (op->_random_table && _icontext->_dyn_table_runtime[tint].has_mirror()) {
                     VERBOSE(*this,
                       "The table "
                         << table_uri
