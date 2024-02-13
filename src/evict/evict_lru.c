@@ -260,14 +260,18 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
     cache = conn->cache;
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
-        uint64_t bytes_inuse, bytes_max;
+        uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
 
         bytes_inuse = __wt_cache_bytes_inuse(cache);
         bytes_max = conn->cache_size;
+        bytes_dirty = __wt_cache_dirty_inuse(cache);
+        bytes_updates = __wt_cache_bytes_updates(cache);
         __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
-          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB)",
+          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB), bytes dirty %" PRIu64
+          "(bytes), bytes updates %" PRIu64 "(bytes)",
           bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE);
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE, bytes_dirty,
+          bytes_updates);
     }
 
     __wt_cond_signal(session, cache->evict_cond);
@@ -752,8 +756,10 @@ __evict_pass(WT_SESSION_IMPL *session)
             break;
 
         __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
-          "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64,
-          conn->cache_size, cache->bytes_inmem, cache->bytes_dirty_intl + cache->bytes_dirty_leaf);
+          "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64
+          " Updates: %" PRIu64,
+          conn->cache_size, cache->bytes_inmem, cache->bytes_dirty_intl + cache->bytes_dirty_leaf,
+          cache->bytes_updates);
 
         if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
             WT_RET(__evict_lru_walk(session));
@@ -1511,15 +1517,19 @@ retry:
 
         /* Skip files that don't allow eviction. */
         btree = dhandle->handle;
-        if (btree->evict_disabled > 0)
+        if (btree->evict_disabled > 0) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_eviction_disabled);
             continue;
+        }
 
         /*
          * Skip files that are checkpointing if we are only looking for dirty pages.
          */
         if (WT_BTREE_SYNCING(btree) &&
-          !F_ISSET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_UPDATES))
+          !F_ISSET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_UPDATES)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_checkpointing_trees);
             continue;
+        }
 
         /*
          * Skip files that are configured to stick in cache until we become aggressive.
@@ -1528,8 +1538,10 @@ retry:
          * its pages.
          */
         if (btree->evict_priority != 0 && !__wt_cache_aggressive(session) &&
-          !__wt_btree_dominating_cache(session, btree))
+          !__wt_btree_dominating_cache(session, btree)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_stick_in_cache);
             continue;
+        }
 
         /*
          * Skip files if we have too many active walks.
@@ -1538,14 +1550,18 @@ retry:
          * Even though that ceiling has been removed, we need to test eviction with huge numbers of
          * active trees before allowing larger numbers of hazard pointers in the walk session.
          */
-        if (btree->evict_ref == NULL && session->hazards.num_active > WT_EVICT_MAX_TREES)
+        if (btree->evict_ref == NULL && session->hazards.num_active > WT_EVICT_MAX_TREES) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_too_many_active_walks);
             continue;
+        }
 
         /*
          * If we are filling the queue, skip files that haven't been useful in the past.
          */
-        if (btree->evict_walk_period != 0 && btree->evict_walk_skips++ < btree->evict_walk_period)
+        if (btree->evict_walk_period != 0 && btree->evict_walk_skips++ < btree->evict_walk_period) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_not_useful_before);
             continue;
+        }
         btree->evict_walk_skips = 0;
 
         (void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
@@ -2035,15 +2051,19 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (WT_IS_METADATA(session->dhandle) && F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) &&
           F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
           !__wt_txn_visible_all(
-            session, page->modify->rec_max_txn, page->modify->rec_max_timestamp))
+            session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_metatdata_with_history);
             continue;
+        }
 
         /* Skip pages we don't want. */
         want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||
           (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
           (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL);
-        if (!want_page)
+        if (!want_page) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_pages);
             continue;
+        }
 
         /*
          * Don't attempt eviction of internal pages with children in cache (indicated by seeing an
@@ -2099,8 +2119,8 @@ fast:
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
 
-        __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
-          page->memory_footprint);
+        __wt_verbose(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
+          (void *)page, page->memory_footprint);
     }
     WT_RET_NOTFOUND_OK(ret);
 
@@ -2458,8 +2478,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
                 if (cache->evict_aggressive_score > 0)
                     --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
-                __wt_verbose_debug1(
-                  session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
+                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                  session->txn->rollback_reason);
             }
             WT_ERR(ret);
         }
@@ -2533,7 +2553,8 @@ err:
             if (cache->evict_aggressive_score > 0)
                 --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
-            __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
+            __wt_verbose_notice(
+              session, WT_VERB_TRANSACTION, "rollback reason: %s", session->txn->rollback_reason);
         }
     }
 

@@ -52,7 +52,7 @@ struct __wt_hazard_array {
  *	Pre-fetch structure containing useful information for pre-fetch.
  */
 struct __wt_prefetch {
-    WT_REF *prefetch_prev_ref;
+    WT_PAGE *prefetch_prev_ref_home;
     uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
     uint64_t prefetch_skipped_with_parent;
 };
@@ -331,13 +331,18 @@ struct __wt_session_impl {
     TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) * dhhash;
 
 /* Generations manager */
-#define WT_GEN_CHECKPOINT 0 /* Checkpoint generation */
-#define WT_GEN_COMMIT 1     /* Commit generation */
-#define WT_GEN_EVICT 2      /* Eviction generation */
-#define WT_GEN_HAZARD 3     /* Hazard pointer */
-#define WT_GEN_SPLIT 4      /* Page splits */
-#define WT_GENERATIONS 5    /* Total generation manager entries */
+#define WT_GEN_CHECKPOINT 0   /* Checkpoint generation */
+#define WT_GEN_EVICT 1        /* Eviction generation */
+#define WT_GEN_HAS_SNAPSHOT 2 /* Snapshot generation */
+#define WT_GEN_HAZARD 3       /* Hazard pointer */
+#define WT_GEN_SPLIT 4        /* Page splits */
+#define WT_GENERATIONS 5      /* Total generation manager entries */
     wt_shared volatile uint64_t generations[WT_GENERATIONS];
+
+    /*
+     * Bindings for compiled configurations.
+     */
+    WT_CONF_BINDINGS conf_bindings;
 
     /*
      * Session memory persists past session close because it's accessed by threads of control other

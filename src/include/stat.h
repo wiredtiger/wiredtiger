@@ -409,7 +409,6 @@ struct __wt_connection_stats {
     int64_t block_prefetch_skipped_internal_session;
     int64_t block_prefetch_skipped_special_handle;
     int64_t block_prefetch_pages_fail;
-    int64_t block_prefetch_page_not_queued;
     int64_t block_prefetch_pages_queued;
     int64_t block_prefetch_pages_read;
     int64_t block_prefetch_attempts;
@@ -465,6 +464,16 @@ struct __wt_connection_stats {
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
     int64_t cache_eviction_server_evicting;
+    int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t cache_eviction_server_skip_metatdata_with_history;
+    int64_t cache_eviction_server_skip_pages_last_running;
+    int64_t cache_eviction_server_skip_pages_retry;
+    int64_t cache_eviction_server_skip_unwanted_pages;
+    int64_t cache_eviction_server_skip_trees_too_many_active_walks;
+    int64_t cache_eviction_server_skip_checkpointing_trees;
+    int64_t cache_eviction_server_skip_trees_stick_in_cache;
+    int64_t cache_eviction_server_skip_trees_eviction_disabled;
+    int64_t cache_eviction_server_skip_trees_not_useful_before;
     int64_t cache_eviction_server_slept;
     int64_t cache_eviction_slow;
     int64_t cache_eviction_walk_leaf_notfound;
@@ -579,9 +588,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
-    int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
-    int64_t cache_eviction_server_skip_pages_last_running;
-    int64_t cache_eviction_server_skip_pages_retry;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_reentry_hs_eviction_milliseconds;
@@ -697,6 +703,7 @@ struct __wt_connection_stats {
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
     int64_t cursor_reposition;
+    int64_t cursor_bulk_count;
     int64_t cursor_cached_count;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;

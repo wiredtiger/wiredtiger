@@ -58,6 +58,7 @@ CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
+CONF
 CONFIG
 CPP
 CPUs
@@ -297,6 +298,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Precompiled
 Preload
 Prepend
 Prepending
@@ -369,6 +371,7 @@ TID
 TMP
 TODO
 TORTIOUS
+TRET
 TRYLOCK
 TSO
 TW
@@ -395,6 +398,7 @@ Unbuffered
 Unencrypted
 Unhandled
 UnixLib
+Unlink
 UnlockFile
 Unmap
 UnmapViewOfFile
@@ -519,6 +523,7 @@ breakpoint
 bs
 bstorage
 bswap
+bt
 btcur
 btmem
 btree
@@ -609,6 +614,7 @@ csv
 ctime
 ctype
 curbackup
+curbt
 curbulk
 curconfig
 curdump
@@ -630,6 +636,7 @@ cust
 customizable
 customp
 cv
+cval
 cx
 cxa
 dT
@@ -816,6 +823,7 @@ hashval
 havesize
 hdr
 hhh
+hijinx
 hpp
 hs
 html
@@ -853,6 +861,7 @@ initn
 initsize
 initval
 inlined
+inlining
 inmem
 inmemory
 inserters
@@ -1090,6 +1099,9 @@ pre
 pread
 prealloc
 precomp
+precompilation
+precompiled
+precompiling
 prefetch
 preload
 prepend
@@ -1297,7 +1309,6 @@ trylock
 tryrdlock
 trywrlock
 tupdate
-tvalue
 tw
 txn
 txnid
@@ -1308,6 +1319,7 @@ typeof
 uS
 ui
 uint
+uintAny
 umount
 unallocated
 unbare
