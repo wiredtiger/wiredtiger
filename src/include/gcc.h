@@ -165,13 +165,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("mfence" ::: "memory"); \
     } while (0)
 /* We only need compiler barriers on x86 due to Total Store Ordering (TSO). */
-<<<<<<< HEAD
-#define WT_READ_BARRIER() WT_COMPILER_BARRIER()
-#define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
-=======
 #define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
-#define WT_WRITE_BARRIER() WT_COMPILER_BARRIER()
->>>>>>> develop
+#define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
 
 #elif defined(i386) || defined(__i386__)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
@@ -179,15 +174,9 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                                          \
         __asm__ volatile("lock; addl $0, 0(%%esp)" ::: "memory"); \
     } while (0)
-<<<<<<< HEAD
-#define WT_READ_BARRIER() WT_FULL_BARRIER()
-#define WT_READ_BARRIER() WT_FULL_BARRIER()
+#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
+#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
 #define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
-=======
-#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_WRITE_BARRIER() WT_FULL_BARRIER()
->>>>>>> develop
 
 #elif defined(__mips64el__) || defined(__mips__) || defined(__mips64__) || defined(__mips64)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
@@ -272,13 +261,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                             \
         __asm__ volatile("bcr 15,0\n" ::: "memory"); \
     } while (0)
-<<<<<<< HEAD
-#define WT_READ_BARRIER() WT_FULL_BARRIER()
-#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
-=======
 #define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_WRITE_BARRIER() WT_FULL_BARRIER()
->>>>>>> develop
+#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__sparc__)
 #define WT_PAUSE() __asm__ volatile("rd %%ccr, %%g0" ::: "memory")
@@ -322,11 +306,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * https://five-embeddev.com/riscv-isa-manual/latest/memory.html#sec:mm:fence
  *
  * On RISC-V, the fence instruction takes explicit flags that indicate the predecessor and successor
-<<<<<<< HEAD
- * sets. Based on the file comment description of WT_READ_BARRIER and WT_RELEASE_BARRIER, those
-=======
- * sets. Based on the file comment description of WT_ACQUIRE_BARRIER and WT_WRITE_BARRIER, those
->>>>>>> develop
+ * sets. Based on the file comment description of WT_ACQUIRE_BARRIER and WT_RELEASE_BARRIER, those
  * barriers only synchronize read/read and write/write respectively. The predecessor and successor
  * sets here are selected to match that description.
  */
