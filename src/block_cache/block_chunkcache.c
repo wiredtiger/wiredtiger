@@ -543,8 +543,8 @@ __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 
     /*
      * Do not evict chunks that are in the process of being added to the cache. The ordered read,
-     * and matching publish, are required since populating the chunk itself isn't protected by the
-     * bucket lock. Ergo, we need to make sure that reads or writes to the valid field are not
+     * and matching release write, are required since populating the chunk itself isn't protected by
+     * the bucket lock. Ergo, we need to make sure that reads or writes to the valid field are not
      * reordered relative to reads or writes of other fields.
      */
     WT_ORDERED_READ(valid, chunk->valid);

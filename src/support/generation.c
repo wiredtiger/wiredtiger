@@ -9,10 +9,10 @@
 #include "wt_internal.h"
 
 /*
- * WiredTiger uses generations to manage various resources. Threads publish a current generation
+ * WiredTiger uses generations to manage various resources. Threads share their current generation
  * before accessing a resource, and clear it when they are done. For example, a thread wanting to
  * replace an object in memory replaces the object and increments the object's generation. Once no
- * threads have the previous generation published, it is safe to discard the previous version of the
+ * threads have the previous generation shared, it is safe to discard the previous version of the
  * object.
  */
 
@@ -343,7 +343,7 @@ __wt_session_gen(WT_SESSION_IMPL *session, int which)
 
 /*
  * __wt_session_gen_enter --
- *     Publish a thread's resource generation.
+ *     Share a thread's resource generation.
  */
 void
 __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
@@ -357,10 +357,8 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
     WT_ASSERT(session, session->id < S2C(session)->session_array.cnt);
 
     /*
-     * Assign the thread's resource generation and publish it, ensuring threads waiting on a
-     * resource to drain see the new value. Check we haven't raced with a generation update after
-     * publishing, we rely on the published value not being missed when scanning for the oldest
-     * generation and for draining.
+     * Assign the thread's resource generation, ensuring threads waiting on a resource to drain see
+     * the new value.
      *
      * This requires a full barrier as the second read of the connection generation needs to be
      * ordered after the write of our session's generation. If it is reordered it could be read, for

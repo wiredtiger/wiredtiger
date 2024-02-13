@@ -830,10 +830,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     __wt_writeunlock(session, &txn_global->rwlock);
 
     /*
-     * Refresh our snapshot here without publishing our shared ids to the world, doing so prevents
-     * us from racing with the stable timestamp moving ahead of current snapshot. i.e. if the stable
-     * timestamp moves after we begin the checkpoint transaction but before we set the checkpoint
-     * timestamp we can end up missing updates in our checkpoint.
+     * Refresh our snapshot here, doing so prevents us from racing with the stable timestamp moving
+     * ahead of current snapshot. i.e. if the stable timestamp moves after we begin the checkpoint
+     * transaction but before we set the checkpoint timestamp we can end up missing updates in our
+     * checkpoint. Call the bump variant as we don't want to modify our shared ids.
      */
     __wt_txn_bump_snapshot(session);
 
@@ -1501,8 +1501,8 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * FIXME-WT-11149: Some reading threads rely on the value of checkpoint running flag being
-     * published before the checkpoint generation number (set inside the checkpoint call below).
-     * Introduce a release barrier here to guarantee the right order.
+     * release written before the checkpoint generation number (set inside the checkpoint call
+     * below). Introduce a release barrier here to guarantee the right order.
      */
     WT_RELEASE_BARRIER();
 

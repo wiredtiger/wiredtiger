@@ -1414,10 +1414,9 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
-     * Check the published snap_min because read-uncommitted never sets WT_TXN_HAS_SNAPSHOT. We
-     * don't have any transaction information at this point, so assume the transaction will be
-     * read-only. The dirty cache check will be performed when the transaction completes, if
-     * necessary.
+     * Check the shared snap_min because read-uncommitted never sets WT_TXN_HAS_SNAPSHOT. We don't
+     * have any transaction information at this point, so assume the transaction will be read-only.
+     * The dirty cache check will be performed when the transaction completes, if necessary.
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
       txn_shared->pinned_id == WT_TXN_NONE)
@@ -1431,7 +1430,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
  *     Allocate a new transaction ID.
  */
 static inline uint64_t
-__wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
+__wt_txn_id_alloc(WT_SESSION_IMPL *session, bool release)
 {
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
@@ -1443,13 +1442,13 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
     /*
      * Allocating transaction IDs involves several steps.
      *
-     * Firstly, publish that this transaction is allocating its ID, then publish the transaction ID
+     * Firstly, release that this transaction is allocating its ID, then release the transaction ID
      * as the current global ID. Note that this transaction ID might not be unique among threads and
      * hence not valid at this moment. The flag will notify other transactions that are attempting
      * to get their own snapshot for this transaction ID to retry.
      *
      * Then we do an atomic increment to allocate a unique ID. This will give the valid ID to this
-     * transaction that we publish to the global transaction table.
+     * transaction that we release to the global transaction table.
      *
      * We want the global value to lead the allocated values, so that any allocated transaction ID
      * eventually becomes globally visible. When there are no transactions running, the oldest_id
@@ -1459,7 +1458,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      * We rely on atomic reads of the current ID to create snapshots, so for unlocked reads to be
      * well defined, we must use an atomic increment here.
      */
-    if (publish) {
+    if (release) {
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, txn_global->current);
         id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
@@ -1761,12 +1760,10 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      * !!!
      * Note:  We are updating the global table unprotected, so the global
      * oldest_id may move past our snap_min if a scan races with this value
-     * being published. That said, read-uncommitted operations always see
-     * the most recent update for each record that has not been aborted
-     * regardless of the snap_min value published here.  Even if there is a
-     * race while publishing this ID, it prevents the oldest ID from moving
-     * further forward, so that once a read-uncommitted cursor is
-     * positioned on a value, it can't be freed.
+     * being set. That said, read-uncommitted operations always see the most recent update for each
+     * record that has not been aborted regardless of the shared snap_min value set here.
+     * Even if there is a race while setting this ID, it prevents the oldest ID from moving further
+     * forward, so that once a read-uncommitted cursor is positioned on a value, it can't be freed.
      */
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
         if (txn_shared->pinned_id == WT_TXN_NONE)

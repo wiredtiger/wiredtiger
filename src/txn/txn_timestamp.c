@@ -953,7 +953,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
      */
     if (durable_ts != WT_TS_NONE)
         WT_RET(__wt_txn_set_durable_timestamp(session, durable_ts));
-    __wt_txn_publish_durable_timestamp(session);
+    __wt_txn_share_durable_timestamp(session);
 
     /* Look for a read timestamp. */
     if (read_ts != WT_TS_NONE)
@@ -1019,7 +1019,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
         WT_RET(__wt_txn_set_read_timestamp(session, ts));
         break;
     }
-    __wt_txn_publish_durable_timestamp(session);
+    __wt_txn_share_durable_timestamp(session);
 
     /* Timestamps are only logged in debugging mode. */
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
@@ -1030,11 +1030,11 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
 }
 
 /*
- * __wt_txn_publish_durable_timestamp --
- *     Publish a transaction's durable timestamp.
+ * __wt_txn_share_durable_timestamp --
+ *     Share a transaction's durable timestamp.
  */
 void
-__wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
+__wt_txn_share_durable_timestamp(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
@@ -1067,7 +1067,7 @@ __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
 
 /*
  * __wt_txn_clear_durable_timestamp --
- *     Clear a transaction's published durable timestamp.
+ *     Clear a transaction's shared durable timestamp.
  */
 void
 __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
@@ -1081,14 +1081,14 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE))
         return;
 
-    WT_RELEASE_BARRIER();
     F_CLR(txn, WT_TXN_SHARED_TS_DURABLE);
+    WT_RELEASE_BARRIER();
     txn_shared->pinned_durable_timestamp = WT_TS_NONE;
 }
 
 /*
  * __wt_txn_clear_read_timestamp --
- *     Clear a transaction's published read timestamp.
+ *     Clear a transaction's shared read timestamp.
  */
 void
 __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)

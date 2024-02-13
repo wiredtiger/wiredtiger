@@ -150,7 +150,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     hp->func = func;
     hp->line = line;
 #endif
-    /* Publish the hazard pointer before reading page's state. */
+    /* Share the hazard pointer before reading page's state. */
     WT_FULL_BARRIER();
 
     /*
@@ -174,7 +174,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      * return the page to use, no harm done, if it doesn't, it will go ahead and complete the
      * eviction.
      *
-     * We don't bother publishing this update: the worst case is we prevent some random page from
+     * We don't bother ordering this update: the worst case is we prevent some random page from
      * being evicted.
      */
     hp->ref = NULL;
@@ -201,9 +201,8 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
     for (hp = session->hazards.arr + session->hazards.inuse - 1; hp >= session->hazards.arr; --hp)
         if (hp->ref == ref) {
             /*
-             * We don't publish the hazard pointer clear in the general case. It's not required for
-             * correctness; it gives an eviction thread faster access to the page were the page
-             * selected for eviction.
+             * We don't release write the hazard pointer clear in the general case. It's not
+             * required for correctness.
              */
             hp->ref = NULL;
 

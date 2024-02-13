@@ -1741,8 +1741,8 @@ struct __wt_col_fix_auxiliary_header {
  * wrapping up a transaction) to free any memory we can.
  *
  * Before a thread enters code that will examine page indexes (which are swapped out by splits), it
- * publishes a copy of the current split generation into its session. Don't assume that threads
- * never re-enter this code: if we already have a split generation, leave it alone. If our caller is
+ * releases a copy of the current split generation into its session. Don't assume that threads never
+ * re-enter this code: if we already have a split generation, leave it alone. If our caller is
  * examining an index, we don't want the oldest split generation to move forward and potentially
  * free it.
  */

@@ -18,7 +18,7 @@
 #define wt_shared
 
 /*
- * Publish a value to a shared location. All previous stores must complete before the value is made
+ * Release a value to a shared location. All previous stores must complete before the value is made
  * public.
  */
 #define WT_RELEASE_WRITE_WITH_BARRIER(v, val) \

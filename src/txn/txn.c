@@ -194,7 +194,7 @@ done:
  *     Allocate a snapshot, optionally update our shared txn ids.
  */
 static void
-__txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
+__txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
@@ -231,15 +231,16 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     /*
      * Include the checkpoint transaction, if one is running: we should ignore any uncommitted
      * changes the checkpoint has written to the metadata. We don't have to keep the checkpoint's
-     * changes pinned so don't go including it in the published pinned ID.
+     * changes pinned so don't go including it in the shared pinned ID.
      *
-     * We can assume that if a function calls without intention to publish then it is the special
-     * case of checkpoint calling it twice. In which case do not include the checkpoint id.
+     * We can assume that if a function calls without intention to share the relevant ids then it is
+     * the special case of checkpoint calling it twice. In which case do not include the checkpoint
+     * id.
      */
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
         if (txn->id != id)
             txn->snapshot_data.snapshot[n++] = id;
-        if (publish)
+        if (update_shared_state)
             txn_shared->metadata_pinned = id;
     }
 
@@ -297,12 +298,12 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /*
-     * If we got a new snapshot, update the published pinned ID for this session.
+     * If we got a new snapshot, update the shared pinned ID for this session.
      */
     WT_ASSERT(session, WT_TXNID_LE(prev_oldest_id, pinned_id));
     WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
 done:
-    if (publish)
+    if (update_shared_state)
         txn_shared->pinned_id = pinned_id;
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
@@ -352,7 +353,7 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
     /* Swap the snapshot pointers. */
     __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
 
-    /* Get the snapshot without publishing the shared ids. */
+    /* Get the snapshot without writing the relevant shared ids. */
     __wt_txn_bump_snapshot(session);
 
 err:
@@ -448,7 +449,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
         /*
          * !!!
          * Note: Don't ignore pinned ID values older than the previous
-         * oldest ID.  Read-uncommitted operations publish pinned ID
+         * oldest ID.  Read-uncommitted operations write shared pinned ID
          * values without acquiring the scan lock to protect the global
          * table.  See the comment in __wt_txn_cursor_op for more
          * details.
@@ -544,7 +545,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     /*
      * Re-scan now that we have exclusive access. This is necessary because threads get transaction
      * snapshots with read locks, and we have to be sure that there isn't a thread that has got a
-     * snapshot locally but not yet published its snap_min.
+     * snapshot locally but not yet shared its snap_min.
      */
     __txn_oldest_scan(session, &oldest_id, &last_running, &metadata_pinned, &oldest_session);
 
