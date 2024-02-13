@@ -681,7 +681,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
                 // The table might still be in use.
                 const std::string uri(pending_delete.at(i));
                 tint_t tint = icontext->_dyn_tint.at(uri);
-                ASSERT(icontext->_dyn_table_runtime[tint]._pending_delete == true);
+                ASSERT(icontext->_dyn_table_runtime[tint]._pending_delete);
                 if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
                     ++i;
                     continue;
