@@ -341,8 +341,9 @@ struct __wt_txn {
  *	The transaction has an explicitly set durable timestamp (that is, it
  *	hasn't been mirrored from its commit timestamp value).
  * WT_TXN_SHARED_TS_DURABLE --
- *	The transaction's durable timestamp has been published to the transaction shared list.
- *Setting this flag lets us know that, on release, we need to mark the transaction for clearing.
+ *	The transaction has been published to the durable queue. Setting this
+ *	flag lets us know that, on release, we need to mark the transaction for
+ *	clearing.
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
