@@ -314,13 +314,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
 
     if (is_btree) {
         /*
-         * !! Check if we have exclusive access here, else a transaction can start on this btree
-         * after this check !!
-         *
-         * Don't close the btree if there are changes not yet globally visible.
+         * Ensure the handle is not being closed via a table drop when it contains changes
+	 * associated with uncommitted transactions. The table drop will free memory
+	 * associated with updates referenced by that active transaction, which will in turn
+	 * cause the transaction to reference memory that has already been freed.
          */
-        if (!WT_DHANDLE_IS_CHECKPOINT(dhandle) && (session != conn->sweep_session) &&
-          !__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
+        if (__wt_txn_active(session, btree->max_upd_txn))
             return (EBUSY);
 
         /* Turn off eviction. */

@@ -1662,6 +1662,7 @@ static const char *const __stats_connection_desc[] = {
   "connection: memory re-allocations",
   "connection: number of sessions without a sweep for 5+ minutes",
   "connection: number of sessions without a sweep for 60+ minutes",
+  "connection: number of threads currently inside the library",
   "connection: pthread mutex condition wait calls",
   "connection: pthread mutex shared lock read-lock calls",
   "connection: pthread mutex shared lock write-lock calls",
@@ -2372,6 +2373,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->memory_grow = 0;
     stats->no_session_sweep_5min = 0;
     stats->no_session_sweep_60min = 0;
+    /* not clearing api_call_count */
     stats->cond_wait = 0;
     stats->rwlock_read = 0;
     stats->rwlock_write = 0;
@@ -3106,6 +3108,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->memory_grow += WT_STAT_READ(from, memory_grow);
     to->no_session_sweep_5min += WT_STAT_READ(from, no_session_sweep_5min);
     to->no_session_sweep_60min += WT_STAT_READ(from, no_session_sweep_60min);
+    to->api_call_count += WT_STAT_READ(from, api_call_count);
     to->cond_wait += WT_STAT_READ(from, cond_wait);
     to->rwlock_read += WT_STAT_READ(from, rwlock_read);
     to->rwlock_write += WT_STAT_READ(from, rwlock_write);
