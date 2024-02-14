@@ -1578,7 +1578,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
             if (op->_random_table) {
                 const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
-                recno = workgen_atomic_add64(&_icontext->_dyn_table_runtime.at(tint)._max_recno, 1);
+                recno = ++_icontext->_dyn_table_runtime.at(tint)._max_recno;
             } else {
                 recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
             }
@@ -1671,7 +1671,7 @@ ThreadRunner::op_run_setup(Operation *op)
         op_kv_gen(op, op_tint);          // Set the key and value for the operation.
 
         // Use atomic here as we can race with another thread that acquires the shared lock.
-        (void)workgen_atomic_add32(&_icontext->_dyn_table_runtime[op_tint]._in_use, 1);
+        ++_icontext->_dyn_table_runtime[op_tint]._in_use;
 
         // Do we need to mirror operations? If not, we are done here.
         if (!_icontext->_dyn_table_runtime[op_tint].has_mirror()) {
@@ -1687,7 +1687,7 @@ ThreadRunner::op_run_setup(Operation *op)
         std::string mirror_op_uri = _icontext->_dyn_table_runtime[op_tint]._mirror;
         tint_t mirror_op_tint = _icontext->_dyn_tint[mirror_op_uri];
         op_set_table(&mirror_op, mirror_op_uri);
-        (void)workgen_atomic_add32(&_icontext->_dyn_table_runtime[mirror_op_tint]._in_use, 1);
+        ++_icontext->_dyn_table_runtime[mirror_op_tint]._in_use;
         ASSERT(!_icontext->_dyn_table_runtime[mirror_op_tint]._pending_delete);
     }
 
@@ -1948,7 +1948,7 @@ err:
         // reference counter.
         ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
         // Use atomic here as we can race with another thread that acquires the shared lock.
-        (void)workgen_atomic_sub32(&_icontext->_dyn_table_runtime[tint]._in_use, 1);
+        --_icontext->_dyn_table_runtime[tint]._in_use;
         op_clear_table(op);
     }
 
