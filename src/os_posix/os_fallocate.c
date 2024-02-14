@@ -107,7 +107,7 @@ __wt_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_o
      * The first file extension call: figure out what this system has.
      *
      * This function is configured as a locking call, so we know we're single-threaded through here.
-     * Set the nolock function first, then release the NULL replacement to ensure the handle
+     * Set the nolock function first, then release write the NULL replacement to ensure the handle
      * functions are always correct.
      *
      * We've seen Linux systems where posix_fallocate has corrupted existing file data (even though

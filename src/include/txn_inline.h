@@ -1443,10 +1443,10 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool release)
     /*
      * Allocating transaction IDs involves several steps.
      *
-     * Firstly, release that this transaction is allocating its ID, then release the transaction ID
-     * as the current global ID. Note that this transaction ID might not be unique among threads and
-     * hence not valid at this moment. The flag will notify other transactions that are attempting
-     * to get their own snapshot for this transaction ID to retry.
+     * Firstly, release write that this transaction is allocating its ID, then release write the
+     * transaction ID as the current global ID. Note that this transaction ID might not be unique
+     * among threads and hence not valid at this moment. The flag will notify other transactions
+     * that are attempting to get their own snapshot for this transaction ID to retry.
      *
      * Then we do an atomic increment to allocate a unique ID. This will give the valid ID to this
      * transaction that we release to the global transaction table.
