@@ -1067,7 +1067,7 @@ __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
 
 /*
  * __wt_txn_clear_durable_timestamp --
- *     Clear a transaction's shared durable timestamp.
+ *     Clear a transaction's published durable timestamp.
  */
 void
 __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
@@ -1081,14 +1081,14 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE))
         return;
 
-    F_CLR(txn, WT_TXN_SHARED_TS_DURABLE);
     WT_RELEASE_BARRIER();
+    F_CLR(txn, WT_TXN_SHARED_TS_DURABLE);
     txn_shared->pinned_durable_timestamp = WT_TS_NONE;
 }
 
 /*
  * __wt_txn_clear_read_timestamp --
- *     Clear a transaction's shared read timestamp.
+ *     Clear a transaction's published read timestamp.
  */
 void
 __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)

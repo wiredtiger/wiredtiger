@@ -233,9 +233,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      * changes the checkpoint has written to the metadata. We don't have to keep the checkpoint's
      * changes pinned so don't go including it in the published pinned ID.
      *
-     * We can assume that if a function calls without intention to share the relevant ids then it is
-     * the special case of checkpoint calling it twice. In which case do not include the checkpoint
-     * id.
+     * We can assume that if a function calls without intention to publish then it is the special
+     * case of checkpoint calling it twice. In which case do not include the checkpoint id.
      */
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
         if (txn->id != id)
@@ -353,7 +352,7 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
     /* Swap the snapshot pointers. */
     __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
 
-    /* Get the snapshot without publishing the relevant ids. */
+    /* Get the snapshot without publishing the shared ids. */
     __wt_txn_bump_snapshot(session);
 
 err:
