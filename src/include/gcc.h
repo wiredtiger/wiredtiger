@@ -74,6 +74,10 @@
  * before any loads after the barrier.  The compiler cannot reorder or cache
  * values across a barrier.
  *
+ * The term publish is used in WiredTiger, in this case it refers to writing
+ * a value to a shared memory location. It doesn't imply any memory ordering
+ * semantics.
+ *
  * Lock and unlock operations imply both read and write barriers.  In other
  * words, barriers are not required for values protected by locking.
  *

@@ -9,10 +9,10 @@
 #include "wt_internal.h"
 
 /*
- * WiredTiger uses generations to manage various resources. Threads share their current generation
+ * WiredTiger uses generations to manage various resources. Threads publish their current generation
  * before accessing a resource, and clear it when they are done. For example, a thread wanting to
  * replace an object in memory replaces the object and increments the object's generation. Once no
- * threads have the previous generation shared, it is safe to discard the previous version of the
+ * threads have the previous generation published, it is safe to discard the previous version of the
  * object.
  */
 

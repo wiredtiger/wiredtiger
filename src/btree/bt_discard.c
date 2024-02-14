@@ -33,7 +33,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
-     * complicated by the fact that readers share their hazard pointer before re-checking the page
+     * complicated by the fact that readers publish their hazard pointer before re-checking the page
      * state, so our check can race with readers without indicating a real problem. If we find a
      * hazard pointer, wait for it to be cleared.
      */

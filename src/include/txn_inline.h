@@ -1414,9 +1414,10 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
-     * Check the shared snap_min because read-uncommitted never sets WT_TXN_HAS_SNAPSHOT. We don't
-     * have any transaction information at this point, so assume the transaction will be read-only.
-     * The dirty cache check will be performed when the transaction completes, if necessary.
+     * Check the published snap_min because read-uncommitted never sets WT_TXN_HAS_SNAPSHOT. We
+     * don't have any transaction information at this point, so assume the transaction will be
+     * read-only. The dirty cache check will be performed when the transaction completes, if
+     * necessary.
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
       txn_shared->pinned_id == WT_TXN_NONE)
@@ -1761,7 +1762,7 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      * Note:  We are updating the global table unprotected, so the global
      * oldest_id may move past our snap_min if a scan races with this value
      * being set. That said, read-uncommitted operations always see the most recent update for each
-     * record that has not been aborted regardless of the shared snap_min value set here.
+     * record that has not been aborted regardless of the published snap_min value set here.
      * Even if there is a race while setting this ID, it prevents the oldest ID from moving further
      * forward, so that once a read-uncommitted cursor is positioned on a value, it can't be freed.
      */

@@ -833,7 +833,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * Refresh our snapshot here, doing so prevents us from racing with the stable timestamp moving
      * ahead of current snapshot. i.e. if the stable timestamp moves after we begin the checkpoint
      * transaction but before we set the checkpoint timestamp we can end up missing updates in our
-     * checkpoint. Call the bump variant as we don't want to modify our shared ids.
+     * checkpoint. Call the bump variant as we don't want to publish the relevant ids.
      */
     __wt_txn_bump_snapshot(session);
 

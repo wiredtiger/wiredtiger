@@ -64,9 +64,9 @@ init_thread_data(THREAD_DATA *td, int info)
     }
 
     /*
-     * For a predictable replay the worker threads use a predetermined set of timestamps. They share
-     * their most recently used timestamps for the clock thread to read across the workers to base
-     * their decision on.
+     * For a predictable replay the worker threads use a predetermined set of timestamps. They
+     * publish their most recently used timestamps for the clock thread to read across the workers
+     * to base their decision on.
      */
     td->ts = 0;
     testutil_random_from_random(&td->data_rnd, &g.opts.data_rnd);

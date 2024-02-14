@@ -150,7 +150,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     hp->func = func;
     hp->line = line;
 #endif
-    /* Share the hazard pointer before reading page's state. */
+    /* Publish the hazard pointer before reading page's state. */
     WT_FULL_BARRIER();
 
     /*
