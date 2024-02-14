@@ -5177,7 +5177,7 @@ buildvariants:
     - name: chunkcache-test
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
-    - name: model-test
+    - name: model-unit-test
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
@@ -5527,7 +5527,7 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
-    - name: model-test
+    - name: model-unit-test
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
