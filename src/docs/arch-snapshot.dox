@@ -18,6 +18,9 @@ records before the transaction started. The default isolation level is \c snapsh
 - \c read-committed: Read-committed transactions ensure a transaction is able to see committed updates by other transactions
 at the time of reading. To achieve this, under a read-committed isolation, a snapshot is created when performing a search. The
 same snapshot is used for all subsequent reads until another search is called.
+- \c read-uncommitted: Read-uncommitted transactions are able to read any uncommitted and committed updates made by other transactions
+at the time of reading. All subsequent reads will not have no snapshot. It is not recommended to use this
+snapshot-level, as the reader can return records that have been already changed underneath. 
 
 See @ref transactions for further details about how WiredTiger transactions utilize snapshots to create isolation guarantees and
 implement concurrency control.
@@ -167,4 +170,14 @@ transaction and snapshot state. This being independent from the application's ru
 When checkpoints are running, application transactions using snapshots will also store the checkpoints transaction ID as a concurrent transaction.
 This allowing a snapshot to ignore any uncommitted changes the checkpoint has written to the metadata.
 
-*/
+@section snapshot_read_uncommited Snapshot Read-uncommited \& Modifies
+
+Snapshot read-uncommited readers can not reconstruct a full value when reading an update chain that 
+contains a modify. The reason is because another transaction with isolation snapshot can abort the
+modifies or updates in parallel to reader, which can unintentionally skip a required modify or 
+we are not able to find a base update to apply the modifies on. Effectively read-uncommited reader
+must read and race with the isolation snapshot write. It is difficult to distinguish if
+an aborted operation happened prior to the call of the function or if it has been done in parallel
+to the reader. Therefore whenever snapshot read-uncommited readers encounter an update chain with a
+modify, the user will expect a WT_RESTART. Once the user reads the record again, the update
+chain will contain the aborted operations already.
