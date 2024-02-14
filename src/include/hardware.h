@@ -70,7 +70,7 @@
 #if defined(__GNUC__) || defined(__clang__)
 #define WT_WRITE_ONCE(v, val) ((*(volatile __typeof__(v) *)&(v)) = (val))
 #else
-#define WT_WRITE_ONCE(v, val) WT_PUBLISH(v, val)
+#define WT_WRITE_ONCE(v, val) WT_RELEASE_WRITE_WITH_BARRIER(v, val)
 #endif
 
 /*
