@@ -173,9 +173,6 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      * know). If the eviction server sees our hazard pointer before evicting the page, it will
      * return the page to use, no harm done, if it doesn't, it will go ahead and complete the
      * eviction.
-     *
-     * We don't bother ordering this update: the worst case is we prevent some random page from
-     * being evicted.
      */
     hp->ref = NULL;
     *busyp = true;

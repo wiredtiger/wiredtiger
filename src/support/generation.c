@@ -358,7 +358,9 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
 
     /*
      * Assign the thread's resource generation, ensuring threads waiting on a resource to drain see
-     * the new value.
+     * the new value. Check we haven't raced with a generation update after assigning, we rely on
+     * the published value not being missed when scanning for the oldest generation and for
+     * draining.
      *
      * This requires a full barrier as the second read of the connection generation needs to be
      * ordered after the write of our session's generation. If it is reordered it could be read, for
