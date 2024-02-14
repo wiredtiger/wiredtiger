@@ -710,7 +710,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * We depend on the atomic operation being a release barrier, that is, a barrier to ensure all
-     * changes to the page are flushed before updating the page state and/or marking the tree dirty,
+     * changes to the page are written before updating the page state and/or marking the tree dirty,
      * otherwise checkpoints and/or page reconciliation might be looking at a clean page/tree.
      *
      * Every time the page transitions from clean to dirty, update the cache and transactional
