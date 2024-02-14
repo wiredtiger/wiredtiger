@@ -1622,7 +1622,7 @@ retry:
 
 #ifdef HAVE_DIAGNOSTIC
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && cache->evict_aggressive_score >= WT_EVICT_SCORE_MAX &&
-      (slot == queue->evict_entries || slot > start_slot)) {
+      (slot == queue->evict_entries || slot < max_entries)) {
         if (cache->not_enough_page_queued_aggressive == 0)
             cache->not_enough_page_queued_aggressive = __wt_clock(session);
         else {
