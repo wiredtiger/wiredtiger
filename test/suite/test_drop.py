@@ -45,26 +45,61 @@ class test_drop(wttest.WiredTigerTestCase):
     ])
 
     # Populate an object, remove it and confirm it no longer exists.
-    def drop(self, dataset, with_cursor, reopen, drop_index):
+    def drop(self, dataset, with_cursor, reopen, with_transaction, drop_index):
         uri = self.uri + self.name
         ds = dataset(self, uri, 10, config=self.extra_config)
+        # Set first values to variant 1.
         ds.populate()
+        variant = 1
 
         # Open cursors should cause failure.
-        if with_cursor:
+        if with_cursor and not with_transaction:
             cursor = self.session.open_cursor(uri, None, None)
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.drop(uri, None))
             cursor.close()
+            # Check that the table works and has not changed.
+            ds.check()
+
+        # Active transactions should cause EBUSY.
+        if with_transaction:
+            self.session.begin_transaction()
+            if with_cursor:
+                cursor = self.session.open_cursor(uri, None, None)
+            # Change from variant 1 to variant 2 within transaction A.
+            ds.populate(False, 2)
+            variant = 2
+            # Fail to drop the table.
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.drop(uri, None))
+            # Check that transaction A still contains variant 2.
+            ds.check(2)
+            # For variety, commit the transaction if with_cursor and rollback if not.
+            if with_cursor:
+                cursor.close()
+                self.session.commit_transaction()
+                # Check that the table now contains variant 2.
+                ds.check(2)
+            else:
+                self.session.rollback_transaction()
+                variant = 1
+                # Check that the table still contains variant 1.
+                ds.check(1)
 
         if reopen:
             self.reopen_conn()
+            # Check that the table still contains the proper variant.
+            ds.check(variant)
 
         if drop_index:
             drop_uri = ds.index_name(0)
+            self.dropUntilSuccess(self.session, drop_uri)
+            # Check that the table still contains the proper variant.
+            ds.check(variant)
         else:
             drop_uri = uri
-        self.dropUntilSuccess(self.session, drop_uri)
+            self.dropUntilSuccess(self.session, drop_uri)
+
         confirm_does_not_exist(self, drop_uri)
 
     # Test drop of an object.
@@ -74,16 +109,18 @@ class test_drop(wttest.WiredTigerTestCase):
         # case has no indices.
         for with_cursor in [False, True]:
             for reopen in [False, True]:
-                self.drop(SimpleDataSet, with_cursor, reopen, False)
+                for with_transaction in [False, True]:
+                    self.drop(SimpleDataSet, with_cursor, reopen, with_transaction, False)
 
         # A complex, multi-file table object.
         # Try all test combinations.
         if self.uri == "table:":
             for with_cursor in [False, True]:
                 for reopen in [False, True]:
-                    for drop_index in [False, True]:
-                        self.drop(ComplexDataSet, with_cursor,
-                                  reopen, drop_index)
+                    for with_transaction in [False, True]:
+                        for drop_index in [False, True]:
+                            self.drop(ComplexDataSet, with_cursor,
+                                      reopen, with_transaction, drop_index)
 
     # Test drop of a non-existent object: force succeeds, without force fails.
     def test_drop_dne(self):
