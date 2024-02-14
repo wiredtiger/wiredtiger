@@ -248,14 +248,14 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                            \
         __asm__ volatile("dmb ishld" ::: "memory"); \
     } while (0)
-/* In order to achieve release semantics we need a both a load and store barrier. */
-#define WT_WRITE_BARRIER() \
-    do {                   \
-        __asm__ volatile(  \
-          "dmb ishst; "    \
-          "dmb ishld; " :: \
-            : "memory");   \
-    } while (0)
+/*
+ * In order to achieve release semantics we need two arm barrier instructions. Firstly dmb ishst
+ * which gives us StoreStore, secondly a dmb ishld which gives us LoadLoad, LoadStore.
+ *
+ * This is sufficient for the release semantics which is StoreStore, LoadStore. We could issue a
+ * single dmb ish here but that is more expensive.
+ */
+#define WT_WRITE_BARRIER() __asm__ volatile("dmb ishst; dmb ishld" ::: "memory");
 
 #elif defined(__s390x__)
 #define WT_PAUSE() __asm__ volatile("lr 0,0" ::: "memory")
