@@ -1855,7 +1855,7 @@ ThreadRunner::op_run(Operation *op)
             if (ret != 0 && ret != WT_ROLLBACK)
                 WT_ERR(ret);
             if (ret == 0)
-                cursor->reset(cursor);
+                WT_ERR(cursor->reset(cursor));
             else {
                 /*
                  * We don't retry on a WT_ROLLBACK error when:
