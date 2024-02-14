@@ -3606,7 +3606,7 @@ tasks:
       - func: "split stress test"
 
   - name: model-unit-test
-    tags: ["pull_request"]
+    tags: ["pull_request", "model_checking"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5194,7 +5194,7 @@ buildvariants:
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest"
+    - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
