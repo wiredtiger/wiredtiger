@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /*
- * WiredTiger uses generations to manage various resources. Threads publish their current generation
+ * WiredTiger uses generations to manage various resources. Threads publish a current generation
  * before accessing a resource, and clear it when they are done. For example, a thread wanting to
  * replace an object in memory replaces the object and increments the object's generation. Once no
  * threads have the previous generation published, it is safe to discard the previous version of the
@@ -343,7 +343,7 @@ __wt_session_gen(WT_SESSION_IMPL *session, int which)
 
 /*
  * __wt_session_gen_enter --
- *     Share a thread's resource generation.
+ *     Publish a thread's resource generation.
  */
 void
 __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
