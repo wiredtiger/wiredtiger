@@ -1577,7 +1577,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
     if (op->_optype == Operation::OP_INSERT) {
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
             if (op->_random_table) {
-                const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
+                const std::lock_guard<std::shared_mutex> lock(*_icontext->_dyn_mutex);
                 recno = ++_icontext->_dyn_table_runtime.at(tint)._max_recno;
             } else {
                 recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
@@ -1646,7 +1646,7 @@ ThreadRunner::op_run_setup(Operation *op)
     Operation base_op, mirror_op;
 
     {
-        const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
+        const std::lock_guard<std::shared_mutex> lock(*_icontext->_dyn_mutex);
 
         // Select a random base table that is not flagged for deletion.
         std::map<std::string, tint_t>::iterator itr;
@@ -1943,7 +1943,7 @@ err:
     }
 
     if (op->_random_table) {
-        const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
+        const std::lock_guard<std::shared_mutex> lock(*_icontext->_dyn_mutex);
         // For operations on random tables, if a table has been selected, decrement the
         // reference counter.
         ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
