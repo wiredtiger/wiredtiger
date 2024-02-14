@@ -60,12 +60,18 @@
     WT_ASSERT(s, (s)->name != NULL || (s)->api_call_counter == 0);                           \
     __oldname = (s)->name;                                                                   \
     ++(s)->api_call_counter;                                                                 \
+    if ((s)->api_call_counter == 1)                                                          \
+        (void)__wt_atomic_add32(&S2C(s)->active_api_count, 1);                               \
     (s)->dhandle = (dh);                                                                     \
     (s)->name = (s)->lastop = #struct_name "." #func_name
-#define API_SESSION_POP(s)  \
-    (s)->dhandle = __olddh; \
-    (s)->name = __oldname;  \
-    --(s)->api_call_counter
+
+#define API_SESSION_POP(s)                                          \
+    (s)->dhandle = __olddh;                                         \
+    (s)->name = __oldname;                                          \
+    --(s)->api_call_counter;                                        \
+    if ((s)->api_call_counter == 0)                                 \
+        (void)__wt_atomic_sub32(&S2C(s)->active_api_count, 1);
+
 
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, struct_name, func_name, dh)                 \

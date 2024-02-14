@@ -432,6 +432,7 @@ struct __wt_connection_impl {
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
     wt_shared uint32_t open_cursor_count;    /* Atomic: open cursor handle count */
     wt_shared uint32_t version_cursor_count; /* Atomic: open version cursor count */
+    wt_shared uint32_t active_api_count;     /* Atomic: Number of threads currenty in WiredTiger */
 
     /*
      * WiredTiger allocates space for 50 simultaneous sessions (threads of control) by default.
