@@ -30,6 +30,3 @@ last_commit_from_dev() { python3 "$DIST_DIR"/common_functions.py last_commit_fro
 use_pygrep() {
   [[ "$(uname -s)" == Darwin ]] && EGREP="$DIST_DIR/pygrep.py -E" FGREP="$DIST_DIR/pygrep.py -F" || EGREP=egrep FGREP=fgrep
 }
-
-for arg in "$@"; do $arg; done
-
