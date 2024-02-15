@@ -239,7 +239,9 @@ functions:
             ${make_command|ninja} ${smp_command|} 2>&1
           fi
         elif [ "Windows_NT" == "$OS" ]; then
+          # Add paths to both global and user Python scripts
           export "PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH"
+          export "PATH=/cygdrive/c/Users/$USER/AppData/Roaming/Python/Python311/Scripts:$PATH"
 
           python --version
           python -m pip install scons==3.1.1
