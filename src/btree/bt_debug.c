@@ -677,7 +677,7 @@ __debug_cell_kv(
         break;
     }
 
-    /* Early exit for Column store deleted cells. There's nothing further to print. */
+    /* Early exit for column store deleted cells. There's nothing further to print. */
     if (unpack->raw == WT_CELL_DEL)
         return (0);
 
