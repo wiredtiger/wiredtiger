@@ -1588,8 +1588,8 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
     if (op->_optype == Operation::OP_INSERT) {
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
             if (op->_random_table) {
-                const std::shared_lock lock(*_icontext->_dyn_mutex);
-                recno = workgen_atomic_add64(&_icontext->_dyn_table_runtime.at(tint)._max_recno, 1);
+                const std::lock_guard<std::shared_mutex> lock(*_icontext->_dyn_mutex);
+                recno = ++_icontext->_dyn_table_runtime.at(tint)._max_recno;
             } else {
                 recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
             }
@@ -1657,7 +1657,7 @@ ThreadRunner::op_run_setup(Operation *op)
     Operation base_op, mirror_op;
 
     {
-        const std::shared_lock lock(*_icontext->_dyn_mutex);
+        const std::lock_guard<std::shared_mutex> lock(*_icontext->_dyn_mutex);
 
         // Select a random base table that is not flagged for deletion.
         std::map<std::string, tint_t>::iterator itr;
@@ -1682,7 +1682,7 @@ ThreadRunner::op_run_setup(Operation *op)
         op_kv_gen(op, op_tint);          // Set the key and value for the operation.
 
         // Use atomic here as we can race with another thread that acquires the shared lock.
-        (void)workgen_atomic_add32(&_icontext->_dyn_table_runtime[op_tint]._in_use, 1);
+        ++_icontext->_dyn_table_runtime[op_tint]._in_use;
 
         // Do we need to mirror operations? If not, we are done here.
         if (!_icontext->_dyn_table_runtime[op_tint].has_mirror()) {
@@ -1703,7 +1703,7 @@ ThreadRunner::op_run_setup(Operation *op)
         std::string mirror_op_uri = _icontext->_dyn_table_runtime[op_tint]._mirror;
         tint_t mirror_op_tint = _icontext->_dyn_tint[mirror_op_uri];
         op_set_table(&mirror_op, mirror_op_uri);
-        (void)workgen_atomic_add32(&_icontext->_dyn_table_runtime[mirror_op_tint]._in_use, 1);
+        ++_icontext->_dyn_table_runtime[mirror_op_tint]._in_use;
         ASSERT(!_icontext->_dyn_table_runtime[mirror_op_tint]._pending_delete);
     }
 
@@ -1871,12 +1871,13 @@ ThreadRunner::op_run(Operation *op)
             if (ret != 0 && ret != WT_ROLLBACK)
                 WT_ERR(ret);
             if (ret == 0)
-                cursor->reset(cursor);
+                WT_ERR(cursor->reset(cursor));
             else {
                 /*
                  * We don't retry on a WT_ROLLBACK error when it is a mirrored operation as Workgen
                  * will create a new transaction.
                  */
+                ASSERT(ret == WT_ROLLBACK);
                 if (op->_random_table && _icontext->_dyn_table_runtime[tint].has_mirror()) {
                     VERBOSE(*this,
                       "The table "
@@ -1955,12 +1956,12 @@ err:
     }
 
     if (op->_random_table) {
-        const std::shared_lock lock(*_icontext->_dyn_mutex);
+        const std::lock_guard<std::shared_mutex> lock(*_icontext->_dyn_mutex);
         // For operations on random tables, if a table has been selected, decrement the
         // reference counter.
         ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
         // Use atomic here as we can race with another thread that acquires the shared lock.
-        (void)workgen_atomic_sub32(&_icontext->_dyn_table_runtime[tint]._in_use, 1);
+        --_icontext->_dyn_table_runtime[tint]._in_use;
         op_clear_table(op);
     }
 
