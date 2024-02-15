@@ -357,7 +357,8 @@ __compact_worker(WT_SESSION_IMPL *session)
 
                 __wt_verbose_info(session, WT_VERB_COMPACT,
                   "The compaction of the data handle %s returned EBUSY due to an in-progress "
-                  "conflicting checkpoint.%s", session->op_handle[i]->name,
+                  "conflicting checkpoint.%s",
+                  session->op_handle[i]->name,
                   background_compaction ? "" : " Compaction of this data handle will be retried.");
 
                 ret = 0;
