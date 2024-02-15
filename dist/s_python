@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Python style checks.
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_top
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
 
 # Check Python coding standards: check for tab characters.
 # Ignore generated files.

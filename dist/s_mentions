@@ -11,7 +11,8 @@
 
 # This script is not supposed to work outside of main WT repo.
 
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh cd_dist
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+cd_dist
 
 # Retrieve the current branch name.
 branch_name=$(git rev-parse --abbrev-ref HEAD 2>&1 || echo "BRANCH_NOT_FOUND")

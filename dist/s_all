@@ -2,7 +2,8 @@
 
 # Run standard scripts.
 
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh cd_dist
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+cd_dist
 t_pfx=__s_all_tmp_
 
 allchildpids() { # Recursively get PIDs of all child processes.

@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Check various WiredTiger function behaviors.
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_top
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
 
 fast=1
 case "$1" in

@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Complain about unused statistics fields.
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_dist use_pygrep
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_dist
+use_pygrep
 
 # List of files to search: skip stat.c, it lists all of the fields by
 # definition.

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh cd_top
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+cd_top
 
 t_out=__wt.$$.out
 t_out_filtered=__wt.$$.out_filtered

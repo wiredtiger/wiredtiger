@@ -2,7 +2,9 @@
 
 # Check for illegal external symbols.
 #
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_dist
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_dist
 
 case `uname` in
 Darwin)

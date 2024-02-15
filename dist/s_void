@@ -1,6 +1,8 @@
 #!/bin/bash
 
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_top
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
 
 # Parse a C file, discarding functions that don't return an int, and formatting
 # the remaining functions as a single line.

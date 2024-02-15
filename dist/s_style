@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # General style correction and cleanup.
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
 
 # Parallelize if possible.
 xp=""

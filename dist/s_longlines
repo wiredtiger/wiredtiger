@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Check for long lines
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_top
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
 
 l=`(find bench/wtperf examples ext src test -name '*.[chsy]' &&
     find dist -name '*.py' &&

@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Single space, newline at the end of file, and remove trailing whitespace from source files.
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_top use_pygrep
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
+use_pygrep
 
 # Clear lines that only contain whitespace, compress multiple empty lines
 # into a single line, discard trailing empty lines.

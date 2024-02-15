@@ -1,6 +1,8 @@
 #!/bin/bash
 
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_dist
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_dist
 
 # Complain if someone uses the wrong getopt.
 find ../src ../test ../bench -name '*.c' | xargs egrep '[^a-z_]getopt\(' > $t

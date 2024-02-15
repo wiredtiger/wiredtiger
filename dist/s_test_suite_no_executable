@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 set -euf -o pipefail
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh cd_top
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+cd_top
 
 # All test scripts should be routed through "run.py", running them directly is an anti-pattern.
 # Use the executable bits on the scripts as weak evidence of the anti-pattern.

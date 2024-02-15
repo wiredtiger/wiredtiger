@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Check lang directories for potential name conflicts
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh setup_trap cd_top
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
 cd lang
 
 for d in *; do
