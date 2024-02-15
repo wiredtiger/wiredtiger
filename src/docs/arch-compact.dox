@@ -33,12 +33,11 @@ then try to rewrite the last 20% of the file).
 attempt to work on the last 10% of the file).
 
 Depending on the scenario, compaction tries to move blocks from the last 20% or 10% of the
-file into the beginning of the file. This step is repeated as long as the above is true. The reason for
-this is because compaction walks the file in a logical order, not block offset order, and compaction
-of a file can fail if the block from the end of the file is not written first. Note that the block manager
-uses a first-fit block selection algorithm during compaction to maximize block movement. The process
-is repeated multiple times until the block manager detects that there are no blocks from the last 10% of the file
-that can be moved.
+file into the beginning of the file. The reason for this is because compaction walks the file in a
+logical order, not block offset order, and compaction of a file can fail if the block from the end
+of the file is not written first. Note that the block manager uses a first-fit block selection
+algorithm during compaction to maximize block movement. The process is repeated multiple times until
+the block manager detects that there are no blocks from the last 10% of the file that can be moved.
 
 Diving deep into the compaction process, the btree layer walks the internal pages for a given table to
 identify leaf pages that can be rewritten. For each leaf page referenced by the internal page, we use
