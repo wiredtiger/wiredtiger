@@ -32,7 +32,7 @@ then try to rewrite the last 20% of the file).
 - At least 10% of the total file is available in the first 90% of the file (compaction will then
 attempt to work on the last 10% of the file).
 
-Depending on the scenario, compaction the object is done 20% or 10% at a time, that is, compaction tries to move blocks from the last 20% or 10% of the
+Depending on the scenario, compaction tries to move blocks from the last 20% or 10% of the
 file into the beginning of the file. This incremental step is hard-coded in the block manager. The reason for
 this is because compaction walks the file in a logical order, not block offset order, and compaction
 of a file can fail if the block from the end of the file is not written first. Note that the block manager
