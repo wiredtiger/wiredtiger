@@ -2036,7 +2036,10 @@ tasks:
             set -o errexit
             set -o verbose
 
+            # Add paths to both global and user Python scripts
             export "PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH"
+            export "PATH=/cygdrive/c/Users/$USER/AppData/Roaming/Python/Python311/Scripts:$PATH"
+
             python --version
             python -m pip install scons==3.1.1
             scons-3.1.1.bat ${scons_smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
@@ -2054,7 +2057,10 @@ tasks:
             set -o errexit
             set -o verbose
 
+            # Add paths to both global and user Python scripts
             export "PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH"
+            export "PATH=/cygdrive/c/Users/$USER/AppData/Roaming/Python/Python311/Scripts:$PATH"
+
             python --version
             python -m pip install scons==3.1.1
             # The check target is not run in parallel.
