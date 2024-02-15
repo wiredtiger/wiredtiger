@@ -727,11 +727,11 @@ done:
             WT_STAT_CONN_SET(session, checkpoint_handle_dropped, conn->ckpt_drop);
             WT_STAT_CONN_SET(session, checkpoint_handle_drop_duration, conn->ckpt_drop_time);
             WT_STAT_CONN_SET(session, checkpoint_handle_duration, time_diff);
+            WT_STAT_CONN_SET(session, checkpoint_handle_locked, conn->ckpt_lock);
+            WT_STAT_CONN_SET(session, checkpoint_handle_lock_duration, conn->ckpt_lock_time);
             WT_STAT_CONN_SET(session, checkpoint_handle_meta_checked, conn->ckpt_meta_check);
             WT_STAT_CONN_SET(
               session, checkpoint_handle_meta_check_duration, conn->ckpt_meta_check_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_locked, conn->ckpt_lock);
-            WT_STAT_CONN_SET(session, checkpoint_handle_lock_duration, conn->ckpt_lock_time);
             WT_STAT_CONN_SET(session, checkpoint_handle_skipped, conn->ckpt_skip);
             WT_STAT_CONN_SET(session, checkpoint_handle_skip_duration, conn->ckpt_skip_time);
             WT_STAT_CONN_SET(session, checkpoint_handle_walked, conn->dhandle_count);
