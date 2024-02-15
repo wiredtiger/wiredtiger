@@ -51,23 +51,18 @@ fi
 # If we're not allowed to run Clang-Format, let's exit (should be obvious from the dialog).
 clang-format --version &> /dev/null || exit 1
 
-exclude=true
-if [[ "$1" == "" || "$1" == "-F" ]]; then
+if is_main_run; then
     search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cpp' | filter_if_fast`
-else
-    search="$1"
-    exclude=false
-fi
-
-if $exclude; then
     for f in `cat dist/s_clang_format.list`; do
         search=`echo "$search" | sed "\#$f#d"`
     done
+    echo "$search" | do_in_parallel
+    exit $?
 fi
 
 # Don't format inplace with -i flag.
 # We want to be able to detect modifications.
-for f in $search; do
+for f in "$@"; do
     cat "$f" | \
             clang-format --fallback-style=none | \
             python3 dist/s_comment.py > "$t" || exit 1

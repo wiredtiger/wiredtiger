@@ -190,7 +190,13 @@ func_ok()
 
 SUBDIRS="bench ext src test"
 
-for f in `find $SUBDIRS -name '*.c' -o -name '*_inline.h' | egrep -Ev '/windows_shim\.c$' | filter_if_fast`; do
+is_main_run && {
+    find $SUBDIRS -name '*.c' -o -name '*_inline.h' | egrep -Ev '/windows_shim\.c$' |
+    do_in_parallel
+    exit $?
+}
+
+for f in "$@"; do
     # Complain about functions which return an "int" but which don't return
     # except at the end of the function.
     #
