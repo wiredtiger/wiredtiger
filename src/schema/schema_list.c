@@ -133,6 +133,16 @@ __wt_schema_release_table_gen(WT_SESSION_IMPL *session, WT_TABLE **tablep, bool 
 }
 
 /*
+ * __wt_schema_release_table --
+ *     Release a table handle.
+ */
+int
+__wt_schema_release_table(WT_SESSION_IMPL *session, WT_TABLE **tablep)
+{
+    return (__wt_schema_release_table_gen(session, tablep, false));
+}
+
+/*
  * __wt_schema_destroy_colgroup --
  *     Free a column group handle.
  */
