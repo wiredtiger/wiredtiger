@@ -625,7 +625,11 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_duration;
     int64_t checkpoint_handle_duration_apply;
     int64_t checkpoint_handle_duration_skip;
+    int64_t checkpoint_handle_meta_check_duration;
+    int64_t checkpoint_handle_lock_duration;
     int64_t checkpoint_handle_applied;
+    int64_t checkpoint_handle_meta_check;
+    int64_t checkpoint_handle_lock;
     int64_t checkpoint_handle_skipped;
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;

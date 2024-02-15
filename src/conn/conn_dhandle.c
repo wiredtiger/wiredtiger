@@ -728,6 +728,11 @@ done:
             WT_STAT_CONN_SET(session, checkpoint_handle_duration, time_diff);
             WT_STAT_CONN_SET(session, checkpoint_handle_duration_apply, conn->ckpt_apply_time);
             WT_STAT_CONN_SET(session, checkpoint_handle_duration_skip, conn->ckpt_skip_time);
+            WT_STAT_CONN_SET(
+              session, checkpoint_handle_meta_check_duration, conn->ckpt_meta_check_time);
+            WT_STAT_CONN_SET(session, checkpoint_handle_meta_check, conn->ckpt_meta_check);
+            WT_STAT_CONN_SET(session, checkpoint_handle_lock, conn->ckpt_lock);
+            WT_STAT_CONN_SET(session, checkpoint_handle_lock_duration, conn->ckpt_lock_time);
         }
         return (0);
     }

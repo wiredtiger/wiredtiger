@@ -1601,7 +1601,11 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent duration for gathering all handles (usecs)",
   "checkpoint: most recent duration for gathering applied handles (usecs)",
   "checkpoint: most recent duration for gathering skipped handles (usecs)",
+  "checkpoint: most recent duration for handles metadata checked (usecs)",
+  "checkpoint: most recent duration for locking the handles (usecs)",
   "checkpoint: most recent handles applied",
+  "checkpoint: most recent handles metadata checked",
+  "checkpoint: most recent handles metadata locked",
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
@@ -2318,7 +2322,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_handle_duration */
     /* not clearing checkpoint_handle_duration_apply */
     /* not clearing checkpoint_handle_duration_skip */
+    /* not clearing checkpoint_handle_meta_check_duration */
+    /* not clearing checkpoint_handle_lock_duration */
     stats->checkpoint_handle_applied = 0;
+    stats->checkpoint_handle_meta_check = 0;
+    stats->checkpoint_handle_lock = 0;
     stats->checkpoint_handle_skipped = 0;
     stats->checkpoint_handle_walked = 0;
     /* not clearing checkpoint_time_recent */
@@ -3059,7 +3067,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_duration += WT_STAT_READ(from, checkpoint_handle_duration);
     to->checkpoint_handle_duration_apply += WT_STAT_READ(from, checkpoint_handle_duration_apply);
     to->checkpoint_handle_duration_skip += WT_STAT_READ(from, checkpoint_handle_duration_skip);
+    to->checkpoint_handle_meta_check_duration +=
+      WT_STAT_READ(from, checkpoint_handle_meta_check_duration);
+    to->checkpoint_handle_lock_duration += WT_STAT_READ(from, checkpoint_handle_lock_duration);
     to->checkpoint_handle_applied += WT_STAT_READ(from, checkpoint_handle_applied);
+    to->checkpoint_handle_meta_check += WT_STAT_READ(from, checkpoint_handle_meta_check);
+    to->checkpoint_handle_lock += WT_STAT_READ(from, checkpoint_handle_lock);
     to->checkpoint_handle_skipped += WT_STAT_READ(from, checkpoint_handle_skipped);
     to->checkpoint_handle_walked += WT_STAT_READ(from, checkpoint_handle_walked);
     to->checkpoint_time_recent += WT_STAT_READ(from, checkpoint_time_recent);
