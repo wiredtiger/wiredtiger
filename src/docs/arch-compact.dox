@@ -85,7 +85,7 @@ where compaction is successful. Using those statistics, the service focuses on t
 is likely to reclaim space and avoids unnecessary attempts.
 
 Background compaction can be enabled, configured, and disabled through the same API \c WT_SESSION::compact.
-When disabled, background compaction goes off as soon as possible and when re-enabled, it starts
+When disabled, background compaction turns off as soon as possible and when re-enabled, it starts
 from the last processed table.
 
 */
