@@ -796,8 +796,8 @@ extern int __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 extern int __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
-  int (*file_func)(WT_SESSION_IMPL *, const char *[]), const char *cfg[],
-  uint32_t open_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  int (*file_func)(WT_SESSION_IMPL *, const char *[]), const char *cfg[], uint32_t open_flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ext_config_get(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
   WT_CONFIG_ARG *cfg_arg, const char *key, WT_CONFIG_ITEM *cval)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1508,13 +1508,10 @@ extern int __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_schema_release_table(WT_SESSION_IMPL *session, WT_TABLE **tablep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_release_table_gen(WT_SESSION_IMPL *session, WT_TABLE **tablep,
   bool check_visibility) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
- __wt_schema_release_table(WT_SESSION_IMPL *session, WT_TABLE **tablep)
-{
-    return (__wt_schema_release_table_gen(session, tablep, false));
-}
 extern int __wt_schema_release_tiered(WT_SESSION_IMPL *session, WT_TIERED **tieredp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri,
@@ -1525,14 +1522,14 @@ extern int __wt_schema_tiered_shared_colgroup_name(WT_SESSION_IMPL *session, con
   bool active, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[],
-  uint32_t open_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[],
-  uint32_t open_flags) /* XXX Check */ WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **scratchp
 #ifdef HAVE_DIAGNOSTIC
   ,
@@ -1579,13 +1576,10 @@ extern int __wt_session_notsup(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_range_truncate(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start,
   WT_CURSOR *stop) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_release_dhandle_gen(WT_SESSION_IMPL *session,
-  bool check_visibility) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
-__wt_session_release_dhandle(WT_SESSION_IMPL *session)
-{
-    return (__wt_session_release_dhandle_gen(session, false));
-}
+extern int __wt_session_release_dhandle(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_session_release_dhandle_gen(WT_SESSION_IMPL *session, bool check_visibility)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_release_resources(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffers)

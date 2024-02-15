@@ -288,6 +288,16 @@ __wt_session_release_dhandle_gen(WT_SESSION_IMPL *session, bool check_visibility
 }
 
 /*
+ * __wt_session_release_dhandle --
+ *     Unlock a data handle.
+ */
+int
+__wt_session_release_dhandle(WT_SESSION_IMPL *session)
+{
+    return (__wt_session_release_dhandle_gen(session, false));
+}
+
+/*
  * __session_fetch_checkpoint_meta --
  *     Retrieve information about the selected checkpoint. Notes on the returned values are found
  *     under __session_lookup_checkpoint.
