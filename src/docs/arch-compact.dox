@@ -25,7 +25,7 @@ does not proceed if any of the following conditions are met:
 - Less than the configured \c free_space_target (see \c WT_SESSION::compact) worth of space
 can be theoretically recovered.
 
-Once enough free space is available, one of the two following conditions has to be met for compaction to proceed:
+Once enough free space is available, one of the two following hardcoded conditions must be met for compaction to proceed:
 
 - At least 20% of the available space lies within the first 80% of the file (compaction will
 then try to rewrite the last 20% of the file).
@@ -33,7 +33,7 @@ then try to rewrite the last 20% of the file).
 attempt to work on the last 10% of the file).
 
 Depending on the scenario, compaction tries to move blocks from the last 20% or 10% of the
-file into the beginning of the file. This incremental step is hard-coded in the block manager. The reason for
+file into the beginning of the file. This step is repeated as long as the above is true. The reason for
 this is because compaction walks the file in a logical order, not block offset order, and compaction
 of a file can fail if the block from the end of the file is not written first. Note that the block manager
 uses a first-fit block selection algorithm during compaction to maximize block movement. The process
