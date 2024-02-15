@@ -1926,6 +1926,7 @@ __checkpoint_lock_dirty_tree(
     WT_ITEM *drop_list;
     size_t ckpt_bytes_allocated;
     uint64_t now;
+    uint64_t time_diff, time_start, time_stop;
     char *name_alloc;
     const char *name;
     bool is_drop, is_wt_ckpt, seen_ckpt_add, skip_ckpt;
@@ -2013,6 +2014,7 @@ __checkpoint_lock_dirty_tree(
     WT_BTREE_CLEAN_CKPT(session, btree, 0);
     F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
+    time_start = __wt_clock(session);
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
 
     /* We may be dropping specific checkpoints, check the configuration. */
@@ -2058,6 +2060,11 @@ __checkpoint_lock_dirty_tree(
      * checkpoint.
      */
     WT_ERR(__drop(session, NULL, ckptbase, name, strlen(name)));
+
+    time_stop = __wt_clock(session);
+    ++S2C(session)->ckpt_drop;
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    S2C(session)->ckpt_drop_time += time_diff;
 
     /* Set the name of the new entry at the end of the list. */
     WT_CKPT_FOREACH (ckptbase, ckpt)

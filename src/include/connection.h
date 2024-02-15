@@ -478,6 +478,8 @@ struct __wt_connection_impl {
 
     uint64_t ckpt_apply;           /* Checkpoint handles applied */
     uint64_t ckpt_apply_time;      /* Checkpoint applied handles gather time */
+    uint64_t ckpt_drop;            /* Checkpoint handles drop */
+    uint64_t ckpt_drop_time;       /* Checkpoint handles drop time */
     uint64_t ckpt_lock;            /* Checkpoint handles lock */
     uint64_t ckpt_lock_time;       /* Checkpoint handles lock time */
     uint64_t ckpt_meta_check;      /* Checkpoint handles metadata check */
