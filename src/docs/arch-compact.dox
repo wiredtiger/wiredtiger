@@ -21,15 +21,15 @@ that there are as many blocks as possible on the file's "available for reuse" li
 starts. The compaction logic then starts examining the files that need to be compacted. Compaction
 does not proceed if any of the following conditions are met:
 
-    - The file is smaller than 1MB.
-    - Less than the configured \c free_space_target (see \c WT_SESSION::compact) worth of space
+- The file is smaller than 1MB.
+- Less than the configured \c free_space_target (see \c WT_SESSION::compact) worth of space
 can be theoretically recovered.
 
 Once enough free space is available, one of the two following conditions has to be met for compaction to proceed:
 
-    - At least 20% of the available space lies within the first 80% of the file (compaction will
+- At least 20% of the available space lies within the first 80% of the file (compaction will
 then try to rewrite the last 20% of the file).
-    - At least 10% of the total file is available in the first 90% of the file (compaction will then
+- At least 10% of the total file is available in the first 90% of the file (compaction will then
 attempt to work on the last 10% of the file).
 
 Depending on the scenario, compaction the object is done 20% or 10% at a time, that is, compaction tries to move blocks from the last 20% or 10% of the
@@ -75,8 +75,8 @@ with the compaction process.
 Background compaction is a WiredTiger service that runs compaction autonomously on all the eligible files
 present in the database while being the least disruptive as possible. Every file is eligible unless:
 
-    - it belongs to a tiered table or,
-    - it is a part of the exclude list that can be configured when enabling background compaction.
+- it belongs to a tiered table or,
+- it is a part of the exclude list that can be configured when enabling background compaction.
 
 To limit disruption, background compaction reduces the number of checkpoints by skipping the first one
 described in the section above. Furthermore, background compaction gathers statistics over time to
