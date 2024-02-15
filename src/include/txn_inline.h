@@ -1431,7 +1431,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
  *     Allocate a new transaction ID.
  */
 static WT_INLINE uint64_t
-__wt_txn_id_alloc(WT_SESSION_IMPL *session, bool release)
+__wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 {
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
@@ -1443,10 +1443,10 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool release)
     /*
      * Allocating transaction IDs involves several steps.
      *
-     * Firstly, release write that this transaction is allocating its ID, then release write the
-     * transaction ID as the current global ID. Note that this transaction ID might not be unique
-     * among threads and hence not valid at this moment. The flag will notify other transactions
-     * that are attempting to get their own snapshot for this transaction ID to retry.
+     * Firstly, publish that this transaction is allocating its ID, then publish the transaction ID
+     * as the current global ID. Note that this transaction ID might not be unique among threads and
+     * hence not valid at this moment. The flag will notify other transactions that are attempting
+     * to get their own snapshot for this transaction ID to retry.
      *
      * Then we do an atomic increment to allocate a unique ID. This will give the valid ID to this
      * transaction that we release to the global transaction table.
@@ -1459,7 +1459,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool release)
      * We rely on atomic reads of the current ID to create snapshots, so for unlocked reads to be
      * well defined, we must use an atomic increment here.
      */
-    if (release) {
+    if (publish) {
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, txn_global->current);
         id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
