@@ -233,7 +233,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     __rollback_to_stable_finalize(S2C(session)->rts);
 
-    /* Reset the rts configuration to default. */
+    /* Reset the RTS configuration to default. */
     S2C(session)->rts->dryrun = false;
     S2C(session)->rts->threads = 0;
 

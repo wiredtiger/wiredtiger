@@ -173,7 +173,7 @@ __wt_rts_pop_work(WT_SESSION_IMPL *session, WT_RTS_WORK_UNIT **entryp)
 
     __wt_spin_lock(session, &conn->rts->rts_lock);
 
-    /* Recheck again to confirm whether the queue is empty or not? */
+    /* Recheck to confirm whether the queue is empty or not. */
     if (TAILQ_EMPTY(&conn->rts->rtsqh)) {
         __wt_spin_unlock(session, &conn->rts->rts_lock);
         return;

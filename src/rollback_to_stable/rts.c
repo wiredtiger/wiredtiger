@@ -117,7 +117,7 @@ __wt_rts_thread_chk(WT_SESSION_IMPL *session)
 
 /*
  * __wt_rts_thread_run --
- *     Entry function for an rts thread. This is called repeatedly from the thread group code so it
+ *     Entry function for an RTS thread. This is called repeatedly from the thread group code so it
  *     does not need to loop itself.
  */
 int
@@ -134,7 +134,7 @@ __wt_rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
         __wt_rts_pop_work(session, &entry);
         if (entry == NULL)
-            return (0);
+            break;
 
         WT_ERR(__wt_rts_btree_work_unit(session, entry));
     }
@@ -163,7 +163,7 @@ __wt_rts_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
 /*
  * __wt_rts_thread_create --
- *     Start rts threads.
+ *     Start RTS threads.
  */
 static int
 __wt_rts_thread_create(WT_SESSION_IMPL *session)
@@ -180,12 +180,12 @@ __wt_rts_thread_create(WT_SESSION_IMPL *session)
     F_SET(conn, WT_CONN_RTS_THREAD_RUN);
 
     TAILQ_INIT(&conn->rts->rtsqh); /* RTS work unit list */
-    WT_RET(__wt_spin_init(session, &conn->rts->rts_lock, "rts work unit list"));
+    WT_RET(__wt_spin_init(session, &conn->rts->rts_lock, "RTS work unit list"));
     WT_RET(__wt_cond_auto_alloc(
-      session, "rts threads", 10 * WT_THOUSAND, WT_MILLION, &conn->rts->thread_cond));
+      session, "RTS threads", 10 * WT_THOUSAND, WT_MILLION, &conn->rts->thread_cond));
 
     /*
-     * Create the rts thread group. Set the group size to the maximum allowed sessions.
+     * Create the RTS thread group. Set the group size to the maximum allowed sessions.
      */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &conn->rts->thread_group, "rts-threads",
@@ -197,7 +197,7 @@ __wt_rts_thread_create(WT_SESSION_IMPL *session)
 
 /*
  * __wt_rts_thread_destroy --
- *     Destroy the rts threads.
+ *     Destroy the RTS threads.
  */
 static int
 __wt_rts_thread_destroy(WT_SESSION_IMPL *session)
@@ -210,7 +210,7 @@ __wt_rts_thread_destroy(WT_SESSION_IMPL *session)
     if (conn->rts->threads == 0)
         return (0);
 
-    /* Wait for any rts thread group changes to stabilize. */
+    /* Wait for any RTS thread group changes to stabilize. */
     __wt_writelock(session, &conn->rts->thread_group.lock);
 
     /*
@@ -292,7 +292,7 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
-     * Wait for the entire rts queue is finished processing before performing the history store
+     * Wait for the entire RTS queue is finished processing before performing the history store
      * final pass.
      */
     while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
