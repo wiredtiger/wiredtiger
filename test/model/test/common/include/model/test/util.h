@@ -30,6 +30,7 @@
 #define MODEL_TEST_UTIL_H
 
 #include <string>
+#include <utility>
 #include "model/driver/kv_workload.h"
 
 extern "C" {
@@ -54,6 +55,19 @@ extern "C" {
  *     Create an empty temporary file and return its name.
  */
 std::string create_tmp_file(const char *dir, const char *prefix, const char *suffix = nullptr);
+
+/*
+ * parse_uint64 --
+ *     Parse the string into a number. Throw an exception on error.
+ */
+uint64_t parse_uint64(const char *str, char **end = nullptr);
+
+/*
+ * parse_uint64_range --
+ *     Parse the string into a range of numbers (two numbers separated by '-'). Throw an exception
+ *     on error.
+ */
+std::pair<uint64_t, uint64_t> parse_uint64_range(const char *str);
 
 /*
  * verify_using_debug_log --

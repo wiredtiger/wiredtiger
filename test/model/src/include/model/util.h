@@ -279,6 +279,19 @@ public:
     }
 
     /*
+     * config_map::get_float --
+     *     Get the corresponding float value. Throw an exception on error.
+     */
+    inline float
+    get_float(const char *key) const
+    {
+        std::istringstream stream(std::get<std::string>(_map.find(key)->second));
+        float v;
+        stream >> v;
+        return v;
+    }
+
+    /*
      * config_map::get_uint64 --
      *     Get the corresponding integer value. Throw an exception on error.
      */
@@ -302,6 +315,19 @@ public:
         uint64_t v;
         stream >> std::hex >> v;
         return v;
+    }
+
+    /*
+     * config_map::keys --
+     *     Get the collection of keys.
+     */
+    inline std::vector<std::string>
+    keys() const noexcept
+    {
+        std::vector<std::string> r;
+        for (auto p : _map)
+            r.push_back(p.first);
+        return r;
     }
 
 private:

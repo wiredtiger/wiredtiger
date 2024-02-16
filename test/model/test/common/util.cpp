@@ -69,6 +69,55 @@ create_tmp_file(const char *dir, const char *prefix, const char *suffix)
 }
 
 /*
+ * parse_uint64 --
+ *     Parse the string into a number. Throw an exception on error.
+ */
+uint64_t
+parse_uint64(const char *str, char **end)
+{
+    if (str == nullptr || str[0] == '\0')
+        throw std::runtime_error("Cannot parse a number");
+
+    bool hex = false;
+    if (strncmp(str, "0x", 2) == 0) {
+        hex = true;
+        str += 2;
+    }
+
+    char *p = nullptr;
+    uint64_t r = (uint64_t)strtoull(str, &p, hex ? 16 : 10);
+    if (end != nullptr)
+        *end = p;
+    if (str == p || (end == nullptr && p[0] != '\0'))
+        throw std::runtime_error("Cannot parse a number");
+
+    return r;
+}
+
+/*
+ * parse_uint64_range --
+ *     Parse the string into a range of numbers (two numbers separated by '-'). Throw an exception
+ *     on error.
+ */
+std::pair<uint64_t, uint64_t>
+parse_uint64_range(const char *str)
+{
+    char *end;
+    uint64_t first = parse_uint64(str, &end);
+
+    uint64_t second = first;
+    if (end[0] != '\0') {
+        if (end[0] != '-')
+            throw std::runtime_error("Not a range");
+        second = parse_uint64(end + 1);
+    }
+
+    if (first > second)
+        std::swap(first, second);
+    return std::make_pair(first, second);
+}
+
+/*
  * verify_using_debug_log --
  *     Verify the database using the debug log. Try both the regular and the JSON version.
  */
