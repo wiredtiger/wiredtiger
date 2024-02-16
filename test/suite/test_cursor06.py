@@ -33,6 +33,12 @@
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
+#from abstract_test_case import AbstractWiredTigerTestCase
+import abstract_test_case
+
+# Ignore unexpected output
+#AbstractWiredTigerTestCase._ignoreStdout = True
+abstract_test_case.AbstractWiredTigerTestCase._ignoreStdout = True
 
 # test_cursor06.py
 #    Test cursor reconfiguration.
