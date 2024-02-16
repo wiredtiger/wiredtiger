@@ -29,6 +29,12 @@
 import wttest
 from wtscenario import make_scenarios
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
+#from abstract_test_case import AbstractWiredTigerTestCase
+import abstract_test_case
+
+# Ignore unexpected output
+#AbstractWiredTigerTestCase._ignoreStdout = True
+abstract_test_case.AbstractWiredTigerTestCase._ignoreStdout = True
 
 # test_alter01.py
 #    Smoke-test the session alter operations.

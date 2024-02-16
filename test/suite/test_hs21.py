@@ -31,6 +31,12 @@ import wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
+#from abstract_test_case import AbstractWiredTigerTestCase
+import abstract_test_case
+
+# Ignore unexpected output
+#AbstractWiredTigerTestCase._ignoreStdout = True
+abstract_test_case.AbstractWiredTigerTestCase._ignoreStdout = True
 
 # test_hs21.py
 # Test we don't lose any data when idle files with an active history are closed/sweeped.

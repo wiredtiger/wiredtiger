@@ -27,6 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+#from abstract_test_case import AbstractWiredTigerTestCase
+import abstract_test_case
+
+# Ignore unexpected output
+#AbstractWiredTigerTestCase._ignoreStdout = True
+abstract_test_case.AbstractWiredTigerTestCase._ignoreStdout = True
 
 # test_drop03.py
 # Test dropping a collection under an active transaction. We should return EBUSY.
