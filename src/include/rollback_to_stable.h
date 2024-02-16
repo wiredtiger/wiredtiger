@@ -105,7 +105,7 @@ struct __wt_rollback_to_stable {
     /* RTS thread information. */
     WT_CONDVAR *thread_cond;
     WT_THREAD_GROUP thread_group;
-    uint32_t threads; /* RTS threads */
+    uint32_t threads_num;
 
     /* Locked: rts system work queue. */
     TAILQ_HEAD(__wt_rts_qh, __wt_rts_work_unit) rtsqh;
