@@ -103,7 +103,7 @@ struct __wt_rollback_to_stable {
     int (*rollback_to_stable)(WT_SESSION_IMPL *, const char *[], bool);
 
     /* RTS thread information. */
-    WT_CONDVAR *thread_cond; /* RTS thread condition */
+    WT_CONDVAR *thread_cond;
     WT_THREAD_GROUP thread_group;
     uint32_t threads; /* RTS threads */
 
