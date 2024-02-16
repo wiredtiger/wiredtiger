@@ -124,6 +124,7 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
     rnd.v ^= rnd.v << 13;
     rnd.v ^= rnd.v >> 7;
     rnd.v ^= rnd.v << 17;
+
     *rnd_state = rnd;
 }
 
