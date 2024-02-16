@@ -107,7 +107,7 @@ __wt_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64
 
 /*
  * __wt_rts_thread_chk --
- *     Check to decide if the rts thread should continue running.
+ *     Check to decide if the RTS thread should continue running.
  */
 bool
 __wt_rts_thread_chk(WT_SESSION_IMPL *session)
