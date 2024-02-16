@@ -382,6 +382,21 @@
     F_CLR((c), WT_CURSTD_EVICT_REPOSITION)
 
 /*
+ * Track cursor API calls, so we can know how many are in the library at a point in time. These need
+ * to be balanced. If the api call counter is zero, it means these have been used in the wrong order
+ * compared to the other enter/end macros.
+ */
+#define CURSOR_API_TRACK_START(s)               \
+    WT_ASSERT((s), (s)->api_call_counter != 0); \
+    if ((s)->api_call_counter == 1)             \
+        (void)__wt_atomic_add32(&S2C(s)->active_api_cursor_count, 1);
+
+#define CURSOR_API_TRACK_END(s)                 \
+    WT_ASSERT((s), (s)->api_call_counter != 0); \
+    if ((s)->api_call_counter == 1)             \
+        (void)__wt_atomic_sub32(&S2C(s)->active_api_cursor_count, 1);
+
+/*
  * Macros to set up APIs that use compiled configuration strings.
  */
 #define WT_DECL_CONF(h, n, conf)  \
