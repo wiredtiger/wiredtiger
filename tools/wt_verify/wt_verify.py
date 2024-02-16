@@ -45,12 +45,15 @@ matplotlib.use('WebAgg')
 import matplotlib.pyplot as plt
 import mpld3
 from mpld3._server import serve
+from collections import Counter
+
 
 SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
 WT_OUTPUT_FILE = "wt_output_file.txt"
 HISTOGRAM_CHOICES = ["page_mem_size", "dsk_mem_size", "entries"]
 PIE_CHART_CHOICES = ["page_type"]
-ALL_VISUALIZATION_CHOICES = HISTOGRAM_CHOICES + PIE_CHART_CHOICES
+SCATTER_PLOT_CHOICES = ["entries"]
+ALL_VISUALIZATION_CHOICES = HISTOGRAM_CHOICES + PIE_CHART_CHOICES + SCATTER_PLOT_CHOICES
 
 PLOT_COLORS = {
     "dsk_mem_size": {"internal": "#ff69b4", "leaf": "#ffb3ba"},
@@ -224,6 +227,46 @@ def pie_chart(field, chkpt, chkpt_name):
     plt.close()
     return imgs
 
+def scatter_plot(chkpt, chkpt_name):
+    """
+    Rendering scatter plot in HTML for the specified field for leaf and internal pages 
+    """
+    entries_data = []
+    # Store in a list of dicts [ {<entries>, <checkpoint>, <page_type>, <Frequency>}, ... ]
+    for _, page_metadata in chkpt.items():
+            page_type_list = page_metadata.get('page_type')
+            if (type := 'leaf') in page_type_list or (type := 'internal') in page_type_list:
+                entries_data.append({'Checkpoint': chkpt_name, 'Page_Type': type,
+                                     'Entries': page_metadata.get('entries', 0)})
+
+    counts = Counter(frozenset(d.items()) for d in entries_data)
+    entries_data = [dict(k, Frequency=v) for k, v in counts.items()]
+
+    # Debugging purposes because no getting to scatterplot function for unknown reason
+    print(f"PRINTING ENTRIES DATA\n{entries_data}")
+
+    # Get x and y axises for internal and leaf points
+    internal_entries = [d['Entries'] for d in entries_data if d['Page_Type'] == 'internal']
+    internal_frequencies = [d['Frequency'] for d in entries_data if d['Page_Type'] == 'internal']
+
+    leaf_entries = [d['Entries'] for d in entries_data if d['Page_Type'] == 'leaf']
+    leaf_frequencies = [d['Frequency'] for d in entries_data if d['Page_Type'] == 'leaf']
+
+    fig, ax = plt.subplots(2, figsize=(15, 10))
+
+    # Plot the scatter plot
+    ax.scatter(internal_entries, internal_frequencies, color='blue', label='Internal')
+    ax.scatter(leaf_entries, leaf_frequencies, color='green', label='Leaf')
+
+    ax.set_title('Entries vs Frequency by Page Type')
+    ax.set_xlabel('Entries')
+    ax.set_ylabel('Frequency')
+
+    ax.legend()
+    imgs = mpld3.fig_to_html(fig)
+    plt.close(fig)
+    return imgs
+
 
 def visualize_chkpt(tree_data, field):
     """
@@ -235,6 +278,8 @@ def visualize_chkpt(tree_data, field):
             imgs += histogram(field, chkpt, chkpt_name)
         elif field in PIE_CHART_CHOICES:
             imgs += pie_chart(field, chkpt, chkpt_name)
+        elif field in SCATTER_PLOT_CHOICES:
+            imgs += scatter_plot(chkpt, chkpt_name)  
     return imgs
 
 
