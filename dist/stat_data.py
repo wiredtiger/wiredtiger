@@ -179,8 +179,10 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('api_call_count', 'number of threads currently inside the library', 'no_clear,no_scale,size'),
-    ConnStat('api_call_cursor_count', 'number of threads currently inside the library doing cursor operations', 'no_clear,no_scale,size'),
+    ConnStat('api_call_count', 'number of threads currently inside the library application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_count_internal', 'number of threads currently inside the library internal', 'no_clear,no_scale,size'),
+    ConnStat('api_call_count_cursor', 'number of threads currently inside the library doing cursor operations application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_count_cursor_internal', 'number of threads currently inside the library doing cursor operations internal', 'no_clear,no_scale,size'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
