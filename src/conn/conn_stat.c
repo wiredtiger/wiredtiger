@@ -82,6 +82,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
     WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
     WT_STAT_CONN_SET(session, api_call_count, conn->active_api_count);
+    WT_STAT_CONN_SET(session, api_call_cursor_count, conn->active_api_cursor_count);
 }
 
 /*
