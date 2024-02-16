@@ -183,30 +183,44 @@ def num_len(num):
     return len(str(num))
 
 
-def format_stats(internal_stats, leaf_stats):
-    indent = "               "
-    string = indent + "SUMMARY ANALYSIS"
-    base = "|  mean: {}  |  median: {}  |  min: {}  |  max: {}  |"
-    internal_title = "|   INTERNAL         "
-    leaf_title = "|   LEAF             "
-    line_len = lambda l: num_len(l[0]) if len(l) == 1 else num_len(l[0]) + line_len(l[1:])
-    max_num_len = max([num_len(x) for x in internal_stats] + [num_len(x) for x in leaf_stats]) 
-    internal_len = line_len(internal_stats) + len(internal_title) + len(base) + len(indent)
-    leaf_len = line_len(leaf_stats) + len(leaf_title) + len(base) + len(indent)
-    max_line_len = internal_len if internal_len > leaf_len else leaf_len 
-
-    string += (max_line_len - len(string)) * "-" + "\n" + indent + internal_title
-    
-    temp = []
-    for stat in internal_stats:
-        temp.append(str(stat) + ((max_num_len - num_len(stat)) * " "))
-    string += base.format(temp[0], temp[1], temp[2], temp[3]) + "\n" + indent + leaf_title
-    temp = []
-    for stat in leaf_stats:
-        temp.append(str(stat) + ((max_num_len - num_len(stat)) * " "))
-    string += base.format(temp[0], temp[1], temp[2], temp[3])
-    string += "\n" + indent + ((max_line_len - len(indent)) * "-")
-
+def table(int_stats, leaf_stats):
+    string = """
+<style>
+table, th, td {
+  border:1px solid black;
+  font-family: Helvetica, Sans-Serif;
+}
+td, th {
+  padding: 10px;
+}
+</style>
+"""
+    string += """
+<table style="margin-left:4cm;border-collapse: collapse;">
+  <tr>
+    <th>Page type</th>
+    <th>Mean</th>
+    <th>Median</th>
+    <th>Min</th>
+    <th>Max</th>
+  </tr>
+  <tr>
+    <td>Internal</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+  </tr>
+  <tr>
+    <td>Leaf</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+  </tr>
+</table>
+    """.format(int_stats[0], int_stats[1], int_stats[2], int_stats[3], leaf_stats[0], 
+               leaf_stats[1], leaf_stats[2], leaf_stats[3])
     return string
 
 
@@ -241,7 +255,7 @@ def histogram(field, chkpt, chkpt_name):
     plt.close()
     internal_stats = [mean(internal), median(internal), min(internal), max(internal)]
     leaf_stats = [mean(leaf), median(leaf), min(leaf), max(leaf)]
-    imgs += "<pre>" + format_stats(internal_stats, leaf_stats)
+    imgs += table(internal_stats, leaf_stats)
     return imgs
 
 
