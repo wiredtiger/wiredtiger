@@ -126,7 +126,7 @@ __wt_rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_RET;
     WT_RTS_WORK_UNIT *entry;
 
-    WT_ASSERT_ALWAYS(session, thread->id != 0, "The thread id shouldn't be zero");
+    WT_UNUSED(thread);
 
     /* Wait here. */
     if (F_ISSET(S2C(session), WT_CONN_RTS_THREAD_RUN))
@@ -157,8 +157,7 @@ err:
 int
 __wt_rts_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
-    if (thread->id != 0)
-        return (0);
+    WT_UNUSED(thread);
 
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
