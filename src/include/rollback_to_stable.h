@@ -84,7 +84,7 @@
 
 /*
  * WT_RTS_WORK_UNIT --
- *	A definition of maintenance that a RTS tree needs done.
+ *  RTS thread operating work unit.
  */
 struct __wt_rts_work_unit {
     TAILQ_ENTRY(__wt_rts_work_unit) q; /* Worker unit queue */
@@ -103,7 +103,6 @@ struct __wt_rollback_to_stable {
     int (*rollback_to_stable)(WT_SESSION_IMPL *, const char *[], bool);
 
     /* RTS thread information. */
-    WT_CONDVAR *thread_cond;
     WT_THREAD_GROUP thread_group;
     uint32_t threads_num;
 

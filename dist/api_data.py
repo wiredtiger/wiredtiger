@@ -2020,8 +2020,8 @@ methods = {
         perform the checks associated with RTS, but don't modify any data.''',
         type='boolean'),
     Config('threads', '4', r'''
-        maximum number of threads WiredTiger will start to help rollback to stable. Each
-        rts worker thread uses a session from the configured session_max''',
+        maximum number of threads WiredTiger will start to help RTS. Each
+        RTS worker thread uses a session from the configured session_max''',
         min=0, max=10),
 ]),
 

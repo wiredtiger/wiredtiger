@@ -207,7 +207,7 @@ __wt_rts_push_work(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rol
     __wt_spin_lock(session, &conn->rts->rts_lock);
     TAILQ_INSERT_TAIL(&conn->rts->rtsqh, entry, q);
     __wt_spin_unlock(session, &conn->rts->rts_lock);
-    __wt_cond_signal(session, conn->rts->thread_cond);
+    __wt_cond_signal(session, conn->rts->thread_group.wait_cond);
 
     return (0);
 err:
@@ -379,7 +379,7 @@ __wt_rts_btree_walk_btree_apply(
       WT_WITH_HANDLE_LIST_READ_LOCK(
         session, (ret = __rts_btree_walk_check_btree_modified(session, uri, &modified))));
 
-    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_RET_NOTFOUND_OK(ret);
 
     if (modified || max_durable_ts > rollback_timestamp || prepared_updates ||
       has_txn_updates_gt_than_ckpt_snap) {
@@ -395,10 +395,10 @@ __wt_rts_btree_walk_btree_apply(
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-        if (S2C(session)->rts->threads == 0)
-            WT_ERR(__rts_btree(session, uri, rollback_timestamp));
+        if (S2C(session)->rts->threads_num == 0)
+            WT_RET(__rts_btree(session, uri, rollback_timestamp));
         else
-            WT_ERR(__wt_rts_push_work(session, uri, rollback_timestamp));
+            WT_RET(__wt_rts_push_work(session, uri, rollback_timestamp));
         file_skipped = false;
     } else
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
@@ -422,12 +422,11 @@ __wt_rts_btree_walk_btree_apply(
      */
     if ((file_skipped && !modified) && max_durable_ts == WT_TS_NONE &&
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        WT_ERR(__wt_config_getones(session, config, "id", &cval));
+        WT_RET(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
-        WT_ERR(__wt_rts_history_btree_hs_truncate(session, btree_id));
+        WT_RET(__wt_rts_history_btree_hs_truncate(session, btree_id));
     }
 
-err:
     return (ret);
 }
 

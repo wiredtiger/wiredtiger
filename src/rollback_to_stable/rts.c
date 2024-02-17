@@ -126,7 +126,11 @@ __wt_rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_RET;
     WT_RTS_WORK_UNIT *entry;
 
-    WT_UNUSED(thread);
+    WT_ASSERT_ALWAYS(session, thread->id != 0, "The thread id shouldn't be zero");
+
+    /* Wait here. */
+    if (F_ISSET(S2C(session), WT_CONN_RTS_THREAD_RUN))
+        __wt_cond_wait(session, S2C(session)->rts->thread_group.wait_cond, 10 * WT_THOUSAND, NULL);
 
     /* Mark the session as an eviction thread session. */
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
@@ -148,7 +152,7 @@ err:
 
 /*
  * __wt_rts_thread_stop --
- *     Shutdown function for an rts thread.
+ *     Shutdown function for an RTS thread.
  */
 int
 __wt_rts_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
@@ -173,23 +177,22 @@ __wt_rts_thread_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->rts->threads == 0)
+    if (conn->rts->threads_num == 0)
         return (0);
 
     /* Set first, the thread might run before we finish up. */
     F_SET(conn, WT_CONN_RTS_THREAD_RUN);
 
-    TAILQ_INIT(&conn->rts->rtsqh); /* RTS work unit list */
+    /* RTS work unit list */
+    TAILQ_INIT(&conn->rts->rtsqh);
     WT_RET(__wt_spin_init(session, &conn->rts->rts_lock, "RTS work unit list"));
-    WT_RET(__wt_cond_auto_alloc(
-      session, "RTS threads", 10 * WT_THOUSAND, WT_MILLION, &conn->rts->thread_cond));
 
     /*
      * Create the RTS thread group. Set the group size to the maximum allowed sessions.
      */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &conn->rts->thread_group, "rts-threads",
-      conn->rts->threads, conn->rts->threads, session_flags, __wt_rts_thread_chk,
+      conn->rts->threads_num, conn->rts->threads_num, session_flags, __wt_rts_thread_chk,
       __wt_rts_thread_run, __wt_rts_thread_stop));
 
     return (0);
@@ -207,27 +210,22 @@ __wt_rts_thread_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->rts->threads == 0)
+    if (conn->rts->threads_num == 0)
         return (0);
 
     /* Wait for any RTS thread group changes to stabilize. */
     __wt_writelock(session, &conn->rts->thread_group.lock);
 
-    /*
-     * Signal the threads to finish and stop populating the queue.
-     */
+    /* Signal the threads to finish and stop populating the queue. */
     F_CLR(conn, WT_CONN_RTS_THREAD_RUN);
-    __wt_cond_signal(session, conn->rts->thread_cond);
+    __wt_cond_signal(session, conn->rts->thread_group.wait_cond);
 
     __wt_verbose(
       session, WT_VERB_RTS, WT_RTS_VERB_TAG_WAIT_THREADS "%s", "waiting for helper threads");
 
-    /*
-     * We call the destroy function still holding the write lock. It assumes it is called locked.
-     */
+    /* We call the destroy function still holding the write lock. It assumes it is called locked. */
     WT_TRET(__wt_thread_group_destroy(session, &conn->rts->thread_group));
     __wt_spin_destroy(session, &conn->rts->rts_lock);
-    __wt_cond_destroy(session, &conn->rts->thread_cond);
 
     return (ret);
 }
@@ -252,16 +250,13 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     __wt_timer_start(session, &timer);
     max_count = rollback_count = 0;
     rollback_msg_count = 0;
-    have_cursor = false;
-
-    WT_RET(__wt_rts_thread_create(session));
-    rts_threads_started = true;
+    have_cursor = rts_threads_started = false;
 
     /*
      * Walk the metadata first to count how many files we have overall. That allows us to give
      * signal about progress.
      */
-    WT_ERR(__wt_metadata_cursor(session, &cursor));
+    WT_RET(__wt_metadata_cursor(session, &cursor));
     have_cursor = true;
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
@@ -271,6 +266,9 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     WT_ERR_NOTFOUND_OK(ret, false);
     WT_ERR(__wt_metadata_cursor_release(session, &cursor));
     have_cursor = false;
+
+    WT_ERR(__wt_rts_thread_create(session));
+    rts_threads_started = true;
 
     WT_ERR(__wt_metadata_cursor(session, &cursor));
     have_cursor = true;
@@ -293,7 +291,8 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
 
     /*
      * Wait for the entire RTS queue is finished processing before performing the history store
-     * final pass.
+     * final pass. Moreover, the main thread joins the processing queue rather than waiting for the
+     * worker alone to complete the task.
      */
     while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
         __wt_rts_pop_work(session, &entry);

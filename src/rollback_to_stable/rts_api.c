@@ -44,7 +44,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     conn = S2C(session);
     txn_global = &conn->txn_global;
     dryrun = conn->rts->dryrun;
-    threads = conn->rts->threads;
+    threads = conn->rts->threads_num;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
@@ -216,7 +216,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
       __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session));
 
     S2C(session)->rts->dryrun = dryrun;
-    S2C(session)->rts->threads = threads;
+    S2C(session)->rts->threads_num = threads;
 
     __wt_timer_start(session, &timer);
 
@@ -235,7 +235,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     /* Reset the RTS configuration to default. */
     S2C(session)->rts->dryrun = false;
-    S2C(session)->rts->threads = 0;
+    S2C(session)->rts->threads_num = 0;
 
     WT_TRET(__wt_session_close_internal(session));
 
