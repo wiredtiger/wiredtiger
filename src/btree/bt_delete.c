@@ -195,14 +195,14 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     *skipp = true;
     WT_STAT_CONN_DATA_INCR(session, rec_page_delete_fast);
 
-    /* Publish the page to its new state, ensuring visibility. */
+    /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
     return (0);
 
 err:
     __wt_free(session, ref->page_del);
 
-    /* Publish the page to its previous state, ensuring visibility. */
+    /* Return the page to its previous state. */
     WT_REF_SET_STATE(ref, previous_state);
     return (ret);
 }
@@ -447,7 +447,7 @@ __tombstone_update_alloc(
  * __instantiate_tombstone --
  *     Instantiate a single tombstone on a page.
  */
-static inline int
+static WT_INLINE int
 __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
   WT_UPDATE **update_list, uint32_t *countp, const WT_TIME_WINDOW *tw, WT_UPDATE **updp,
   size_t *sizep)
