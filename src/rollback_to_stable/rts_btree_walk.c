@@ -427,7 +427,7 @@ __wt_rts_btree_walk_btree_apply(
         WT_RET(__wt_rts_history_btree_hs_truncate(session, btree_id));
     }
 
-    return (ret);
+    return (0);
 }
 
 /*

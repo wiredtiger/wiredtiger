@@ -249,7 +249,7 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     __wt_timer_start(session, &timer);
     max_count = rollback_count = 0;
     rollback_msg_count = 0;
-    have_cursor = rts_threads_started = false;
+    rts_threads_started = false;
 
     /*
      * Walk the metadata first to count how many files we have overall. That allows us to give
