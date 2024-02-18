@@ -507,9 +507,10 @@ skip_evict:
                 continue;
         }
         do {
+	    /* WT-11836 tweak timeout HERE */
             const struct timespec timeout = {
                 .tv_sec = 0,
-                .tv_nsec = 1 * WT_THOUSAND,
+                .tv_nsec = 2 * WT_THOUSAND,
             };
             /* int ftxret; */
             if (ref->state != current_state)
