@@ -31,8 +31,8 @@ from wtdataset import SimpleDataSet
 
 # test_cursor_random03.py
 #    This python test reproduces the WT-12225 bug where the same stream of numbers are generated
-# from the random cursor. In the presence of where all the values are the insert list, open up 
-# two cursors close to each other in time, and both cursors will return back the exact same 
+# from the random cursor. In the presence of where all the values are the insert list, open up
+# two cursors close to each other in time, and both cursors will return back the exact same
 # records again.
 class test_cursor_random02(wttest.WiredTigerTestCase):
     def test_cursor_random_bug(self):
@@ -65,7 +65,7 @@ class test_cursor_random02(wttest.WiredTigerTestCase):
                     found_different = True
                 break
             cursor.close()
-            
+
             # We expect that the values between two recently opened cursors return different stream
             # of records.
             self.assertTrue(found_different)
