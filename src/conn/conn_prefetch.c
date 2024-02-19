@@ -105,15 +105,10 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (pe == NULL)
             break;
 
-        /*
-         * Add this dhandle to the list of dhandles prefetch threads are currently working on. We
-         * use WT_PUBLISH here to guarantee write_once semantics on prefetch_dhandles. We don't
-         * require its ordering constraints.
-         */
-        WT_PUBLISH(conn->prefetch_dhandles[thread->id], pe->dhandle);
-
         TAILQ_REMOVE(&conn->pfqh, pe, q);
         --conn->prefetch_queue_count;
+
+        (void)__wt_atomic_addv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), block_prefetch_skipped_no_flag_set);
@@ -139,7 +134,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          */
         __wt_spin_lock(session, &conn->prefetch_lock);
         F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
-        conn->prefetch_dhandles[thread->id] = NULL;
+        (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         __wt_spin_unlock(session, &conn->prefetch_lock);
         WT_ERR(ret);
 
@@ -188,13 +183,11 @@ int
 __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle, *prefetch_dhandle;
+    WT_DATA_HANDLE *dhandle;
     WT_PREFETCH_QUEUE_ENTRY *pe, *pe_tmp;
-    u_int i;
 
     conn = S2C(session);
     dhandle = session->dhandle;
-    i = 0;
 
     WT_ASSERT_ALWAYS(session, all || dhandle != NULL,
       "Pre-fetch needs to save a valid dhandle when clearing the queue for a btree");
@@ -216,18 +209,9 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
      * To avoid a race condition, check if this dhandle is currently being operated on by any other
      * prefetch thread. If so, wait for the thread to finish before proceeding with eviction.
      */
-
-    while (i < WT_PREFETCH_THREAD_COUNT) {
-        /*
-         * We use WT_ORDERED_READ here to guarantee read_once semantics on prefetch_dhandle. We
-         * don't require its ordering constraints.
-         */
-        WT_ORDERED_READ(prefetch_dhandle, conn->prefetch_dhandles[i]);
-        if (prefetch_dhandle == dhandle)
-            __wt_sleep(0, 100);
-        else
-            i++;
-    }
+    if (dhandle != NULL)
+        while (((WT_BTREE *)dhandle->handle)->prefetch_busy > 0)
+            __wt_yield();
 
     __wt_spin_unlock(session, &conn->prefetch_lock);
 
