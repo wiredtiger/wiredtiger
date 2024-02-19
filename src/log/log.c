@@ -1408,7 +1408,7 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
         if (!skipp) {
             if (ret != ENOTSUP)
                 return (ret);
-            if(log != NULL)
+            if (log != NULL)
                 F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
         }
     }
