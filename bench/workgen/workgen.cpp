@@ -1825,6 +1825,14 @@ ThreadRunner::op_run(Operation *op)
             _in_transaction = true;
         }
         if (op->is_table_op()) {
+            bool has_mirror = false;
+            {
+                const std::shared_lock lock(*_icontext->_dyn_mutex);
+                has_mirror = _icontext->_dyn_table_runtime.count(tint) > 0 &&
+                  _icontext->_dyn_table_runtime[tint].has_mirror();
+            }
+            ASSERT(!has_mirror || _in_transaction);
+            // Ensure explicit transactions are used for mirrored operations.
             switch (op->_optype) {
             case Operation::OP_INSERT:
                 ret = cursor->insert(cursor);
@@ -1863,7 +1871,7 @@ ThreadRunner::op_run(Operation *op)
                  * - the mirror table is the one that faced the WT_ROLLBACK error as the operation
                  * on the base table will be lost.
                  */
-                if (op->_random_table && _icontext->_dyn_table_runtime[tint].has_mirror() &&
+                if (op->_random_table && has_mirror &&
                   !_icontext->_dyn_table_runtime[tint]._is_base) {
                     VERBOSE(*this,
                       "The table "
