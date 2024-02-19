@@ -2431,7 +2431,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32,
-      S2C(session)->session_array.cnt, S2C(session)->session_array.size));
+      __wt_atomic_load32(&S2C(session)->session_array.cnt), S2C(session)->session_array.size));
 
     /*
      * While the verbose dump doesn't dump internal sessions it returns a count of them so we don't
