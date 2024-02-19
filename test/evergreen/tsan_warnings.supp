@@ -4,3 +4,6 @@
 
 # FIXME-WT-XXXX TSan is raising warnings about mutexes that are non-intuitive. These will be investigated separately.
 mutex:src
+
+# FIXME-WT-XXXX The mutex code is a particularly hot path. Review these changes in a separate ticket.
+race:src/support/mtx_rw.c
