@@ -312,7 +312,8 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
     WT_ERR(__wt_curhs_cache(session));
-    if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
+    if (__wt_atomic_loadb(&conn->evict_server_running) &&
+      __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
         /*
          * Cannot use WT_WITH_PASS_LOCK because this is a try lock. Fix when that is supported. We
          * set the flag on both sessions because we may call clear_walk when we are walking with the
@@ -554,7 +555,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
     /*
      * Allow queues to be populated now that the eviction threads are running.
      */
-    conn->evict_server_running = true;
+    __wt_atomic_storeb(&conn->evict_server_running, true);
 
     return (0);
 }
@@ -571,7 +572,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* We are done if the eviction server didn't start successfully. */
-    if (!conn->evict_server_running)
+    if (!__wt_atomic_loadb(&conn->evict_server_running))
         return (0);
 
     /* Wait for any eviction thread group changes to stabilize. */
@@ -581,7 +582,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
      * Signal the threads to finish and stop populating the queue.
      */
     F_CLR(conn, WT_CONN_EVICTION_RUN);
-    conn->evict_server_running = false;
+    __wt_atomic_storeb(&conn->evict_server_running, false);
     __wt_evict_server_wake(session);
 
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "waiting for helper threads");
@@ -2451,7 +2452,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.
      */
-    if (!conn->evict_server_running || (busy && pct_full < 100.0))
+    if (!__wt_atomic_loadb(&conn->evict_server_running) || (busy && pct_full < 100.0))
         goto done;
 
     /* Wake the eviction server if we need to do work. */
