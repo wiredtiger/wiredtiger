@@ -74,7 +74,7 @@ __wt_txn_parse_timestamp(
 static void
 __txn_get_read_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *read_timestampp)
 {
-    WT_ORDERED_READ(*read_timestampp, txn_shared->read_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(*read_timestampp, txn_shared->read_timestamp);
 }
 
 /*
@@ -113,7 +113,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         tmp_ts = txn_global->checkpoint_timestamp;
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_array.cnt);
+    WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
@@ -139,7 +139,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
 static void
 __txn_get_durable_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *durable_timestampp)
 {
-    WT_ORDERED_READ(*durable_timestampp, txn_shared->pinned_durable_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(*durable_timestampp, txn_shared->pinned_durable_timestamp);
 }
 
 /*
@@ -176,7 +176,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         ts = txn_global->durable_timestamp;
 
         /* Walk the array of concurrent transactions. */
-        WT_ORDERED_READ(session_cnt, conn->session_array.cnt);
+        WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
         for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
             __txn_get_durable_timestamp(s, &tmpts);
             if (tmpts != 0 && (ts == 0 || --tmpts < ts))
@@ -189,7 +189,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
     } else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len)) {
         /* Read-only value forever. Make sure we don't used a cached version. */
-        WT_BARRIER();
+        WT_COMPILER_BARRIER();
         ts = txn_global->last_ckpt_timestamp;
     } else if (WT_STRING_MATCH("oldest_timestamp", cval.str, cval.len) ||
       WT_STRING_MATCH("oldest", cval.str, cval.len)) {
@@ -359,8 +359,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
 
-    if (force)
+    if (force) {
+        WT_STAT_CONN_INCR(session, txn_set_ts_force);
         goto set;
+    }
 
     __wt_readlock(session, &txn_global->rwlock);
 
@@ -384,9 +386,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     if (!has_stable && txn_global->has_stable_timestamp)
         stable_ts = last_stable_ts;
 
-    /*
-     * The oldest and stable timestamps must always satisfy the condition that oldest <= stable.
-     */
+    /* The oldest and stable timestamps must always satisfy the condition that oldest <= stable. */
     if ((has_oldest || has_stable) && (has_oldest || txn_global->has_oldest_timestamp) &&
       (has_stable || txn_global->has_stable_timestamp) && oldest_ts > stable_ts) {
         __wt_readunlock(session, &txn_global->rwlock);
@@ -436,6 +436,20 @@ set:
         txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
+
+    /*
+     * Even if the timestamps have been forcibly set, they must always satisfy the condition that
+     * oldest <= stable. Don't fail as MongoDB violates this rule in very specific scenarios.
+     */
+    if (txn_global->has_stable_timestamp && txn_global->has_oldest_timestamp &&
+      txn_global->oldest_timestamp > txn_global->stable_timestamp) {
+        WT_STAT_CONN_INCR(session, txn_set_ts_out_of_order);
+        __wt_verbose_debug1(session, WT_VERB_TIMESTAMP,
+          "set_timestamp: oldest timestamp %s must not be later than stable timestamp %s",
+          __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
+    }
+
     __wt_writeunlock(session, &txn_global->rwlock);
 
     if (has_oldest || has_stable)
@@ -460,7 +474,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
 
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY)) {
         txn_global = &S2C(session)->txn_global;
-        WT_ORDERED_READ(session_cnt, S2C(session)->session_array.cnt);
+        WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, S2C(session)->session_array.cnt);
         WT_STAT_CONN_INCR(session, txn_walk_sessions);
         WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
 
@@ -1067,7 +1081,7 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE))
         return;
 
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
     F_CLR(txn, WT_TXN_SHARED_TS_DURABLE);
     txn_shared->pinned_durable_timestamp = WT_TS_NONE;
 }
@@ -1089,7 +1103,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
         /* Assert the read timestamp is greater than or equal to the pinned timestamp. */
         WT_ASSERT(session, txn_shared->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
 
-        WT_WRITE_BARRIER();
+        WT_RELEASE_BARRIER();
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
     }
     txn_shared->read_timestamp = WT_TS_NONE;

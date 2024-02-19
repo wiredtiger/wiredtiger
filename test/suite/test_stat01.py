@@ -78,7 +78,7 @@ class test_stat01(wttest.WiredTigerTestCase):
             self.assertEqual(type(valstr), stringclass)
             self.assertEqual(type(val), intclass)
             self.assertEqual(val, self.statstr_to_int(valstr))
-            self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
+            self.printVerbose(3, '  stat: \'' + desc + '\', \'' +
                               valstr + '\', ' + str(val))
             if desc == lookfor:
                 found = True
@@ -158,6 +158,3 @@ class test_stat01(wttest.WiredTigerTestCase):
     def test_missing_file_stats(self):
         self.assertRaises(wiredtiger.WiredTigerError, lambda:
             self.session.open_cursor('statistics:file:DoesNotExist'))
-
-if __name__ == '__main__':
-    wttest.run()

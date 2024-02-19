@@ -290,6 +290,7 @@ struct __wt_block {
     WT_CKPT *final_ckpt; /* Final live checkpoint write */
 
     /* Compaction support */
+    bool compact_estimated;                    /* If compaction work has been estimated */
     int compact_pct_tenths;                    /* Percent to compact */
     uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
     uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
@@ -298,6 +299,7 @@ struct __wt_block {
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
     uint32_t compact_session_id;               /* Session compacting */
 
     /* Salvage support */
@@ -344,7 +346,7 @@ struct __wt_block_desc {
  * __wt_block_desc_byteswap --
  *     Handle big- and little-endian transformation of a description block.
  */
-static inline void
+static WT_INLINE void
 __wt_block_desc_byteswap(WT_BLOCK_DESC *desc)
 {
 #ifdef WORDS_BIGENDIAN
@@ -403,7 +405,7 @@ struct __wt_block_header {
  *     Handle big- and little-endian transformation of a header block, copying from a source to a
  *     target.
  */
-static inline void
+static WT_INLINE void
 __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
 {
     *to = *from;
@@ -417,7 +419,7 @@ __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
  * __wt_block_header_byteswap --
  *     Handle big- and little-endian transformation of a header block.
  */
-static inline void
+static WT_INLINE void
 __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
 {
 #ifdef WORDS_BIGENDIAN
@@ -451,7 +453,7 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
  * __wt_block_header --
  *     Return the size of the block-specific header.
  */
-static inline u_int
+static WT_INLINE u_int
 __wt_block_header(WT_BLOCK *block)
 {
     WT_UNUSED(block);
@@ -464,7 +466,7 @@ __wt_block_header(WT_BLOCK *block)
  *     Return true if the block meets requirements for sweeping. The check that read reference count
  *     is zero is made elsewhere.
  */
-static inline bool
+static WT_INLINE bool
 __wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
 {
     return (!block->remote && block->objectid <= bm->max_flushed_objectid);

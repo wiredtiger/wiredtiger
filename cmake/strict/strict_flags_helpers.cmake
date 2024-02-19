@@ -65,7 +65,7 @@ function(get_gnu_base_flags flags)
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 6)
         list(APPEND gnu_flags "-Wduplicated-cond")
         list(APPEND gnu_flags "-Wlogical-op")
-        list(APPEND gnu_flags "-Wunused-const-variable=2")
+        list(APPEND gnu_flags "-Wunused-const-variable=1")
     endif()
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 7)
         list(APPEND gnu_flags "-Walloca")
@@ -161,12 +161,12 @@ function(get_clang_base_flags flags)
         list(APPEND clang_flags "-Wno-unused-command-line-argument")
     endif()
 
-    # FIXME-WT-8052: Figure out whether we want to disable these or change the code.
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 10)
         # Clang 10+ has added additional on-by-default diagnostics that isn't
         # compatible with some of the code patterns in WiredTiger.
         list(APPEND clang_flags "-Wno-implicit-fallthrough")
         list(APPEND clang_flags "-Wno-implicit-int-float-conversion")
+        list(APPEND clang_flags "-Wno-maybe-uninitialized")
     endif()
 
     set(${flags} ${clang_flags} PARENT_SCOPE)

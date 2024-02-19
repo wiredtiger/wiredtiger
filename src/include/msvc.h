@@ -78,11 +78,11 @@ __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 }
 
 /*
- * WT_BARRIER --
- *	MSVC implementation of WT_BARRIER.
+ * WT_COMPILER_BARRIER --
+ *	MSVC implementation of WT_COMPILER_BARRIER.
  */
 static inline void
-WT_BARRIER(void)
+WT_COMPILER_BARRIER(void)
 {
     _ReadWriteBarrier();
 }
@@ -108,37 +108,23 @@ WT_PAUSE(void)
 }
 
 /*
- * WT_READ_BARRIER --
- *	MSVC implementation of WT_READ_BARRIER.
+ * WT_ACQUIRE_BARRIER --
+ *	MSVC implementation of WT_ACQUIRE_BARRIER. As we're running on x86 TSO we only issue a
+ *compiler barrier.
  */
 static inline void
-WT_READ_BARRIER(void)
+WT_ACQUIRE_BARRIER(void)
 {
-    _mm_lfence();
+    WT_COMPILER_BARRIER();
 }
 
 /*
- * WT_READ_BARRIER_WEAK_MEMORDER --
- *	MSVC implementation of WT_READ_BARRIER_WEAK_MEMORDER.
+ * WT_RELEASE_BARRIER --
+ *	MSVC implementation of WT_RELEASE_BARRIER. As we're running on x86 TSO we only issue a
+ *compiler barrier.
  */
 static inline void
-WT_READ_BARRIER_WEAK_MEMORDER(void)
+WT_RELEASE_BARRIER(void)
 {
-    /* x86 has a strong memory model, so we only need a compiler barrier here. */
-#ifdef _M_AMD64
-    WT_BARRIER();
-#else
-    /* Default to a stronger read barrier for other platforms. */
-    WT_READ_BARRIER();
-#endif
-}
-
-/*
- * WT_WRITE_BARRIER --
- *	MSVC implementation of WT_WRITE_BARRIER.
- */
-static inline void
-WT_WRITE_BARRIER(void)
-{
-    _mm_sfence();
+    WT_COMPILER_BARRIER();
 }

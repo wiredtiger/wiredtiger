@@ -30,6 +30,7 @@
 #define MODEL_UTIL_H
 
 #include <cstring>
+#include <functional>
 #include <iomanip>
 #include <memory>
 #include <sstream>
@@ -41,6 +42,7 @@
 #include <vector>
 #include "model/core.h"
 #include "model/data_value.h"
+#include "model/kv_transaction.h"
 #include "wiredtiger.h"
 
 namespace model {
@@ -127,6 +129,43 @@ public:
 
 private:
     WT_SESSION *_session;
+};
+
+/*
+ * kv_transaction_guard --
+ *     Automatically commit a model transaction at the end of the function block, or roll it back if
+ *     need be.
+ */
+class kv_transaction_guard {
+
+public:
+    /*
+     * kv_transaction_guard::kv_transaction_guard --
+     *     Create a new instance of the guard.
+     */
+    inline kv_transaction_guard(kv_transaction_ptr txn,
+      timestamp_t commit_timestamp = k_timestamp_none,
+      timestamp_t durable_timestamp = k_timestamp_none) noexcept
+        : _txn(txn), _commit_timestamp(commit_timestamp), _durable_timestamp(durable_timestamp){};
+
+    /*
+     * kv_transaction_guard::~kv_transaction_guard --
+     *     Destroy the guard.
+     */
+    inline ~kv_transaction_guard()
+    {
+        if (!_txn)
+            return;
+        if (_txn->failed())
+            _txn->rollback();
+        else
+            _txn->commit(_commit_timestamp, _durable_timestamp);
+    }
+
+private:
+    kv_transaction_ptr _txn;
+    timestamp_t _commit_timestamp;
+    timestamp_t _durable_timestamp;
 };
 
 /*
@@ -283,6 +322,91 @@ private:
 };
 
 /*
+ * shared_memory --
+ *     Shared memory with a child process. After creating this object, the shared memory would be
+ *     available in both the parent and the child process. The memory object will be automatically
+ *     cleaned up when it falls out of scope.
+ */
+class shared_memory {
+
+public:
+    /*
+     * shared_memory::shared_memory --
+     *     Create a shared memory object of the given size.
+     */
+    shared_memory(size_t size);
+
+    /* Delete the copy constructor. */
+    shared_memory(const shared_memory &) = delete;
+
+    /* Delete the copy operator. */
+    shared_memory &operator=(const shared_memory &) = delete;
+
+    /*
+     * shared_memory::~shared_memory --
+     *     Free the memory object.
+     */
+    ~shared_memory();
+
+    /*
+     * shared_memory::data --
+     *     Get the data pointer.
+     */
+    inline void *
+    data() noexcept
+    {
+        return _data;
+    }
+
+    /*
+     * shared_memory::size --
+     *     Get the data size.
+     */
+    inline size_t
+    size() noexcept
+    {
+        return _size;
+    }
+
+private:
+    void *_data;
+    size_t _size;
+    std::string _name;
+};
+
+/*
+ * at_cleanup --
+ *     Run an action at the time this object falls out of scope.
+ */
+class at_cleanup {
+
+public:
+    /*
+     * at_cleanup::at_cleanup --
+     *     Create the cleanup object.
+     */
+    inline at_cleanup(std::function<void()> fn) : _fn(fn){};
+
+    /* Delete the copy constructor. */
+    at_cleanup(const at_cleanup &) = delete;
+
+    /* Delete the copy operator. */
+    at_cleanup &operator=(const at_cleanup &) = delete;
+
+    /*
+     * at_cleanup::~at_cleanup --
+     *     Free the object and run the clean up function.
+     */
+    inline ~at_cleanup()
+    {
+        _fn();
+    }
+
+private:
+    std::function<void()> _fn;
+};
+
+/*
  * starts_with --
  *     Check whether the string has the given prefix. (C++ does not have this until C++20.)
  */
@@ -324,6 +448,28 @@ wt_cursor_search(WT_CURSOR *cursor, const data_value &key)
 {
     set_wt_cursor_key(cursor, key);
     return cursor->search(cursor);
+}
+
+/*
+ * wt_cursor_truncate --
+ *     Truncate in WiredTiger using the provided cursors.
+ */
+inline int
+wt_cursor_truncate(WT_SESSION *session, const char *uri, WT_CURSOR *cursor_start,
+  WT_CURSOR *cursor_stop, const data_value &start, const data_value &stop)
+{
+    if (start == NONE)
+        cursor_start = nullptr;
+    else
+        set_wt_cursor_key(cursor_start, start);
+    if (stop == NONE)
+        cursor_stop = nullptr;
+    else
+        set_wt_cursor_key(cursor_stop, stop);
+
+    return session->truncate(session,
+      cursor_start == nullptr && cursor_stop == nullptr ? uri : nullptr, cursor_start, cursor_stop,
+      nullptr);
 }
 
 /*

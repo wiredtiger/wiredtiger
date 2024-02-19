@@ -244,7 +244,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
      * unchanged from the original. In the case of a race, the address must no longer reference the
      * split page, we're done.
      */
-    WT_ORDERED_READ(ref_addr, ref->addr);
+    WT_ACQUIRE_READ_WITH_BARRIER(ref_addr, ref->addr);
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
         __wt_cell_unpack_addr(session, from_home->dsk, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
@@ -296,7 +296,7 @@ __split_ref_final(WT_SESSION_IMPL *session, uint64_t split_gen, WT_PAGE ***locke
     size_t i;
 
     /* The parent page's page index has been updated. */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     if ((locked = *lockedp) == NULL)
         return;
@@ -424,10 +424,10 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
      * deepen-per-child configuration might get it wrong.
      */
     children = pindex->entries / btree->split_deepen_per_child;
-    if (children < 10) {
-        if (pindex->entries < 100)
+    if (children < WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES) {
+        if (pindex->entries < WT_INTERNAL_SPLIT_MIN_KEYS)
             return (__wt_set_return(session, EBUSY));
-        children = 10;
+        children = WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES;
     }
     chunk = pindex->entries / children;
     remain = pindex->entries - chunk * (children - 1);
@@ -499,7 +499,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     /*
      * Flush our writes and start making real changes to the tree, errors are fatal.
      */
-    WT_PUBLISH(complete, WT_ERR_PANIC);
+    WT_RELEASE_WRITE_WITH_BARRIER(complete, WT_ERR_PANIC);
 
     /* Prepare the WT_REFs for the move. */
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
@@ -931,10 +931,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
      * deepen-per-child configuration might get it wrong.
      */
     children = pindex->entries / btree->split_deepen_per_child;
-    if (children < 10) {
-        if (pindex->entries < 100)
+    if (children < WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES) {
+        if (pindex->entries < WT_INTERNAL_SPLIT_MIN_KEYS)
             return (__wt_set_return(session, EBUSY));
-        children = 10;
+        children = WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES;
     }
     chunk = pindex->entries / children;
     remain = pindex->entries - chunk * (children - 1);
@@ -1027,7 +1027,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     /*
      * Flush our writes and start making real changes to the tree, errors are fatal.
      */
-    WT_PUBLISH(complete, WT_ERR_PANIC);
+    WT_RELEASE_WRITE_WITH_BARRIER(complete, WT_ERR_PANIC);
 
     /* Prepare the WT_REFs for the move. */
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
@@ -1248,7 +1248,7 @@ __split_internal_should_split(WT_SESSION_IMPL *session, WT_REF *ref)
     pindex = WT_INTL_INDEX_GET_SAFE(page);
 
     /* Sanity check for a reasonable number of on-page keys. */
-    if (pindex->entries < 100)
+    if (pindex->entries < WT_INTERNAL_SPLIT_MIN_KEYS)
         return (false);
 
     /*
@@ -1974,7 +1974,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * The act of splitting into the parent releases the pages for eviction; ensure the page
      * contents are consistent.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     /*
      * Split into the parent.

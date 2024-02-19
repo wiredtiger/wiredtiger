@@ -142,7 +142,7 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
             block->sync_on_checkpoint = false;
 
             /* See if we should try to remove this handle. */
-            if (last_release && fsync_ret == 0 && __wt_block_eligible_for_sweep(bm, block))
+            if (last_release && __wt_block_eligible_for_sweep(bm, block))
                 need_sweep = true;
         }
     } while (found);
@@ -948,7 +948,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
         bm->salvage_start = __bm_salvage_start_readonly;
         bm->salvage_valid = __bm_salvage_valid_readonly;
         bm->switch_object = __bm_switch_object_readonly;
-        bm->switch_object = __bm_switch_object_end_readonly;
+        bm->switch_object_end = __bm_switch_object_end_readonly;
         bm->sync = __bm_sync_readonly;
         bm->write = __bm_write_readonly;
         bm->write_size = __bm_write_size_readonly;

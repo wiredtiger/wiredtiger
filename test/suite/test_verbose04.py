@@ -61,6 +61,7 @@ class test_verbose04(test_verbose_base):
       'WT_VERB_CHUNKCACHE',
       'WT_VERB_COMPACT',
       'WT_VERB_COMPACT_PROGRESS',
+      'WT_VERB_CONFIGURATION',
       'WT_VERB_ERROR_RETURNS',
       'WT_VERB_EVICT',
       'WT_VERB_EVICT_STUCK',
@@ -168,6 +169,3 @@ class test_verbose04(test_verbose_base):
                 c = session.open_cursor(uri)
                 c['multiple'] = 'multiple'
                 c.close()
-
-if __name__ == '__main__':
-    wttest.run()

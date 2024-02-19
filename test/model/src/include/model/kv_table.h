@@ -30,6 +30,7 @@
 #define MODEL_KV_TABLE_H
 
 #include <atomic>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <string>
@@ -41,6 +42,8 @@
 #include "wiredtiger.h"
 
 namespace model {
+
+class kv_database;
 
 /*
  * kv_table_config --
@@ -67,7 +70,8 @@ public:
      * kv_table::kv_table --
      *     Create a new instance.
      */
-    inline kv_table(const char *name, const kv_table_config &config) : _name(name), _config(config)
+    inline kv_table(kv_database &database, const char *name, const kv_table_config &config)
+        : _database(database), _name(name), _config(config)
     {
     }
 
@@ -202,7 +206,7 @@ public:
 
     /*
      * kv_table::insert --
-     *     Insert into the table.
+     *     Insert into the table (non-transactional API).
      */
     int insert(const data_value &key, const data_value &value,
       timestamp_t timestamp = k_timestamp_none, bool overwrite = true);
@@ -216,7 +220,7 @@ public:
 
     /*
      * kv_table::remove --
-     *     Delete a value from the table.
+     *     Delete a value from the table (non-transactional API).
      */
     int remove(const data_value &key, timestamp_t timestamp = k_timestamp_none);
 
@@ -225,6 +229,19 @@ public:
      *     Delete a value from the table.
      */
     int remove(kv_transaction_ptr txn, const data_value &key);
+
+    /*
+     * kv_table::truncate --
+     *     Truncate a key range (non-transactional API).
+     */
+    int truncate(
+      const data_value &start, const data_value &stop, timestamp_t timestamp = k_timestamp_none);
+
+    /*
+     * kv_table::truncate --
+     *     Truncate a key range.
+     */
+    int truncate(kv_transaction_ptr txn, const data_value &start, const data_value &stop);
 
     /*
      * kv_table::fix_timestamps --
@@ -243,7 +260,7 @@ public:
 
     /*
      * kv_table::update --
-     *     Update a key in the table.
+     *     Update a key in the table (non-transactional API).
      */
     int update(const data_value &key, const data_value &value,
       timestamp_t timestamp = k_timestamp_none, bool overwrite = true);
@@ -361,7 +378,21 @@ protected:
         return update;
     }
 
+    /*
+     * kv_table::with_transaction --
+     *     Run the following function within a transaction and clean up afterwards, committing the
+     *     transaction if possible, and rolling it back if not.
+     */
+    int with_transaction(std::function<int(kv_transaction_ptr)> fn, timestamp_t commit_timestamp);
+
 private:
+    /*
+     * The table's lifetime is constrained to the lifetime of the database, so the following
+     * reference will be valid throughout the table's existence. (And we don't want to make it a
+     * shared pointer as that would create circular references, which will break the GC behavior.)
+     */
+    kv_database &_database;
+
     std::string _name;
     kv_table_config _config;
 

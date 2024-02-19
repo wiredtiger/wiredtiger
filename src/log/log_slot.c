@@ -80,7 +80,7 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
      * Set the slot state last. Other threads may have a stale pointer to this slot and could try to
      * alter the state and other fields once they see the state cleared.
      */
-    WT_PUBLISH(slot->slot_state, 0);
+    WT_RELEASE_WRITE_WITH_BARRIER(slot->slot_state, 0);
 }
 
 /*
@@ -549,7 +549,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT
         F_SET(myslot, WT_MYSLOT_UNBUFFERED);
     }
     for (;;) {
-        WT_BARRIER();
+        WT_COMPILER_BARRIER();
         slot = log->active_slot;
         old_state = slot->slot_state;
         if (WT_LOG_SLOT_OPEN(old_state)) {
@@ -658,7 +658,7 @@ __wt_log_slot_release(WT_MYSLOT *myslot, int64_t size)
         /*
          * If we raced another thread updating this, try again.
          */
-        WT_BARRIER();
+        WT_COMPILER_BARRIER();
     }
     /*
      * Add my size into the state and return the new size.

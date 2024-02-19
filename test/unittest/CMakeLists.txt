@@ -10,6 +10,7 @@ else()
         tests/test_bitmap.cpp
         tests/test_bounds_restore.cpp
         tests/test_crc32.cpp
+        tests/test_error.cpp
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
         tests/test_pow.cpp

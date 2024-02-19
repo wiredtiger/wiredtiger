@@ -12,7 +12,7 @@
  * __sync_checkpoint_can_skip --
  *     There are limited conditions under which we can skip writing a dirty page during checkpoint.
  */
-static inline bool
+static WT_INLINE bool
 __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_MULTI *multi;
@@ -46,7 +46,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
-    if (!WT_TXNID_LT(txn->snap_max, mod->first_dirty_txn))
+    if (!WT_TXNID_LT(txn->snapshot_data.snap_max, mod->first_dirty_txn))
         return (false);
 
     /*
@@ -71,7 +71,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
  * __sync_dup_hazard_pointer --
  *     Get a duplicate hazard pointer.
  */
-static inline int
+static WT_INLINE int
 __sync_dup_hazard_pointer(WT_SESSION_IMPL *session, WT_REF *walk)
 {
     bool busy;
@@ -95,7 +95,7 @@ __sync_dup_hazard_pointer(WT_SESSION_IMPL *session, WT_REF *walk)
  * __sync_dup_walk --
  *     Duplicate a tree walk point.
  */
-static inline int
+static WT_INLINE int
 __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF **dupp)
 {
     WT_REF *old;
@@ -370,7 +370,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * any page modify structure. (It needs to be ordered else a page could be dirtied after
              * taking the local reference.)
              */
-            WT_ORDERED_READ(dirty, __wt_page_is_modified(page));
+            WT_ACQUIRE_READ_WITH_BARRIER(dirty, __wt_page_is_modified(page));
 
             /* Skip clean pages, but always update the maximum transaction ID. */
             if (!dirty) {
@@ -465,7 +465,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * checkpoint.
          */
         if (!btree->modified && !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
-          (btree->rec_max_txn >= txn->snap_min ||
+          (btree->rec_max_txn >= txn->snapshot_data.snap_min ||
             (conn->txn_global.checkpoint_timestamp != conn->txn_global.last_ckpt_timestamp &&
               btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp)))
             __wt_tree_modify_set(session);

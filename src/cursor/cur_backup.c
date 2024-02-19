@@ -175,7 +175,7 @@ __curbackup_next(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
-    CURSOR_API_CALL(cursor, session, next, NULL);
+    CURSOR_API_CALL(cursor, session, ret, next, NULL);
     WT_CURSOR_BACKUP_CHECK_STOP(cb);
 
     if (cb->list == NULL || cb->list[cb->next] == NULL) {
@@ -347,6 +347,9 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     othercb = (WT_CURSOR_BACKUP *)other;
     if (othercb != NULL)
         WT_CURSOR_BACKUP_CHECK_STOP(othercb);
+
+    if (cfg != NULL && cfg[1] != NULL)
+        __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", cfg[1]);
 
     /* Special backup cursor to query incremental IDs. */
     if (WT_STRING_MATCH("backup:query_id", uri, strlen(uri))) {
