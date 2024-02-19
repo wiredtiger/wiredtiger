@@ -289,9 +289,9 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
-     * Wait for the entire RTS queue is finished processing before performing the history store
+     * Wait until the entire RTS queue is finished processing before performing the history store
      * final pass. Moreover, the main thread joins the processing queue rather than waiting for the
-     * worker alone to complete the task.
+     * workers alone to complete the task.
      */
     while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
         __wt_rts_pop_work(session, &entry);
