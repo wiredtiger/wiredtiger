@@ -34,12 +34,14 @@ from wtdataset import SimpleDataSet
 # from the random cursor. In the presence of where all the values are the insert list, open up
 # two cursors close to each other in time, and both cursors will return back the exact same
 # records again.
-class test_cursor_random02(wttest.WiredTigerTestCase):
+class test_cursor_random03(wttest.WiredTigerTestCase):
     def test_cursor_random_bug(self):
         uri = 'table:random'
 
-        # Set the leaf-page-max value, otherwise the page might split.
-        ds = SimpleDataSet(self, uri, 3000, config='leaf_page_max=100MB')
+        # Do not change the chosen number of records. The records is to make sure that
+        # the skip insert list random estimate is a power of 2 to act as a mask.
+        # Also set the leaf-page-max value, otherwise the page might split.
+        ds = SimpleDataSet(self, uri, 2135, config='leaf_page_max=100MB')
         ds.populate()
 
         for _ in range(0, 5000):
@@ -63,7 +65,7 @@ class test_cursor_random02(wttest.WiredTigerTestCase):
                 current = cursor.get_key()
                 if (random_keys[i] != current):
                     found_different = True
-                break
+                    break
             cursor.close()
 
             # We expect that the values between two recently opened cursors return different stream
