@@ -2077,7 +2077,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     flags = 0;
     for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            LF_SET(ft->flag);
+            LF_SET((uint16_t)ft->flag);
         WT_RET_NOTFOUND_OK(ret);
     }
 #endif
@@ -2279,7 +2279,7 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     flags = 0;
     for (ft = jsontypes; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            LF_SET(ft->flag);
+            LF_SET((uint8_t)ft->flag);
         WT_RET_NOTFOUND_OK(ret);
     }
     conn->json_output = flags;
@@ -2474,7 +2474,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     flags = 0;
     for (ft = __wt_stress_types; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            LF_SET(ft->flag);
+            LF_SET((uint32_t)ft->flag);
         WT_RET_NOTFOUND_OK(ret);
     }
 
@@ -3019,7 +3019,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
             if (sval.val)
-                FLD_SET(conn->direct_io, ft->flag);
+                FLD_SET(conn->direct_io, (uint32_t)ft->flag);
         } else
             WT_ERR_NOTFOUND_OK(ret, false);
     }

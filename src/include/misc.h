@@ -203,10 +203,25 @@
  * constant might be a negative integer), and to ensure the hex constant is the correct size before
  * applying the bitwise not operator.
  */
+#if defined(__GNUC__) || defined(__clang__)
+/*
+ * Note that these macros use __ATOMIC_RELAXED memory ordering, while the FLD_*_ATOMIC macros use
+ * the stricter __ATOMIC_SEQ_CST.
+ */
+#define FLD_CLR(field, mask) (void)__wt_atomic_anduntyped(&field, (__typeof__(field))(~(mask)))
+#define FLD_MASK(field, mask) (__wt_atomic_loaduntyped(&field) & (mask))
+#define FLD_ISSET(field, mask) (FLD_MASK(field, (mask)) != 0)
+#define FLD_SET(field, mask) ((void)__wt_atomic_oruntyped(&field, (mask)))
+#else
+/*
+ * MSVC doesn't have generic atomic functions like GCC does and our latest version of MSVC doesn't
+ * support _Generic. Fall back to non-atomic operations.
+ */
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
 #define FLD_ISSET(field, mask) (FLD_MASK(field, mask) != 0)
 #define FLD_SET(field, mask) ((void)((field) |= (mask)))
+#endif
 
 #define F_CLR(p, mask) FLD_CLR((p)->flags, mask)
 #define F_ISSET(p, mask) FLD_ISSET((p)->flags, mask)

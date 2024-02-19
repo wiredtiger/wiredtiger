@@ -151,7 +151,7 @@ void
 __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 {
     WT_DECL_RET;
-    int cond_waiters;    
+    int cond_waiters;
 
     __wt_verbose_debug2(session, WT_VERB_MUTEX, "signal %s", cond->name);
 

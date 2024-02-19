@@ -116,6 +116,9 @@ __WIREDTIGER_EXT_H_
 __WIREDTIGER_H_
 __WT_INTERNAL_H
 __WT_MISC_H
+__wt_atomic_anduntyped
+__wt_atomic_loaduntyped
+__wt_atomic_oruntyped
 __wt_bswap16
 __wt_checksum_with_seed
 __wt_conf_gets
