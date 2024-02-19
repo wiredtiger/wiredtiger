@@ -1403,13 +1403,12 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
     conn = S2C(session);
     log = conn->log;
 
-    if ((log == NULL || !F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP)) && conn->hot_backup_start == 0) {
+    if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && conn->hot_backup_start == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(session, ret = __wt_ftruncate(session, log_fh, offset), &skipp);
         if (!skipp) {
             if (ret != ENOTSUP)
                 return (ret);
-            if (log != NULL)
-                F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
+            F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
         }
     }
 
