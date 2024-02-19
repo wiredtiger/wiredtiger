@@ -1499,7 +1499,7 @@ retry:
                 __evict_walk_choose_dhandle(session, &dhandle);
         } else {
             if (incr) {
-                WT_ASSERT(session, dhandle->session_inuse > 0);
+                WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
                 (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
                 incr = false;
                 cache->walk_tree = NULL;
@@ -1606,7 +1606,7 @@ retry:
     }
 
     if (incr) {
-        WT_ASSERT(session, dhandle->session_inuse > 0);
+        WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
         (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
         incr = false;
     }
@@ -1628,7 +1628,7 @@ err:
         __wt_readunlock(session, &conn->dhandle_lock);
 
     if (incr) {
-        WT_ASSERT(session, dhandle->session_inuse > 0);
+        WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
         (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
     }
 
