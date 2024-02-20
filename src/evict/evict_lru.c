@@ -58,7 +58,7 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
  * __evict_entry_priority --
  *     Get the adjusted read generation for an eviction entry.
  */
-static inline uint64_t
+static WT_INLINE uint64_t
 __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
@@ -143,7 +143,7 @@ __evict_lru_cmp(const void *a_arg, const void *b_arg)
  * __evict_list_clear --
  *     Clear an entry in the LRU eviction list.
  */
-static inline void
+static WT_INLINE void
 __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
@@ -219,7 +219,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
  *     Is the queue empty? Note that the eviction server is pessimistic and treats a half full queue
  *     as empty.
  */
-static inline bool
+static WT_INLINE bool
 __evict_queue_empty(WT_EVICT_QUEUE *queue, bool server_check)
 {
     uint32_t candidates, used;
@@ -240,7 +240,7 @@ __evict_queue_empty(WT_EVICT_QUEUE *queue, bool server_check)
  *     Is the queue full (i.e., it has been populated with candidates and none of them have been
  *     evicted yet)?
  */
-static inline bool
+static WT_INLINE bool
 __evict_queue_full(WT_EVICT_QUEUE *queue)
 {
     return (queue->evict_current == queue->evict_queue && queue->evict_candidates != 0);
@@ -260,14 +260,18 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
     cache = conn->cache;
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
-        uint64_t bytes_inuse, bytes_max;
+        uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
 
         bytes_inuse = __wt_cache_bytes_inuse(cache);
         bytes_max = conn->cache_size;
+        bytes_dirty = __wt_cache_dirty_inuse(cache);
+        bytes_updates = __wt_cache_bytes_updates(cache);
         __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
-          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB)",
+          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB), bytes dirty %" PRIu64
+          "(bytes), bytes updates %" PRIu64 "(bytes)",
           bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE);
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE, bytes_dirty,
+          bytes_updates);
     }
 
     __wt_cond_signal(session, cache->evict_cond);
@@ -752,8 +756,10 @@ __evict_pass(WT_SESSION_IMPL *session)
             break;
 
         __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
-          "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64,
-          conn->cache_size, cache->bytes_inmem, cache->bytes_dirty_intl + cache->bytes_dirty_leaf);
+          "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64
+          " Updates: %" PRIu64,
+          conn->cache_size, cache->bytes_inmem, cache->bytes_dirty_intl + cache->bytes_dirty_leaf,
+          cache->bytes_updates);
 
         if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
             WT_RET(__evict_lru_walk(session));
@@ -2113,8 +2119,8 @@ fast:
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
 
-        __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
-          page->memory_footprint);
+        __wt_verbose(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
+          (void *)page, page->memory_footprint);
     }
     WT_RET_NOTFOUND_OK(ret);
 
@@ -2472,8 +2478,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
                 if (cache->evict_aggressive_score > 0)
                     --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
-                __wt_verbose_debug1(
-                  session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
+                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                  session->txn->rollback_reason);
             }
             WT_ERR(ret);
         }
@@ -2547,7 +2553,8 @@ err:
             if (cache->evict_aggressive_score > 0)
                 --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
-            __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
+            __wt_verbose_notice(
+              session, WT_VERB_TRANSACTION, "rollback reason: %s", session->txn->rollback_reason);
         }
     }
 
