@@ -146,7 +146,7 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
                         fflush(stdout);
                     }
 
-                    testutil_snprintf(buf, sizeof(buf), "%s/%s", WT_HOME_DIR, filename);
+                    testutil_snprintf(buf, sizeof(buf), "%s/%s", home_dir, filename);
                     testutil_assert((rfd = open(buf, O_RDONLY, 0666)) >= 0);
                     testutil_assert((wfd = open(copy_to, O_WRONLY | O_CREAT, 0666)) >= 0);
                 }
