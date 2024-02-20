@@ -53,7 +53,7 @@
           _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val));  \
     }                                                                                              \
     /*                                                                                             \
-     * !! Attention !!                                                                             \
+     * !!!                                                                                         \
      * The following functions do not use atomic accesses like they do in gcc.h. MSVC doesn't have \
      * the equivalent relaxed memory ordering atomics on x86 (only ARM has Interlocked*_nf         \
      * functions that don't output a fence), so use non-atomic accesses which was the behavior     \

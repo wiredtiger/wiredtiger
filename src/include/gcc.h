@@ -131,37 +131,37 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
 
-#define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                                                 \
-    static inline ret __wt_atomic_add##name(vp_arg, v_arg)                                       \
-    {                                                                                            \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                                    \
-    }                                                                                            \
-    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg)                                 \
-    {                                                                                            \
-        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                                    \
-    }                                                                                            \
-    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)                                       \
-    {                                                                                            \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                                    \
-    }                                                                                            \
-    /*                                                                                           \
-     * !!! Attention !!!                                                                         \
-     * The following atomic functions are ATOMIC_RELAXED, while the preceding calls are          \
-     * ATOMIC_SEQ_CST. Mixing RELAXED and SEQ_CST means we will *not* get SEQ_CST guarantees     \
-     * when mixing these functions.                                                              \
-     * Historically WiredTiger mixed the SEQ_CST calls above with non-atomic accesses to memory, \
-     * and these non-atomic calls are being replaced with atomic calls. Using these new atomic   \
-     * functions with SEQ_CST memory ordering comes with a moderate performance cost, so we're   \
-     * using RELAXED to avoid the performance loss. In future these atomics should be updated to \
-     * all use the same memory ordering.                                                         \
-     */                                                                                          \
-    static inline ret __wt_atomic_load##name(vp_arg)                                             \
-    {                                                                                            \
-        return (__atomic_load_n(vp, __ATOMIC_RELAXED));                                          \
-    }                                                                                            \
-    static inline void __wt_atomic_store##name(vp_arg, v_arg)                                    \
-    {                                                                                            \
-        __atomic_store_n(vp, v, __ATOMIC_RELAXED);                                               \
+#define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                                                  \
+    static inline ret __wt_atomic_add##name(vp_arg, v_arg)                                        \
+    {                                                                                             \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg)                                  \
+    {                                                                                             \
+        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)                                        \
+    {                                                                                             \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    /*                                                                                            \
+     * !!!                                                                                        \
+     * The following atomic functions are ATOMIC_RELAXED while the preceding calls are            \
+     * ATOMIC_SEQ_CST. Mixing RELAXED and SEQ_CST means we will *not* get sequentially consistent \
+     * guarantees.                                                                                \
+     * Historically WiredTiger mixed the SEQ_CST calls above with non-atomic accesses to memory,  \
+     * and these non-atomic calls are being replaced with atomic calls. Using these new atomic    \
+     * functions with SEQ_CST memory ordering comes with a moderate performance cost so we're     \
+     * using RELAXED to maintain performance. In future these atomics will need to be reviewed    \
+     * and selectively moved to the appropriate memory ordering.                                  \
+     */                                                                                           \
+    static inline ret __wt_atomic_load##name(vp_arg)                                              \
+    {                                                                                             \
+        return (__atomic_load_n(vp, __ATOMIC_RELAXED));                                           \
+    }                                                                                             \
+    static inline void __wt_atomic_store##name(vp_arg, v_arg)                                     \
+    {                                                                                             \
+        __atomic_store_n(vp, v, __ATOMIC_RELAXED);                                                \
     }
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t *vp, uint8_t v)
 WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t *vp, volatile uint8_t v)
@@ -177,8 +177,8 @@ WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t *vp, volatile int64_t v)
 WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 
 /*
- * We can't use the WT_ATOMIC_FUNC macro for booleans as add and sub are unsupported with clang.
- * Define them individually.
+ * We can't use the WT_ATOMIC_FUNC macro for booleans as __atomic_add_fetch and __atomic_sub_fetch
+ * don't accept booleans when compiling with clang. Define them individually.
  */
 static inline bool
 __wt_atomic_loadb(bool *vp)
