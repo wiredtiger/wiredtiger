@@ -25,7 +25,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+#ifndef _WIN32
 #include <dirent.h>
+#endif
 #include "test_util.h"
 
 /*
@@ -225,7 +227,6 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir, in
     if (p_nunmodified != NULL)
         *p_nunmodified = nunmodified;
     /* Remember that the backup finished successfully. */
-    printf("create_incr: making done sentinel\n");
     testutil_sentinel(backup_dir, "done");
 }
 
@@ -281,6 +282,11 @@ __int_comparator(const void *a, const void *b)
 void
 testutil_delete_old_backups(int retain)
 {
+#ifdef _WIN32
+    int ndeleted;
+
+    ndeleted = 0;
+#else
     struct dirent *dir;
     DIR *d;
     size_t len;
@@ -343,6 +349,7 @@ testutil_delete_old_backups(int retain)
         }
     } while (!done);
 
+#endif
     printf("Deleted %d old backup%s\n", ndeleted, ndeleted == 1 ? "" : "s");
 }
 
