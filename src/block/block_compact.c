@@ -433,10 +433,10 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block)
          * If we don't have the estimate at this point, it means that we haven't reviewed even
          * enough pages. This should almost never happen.
          */
-        if (block->compact_pages_rewritten_expected == 0) {
-            __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS, "%s", 
+        if (block->compact_pages_rewritten_expected == 0)
+            __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS, "%s",
               "Still collecting information for estimating the progress.");
-        } else {
+        else {
             progress = WT_MIN(
               (int)(100 * block->compact_pages_rewritten / block->compact_pages_rewritten_expected),
               100);
