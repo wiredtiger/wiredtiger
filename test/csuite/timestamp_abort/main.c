@@ -199,18 +199,6 @@ static wt_thread_t stat_th;
 static WT_EVENT_HANDLER other_event = {handle_error, NULL, NULL, NULL, NULL};
 static WT_EVENT_HANDLER reopen_event = {handle_error, NULL, NULL, NULL, handle_general};
 
-#if 0
-/*
- * __int_comparator --
- *     "int" comparator.
- */
-static int
-__int_comparator(const void *a, const void *b)
-{
-    return (*(int *)a - *(int *)b);
-}
-#endif
-
 /*
  * stat_func --
  *     Function to run with the early connection and gather statistics.
@@ -470,76 +458,6 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
 }
 
 /*
- * backup_delete_old_backups --
- *     Delete old backups, keeping just a few recent ones, so that we don't take too much space for
- *     no good reason.
- */
-static void
-backup_delete_old_backups(int retain)
-{
-#if 0
-    struct dirent *dir;
-    DIR *d;
-    size_t len;
-    int count, i, indexes[256], last_full, ndeleted;
-    char fromdir[256], todir[256];
-    bool done;
-
-    last_full = 0;
-    len = strlen(BACKUP_BASE);
-    ndeleted = 0;
-    do {
-        done = true;
-        testutil_assert_errno((d = opendir(".")) != NULL);
-        count = 0;
-        while ((dir = readdir(d)) != NULL) {
-            if (strncmp(dir->d_name, BACKUP_BASE, len) == 0) {
-                i = atoi(dir->d_name + len);
-                indexes[count++] = i;
-
-                /* If the backup failed to finish, delete it right away. */
-                if (!testutil_exists(dir->d_name, "done")) {
-                    testutil_remove(dir->d_name);
-                    ndeleted++;
-                }
-
-                /* Check if this is a full backup - we'd like to keep at least one. */
-                if (testutil_exists(dir->d_name, "full"))
-                    last_full = WT_MAX(last_full, i);
-
-                /* If we have too many backups, finish next time. */
-                if (count >= (int)(sizeof(indexes) / sizeof(*indexes))) {
-                    done = false;
-                    break;
-                }
-            }
-        }
-        testutil_check(closedir(d));
-        if (count <= retain)
-            break;
-
-        __wt_qsort(indexes, (size_t)count, sizeof(*indexes), __int_comparator);
-        for (i = 0; i < count - retain; i++) {
-            if (indexes[i] == last_full)
-                continue;
-            testutil_snprintf(fromdir, sizeof(fromdir), BACKUP_BASE "%d", indexes[i]);
-            testutil_snprintf(todir, sizeof(todir), BACKUP_OLD "%d", indexes[i]);
-            /*
-             * First rename the directory so that if the child process is killed during the remove
-             * the verify function doesn't attempt to open a partial database.
-             */
-            testutil_check(rename(fromdir, todir));
-            testutil_remove(todir);
-            ndeleted++;
-        }
-    } while (!done);
-    printf("Deleted %d old backup%s\n", ndeleted, ndeleted == 1 ? "" : "s");
-#else
-    testutil_delete_old_backups(retain);
-#endif
-}
-
-/*
  * thread_ckpt_run --
  *     Runner function for the checkpoint thread.
  */
@@ -697,7 +615,7 @@ create:
 
         /* Periodically delete old backups. */
         if (i % 5 == 0 || (td->workload_iteration > 1 && i == 1))
-            backup_delete_old_backups(5);
+            testutil_delete_old_backups(5);
     }
 
     /* NOTREACHED */

@@ -378,62 +378,6 @@ tables_free(TABLE_INFO *tinfo)
 }
 
 /*
- * backup_delete_old_backups --
- *     Delete old backups, keeping just a few recent ones, so that we don't take too much space for
- *     no good reason.
- */
-static void
-backup_delete_old_backups(int retain)
-{
-#if 0
-    struct dirent *dir;
-    DIR *d;
-    size_t len;
-    int count, i, indexes[256], ndeleted;
-    char bkupdir[256];
-    bool done;
-
-    len = strlen(BACKUP_BASE);
-    ndeleted = 0;
-    do {
-        done = true;
-        testutil_assert_errno((d = opendir(".")) != NULL);
-        count = 0;
-        while ((dir = readdir(d)) != NULL) {
-            if (strncmp(dir->d_name, BACKUP_BASE, len) == 0) {
-                i = atoi(dir->d_name + len);
-                VERBOSE(2, "DELETE OLD: Found backup[%d] %s\n", i, dir->d_name);
-                if (tinfo == NULL || i != (int)tinfo->full_backup_number)
-                    indexes[count++] = i;
-
-                /* If we have too many backups, finish next time. */
-                if (count >= (int)(sizeof(indexes) / sizeof(*indexes))) {
-                    done = false;
-                    break;
-                }
-            }
-        }
-        testutil_check(closedir(d));
-        VERBOSE(2, "DELETE OLD: count %d, retain %d\n", count, retain);
-        if (count <= retain)
-            break;
-
-        __wt_qsort(indexes, (size_t)count, sizeof(*indexes), __int_comparator);
-        for (i = 0; i < count - retain; i++) {
-            testutil_snprintf(bkupdir, sizeof(bkupdir), BACKUP_BASE "%d", indexes[i]);
-            VERBOSE(2, "DELETE OLD: removing old backup directory %s\n", bkupdir);
-            testutil_remove(bkupdir);
-            ndeleted++;
-        }
-    } while (!done);
-
-    printf("Deleted %d old backup%s\n", ndeleted, ndeleted == 1 ? "" : "s");
-#else
-    testutil_delete_old_backups(retain);
-#endif
-}
-
-/*
  * base_backup --
  *     TODO: Add a comment describing this function.
  */
@@ -805,7 +749,7 @@ main(int argc, char *argv[])
                 check_backup(iter, &tinfo);
             }
         }
-        backup_delete_old_backups(BACKUP_RETAIN);
+        testutil_delete_old_backups(BACKUP_RETAIN);
     }
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
@@ -813,7 +757,7 @@ main(int argc, char *argv[])
 
     printf("Success.\n");
     if (!preserve) {
-        backup_delete_old_backups(0);
+        testutil_delete_old_backups(0);
         testutil_clean_test_artifacts(home);
         testutil_remove(home);
     }
