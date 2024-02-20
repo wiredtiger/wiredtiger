@@ -64,6 +64,7 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
     ]
 
     worker_thread_values = [
+        ('0', dict(threads=0)),
         ('1', dict(threads=1)),
         ('2', dict(threads=2)),
         ('3', dict(threads=3)),

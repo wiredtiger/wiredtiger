@@ -176,6 +176,9 @@ __wt_rts_thread_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    if (conn->rts->threads_num == 0)
+        return (0);
+
     /* Set first, the thread might run before we finish up. */
     F_SET(conn, WT_CONN_RTS_THREAD_RUN);
 
@@ -205,6 +208,9 @@ __wt_rts_thread_destroy(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     conn = S2C(session);
+
+    if (conn->rts->threads_num == 0)
+        return (0);
 
     /* Wait for any RTS thread group changes to stabilize. */
     __wt_writelock(session, &conn->rts->thread_group.lock);
