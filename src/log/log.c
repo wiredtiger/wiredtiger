@@ -2036,9 +2036,12 @@ static int
 __log_salvage_message(
   WT_SESSION_IMPL *session, const char *log_name, const char *extra_msg, wt_off_t offset)
 {
-    __wt_verbose_notice(session, WT_VERB_LOG,
-      "log file %s corrupted%s at position %" PRIuMAX ", truncated", log_name, extra_msg,
-      (uintmax_t)offset);
+    WT_LOG *log;
+
+    log = S2C(session)->log;
+
+    __wt_verbose_notice(session, WT_VERB_LOG, "log file %s corrupted%s at position %" PRIuMAX "%s.",
+      log_name, extra_msg, (uintmax_t)offset, log != NULL ? ", truncated" : "");
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     return (WT_ERROR);
 }
