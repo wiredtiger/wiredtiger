@@ -2058,7 +2058,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval, sval;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
-    uint16_t flags;
+    uint64_t flags;
 
     conn = S2C(session);
 
@@ -2077,7 +2077,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     flags = 0;
     for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            LF_SET((uint16_t)ft->flag);
+            LF_SET(ft->flag);
         WT_RET_NOTFOUND_OK(ret);
     }
 #endif
@@ -2262,7 +2262,7 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
-    uint8_t flags;
+    uint64_t flags;
 
     conn = S2C(session);
 
@@ -2279,7 +2279,7 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     flags = 0;
     for (ft = jsontypes; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            LF_SET((uint8_t)ft->flag);
+            LF_SET(ft->flag);
         WT_RET_NOTFOUND_OK(ret);
     }
     conn->json_output = flags;
@@ -2465,7 +2465,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
-    uint32_t flags;
+    uint64_t flags;
 
     conn = S2C(session);
 
@@ -2474,7 +2474,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     flags = 0;
     for (ft = __wt_stress_types; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            LF_SET((uint32_t)ft->flag);
+            LF_SET(ft->flag);
         WT_RET_NOTFOUND_OK(ret);
     }
 
