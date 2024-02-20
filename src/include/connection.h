@@ -565,7 +565,6 @@ struct __wt_connection_impl {
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
 #define WT_PREFETCH_THREAD_COUNT 8
-    WT_DATA_HANDLE *prefetch_dhandles[WT_PREFETCH_THREAD_COUNT];
     WT_SPINLOCK prefetch_lock;
     WT_THREAD_GROUP prefetch_threads;
     uint64_t prefetch_queue_count;
@@ -583,7 +582,7 @@ struct __wt_connection_impl {
     WT_FSTREAM *stat_fs;           /* Statistics log stream */
     /* Statistics log json table printing state flag */
     bool stat_json_tables;
-    char *stat_path;        /* Statistics log path format */
+    char *stat_path;        /* Statistics  log path format */
     char **stat_sources;    /* Statistics log list of objects */
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */

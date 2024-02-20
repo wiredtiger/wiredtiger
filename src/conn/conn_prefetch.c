@@ -107,11 +107,10 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (pe == NULL)
             break;
 
-        /* Add this dhandle to the list of dhandles prefetch threads are currently working on. */
-        conn->prefetch_dhandles[thread->id] = pe->dhandle;
-
         TAILQ_REMOVE(&conn->pfqh, pe, q);
         --conn->prefetch_queue_count;
+
+        (void)__wt_atomic_addv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), block_prefetch_skipped_no_flag_set);
@@ -137,7 +136,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          */
         __wt_spin_lock(session, &conn->prefetch_lock);
         F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
-        conn->prefetch_dhandles[thread->id] = NULL;
+        (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         __wt_spin_unlock(session, &conn->prefetch_lock);
         WT_ERR(ret);
 
@@ -207,6 +206,14 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
     }
     if (all)
         WT_ASSERT(session, conn->prefetch_queue_count == 0);
+
+    /*
+     * To avoid a race condition, check if this dhandle is currently being operated on by any other
+     * prefetch thread. If so, wait for the thread to finish before proceeding with eviction.
+     */
+    if (dhandle != NULL)
+        while (((WT_BTREE *)dhandle->handle)->prefetch_busy > 0)
+            __wt_yield();
 
     __wt_spin_unlock(session, &conn->prefetch_lock);
 
