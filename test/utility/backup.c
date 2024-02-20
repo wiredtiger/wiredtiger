@@ -286,6 +286,7 @@ testutil_delete_old_backups(int retain)
     int ndeleted;
 
     ndeleted = 0;
+    WT_UNUSED(retain);
 #else
     struct dirent *dir;
     DIR *d;
