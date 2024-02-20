@@ -132,7 +132,7 @@ __wt_rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     if (F_ISSET(S2C(session), WT_CONN_RTS_THREAD_RUN))
         __wt_cond_wait(session, S2C(session)->rts->thread_group.wait_cond, 10 * WT_THOUSAND, NULL);
 
-    /* Mark the session as an eviction thread session. */
+    /* Mark the RTS thread session as a rollback to stable session. */
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
 
     while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
@@ -159,7 +159,7 @@ __wt_rts_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_UNUSED(thread);
 
-    /* Clear the eviction thread session flag. */
+    /* Clear the RTS thread session flag. */
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
     return (0);
 }
@@ -186,9 +186,7 @@ __wt_rts_thread_create(WT_SESSION_IMPL *session)
     TAILQ_INIT(&conn->rts->rtsqh);
     WT_RET(__wt_spin_init(session, &conn->rts->rts_lock, "RTS work unit list"));
 
-    /*
-     * Create the RTS thread group. Set the group size to the maximum allowed sessions.
-     */
+    /* Create the RTS thread group. Set the group size to the maximum allowed sessions. */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &conn->rts->thread_group, "rts-threads",
       conn->rts->threads_num, conn->rts->threads_num, session_flags, __wt_rts_thread_chk,
