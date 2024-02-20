@@ -33,7 +33,6 @@
 
 #include "test_util.h"
 
-#include <dirent.h>
 #include <sys/wait.h>
 #include <signal.h>
 
