@@ -34,18 +34,20 @@
  *     parameter.
  */
 void
-testutil_backup_create_full(WT_CONNECTION *conn, const char *home_dir, const char *backup_dir,
-  const char *backup_id, bool consolidate, uint32_t granularity_kb, int *p_nfiles)
+testutil_backup_create_full(WT_CONNECTION *conn, const char *home_dir, int id, bool consolidate,
+  uint32_t granularity_kb, int *p_nfiles)
 {
     WT_CURSOR *cursor;
     WT_SESSION *session;
     int nfiles, ret;
+    char backup_dir[PATH_MAX], backup_id[32], copy_from[PATH_MAX], copy_to[PATH_MAX];
     char buf[PATH_MAX];
-    char copy_from[PATH_MAX], copy_to[PATH_MAX];
     char *filename;
 
     nfiles = 0;
 
+    testutil_snprintf(backup_dir, sizeof(backup_dir), BACKUP_BASE "%d", id);
+    testutil_snprintf(backup_id, sizeof(backup_id), "ID%d", id);
     /* Prepare the directory. */
     testutil_remove(backup_dir);
     testutil_mkdir(backup_dir);
@@ -91,17 +93,16 @@ testutil_backup_create_full(WT_CONNECTION *conn, const char *home_dir, const cha
  *     parameters.
  */
 void
-testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
-  const char *backup_dir, const char *backup_id, const char *source_dir, const char *source_id,
-  bool verbose, int *p_nfiles, int *p_nranges, int *p_nunmodified)
+testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir, int backup_id,
+  int source_id, bool verbose, int *p_nfiles, int *p_nranges, int *p_nunmodified)
 {
     WT_CURSOR *cursor, *file_cursor;
     WT_SESSION *session;
     ssize_t rdsize;
     uint64_t offset, size, type;
     int ret, rfd, wfd, nfiles, nranges, nunmodified;
+    char backup_dir[PATH_MAX], copy_from[PATH_MAX], copy_to[PATH_MAX], source_dir[PATH_MAX];
     char buf[4096];
-    char copy_from[PATH_MAX], copy_to[PATH_MAX];
     char *filename;
     bool first_range;
     void *tmp;
@@ -109,6 +110,9 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
     nfiles = 0;
     nranges = 0;
     nunmodified = 0;
+
+    testutil_snprintf(backup_dir, sizeof(backup_dir), BACKUP_BASE "%d", backup_id);
+    testutil_snprintf(source_dir, sizeof(source_dir), BACKUP_BASE "%d", source_id);
 
     /* Prepare the directory. */
     testutil_remove(backup_dir);
@@ -118,7 +122,8 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Open the backup cursor to get the list of files to copy. */
-    testutil_snprintf(buf, sizeof(buf), "incremental=(src_id=%s,this_id=%s)", source_id, backup_id);
+    testutil_snprintf(
+      buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)", source_id, backup_id);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
     /* Process the files. */
@@ -220,6 +225,7 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
     if (p_nunmodified != NULL)
         *p_nunmodified = nunmodified;
     /* Remember that the backup finished successfully. */
+    printf("create_incr: making done sentinel\n");
     testutil_sentinel(backup_dir, "done");
 }
 
@@ -285,6 +291,7 @@ testutil_delete_old_backups(int retain)
     last_full = 0;
     len = strlen(BACKUP_BASE);
     ndeleted = 0;
+    printf("Delete_old_backups: Retain %d\n", retain);
     do {
         done = true;
         testutil_assert_errno((d = opendir(".")) != NULL);
@@ -296,6 +303,10 @@ testutil_delete_old_backups(int retain)
 
                 /* If the backup failed to finish, delete it right away. */
                 if (!testutil_exists(dir->d_name, "done")) {
+                    printf(
+                      "Delete_old_backups: Remove %s, backup failed to finish. No done sentinel "
+                      "file.\n",
+                      dir->d_name);
                     testutil_remove(dir->d_name);
                     ndeleted++;
                 }
@@ -325,6 +336,7 @@ testutil_delete_old_backups(int retain)
              * First rename the directory so that if a child process is killed during the remove the
              * verify function doesn't attempt to open a partial database.
              */
+            printf("Delete_old_backups: Remove %s, renamed to %s\n", fromdir, todir);
             testutil_check(rename(fromdir, todir));
             testutil_remove(todir);
             ndeleted++;

@@ -407,15 +407,11 @@ static void
 backup_create_full(WT_CONNECTION *conn, bool consolidate, uint32_t index)
 {
     int nfiles;
-    char backup_home[PATH_MAX], backup_id[32];
-
-    testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index);
-    testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
 
     printf("Create full backup %" PRIu32 " - start: consolidate=%d, granularity=%" PRIu32 "KB\n",
       index, consolidate, backup_granularity_kb);
     testutil_backup_create_full(
-      conn, WT_HOME_DIR, backup_home, backup_id, consolidate, backup_granularity_kb, &nfiles);
+      conn, WT_HOME_DIR, (int)index, consolidate, backup_granularity_kb, &nfiles);
 
     printf("Create full backup %" PRIu32 " - complete: files=%" PRId32 "\n", index, nfiles);
 }
@@ -436,8 +432,8 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
     testutil_snprintf(src_backup_id, sizeof(src_backup_id), "ID%" PRIu32, src_index);
 
     printf("Create incremental backup %" PRIu32 " - start: source=%" PRIu32 "\n", index, src_index);
-    testutil_backup_create_incremental(conn, WT_HOME_DIR, backup_home, backup_id, src_backup_home,
-      src_backup_id, true /* verbose */, &nfiles, &nranges, &nunmodified);
+    testutil_backup_create_incremental(conn, WT_HOME_DIR, (int)index, (int)src_index,
+      true /* verbose */, &nfiles, &nranges, &nunmodified);
 
     /* Remember that the backup finished successfully. */
     testutil_sentinel(backup_home, "done");

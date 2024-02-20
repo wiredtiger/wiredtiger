@@ -383,54 +383,28 @@ tables_free(TABLE_INFO *tinfo)
 static void
 base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, TABLE_INFO *tinfo)
 {
-    WT_CURSOR *cursor;
-    WT_SESSION *session;
-    uint32_t granularity;
-    int nfiles, ret;
-    char backup_home[PATH_MAX], buf[4096], copy_from[PATH_MAX], copy_to[PATH_MAX];
-    char *filename;
-    char granularity_unit;
-    const char *cons;
+    uint32_t granularity, granularity_kb;
+    int id, nfiles;
+    bool consolidate;
 
     nfiles = 0;
-
-    testutil_snprintf(
-      backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, tinfo->full_backup_number);
-    VERBOSE(2, "BASE BACKUP: %s\n", backup_home);
-    testutil_recreate_dir(backup_home);
-
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    id = (int)tinfo->full_backup_number;
 
     /* Half of the runs with very low granularity to stress bitmaps */
     granularity = __wt_random(rand) % 20;
     if (__wt_random(rand) % 2 == 0) {
-        granularity_unit = 'K';
         granularity += 4;
+        granularity_kb = granularity;
     } else {
-        granularity_unit = 'M';
         granularity += 1;
+        granularity_kb = granularity * 1024;
     }
     if (__wt_random(rand) % 2 == 0)
-        cons = ",consolidate=true";
+        consolidate = true;
     else
-        cons = ",consolidate=false";
-    testutil_snprintf(buf, sizeof(buf),
-      "incremental=(granularity=%" PRIu32 "%c,enabled=true,%s,this_id=ID%" PRIu32 ")", granularity,
-      granularity_unit, cons, tinfo->full_backup_number);
-    VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
-    testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
-
-    while ((ret = cursor->next(cursor)) == 0) {
-        nfiles++;
-        testutil_check(cursor->get_key(cursor, &filename));
-        testutil_snprintf(copy_from, sizeof(copy_from), "%s/%s", home, filename);
-        testutil_snprintf(copy_to, sizeof(copy_to), "%s/%s", backup_home, filename);
-        VERBOSE(3, " => copy %s %s\n", copy_from, copy_to);
-        testutil_copy(copy_from, copy_to);
-    }
-    testutil_assert(ret == WT_NOTFOUND);
-    testutil_check(cursor->close(cursor));
-    testutil_check(session->close(session, NULL));
+        consolidate = false;
+    /* Use the same ID for the directory name and configuration */
+    testutil_backup_create_full(conn, home, id, consolidate, granularity_kb, &nfiles);
     VERBOSE(2, " finished base backup: %d files\n", nfiles);
 }
 
@@ -455,8 +429,8 @@ incr_backup(WT_CONNECTION *conn, const char *home, TABLE_INFO *tinfo)
     VERBOSE(2, "INCREMENTAL BACKUP: START: %" PRIu32 " source=%" PRIu32 "\n",
       tinfo->incr_backup_number, tinfo->full_backup_number);
 
-    testutil_backup_create_incremental(conn, home, backup_home, backup_id, src_backup_home,
-      src_backup_id, true /* verbose */, &nfiles, &nranges, &nunmodified);
+    testutil_backup_create_incremental(conn, home, (int)tinfo->incr_backup_number,
+      (int)tinfo->full_backup_number, true /* verbose */, &nfiles, &nranges, &nunmodified);
     VERBOSE(2,
       "INCREMENTAL BACKUP: COMPLETE: %" PRIu32 " files=%" PRId32 ", ranges=%" PRId32
       ", unmodified=%" PRId32 "\n",
