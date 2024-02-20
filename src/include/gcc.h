@@ -181,7 +181,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * don't accept booleans when compiling with clang. Define them individually.
  */
 static inline bool
-__wt_atomic_loadb(bool *vp)
+__wt_atomic_loadbool(bool *vp)
 {
     return (__atomic_load_n(vp, __ATOMIC_RELAXED));
 }

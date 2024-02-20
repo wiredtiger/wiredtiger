@@ -87,7 +87,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
  * so we'll maintain that behavior on Windows.
  */
 static inline bool
-__wt_atomic_loadb(bool *vp)
+__wt_atomic_loadbool(bool *vp)
 {
     return (*(vp));
 }

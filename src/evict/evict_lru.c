@@ -312,7 +312,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
     WT_ERR(__wt_curhs_cache(session));
-    if (__wt_atomic_loadb(&conn->evict_server_running) &&
+    if (__wt_atomic_loadbool(&conn->evict_server_running) &&
       __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
         /*
          * Cannot use WT_WITH_PASS_LOCK because this is a try lock. Fix when that is supported. We
@@ -572,7 +572,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* We are done if the eviction server didn't start successfully. */
-    if (!__wt_atomic_loadb(&conn->evict_server_running))
+    if (!__wt_atomic_loadbool(&conn->evict_server_running))
         return (0);
 
     /* Wait for any eviction thread group changes to stabilize. */
@@ -2452,7 +2452,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.
      */
-    if (!__wt_atomic_loadb(&conn->evict_server_running) || (busy && pct_full < 100.0))
+    if (!__wt_atomic_loadbool(&conn->evict_server_running) || (busy && pct_full < 100.0))
         goto done;
 
     /* Wake the eviction server if we need to do work. */
