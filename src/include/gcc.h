@@ -256,7 +256,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * which gives us StoreStore, secondly a dmb ishld which gives us LoadLoad, LoadStore.
  *
  * This is sufficient for the release semantics which is StoreStore, LoadStore. We could issue a
- * single dmb ish here but that is more expensive.
+ * single dmb ish here but that is more expensive because it adds a StoreLoad barrier which is the
+ * most expensive reordering to prevent.
  */
 #define WT_RELEASE_BARRIER() __asm__ volatile("dmb ishst; dmb ishld" ::: "memory");
 
