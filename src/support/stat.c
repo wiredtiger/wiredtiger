@@ -1449,6 +1449,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: internal pages seen by eviction walk that are already queued",
   "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction",
+  "cache: max time eviction server walks a tree",
   "cache: maximum bytes configured",
   "cache: maximum milliseconds spent at a single eviction",
   "cache: maximum page size seen at eviction",
@@ -2095,6 +2096,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_internal_pages_already_queued = 0;
     stats->cache_eviction_split_internal = 0;
     stats->cache_eviction_split_leaf = 0;
+    stats->cache_eviction_server_max_tree_walk_time = 0;
     /* not clearing cache_bytes_max */
     /* not clearing cache_eviction_maximum_milliseconds */
     /* not clearing cache_eviction_maximum_page_size */
@@ -2739,6 +2741,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_internal_pages_already_queued);
     to->cache_eviction_split_internal += WT_STAT_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_READ(from, cache_eviction_split_leaf);
+    to->cache_eviction_server_max_tree_walk_time +=
+      WT_STAT_READ(from, cache_eviction_server_max_tree_walk_time);
     to->cache_bytes_max += WT_STAT_READ(from, cache_bytes_max);
     to->cache_eviction_maximum_milliseconds +=
       WT_STAT_READ(from, cache_eviction_maximum_milliseconds);

@@ -500,6 +500,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
+    int64_t cache_eviction_server_max_tree_walk_time;
     int64_t cache_bytes_max;
     int64_t cache_eviction_maximum_milliseconds;
     int64_t cache_eviction_maximum_page_size;

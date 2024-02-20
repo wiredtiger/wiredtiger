@@ -1752,7 +1752,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_PAGE *last_parent, *page;
     WT_REF *ref;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
-    uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
+    uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked, start_time,
+      end_time, elapsed;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, want_page;
@@ -1763,6 +1764,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     last_parent = NULL;
     restarts = 0;
     give_up = urgent_queued = false;
+
+    start_time = __wt_clock(session);
 
     /*
      * Figure out how many slots to fill from this tree. Note that some care is taken in the
@@ -2155,6 +2158,11 @@ fast:
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
+
+    end_time = __wt_clock(session);
+    elapsed = WT_CLOCKDIFF_MS(start_time, end_time);
+    if (elapsed > cache->evict_max_btree_walk)
+        conn->cache->evict_max_btree_walk = elapsed;
     return (0);
 }
 
