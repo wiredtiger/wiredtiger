@@ -46,6 +46,9 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     dryrun = conn->rts->dryrun;
     threads = conn->rts->threads_num;
 
+    WT_ASSERT_ALWAYS(
+      session, threads > 0, "RTS needs to performed with minimum of 1 worker thread");
+
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 

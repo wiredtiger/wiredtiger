@@ -395,10 +395,7 @@ __wt_rts_btree_walk_btree_apply(
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-        if (S2C(session)->rts->threads_num == 0)
-            WT_RET(__rts_btree(session, uri, rollback_timestamp));
-        else
-            WT_RET(__wt_rts_push_work(session, uri, rollback_timestamp));
+        WT_RET(__wt_rts_push_work(session, uri, rollback_timestamp));
         file_skipped = false;
     } else
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
