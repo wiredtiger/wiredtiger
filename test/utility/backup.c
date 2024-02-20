@@ -220,7 +220,7 @@ testutil_backup_create_incremental(WT_CONNECTION *conn, const char *home_dir,
     if (p_nunmodified != NULL)
         *p_nunmodified = nunmodified;
     /* Remember that the backup finished successfully. */
-    testutil_sentinel(copy_to, "done");
+    testutil_sentinel(backup_dir, "done");
 }
 
 /*
