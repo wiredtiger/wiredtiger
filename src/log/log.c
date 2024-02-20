@@ -2425,6 +2425,7 @@ err:
     if (ret != 0 && ret != WT_PANIC && need_salvage) {
         WT_TRET(__wt_close(session, &log_fh));
         log_fh = NULL;
+        /* Don't alter the file when the logging system is not set up. */
         if (log != NULL)
             WT_TRET(__log_truncate(session, &rd_lsn, false, true));
         ret = 0;
