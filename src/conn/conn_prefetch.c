@@ -205,6 +205,8 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
     if (all)
         WT_ASSERT(session, conn->prefetch_queue_count == 0);
 
+    __wt_spin_unlock(session, &conn->prefetch_lock);
+
     /*
      * To avoid a race condition, check if this dhandle is currently being operated on by any other
      * prefetch thread. If so, wait for the thread to finish before proceeding with eviction.
@@ -212,8 +214,6 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
     if (dhandle != NULL)
         while (((WT_BTREE *)dhandle->handle)->prefetch_busy > 0)
             __wt_yield();
-
-    __wt_spin_unlock(session, &conn->prefetch_lock);
 
     return (0);
 }
