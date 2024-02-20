@@ -208,10 +208,10 @@
  * Note that these macros use __ATOMIC_RELAXED memory ordering, while the FLD_*_ATOMIC macros use
  * the stricter __ATOMIC_SEQ_CST.
  */
-#define FLD_CLR(field, mask) (void)__wt_atomic_anduntyped(&field, (__typeof__(field))(~(mask)))
-#define FLD_MASK(field, mask) (__wt_atomic_loaduntyped(&field) & (mask))
+#define FLD_CLR(field, mask) (void)__wt_atomic_and_generic(&field, (__typeof__(field))(~(mask)))
+#define FLD_MASK(field, mask) (__wt_atomic_load_generic(&field) & (mask))
 #define FLD_ISSET(field, mask) (FLD_MASK(field, (mask)) != 0)
-#define FLD_SET(field, mask) ((void)__wt_atomic_oruntyped(&field, (mask)))
+#define FLD_SET(field, mask) ((void)__wt_atomic_or_generic(&field, (mask)))
 #else
 /*
  * MSVC doesn't have generic atomic functions like GCC does and our latest version of MSVC doesn't

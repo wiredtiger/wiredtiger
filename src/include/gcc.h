@@ -191,9 +191,13 @@ __wt_atomic_storeb(bool *vp, bool v)
     __atomic_store_n(vp, v, __ATOMIC_RELAXED);
 }
 
-#define __wt_atomic_anduntyped(vp, v) __atomic_and_fetch(vp, v, __ATOMIC_RELAXED)
-#define __wt_atomic_oruntyped(vp, v) __atomic_or_fetch(vp, v, __ATOMIC_RELAXED)
-#define __wt_atomic_loaduntyped(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
+/*
+ * Generic atomic functions that accept any type. The typed macros above should be preferred since
+ * they provide better type checking.
+ */
+#define __wt_atomic_and_generic(vp, v) __atomic_and_fetch(vp, v, __ATOMIC_RELAXED)
+#define __wt_atomic_or_generic(vp, v) __atomic_or_fetch(vp, v, __ATOMIC_RELAXED)
+#define __wt_atomic_load_generic(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
 
 /* Compile read-write barrier */
 #define WT_COMPILER_BARRIER() __asm__ volatile("" ::: "memory")
