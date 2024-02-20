@@ -213,7 +213,7 @@ __wt_rts_thread_destroy(WT_SESSION_IMPL *session)
     /* Wait for any RTS thread group changes to stabilize. */
     __wt_writelock(session, &conn->rts->thread_group.lock);
 
-    /* Signal the threads to finish and stop populating the queue. */
+    /* Signal the threads to finish. */
     F_CLR(conn, WT_CONN_RTS_THREAD_RUN);
     __wt_cond_signal(session, conn->rts->thread_group.wait_cond);
 
