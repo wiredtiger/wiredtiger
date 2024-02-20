@@ -30,6 +30,10 @@
 
 #include "wt_internal.h"
 
+#define BACKUP_BASE "backup."
+#define BACKUP_OLD "OLD." BACKUP_BASE
+#define CHECK_BASE "check."
+
 #ifdef _WIN32
 #define DIR_DELIM '\\'
 #define DIR_DELIM_STR "\\"
@@ -537,6 +541,7 @@ void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
 void testutil_deduce_build_dir(TEST_OPTS *opts);
+void testutil_delete_old_backups(int);
 bool testutil_exists(const char *, const char *);
 int testutil_general_event_handler(
   WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);

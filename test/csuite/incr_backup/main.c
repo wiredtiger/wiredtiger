@@ -37,10 +37,8 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define BACKUP_BASE "backup."
 #define BACKUP_RETAIN 4
 #define BACKUP_SRC "backup.src."
-#define CHECK_BASE "check."
 
 #define ITERATIONS 10
 #define MAX_NTABLES 100
@@ -124,16 +122,6 @@ typedef enum { INSERT, MODIFY, REMOVE, UPDATE, _OPERATION_TYPE_COUNT } OPERATION
  */
 #define KEYS_PER_TABLE (10 * WT_THOUSAND)
 #define CHANGES_PER_CYCLE (KEYS_PER_TABLE * _OPERATION_TYPE_COUNT)
-
-/*
- * __int_comparator --
- *     "int" comparator.
- */
-static int
-__int_comparator(const void *a, const void *b)
-{
-    return (*(int *)a - *(int *)b);
-}
 
 /*
  * usage --
@@ -395,8 +383,9 @@ tables_free(TABLE_INFO *tinfo)
  *     no good reason.
  */
 static void
-backup_delete_old_backups(int retain, TABLE_INFO *tinfo)
+backup_delete_old_backups(int retain)
 {
+#if 0
     struct dirent *dir;
     DIR *d;
     size_t len;
@@ -439,6 +428,9 @@ backup_delete_old_backups(int retain, TABLE_INFO *tinfo)
     } while (!done);
 
     printf("Deleted %d old backup%s\n", ndeleted, ndeleted == 1 ? "" : "s");
+#else
+    testutil_delete_old_backups(retain);
+#endif
 }
 
 /*
@@ -813,7 +805,7 @@ main(int argc, char *argv[])
                 check_backup(iter, &tinfo);
             }
         }
-        backup_delete_old_backups(BACKUP_RETAIN, &tinfo);
+        backup_delete_old_backups(BACKUP_RETAIN);
     }
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
@@ -821,7 +813,7 @@ main(int argc, char *argv[])
 
     printf("Success.\n");
     if (!preserve) {
-        backup_delete_old_backups(0, NULL);
+        backup_delete_old_backups(0);
         testutil_clean_test_artifacts(home);
         testutil_remove(home);
     }

@@ -68,9 +68,6 @@ static char home[1024]; /* Program working dir */
  * snapshot.
  */
 
-#define BACKUP_BASE "backup."
-#define BACKUP_OLD "OLD." BACKUP_BASE
-#define CHECK_BASE "check."
 #define INVALID_KEY UINT64_MAX
 #define MAX_BACKUP_INVL 4 /* Maximum interval between backups */
 #define MAX_CKPT_INVL 5   /* Maximum interval between checkpoints */
@@ -202,6 +199,7 @@ static wt_thread_t stat_th;
 static WT_EVENT_HANDLER other_event = {handle_error, NULL, NULL, NULL, NULL};
 static WT_EVENT_HANDLER reopen_event = {handle_error, NULL, NULL, NULL, handle_general};
 
+#if 0
 /*
  * __int_comparator --
  *     "int" comparator.
@@ -211,6 +209,7 @@ __int_comparator(const void *a, const void *b)
 {
     return (*(int *)a - *(int *)b);
 }
+#endif
 
 /*
  * stat_func --
@@ -430,12 +429,6 @@ backup_create_full(WT_CONNECTION *conn, bool consolidate, uint32_t index)
     testutil_backup_create_full(
       conn, WT_HOME_DIR, backup_home, backup_id, consolidate, backup_granularity_kb, &nfiles);
 
-    /* Remember that this was a full backup. */
-    testutil_sentinel(backup_home, "full");
-
-    /* Remember that the backup finished successfully. */
-    testutil_sentinel(backup_home, "done");
-
     printf("Create full backup %" PRIu32 " - complete: files=%" PRId32 "\n", index, nfiles);
 }
 
@@ -484,6 +477,7 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
 static void
 backup_delete_old_backups(int retain)
 {
+#if 0
     struct dirent *dir;
     DIR *d;
     size_t len;
@@ -539,8 +533,10 @@ backup_delete_old_backups(int retain)
             ndeleted++;
         }
     } while (!done);
-
     printf("Deleted %d old backup%s\n", ndeleted, ndeleted == 1 ? "" : "s");
+#else
+    testutil_delete_old_backups(retain);
+#endif
 }
 
 /*
