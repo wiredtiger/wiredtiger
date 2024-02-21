@@ -549,12 +549,11 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
         int creates = 0, retries = 0;
         // Make sure not to exceed the maximum number of files that can exist in the database.
         int num_files_to_create = 0;
-        if (num_files < max_files) {
-            if (num_files + _workload->options.create_count > max_files)
-                num_files_to_create = max_files - num_files;
-            else
-                num_files_to_create = _workload->options.create_count;
-        }
+        if (num_files + _workload->options.create_count > max_files)
+            num_files_to_create = max_files - num_files;
+        else
+            num_files_to_create = _workload->options.create_count;
+
         while (!stopping && creates < num_files_to_create && retries < TABLE_MAX_RETRIES) {
             // Generate a table name from the user specified prefix and a random alphanumeric
             // sequence.
