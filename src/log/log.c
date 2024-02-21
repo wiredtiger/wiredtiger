@@ -1556,8 +1556,9 @@ __wt_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const char *dest)
     WT_ERR(__log_openfile(session, tmp_id, WT_LOG_OPEN_CREATE_OK, &log_fh));
     WT_ERR(__log_file_header(session, log_fh, NULL, true));
     WT_ERR(__log_prealloc(session, log_fh));
-    WT_ERR(__wt_fsync(session, log_fh, true));
-    WT_ERR(__wt_close(session, &log_fh));
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL) || conn->log_extend_len != 0)
+        WT_ERR(__wt_fsync(session, log_fh, true));
+
     __wt_verbose(session, WT_VERB_LOG, "log_allocfile: rename %s to %s",
       (const char *)from_path->data, (const char *)to_path->data);
     /*
