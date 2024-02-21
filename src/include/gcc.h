@@ -186,7 +186,7 @@ __wt_atomic_loadbool(bool *vp)
     return (__atomic_load_n(vp, __ATOMIC_RELAXED));
 }
 static inline void
-__wt_atomic_storeb(bool *vp, bool v)
+__wt_atomic_storebool(bool *vp, bool v)
 {
     __atomic_store_n(vp, v, __ATOMIC_RELAXED);
 }

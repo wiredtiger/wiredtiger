@@ -93,7 +93,7 @@ __wt_atomic_loadbool(bool *vp)
 }
 
 static inline void
-__wt_atomic_storeb(bool *vp, bool v)
+__wt_atomic_storebool(bool *vp, bool v)
 {
     *(vp) = (v);
 }

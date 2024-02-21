@@ -555,7 +555,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
     /*
      * Allow queues to be populated now that the eviction threads are running.
      */
-    __wt_atomic_storeb(&conn->evict_server_running, true);
+    __wt_atomic_storebool(&conn->evict_server_running, true);
 
     return (0);
 }
@@ -582,7 +582,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
      * Signal the threads to finish and stop populating the queue.
      */
     F_CLR(conn, WT_CONN_EVICTION_RUN);
-    __wt_atomic_storeb(&conn->evict_server_running, false);
+    __wt_atomic_storebool(&conn->evict_server_running, false);
     __wt_evict_server_wake(session);
 
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "waiting for helper threads");
