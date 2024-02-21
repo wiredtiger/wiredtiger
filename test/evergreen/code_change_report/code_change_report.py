@@ -39,6 +39,19 @@ def get_html_colour(count: int, of: int):
     return colour
 
 
+def get_complexity_html_colour(complexity: int):
+    colour = ""
+    if complexity <= 10:
+        colour = "PaleGreen"
+    elif complexity <= 20:
+        colour = "Orange"
+    elif complexity <= 50:
+        colour = "Tomato"
+    else:
+        colour = "Purple"
+
+    return colour
+
 def centred_text(text):
     return "<p style=\"text-align: center\">{}</p>\n".format(text)
 
@@ -52,6 +65,9 @@ def line_number_to_text(code_colour, line_number):
         return "    <p style=\"background-color:{};text-align: right\">{}</p>\n".format(code_colour, line_number)
     else:
         return ""
+
+def number_to_centred_text(code_colour, number):
+    return "    <p style=\"background-color:{};text-align: center\">{}</p>\n".format(code_colour, number)
 
 
 def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
@@ -141,8 +157,8 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 else:
                     report.append("    <td></td>\n")
 
-                report.append("    <td>{}</td>\n".format(line_number_to_text(code_unhighlighted, old_lineno)))
-                report.append("    <td>{}</td>\n".format(line_number_to_text(code_colour, new_lineno)))
+                report.append("    <td>{}</td>\n".format(number_to_centred_text(code_unhighlighted, old_lineno)))
+                report.append("    <td>{}</td>\n".format(number_to_centred_text(code_colour, new_lineno)))
                 report.append("    <td>{}</td>\n".format(centred_text(plus_minus)))
                 report.append("    <td>\n")
                 if strikethrough:
@@ -161,6 +177,8 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
 
 def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report = list()
+    change_info_list = code_change_info['change_info_list']
+    changed_functions = code_change_info['changed_functions']
 
     report.append("")
 
@@ -207,7 +225,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("  <tr>\n")
     report.append("    <th>Changed File(s)</th>\n")
     report.append("  </tr>\n")
-    for file in code_change_info:
+    for file in change_info_list:
         escaped_file = html.escape(file, quote=True)
         report.append("  <tr><td>\n")
         if file.startswith("src/"):
@@ -223,9 +241,32 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("<h2 style=\"text-align: center\">Code Change Details</h2>\n")
     report.append(centred_text("Only files in the 'src' directory are shown below<p>\n"))
 
+    # Create table with a list of changed functions
+    report.append("<table class=\"center\">\n")
+    report.append("  <tr>\n")
+    report.append("    <th>File</th>\n")
+    report.append("    <th>Function</th>\n")
+    report.append("    <th>Complexity</th>\n")
+    report.append("    <th>Lines in function</th>\n")
+    report.append("  </tr>\n")
+    for file in changed_functions:
+        escaped_file = html.escape(file, quote=True)
+        functions_info = changed_functions[file]
+        for function in functions_info:
+            function_info = functions_info[function]
+            complexity = int(function_info['complexity'])
+            code_colour = get_complexity_html_colour(complexity)
+            report.append("  <tr>\n")
+            report.append("    <td>{}</td>\n".format(escaped_file))
+            report.append("    <td>{}</td>\n".format(function_info['name']))
+            report.append("    <td>{}</td>\n".format(format(number_to_centred_text(code_colour, complexity))))
+            report.append("    <td>{}</td>\n".format(centred_text(function_info['lines_of_code'])))
+            report.append("  </tr>\n")
+    report.append("</table>\n")
+
     # Create per-file info
-    for file in code_change_info:
-        file_info = code_change_info[file]
+    for file in change_info_list:
+        file_info = change_info_list[file]
         html_lines = generate_file_info_as_html_text(file=file, file_info=file_info, verbose=verbose)
         for line in html_lines:
             report.append(line)
