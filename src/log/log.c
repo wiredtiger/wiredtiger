@@ -213,6 +213,8 @@ __log_fs_write(
         __log_wait_for_earlier_slot(session, slot);
         WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
     }
+
+    WT_STAT_CONN_INCRV(session, log_bytes_written, len);
     __wt_capacity_throttle(session, len, WT_THROTTLE_LOG);
     if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
         WT_RET_PANIC(session, ret, "%s: fatal log failure", slot->slot_fh->name);
@@ -751,7 +753,6 @@ __wt_log_fill(
         WT_ERR(__log_fs_write(session, myslot->slot,
           myslot->offset + myslot->slot->slot_start_offset, record->size, record->mem));
 
-    WT_STAT_CONN_INCRV(session, log_bytes_written, record->size);
     if (lsnp != NULL) {
         WT_ASSIGN_LSN(lsnp, &myslot->slot->slot_start_lsn);
         lsnp->l.offset += (uint32_t)myslot->offset;
