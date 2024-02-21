@@ -28,8 +28,7 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Do not add refs from trees that have eviction disabled since they are probably being closed.
      */
-    if (!(F_ISSET(ref, WT_REF_FLAG_LEAF)) || S2BT(session)->evict_disabled > 0 ||
-      (__wt_session_gen(session, WT_GEN_SPLIT) == 0)) {
+    if (!(F_ISSET(ref, WT_REF_FLAG_LEAF)) || (__wt_session_gen(session, WT_GEN_SPLIT) == 0)) {
         WT_STAT_CONN_INCR(session, block_prefetch_failed_start);
         return (0);
     }
