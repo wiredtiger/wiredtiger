@@ -416,16 +416,7 @@ static void
 incr_backup(WT_CONNECTION *conn, const char *home, TABLE_INFO *tinfo)
 {
     int nfiles, nranges, nunmodified;
-    char backup_home[PATH_MAX], backup_id[32], src_backup_home[PATH_MAX], src_backup_id[32];
 
-    testutil_snprintf(
-      backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, tinfo->incr_backup_number);
-    testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, tinfo->incr_backup_number);
-    testutil_snprintf(
-      src_backup_home, sizeof(src_backup_home), BACKUP_BASE "%" PRIu32, tinfo->full_backup_number);
-    testutil_snprintf(
-      src_backup_id, sizeof(src_backup_id), "ID%" PRIu32, tinfo->full_backup_number);
-    VERBOSE(2, "INCREMENTAL BACKUP: New %s Source %s\n", backup_home, src_backup_home);
     VERBOSE(2, "INCREMENTAL BACKUP: START: %" PRIu32 " source=%" PRIu32 "\n",
       tinfo->incr_backup_number, tinfo->full_backup_number);
 
@@ -526,7 +517,10 @@ check_backup(uint32_t backup_iter, TABLE_INFO *tinfo)
     uint32_t slot;
     char backup_check[PATH_MAX], backup_home[PATH_MAX];
 
-    /* Put the backup directories as the same level as the home directory. */
+    /*
+     * Generate the names for the backup home directory and the temporary backup directory for
+     * verification.
+     */
     testutil_snprintf(backup_check, sizeof(backup_check), CHECK_BASE "%" PRIu32, backup_iter);
     testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, backup_iter);
 

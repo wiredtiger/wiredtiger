@@ -424,12 +424,7 @@ static void
 backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t index)
 {
     int nfiles, nranges, nunmodified;
-    char backup_home[PATH_MAX], backup_id[32], src_backup_home[PATH_MAX], src_backup_id[32];
-
-    testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index);
-    testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
-    testutil_snprintf(src_backup_home, sizeof(src_backup_home), BACKUP_BASE "%" PRIu32, src_index);
-    testutil_snprintf(src_backup_id, sizeof(src_backup_id), "ID%" PRIu32, src_index);
+    char backup_home[PATH_MAX], backup_id[32];
 
     printf("Create incremental backup %" PRIu32 " - start: source=%" PRIu32 "\n", index, src_index);
     testutil_backup_create_incremental(conn, WT_HOME_DIR, (int)index, (int)src_index,
@@ -445,9 +440,11 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
     /* Immediately verify the backup. */
     if (backup_verify_immediately) {
         PRINT_BACKUP_VERIFY(index);
-        if (backup_verify_quick)
+        if (backup_verify_quick) {
+            testutil_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index);
+            testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
             testutil_verify_src_backup(conn, backup_home, WT_HOME_DIR, backup_id);
-        else
+        } else
             testutil_check(recover_and_verify(index, 0));
         PRINT_BACKUP_VERIFY_DONE(index);
     }
