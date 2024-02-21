@@ -342,11 +342,8 @@ static uint32_t
 get_dir_num_files(const std::string &dir)
 {
     auto dirIter = std::filesystem::directory_iterator(dir);
-    uint32_t fileCount = std::count_if(
-        begin(dirIter),
-        end(dirIter),
-        [](auto& entry) { return entry.is_regular_file() && entry.path().extension() == ".wt"; }
-    );
+    uint32_t fileCount = std::count_if(begin(dirIter), end(dirIter),
+      [](auto &entry) { return entry.is_regular_file() && entry.path().extension() == ".wt"; });
 
     return fileCount;
 }
@@ -511,9 +508,9 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     while (!stopping) {
         /*
          * When managing the database size: if we are creating tables, continue until we reach the
-         * create target size or the number the number of files limit. If we are not creating tables,
-         * begin to do so if the database size falls below the create trigger and we are allowed to
-         * create more files.
+         * create target size or the number the number of files limit. If we are not creating
+         * tables, begin to do so if the database size falls below the create trigger and we are
+         * allowed to create more files.
          */
         if (manage_db_size) {
             uint32_t db_size = get_dir_size_mb(_wt_home);
@@ -522,14 +519,19 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 creating = db_size < create_target && num_files < max_files;
                 if (!creating) {
                     VERBOSE(*_workload,
-                      "Stopped creating new tables. Database size is now " << db_size << " MB (target: " << create_target << "MB) and the number of files is " << num_files << " (limit: " << max_files << ").");
+                      "Stopped creating new tables. Database size is now "
+                        << db_size << " MB (target: " << create_target
+                        << "MB) and the number of files is " << num_files
+                        << " (limit: " << max_files << ").");
                 }
             } else {
                 creating = db_size < _workload->options.create_trigger && num_files < max_files;
                 if (creating) {
                     VERBOSE(*_workload,
                       "Started creating new tables. Database size is now "
-                        << db_size << " MB (trigger: " << _workload->options.create_trigger << " MB) and the number of files is " << num_files << " (limit: " << max_files << ").");
+                        << db_size << " MB (trigger: " << _workload->options.create_trigger
+                        << " MB) and the number of files is " << num_files
+                        << " (limit: " << max_files << ").");
                 }
             }
         }
@@ -547,8 +549,8 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
         int creates = 0, retries = 0;
         // Make sure not to exceed the maximum number of files that can exist in the database.
         int num_files_to_create = 0;
-        if(num_files < max_files) {
-            if(num_files + _workload->options.create_count > max_files)
+        if (num_files < max_files) {
+            if (num_files + _workload->options.create_count > max_files)
                 num_files_to_create = max_files - num_files;
             else
                 num_files_to_create = _workload->options.create_count;
@@ -3070,7 +3072,8 @@ WorkloadOptions::WorkloadOptions()
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
       create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
       drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
-      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), max_num_files(INT_MAX), _options()
+      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), max_num_files(INT_MAX),
+      _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
