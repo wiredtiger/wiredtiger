@@ -1482,6 +1482,14 @@ pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
     return testutil_pareto((uint64_t)r, recno_max, pareto.param);
 }
 
+bool
+ThreadRunner::op_has_mirror(tint_t tint) const
+{
+    const std::shared_lock lock(*_icontext->_dyn_mutex);
+    return _icontext->_dyn_table_runtime.count(tint) > 0 &&
+      _icontext->_dyn_table_runtime.at(tint).has_mirror();
+}
+
 uint64_t
 ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
 {
@@ -1825,12 +1833,7 @@ ThreadRunner::op_run(Operation *op)
             _in_transaction = true;
         }
         if (op->is_table_op()) {
-            bool has_mirror = false;
-            {
-                const std::shared_lock lock(*_icontext->_dyn_mutex);
-                has_mirror = _icontext->_dyn_table_runtime.count(tint) > 0 &&
-                  _icontext->_dyn_table_runtime[tint].has_mirror();
-            }
+            bool has_mirror = op_has_mirror(tint);
             // Ensure explicit transactions are used for mirrored operations.
             ASSERT(!has_mirror || _in_transaction);
             switch (op->_optype) {
@@ -1914,11 +1917,7 @@ ThreadRunner::op_run(Operation *op)
                 for (std::vector<Operation>::iterator i = op->_group->begin();
                      i != op->_group->end(); i++) {
                     auto [table_uri, tint] = op_get_table(&*i);
-                    {
-                        const std::shared_lock lock(*_icontext->_dyn_mutex);
-                        has_mirror = _icontext->_dyn_table_runtime.count(tint) > 0 &&
-                          _icontext->_dyn_table_runtime[tint].has_mirror();
-                    }
+                    has_mirror = op_has_mirror(tint);
                     /*
                      * If a mirrored operation has started and there is no active transaction, it
                      * means it has been interrupted, quit.
