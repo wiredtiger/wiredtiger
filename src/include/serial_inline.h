@@ -10,7 +10,7 @@
  * __insert_simple_func --
  *     Worker function to add a WT_INSERT entry to the middle of a skiplist.
  */
-static inline int
+static WT_INLINE int
 __insert_simple_func(
   WT_SESSION_IMPL *session, WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
@@ -25,9 +25,9 @@ __insert_simple_func(
      * sufficient. Even though we don't get the benefit of the memory we allocated, we can't roll
      * back.
      *
-     * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it. Don't pass complex arguments to the macro, some
-     * implementations read the old value multiple times.
+     * All structure setup must be written before the structure is entered into the list. We need a
+     * release barrier here, our callers depend on it. Don't pass complex arguments to the macro,
+     * some implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
         /*
@@ -36,9 +36,9 @@ __insert_simple_func(
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
          *
-         * Place a read barrier here to avoid this issue.
+         * Place an acquire barrier here to avoid this issue.
          */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
+        WT_ACQUIRE_READ_WITH_BARRIER(old_ins, *ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
     }
@@ -50,7 +50,7 @@ __insert_simple_func(
  * __insert_serial_func --
  *     Worker function to add a WT_INSERT entry to a skiplist.
  */
-static inline int
+static WT_INLINE int
 __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
   WT_INSERT *new_ins, u_int skipdepth)
 {
@@ -68,9 +68,9 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
      * levels we updated are correct and sufficient. Even though we don't get the benefit of the
      * memory we allocated, we can't roll back.
      *
-     * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it. Don't pass complex arguments to the macro, some
-     * implementations read the old value multiple times.
+     * All structure setup must be written before the structure is entered into the list. We need a
+     * release barrier here, our callers depend on it. Don't pass complex arguments to the macro,
+     * some implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
         /*
@@ -79,9 +79,9 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
          *
-         * Place a read barrier here to avoid this issue.
+         * Place an acquire barrier here to avoid this issue.
          */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
+        WT_ACQUIRE_READ_WITH_BARRIER(old_ins, *ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
@@ -96,7 +96,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
  *     Worker function to allocate a record number as necessary, then add a WT_INSERT entry to a
  *     skiplist.
  */
-static inline int
+static WT_INLINE int
 __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
   WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
 {
@@ -143,7 +143,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
  * __wt_col_append_serial --
  *     Append a new column-store entry.
  */
-static inline int
+static WT_INLINE int
 __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
   WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size, uint64_t *recnop,
   u_int skipdepth, bool exclusive)
@@ -188,7 +188,7 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
  * __wt_insert_serial --
  *     Insert a row or column-store entry.
  */
-static inline int
+static WT_INLINE int
 __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
   WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size, u_int skipdepth,
   bool exclusive)
@@ -240,7 +240,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
  * __wt_update_serial --
  *     Update a row or column-store entry.
  */
-static inline int
+static WT_INLINE int
 __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
   WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
 {
@@ -258,8 +258,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     prev_upd_ts = upd->prev_durable_ts;
 
     /*
-     * All structure setup must be flushed before the structure is entered into the list. We need a
-     * write barrier here, our callers depend on it.
+     * All structure setup must be written before the structure is entered into the list. We need a
+     * release barrier here, our callers depend on it.
      *
      * Swap the update into place. If that fails, a new update was added after our search, we raced.
      * Check if our update is still permitted.

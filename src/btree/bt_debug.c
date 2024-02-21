@@ -84,7 +84,7 @@ __wt_debug_set_verbose(WT_SESSION_IMPL *session, const char *v)
  * __debug_hex_byte --
  *     Output a single byte in hex.
  */
-static inline int
+static WT_INLINE int
 __debug_hex_byte(WT_DBG *ds, uint8_t v)
 {
     return (ds->f(ds, "#%c%c", __wt_hex((v & 0xf0) >> 4), __wt_hex(v & 0x0f)));
@@ -676,6 +676,10 @@ __debug_cell_kv(
             WT_RET(ds->f(ds, " | %s", __wt_time_window_to_string(&unpack->tw, time_string)));
         break;
     }
+
+    /* Early exit for column store deleted cells. There's nothing further to print. */
+    if (unpack->raw == WT_CELL_DEL)
+        return (0);
 
     /* Overflow addresses. */
     switch (unpack->raw) {
@@ -1373,7 +1377,7 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page)
     session = ds->session;
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n", ref->ref_recno));
+        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n\t", ref->ref_recno));
         WT_RET(__debug_ref(ds, ref));
     }
     WT_INTL_FOREACH_END;

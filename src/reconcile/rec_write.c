@@ -595,7 +595,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->page = page;
 
     /*
-     * Save the transaction generations before reading the page. These are all ordered reads, but we
+     * Save the transaction generations before reading the page. These are all acquire reads, but we
      * only need one.
      */
     r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
@@ -612,9 +612,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /*
      * Update the page state to indicate that all currently installed updates will be included in
      * this reconciliation if it would mark the page clean.
-     *
-     * Add a write barrier to make it more likely that a thread adding an update will see this state
-     * change.
      */
     page->modify->page_state = WT_PAGE_DIRTY_FIRST;
     WT_FULL_BARRIER();
@@ -626,7 +623,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * transaction running when reconciliation starts is considered uncommitted.
      */
     txn_global = &S2C(session)->txn_global;
-    WT_ORDERED_READ(r->last_running, txn_global->last_running);
+    WT_ACQUIRE_READ_WITH_BARRIER(r->last_running, txn_global->last_running);
 
     /*
      * Cache the pinned timestamp and oldest id, these are used to when we clear obsolete timestamps
@@ -641,7 +638,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * checkpoints into account.
      */
     if (WT_IS_METADATA(session->dhandle)) {
-        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_txn_shared.id);
+        WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
     }
@@ -930,7 +927,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
  * __rec_leaf_page_max_slvg --
  *     Figure out the maximum leaf page size for a salvage reconciliation.
  */
-static inline uint32_t
+static WT_INLINE uint32_t
 __rec_leaf_page_max_slvg(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_BTREE *btree;
@@ -1960,7 +1957,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
  * __rec_compression_adjust --
  *     Adjust the pre-compression page size based on compression results.
  */
-static inline void
+static WT_INLINE void
 __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compressed_size,
   bool last_block, uint64_t *adjustp)
 {
@@ -1983,7 +1980,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
      *	Writing a shared memory location without a lock and letting it
      * race, minor trickiness so we only read and write the value once.
      */
-    WT_ORDERED_READ(current, *adjustp);
+    WT_ACQUIRE_READ_WITH_BARRIER(current, *adjustp);
     WT_ASSERT_ALWAYS(session, current >= max, "Writing beyond the max page size");
 
     if (compressed_size > max) {
@@ -2027,7 +2024,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
         else
             return;
     }
-    *adjustp = new;
+    WT_WRITE_ONCE(*adjustp, new);
 }
 
 /*

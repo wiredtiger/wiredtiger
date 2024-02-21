@@ -37,15 +37,15 @@ hazard_grow(WT_SESSION_IMPL *session)
      * original to be freed.
      */
     old_hazard = session->hazards.arr;
-    WT_PUBLISH(session->hazards.arr, new_hazard);
+    WT_RELEASE_WRITE_WITH_BARRIER(session->hazards.arr, new_hazard);
 
     /*
      * Our larger hazard array means we can use larger indices for reading/writing hazard pointers.
      * However, if these larger indices become visible to other threads before the new hazard array
-     * we can have out of bounds accesses to the old hazard array. Set a write barrier here to
+     * we can have out of bounds accesses to the old hazard array. Set a release barrier here to
      * ensure the array pointer is always visible first.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     session->hazards.size = (uint32_t)(size * 2);
 
@@ -109,7 +109,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
         /*
          * If we've grown the hazard array the inuse counter can be incremented beyond the size of
          * the old hazard array. We need to ensure the new hazard array pointer is visible before
-         * this increment of the inuse counter and do so with a write barrier in the hazard grow
+         * this increment of the inuse counter and do so with a release barrier in the hazard grow
          * logic.
          */
         hp = &session->hazards.arr[session->hazards.inuse++];
@@ -164,7 +164,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
          * Callers require a barrier here so operations holding the hazard pointer see consistent
          * data.
          */
-        WT_READ_BARRIER();
+        WT_ACQUIRE_BARRIER();
         return (0);
     }
 
@@ -173,9 +173,6 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      * know). If the eviction server sees our hazard pointer before evicting the page, it will
      * return the page to use, no harm done, if it doesn't, it will go ahead and complete the
      * eviction.
-     *
-     * We don't bother publishing this update: the worst case is we prevent some random page from
-     * being evicted.
      */
     hp->ref = NULL;
     *busyp = true;
@@ -201,9 +198,8 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
     for (hp = session->hazards.arr + session->hazards.inuse - 1; hp >= session->hazards.arr; --hp)
         if (hp->ref == ref) {
             /*
-             * We don't publish the hazard pointer clear in the general case. It's not required for
-             * correctness; it gives an eviction thread faster access to the page were the page
-             * selected for eviction.
+             * We don't release write the hazard pointer clear in the general case. It's not
+             * required for correctness.
              */
             hp->ref = NULL;
 
@@ -215,7 +211,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
              * active references can never be less than the number of in-use slots.
              */
             if (--session->hazards.num_active == 0)
-                WT_PUBLISH(session->hazards.inuse, 0);
+                WT_RELEASE_WRITE_WITH_BARRIER(session->hazards.inuse, 0);
             return (0);
         }
 
@@ -281,7 +277,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
  * hazard_get_reference --
  *     Return a consistent reference to a hazard pointer array.
  */
-static inline void
+static WT_INLINE void
 hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *hazard_inusep)
 {
     /*
@@ -293,8 +289,8 @@ hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *ha
      * Use a barrier instead of marking the fields volatile because we don't want to slow down the
      * rest of the hazard pointer functions that don't need special treatment.
      */
-    WT_ORDERED_READ(*hazard_inusep, session->hazards.inuse);
-    WT_ORDERED_READ(*hazardp, session->hazards.arr);
+    WT_ACQUIRE_READ_WITH_BARRIER(*hazard_inusep, session->hazards.inuse);
+    WT_ACQUIRE_READ_WITH_BARRIER(*hazardp, session->hazards.arr);
 }
 
 /*
