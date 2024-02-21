@@ -492,40 +492,44 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     }
 
     ContextInternal *icontext = _workload->_context->_internal;
-    bool manage_db_size =
-      _workload->options.create_target > 0 && _workload->options.create_trigger > 0;
-    uint32_t db_size = 0;
+    int create_target = _workload->options.create_target;
+    int max_files = _workload->options.max_num_files;
+    bool manage_db_size = create_target > 0 && _workload->options.create_trigger > 0;
     bool creating = true;
 
     if (manage_db_size) {
-        db_size = get_dir_size_mb(_wt_home);
-        // Initially we start creating tables if the database size is less than the create target.
-        creating = db_size < _workload->options.create_target;
+        uint32_t db_size = get_dir_size_mb(_wt_home);
+        uint32_t num_files = get_dir_num_files(_wt_home);
+        /*
+         * Initially we start creating tables if:
+         *  - the database size is less than the create target and
+         *  - then number of files is below the limit.
+         */
+        creating = db_size < create_target && num_files < max_files;
     }
 
     while (!stopping) {
         /*
-         * When managing the database size: If we are creating tables, continue until we reach the
-         * create target size. If we are not creating tables, begin to do so if the database size
-         * falls below the create trigger.
+         * When managing the database size: if we are creating tables, continue until we reach the
+         * create target size or the number the number of files limit. If we are not creating tables,
+         * begin to do so if the database size falls below the create trigger and we are allowed to
+         * create more files.
          */
         if (manage_db_size) {
-            db_size = get_dir_size_mb(_wt_home);
+            uint32_t db_size = get_dir_size_mb(_wt_home);
+            uint32_t num_files = get_dir_num_files(_wt_home);
             if (creating) {
-                creating = db_size < _workload->options.create_target;
+                creating = db_size < create_target && num_files < max_files;
                 if (!creating) {
                     VERBOSE(*_workload,
-                      "Stopped creating new tables. db_size now "
-                        << db_size << " MB has reached the create target of "
-                        << _workload->options.create_target << " MB.");
+                      "Stopped creating new tables. Database size is now " << db_size << " MB (target: " << create_target << "MB) and the number of files is " << num_files << " (limit: " << max_files << ").");
                 }
             } else {
-                creating = db_size < _workload->options.create_trigger;
+                creating = db_size < _workload->options.create_trigger && num_files < max_files;
                 if (creating) {
                     VERBOSE(*_workload,
-                      "Started creating new tables. db_size now "
-                        << db_size << " MB has reached the create trigger of "
-                        << _workload->options.create_trigger << " MB.");
+                      "Started creating new tables. Database size is now "
+                        << db_size << " MB (trigger: " << _workload->options.create_trigger << " MB) and the number of files is " << num_files << " (limit: " << max_files << ").");
                 }
             }
         }
@@ -539,9 +543,17 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
         const std::string config(
           "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA);
 
+        uint32_t num_files = get_dir_num_files(_wt_home);
         int creates = 0, retries = 0;
-        while (
-          !stopping && creates < _workload->options.create_count && retries < TABLE_MAX_RETRIES) {
+        // Make sure not to exceed the maximum number of files that can exist in the database.
+        int num_files_to_create = 0;
+        if(num_files < max_files) {
+            if(num_files + _workload->options.create_count > max_files)
+                num_files_to_create = max_files - num_files;
+            else
+                num_files_to_create = _workload->options.create_count;
+        }
+        while (!stopping && creates < num_files_to_create && retries < TABLE_MAX_RETRIES) {
             // Generate a table name from the user specified prefix and a random alphanumeric
             // sequence.
             char rand_chars[DYNAMIC_TABLE_LEN];
