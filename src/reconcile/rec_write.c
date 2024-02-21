@@ -2385,7 +2385,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
         return;
 
     do {
-        WT_ORDERED_READ(p, *ta);
+        WT_READ_ONCE(p, *ta);
         if (p == NULL)
             break;
     } while (!__wt_atomic_cas_ptr(ta, p, NULL));
@@ -2627,7 +2627,7 @@ split:
     if (WT_TIME_AGGREGATE_HAS_STOP(&stop_ta)) {
         WT_RET(__wt_calloc_one(session, &stop_tap));
         WT_TIME_AGGREGATE_COPY(stop_tap, &stop_ta);
-        WT_PUBLISH(mod->stop_ta, stop_tap);
+        WT_WRITE_ONCE(mod->stop_ta, stop_tap);
     }
 
     return (0);

@@ -436,7 +436,7 @@ struct __wt_page_modify {
      * aggregate information is used to skip these deleted pages as part of the tree walk if the
      * delete operation is visible to the reader.
      */
-    WT_TIME_AGGREGATE *stop_ta;
+    wt_shared WT_TIME_AGGREGATE *stop_ta;
 
     /*
      * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
