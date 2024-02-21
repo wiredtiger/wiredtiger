@@ -136,8 +136,6 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     }
 
 err:
-    if (locked)
-        __wt_spin_unlock(session, &conn->prefetch_lock);
     __wt_scr_free(session, &tmp);
     return (ret);
 }
