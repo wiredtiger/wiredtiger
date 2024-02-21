@@ -127,7 +127,7 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
  * xor against the machine's timestamp counter.
  */
 #ifdef _WIN32
-    M_Z(rnd) ^= __wt_rdtsc();
+    rnd.v ^= __wt_rdtsc();
 #endif
     rnd.v ^= (uint64_t)threadid;
     rnd.v ^= rnd.v << 13;
