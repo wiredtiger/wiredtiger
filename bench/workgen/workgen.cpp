@@ -1924,9 +1924,9 @@ ThreadRunner::op_run(Operation *op)
                      * means it has been interrupted, quit.
                      */
                     if ((*i)._random_table && has_mirror && (i != op->_group->begin()) &&
-                      !_in_transaction) {
+                      !_in_transaction)
                         goto err;
-                    } else
+                    else
                         WT_ERR(op_run_setup(&*i));
                 }
             }
