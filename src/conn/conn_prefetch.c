@@ -98,23 +98,24 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             break;
         }
         __wt_spin_lock(session, &conn->prefetch_lock);
-        locked = true;
         pe = TAILQ_FIRST(&conn->pfqh);
 
         /* If there is no work for the thread to do - return back to the thread pool */
-        if (pe == NULL)
+        if (pe == NULL) {
+            __wt_spin_unlock(session, &conn->prefetch_lock);
             break;
+        }
 
         TAILQ_REMOVE(&conn->pfqh, pe, q);
         --conn->prefetch_queue_count;
 
-        (void)__wt_atomic_addv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
+        ((WT_BTREE *)pe->dhandle->handle)->prefetch_busy += 1;
+
+        __wt_spin_unlock(session, &conn->prefetch_lock);
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), block_prefetch_skipped_no_flag_set);
 
-        __wt_spin_unlock(session, &conn->prefetch_lock);
-        locked = false;
 
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
@@ -132,10 +133,9 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * It probably isn't strictly necessary to re-acquire the lock to reset the flag, but other
          * flag accesses do need to lock, so it's better to be consistent.
          */
-        __wt_spin_lock(session, &conn->prefetch_lock);
         F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
-        (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
-        __wt_spin_unlock(session, &conn->prefetch_lock);
+        ((WT_BTREE *)pe->dhandle->handle)->prefetch_busy -= 1;
+
         WT_ERR(ret);
 
         __wt_free(session, pe);
@@ -166,6 +166,12 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     pe->dhandle = session->dhandle;
 
     __wt_spin_lock(session, &conn->prefetch_lock);
+    /* Don't queue pages for trees that have eviction disabled. */
+    if (S2BT(session)->evict_disabled > 0) {
+        __wt_spin_unlock(session, &conn->prefetch_lock);
+        WT_RET(EBUSY);
+    }
+
     F_SET(ref, WT_REF_FLAG_PREFETCH);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
     ++conn->prefetch_queue_count;
@@ -193,6 +199,16 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
       "Pre-fetch needs to save a valid dhandle when clearing the queue for a btree");
 
     __wt_spin_lock(session, &conn->prefetch_lock);
+    /*
+     * In order for this to be set the thread fetching the pages must have taken and released the
+     * same lock we just took. Therefore if we can take this lock either the value has been set or
+     * hasn't.
+     */
+    if (dhandle != NULL)
+        while (((WT_BTREE *)dhandle->handle)->prefetch_busy > 0)
+            __wt_yield();
+
+    /* Empty the queue of the relevant pages, or all of them if specified. */
     TAILQ_FOREACH_SAFE(pe, &conn->pfqh, q, pe_tmp)
     {
         if (all || pe->dhandle == dhandle) {
@@ -205,16 +221,12 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
     if (all)
         WT_ASSERT(session, conn->prefetch_queue_count == 0);
 
-    __wt_spin_unlock(session, &conn->prefetch_lock);
-
-    /*
-     * To avoid a race condition, check if this dhandle is currently being operated on by any other
-     * prefetch thread. If so, wait for the thread to finish before proceeding with eviction.
+    /* Give up the lock, consumers of the queue shouldn't see pages relevant to them. Additionally
+     * new pages cannot be queued as the btree->evict_disable flag should prevent that. It is
+     * important that that flags checked after locking the prefetch queue lock. If not then threads
+     * may not note that the tree is closed for prefeteching.
      */
-    if (dhandle != NULL)
-        while (((WT_BTREE *)dhandle->handle)->prefetch_busy > 0)
-            __wt_yield();
-
+    __wt_spin_unlock(session, &conn->prefetch_lock);
     return (0);
 }
 
