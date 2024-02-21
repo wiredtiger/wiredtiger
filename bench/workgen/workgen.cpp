@@ -3042,7 +3042,7 @@ WorkloadOptions::WorkloadOptions()
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
       create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
       drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
-      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), _options()
+      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), max_num_files(INT_MAX), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -3105,6 +3105,8 @@ WorkloadOptions::WorkloadOptions()
       "mirror_suffix", mirror_suffix, "the suffix to append to mirrored table names");
     _options.add_int("background_compact", background_compact,
       "minimum amount of space recoverable for compaction to proceed in MB, 0 to disable.");
+    _options.add_int("max_num_files", max_num_files,
+      "if specified, maximum number of files that can be present in the database.");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
