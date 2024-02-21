@@ -77,14 +77,10 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PREFETCH_QUEUE_ENTRY *pe;
-    bool locked;
 
     WT_UNUSED(thread);
-
     WT_ASSERT(session, session->id != 0);
-
     conn = S2C(session);
-    locked = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
@@ -109,8 +105,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         TAILQ_REMOVE(&conn->pfqh, pe, q);
         --conn->prefetch_queue_count;
 
-        ((WT_BTREE *)pe->dhandle->handle)->prefetch_busy += 1;
-
+        (void)__wt_atomic_addv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
         WT_PREFETCH_ASSERT(
@@ -134,8 +129,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * flag accesses do need to lock, so it's better to be consistent.
          */
         F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
-        ((WT_BTREE *)pe->dhandle->handle)->prefetch_busy -= 1;
-
+        (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         WT_ERR(ret);
 
         __wt_free(session, pe);
