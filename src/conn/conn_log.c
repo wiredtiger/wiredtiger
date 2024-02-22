@@ -833,8 +833,7 @@ __log_wrlsn_server(void *arg)
         else
             WT_STAT_CONN_INCR(session, log_write_lsn_skip);
         prev = log->alloc_lsn;
-        yield = 0;
-        did_work = false;
+        did_work = (yield == 0)
 
         /*
          * If __wt_log_wrlsn did work we want to yield instead of sleep.
