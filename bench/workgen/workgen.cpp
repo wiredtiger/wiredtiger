@@ -336,7 +336,7 @@ get_dir_size_mb(const std::string &dir)
 }
 
 /*
- * Get the number of files under the given directory.
+ * Get the number of WiredTiger tables under the given directory.
  */
 static uint32_t
 get_dir_num_files(const std::string &dir)
