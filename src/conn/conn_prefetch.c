@@ -111,7 +111,6 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_PREFETCH_ASSERT(
           session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), block_prefetch_skipped_no_flag_set);
 
-
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
          * stop using prefetch. Some of the guarantees about ref and page freeing are ignored in
@@ -215,8 +214,8 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
 
     /* Give up the lock, consumers of the queue shouldn't see pages relevant to them. Additionally
      * new pages cannot be queued as the btree->evict_disable flag should prevent that. It is
-     * important that that flags checked after locking the prefetch queue lock. If not then threads
-     * may not note that the tree is closed for prefeteching.
+     * important that the flag is checked after locking the prefetch queue lock. If not then threads
+     * may not note that the tree is closed for prefetch.
      */
     __wt_spin_unlock(session, &conn->prefetch_lock);
     return (0);
