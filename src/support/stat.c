@@ -1952,6 +1952,7 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: page acquire time sleeping (usecs)",
   "thread-yield: page delete rollback time sleeping for state change (usecs)",
   "thread-yield: page reconciliation yielded due to child modification",
+  "thread-yield: read-uncommitted application thread acquires snapshot for eviction",
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
@@ -2665,6 +2666,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->page_sleep = 0;
     stats->page_del_rollback_blocked = 0;
     stats->child_modify_blocked_page = 0;
+    stats->application_evict_snapshot_read_uncommitted = 0;
     stats->txn_prepared_updates = 0;
     stats->txn_prepared_updates_committed = 0;
     stats->txn_prepared_updates_key_repeated = 0;
@@ -3430,6 +3432,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->page_sleep += WT_STAT_READ(from, page_sleep);
     to->page_del_rollback_blocked += WT_STAT_READ(from, page_del_rollback_blocked);
     to->child_modify_blocked_page += WT_STAT_READ(from, child_modify_blocked_page);
+    to->application_evict_snapshot_read_uncommitted +=
+      WT_STAT_READ(from, application_evict_snapshot_read_uncommitted);
     to->txn_prepared_updates += WT_STAT_READ(from, txn_prepared_updates);
     to->txn_prepared_updates_committed += WT_STAT_READ(from, txn_prepared_updates_committed);
     to->txn_prepared_updates_key_repeated += WT_STAT_READ(from, txn_prepared_updates_key_repeated);

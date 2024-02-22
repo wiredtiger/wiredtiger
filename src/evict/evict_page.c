@@ -843,16 +843,21 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     /*
      * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered
-     * eviction through application threads then we save the existing snapshot and refresh to
-     * acquire a new snapshot, once the application threads are done with eviction then we switch
-     * back the snapshot to its original. Avoid using snapshots when application transactions are in
-     * the final stages of commit or rollback as they have already released the snapshot. Otherwise,
-     * it becomes harder in the later part of the code to detect updates that belonged to the last
-     * running application transaction.
+     * eviction through application threads then we save the existing state of the snapshot and
+     * refresh to acquire a new snapshot, once the application threads are done with eviction then
+     * we switch back the snapshot to its original. Avoid using snapshots when application
+     * transactions are in the final stages of commit or rollback as they have already released the
+     * snapshot. Otherwise, it becomes harder in the later part of the code to detect updates that
+     * belonged to the last running application transaction. Note that application threads with
+     * read-uncommitted isolation level does not have a snapshot, but they are allowed to grab a
+     * snapshot when pulled into eviction.
      */
-    use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
-      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
-      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
+    use_snapshot_for_app_thread =
+      !F_ISSET(session, WT_SESSION_INTERNAL) && !WT_IS_METADATA(session->dhandle);
+    if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED && use_snapshot_for_app_thread)
+        use_snapshot_for_app_thread = WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
+          F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
+
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
@@ -876,15 +881,19 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         __wt_txn_bump_snapshot(session);
     else if (use_snapshot_for_app_thread) {
         /*
-         * If we couldn't make progress with the application thread's existing snapshot, save the
-         * existing snapshot and refresh to acquire a new one. Then try eviction again. Once the
-         * application threads are done with eviction, the application thread's snapshot is switched
-         * back to the original.
+         * If we couldn't make progress with the application thread's existing snapshot or the
+         * application thread is under a read-uncommitted isolation level, save the existing state
+         * of the snapshot and refresh to acquire a new one. Once the application threads are done
+         * with eviction, the application thread's snapshot is switched back to the original.
          */
-        if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT)) {
+        if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT) ||
+          session->txn->isolation == WT_ISO_READ_UNCOMMITTED) {
             WT_RET(__wt_txn_snapshot_save_and_refresh(session));
             is_application_thread_snapshot_refreshed = true;
-            WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
+            if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
+                WT_STAT_CONN_INCR(session, application_evict_snapshot_read_uncommitted);
+            else
+                WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
         }
 
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);

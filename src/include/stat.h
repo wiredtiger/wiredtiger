@@ -970,6 +970,7 @@ struct __wt_connection_stats {
     int64_t page_sleep;
     int64_t page_del_rollback_blocked;
     int64_t child_modify_blocked_page;
+    int64_t application_evict_snapshot_read_uncommitted;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
