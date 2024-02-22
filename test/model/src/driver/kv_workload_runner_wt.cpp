@@ -340,6 +340,8 @@ kv_workload_runner_wt::do_operation(const operation::create_table &op)
      */
     config << "log=(enabled=false)";
     config << ",key_format=" << op.key_format << ",value_format=" << op.value_format;
+    if (!_table_config.empty())
+        config << "," << _table_config;
     std::string config_str = config.str();
 
     std::string uri = std::string("table:") + op.name;
