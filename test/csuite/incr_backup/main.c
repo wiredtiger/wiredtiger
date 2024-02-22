@@ -603,6 +603,13 @@ main(int argc, char *argv[])
     printf("Seed: %" PRIu64 "\n", seed);
 
     testutil_recreate_dir(home);
+    /*
+     * Go inside the home directory and create the database home. We also use the home directory as
+     * the top level for creating the backup directories and check directory.
+     */
+    if (chdir(home) != 0)
+        testutil_die(errno, "parent chdir: %s", home);
+    testutil_recreate_dir(WT_HOME_DIR);
 
     backup_verbose = (verbose_level >= 4) ? "verbose=(backup)" : "";
 
@@ -628,7 +635,7 @@ main(int argc, char *argv[])
     testutil_snprintf(conf, sizeof(conf), "%s,create,%s,log=(enabled=true,file_max=%" PRIu32 "K)",
       CONN_CONFIG_COMMON, backup_verbose, file_max);
     VERBOSE(2, "wiredtiger config: %s\n", conf);
-    testutil_check(wiredtiger_open(home, NULL, conf, &conn));
+    testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     tinfo.table_count = __wt_random(&rnd) % MAX_NTABLES + 1;
@@ -686,13 +693,13 @@ main(int argc, char *argv[])
             testutil_check(conn->close(conn, NULL));
             testutil_snprintf(backup_src, sizeof(backup_src), BACKUP_SRC "%" PRIu32, iter);
             /* Check the source bitmap after restart. Copy while closed. */
-            testutil_copy_ext(home, backup_src, &copy_opts);
+            testutil_copy_ext(WT_HOME_DIR, backup_src, &copy_opts);
 
-            testutil_check(wiredtiger_open(home, NULL, conf, &conn));
+            testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, conf, &conn));
             testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
             /* Test against the copied directory. */
-            testutil_verify_src_backup(conn, backup_src, home, NULL);
+            testutil_verify_src_backup(conn, backup_src, WT_HOME_DIR, NULL);
             testutil_remove(backup_src);
             nreopens++;
         }
@@ -700,19 +707,19 @@ main(int argc, char *argv[])
         if (iter == 0) {
             VERBOSE(2, "Iteration %" PRIu32 ": taking full backup\n", iter);
             tinfo.full_backup_number = iter;
-            base_backup(conn, &rnd, home, &tinfo);
+            base_backup(conn, &rnd, WT_HOME_DIR, &tinfo);
             check_backup(iter, &tinfo);
         } else {
             /* Randomly restart with a full backup again. */
             if (__wt_random(&rnd) % 10 == 0) {
                 VERBOSE(2, "Iteration %" PRIu32 ": taking new full backup\n", iter);
                 tinfo.full_backup_number = iter;
-                base_backup(conn, &rnd, home, &tinfo);
+                base_backup(conn, &rnd, WT_HOME_DIR, &tinfo);
                 check_backup(iter, &tinfo);
             } else {
                 VERBOSE(2, "Iteration %" PRIu32 ": taking incremental backup\n", iter);
                 tinfo.incr_backup_number = iter;
-                incr_backup(conn, home, &tinfo);
+                incr_backup(conn, WT_HOME_DIR, &tinfo);
                 check_backup(iter, &tinfo);
             }
         }
