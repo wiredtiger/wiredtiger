@@ -490,8 +490,9 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
 
     ContextInternal *icontext = _workload->_context->_internal;
     int create_target = _workload->options.create_target;
+    int create_trigger = _workload->options.create_trigger;
     int max_files = _workload->options.max_num_files;
-    bool manage_db_size = create_target > 0 && _workload->options.create_trigger > 0;
+    bool manage_db_size = create_target > 0 && create_trigger > 0;
     bool creating = true;
 
     if (manage_db_size) {
@@ -525,11 +526,11 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                         << " (limit: " << max_files << ").");
                 }
             } else {
-                creating = db_size < _workload->options.create_trigger && num_files < max_files;
+                creating = db_size < create_trigger && num_files < max_files;
                 if (creating) {
                     VERBOSE(*_workload,
                       "Started creating new tables. Database size is now "
-                        << db_size << " MB (trigger: " << _workload->options.create_trigger
+                        << db_size << " MB (trigger: " << create_trigger
                         << " MB) and the number of files is " << num_files
                         << " (limit: " << max_files << ").");
                 }
