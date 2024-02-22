@@ -501,7 +501,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
         /*
          * Initially we start creating tables if:
          *  - the database size is less than the create target and
-         *  - then number of files is below the limit.
+         *  - the number of files is below the limit.
          */
         creating = db_size < create_target && num_files < max_files;
     }
