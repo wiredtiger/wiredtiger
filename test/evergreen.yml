@@ -1119,6 +1119,9 @@ functions:
         ${PREPARE_TEST_ENV}
         export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
         CMD='./test_checkpoint -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+        if [ ${tiered|0} -eq 1 ]; then
+            CMD="$CMD -PT"
+        fi
 
         for i in $(seq ${times|1}); do
           for t in $(seq ${no_of_procs|1}); do
@@ -2023,6 +2026,16 @@ tasks:
       - func: "csuite test"
         vars:
           test_name: wt12015_backup_corruption
+
+  - name: csuite-wt11126-compile-config-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt11126_compile_config
 
   # End of csuite test tasks
 
@@ -3530,8 +3543,25 @@ tasks:
           <<: *configure_flags_with_builtins
       - func: "checkpoint stress test"
         vars:
-          times: 1       # No of times to run the loop
-          no_of_procs: 10 # No of processes to run in the background
+          no_of_procs: 10 # Number of processes to run in the background
+          tiered: 0       # Don't enable tiered storage
+          times: 1        # Number of times to run the loop
+
+  - name: checkpoint-stress-test-tiered
+    exec_timeout_secs: 86400
+    commands:
+      - command: timeout.update
+        params:
+          timeout_secs: 86400
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "checkpoint stress test"
+        vars:
+          no_of_procs: 5  # Number of processes to run in the background
+          tiered: 1       # Enable tiered storage
+          times: 1        # Number of times to run the loop
 
   - name: skiplist-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
@@ -3575,7 +3605,8 @@ tasks:
       - func: "compile wiredtiger"
       - func: "split stress test"
 
-  - name: model-test
+  - name: model-unit-test
+    tags: ["pull_request", "model_checking"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5146,7 +5177,7 @@ buildvariants:
     - name: chunkcache-test
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
-    - name: model-test
+    - name: model-unit-test
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
@@ -5163,7 +5194,7 @@ buildvariants:
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest"
+    - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
@@ -5202,7 +5233,7 @@ buildvariants:
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
     extra_args: -LE "cppsuite|long_running"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -5291,6 +5322,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
+    - name: checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
 
 - name: cppsuite-stress-tests-ubuntu
@@ -5495,7 +5527,7 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
-    - name: model-test
+    - name: model-unit-test
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"

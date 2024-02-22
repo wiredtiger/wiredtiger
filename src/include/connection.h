@@ -476,11 +476,17 @@ struct __wt_connection_impl {
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */
 
-    uint64_t ckpt_apply;      /* Checkpoint handles applied */
-    uint64_t ckpt_apply_time; /* Checkpoint applied handles gather time */
-    uint64_t ckpt_skip;       /* Checkpoint handles skipped */
-    uint64_t ckpt_skip_time;  /* Checkpoint skipped handles gather time */
-    uint64_t ckpt_usecs;      /* Checkpoint timer */
+    uint64_t ckpt_apply;           /* Checkpoint handles applied */
+    uint64_t ckpt_apply_time;      /* Checkpoint applied handles gather time */
+    uint64_t ckpt_drop;            /* Checkpoint handles drop */
+    uint64_t ckpt_drop_time;       /* Checkpoint handles drop time */
+    uint64_t ckpt_lock;            /* Checkpoint handles lock */
+    uint64_t ckpt_lock_time;       /* Checkpoint handles lock time */
+    uint64_t ckpt_meta_check;      /* Checkpoint handles metadata check */
+    uint64_t ckpt_meta_check_time; /* Checkpoint handles metadata check time */
+    uint64_t ckpt_skip;            /* Checkpoint handles skipped */
+    uint64_t ckpt_skip_time;       /* Checkpoint skipped handles gather time */
+    uint64_t ckpt_usecs;           /* Checkpoint timer */
 
     uint64_t ckpt_scrub_max; /* Checkpoint scrub time min/max */
     uint64_t ckpt_scrub_min;
@@ -680,6 +686,13 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
 
     void *lang_private; /* Language specific private storage */
+
+    /* Compiled configuration */
+    char *conf_dummy;         /* Dummy strings used by caller */
+    WT_CONF **conf_api_array; /* The array of standard API pre-compiled configurations */
+    WT_CONF **conf_array;     /* The array of user compiled configurations */
+    uint32_t conf_size;       /* In use size of user compiled configuration array */
+    uint32_t conf_max;        /* Allocated size of user compiled configuration array */
 
     /* If non-zero, all buffers used for I/O will be aligned to this. */
     size_t buffer_alignment;

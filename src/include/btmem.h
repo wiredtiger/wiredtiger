@@ -99,7 +99,7 @@ struct __wt_page_header {
  * __wt_page_header_byteswap --
  *     Handle big- and little-endian transformation of a page header.
  */
-static inline void
+static WT_INLINE void
 __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 {
 #ifdef WORDS_BIGENDIAN
@@ -615,7 +615,7 @@ struct __wt_page {
     } while (0)
 #define WT_INTL_INDEX_SET(page, v)      \
     do {                                \
-        WT_WRITE_BARRIER();             \
+        WT_RELEASE_BARRIER();           \
         ((page)->u.intl.__index) = (v); \
     } while (0)
 
@@ -888,24 +888,24 @@ struct __wt_page {
  * The writer thread has two orderings:
  * Prepare transaction:
  *  - start_ts = X
- *  - WT_WRITE_BARRIER
+ *  - WT_RELEASE_BARRIER
  *  - prepare_state = WT_PREPARE_INPROGRESS
  *
  * Commit transaction:
  *  - prepare_state = WT_PREPARE_LOCKED
- *  - WT_WRITE_BARRIER
+ *  - WT_RELEASE_BARRIER
  *  - start_ts = Y
  *  - durable_ts = Z
- *  - WT_WRITE_BARRIER
+ *  - WT_RELEASE_BARRIER
  *  - prepare_state = WT_PREPARE_RESOLVED
  *
  * The reader does the opposite. The more complex of the two is as follows:
  *  - read prepare_state
- *  - WT_READ_BARRIER
+ *  - WT_ACQUIRE_BARRIER
  *  - if locked, retry
  *  - read start_ts
  *  - read durable_ts
- *  - WT_READ_BARRIER
+ *  - WT_ACQUIRE_BARRIER
  *  - read prepare_state
  *  - if prepare state has changed, retry
  */
@@ -1230,11 +1230,11 @@ struct __wt_ref {
 #define WT_REF_SET_STATE(ref, s)                                  \
     do {                                                          \
         WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        WT_PUBLISH((ref)->state, s);                              \
+        WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s);           \
     } while (0)
 #else
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
-#define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
+#define WT_REF_SET_STATE(ref, s) WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s)
 #endif
 };
 

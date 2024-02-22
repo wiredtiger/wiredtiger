@@ -58,6 +58,7 @@ CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
+CONF
 CONFIG
 CPP
 CPUs
@@ -219,6 +220,7 @@ LazyFS's
 LeafGreen
 LibFuzzer
 LoadLoad
+LoadStore
 LockFile
 LogBackend
 LogSink
@@ -297,6 +299,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Precompiled
 Preload
 Prepend
 Prepending
@@ -396,6 +399,7 @@ Unbuffered
 Unencrypted
 Unhandled
 UnixLib
+Unlink
 UnlockFile
 Unmap
 UnmapViewOfFile
@@ -633,6 +637,7 @@ cust
 customizable
 customp
 cv
+cval
 cx
 cxa
 dT
@@ -877,6 +882,7 @@ isb
 isdigit
 ish
 ishld
+ishst
 islocked
 ispo
 isprint
@@ -1095,6 +1101,9 @@ pre
 pread
 prealloc
 precomp
+precompilation
+precompiled
+precompiling
 prefetch
 preload
 prepend
