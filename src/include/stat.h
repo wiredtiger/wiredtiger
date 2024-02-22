@@ -414,6 +414,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
+    int64_t cache_eviction_server_clear_walks;
     int64_t cache_eviction_server_evicting;
     int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
     int64_t cache_eviction_server_skip_metatdata_with_history;

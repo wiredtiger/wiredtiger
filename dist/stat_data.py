@@ -281,6 +281,7 @@ conn_stats = [
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
+    CacheStat('cache_eviction_server_clear_walks', 'eviction server clears walking points'),
     CacheStat('cache_eviction_server_max_tree_walk_time', 'max time eviction server walks a tree'),
     CacheStat('cache_eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     CacheStat('cache_eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),

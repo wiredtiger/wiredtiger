@@ -428,6 +428,9 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          */
         ret = __evict_clear_all_walks(session);
 
+        if (ret == 0)
+            WT_STAT_CONN_INCR(session, cache_eviction_server_clear_walks);
+
         __wt_readunlock(session, &conn->dhandle_lock);
         WT_RET(ret);
 
