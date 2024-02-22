@@ -2160,7 +2160,7 @@ fast:
     WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
 
     end_time = __wt_clock(session);
-    elapsed = WT_CLOCKDIFF_MS(start_time, end_time);
+    elapsed = WT_CLOCKDIFF_MS(end_time, start_time);
     if (elapsed > cache->evict_max_btree_walk)
         conn->cache->evict_max_btree_walk = elapsed;
     return (0);
