@@ -107,7 +107,7 @@ functions:
         set -o verbose
 
         # Pulled from evergreen/generate_evergreen_engflow_bazelrc.sh
-        # TODO(SERVER-86966): consider consolidating once prelude.sh is runnable in the perf project.
+        # FIXME-SERVER-86966: consider consolidating once prelude.sh is runnable in the perf project.
 
         source ./evergreen/bazel_RBE_supported.sh
 
