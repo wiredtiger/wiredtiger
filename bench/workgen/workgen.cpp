@@ -3429,6 +3429,9 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         if (options->create_count < 1) {
             std::cerr << "create_count needs to be greater than 0" << std::endl;
             stopping = true;
+        } else if (options->create_count > options->max_num_files) {
+            std::cerr << "create_count cannot be greater than max_num_files" << std::endl;
+            stopping = true;
         } else if (options->create_target > 0 && options->create_trigger <= 0) {
             std::cerr << "Need to specify a create_trigger when setting a create_target."
                       << std::endl;
