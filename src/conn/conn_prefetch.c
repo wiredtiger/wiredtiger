@@ -77,14 +77,10 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PREFETCH_QUEUE_ENTRY *pe;
-    bool locked;
 
     WT_UNUSED(thread);
-
     WT_ASSERT(session, session->id != 0);
-
     conn = S2C(session);
-    locked = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
@@ -109,13 +105,11 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         TAILQ_REMOVE(&conn->pfqh, pe, q);
         --conn->prefetch_queue_count;
 
-        ((WT_BTREE *)pe->dhandle->handle)->prefetch_busy += 1;
-
+        (void)__wt_atomic_addv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), block_prefetch_skipped_no_flag_set);
-
 
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
@@ -134,16 +128,13 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * flag accesses do need to lock, so it's better to be consistent.
          */
         F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
-        ((WT_BTREE *)pe->dhandle->handle)->prefetch_busy -= 1;
-
+        (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         WT_ERR(ret);
 
         __wt_free(session, pe);
     }
 
 err:
-    if (locked)
-        __wt_spin_unlock(session, &conn->prefetch_lock);
     __wt_scr_free(session, &tmp);
     return (ret);
 }
@@ -223,8 +214,8 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
 
     /* Give up the lock, consumers of the queue shouldn't see pages relevant to them. Additionally
      * new pages cannot be queued as the btree->evict_disable flag should prevent that. It is
-     * important that that flags checked after locking the prefetch queue lock. If not then threads
-     * may not note that the tree is closed for prefeteching.
+     * important that the flag is checked after locking the prefetch queue lock. If not then threads
+     * may not note that the tree is closed for prefetch.
      */
     __wt_spin_unlock(session, &conn->prefetch_lock);
     return (0);
