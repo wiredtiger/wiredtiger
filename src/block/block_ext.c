@@ -513,7 +513,7 @@ __block_extend(
     block->size += size;
 
     WT_STAT_DATA_INCR(session, block_extension);
-    __wt_verbose_debug2(session, WT_VERB_BLOCK, "%s: file extend %" PRIdMAX "-%" PRIdMAX, el->name,
+    __wt_verbose(session, WT_VERB_BLOCK, "%s: file extend %" PRIdMAX "-%" PRIdMAX, el->name,
       (intmax_t)*offp, (intmax_t)(*offp + size));
 
     return (0);
@@ -582,7 +582,7 @@ append:
 
     /* If doing a partial allocation, adjust the record and put it back. */
     if (ext->size > size) {
-        __wt_verbose_debug2(session, WT_VERB_BLOCK,
+        __wt_verbose(session, WT_VERB_BLOCK,
           "%s: allocate %" PRIdMAX " from range %" PRIdMAX "-%" PRIdMAX
           ", range shrinks to %" PRIdMAX "-%" PRIdMAX,
           block->live.avail.name, (intmax_t)size, (intmax_t)ext->off,
@@ -593,7 +593,7 @@ append:
         ext->size -= size;
         WT_RET(__block_ext_insert(session, &block->live.avail, ext));
     } else {
-        __wt_verbose_debug2(session, WT_VERB_BLOCK, "%s: allocate range %" PRIdMAX "-%" PRIdMAX,
+        __wt_verbose(session, WT_VERB_BLOCK, "%s: allocate range %" PRIdMAX "-%" PRIdMAX,
           block->live.avail.name, (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
 
         __wt_block_ext_free(session, ext);
