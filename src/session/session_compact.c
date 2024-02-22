@@ -68,11 +68,11 @@
  *
  * Then, we compact the high-level object.
  *
- * Compacting the object is done 10% at a time, that is, we try and move blocks
- * from the last 10% of the file into the beginning of the file (the 10% is
- * hard coded in the block manager).  The reason for this is because we are
- * walking the file in logical order, not block offset order, and we can fail
- * to compact a file if we write the wrong blocks first.
+ * Compacting the object is done 20% or 10% at a time, that is, we try and move blocks
+ * from the last 20% or 10% of the file into the beginning of the file. This incremental step is
+ * hard-coded in the block manager.  The reason for this is because we are walking the file in
+ * logical order, not block offset order, and we can fail to compact a file if we write the wrong
+ * blocks first.
  *
  * For example, imagine a file with 10 blocks in the first 10% of a file, 1,000
  * blocks in the 3rd quartile of the file, and 10 blocks in the last 10% of the
@@ -84,7 +84,7 @@
  * on.  Note the block manager uses a first-fit block selection algorithm
  * during compaction to maximize block movement.
  *
- * After each 10% compaction, we checkpoint two more times (seriously, twice).
+ * After each iteration of compaction, we checkpoint two more times (seriously, twice).
  * The second and third checkpoints are because the block manager checkpoints
  * in two steps: blocks made available for reuse during a checkpoint are put on
  * a special checkpoint-available list and only moved to the real available
@@ -289,7 +289,9 @@ __compact_worker(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     u_int i, loop;
-    bool another_pass;
+    bool another_pass, background_compaction;
+
+    background_compaction = session == S2C(session)->background_compact.session;
 
     /*
      * Reset the handles' compaction skip flag (we don't bother setting or resetting it when we
@@ -302,7 +304,7 @@ __compact_worker(WT_SESSION_IMPL *session)
      * Perform an initial checkpoint unless this is background compaction. See this file's leading
      * comment for details.
      */
-    if (session != S2C(session)->background_compact.session)
+    if (!background_compaction)
         WT_ERR(__compact_checkpoint(session));
 
     /*
@@ -352,13 +354,19 @@ __compact_worker(WT_SESSION_IMPL *session)
                       "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
                       session->op_handle[i]->name);
                 }
-                ret = 0;
-                another_pass = true;
 
                 __wt_verbose_info(session, WT_VERB_COMPACT,
                   "The compaction of the data handle %s returned EBUSY due to an in-progress "
-                  "conflicting checkpoint. Compaction of this data handle will be retried.",
-                  session->op_handle[i]->name);
+                  "conflicting checkpoint.%s",
+                  session->op_handle[i]->name,
+                  background_compaction ? "" : " Compaction of this data handle will be retried.");
+
+                ret = 0;
+
+                /* Don't retry in the case of background compaction, move on. */
+                if (!background_compaction)
+                    another_pass = true;
+
             }
 
             /* Compaction was interrupted internally. */
@@ -366,6 +374,7 @@ __compact_worker(WT_SESSION_IMPL *session)
                 ret = 0;
             WT_ERR(ret);
         }
+
         if (!another_pass)
             break;
 
@@ -420,7 +429,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     ignore_cache_size_set = false;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, compact, config, cfg);
+    SESSION_API_CALL(session, ret, compact, config, cfg);
 
     /* Trigger the background server. */
     if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
