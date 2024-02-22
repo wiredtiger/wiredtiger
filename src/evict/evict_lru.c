@@ -895,7 +895,6 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
-    i = 0;
 
     /* Hold the walk lock to turn off eviction. */
     __wt_spin_lock(session, &cache->evict_walk_lock);
