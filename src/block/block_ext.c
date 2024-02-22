@@ -423,14 +423,14 @@ __wt_block_off_remove_overlap(
         b_size = ext->size - (a_size + size);
 
         if (a_size > 0) {
-            __wt_verbose(session, WT_VERB_BLOCK,
+            __wt_verbose_debug2(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
               (intmax_t)(a_off), (intmax_t)(a_off + a_size));
         }
 
         if (b_size > 0) {
-            __wt_verbose(session, WT_VERB_BLOCK,
+            __wt_verbose_debug2(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
               (intmax_t)(b_off), (intmax_t)(b_off + b_size));
@@ -450,7 +450,7 @@ __wt_block_off_remove_overlap(
         b_size = ext->size - (b_off - ext->off);
 
         if (b_size > 0)
-            __wt_verbose(session, WT_VERB_BLOCK,
+            __wt_verbose_debug2(session, WT_VERB_BLOCK,
               "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
               (intmax_t)after->off, (intmax_t)after->off + (intmax_t)after->size, (intmax_t)(b_off),
               (intmax_t)(b_off + b_size));
@@ -513,7 +513,7 @@ __block_extend(
     block->size += size;
 
     WT_STAT_DATA_INCR(session, block_extension);
-    __wt_verbose(session, WT_VERB_BLOCK, "%s: file extend %" PRIdMAX "-%" PRIdMAX, el->name,
+    __wt_verbose_debug2(session, WT_VERB_BLOCK, "%s: file extend %" PRIdMAX "-%" PRIdMAX, el->name,
       (intmax_t)*offp, (intmax_t)(*offp + size));
 
     return (0);
@@ -582,7 +582,7 @@ append:
 
     /* If doing a partial allocation, adjust the record and put it back. */
     if (ext->size > size) {
-        __wt_verbose(session, WT_VERB_BLOCK,
+        __wt_verbose_debug2(session, WT_VERB_BLOCK,
           "%s: allocate %" PRIdMAX " from range %" PRIdMAX "-%" PRIdMAX
           ", range shrinks to %" PRIdMAX "-%" PRIdMAX,
           block->live.avail.name, (intmax_t)size, (intmax_t)ext->off,
@@ -593,7 +593,7 @@ append:
         ext->size -= size;
         WT_RET(__block_ext_insert(session, &block->live.avail, ext));
     } else {
-        __wt_verbose(session, WT_VERB_BLOCK, "%s: allocate range %" PRIdMAX "-%" PRIdMAX,
+        __wt_verbose_debug2(session, WT_VERB_BLOCK, "%s: allocate range %" PRIdMAX "-%" PRIdMAX,
           block->live.avail.name, (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
 
         __wt_block_ext_free(session, ext);
@@ -1078,8 +1078,8 @@ __block_merge(
             after = NULL;
     }
     if (before == NULL && after == NULL) {
-        __wt_verbose(session, WT_VERB_BLOCK, "%s: insert range %" PRIdMAX "-%" PRIdMAX, el->name,
-          (intmax_t)off, (intmax_t)(off + size));
+        __wt_verbose_debug2(session, WT_VERB_BLOCK, "%s: insert range %" PRIdMAX "-%" PRIdMAX,
+          el->name, (intmax_t)off, (intmax_t)(off + size));
 
         return (__block_off_insert(session, el, off, size));
     }
@@ -1093,7 +1093,7 @@ __block_merge(
     if (before == NULL) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
 
-        __wt_verbose(session, WT_VERB_BLOCK,
+        __wt_verbose_debug2(session, WT_VERB_BLOCK,
           "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)off,
           (intmax_t)(off + ext->size + size));
@@ -1107,7 +1107,7 @@ __block_merge(
         }
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
-        __wt_verbose(session, WT_VERB_BLOCK,
+        __wt_verbose_debug2(session, WT_VERB_BLOCK,
           "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)ext->off,
           (intmax_t)(ext->off + ext->size + size));
