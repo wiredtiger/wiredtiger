@@ -930,6 +930,7 @@ linux
 llll
 llu
 llvm
+loadbool
 loadtext
 loc
 localTime
@@ -1237,6 +1238,7 @@ stderr
 stdin
 stdout
 stepp
+storebool
 str
 strace
 strcat

@@ -180,11 +180,21 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * We can't use the WT_ATOMIC_FUNC macro for booleans as __atomic_add_fetch and __atomic_sub_fetch
  * don't accept booleans when compiling with clang. Define them individually.
  */
+
+/*
+ * __wt_atomic_loadbool --
+ *     Atomically read a boolean.
+ */
 static inline bool
 __wt_atomic_loadbool(bool *vp)
 {
     return (__atomic_load_n(vp, __ATOMIC_RELAXED));
 }
+
+/*
+ * __wt_atomic_storebool --
+ *     Atomically set a boolean.
+ */
 static inline void
 __wt_atomic_storebool(bool *vp, bool v)
 {

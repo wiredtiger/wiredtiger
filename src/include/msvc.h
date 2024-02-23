@@ -86,12 +86,21 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
  * that support booleans. These atomic loads and stores were non-atomic memory accesses originally,
  * so we'll maintain that behavior on Windows.
  */
+
+/*
+ * __wt_atomic_loadbool --
+ *     Atomically read a boolean.
+ */
 static inline bool
 __wt_atomic_loadbool(bool *vp)
 {
     return (*(vp));
 }
 
+/*
+ * __wt_atomic_storebool --
+ *     Atomically set a boolean.
+ */
 static inline void
 __wt_atomic_storebool(bool *vp, bool v)
 {
