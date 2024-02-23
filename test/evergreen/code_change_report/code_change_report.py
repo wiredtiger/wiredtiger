@@ -48,7 +48,7 @@ def get_complexity_html_colour(complexity: int):
     elif complexity <= 50:
         colour = "Tomato"
     else:
-        colour = "Purple"
+        colour = "Orchid"
 
     return colour
 
@@ -68,8 +68,8 @@ def line_number_to_text(code_colour, line_number):
         return ""
 
 
-def number_to_centred_text(code_colour, number):
-    return "    <p style=\"background-color:{};text-align: center\">{}</p>\n".format(code_colour, number)
+def value_as_centred_text(code_colour, value):
+    return "    <p style=\"background-color:{};text-align: center\">{}</p>\n".format(code_colour, value)
 
 
 def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
@@ -159,8 +159,8 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 else:
                     report.append("    <td></td>\n")
 
-                report.append("    <td>{}</td>\n".format(number_to_centred_text(code_unhighlighted, old_lineno)))
-                report.append("    <td>{}</td>\n".format(number_to_centred_text(code_colour, new_lineno)))
+                report.append("    <td>{}</td>\n".format(value_as_centred_text(code_unhighlighted, old_lineno)))
+                report.append("    <td>{}</td>\n".format(value_as_centred_text(code_colour, new_lineno)))
                 report.append("    <td>{}</td>\n".format(centred_text(plus_minus)))
                 report.append("    <td>\n")
                 if strikethrough:
@@ -180,10 +180,31 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
 def change_string(old_value: int, new_value: int) -> str:
     result = ""
     if new_value > old_value:
-        result = "&#8679;" # up arrow
+        result = "&#8679;"  # up arrow
     elif new_value < old_value:
-        result = "&#8681;" # down arrow
-    return  result
+        result = "&#8681;"  # down arrow
+    return result
+
+
+def describe_complexity_categories():
+    code_colour_ = get_complexity_html_colour(1)
+    description = list()
+    description.append("<table class=\"center\">\n")
+    description.append("  <tr>\n")
+    description.append("    <th><a href='https://en.wikipedia.org/wiki/Cyclomatic_complexity'>Cyclomatic complexity</a></th></th>\n")
+    description.append("    <th><a href='https://en.wikipedia.org/wiki/Cyclomatic_complexity#Interpretation'>Risk evaluation</a></th>\n")
+    description.append("  </tr>\n")
+    description.append("  <tr><td> {} </td><td> Simple procedure, little risk </td></tr>\n".
+                       format(value_as_centred_text(get_complexity_html_colour(1), "1-10")))
+    description.append("  <tr><td> {} </td><td> More complex, moderate risk   </td></tr>\n".
+                       format(value_as_centred_text(get_complexity_html_colour(11), "11-20")))
+    description.append("  <tr><td> {} </td><td> Complex, high risk            </td></tr>\n".
+                       format(value_as_centred_text(get_complexity_html_colour(21), "21-50")))
+    description.append("  <tr><td> {} </td><td> Untestable code, very high risk    </td></tr>\n".
+                       format(value_as_centred_text(get_complexity_html_colour(51), ">50")))
+    description.append("</table>\n")
+    return description
+
 
 def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report = list()
@@ -257,10 +278,10 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("    <th>File</th>\n")
     report.append("    <th>Changed Function(s)</th>\n")
     report.append("    <th>Complexity</th>\n")
-    report.append("    <th> </th>") # a column for the complexity change arrow
+    report.append("    <th> </th>")  # a column for the complexity change arrow
     report.append("    <th>Previous<br>Complexity</th>\n")
     report.append("    <th>Lines in<br>function</th>\n")
-    report.append("    <th> </th>") # a column for the lines of code change arrow
+    report.append("    <th> </th>")  # a column for the lines of code change arrow
     report.append("    <th>Prev lines in<br>function</th>\n")
     report.append("  </tr>\n")
     for file in changed_functions:
@@ -271,13 +292,13 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
             complexity = int(function_info['complexity'])
             prev_complexity = -1
             code_colour = get_complexity_html_colour(complexity)
-            complexity_string = number_to_centred_text(code_colour, complexity)
+            complexity_string = value_as_centred_text(code_colour, complexity)
             prev_complexity_string = centred_text("(new)")
             complexity_change_string = ""
             if 'prev_complexity' in function_info:
                 prev_complexity = int(function_info['prev_complexity'])
                 code_colour = get_complexity_html_colour(prev_complexity)
-                prev_complexity_string = number_to_centred_text(code_colour, prev_complexity)
+                prev_complexity_string = value_as_centred_text(code_colour, prev_complexity)
                 complexity_change_string = change_string(old_value=prev_complexity, new_value=complexity)
 
             lines_in_function = int(function_info['lines_of_code'])
@@ -300,12 +321,15 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
             report.append("  </tr>\n")
     report.append("</table>\n")
 
+    report.append("<p>")
+
+    report.extend(describe_complexity_categories())
+
     # Create per-file info
     for file in change_info_list:
         file_info = change_info_list[file]
         html_lines = generate_file_info_as_html_text(file=file, file_info=file_info, verbose=verbose)
-        for line in html_lines:
-            report.append(line)
+        report.extend(html_lines)
 
     report.append("</body>\n")
     report.append("</html>\n")
