@@ -73,6 +73,23 @@
 #define WT_WRITE_ONCE(v, val) WT_RELEASE_WRITE_WITH_BARRIER(v, val)
 #endif
 
+#ifdef ENABLE_NEOVERSE
+#define WT_ACQUIRE_READ(v, val)                                         \
+    do {                                                                \
+        if (sizeof((val)) == 1) {                                       \
+            asm volatile inline("ldaprb %w0, %1" : "=r"(v) : "Q"(val)); \
+        } else if (sizeof((val)) == 2) {                                \
+            asm volatile inline("ldaprh %w0, %1" : "=r"(v) : "Q"(val)); \
+        } else if (sizeof((val)) == 4) {                                \
+            asm volatile inline("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
+        } else if (sizeof((val)) == 8) {                                \
+            asm volatile inline("ldapr %0, %1" : "=r"(v) : "Q"(val));   \
+        }                                                               \
+    } while (0)
+#else
+#define WT_ACQUIRE_READ(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
+#endif
+
 /*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
  */

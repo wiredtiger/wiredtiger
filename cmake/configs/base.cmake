@@ -194,6 +194,12 @@ config_bool(
     DEFAULT ${default_enable_python}
 )
 
+config_bool(
+    ENABLE_NEOVERSE
+    "Configure whether to build for the neoverse architecture cpus"
+    DEFAULT OFF
+)
+
 config_string(
     PYTHON3_REQUIRED_VERSION
     "Exact Python version to use when building the Python API. \

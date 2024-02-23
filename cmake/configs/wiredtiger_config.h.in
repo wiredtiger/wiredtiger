@@ -36,6 +36,9 @@
 /* Define to 1 for diagnostic tests. */
 #cmakedefine HAVE_DIAGNOSTIC 1
 
+/* Define to 1 for have neoverse. */
+#cmakedefine ENABLE_NEOVERSE 0
+
 #cmakedefine HAVE_CALL_LOG 1
 
 /* Define to 1 for ref tracking */
