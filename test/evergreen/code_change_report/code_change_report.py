@@ -46,9 +46,9 @@ def get_complexity_html_colour(complexity: int):
     elif complexity <= 20:
         colour = "Orange"
     elif complexity <= 50:
-        colour = "Tomato"
+        colour = "LightPink"
     else:
-        colour = "Orchid"
+        colour = "#eb98e8"
 
     return colour
 
