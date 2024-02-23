@@ -117,7 +117,8 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 count_str = ""
                 if 'count' in line:
                     count = line['count']
-                    if count >= 0 and content != '\n':
+                    useful_line = content != '\n' and content.strip() != '{' and content.strip() != '}'
+                    if count >= 0 and useful_line:
                         count_str = str(count)
                         code_colour = get_html_colour(count, count)
                 report.append("  <tr>\n")
@@ -159,8 +160,8 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 else:
                     report.append("    <td></td>\n")
 
-                report.append("    <td>{}</td>\n".format(value_as_centred_text(code_unhighlighted, old_lineno)))
-                report.append("    <td>{}</td>\n".format(value_as_centred_text(code_colour, new_lineno)))
+                report.append("    <td>{}</td>\n".format(line_number_to_text(code_unhighlighted, old_lineno)))
+                report.append("    <td>{}</td>\n".format(line_number_to_text(code_colour, new_lineno)))
                 report.append("    <td>{}</td>\n".format(centred_text(plus_minus)))
                 report.append("    <td>\n")
                 if strikethrough:
@@ -282,7 +283,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("    <th>Previous<br>Complexity</th>\n")
     report.append("    <th>Lines in<br>function</th>\n")
     report.append("    <th> </th>")  # a column for the lines of code change arrow
-    report.append("    <th>Prev lines in<br>function</th>\n")
+    report.append("    <th>Previous lines<br>in function</th>\n")
     report.append("  </tr>\n")
     for file in changed_functions:
         escaped_file = html.escape(file, quote=True)
