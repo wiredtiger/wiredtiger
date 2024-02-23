@@ -52,6 +52,7 @@ def get_complexity_html_colour(complexity: int):
 
     return colour
 
+
 def centred_text(text):
     return "<p style=\"text-align: center\">{}</p>\n".format(text)
 
@@ -65,6 +66,7 @@ def line_number_to_text(code_colour, line_number):
         return "    <p style=\"background-color:{};text-align: right\">{}</p>\n".format(code_colour, line_number)
     else:
         return ""
+
 
 def number_to_centred_text(code_colour, number):
     return "    <p style=\"background-color:{};text-align: center\">{}</p>\n".format(code_colour, number)
@@ -175,6 +177,14 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
     return report
 
 
+def change_string(old_value: int, new_value: int) -> str:
+    result = ""
+    if new_value > old_value:
+        result = "&#8679;" # up arrow
+    elif new_value < old_value:
+        result = "&#8681;" # down arrow
+    return  result
+
 def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report = list()
     change_info_list = code_change_info['change_info_list']
@@ -245,9 +255,13 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("<table class=\"center\">\n")
     report.append("  <tr>\n")
     report.append("    <th>File</th>\n")
-    report.append("    <th>Function</th>\n")
+    report.append("    <th>Changed Function(s)</th>\n")
     report.append("    <th>Complexity</th>\n")
-    report.append("    <th>Lines in function</th>\n")
+    report.append("    <th> </th>") # a column for the complexity change arrow
+    report.append("    <th>Previous<br>Complexity</th>\n")
+    report.append("    <th>Lines in<br>function</th>\n")
+    report.append("    <th> </th>") # a column for the lines of code change arrow
+    report.append("    <th>Prev lines in<br>function</th>\n")
     report.append("  </tr>\n")
     for file in changed_functions:
         escaped_file = html.escape(file, quote=True)
@@ -255,12 +269,34 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
         for function in functions_info:
             function_info = functions_info[function]
             complexity = int(function_info['complexity'])
+            prev_complexity = -1
             code_colour = get_complexity_html_colour(complexity)
+            complexity_string = number_to_centred_text(code_colour, complexity)
+            prev_complexity_string = centred_text("(new)")
+            complexity_change_string = ""
+            if 'prev_complexity' in function_info:
+                prev_complexity = int(function_info['prev_complexity'])
+                code_colour = get_complexity_html_colour(prev_complexity)
+                prev_complexity_string = number_to_centred_text(code_colour, prev_complexity)
+                complexity_change_string = change_string(old_value=prev_complexity, new_value=complexity)
+
+            lines_in_function = int(function_info['lines_of_code'])
+            lines_change_string = ""
+            prev_lines_in_function_string = "(new)"
+            if 'prev_lines_of_code' in function_info:
+                prev_lines_in_function = int(function_info['prev_lines_of_code'])
+                lines_change_string = change_string(old_value=prev_lines_in_function, new_value=lines_in_function)
+                prev_lines_in_function_string = prev_lines_in_function
+
             report.append("  <tr>\n")
             report.append("    <td>{}</td>\n".format(escaped_file))
             report.append("    <td>{}</td>\n".format(function_info['name']))
-            report.append("    <td>{}</td>\n".format(format(number_to_centred_text(code_colour, complexity))))
-            report.append("    <td>{}</td>\n".format(centred_text(function_info['lines_of_code'])))
+            report.append("    <td>{}</td>\n".format(complexity_string))
+            report.append("    <td>{}</td>\n".format(complexity_change_string))
+            report.append("    <td>{}</td>\n".format(prev_complexity_string))
+            report.append("    <td>{}</td>\n".format(centred_text(lines_in_function)))
+            report.append("    <td>{}</td>\n".format(centred_text(lines_change_string)))
+            report.append("    <td>{}</td>\n".format(centred_text(prev_lines_in_function_string)))
             report.append("  </tr>\n")
     report.append("</table>\n")
 

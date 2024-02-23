@@ -32,9 +32,11 @@ def preprocess_complexity_data(complexity_data: list):
         complexity_item["file"] = filename
 
         if filename not in preprocessed_complexity_data:
-            preprocessed_complexity_data[filename] = []
+            preprocessed_complexity_data[filename] = {}
 
-        preprocessed_complexity_data[filename].append(complexity_item)
+        if complexity_item["type"] == "function":
+            function_name = complexity_item["region"]
+            preprocessed_complexity_data[filename][function_name] = complexity_item
 
     return preprocessed_complexity_data
 
@@ -145,27 +147,39 @@ def find_line_coverage(coverage_data: dict, file_path: str, line_number: int):
     return line_coverage
 
 
-def get_function_info(file_path: str, line_number: int, preprocessed_complexity_data: dict):
+def get_function_info(file_path: str,
+                      line_number: int,
+                      preprocessed_complexity_data: dict,
+                      preprocessed_prev_complexity_data: dict):
     function_info = dict()
 
     if file_path in preprocessed_complexity_data:
         file_complexity_detail = preprocessed_complexity_data[file_path]
 
-        for complexity_detail in file_complexity_detail:
-            if complexity_detail['type'] == 'function':
-                detail_file = complexity_detail['file']
-                detail_start_line_number = int(complexity_detail['line start'])
-                detail_end_line_number = int(complexity_detail['line end'])
-                if detail_file == file_path and detail_start_line_number <= line_number <= detail_end_line_number:
-                    function_info['name'] = complexity_detail['region']
-                    function_info['complexity'] = complexity_detail['std.code.complexity:cyclomatic']
-                    function_info['lines_of_code'] = complexity_detail['std.code.lines:code']
-                    break
+        for function_name in file_complexity_detail:
+            complexity_detail = file_complexity_detail[function_name]
+            detail_file = complexity_detail['file']
+            detail_start_line_number = int(complexity_detail['line start'])
+            detail_end_line_number = int(complexity_detail['line end'])
+            if detail_file == file_path and detail_start_line_number <= line_number <= detail_end_line_number:
+                function_info['name'] = complexity_detail['region']
+                function_info['complexity'] = complexity_detail['std.code.complexity:cyclomatic']
+                function_info['lines_of_code'] = complexity_detail['std.code.lines:code']
+
+                if preprocessed_prev_complexity_data is not None:
+                    file_prev_info = preprocessed_prev_complexity_data[detail_file]
+                    if function_name in file_prev_info:
+                        function__prev_info = file_prev_info[function_name]
+                        function_info['prev_complexity'] = function__prev_info['std.code.complexity:cyclomatic']
+                        function_info['prev_lines_of_code'] = function__prev_info['std.code.lines:code']
+                break
 
     return function_info
 
 
-def create_report_info(change_list: dict, coverage_data: dict, preprocessed_complexity_data: dict):
+def create_report_info(change_list: dict, coverage_data: dict,
+                       preprocessed_complexity_data: dict,
+                       preprocessed_prev_complexity_data: dict):
     changed_function_info = dict()
     file_change_list = dict()
 
@@ -196,7 +210,8 @@ def create_report_info(change_list: dict, coverage_data: dict, preprocessed_comp
                                                                   line_number=line.new_lineno)
                     function_info = get_function_info(file_path=new_file,
                                                       line_number=line.new_lineno,
-                                                      preprocessed_complexity_data=preprocessed_complexity_data)
+                                                      preprocessed_complexity_data=preprocessed_complexity_data,
+                                                      preprocessed_prev_complexity_data=preprocessed_prev_complexity_data)
                     if function_info:
                         if new_file not in changed_function_info:
                             changed_function_info[new_file] = dict()
@@ -221,6 +236,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--coverage', required=True, help='Path to the gcovr json code coverage data file')
     parser.add_argument('-m', '--metrix_complexity_data', help='Path to the Metrix++ complexity data csv file')
+    parser.add_argument('-p', '--prev_metrix_complexity_data',
+                        help='Path to the Metrix++ complexity data csv file for the previous version')
     parser.add_argument('-g', '--git_root', required=True, help='path of the Git working directory')
     parser.add_argument('-d', '--git_diff', help='Path to the git diff file')
     parser.add_argument('-o', '--outfile', required=True, help='Path of the file to write output to')
@@ -231,13 +248,16 @@ def main():
     git_diff = args.git_diff
     git_working_tree_dir = args.git_root
     complexity_data_file = args.metrix_complexity_data
+    prev_complexity_data_file = args.prev_metrix_complexity_data
     preprocessed_complexity_data = None
+    preprocessed_prev_complexity_data = None
 
     if verbose:
         print('Code Coverage Analysis')
         print('======================')
         print('Configuration:')
         print('  Coverage data file:  {}'.format(args.coverage))
+        print('  Complexity data file: {}'.format(complexity_data_file))
         print('  Complexity data file: {}'.format(complexity_data_file))
         print('  Git root path:  {}'.format(git_working_tree_dir))
         print('  Git diff path:  {}'.format(git_diff))
@@ -249,6 +269,10 @@ def main():
         complexity_data = read_complexity_data(complexity_data_file)
         preprocessed_complexity_data = preprocess_complexity_data(complexity_data=complexity_data)
 
+    if prev_complexity_data_file is not None:
+        prev_complexity_data = read_complexity_data(prev_complexity_data_file)
+        preprocessed_prev_complexity_data = preprocess_complexity_data(complexity_data=prev_complexity_data)
+
     if git_diff is None:
         diff = get_git_diff(git_working_tree_dir=git_working_tree_dir, verbose=verbose)
     else:
@@ -259,7 +283,8 @@ def main():
     change_list = diff_to_change_list(diff=diff, verbose=verbose)
     report_info = create_report_info(change_list=change_list,
                                      coverage_data=coverage_data,
-                                     preprocessed_complexity_data=preprocessed_complexity_data)
+                                     preprocessed_complexity_data=preprocessed_complexity_data,
+                                     preprocessed_prev_complexity_data=preprocessed_prev_complexity_data)
 
     report_as_json_object = json.dumps(report_info, indent=2)
     with open(args.outfile, "w") as output_file:
