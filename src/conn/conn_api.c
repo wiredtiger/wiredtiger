@@ -3019,7 +3019,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
             if (sval.val)
-                FLD_SET(conn->direct_io, (uint32_t)ft->flag);
+                FLD_SET(conn->direct_io, ft->flag);
         } else
             WT_ERR_NOTFOUND_OK(ret, false);
     }

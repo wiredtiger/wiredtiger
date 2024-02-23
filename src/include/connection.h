@@ -708,12 +708,12 @@ struct __wt_connection_impl {
     wt_off_t log_extend_len;  /* file_extend log length */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DIRECT_IO_CHECKPOINT 0x1u /* Checkpoints */
-#define WT_DIRECT_IO_DATA 0x2u       /* Data files */
-#define WT_DIRECT_IO_LOG 0x4u        /* Log files */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t direct_io;              /* O_DIRECT, FILE_FLAG_NO_BUFFERING */
-    uint64_t write_through;          /* FILE_FLAG_WRITE_THROUGH */
+#define WT_DIRECT_IO_CHECKPOINT 0x1ull /* Checkpoints */
+#define WT_DIRECT_IO_DATA 0x2ull       /* Data files */
+#define WT_DIRECT_IO_LOG 0x4ull        /* Log files */
+                                       /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
+    uint64_t direct_io;                /* O_DIRECT, FILE_FLAG_NO_BUFFERING */
+    uint64_t write_through;            /* FILE_FLAG_WRITE_THROUGH */
 
     bool mmap;     /* use mmap when reading checkpoints */
     bool mmap_all; /* use mmap for all I/O on data files */
