@@ -92,14 +92,8 @@ parse_uint64(const char *str, char **end)
     if (str == nullptr || str[0] == '\0')
         throw std::runtime_error("Cannot parse a number");
 
-    bool hex = false;
-    if (strncmp(str, "0x", 2) == 0) {
-        hex = true;
-        str += 2;
-    }
-
     char *p = nullptr;
-    uint64_t r = (uint64_t)strtoull(str, &p, hex ? 16 : 10);
+    uint64_t r = (uint64_t)strtoull(str, &p, 0 /* automatically detect "0x" for hex numbers */);
     if (end != nullptr)
         *end = p;
     if (str == p || (end == nullptr && p[0] != '\0'))

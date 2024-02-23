@@ -178,8 +178,6 @@ kv_workload_runner_wt::run(const kv_workload &workload)
 
         if (_state->expect_crash) {
             /* The crash was intentional. Continue the workload. */
-            if (p >= _state->crash_index)
-                throw model_exception("Workload crash did not advance the operation index");
             p = _state->crash_index + 1;
             continue;
         }

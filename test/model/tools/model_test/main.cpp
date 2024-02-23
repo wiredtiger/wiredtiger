@@ -71,7 +71,7 @@ extern char *__wt_optarg;
  */
 static void
 run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &home,
-  const std::string &conn_config, std::string &table_config)
+  const std::string &conn_config, const std::string &table_config)
 {
     /* Run the workload in the model. */
     model::kv_database database;
@@ -244,20 +244,14 @@ int
 main(int argc, char *argv[])
 {
     model::kv_workload_generator_spec spec;
-    std::pair<uint64_t, uint64_t> p;
-    std::string home;
-    const char *progname;
-    bool preserve, print_only;
-    int ch;
-    uint64_t base_seed, min_iterations, min_runtime_s;
 
-    base_seed = (uint64_t)time(NULL);
-    home = "WT_TEST";
-    min_iterations = 1;
-    min_runtime_s = 0;
-    preserve = false;
-    print_only = false;
-    progname = argv[0];
+    uint64_t base_seed = (uint64_t)time(NULL);
+    std::string home = "WT_TEST";
+    uint64_t min_iterations = 1;
+    uint64_t min_runtime_s = 0;
+    bool preserve = false;
+    bool print_only = false;
+    const char *progname = argv[0];
 
     std::string conn_config = ENV_CONFIG_BASE;
     std::string table_config = TABLE_CONFIG_BASE;
@@ -266,6 +260,9 @@ main(int argc, char *argv[])
      * Parse the command-line arguments.
      */
     try {
+        std::pair<uint64_t, uint64_t> p;
+        int ch;
+
         __wt_optwt = 1;
         while ((ch = __wt_getopt(progname, argc, argv, "C:G:h:I:i:l:M:npS:T:t:?")) != EOF)
             switch (ch) {
@@ -335,7 +332,7 @@ main(int argc, char *argv[])
     /* Run the test, potentially many times. */
     double start_time = current_time();
     for (uint64_t iteration = 1;; iteration++) {
-        uint64_t seed = base_seed + iteration;
+        uint64_t seed = base_seed + iteration - 1;
         std::cout << "Iteration " << iteration << ", seed 0x" << std::hex << seed << std::dec
                   << std::endl;
 
