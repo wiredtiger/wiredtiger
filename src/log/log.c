@@ -1176,7 +1176,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
     else {
         WT_ASSIGN_LSN(&log->log_close_lsn, &log->alloc_lsn);
         /* Paired with an acquire read in the log file server path. */
-        WT_PUBLISH(log->log_close_fh, log->log_fh);
+        WT_RELEASE_WRITE_WITH_BARRIER(log->log_close_fh, log->log_fh);
     }
     log->fileid++;
 
@@ -1245,7 +1245,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
     }
     WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
-    WT_PUBLISH(log->log_fh, log_fh);
+    WT_RELEASE_WRITE_WITH_BARRIER(log->log_fh, log_fh);
 
     /*
      * If we're called from connection creation code, we need to update the LSNs since we're the
@@ -2036,9 +2036,12 @@ static int
 __log_salvage_message(
   WT_SESSION_IMPL *session, const char *log_name, const char *extra_msg, wt_off_t offset)
 {
-    __wt_verbose_notice(session, WT_VERB_LOG,
-      "log file %s corrupted%s at position %" PRIuMAX ", truncated", log_name, extra_msg,
-      (uintmax_t)offset);
+    WT_LOG *log;
+
+    log = S2C(session)->log;
+
+    __wt_verbose_notice(session, WT_VERB_LOG, "log file %s corrupted%s at position %" PRIuMAX "%s.",
+      log_name, extra_msg, (uintmax_t)offset, log != NULL ? ", truncated" : "");
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     return (WT_ERROR);
 }
@@ -2422,7 +2425,9 @@ err:
     if (ret != 0 && ret != WT_PANIC && need_salvage) {
         WT_TRET(__wt_close(session, &log_fh));
         log_fh = NULL;
-        WT_TRET(__log_truncate(session, &rd_lsn, false, true));
+        /* Don't alter the file when the logging system is not set up. */
+        if (log != NULL)
+            WT_TRET(__log_truncate(session, &rd_lsn, false, true));
         ret = 0;
     }
 

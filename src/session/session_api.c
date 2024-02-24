@@ -405,8 +405,8 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * exclude the hazard array from review by the eviction thread. Because some session fields are
      * accessed by other threads, the structure must be cleared carefully.
      *
-     * We don't need to publish here, because regardless of the active field being non-zero, the
-     * hazard pointer is always valid.
+     * We don't need to release write here, because regardless of the active field being non-zero,
+     * the hazard pointer is always valid.
      */
     __session_clear(session);
     session = conn->default_session;
@@ -515,7 +515,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
      * Override any connection-level pre-fetch settings if a specific session-level setting was
      * provided.
      */
-    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) != WT_NOTFOUND) {
+    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) == 0) {
         if (cval.val) {
             if (!S2C(session)->prefetch_available) {
                 F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
@@ -2664,11 +2664,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
 
     /*
-     * Publish: make the entry visible to server threads. There must be a barrier for two reasons,
-     * to ensure structure fields are set before any other thread will consider the session, and to
-     * push the session count to ensure the eviction thread can't review too few slots.
+     * Release write to ensure structure fields are set before any other thread will consider the
+     * session.
      */
-    WT_PUBLISH(session_ret->active, 1);
+    WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
 
     *sessionp = session_ret;
 
