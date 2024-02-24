@@ -198,6 +198,36 @@ __wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
 }
 
 /*
+ * __wt_timing_stress_sleep_for_secs --
+ *     Optionally add delay to stress code paths. Wait for the specified amount of time.
+ */
+static inline void
+__wt_timing_stress_sleep_for_secs(WT_SESSION_IMPL *session, uint32_t flag, struct timespec *tsp)
+{
+    WT_CONNECTION_IMPL *conn;
+#ifdef ENABLE_ANTITHESIS
+    const WT_NAME_FLAG *ft;
+#endif
+
+    conn = S2C(session);
+
+    /* If the specified flag isn't set, we're done. */
+    if (flag == 0 || !FLD_ISSET(conn->timing_stress_flags, flag))
+        return;
+
+#ifdef ENABLE_ANTITHESIS
+    WT_UNUSED(tsp);
+    for (ft = __wt_stress_types; ft->name != NULL; ft++)
+        if (ft->flag == flag) {
+            (void)__wt_msg(session, "ANTITHESIS: %s", ft->name);
+            break;
+        }
+#else
+    __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
+#endif
+}
+
+/*
  * __wt_timing_stress --
  *     Optionally add delay to stress code paths.
  */
