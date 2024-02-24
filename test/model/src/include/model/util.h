@@ -284,10 +284,7 @@ public:
     inline float
     get_float(const char *key) const
     {
-        std::istringstream stream(std::get<std::string>(_map.find(key)->second));
-        float v;
-        stream >> v;
-        return v;
+        return std::stof(std::get<std::string>(_map.find(key)->second));
     }
 
     /*
@@ -324,7 +321,7 @@ public:
     keys() const noexcept
     {
         std::vector<std::string> r;
-        for (auto p : _map)
+        for (std::pair<std::string, value_t> p : _map)
             r.push_back(p.first);
         return r;
     }
