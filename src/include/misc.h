@@ -203,7 +203,7 @@
  * constant might be a negative integer), and to ensure the hex constant is the correct size before
  * applying the bitwise not operator.
  */
-#ifdef TSAN_ENABLED
+#ifdef ENABLE_TSAN
 /*
  * FIXME-WT-12534 We need atomics to fix data races detected by TSan, however these atomics come
  * with a large performance cost. Define these atomics only for TSan builds as they aren't
