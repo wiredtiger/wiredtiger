@@ -288,6 +288,9 @@ __compact_worker(WT_SESSION_IMPL *session)
                     WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
                     WT_ERR_MSG(session, EBUSY, "compaction halted by eviction pressure");
                 }
+
+                WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
+
                 ret = 0;
                 another_pass = true;
 
