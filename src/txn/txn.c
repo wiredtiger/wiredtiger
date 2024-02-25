@@ -1668,6 +1668,7 @@ __txn_mod_compare(const void *a, const void *b)
 int
 __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec tsp;
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -1711,8 +1712,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!prepare)
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
+    /* Enter the commit generation before timestamp validity check. */
+    if (!prepare)
+        __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
+
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg, true));
+
+    /* Add a 2 second wait to simulate commit transaction slowness. */
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress_sleep_for_secs(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1978,29 +1988,36 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
 
-    return (0);
-
+    if (0) {
 err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
+        if (cursor != NULL)
+            WT_TRET(cursor->close(cursor));
 
-    if (locked)
-        __wt_readunlock(session, &txn_global->visibility_rwlock);
+        if (locked)
+            __wt_readunlock(session, &txn_global->visibility_rwlock);
 
-    /* Check for a failure after we can no longer fail. */
-    if (cannot_fail)
-        WT_RET_PANIC(session, ret,
-          "failed to commit a transaction after data corruption point, failing the system");
+        /* Check for a failure after we can no longer fail. */
+        if (cannot_fail)
+            WT_RET_PANIC(session, ret,
+            "failed to commit a transaction after data corruption point, failing the system");
+
+        /*
+        * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
+        * a prepared transaction.
+        */
+        if (prepare)
+            WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
+
+        WT_TRET(__wt_session_reset_cursors(session, false));
+        WT_TRET(__wt_txn_rollback(session, cfg));
+    }
 
     /*
-     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
-     * a prepared transaction.
-     */
-    if (prepare)
-        WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
+    * Leave the commit generation after all the updates are processed and the snapshot is released.
+    */
+    if (!prepare)
+        __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
 
-    WT_TRET(__wt_session_reset_cursors(session, false));
-    WT_TRET(__wt_txn_rollback(session, cfg));
     return (ret);
 }
 
