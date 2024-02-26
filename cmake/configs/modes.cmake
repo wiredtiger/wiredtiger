@@ -142,9 +142,9 @@ set(msan_compiler_c_flag "-fsanitize=memory" "-fno-optimize-sibling-calls" "-fsa
 set(msan_compiler_cxx_flag "-fsanitize=memory" "-fno-optimize-sibling-calls" "-fsanitize-memory-track-origins=2")
 
 # TSAN build variant flags.
-set(tsan_link_flags "-fsanitize=thread -DENABLE_TSAN")
-set(tsan_compiler_c_flag "-fsanitize=thread -DENABLE_TSAN")
-set(tsan_compiler_cxx_flag "-fsanitize=thread -DENABLE_TSAN")
+set(tsan_link_flags "-fsanitize=thread")
+set(tsan_compiler_c_flag "-fsanitize=thread")
+set(tsan_compiler_cxx_flag "-fsanitize=thread")
 
 # Define our custom build variants.
 define_build_mode(ASan
