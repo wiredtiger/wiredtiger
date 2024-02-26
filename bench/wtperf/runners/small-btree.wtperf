@@ -1,5 +1,5 @@
 # wtperf options file: small btree configuration
-conn_config="cache_size=500MB,statistics=(fast),statistics_log=(wait=1,json=false)"
+conn_config="cache_size=500MB"
 table_config="type=file"
 icount=500000
 report_interval=5

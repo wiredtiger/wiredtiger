@@ -53,6 +53,28 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
+/*
+ * Helper macros to correctly read and check the API counters. Carefully read the out counter before
+ * the in counter otherwise the out counter can include more API calls than the in and make the
+ * balance negative.
+ */
+#define API_COUNTER_REALIZE(s, counter, output)                                         \
+    {                                                                                   \
+        uint64_t _api_count_in, _api_count_out;                                         \
+        WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out);                            \
+        WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);                              \
+        WT_ASSERT(session, _api_count_in >= _api_count_out);                            \
+        (output) = _api_count_out > _api_count_in ? 0 : _api_count_in - _api_count_out; \
+    }
+
+#define API_COUNTER_CHECK(s, counter)                        \
+    {                                                        \
+        uint64_t _api_count_in, _api_count_out;              \
+        WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out); \
+        WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);   \
+        WT_ASSERT(session, _api_count_in >= _api_count_out); \
+    }
+
 #define API_SESSION_PUSH(s, struct_name, func_name, dh)                                      \
     WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
     const char *__oldname;                                                                   \
@@ -60,25 +82,28 @@
     WT_ASSERT(s, (s)->name != NULL || (s)->api_call_counter == 0);                           \
     __oldname = (s)->name;                                                                   \
     ++(s)->api_call_counter;                                                                 \
+    (s)->dhandle = (dh);                                                                     \
+    (s)->name = (s)->lastop = #struct_name "." #func_name;                                   \
     if ((s)->api_call_counter == 1) {                                                        \
         if (F_ISSET(session, WT_SESSION_INTERNAL))                                           \
-            (void)__wt_atomic_add32(&S2C(s)->active_api_count_internal, 1);                  \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_internal_in, 1);                      \
         else                                                                                 \
-            (void)__wt_atomic_add32(&S2C(s)->active_api_count, 1);                           \
-    }                                                                                        \
-    (s)->dhandle = (dh);                                                                     \
-    (s)->name = (s)->lastop = #struct_name "." #func_name
-
-#define API_SESSION_POP(s)                                                  \
-    (s)->dhandle = __olddh;                                                 \
-    (s)->name = __oldname;                                                  \
-    --(s)->api_call_counter;                                                \
-    if ((s)->api_call_counter == 0) {                                       \
-        if (F_ISSET(session, WT_SESSION_INTERNAL))                          \
-            (void)__wt_atomic_sub32(&S2C(s)->active_api_count_internal, 1); \
-        else                                                                \
-            (void)__wt_atomic_sub32(&S2C(s)->active_api_count, 1);          \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_in, 1);                               \
     }
+
+#define API_SESSION_POP(s)                                                                   \
+    if ((s)->api_call_counter == 1) {                                                        \
+        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                                         \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_internal_out, 1);                     \
+            WT_ASSERT((s), S2C(s)->api_count_internal_in >= S2C(s)->api_count_internal_out); \
+        } else {                                                                             \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);                              \
+            API_COUNTER_CHECK((s), api_count);                                               \
+        }                                                                                    \
+    }                                                                                        \
+    (s)->dhandle = __olddh;                                                                  \
+    (s)->name = __oldname;                                                                   \
+    --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, struct_name, func_name, dh)                 \
@@ -389,28 +414,34 @@
       (s)->api_call_counter == 1)                                          \
     F_CLR((c), WT_CURSTD_EVICT_REPOSITION)
 
+#if 0
 /*
  * Track cursor API calls, so we can know how many are in the library at a point in time. These need
  * to be balanced. If the api call counter is zero, it means these have been used in the wrong order
  * compared to the other enter/end macros.
  */
-#define CURSOR_API_TRACK_START(s)                                                  \
-    WT_ASSERT((s), (s)->api_call_counter != 0);                                    \
-    if ((s)->api_call_counter == 1) {                                              \
-        if (F_ISSET(session, WT_SESSION_INTERNAL))                                 \
-            (void)__wt_atomic_add32(&S2C(s)->active_api_count_cursor_internal, 1); \
-        else                                                                       \
-            (void)__wt_atomic_add32(&S2C(s)->active_api_count_cursor, 1);          \
+#define CURSOR_API_TRACK_START(s)                                              \
+    WT_ASSERT((s), (s)->api_call_counter != 0);                                \
+    if ((s)->api_call_counter == 1) {                                          \
+        if (F_ISSET(session, WT_SESSION_INTERNAL))                             \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_cursor_internal_in, 1); \
+        else                                                                   \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_cursor_in, 1);          \
     }
 
-#define CURSOR_API_TRACK_END(s)                                                    \
-    WT_ASSERT((s), (s)->api_call_counter != 0);                                    \
-    if ((s)->api_call_counter == 1) {                                              \
-        if (F_ISSET(session, WT_SESSION_INTERNAL))                                 \
-            (void)__wt_atomic_sub32(&S2C(s)->active_api_count_cursor_internal, 1); \
-        else                                                                       \
-            (void)__wt_atomic_sub32(&S2C(s)->active_api_count_cursor, 1);          \
+#define CURSOR_API_TRACK_END(s)                                                                    \
+    WT_ASSERT((s), (s)->api_call_counter != 0);                                                    \
+    if ((s)->api_call_counter == 1) {                                                              \
+        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                                               \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_cursor_internal_out, 1);                    \
+            WT_ASSERT(                                                                             \
+              (s), S2C(s)->api_count_cursor_internal_in >= S2C(s)->api_count_cursor_internal_out); \
+        } else {                                                                                   \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_cursor_out, 1);                             \
+            WT_ASSERT((s), S2C(s)->api_count_cursor_in >= S2C(s)->api_count_cursor_out);           \
+        }                                                                                          \
     }
+#endif
 
 /*
  * Macros to set up APIs that use compiled configuration strings.
