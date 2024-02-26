@@ -91,16 +91,16 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
      * updated independently. Carefully read the out counter before the in counter otherwise the out
      * counter can include more API calls than the in and make the balance negative.
      */
-    API_COUNTER_REALIZE(session, api_count, api_count);
+    WT_API_COUNTER_REALIZE(session, api_count, api_count);
     WT_STAT_CONN_SET(session, api_call_count, api_count);
 
-    API_COUNTER_REALIZE(session, api_count_internal, api_count);
+    WT_API_COUNTER_REALIZE(session, api_count_internal, api_count);
     WT_STAT_CONN_SET(session, api_call_count_internal, api_count);
 
-    API_COUNTER_REALIZE(session, api_count_cursor, api_count);
+    WT_API_COUNTER_REALIZE(session, api_count_cursor, api_count);
     WT_STAT_CONN_SET(session, api_call_count_cursor, api_count);
 
-    API_COUNTER_REALIZE(session, api_count_cursor_internal, api_count);
+    WT_API_COUNTER_REALIZE(session, api_count_cursor_internal, api_count);
     WT_STAT_CONN_SET(session, api_call_count_cursor_internal, api_count);
 }
 

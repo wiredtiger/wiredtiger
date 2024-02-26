@@ -58,7 +58,7 @@
  * the in counter otherwise the out counter can include more API calls than the in and make the
  * balance negative.
  */
-#define API_COUNTER_REALIZE(s, counter, output)                                         \
+#define WT_API_COUNTER_REALIZE(s, counter, output)                                         \
     {                                                                                   \
         uint64_t _api_count_in, _api_count_out;                                         \
         WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out);                            \
@@ -68,7 +68,7 @@
     }
 
 #ifdef HAVE_DIAGNOSTIC
-#define API_COUNTER_CHECK(s, counter)                        \
+#define WT_API_COUNTER_CHECK(s, counter)                        \
     {                                                        \
         uint64_t _api_count_in, _api_count_out;              \
         WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out); \
@@ -76,7 +76,7 @@
         WT_ASSERT(session, _api_count_in >= _api_count_out); \
     }
 #else
-#define API_COUNTER_CHECK(s, counter)           /* No-op in release builds */
+#define WT_API_COUNTER_CHECK(s, counter)           /* No-op in release builds */
 #endif
 
 #define API_SESSION_PUSH(s, struct_name, func_name, dh)                                      \
@@ -102,7 +102,7 @@
             WT_ASSERT((s), S2C(s)->api_count_internal_in >= S2C(s)->api_count_internal_out); \
         } else {                                                                             \
             (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);                              \
-            API_COUNTER_CHECK((s), api_count);                                               \
+            WT_API_COUNTER_CHECK((s), api_count);                                               \
         }                                                                                    \
     }                                                                                        \
     (s)->dhandle = __olddh;                                                                  \
