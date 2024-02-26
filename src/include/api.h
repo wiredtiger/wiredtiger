@@ -67,6 +67,7 @@
         (output) = _api_count_out > _api_count_in ? 0 : _api_count_in - _api_count_out; \
     }
 
+#ifdef HAVE_DIAGNOSTIC
 #define API_COUNTER_CHECK(s, counter)                        \
     {                                                        \
         uint64_t _api_count_in, _api_count_out;              \
@@ -74,6 +75,9 @@
         WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);   \
         WT_ASSERT(session, _api_count_in >= _api_count_out); \
     }
+#else
+#define API_COUNTER_CHECK(s, counter)           /* No-op in release builds */
+#endif
 
 #define API_SESSION_PUSH(s, struct_name, func_name, dh)                                      \
     WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \

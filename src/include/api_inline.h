@@ -35,7 +35,6 @@ static WT_INLINE void
 __wt_api_track_cursor_end(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    uint64_t api_count_in, api_count_out;
 
     conn = S2C(session);
 
@@ -48,9 +47,7 @@ __wt_api_track_cursor_end(WT_SESSION_IMPL *session)
                 S2C(session)->api_count_cursor_internal_out);
         } else {
             (void)__wt_atomic_add64(&S2C(session)->api_count_cursor_out, 1);
-            WT_READ_ONCE(api_count_out, conn->api_count_cursor_out);
-            WT_READ_ONCE(api_count_in, conn->api_count_cursor_in);
-            WT_ASSERT(session, api_count_in >= api_count_out);
+	    WT_API_COUNTER_CHECK(session, api_count_cursor);
         }
     }
 }
