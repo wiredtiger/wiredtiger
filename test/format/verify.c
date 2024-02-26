@@ -138,11 +138,11 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
 }
 
 /*
- * position_cursor_le --
- *     Place a cursor on the key larger than or equal to the target key.
+ * position_cursor_ge --
+ *     Place a cursor on the key greater than or equal to the target key.
  */
 static int
-position_cursor_le(
+position_cursor_ge(
   TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno, WT_ITEM *key, uint64_t *keynop)
 {
     WT_DECL_RET;
@@ -264,11 +264,11 @@ table_verify_mirror(
              * If nothing is in the table, return now. Otherwise, the following code may see
              * different data and trigger an assert because it uses a newer snapshot.
              */
-            base_ret = position_cursor_le(base, base_cursor, range_begin, &base_key, &base_keyno);
+            base_ret = position_cursor_ge(base, base_cursor, range_begin, &base_key, &base_keyno);
             if (base_ret == WT_NOTFOUND)
                 return;
             table_ret =
-              position_cursor_le(table, table_cursor, range_begin, &table_key, &table_keyno);
+              position_cursor_ge(table, table_cursor, range_begin, &table_key, &table_keyno);
             if (table_ret == WT_NOTFOUND)
                 return;
 
