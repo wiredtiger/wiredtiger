@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, struct
+import os, re, struct, time
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
@@ -166,6 +166,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             for i in range(0, 4096):
                 f.write(struct.pack('B', 0))
 
+        time.sleep(3)
+
         # open_and_position closed the session/connection, reopen them now.
         self.conn = self.setUpConnectionOpen(".")
         self.session = self.setUpSessionOpen(self.conn)
@@ -197,6 +199,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
+        time.sleep(3)
         self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
@@ -231,6 +234,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
 
+        time.sleep(3)
+
         # open_and_position closed the session/connection, reopen them now.
         self.conn = self.setUpConnectionOpen(".")
         self.session = self.setUpSessionOpen(self.conn)
@@ -256,6 +261,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 4096):
                 f.write(struct.pack('B', 0))
+        time.sleep(3)
         self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
@@ -277,6 +283,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 25) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
+        time.sleep(3)
         self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
@@ -305,6 +312,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 80) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
+        time.sleep(3)
         self.runWt(["verify", "-c", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
 
@@ -313,6 +321,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
             "Read failure while accessing a page from the "), 1)
         self.check_non_empty_file("verifyerr.out")
+
+        time.sleep(3)
 
         # It is expected that more than one checksum error is logged given
         # that we have corrupted the table in multiple locations, but we may
