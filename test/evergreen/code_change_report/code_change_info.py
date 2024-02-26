@@ -7,13 +7,13 @@ from change_info import ChangeInfo
 
 
 # This function reads a gcovr json file into a dict and returns it
-def read_coverage_data(coverage_data_path: str):
+def read_coverage_data(coverage_data_path: str) -> dict:
     with open(coverage_data_path) as json_file:
         data = json.load(json_file)
         return data
 
 
-def read_complexity_data(complexity_data_path: str):
+def read_complexity_data(complexity_data_path: str) -> list:
     complexity_data = []
     with open(complexity_data_path) as csvfile:
         reader = csv.DictReader(csvfile)
@@ -23,7 +23,7 @@ def read_complexity_data(complexity_data_path: str):
     return complexity_data
 
 
-def preprocess_complexity_data(complexity_data: list):
+def preprocess_complexity_data(complexity_data: list) -> dict:
     preprocessed_complexity_data = dict()
 
     for complexity_item in complexity_data:
@@ -41,7 +41,7 @@ def preprocess_complexity_data(complexity_data: list):
     return preprocessed_complexity_data
 
 
-def diff_to_change_list(diff: Diff, verbose: bool):
+def diff_to_change_list(diff: Diff, verbose: bool) -> dict:
     change_list = dict()
     for patch in diff:
         if verbose:
@@ -147,10 +147,38 @@ def find_line_coverage(coverage_data: dict, file_path: str, line_number: int):
     return line_coverage
 
 
+def get_function_coverage(function_name: str, function_file: str, start_line_number: int, end_line_number: int,
+                          coverage_data: dict):
+    num_lines_in_function = 0
+    num_covered_lines_in_function = 0
+    num_branches_in_function = 0
+    num_covered_branches_in_function = 0
+
+    for file_data in coverage_data['files']:
+        if file_data['file'] == function_file:
+            for line_info in file_data['lines']:
+                if start_line_number <= line_info['line_number'] <= end_line_number:
+                    num_lines_in_function += 1
+                    if int(line_info['count']) > 0:
+                        num_covered_lines_in_function += 1
+                    for branch_info in line_info['branches']:
+                        num_branches_in_function += 1
+                        if int(branch_info['count']) > 0:
+                            num_covered_branches_in_function += 1
+
+    function_coverage = {'num_lines_in_function': num_lines_in_function,
+                         'num_covered_lines_in_function': num_covered_lines_in_function,
+                         'num_branches_in_function': num_branches_in_function,
+                         'num_covered_branches_in_function' : num_covered_branches_in_function}
+
+    return function_coverage
+
+
 def get_function_info(file_path: str,
                       line_number: int,
                       preprocessed_complexity_data: dict,
-                      preprocessed_prev_complexity_data: dict):
+                      preprocessed_prev_complexity_data: dict,
+                      coverage_data: dict):
     function_info = dict()
 
     if file_path in preprocessed_complexity_data:
@@ -163,25 +191,48 @@ def get_function_info(file_path: str,
             detail_end_line_number = int(complexity_detail['line end'])
             if detail_file == file_path and detail_start_line_number <= line_number <= detail_end_line_number:
                 function_info['name'] = complexity_detail['region']
-                function_info['complexity'] = complexity_detail['std.code.complexity:cyclomatic']
-                function_info['lines_of_code'] = complexity_detail['std.code.lines:code']
+                function_info['complexity'] = int(complexity_detail['std.code.complexity:cyclomatic'])
+                function_info['lines_of_code'] = int(complexity_detail['std.code.lines:code'])
+
+                function_coverage = get_function_coverage(function_name=function_name,
+                                                          function_file=detail_file,
+                                                          start_line_number=detail_start_line_number,
+                                                          end_line_number=detail_end_line_number,
+                                                          coverage_data=coverage_data)
+
+                function_info.update(function_coverage)
 
                 if preprocessed_prev_complexity_data is not None:
                     file_prev_info = preprocessed_prev_complexity_data[detail_file]
                     if function_name in file_prev_info:
                         function__prev_info = file_prev_info[function_name]
-                        function_info['prev_complexity'] = function__prev_info['std.code.complexity:cyclomatic']
-                        function_info['prev_lines_of_code'] = function__prev_info['std.code.lines:code']
+                        function_info['prev_complexity'] = int(function__prev_info['std.code.complexity:cyclomatic'])
+                        function_info['prev_lines_of_code'] = int(function__prev_info['std.code.lines:code'])
                 break
 
     return function_info
 
 
-def create_report_info(change_list: dict, coverage_data: dict,
+def get_num_branches_covered(branch_coverage_info: list) -> int:
+    num_branches_covered = 0
+    for branch in branch_coverage_info:
+        if branch['count'] > 0:
+            num_branches_covered += 1
+    return num_branches_covered
+
+def create_report_info(change_list: dict,
+                       coverage_data: dict,
                        preprocessed_complexity_data: dict,
                        preprocessed_prev_complexity_data: dict):
     changed_function_info = dict()
     file_change_list = dict()
+
+    change_num_lines = 0
+    change_num_lines_covered = 0
+    change_num_branches = 0
+    change_num_branched_covered = 0
+
+    change_branch_coverage = 0
 
     for new_file in change_list:
         this_patch = change_list[new_file]
@@ -202,16 +253,27 @@ def create_report_info(change_list: dict, coverage_data: dict,
                 line_info['old_lineno'] = line.old_lineno
 
                 if line.new_lineno > 0:
-                    line_info['count'] = find_line_coverage(coverage_data=coverage_data,
+                    line_coverage = find_line_coverage(coverage_data=coverage_data,
+                                                       file_path=new_file,
+                                                       line_number=line.new_lineno)
+                    branch_coverage = find_covered_branches(coverage_data=coverage_data,
                                                             file_path=new_file,
                                                             line_number=line.new_lineno)
-                    line_info['branches'] = find_covered_branches(coverage_data=coverage_data,
-                                                                  file_path=new_file,
-                                                                  line_number=line.new_lineno)
+                    line_info['count'] = line_coverage
+                    line_info['branches'] = branch_coverage
+                    if line.old_lineno < 0:
+                        # Ihe line was changed, so update the counts for the overall change
+                        if 0 <= line_coverage:
+                            change_num_lines += 1
+                            if 0 < line_coverage:
+                                change_num_lines_covered += 1
+                        change_num_branches += len(branch_coverage)
+                        change_num_branched_covered += get_num_branches_covered(branch_coverage_info=branch_coverage)
                     function_info = get_function_info(file_path=new_file,
                                                       line_number=line.new_lineno,
                                                       preprocessed_complexity_data=preprocessed_complexity_data,
-                                                      preprocessed_prev_complexity_data=preprocessed_prev_complexity_data)
+                                                      preprocessed_prev_complexity_data=preprocessed_prev_complexity_data,
+                                                      coverage_data=coverage_data)
                     if function_info:
                         if new_file not in changed_function_info:
                             changed_function_info[new_file] = dict()
@@ -226,6 +288,10 @@ def create_report_info(change_list: dict, coverage_data: dict,
             file_change_list[new_file] = change_info_list
 
     report = dict()
+    report['summary_info'] = {'num_lines': change_num_lines,
+                              'num_lines_covered': change_num_lines_covered,
+                              'num_branches': change_num_branches,
+                              'num_branches_covered': change_num_branched_covered}
     report['change_info_list'] = file_change_list
     report['changed_functions'] = changed_function_info
 
