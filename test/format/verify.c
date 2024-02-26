@@ -261,8 +261,9 @@ table_verify_mirror(
         if (tinfo->keyno != 0) {
             range_begin = tinfo->keyno;
             /*
-             * If nothing is in the table, return now. Otherwise, the following code may see
-             * different data and trigger an assert because it uses a newer snapshot.
+             * If we cannot find any key that is larger than or equal to the target key, return now.
+             * Otherwise, the following code may see different data and trigger an assert because it
+             * uses a newer snapshot.
              */
             base_ret = position_cursor_ge(base, base_cursor, range_begin, &base_key, &base_keyno);
             if (base_ret == WT_NOTFOUND)
