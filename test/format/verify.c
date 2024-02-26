@@ -141,7 +141,7 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
  * position_cursor_before --
  *     Place a cursor on the key directly preceding the target key.
  */
-static void
+static int
 position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
 {
     WT_DECL_RET;
@@ -174,6 +174,8 @@ position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
     }
 
     key_gen_teardown(&key);
+
+    return (ret);
 }
 
 /*
@@ -244,8 +246,16 @@ table_verify_mirror(
     if (tinfo != NULL) {
         if (tinfo->keyno != 0) {
             range_begin = tinfo->keyno;
-            position_cursor_before(base, base_cursor, range_begin);
-            position_cursor_before(table, table_cursor, range_begin);
+            /*
+             * If nothing is in the table, return now. Otherwise, the following code may see
+             * different data and trigger an assert because it uses a newer snapshot.
+             */
+            base_ret = position_cursor_before(base, base_cursor, range_begin);
+            if (base_ret == WT_NOTFOUND)
+                return;
+            table_ret = position_cursor_before(table, table_cursor, range_begin);
+            if (table_ret == WT_NOTFOUND)
+                return;
         }
 
         if (tinfo->last != 0)
