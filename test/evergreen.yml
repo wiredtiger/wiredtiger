@@ -78,7 +78,51 @@ functions:
             else
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
             fi
+  # Since Bazel (currently used in SCons) uses EngFlow's remote execution system instead of icecream,
+  # additional credentials need to be setup to maintain efficient compilation speed.
+  "get engflow creds": &get_engflow_creds
+  - command: s3.get
+    display_name: "get engflow key"
+    params:
+      aws_key: ${engflow_key}
+      aws_secret: ${engflow_secret}
+      remote_file: engflow/engflow.key
+      bucket: serverengflow
+      local_file: "mongo/engflow.key"
+  - command: s3.get
+    display_name: "get engflow cert"
+    params:
+      aws_key: ${engflow_key}
+      aws_secret: ${engflow_secret}
+      remote_file: engflow/engflow.cert
+      bucket: serverengflow
+      local_file: "mongo/engflow.cert"
+  - command: shell.exec
+    params:
+      display_name: "generate evergreen engflow bazelrc"
+      shell: bash
+      working_dir: mongo
+      script: |
+        set -o errexit
+        set -o verbose
 
+        # Pulled from evergreen/generate_evergreen_engflow_bazelrc.sh
+        # FIXME-SERVER-86966: consider consolidating once prelude.sh is runnable in the perf project.
+
+        source ./evergreen/bazel_RBE_supported.sh
+
+        if bazel_rbe_supported; then
+
+          uri="https://spruce.mongodb.com/task/${task_id}?execution=${execution}"
+
+          echo "build --tls_client_certificate=./engflow.cert" > .bazelrc.evergreen_engflow_creds
+          echo "build --tls_client_key=./engflow.key" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=engflow:CiCdPipelineName=${build_variant}" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=engflow:CiCdJobName=${task_name}" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=engflow:CiCdUri=$uri" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=evg:project=${project}" >> .bazelrc.evergreen_engflow_creds
+          echo "build --workspace_status_command=./evergreen/engflow_workspace_status.sh" >> .bazelrc.evergreen_engflow_creds
+        fi
   "get project":
     command: git.get_project
     type: setup
@@ -3620,6 +3664,22 @@ tasks:
             ${PREPARE_TEST_ENV}
             ./test_model.sh
 
+  - name: model-test-long
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/tools"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # Keep repeating the model test for 600 seconds
+            ./model_test -l 2000-3000 -t 600
+
   - name: format-stress-zseries-test
     tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
@@ -3841,6 +3901,7 @@ tasks:
           timeout_secs: 86400
       - func: "fetch mongo repo"
       - func: "get project"
+      - func: "get engflow creds"
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
       - func: "fetch mongo-tests repo"
@@ -5178,6 +5239,9 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    # FIXME-WT-12539
+    #- name: model-test-long
+    #  batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
@@ -5528,6 +5592,9 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    # FIXME-WT-12539
+    #- name: model-test-long
+    #  batchtime: 1440 # once a day
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
