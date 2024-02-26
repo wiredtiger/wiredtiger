@@ -5541,6 +5541,8 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
+      # Using medium ditro as more memory is required. See WT-12378.
+      distros: amazon2-arm64-medium
     - name: unit-test
     - name: fops
     - name: format-failure-configs-test
@@ -5551,8 +5553,12 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
+      # Using medium ditro as more memory is required. See WT-12378.
+      distros: amazon2-arm64-medium
     - name: wtperf-test
     - name: long-test
+      # Using medium ditro as more memory is required. See WT-12378.
+      distros: amazon2-arm64-medium
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
 
@@ -5764,7 +5770,7 @@ buildvariants:
 - name: amazon2-arm64-nonstandalone
   display_name: "Amazon Linux 2 ARM64 Non-standalone"
   run_on:
-  - amazon2-arm64-small
+  - amazon2-arm64-small 
   batchtime: 1440 # 24 hours
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
@@ -5775,6 +5781,8 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
+      # Using medium ditro as more memory is required. See WT-12378.
+      distros: amazon2-arm64-medium
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
