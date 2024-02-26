@@ -138,42 +138,54 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
 }
 
 /*
- * position_cursor_before --
- *     Place a cursor on the key directly preceding the target key.
+ * position_cursor_le --
+ *     Place a cursor on the key larger than or equal to the target key.
  */
 static int
-position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
+position_cursor_le(
+  TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno, WT_ITEM *key, uint64_t *keynop)
 {
     WT_DECL_RET;
-    WT_ITEM key;
-    int exact;
+    uint64_t table_keyno;
+    uint8_t table_bitv;
 
-    key_gen_init(&key);
+    table_keyno = 0;
 
-    switch (table->type) {
-    case FIX:
-    case VAR:
-        cursor->set_key(cursor, target_keyno);
-        break;
-    case ROW:
-        key_gen(table, &key, target_keyno);
-        cursor->set_key(cursor, &key);
-        break;
-    }
+    do {
+        switch (table->type) {
+        case FIX:
+            /*
+             * RS and VLCS skip over removed entries, FLCS returns a value of 0. Skip to the next
+             * matching key number or the next nonzero value. If the latter comes early, we'll visit
+             * the mismatch logic below.
+             */
+            for (;;) {
+                ret = read_op(cursor, NEXT, NULL);
+                testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+                if (ret != 0)
+                    break;
+                testutil_check(cursor->get_key(cursor, &table_keyno));
+                if (table_keyno >= target_keyno || table_keyno > TV(RUNS_ROWS))
+                    break;
+                testutil_check(cursor->get_value(cursor, &table_bitv));
+                if (table_bitv != 0)
+                    break;
+            }
+            break;
+        case VAR:
+            ret = read_op(cursor, NEXT, NULL);
+            testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+            if (ret == 0)
+                testutil_check(cursor->get_key(cursor, &table_keyno));
+            break;
+        case ROW:
+            ret = table_mirror_row_next(table, cursor, key, &table_keyno);
+            break;
+        }
+    } while (ret == 0 && table_keyno < target_keyno);
 
-    testutil_check(read_op(cursor, SEARCH_NEAR, &exact));
-
-    /* If we're on or past the target key then move backwards one key. */
-    if (exact >= 0) {
-        ret = read_op(cursor, PREV, NULL);
-        /*
-         * WT_NOTFOUND is ok here since any subsequent cursor->next calls will start from the
-         * beginning of the table.
-         */
-        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-    }
-
-    key_gen_teardown(&key);
+    if (ret == 0)
+        *keynop = table_keyno;
 
     return (ret);
 }
@@ -198,11 +210,13 @@ table_verify_mirror(
     int base_ret, table_ret;
     uint64_t range_begin, range_end;
     char buf[256], tagbuf[128];
+    bool skip_first;
 
     base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
     base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
     last_match = 0;
+    skip_first = false;
 
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(conn, &sap, NULL, &session);
@@ -250,12 +264,15 @@ table_verify_mirror(
              * If nothing is in the table, return now. Otherwise, the following code may see
              * different data and trigger an assert because it uses a newer snapshot.
              */
-            base_ret = position_cursor_before(base, base_cursor, range_begin);
+            base_ret = position_cursor_le(base, base_cursor, range_begin, &base_key, &base_keyno);
             if (base_ret == WT_NOTFOUND)
                 return;
-            table_ret = position_cursor_before(table, table_cursor, range_begin);
+            table_ret =
+              position_cursor_le(table, table_cursor, range_begin, &table_key, &table_keyno);
             if (table_ret == WT_NOTFOUND)
                 return;
+
+            skip_first = true;
         }
 
         if (tinfo->last != 0)
@@ -264,51 +281,54 @@ table_verify_mirror(
 
     for (failures = 0, rows = range_begin; rows <= range_end; ++rows) {
         last_failures = failures;
-        switch (base->type) {
-        case FIX:
-            testutil_assert(base->type != FIX);
-            break;
-        case VAR:
-            base_ret = read_op(base_cursor, NEXT, NULL);
-            testutil_assert(base_ret == 0 || base_ret == WT_NOTFOUND);
-            if (base_ret == 0)
-                testutil_check(base_cursor->get_key(base_cursor, &base_keyno));
-            break;
-        case ROW:
-            base_ret = table_mirror_row_next(base, base_cursor, &base_key, &base_keyno);
-            break;
-        }
+        if (!skip_first) {
+            switch (base->type) {
+            case FIX:
+                testutil_assert(base->type != FIX);
+                break;
+            case VAR:
+                base_ret = read_op(base_cursor, NEXT, NULL);
+                testutil_assert(base_ret == 0 || base_ret == WT_NOTFOUND);
+                if (base_ret == 0)
+                    testutil_check(base_cursor->get_key(base_cursor, &base_keyno));
+                break;
+            case ROW:
+                base_ret = table_mirror_row_next(base, base_cursor, &base_key, &base_keyno);
+                break;
+            }
 
-        switch (table->type) {
-        case FIX:
-            /*
-             * RS and VLCS skip over removed entries, FLCS returns a value of 0. Skip to the next
-             * matching key number or the next nonzero value. If the latter comes early, we'll visit
-             * the mismatch logic below.
-             */
-            for (;;) {
+            switch (table->type) {
+            case FIX:
+                /*
+                 * RS and VLCS skip over removed entries, FLCS returns a value of 0. Skip to the
+                 * next matching key number or the next nonzero value. If the latter comes early,
+                 * we'll visit the mismatch logic below.
+                 */
+                for (;;) {
+                    table_ret = read_op(table_cursor, NEXT, NULL);
+                    testutil_assert(table_ret == 0 || table_ret == WT_NOTFOUND);
+                    if (table_ret != 0)
+                        break;
+                    testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
+                    if (table_keyno >= base_keyno || table_keyno > TV(RUNS_ROWS))
+                        break;
+                    testutil_check(table_cursor->get_value(table_cursor, &table_bitv));
+                    if (table_bitv != 0)
+                        break;
+                }
+                break;
+            case VAR:
                 table_ret = read_op(table_cursor, NEXT, NULL);
                 testutil_assert(table_ret == 0 || table_ret == WT_NOTFOUND);
-                if (table_ret != 0)
-                    break;
-                testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
-                if (table_keyno >= base_keyno || table_keyno > TV(RUNS_ROWS))
-                    break;
-                testutil_check(table_cursor->get_value(table_cursor, &table_bitv));
-                if (table_bitv != 0)
-                    break;
+                if (table_ret == 0)
+                    testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
+                break;
+            case ROW:
+                table_ret = table_mirror_row_next(table, table_cursor, &table_key, &table_keyno);
+                break;
             }
-            break;
-        case VAR:
-            table_ret = read_op(table_cursor, NEXT, NULL);
-            testutil_assert(table_ret == 0 || table_ret == WT_NOTFOUND);
-            if (table_ret == 0)
-                testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
-            break;
-        case ROW:
-            table_ret = table_mirror_row_next(table, table_cursor, &table_key, &table_keyno);
-            break;
-        }
+        } else
+            skip_first = false;
 
         /*
          * Tables run out of keys at different times as RS inserts between the initial table rows
