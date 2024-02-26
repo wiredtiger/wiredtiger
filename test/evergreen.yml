@@ -5581,6 +5581,7 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    posix_configure_flags: -DHAVE_NEOVERSE=1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
   tasks:

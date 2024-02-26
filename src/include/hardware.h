@@ -73,7 +73,7 @@
 #define WT_WRITE_ONCE(v, val) WT_RELEASE_WRITE_WITH_BARRIER(v, val)
 #endif
 
-#ifdef ENABLE_NEOVERSE
+#ifdef HAVE_NEOVERSE
 #define WT_ACQUIRE_READ(v, val)                                         \
     do {                                                                \
         if (sizeof((val)) == 1) {                                       \

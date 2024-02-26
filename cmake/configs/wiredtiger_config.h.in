@@ -36,9 +36,6 @@
 /* Define to 1 for diagnostic tests. */
 #cmakedefine HAVE_DIAGNOSTIC 1
 
-/* Define to 1 for have neoverse. */
-#cmakedefine ENABLE_NEOVERSE 0
-
 #cmakedefine HAVE_CALL_LOG 1
 
 /* Define to 1 for ref tracking */
@@ -145,6 +142,9 @@
 
 /* Define to 1 if you have the <memory.h> header file. */
 #cmakedefine HAVE_MEMORY_H 1
+
+/* Define to 0 for have neoverse. */
+#cmakedefine HAVE_NEOVERSE 0
 
 /* Define to 1 to disable any crc32 hardware support. */
 #cmakedefine HAVE_NO_CRC32_HARDWARE

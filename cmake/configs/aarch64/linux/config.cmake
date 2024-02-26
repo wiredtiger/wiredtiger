@@ -13,7 +13,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE" CACHE STRING "" FORCE)
 set(WT_BUFFER_ALIGNMENT_DEFAULT "4096" CACHE STRING "")
 
 # ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC instructions.
-if (ENABLE_NEOVERSE)
+if (HAVE_NEOVERSE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcpu=neoverse-v1" CACHE STRING "" FORCE)
 else ()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8-a+crc" CACHE STRING "" FORCE)
