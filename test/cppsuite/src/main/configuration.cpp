@@ -81,7 +81,7 @@ configuration::configuration(const std::string &test_config_name, const std::str
     _config = merge_default_config(default_config, config);
     logger::log_msg(LOG_INFO, "Full config: " + _config);
 
-    int ret = 
+    int ret =
       wiredtiger_config_parser_open(nullptr, _config.c_str(), _config.size(), &_config_parser);
     if (ret != 0)
         testutil_die(EINVAL, "failed to create configuration parser for provided config");
