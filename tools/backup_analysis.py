@@ -224,7 +224,6 @@ def print_summary():
     # Walk through all the types printing out final information per type.
     for n, t in zip(global_names, global_types):
         print(f'{n}: {files_changed[t]} of {files_global[t]} changed')
-        print(f'{n}: {files_changed[t]} of {files_global[t]} changed')
         if gran_blocks_global[t] != 0:
             if files_changed[t] == 1:
                 word = 'file'
