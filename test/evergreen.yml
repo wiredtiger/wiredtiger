@@ -3041,7 +3041,7 @@ tasks:
               ls -l coverage_report
               cat coverage_report/diff.txt
             fi
-            
+
             # Obtain the complexity metrics for the 'current' code
             # Install Metrix++, ensuring it is outside the 'src' directory
             git clone https://github.com/metrixplusplus/metrixplusplus metrixplusplus
@@ -3062,8 +3062,8 @@ tasks:
             else
               # Checkout the previous commit
               git checkout `git log --pretty=%P -n 1`
-            fi            
-            
+            fi
+
             cd src
             python3 "../../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
             python3 "../../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../../coverage_report/metrixpp_prev.csv
