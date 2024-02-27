@@ -27,6 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+# is_useful_line detects lines of code that have 'useful' code in them.
+# It is used to filter out displaying data, such as code coverage, for lines of code that don't do anything useful.
+# This is used because gcov, for example, sometimes coverage reports counts for lines that only contain '}'
 def is_useful_line(content: str) -> bool:
     useful_line = content != '\n' and content.strip() != '{' and content.strip() != '}'
     return useful_line
