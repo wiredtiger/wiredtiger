@@ -195,7 +195,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_NEOVERSE
+    HAVE_NEOVERSE
     "Configure whether to build for the neoverse architecture cpus"
     DEFAULT OFF
 )
