@@ -17,7 +17,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
  * __evict_exclusive_clear --
  *     Release exclusive access to a page.
  */
-static inline void
+static WT_INLINE void
 __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
 {
     WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page != NULL);
@@ -29,7 +29,7 @@ __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_
  * __evict_exclusive --
  *     Acquire exclusive access to a page.
  */
-static inline int
+static WT_INLINE int
 __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
@@ -494,12 +494,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
     case WT_PM_REC_REPLACE:
-        /*
-         * 1-for-1 page swap: Update the parent to reference the replacement page.
-         *
-         * Publish: a barrier to ensure the structure fields are set before the state change makes
-         * the page available to readers.
-         */
+        /* 1-for-1 page swap: Update the parent to reference the replacement page. */
         WT_ASSERT(session, mod->mod_replace.addr != NULL);
         WT_RET(__wt_calloc_one(session, &addr));
         *addr = mod->mod_replace;
@@ -628,12 +623,12 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             if (!WT_REF_CAS_STATE(session, child, WT_REF_DELETED, WT_REF_LOCKED))
                 return (__wt_set_return(session, EBUSY));
             /*
-             * Insert a read/read barrier so we're guaranteed the page_del state we read below comes
-             * after the locking operation on the ref state and therefore after the previous unlock
-             * of the ref. Otherwise we might read an inconsistent view of the page deletion info,
-             * and while many combinations are harmless and would just lead us to falsely refuse to
-             * evict, some (e.g. reading committed as true and a stale durable timestamp from before
-             * it was set by commit) are not.
+             * Insert a read/acquire barrier so we're guaranteed the page_del state we read below
+             * comes after the locking operation on the ref state and therefore after the previous
+             * unlock of the ref. Otherwise we might read an inconsistent view of the page deletion
+             * info, and while many combinations are harmless and would just lead us to falsely
+             * refuse to evict, some (e.g. reading committed as true and a stale durable timestamp
+             * from before it was set by commit) are not.
              *
              * Note that while ordinarily a lock acquire should have an acquire (read/any) barrier
              * after it, because we are only reading the write part is irrelevant and a read/read
@@ -641,7 +636,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
              *
              * FIXME-WT-9780: this and the CAS should be rolled into a WT_REF_TRYLOCK macro.
              */
-            WT_READ_BARRIER();
+            WT_ACQUIRE_BARRIER();
 
             /*
              * We can evict any truncation that's committed. However, restrictions in reconciliation

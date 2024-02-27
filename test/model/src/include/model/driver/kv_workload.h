@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DRIVER_KV_WORKLOAD_H
-#define MODEL_DRIVER_KV_WORKLOAD_H
+#pragma once
 
 #include <deque>
 #include <iostream>
@@ -125,6 +124,30 @@ operator<<(std::ostream &out, const commit_transaction &op)
 {
     out << "commit_transaction(" << op.txn_id << ", " << op.commit_timestamp << ", "
         << op.durable_timestamp << ")";
+    return out;
+}
+
+/*
+ * crash --
+ *     A representation of this workload operation.
+ */
+struct crash {
+
+    /*
+     * crash::crash --
+     *     Create the operation.
+     */
+    inline crash() {}
+};
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const crash &op)
+{
+    out << "crash()";
     return out;
 }
 
@@ -419,8 +442,8 @@ operator<<(std::ostream &out, const truncate &op)
  * any --
  *     Any workload operation.
  */
-using any = std::variant<begin_transaction, checkpoint, commit_transaction, create_table, insert,
-  prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
+using any = std::variant<begin_transaction, checkpoint, commit_transaction, crash, create_table,
+  insert, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
   set_commit_timestamp, set_stable_timestamp, truncate>;
 
 /*
@@ -474,6 +497,36 @@ public:
     }
 
     /*
+     * kv_workload_sequence::size --
+     *     Get the length of the sequence.
+     */
+    inline size_t
+    size() const noexcept
+    {
+        return _operations.size();
+    }
+
+    /*
+     * kv_workload_sequence::operator[] --
+     *     Get an operation in the sequence.
+     */
+    inline operation::any &
+    operator[](size_t index)
+    {
+        return _operations[index];
+    }
+
+    /*
+     * kv_workload_sequence::operator[] --
+     *     Get an operation in the sequence.
+     */
+    inline const operation::any &
+    operator[](size_t index) const
+    {
+        return _operations[index];
+    }
+
+    /*
      * kv_workload::run --
      *     Run the workload in the model.
      */
@@ -483,7 +536,8 @@ public:
      * kv_workload::run_in_wiredtiger --
      *     Run the workload in WiredTiger.
      */
-    void run_in_wiredtiger(const char *home, const char *connection_config) const;
+    void run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
+      const char *table_config = nullptr) const;
 
 private:
     std::deque<operation::any> _operations;
@@ -513,4 +567,3 @@ operator<<(std::ostream &out, const std::shared_ptr<kv_workload> &workload)
 }
 
 } /* namespace model */
-#endif
