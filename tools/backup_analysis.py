@@ -35,15 +35,12 @@ total_bytes_global = 0
 granularity = 0
 pct20 = granularity // 5
 pct80 = pct20 * 4
-# For now just have replicated collections and indexes and everything else. Other considerations
-# for more detailed types could be:
-# * a type just for the 'oplog'
-# * a type for 'local' collections and indexes (together, probably not enough to be separated)
-# * a type for 'system' tables (i.e. anything not WT-owned and not beginning with collection or index)
-# * a type for 'wt' tables (i.e. anything WT-owned, so the history store)
-# This should be 1:1 between the names and types.
-global_names = ['Replicated Collections', 'Replicated Indexes', 'Other tables']
-global_types = ['coll', 'index', 'other']
+
+# There should be 1:1 matching between the names and types.
+global_names = ['Replicated Collections', 'Replicated Indexes', 'OpLog', 'Local tables', 'System tables']
+global_types = ['coll', 'index', 'oplog', 'local', 'system']
+
+assert(len(global_names) == len(global_types))
 
 blocks_global = dict()
 bytes_global = dict()
@@ -61,6 +58,47 @@ for t in global_types:
     gran_blocks_global[t] = 0
     pct20_global[t] = 0
     pct80_global[t] = 0
+
+def get_metadata(mydir, filename):
+    backup_file = mydir + "/WiredTiger.backup"
+    uri_file = "file:" + filename
+    with open(backup_file) as backup:
+        for filekey in backup:
+            # Read the metadata for whatever key we're on. We want to read the file in pairs.
+            filemeta = next(backup)
+            # Check for the URI in the key read. Don't use == because the line contains a newline
+            # which negates the exact match and this is good enough.
+            if uri_file in filekey:
+                return filemeta
+    return None
+
+# This function is where all of the fragile and brittle knowledge of how MongoDB uses tables
+# is kept to analyze the state of the system.
+def compute_type(filename, filemeta):
+    # Figure out the type of file it is based on the name and metadata.
+    # For collections and indexes, if logging is disabled, then they are replicated.
+    #   if logging is enabled on an index, it is a local table.
+    #   if logging is enabled on a collection, it is a local table unless it has 'oplog' in its
+    #   app_private string. There should only be one oplog in a system.
+    # Any other file name is a system table.
+    disabled = 'log=(enabled=false)'
+    is_oplog = 'oplogKeyExtraction'
+    if 'collection' in filename:
+        if disabled in filemeta:
+            type = 'coll'
+        elif is_oplog in filemeta:
+            type = 'oplog'
+        else:
+            type = 'local'
+    elif 'index' in filename:
+        if disabled in filemeta:
+            type = 'index'
+        else:
+            type = 'local'
+    else:
+        type = 'system'
+    assert(type in global_types)
+    return type
 
 def usage_exit():
     print('Usage: backup_analysis.py dir1 dir2 [granularity]')
@@ -105,23 +143,11 @@ def compare_file(dir1, dir2, filename, cmp_size):
     f2_size = os.stat(os.path.join(dir2, filename)).st_size
     min_size = min(f1_size, f2_size)
     #
-    # Figure out what kind of table this file is. For now just go off the file name.
-    # FIXME-WT-12396 when we get to parsing the backup file we want to send in the metadata string
-    # here and look for "log=(enabled=false)" to know whether it is a replicated collection. Any
-    # collection without that (i.e. logging enabled, the default) should go under other at that time.
+    # Figure out what kind of table this file is. Use the first directory for basis.
     #
-    # FIXME-WT-12396 when we parse the backup file, we can know which table is the oplog by looking
-    # for a file:collection table that has app_metadata with the string "oplog" in it (the whole
-    # string is "oplogKeyExtractionVersion" but "oplog" is likely least brittle in case the MongoDB
-    # ever changes the name. When that happens we can consider adding a special 'oplog' type to the
-    # set of counts we keep track of.
-    #
-    if "collection" in filename:
-        count_type = 'coll'
-    elif "index" in filename:
-        count_type = 'index'
-    else:
-        count_type = 'other'
+    metadata = get_metadata(dir1, filename)
+    assert(metadata != None)
+    count_type = compute_type(filename, metadata)
     files_global[count_type] += 1
 
     # Initialize all of our counters per file.
@@ -249,7 +275,7 @@ def compare_backups(dir1, dir2):
     for file in files2.difference(files1):
         print(file + ": created between backups")
     #print(common)
-    for f in common:
+    for f in sorted(common):
         # For now we're only concerned with changed blocks between backups.
         # So only compare the minimum size both files have in common.
         # FIXME: More could be done here to report extra blocks added/removed.
