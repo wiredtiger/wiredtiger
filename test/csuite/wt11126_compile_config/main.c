@@ -54,8 +54,8 @@
 
 /* Description of each variant. */
 static const char *descriptions[N_VARIANTS] = {
-  "baseline, use sprintf to create config each time",
-  "each call chooses a premade configuration string",
+  "baseline, formats a configuration string each time",
+  "each call chooses a pre-made configuration string",
   "each call uses a precompiled string, and uses bindings",
   "each call chooses a precompiled configuration string",
   "each call has a null configuration",
@@ -271,7 +271,7 @@ do_config_run(TEST_OPTS *opts, int variant, const char *compiled, const char **c
         case 4:
             /*
              * We always have a null configuration, so we are not setting the "right" parameters.
-             * This one cannot be checked, it is only for comparison benchmarking.
+             * This one cannot be checked, it is only for comparison benchmarks.
              */
             begin_transaction_null(session);
             check = false;
@@ -345,7 +345,7 @@ main(int argc, char *argv[])
     base_ns = ns = nsecs[0] / (N_CALLS * N_RUNS);
     for (variant = 0; variant < N_VARIANTS; ++variant) {
         ns = nsecs[variant] / (N_CALLS * N_RUNS);
-        printf("variant %d: %s, ns per begin/rollback pair = %" PRIu64 ", vs baseline = %f\n",
+        printf("variant %d: %s, nsec per begin/rollback pair = %" PRIu64 ", vs baseline = %f\n",
           variant, descriptions[variant], ns, ((double)base_ns) / ns);
     }
 
