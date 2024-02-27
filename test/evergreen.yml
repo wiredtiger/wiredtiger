@@ -3044,7 +3044,7 @@ tasks:
 
             # Obtain the complexity metrics for the 'current' code
             # Install Metrix++, ensuring it is outside the 'src' directory
-            git clone https://github.com/metrixplusplus/metrixplusplus metrixplusplus
+            source test/evergreen/download_metrixpp.sh
 
             # We only want complexity measures for the 'src' directory
             cd src
@@ -3997,7 +3997,7 @@ tasks:
             set -o verbose
 
             # Install Metrix++, ensuring it is outside the 'src' directory
-            git clone https://github.com/metrixplusplus/metrixplusplus metrixplusplus
+            source test/evergreen/download_metrixpp.sh
 
             mkdir -p code_statistics_report
 
