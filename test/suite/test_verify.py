@@ -166,14 +166,24 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             for i in range(0, 4096):
                 f.write(struct.pack('B', 0))
 
-        time.sleep(3)
-
         # open_and_position closed the session/connection, reopen them now.
         self.conn = self.setUpConnectionOpen(".")
         self.session = self.setUpSessionOpen(self.conn)
+    
+        # Ensure the session verify API handles corrupted pages correctly with pre-fetch.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
             "/WT_SESSION.verify/")
+
+        # Turn off pre-fetching for the session when using wt verify, as pre-fetch will not
+        # report and output read failures for pages and will only report and output block
+        # checksum errors.
+        self.close_conn()
+        self.conn_config = "prefetch=(available=false)"
+        self.conn = self.setUpConnectionOpen(".")
+        self.session_config = "prefetch=(enabled=false)"
+        self.session = self.setUpSessionOpen(self.conn)
+
         self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
@@ -199,7 +209,16 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
-        time.sleep(3)
+
+        # open_and_position closed the session/connection, reopen them now.
+        # Turn off pre-fetching for the session when using wt verify, as pre-fetch will not
+        # report and output read failures for pages and will only report and output block
+        # checksum errors.
+        self.conn_config = "prefetch=(available=false)"
+        self.conn = self.setUpConnectionOpen(".")
+        self.session_config = "prefetch=(enabled=false)"
+        self.session = self.setUpSessionOpen(self.conn)
+
         self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
@@ -234,16 +253,26 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
 
-        time.sleep(3)
-
         # open_and_position closed the session/connection, reopen them now.
         self.conn = self.setUpConnectionOpen(".")
         self.session = self.setUpSessionOpen(self.conn)
-        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
-            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+
+        # Ensure the session verify API handles corrupted pages correctly with pre-fetch.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
             "/WT_SESSION.verify/")
+
+        # Turn off pre-fetching for the session when using wt verify, as pre-fetch will not
+        # report and output read failures for pages and will only report and output block
+        # checksum errors.
+        self.close_conn()
+        self.conn_config = "prefetch=(available=false)"
+        self.conn = self.setUpConnectionOpen(".")
+        self.session_config = "prefetch=(enabled=false)"
+        self.session = self.setUpSessionOpen(self.conn)
+
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
 
         self.assertEqual(self.count_file_contains("stderr.txt",
             "calculated block checksum of"), 1)
@@ -261,16 +290,31 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 4096):
                 f.write(struct.pack('B', 0))
-        time.sleep(3)
-        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
-            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
-        self.assertEqual(self.count_file_contains("dump_corrupt.out",
-            "Read failure while accessing a page from the "), 1)
+
+        # open_and_position closed the session/connection, reopen them now.
+        self.conn = self.setUpConnectionOpen(".")
+        self.session = self.setUpSessionOpen(self.conn)
+
+        # Ensure wt verify correctly reports block checksum errors with pre-fetch.
         self.runWt(["verify", "-c", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
         self.check_non_empty_file("verifyerr.out")
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "calculated block checksum of"), 1)
+
+        # Turn off pre-fetching for the session when using wt verify, as pre-fetch will not
+        # report and output read failures for pages and will only report and output block
+        # checksum errors.
+        self.close_conn()
+        self.conn_config = "prefetch=(available=false)"
+        self.conn = self.setUpConnectionOpen(".")
+        self.session_config = "prefetch=(enabled=false)"
+        self.session = self.setUpSessionOpen(self.conn)
+
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
 
     def test_verify_process_25pct_junk(self):
         """
@@ -283,16 +327,30 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 25) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
-        time.sleep(3)
-        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
-            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
-        self.assertEqual(self.count_file_contains("dump_corrupt.out",
-            "Read failure while accessing a page from the "), 1)
+
+        # open_and_position closed the session/connection, reopen them now.
+        self.conn = self.setUpConnectionOpen(".")
+        self.session = self.setUpSessionOpen(self.conn)
+
+        # Ensure wt verify correctly reports block checksum errors with pre-fetch.
         self.runWt(["verify", "-c", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
         self.check_non_empty_file("verifyerr.out")
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "calculated block checksum of"), 1)
+
+        # Turn off pre-fetching for the session when using wt verify, as pre-fetch will not
+        # report and output read failures for pages and will only report and output block
+        # checksum errors.
+        self.close_conn()
+        self.conn_config = "prefetch=(available=false)"
+        self.conn = self.setUpConnectionOpen(".")
+        self.session_config = "prefetch=(enabled=false)"
+        self.session = self.setUpSessionOpen(self.conn)
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
 
     def test_verify_process_read_corrupt_pages(self):
         """
@@ -312,17 +370,14 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 80) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
-        time.sleep(3)
+
+        # open_and_position closed the session/connection, reopen them now.
+        self.conn = self.setUpConnectionOpen(".")
+        self.session = self.setUpSessionOpen(self.conn)
+
         self.runWt(["verify", "-c", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
-
-        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
-            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
-        self.assertEqual(self.count_file_contains("dump_corrupt.out",
-            "Read failure while accessing a page from the "), 1)
         self.check_non_empty_file("verifyerr.out")
-
-        time.sleep(3)
 
         # It is expected that more than one checksum error is logged given
         # that we have corrupted the table in multiple locations, but we may
@@ -331,6 +386,19 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # a child of another page that we overwrite.
         self.assertGreater(self.count_file_contains("verifyerr.out",
             "calculated block checksum of"), 1)
+
+        # Turn off pre-fetching for the session when using wt verify, as pre-fetch will not
+        # report and output read failures for pages and will only report and output block
+        # checksum errors.
+        self.close_conn()
+        self.conn_config = "prefetch=(available=false)"
+        self.conn = self.setUpConnectionOpen(".")
+        self.session_config = "prefetch=(enabled=false)"
+        self.session = self.setUpSessionOpen(self.conn)
+        self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
+            outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
+        self.assertEqual(self.count_file_contains("dump_corrupt.out",
+            "Read failure while accessing a page from the "), 1)
 
     def test_verify_process_truncated(self):
         """
@@ -375,6 +443,12 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             self.populate(self.tablename + str(i))
         self.session.checkpoint()
 
+        self.close_conn()
+        self.conn_config = "prefetch=(available=false)"
+        self.conn = self.setUpConnectionOpen(".")
+        self.session_config = "prefetch=(enabled=false)"
+        self.session = self.setUpSessionOpen(self.conn)
+
         self.runWt(["verify"])
 
         # Purposely corrupt the last two tables. Test that verifying the database
@@ -383,8 +457,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             with self.open_and_position(self.tablename + str(i), 75) as f:
                 for i in range(0, 4096):
                     f.write(struct.pack('B', 0))
-
-        time.sleep(3)
 
         self.runWt(["verify", "-a"], errfilename="verifyerr.out", failure=True)
         self.assertEqual(self.count_file_contains("verifyerr.out",
