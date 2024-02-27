@@ -123,7 +123,7 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
     M_Z(rnd) =
       (uint32_t)ts.tv_nsec ^ (uint32_t)WT_LEFT_CIRCULAR_SHIFT32(ts.tv_sec, 27) ^ DEFAULT_SEED_Z;
 /*
- * Window's clock does not have a high enough resolution between each tick cycle. Perform an extra
+ * Some system clocks do not have a high enough resolution between each tick cycle. Perform an extra
  * xor against the machine's timestamp counter.
  */
 #ifdef _WIN32
