@@ -127,7 +127,7 @@ parse(const char *str)
           std::to_string(max) + " arguments");
 
     /* Now actually parse the operation. */
-    /* FIXME: We currently only support unsigned integer keys. */
+    /* FIXME: We currently only support unsigned numbers for keys and values. */
     if (name == "begin_transaction") {
         CHECK_NUM_ARGS(1);
         return begin_transaction(parse_uint64(args[0]));

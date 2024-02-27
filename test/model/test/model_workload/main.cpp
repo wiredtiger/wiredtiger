@@ -309,7 +309,7 @@ test_workload_parse(void)
 {
     model::kv_workload workload;
 
-    /* The workload parser currently supports only unsigned integers as key and values. */
+    /* The workload parser currently supports only unsigned numbers for keys and values. */
     workload << model::operation::create_table(k_table1_id, "table1", "Q", "Q")
              << model::operation::begin_transaction(1) << model::operation::begin_transaction(2)
              << model::operation::insert(
