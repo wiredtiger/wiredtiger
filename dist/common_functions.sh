@@ -42,7 +42,7 @@ while len(pids):
 }
 
 # Do normal cleanup on exit or abort.
-setup_trap() { trap 'kill `allchildpids` 2>/dev/null; rm -f $t*; '"$@" 0 1 2 3 13 15; }
+setup_trap() { trap 'kill `allchildpids` 2>/dev/null; [[ -n "$t" ]] && rm -f $t*; '"$@" 0 1 2 3 13 15; }
 
 # Absolute path to the `dist/` directory.
 DIST_DIR="$(realpath "$(dirname -- "${BASH_SOURCE[0]}")")"
