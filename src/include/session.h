@@ -55,6 +55,7 @@ struct __wt_prefetch {
     WT_PAGE *prefetch_prev_ref_home;
     uint64_t prefetch_disk_read_count; /* Sequential cache requests that caused a leaf read */
     uint64_t prefetch_skipped_with_parent;
+    bool verify_read_corrupt;
 };
 
 /* Get the connection implementation for a session */

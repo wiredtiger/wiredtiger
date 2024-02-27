@@ -169,7 +169,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # open_and_position closed the session/connection, reopen them now.
         self.conn = self.setUpConnectionOpen(".")
         self.session = self.setUpSessionOpen(self.conn)
-    
+
         # Ensure the session verify API handles corrupted pages correctly with pre-fetch.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
@@ -179,7 +179,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # report and output read failures for pages and will only report and output block
         # checksum errors.
         self.close_conn()
-        self.conn_config = "prefetch=(available=false)"
+        self.conn_config = "prefetch=(available=false,default=false)"
         self.conn = self.setUpConnectionOpen(".")
         self.session_config = "prefetch=(enabled=false)"
         self.session = self.setUpSessionOpen(self.conn)
@@ -214,7 +214,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # Turn off pre-fetching for the session when using wt verify, as pre-fetch will not
         # report and output read failures for pages and will only report and output block
         # checksum errors.
-        self.conn_config = "prefetch=(available=false)"
+        self.close_conn()
+        self.conn_config = "prefetch=(available=false,default=false)"
         self.conn = self.setUpConnectionOpen(".")
         self.session_config = "prefetch=(enabled=false)"
         self.session = self.setUpSessionOpen(self.conn)
@@ -266,7 +267,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # report and output read failures for pages and will only report and output block
         # checksum errors.
         self.close_conn()
-        self.conn_config = "prefetch=(available=false)"
+        self.conn_config = "prefetch=(available=false,default=false)"
         self.conn = self.setUpConnectionOpen(".")
         self.session_config = "prefetch=(enabled=false)"
         self.session = self.setUpSessionOpen(self.conn)
@@ -306,7 +307,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # report and output read failures for pages and will only report and output block
         # checksum errors.
         self.close_conn()
-        self.conn_config = "prefetch=(available=false)"
+        self.conn_config = "prefetch=(available=false,default=false)"
         self.conn = self.setUpConnectionOpen(".")
         self.session_config = "prefetch=(enabled=false)"
         self.session = self.setUpSessionOpen(self.conn)
@@ -343,7 +344,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # report and output read failures for pages and will only report and output block
         # checksum errors.
         self.close_conn()
-        self.conn_config = "prefetch=(available=false)"
+        self.conn_config = "prefetch=(available=false,default=false)"
         self.conn = self.setUpConnectionOpen(".")
         self.session_config = "prefetch=(enabled=false)"
         self.session = self.setUpSessionOpen(self.conn)
@@ -391,7 +392,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # report and output read failures for pages and will only report and output block
         # checksum errors.
         self.close_conn()
-        self.conn_config = "prefetch=(available=false)"
+        self.conn_config = "prefetch=(available=false,default=false)"
         self.conn = self.setUpConnectionOpen(".")
         self.session_config = "prefetch=(enabled=false)"
         self.session = self.setUpSessionOpen(self.conn)
@@ -444,7 +445,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
 
         self.close_conn()
-        self.conn_config = "prefetch=(available=false)"
+        self.conn_config = "prefetch=(available=false,default=false)"
         self.conn = self.setUpConnectionOpen(".")
         self.session_config = "prefetch=(enabled=false)"
         self.session = self.setUpSessionOpen(self.conn)

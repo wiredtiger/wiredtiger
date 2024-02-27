@@ -449,8 +449,19 @@ __verify_tree(
      * utilizing the regular tree walk function. Check for potential pages to pre-fetch here as
      * well.
      */
-    if (__wt_session_prefetch_check(session, ref))
-        WT_RET(__wt_btree_prefetch(session, ref));
+    if (__wt_session_prefetch_check(session, ref)) {
+        if (vs->read_corrupt) {
+            session->pf.verify_read_corrupt = true;
+            ret = __wt_btree_prefetch(session, ref);
+            if (ret != 0) {
+                if (vs->verify_err == 0)
+                    vs->verify_err = ret;
+                ret = 0;
+            }
+            WT_RET(ret);
+        } else
+            WT_RET(__wt_btree_prefetch(session, ref));
+    }
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));

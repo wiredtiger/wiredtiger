@@ -136,6 +136,13 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
 err:
     __wt_scr_free(session, &tmp);
+    if (ret != 0) {
+        /* If doing verify and we want to continue verifying the pages, ignore the error. */
+        if (session->pf.verify_read_corrupt)
+            ret = 0;
+        else
+            WT_RET_PANIC(session, ret, "prefetch thread error");
+    }
     return (ret);
 }
 
