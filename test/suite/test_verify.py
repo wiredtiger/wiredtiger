@@ -384,6 +384,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
                 for i in range(0, 4096):
                     f.write(struct.pack('B', 0))
 
+        time.sleep(3)
+
         self.runWt(["verify", "-a"], errfilename="verifyerr.out", failure=True)
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "table:test_verify.a1: WT_ERROR"), 1)
