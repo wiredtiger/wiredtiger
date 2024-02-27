@@ -73,18 +73,30 @@
 #define WT_WRITE_ONCE(v, val) WT_RELEASE_WRITE_WITH_BARRIER(v, val)
 #endif
 
+/*
+ * The below assembly implements the read-acquire semantic. The if branches get removed at compile
+ * time as the sizeof instruction evaluates at compile time.
+ *
+ * Depending on the size of the given type we choose the appropriate ldapr variant, additionally the
+ * W register variants are used if possible which map to the lower word of the associated X
+ * register.
+ *
+ * Finally the "Q" constraint is used for the given input operand, this instructs the compiler to
+ * generate offset free ldapr instructions. ldapr instructions, prior to version RCpc 3, don't
+ * support offsets.
+ */
 #ifdef HAVE_NEOVERSE
-#define WT_ACQUIRE_READ(v, val)                                         \
-    do {                                                                \
-        if (sizeof((val)) == 1) {                                       \
-            asm volatile inline("ldaprb %w0, %1" : "=r"(v) : "Q"(val)); \
-        } else if (sizeof((val)) == 2) {                                \
-            asm volatile inline("ldaprh %w0, %1" : "=r"(v) : "Q"(val)); \
-        } else if (sizeof((val)) == 4) {                                \
-            asm volatile inline("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
-        } else if (sizeof((val)) == 8) {                                \
-            asm volatile inline("ldapr %0, %1" : "=r"(v) : "Q"(val));   \
-        }                                                               \
+#define WT_ACQUIRE_READ(v, val)                                      \
+    do {                                                             \
+        if (sizeof((val)) == 1) {                                    \
+            __asm__ volatile("ldaprb %w0, %1" : "=r"(v) : "Q"(val)); \
+        } else if (sizeof((val)) == 2) {                             \
+            __asm__ volatile("ldaprh %w0, %1" : "=r"(v) : "Q"(val)); \
+        } else if (sizeof((val)) == 4) {                             \
+            __asm__ volatile("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
+        } else if (sizeof((val)) == 8) {                             \
+            __asm__ volatile("ldapr %0, %1" : "=r"(v) : "Q"(val));   \
+        }                                                            \
     } while (0)
 #else
 #define WT_ACQUIRE_READ(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)

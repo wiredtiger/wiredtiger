@@ -12,12 +12,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE" CACHE STRING "" FORCE)
 # Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
 set(WT_BUFFER_ALIGNMENT_DEFAULT "4096" CACHE STRING "")
 
-# ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC instructions.
-if (HAVE_NEOVERSE)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcpu=neoverse-v1" CACHE STRING "" FORCE)
-else ()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8-a+crc" CACHE STRING "" FORCE)
-endif()
+# ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC and RCpc instructions.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8.3-a+crc" CACHE STRING "" FORCE)
 
 check_c_compiler_flag("-moutline-atomics" has_moutline_atomics)
 
