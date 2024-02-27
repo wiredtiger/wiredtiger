@@ -5538,10 +5538,10 @@ buildvariants:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
+  # Using medium distro for a few tests here as more memory is required. See WT-12378.
   tasks:
     - name: compile
     - name: make-check-test
-      # Using medium ditro as more memory is required. See WT-12378.
       distros: amazon2-arm64-medium
     - name: unit-test
     - name: fops
@@ -5553,11 +5553,9 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-      # Using medium ditro as more memory is required. See WT-12378.
       distros: amazon2-arm64-medium
     - name: wtperf-test
     - name: long-test
-      # Using medium ditro as more memory is required. See WT-12378.
       distros: amazon2-arm64-medium
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
@@ -5781,7 +5779,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-      # Using medium ditro as more memory is required. See WT-12378.
+      # Using medium distro as more memory is required. See WT-12378.
       distros: amazon2-arm64-medium
     - name: unit-test
     - name: unit-test-extra-long
