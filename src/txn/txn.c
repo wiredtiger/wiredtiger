@@ -1722,7 +1722,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* Add a 2 second wait to simulate commit transaction slowness. */
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
-    __wt_timing_stress_sleep_for_secs(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
+    __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1855,7 +1855,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * the total mod_count.
                  */
                 if ((i * 36) % txn->mod_count == 0)
-                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1);
+                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1, NULL);
 
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
