@@ -38,7 +38,7 @@
 |Reconciliation|Overflow Keys|[test_bug004.py](../test/suite/test_bug004.py)
 |Recovery||[test_txn04.py](../test/suite/test_txn04.py)
 |Recovery|Log Files|[test_txn19.py](../test/suite/test_txn19.py)
-|Rollback To Stable||[test_checkpoint_snapshot03.py](../test/suite/test_checkpoint_snapshot03.py), [test_rollback_to_stable16.py](../test/suite/test_rollback_to_stable16.py), [test_rollback_to_stable18.py](../test/suite/test_rollback_to_stable18.py)
+|Rollback To Stable||[test_checkpoint_snapshot03.py](../test/suite/test_checkpoint_snapshot03.py), [test_checkpoint_snapshot07.py](../test/suite/test_checkpoint_snapshot07.py), [test_rollback_to_stable16.py](../test/suite/test_rollback_to_stable16.py), [test_rollback_to_stable18.py](../test/suite/test_rollback_to_stable18.py)
 |Salvage|Prepare|[test_prepare_hs03.py](../test/suite/test_prepare_hs03.py)
 |Schema Api||[test_schema03.py](../test/suite/test_schema03.py)
 |Session Api|Reconfigure|[test_reconfig04.py](../test/suite/test_reconfig04.py)
