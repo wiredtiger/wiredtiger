@@ -290,7 +290,7 @@ def generate_changed_function_table(changed_functions: dict) -> list:
             prev_complexity = -1
             code_colour = get_complexity_html_colour(complexity)
             complexity_string = value_as_centred_text(code_colour, complexity)
-            prev_complexity_string = centred_text("(new)")
+            prev_complexity_string = ""
             complexity_change_string = ""
             if 'prev_complexity' in function_info:
                 prev_complexity = int(function_info['prev_complexity'])
@@ -313,7 +313,7 @@ def generate_changed_function_table(changed_functions: dict) -> list:
 
             lines_in_function = int(function_info['lines_of_code'])
             lines_change_string = ""
-            prev_lines_in_function_string = "(new)"
+            prev_lines_in_function_string = ""
             if 'prev_lines_of_code' in function_info:
                 prev_lines_in_function = int(function_info['prev_lines_of_code'])
                 lines_change_string = change_string(old_value=prev_lines_in_function, new_value=lines_in_function)
