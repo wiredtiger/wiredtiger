@@ -196,13 +196,14 @@ def get_function_coverage(function_file: str, start_line_number: int, end_line_n
         if file_data['file'] == function_file:
             for line_info in file_data['lines']:
                 if start_line_number <= line_info['line_number'] <= end_line_number:
-                    num_lines_in_function += 1
-                    if int(line_info['count']) > 0:
-                        num_covered_lines_in_function += 1
-                    for branch_info in line_info['branches']:
-                        num_branches_in_function += 1
-                        if int(branch_info['count']) > 0:
-                            num_covered_branches_in_function += 1
+                    if not line_info['gcovr/noncode']:
+                        num_lines_in_function += 1
+                        if int(line_info['count']) > 0:
+                            num_covered_lines_in_function += 1
+                        for branch_info in line_info['branches']:
+                            num_branches_in_function += 1
+                            if int(branch_info['count']) > 0:
+                                num_covered_branches_in_function += 1
 
     function_coverage = {'num_lines_in_function': num_lines_in_function,
                          'num_covered_lines_in_function': num_covered_lines_in_function,
