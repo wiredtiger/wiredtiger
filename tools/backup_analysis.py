@@ -124,7 +124,6 @@ def compare_file(dir1, dir2, filename, cmp_size):
         count_type = 'other'
     files_global[count_type] += 1
 
-    print(f'COMPARE FILE {filename}: Granularity {granularity} 20% {pct20} 80% {pct80}')
     # Initialize all of our counters per file.
     bytes_gran = 0
     gran_blocks = 0
@@ -272,7 +271,6 @@ def backup_analysis(args):
     pct20 = granularity // 5
     pct80 = pct20 * 4
 
-    print(f'BACKUP: Granularity {granularity} 20% {pct20} 80% {pct80}')
     if dir1 == dir2:
         print("Same directory specified. " + dir1)
         usage_exit()
