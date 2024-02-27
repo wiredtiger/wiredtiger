@@ -436,14 +436,6 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report.append("<body>\n")
     report.append("<h1 style=\"text-align: center\">Code Change Report</h1>\n")
 
-    report.extend(generate_summary_table(code_change_info=code_change_info))
-    report.append("<p>")
-
-    report.extend(generate_changed_function_table(changed_functions=changed_functions))
-
-    report.append("<h2 style=\"text-align: center\">Code Change Details</h2>\n")
-    report.append(centred_text("Only files in the 'src' directory are shown below<p>\n"))
-
     # Create table with a list of changed files
     report.append("<table class=\"center\">\n")
     report.append("  <tr>\n")
@@ -460,6 +452,14 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
         report.append("  </td></tr>\n")
     report.append("</table>\n")
     report.append("<p>")
+
+    report.append("<h2 style=\"text-align: center\">Code Change Details</h2>\n")
+    report.append(centred_text("Only data on files in the 'src' directory is shown below<p>\n"))
+
+    report.extend(generate_summary_table(code_change_info=code_change_info))
+    report.append("<p>")
+
+    report.extend(generate_changed_function_table(changed_functions=changed_functions))
 
     # Create per-file info
     for file in change_info_list:
