@@ -301,6 +301,43 @@ test_workload_generator(void)
 }
 
 /*
+ * test_workload_parse --
+ *     Test the workload parser.
+ */
+static void
+test_workload_parse(void)
+{
+    model::kv_workload workload;
+
+    /* The workload parser currently supports only unsigned integers as key and values. */
+    workload
+      << model::operation::create_table(k_table1_id, "table1", "Q", "Q")
+      << model::operation::begin_transaction(1) << model::operation::begin_transaction(2)
+      << model::operation::insert(k_table1_id, 1, model::data_value(1ULL), model::data_value(1ULL))
+      << model::operation::insert(k_table1_id, 2, model::data_value(2ULL), model::data_value(2ULL))
+      << model::operation::prepare_transaction(1, 10)
+      << model::operation::prepare_transaction(2, 15)
+      << model::operation::commit_transaction(1, 20, 21)
+      << model::operation::commit_transaction(2, 25, 26)
+      << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
+      << model::operation::remove(k_table1_id, 1, model::data_value(1ULL))
+      << model::operation::checkpoint() << model::operation::crash()
+      << model::operation::begin_transaction(1)
+      << model::operation::insert(k_table1_id, 1, model::data_value(3ULL), model::data_value(3ULL))
+      << model::operation::prepare_transaction(1, 23)
+      << model::operation::commit_transaction(1, 24, 25)
+      << model::operation::set_stable_timestamp(25);
+
+    /* Convert to string, parse, and compare each operation. */
+    for (size_t i = 0; i < workload.size(); i++) {
+        std::stringstream ss;
+        ss << workload[i];
+        model::operation::any op = model::operation::parse(ss.str());
+        testutil_assert(workload[i] == op);
+    }
+}
+
+/*
  * usage --
  *     Print usage help for the program.
  */
@@ -355,6 +392,7 @@ main(int argc, char *argv[])
         test_workload_restart();
         test_workload_crash();
         test_workload_generator();
+        test_workload_parse();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;
         ret = EXIT_FAILURE;
