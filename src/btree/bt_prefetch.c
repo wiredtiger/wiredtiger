@@ -76,7 +76,6 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
         if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
           next_ref->page_del == NULL && !F_ISSET(next_ref, WT_REF_FLAG_PREFETCH)) {
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
-            /* Increment concurrent eviction block stat here? */
             if (ret == EBUSY) {
                 ret = 0;
                 break;

@@ -95,6 +95,10 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         TAILQ_REMOVE(&conn->pfqh, pe, q);
         --conn->prefetch_queue_count;
 
+        /*
+         * We increment this while in the prefetch lock as the thread reading from the queue expects
+         * that behavior.
+         */
         (void)__wt_atomic_addv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
@@ -114,8 +118,8 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
 
         /*
-         * It probably isn't strictly necessary to re-acquire the lock to reset the flag, but other
-         * flag accesses do need to lock, so it's better to be consistent.
+         * We don't take the prefetch lock here as the lock protects the queue, not the
+         * prefetch_busy flag.
          */
         F_CLR(pe->ref, WT_REF_FLAG_PREFETCH);
         (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
@@ -183,9 +187,8 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
 
     __wt_spin_lock(session, &conn->prefetch_lock);
     /*
-     * In order for this to be set the thread fetching the pages must have taken and released the
-     * same lock we just took. Therefore if we can take this lock either the value has been set or
-     * hasn't.
+     * We guarantee that no dhandle enters the prefetch busy state while we wait. This is because we
+     * hold the lock while draining, and the lock is required when taking from the queue.
      */
     if (dhandle != NULL)
         while (((WT_BTREE *)dhandle->handle)->prefetch_busy > 0)
@@ -204,7 +207,8 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
     if (all)
         WT_ASSERT(session, conn->prefetch_queue_count == 0);
 
-    /* Give up the lock, consumers of the queue shouldn't see pages relevant to them. Additionally
+    /*
+     * Give up the lock, consumers of the queue shouldn't see pages relevant to them. Additionally
      * new pages cannot be queued as the btree->evict_disable flag should prevent that. It is
      * important that the flag is checked after locking the prefetch queue lock. If not then threads
      * may not note that the tree is closed for prefetch.
