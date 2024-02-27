@@ -258,8 +258,10 @@ main(int argc, char *argv[])
             func = util_upgrade;
         break;
     case 'v':
-        if (strcmp(command, "verify") == 0)
+        if (strcmp(command, "verify") == 0) {
             func = util_verify;
+            config = "prefetch=(available=false,default=false)";
+        }
         break;
     case 'w':
         if (strcmp(command, "write") == 0)
