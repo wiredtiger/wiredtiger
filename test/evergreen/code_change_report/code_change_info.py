@@ -4,6 +4,7 @@ import json
 from pygit2 import discover_repository, Repository, Diff
 from pygit2 import GIT_SORT_NONE
 from change_info import ChangeInfo
+from code_change_helpers import is_useful_line
 
 
 # This function reads a gcovr json file into a dict and returns it
@@ -18,7 +19,6 @@ def read_complexity_data(complexity_data_path: str) -> list:
     with open(complexity_data_path) as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            # row['file'] = row['file'].replace("./", "")
             complexity_data.append(row)
     return complexity_data
 
@@ -263,9 +263,9 @@ def create_report_info(change_list: dict,
                     line_info['branches'] = branch_coverage
                     if line.old_lineno < 0:
                         # Ihe line was changed, so update the counts for the overall change
-                        if 0 <= line_coverage:
+                        if line_coverage >= 0 and is_useful_line(line.content):
                             change_num_lines += 1
-                            if 0 < line_coverage:
+                            if line_coverage > 0:
                                 change_num_lines_covered += 1
                         change_num_branches += len(branch_coverage)
                         change_num_branched_covered += get_num_branches_covered(branch_coverage_info=branch_coverage)

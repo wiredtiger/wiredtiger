@@ -1,6 +1,7 @@
 import argparse
 import json
 import html
+from code_change_helpers import is_useful_line
 
 
 def read_code_change_info(code_change_info_path: str):
@@ -27,11 +28,12 @@ def get_non_zero_count(value_list: list):
     return non_zero_count
 
 
-def get_html_colour(count: int, of: int):
+# get_html_colour converts a count and a total into a colour code for highlighting
+def get_html_colour(count: int, total: int):
     colour = ""
     if count == 0:
         colour = "LightPink"
-    elif count == of:
+    elif count == total:
         colour = "PaleGreen"
     else:
         colour = "SandyBrown"
@@ -39,6 +41,7 @@ def get_html_colour(count: int, of: int):
     return colour
 
 
+# get_complexity_html_colour converts a complexity value into an html colour string for highlighting.
 def get_complexity_html_colour(complexity: int):
     colour = ""
     if complexity <= 10:
@@ -48,10 +51,12 @@ def get_complexity_html_colour(complexity: int):
     elif complexity <= 50:
         colour = "LightPink"
     else:
-        colour = "#eb98e8"
+        colour = "#eb98e8"  # Light purple
 
     return colour
 
+
+# get_coverage_html_colour converts a code coverage value into an html colour string for highlighting.
 def get_coverage_html_colour(coverage_percent: int):
     colour = ""
     if coverage_percent >= 80:
@@ -62,6 +67,7 @@ def get_coverage_html_colour(coverage_percent: int):
         colour = "LightPink"
 
     return colour
+
 
 def centred_text(text):
     return "<p style=\"text-align: center\">{}</p>\n".format(text)
@@ -82,7 +88,8 @@ def value_as_centred_text(code_colour, value):
     return "    <p style=\"background-color:{};text-align: center\">{}</p>\n".format(code_colour, value)
 
 
-def generate_summary_table(code_change_info: dict)->list:
+# generate_summary_table generates the summary table as html
+def generate_summary_table(code_change_info: dict) -> list:
     summary_info = code_change_info['summary_info']
     num_lines = int(summary_info['num_lines'])
     num_lines_covered = int(summary_info['num_lines_covered'])
@@ -106,16 +113,21 @@ def generate_summary_table(code_change_info: dict)->list:
     summary_table.append("    <th>Value</th>\n")
     summary_table.append("  </tr>\n")
     summary_table.append("    <tr><td>Branch coverage</td><td>{}</td></tr>\n".format(branch_coverage_string))
-    summary_table.append("    <tr><td>Covered branches</td><td>{}</td></tr>\n".format(centred_text(summary_info['num_branches_covered'])))
-    summary_table.append("    <tr><td>Total branches</td><td>{}</td></tr>\n".format(centred_text(summary_info['num_branches'])))
+    summary_table.append("    <tr><td>Covered branches</td><td>{}</td></tr>\n".format(
+        centred_text(summary_info['num_branches_covered'])))
+    summary_table.append(
+        "    <tr><td>Total branches</td><td>{}</td></tr>\n".format(centred_text(summary_info['num_branches'])))
     summary_table.append("    <tr><td>Line coverage</td><td>{}</td></tr>\n".format(line_coverage_string))
-    summary_table.append("    <tr><td>Covered lines</td><td>{}</td></tr>\n".format(centred_text(summary_info['num_lines_covered'])))
-    summary_table.append("    <tr><td>Total lines</td><td>{}</td></tr>\n".format(centred_text(summary_info['num_lines'])))
+    summary_table.append(
+        "    <tr><td>Covered lines</td><td>{}</td></tr>\n".format(centred_text(summary_info['num_lines_covered'])))
+    summary_table.append(
+        "    <tr><td>Total lines</td><td>{}</td></tr>\n".format(centred_text(summary_info['num_lines'])))
     summary_table.append("</table>\n")
 
     return summary_table
 
-def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
+
+def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool) -> list:
     report = list()
     code_unhighlighted = "White"
 
@@ -160,8 +172,7 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool):
                 count_str = ""
                 if 'count' in line:
                     count = line['count']
-                    useful_line = content != '\n' and content.strip() != '{' and content.strip() != '}'
-                    if count >= 0 and useful_line:
+                    if count >= 0 and is_useful_line(content):
                         count_str = str(count)
                         code_colour = get_html_colour(count, count)
                 report.append("  <tr>\n")
@@ -233,7 +244,7 @@ def change_string(old_value: int, new_value: int) -> str:
     return result
 
 
-def describe_complexity_categories():
+def describe_complexity_categories() -> list:
     code_colour_ = get_complexity_html_colour(1)
     description = list()
     description.append("<table class=\"center\">\n")
