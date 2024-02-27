@@ -318,15 +318,18 @@ test_workload_parse(void)
       << model::operation::prepare_transaction(1, 10)
       << model::operation::prepare_transaction(2, 15)
       << model::operation::commit_transaction(1, 20, 21)
-      << model::operation::commit_transaction(2, 25, 26)
-      << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
+      << model::operation::rollback_transaction(2) << model::operation::set_stable_timestamp(22)
+      << model::operation::begin_transaction(1)
       << model::operation::remove(k_table1_id, 1, model::data_value(1ULL))
       << model::operation::checkpoint() << model::operation::crash()
       << model::operation::begin_transaction(1)
       << model::operation::insert(k_table1_id, 1, model::data_value(3ULL), model::data_value(3ULL))
+      << model::operation::truncate(
+           k_table1_id, 2, model::data_value(1ULL), model::data_value(2ULL))
       << model::operation::prepare_transaction(1, 23)
       << model::operation::commit_transaction(1, 24, 25)
-      << model::operation::set_stable_timestamp(25);
+      << model::operation::set_stable_timestamp(25) << model::operation::rollback_to_stable()
+      << model::operation::restart();
 
     /* Convert to string, parse, and compare each operation. */
     for (size_t i = 0; i < workload.size(); i++) {
