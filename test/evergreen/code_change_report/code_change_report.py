@@ -33,12 +33,15 @@ import html
 from code_change_helpers import is_useful_line
 
 
-def read_code_change_info(code_change_info_path: str):
+# read_code_change_info reads code change info (written by code_change_info.py) from a json file
+def read_code_change_info(code_change_info_path: str) -> dict:
     with open(code_change_info_path) as json_file:
         info = json.load(json_file)
         return info
 
 
+# get_branch_info returns a list of branch counts for a list of branches.
+# Negative counts (which gcov can incorrectly return) are corrected to zero.
 def get_branch_info(branches: list):
     branch_info = list()
     for branch in branches:
@@ -49,6 +52,7 @@ def get_branch_info(branches: list):
     return branch_info
 
 
+# get_non_zero_count returns a count of non-zero values in a list
 def get_non_zero_count(value_list: list):
     non_zero_count = 0
     for value in value_list:
@@ -98,10 +102,12 @@ def get_coverage_html_colour(coverage_percent: int):
     return colour
 
 
+# centred_text centres html text
 def centred_text(text):
     return "<p style=\"text-align: center\">{}</p>\n".format(text)
 
 
+# right_text right aligns html text
 def right_text(text):
     return "<p style=\"text-align: right\">{}</p>\n".format(text)
 
@@ -156,6 +162,7 @@ def generate_summary_table(code_change_info: dict) -> list:
     return summary_table
 
 
+# generate_file_info_as_html_text generates code change info as html text from a particular file
 def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool) -> list:
     report = list()
     code_unhighlighted = "White"
@@ -261,6 +268,7 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool) -
     return report
 
 
+# change_string generates an html string indicating a change (if any) between two values
 def change_string(old_value: int, new_value: int) -> str:
     result = ""
     if new_value > old_value:
@@ -273,28 +281,30 @@ def change_string(old_value: int, new_value: int) -> str:
     return result
 
 
+# describe_complexity_categories generates an html table describing the complexity categories
 def describe_complexity_categories() -> list:
     code_colour_ = get_complexity_html_colour(1)
     description = list()
     description.append("<table class=\"center\">\n")
-    description.append("  <tr>\n")
+    description.append("<tr>\n")
     description.append(
-        "    <th><a href='https://en.wikipedia.org/wiki/Cyclomatic_complexity'>Cyclomatic complexity</a></th></th>\n")
+        "<th><a href='https://en.wikipedia.org/wiki/Cyclomatic_complexity'>Cyclomatic complexity</a></th></th>\n")
     description.append(
-        "    <th><a href='https://en.wikipedia.org/wiki/Cyclomatic_complexity#Interpretation'>Risk evaluation</a></th>\n")
-    description.append("  </tr>\n")
-    description.append("  <tr><td> {} </td><td> Simple procedure, little risk </td></tr>\n".
+        "<th><a href='https://en.wikipedia.org/wiki/Cyclomatic_complexity#Interpretation'>Risk evaluation</a></th>\n")
+    description.append("</tr>\n")
+    description.append("<tr><td> {} </td><td> Simple procedure, little risk </td></tr>\n".
                        format(value_as_centred_text(get_complexity_html_colour(1), "1-10")))
-    description.append("  <tr><td> {} </td><td> More complex, moderate risk   </td></tr>\n".
+    description.append("<tr><td> {} </td><td> More complex, moderate risk   </td></tr>\n".
                        format(value_as_centred_text(get_complexity_html_colour(11), "11-20")))
-    description.append("  <tr><td> {} </td><td> Complex, high risk            </td></tr>\n".
+    description.append("<tr><td> {} </td><td> Complex, high risk            </td></tr>\n".
                        format(value_as_centred_text(get_complexity_html_colour(21), "21-50")))
-    description.append("  <tr><td> {} </td><td> Untestable code, very high risk    </td></tr>\n".
+    description.append("<tr><td> {} </td><td> Untestable code, very high risk    </td></tr>\n".
                        format(value_as_centred_text(get_complexity_html_colour(51), ">50")))
     description.append("</table>\n")
     return description
 
 
+# coverage_string converts a coverage value ana a total into a colour-coded html string
 def coverage_string(covered: int, total: int) -> str:
     string = ""
     if total > 0:
@@ -380,6 +390,7 @@ def generate_changed_function_table(changed_functions: dict) -> list:
     return report
 
 
+# generate_html_report_as_text generates html text from code change info
 def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     report = list()
     change_info_list = code_change_info['change_info_list']

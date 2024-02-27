@@ -36,13 +36,14 @@ from change_info import ChangeInfo
 from code_change_helpers import is_useful_line
 
 
-# This function reads a gcovr json file into a dict and returns it
+# read_coverage_data reads a gcovr json file into a dict and returns it
 def read_coverage_data(coverage_data_path: str) -> dict:
     with open(coverage_data_path) as json_file:
         data = json.load(json_file)
         return data
 
 
+# read_complexity_data reads complexity data from a .csv file written by Metrix++ and returns as a list of dicts
 def read_complexity_data(complexity_data_path: str) -> list:
     complexity_data = []
     with open(complexity_data_path) as csvfile:
@@ -52,11 +53,12 @@ def read_complexity_data(complexity_data_path: str) -> list:
     return complexity_data
 
 
+# preprocess_complexity_data normalises file paths in complexity data and includes only functions in the output
 def preprocess_complexity_data(complexity_data: list) -> dict:
     preprocessed_complexity_data = dict()
 
     for complexity_item in complexity_data:
-        # Strip any (leading) './'
+        # Strip any (leading) './' and replace with 'src/'
         filename = complexity_item["file"].replace("./", "src/")
         complexity_item["file"] = filename
 
@@ -70,6 +72,7 @@ def preprocess_complexity_data(complexity_data: list) -> dict:
     return preprocessed_complexity_data
 
 
+# diff_to_change_list converts a git diff into a list of changes
 def diff_to_change_list(diff: Diff, verbose: bool) -> dict:
     change_list = dict()
     for patch in diff:
@@ -101,6 +104,7 @@ def diff_to_change_list(diff: Diff, verbose: bool) -> dict:
     return change_list
 
 
+# get_git_diff analyses the git working directory and returns a diff from the latest commit to the previous commit
 def get_git_diff(git_working_tree_dir: str, verbose: bool):
     repository_path = discover_repository(git_working_tree_dir)
     assert repository_path is not None
@@ -131,6 +135,7 @@ def get_git_diff(git_working_tree_dir: str, verbose: bool):
     return diff
 
 
+# find_file_in_coverage_data finds the coverage data for a particular file, returning None if not available
 def find_file_in_coverage_data(coverage_data: dict, file_path: str):
     file_data = None
 
@@ -141,6 +146,7 @@ def find_file_in_coverage_data(coverage_data: dict, file_path: str):
     return file_data
 
 
+# find_line_data finds the coverage data for line in a particular file, returning None if not available
 def find_line_data(coverage_data: dict, file_path: str, line_number: int):
     line_data = None
 
@@ -154,6 +160,7 @@ def find_line_data(coverage_data: dict, file_path: str, line_number: int):
     return line_data
 
 
+# find_covered_branches finds the number of covered branches for a line in a file
 def find_covered_branches(coverage_data: dict, file_path: str, line_number: int):
     branches = list()
 
@@ -165,6 +172,7 @@ def find_covered_branches(coverage_data: dict, file_path: str, line_number: int)
     return branches
 
 
+# find_line_coverage finds the line coverage for a line in a file
 def find_line_coverage(coverage_data: dict, file_path: str, line_number: int):
     line_coverage = -1
 
@@ -176,7 +184,8 @@ def find_line_coverage(coverage_data: dict, file_path: str, line_number: int):
     return line_coverage
 
 
-def get_function_coverage(function_name: str, function_file: str, start_line_number: int, end_line_number: int,
+# get_function_coverage calculates the coverage for a function from start_line_number to end_line_number in a file
+def get_function_coverage(function_file: str, start_line_number: int, end_line_number: int,
                           coverage_data: dict):
     num_lines_in_function = 0
     num_covered_lines_in_function = 0
@@ -203,6 +212,7 @@ def get_function_coverage(function_name: str, function_file: str, start_line_num
     return function_coverage
 
 
+# get_function_info obtains the coverage and complexity data for the function at a particular line in a file
 def get_function_info(file_path: str,
                       line_number: int,
                       preprocessed_complexity_data: dict,
@@ -223,8 +233,7 @@ def get_function_info(file_path: str,
                 function_info['complexity'] = int(complexity_detail['std.code.complexity:cyclomatic'])
                 function_info['lines_of_code'] = int(complexity_detail['std.code.lines:code'])
 
-                function_coverage = get_function_coverage(function_name=function_name,
-                                                          function_file=detail_file,
+                function_coverage = get_function_coverage(function_file=detail_file,
                                                           start_line_number=detail_start_line_number,
                                                           end_line_number=detail_end_line_number,
                                                           coverage_data=coverage_data)
@@ -242,6 +251,7 @@ def get_function_info(file_path: str,
     return function_info
 
 
+# get_num_branches_covered returns the number of branches covered from coverage info
 def get_num_branches_covered(branch_coverage_info: list) -> int:
     num_branches_covered = 0
     for branch in branch_coverage_info:
@@ -249,10 +259,12 @@ def get_num_branches_covered(branch_coverage_info: list) -> int:
             num_branches_covered += 1
     return num_branches_covered
 
+
+# create_report_info generates the code change info report as a dict
 def create_report_info(change_list: dict,
                        coverage_data: dict,
                        preprocessed_complexity_data: dict,
-                       preprocessed_prev_complexity_data: dict):
+                       preprocessed_prev_complexity_data: dict) -> dict:
     changed_function_info = dict()
     file_change_list = dict()
 
