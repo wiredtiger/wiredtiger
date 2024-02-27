@@ -338,6 +338,18 @@ test_workload_parse(void)
         model::operation::any op = model::operation::parse(ss.str());
         testutil_assert(workload[i] == op);
     }
+
+    /* Additional tests for different allowed parsing behaviors. */
+    testutil_assert(model::operation::parse("create_table(1, table1, Q, Q)") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "Q")));
+    testutil_assert(model::operation::parse("create_table(1, \"table1\", \"Q\", \"Q\")") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "Q")));
+    testutil_assert(model::operation::parse("create_table   (   0x1,table1, \"Q\",  Q      )  ") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "Q")));
+    testutil_assert(model::operation::parse("create_table(1, \"table\\\" \\\\\", \"Q\", \"\")") ==
+      model::operation::any(model::operation::create_table(1, "table\" \\", "Q", "")));
+    testutil_assert(model::operation::parse("create_table\t\n(0x1 ,\"table\" \"1\", \"Q\", S )") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "S")));
 }
 
 /*

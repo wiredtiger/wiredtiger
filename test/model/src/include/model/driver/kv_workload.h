@@ -259,8 +259,8 @@ struct create_table {
     inline bool
     operator==(const create_table &other) const noexcept
     {
-        return table_id == other.table_id && name == other.name &&
-          key_format == other.value_format && value_format == other.value_format;
+        return table_id == other.table_id && name == other.name && key_format == other.key_format &&
+          value_format == other.value_format;
     }
 
     /*
