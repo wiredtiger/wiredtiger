@@ -41,23 +41,20 @@ global_names = ['Replicated Collections', 'Replicated Indexes', 'OpLog', 'Local 
 global_types = ['coll', 'index', 'oplog', 'local', 'system']
 
 assert(len(global_names) == len(global_types))
+class TypeStats(object):
+    def __init__(self, name):
+        self.name = name
+        self.blocks = 0
+        self.bytes = 0
+        self.files = 0
+        self.files_changed = 0
+        self.gran_blocks = 0
+        self.pct20 = 0
+        self.pct80 = 0
 
-blocks_global = dict()
-bytes_global = dict()
-files_changed = dict()
-files_global = dict()
-gran_blocks_global = dict()
-pct20_global = dict()
-pct80_global = dict()
-
-for t in global_types:
-    blocks_global[t] = 0
-    bytes_global[t] = 0
-    files_changed[t] = 0
-    files_global[t] = 0
-    gran_blocks_global[t] = 0
-    pct20_global[t] = 0
-    pct80_global[t] = 0
+typestats = dict()
+for n, t in zip(global_names, global_types):
+    typestats[t] = TypeStats(n)
 
 def get_metadata(mydir, filename):
     backup_file = mydir + "/WiredTiger.backup"
@@ -124,18 +121,6 @@ def check_backup(mydir):
     return True
 
 def compare_file(dir1, dir2, filename, cmp_size):
-    global blocks_global
-    global bytes_global
-    global files_changed
-    global files_global
-    global global_names
-    global global_types
-    global gran_blocks_global
-    global granularity
-    global pct20
-    global pct20_global
-    global pct80
-    global pct80_global
     global total_blocks_global
     global total_bytes_global
 
@@ -148,7 +133,8 @@ def compare_file(dir1, dir2, filename, cmp_size):
     metadata = get_metadata(dir1, filename)
     assert(metadata != None)
     count_type = compute_type(filename, metadata)
-    files_global[count_type] += 1
+    ts = typestats[count_type]
+    ts.files += 1
 
     # Initialize all of our counters per file.
     bytes_gran = 0
@@ -177,10 +163,10 @@ def compare_file(dir1, dir2, filename, cmp_size):
             # Count how many granularity level blocks changed.
             if bytes_gran == 0:
                 gran_blocks += 1
-                gran_blocks_global[count_type] += 1
+                ts.gran_blocks += 1
                 total_blocks_global += 1
             bytes_gran += cmp_size
-            bytes_global[count_type] += cmp_size
+            ts.bytes += cmp_size
         # Gather and report block information when we cross a granularity boundary or we're on
         # the last iteration.
         offset += cmp_size
@@ -191,10 +177,10 @@ def compare_file(dir1, dir2, filename, cmp_size):
             if bytes_gran != 0:
                 if bytes_gran <= pct20:
                     pct20_count += 1
-                    pct20_global[count_type] += 1
+                    ts.pct20 += 1
                 elif bytes_gran >= pct80:
                     pct80_count += 1
-                    pct80_global += 1
+                    ts.pct80 += 1
             # Reset for the next granularity block.
             start_off = offset
             bytes_gran = 0
@@ -208,7 +194,7 @@ def compare_file(dir1, dir2, filename, cmp_size):
             total_bytes_diff += partial_cmp
             total_bytes_global += partial_cmp
             bytes_gran += partial_cmp
-            bytes_global[count_type] += partial_cmp
+            ts.bytes += partial_cmp
             part_bytes = offset + partial_cmp - start_off
             print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {part_bytes} bytes')
     fp1.close()
@@ -232,7 +218,7 @@ def compare_file(dir1, dir2, filename, cmp_size):
         print(f'{filename}: size: {f1_size} {f2_size} {change}')
     print(f'{filename}: common: {min_size} differs by {total_bytes_diff} bytes in {gran_blocks} granularity blocks')
     if gran_blocks != 0:
-        files_changed[count_type] += 1
+        ts.files_changed += 1
         pct20_blocks = round(abs(pct20_count / gran_blocks * 100))
         pct80_blocks = round(abs(pct80_count / gran_blocks * 100))
         print(f'{filename}: smallest 20%: {pct20_count} of {gran_blocks} blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
@@ -248,18 +234,19 @@ def print_summary():
     print(f'Total: {total_bytes_global} bytes changed in {total_blocks_global} blocks')
     # Walk through all the types printing out final information per type.
     for n, t in zip(global_names, global_types):
-        print(f'{n}: {files_changed[t]} of {files_global[t]} changed')
-        if gran_blocks_global[t] != 0:
-            if files_changed[t] == 1:
+        ts = typestats[t]
+        print(f'{n}: {ts.files_changed} of {ts.files} changed')
+        if ts.gran_blocks != 0:
+            if ts.files_changed == 1:
                 word = 'file'
             else:
                 word = 'files'
-            print(f'{files_changed[t]} changed {word}: differs by {blocks_global[t]} granularity blocks in {gran_blocks_global[t]} total granularity blocks')
-            print(f'{files_changed[t]} changed {word}: differs by {bytes_global[t]} bytes in {gran_blocks_global[t]} total granularity blocks')
-            pct20_blocks = round(abs(pct20_global[t] / gran_blocks_global[t] * 100))
-            pct80_blocks = round(abs(pct80_global[t] / gran_blocks_global[t] * 100))
-            print(f'{n}: smallest 20%: {pct20_blocks} of {gran_blocks_global[t]} blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
-            print(f'{n}: largest 80%: {pct80_blocks} of {gran_blocks_global[t]} blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
+            print(f'{ts.files_changed} changed {word}: differs by {ts.blocks} granularity blocks in {ts.gran_blocks} total granularity blocks')
+            print(f'{ts.files_changed} changed {word}: differs by {ts.bytes} bytes in {ts.gran_blocks} total granularity blocks')
+            pct20_blocks = round(abs(ts.pct20 / ts.gran_blocks * 100))
+            pct80_blocks = round(abs(ts.pct80 / ts.gran_blocks * 100))
+            print(f'{n}: smallest 20%: {pct20_blocks} of {ts.gran_blocks} blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
+            print(f'{n}: largest 80%: {pct80_blocks} of {ts.gran_blocks} blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
 
 def compare_backups(dir1, dir2):
     files1=set(fnmatch.filter(os.listdir(dir1), "*.wt"))
