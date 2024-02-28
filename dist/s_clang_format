@@ -51,6 +51,8 @@ fi
 # If we're not allowed to run Clang-Format, let's exit (should be obvious from the dialog).
 clang-format --version &> /dev/null || exit 1
 
+# Parallel execution: if it's the main onvocation of the script, collect the file names
+# to process and run them in subprocesses.
 if is_main_run; then
     search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cpp' | filter_if_fast`
     for f in `cat dist/s_clang_format.list`; do
@@ -59,6 +61,8 @@ if is_main_run; then
     echo "$search" | do_in_parallel
     exit $?
 fi
+
+# A list of files provided: process them one by one.
 
 # Don't format inplace with -i flag.
 # We want to be able to detect modifications.

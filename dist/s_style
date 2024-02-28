@@ -6,6 +6,8 @@ setup_trap
 cd_top
 check_fast_mode_flag
 
+# Parallel execution: if it's the main onvocation of the script, collect the file names
+# to process and run them in subprocesses.
 is_main_run && {
     find bench examples ext src test -name '*.[ch]' -o -name '*.in' -o -name '*.dox' \
             -o -name '*.cxx' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake' -o -name '*.i' | \
@@ -17,6 +19,8 @@ is_main_run && {
     do_in_parallel -n 5
     exit $?
 }
+
+# A list of files provided: process them one by one.
 
 for f in "$@"; do
     # General style correction and cleanup for a single file

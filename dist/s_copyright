@@ -91,6 +91,9 @@ cat > $c5 <<ENDOFTEXT
  * are met:
 ENDOFTEXT
 
+# Parallel execution: if it's the main onvocation of the script, collect the file names
+# to process and run them in subprocesses.
+
 # Search for files, skipping some well-known 3rd party directories.
 find [a-z]* -name '*.[ch]' \
     -o -name '*.cpp' \
