@@ -238,8 +238,8 @@ table_verify_mirror(
     /*
      * If we are not reading from a checkpoint, start a cursor to pin a page to ensure we never
      * refresh our snapshot in verification. We may get a not found return when placing the cursor
-     * before the verification range, which would release the snapshot if there was no other active
-     * cursors.
+     * before the verification range, which would cause the session to release the snapshot if there
+     * was no other active cursors.
      */
     if (checkpoint == NULL) {
         wt_wrap_open_cursor(session, base->uri, NULL, &pinned_cursor);
