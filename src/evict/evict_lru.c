@@ -636,7 +636,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * values could lead to surprising bugs in the future.
      */
     if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
-        cache->bytes_hs = hs_tree->bytes_inmem;
+        __wt_atomic_store64(&cache->bytes_hs, hs_tree->bytes_inmem);
         cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
     }
 
@@ -759,8 +759,10 @@ __evict_pass(WT_SESSION_IMPL *session)
         __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
           "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64
           " Updates: %" PRIu64,
-          conn->cache_size, cache->bytes_inmem, cache->bytes_dirty_intl + cache->bytes_dirty_leaf,
-          cache->bytes_updates);
+          conn->cache_size, __wt_atomic_load64(&cache->bytes_inmem),
+          __wt_atomic_load64(&cache->bytes_dirty_intl) +
+            __wt_atomic_load64(&cache->bytes_dirty_leaf),
+          __wt_atomic_load64(&cache->bytes_updates));
 
         if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
             WT_RET(__evict_lru_walk(session));
@@ -2809,6 +2811,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     double pct;
+    uint64_t bytes_dirty_intl, bytes_dirty_leaf, bytes_inmem;
     uint64_t total_bytes, total_dirty_bytes, total_updates_bytes, cache_bytes_updates;
     bool needed;
 
@@ -2839,11 +2842,15 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
     cache_bytes_updates = __wt_cache_bytes_updates(cache);
 
+    bytes_inmem = __wt_atomic_load64(&cache->bytes_inmem);
+    bytes_dirty_intl = __wt_atomic_load64(&cache->bytes_dirty_intl);
+    bytes_dirty_leaf = __wt_atomic_load64(&cache->bytes_dirty_leaf);
+
     WT_RET(__wt_msg(session, "cache dump: total found: %.2f MB vs tracked inuse %.2f MB",
-      (double)total_bytes / WT_MEGABYTE, (double)cache->bytes_inmem / WT_MEGABYTE));
+      (double)total_bytes / WT_MEGABYTE, (double)bytes_inmem / WT_MEGABYTE));
     WT_RET(__wt_msg(session, "total dirty bytes: %.2f MB vs tracked dirty %.2f MB",
       (double)total_dirty_bytes / WT_MEGABYTE,
-      (double)(cache->bytes_dirty_intl + cache->bytes_dirty_leaf) / WT_MEGABYTE));
+      (double)(bytes_dirty_intl + bytes_dirty_leaf) / WT_MEGABYTE));
     WT_RET(__wt_msg(session, "total updates bytes: %.2f MB vs tracked updates %.2f MB",
       (double)total_updates_bytes / WT_MEGABYTE, (double)cache_bytes_updates / WT_MEGABYTE));
 

@@ -548,7 +548,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     if (cache->eviction_checkpoint_target < DBL_EPSILON)
         return;
 
-    bytes_written_start = cache->bytes_written;
+    bytes_written_start = __wt_atomic_load64(&cache->bytes_written);
 
     /*
      * If the cache size is zero or very small, we're done. The cache size can briefly become zero
@@ -585,7 +585,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
          * Don't wait indefinitely: there might be dirty pages that can't be evicted. If we can't
          * meet the target, give up and start the checkpoint for real.
          */
-        bytes_written_total = cache->bytes_written - bytes_written_start;
+        bytes_written_total = __wt_atomic_load64(&cache->bytes_written) - bytes_written_start;
         if (bytes_written_total > max_write)
             break;
     }
