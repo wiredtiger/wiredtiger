@@ -75,7 +75,7 @@ class test_bug028(wttest.WiredTigerTestCase, suite_subprocess):
 
         # The PPC machines have known I/O bandwidth constraint and could take hours to complete
         # this test.
-        if os.uname().machine == "ppc64le":
+        if 'ppc' in os.uname().machine:
             self.skipTest('skipping buffer alignment and direct I/O test on PPC machines')
 
         config = 'create'
