@@ -1637,7 +1637,7 @@ tasks:
         vars:
           directory: examples/c
           # We're starting small with just ex_hello. This will grow over time.
-          extra_args: -R "ex_hello" -j ${num_jobs}
+          extra_args: -R "(ex_hello|ex_cursor)" -j ${num_jobs}
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
