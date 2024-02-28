@@ -196,7 +196,9 @@ config_bool(
 
 config_bool(
     HAVE_RCPC
-    "Configure whether to build for the neoverse architecture cpus"
+    "Configure whether to build for the CPUs which support the ARM release consistent processor \
+    consistent model (RCpc).
+    "
     DEFAULT OFF
 )
 
