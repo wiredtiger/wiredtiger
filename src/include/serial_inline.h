@@ -246,8 +246,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
-    wt_timestamp_t obsolete_timestamp, prev_upd_ts;
-    uint64_t txn;
+    wt_timestamp_t prev_upd_ts;
 
     /* Clear references to memory we now own and must free on error. */
     upd = *updp;
@@ -298,34 +297,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         return (0);
 
     /*
-     * We would like to call __wt_txn_update_oldest only in the event that there are further updates
-     * to this page, the check against WT_TXN_NONE is used as an indicator of there being further
-     * updates on this page.
-     */
-    if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
-        obsolete_timestamp = page->modify->obsolete_check_timestamp;
-        if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
-            /* Try to move the oldest ID forward and re-check. */
-            ret = __wt_txn_update_oldest(session, 0);
-            /*
-             * We cannot proceed if we fail here as we have inserted the updates to the update
-             * chain. Panic instead. Currently, we don't ever return any error from
-             * __wt_txn_visible_all. We can catch it if we start to do so in the future and properly
-             * handle it.
-             */
-            if (ret != 0)
-                WT_RET_PANIC(session, ret, "fail to update oldest after serializing the updates");
-
-            if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
-                return (0);
-        }
-
-        page->modify->obsolete_check_txn = WT_TXN_NONE;
-    }
-
-    /*
      * Look for obsolete updates if:
-     * 1. The page is configured to evict soon
+     * 1. The page is configured to evict soon.
      * 2. There are several updates in the cache that need to be removed.
      */
     if (WT_READGEN_EVICT_SOON(page->read_gen) ||

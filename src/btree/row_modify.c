@@ -341,14 +341,12 @@ __wt_update_obsolete_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
 {
     WT_PAGE *page;
-    WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
     u_int count;
 
     next = NULL;
     page = cbt->ref->page;
-    txn_global = &S2C(session)->txn_global;
 
     WT_ASSERT(session, page->modify != NULL);
     /* If we can't lock it, don't scan, that's okay. */
@@ -430,17 +428,6 @@ __wt_update_obsolete_check(
 
     if (next != NULL)
         __wt_free_update_list(session, &next);
-    else {
-        /*
-         * If the list is long, don't retry checks on this page until the transaction state has
-         * moved forwards.
-         */
-        if (count > 20) {
-            page->modify->obsolete_check_txn = txn_global->last_running;
-            if (txn_global->has_pinned_timestamp)
-                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
-        }
-    }
 
     WT_PAGE_UNLOCK(session, page);
 }
