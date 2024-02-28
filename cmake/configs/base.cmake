@@ -195,7 +195,7 @@ config_bool(
 )
 
 config_bool(
-    HAVE_NEOVERSE
+    HAVE_RCPC
     "Configure whether to build for the neoverse architecture cpus"
     DEFAULT OFF
 )

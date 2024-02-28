@@ -85,7 +85,7 @@
  * generate offset free ldapr instructions. ldapr instructions, prior to version RCpc 3, don't
  * support offsets.
  */
-#ifdef HAVE_NEOVERSE
+#ifdef HAVE_RCPC
 #define WT_ACQUIRE_READ(v, val)                                      \
     do {                                                             \
         if (sizeof((val)) == 1) {                                    \
