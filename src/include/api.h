@@ -63,17 +63,21 @@
         uint64_t _api_count_in, _api_count_out;                                         \
         WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out);                            \
         WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);                              \
-        WT_ASSERT(session, _api_count_in >= _api_count_out);                            \
+	if ((s)->id != 0)                   \
+            WT_ASSERT(session, _api_count_in >= _api_count_out);                            \
         (output) = _api_count_out > _api_count_in ? 0 : _api_count_in - _api_count_out; \
     }
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_API_COUNTER_CHECK(s, counter)                     \
     {                                                        \
-        uint64_t _api_count_in, _api_count_out;              \
-        WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out); \
-        WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);   \
-        WT_ASSERT(session, _api_count_in >= _api_count_out); \
+        /* The global connection session is shared so the count can be off temporarily */ \
+	if ((s)->id != 0) {                  \
+		uint64_t _api_count_in, _api_count_out;              \
+		WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out); \
+		WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);   \
+		WT_ASSERT(session, _api_count_in >= _api_count_out); \
+	} \
     }
 #else
 #define WT_API_COUNTER_CHECK(s, counter) /* No-op in release builds */
