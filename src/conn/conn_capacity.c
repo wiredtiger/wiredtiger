@@ -46,13 +46,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.fsync_maximum_wait_period", &cval));
-    if (cval.val != 0) {
-        if (cval.val < 0)
-            WT_RET_MSG(session, EINVAL,
-              "io_capacity.fsync_maximum_wait_period value %" PRId64 " cannot be less than 0",
-              cval.val);
+    if (cval.val != 0)
         cap->fsync_maximum_wait_period = (uint64_t)cval.val;
-    }
 
     if (cap->total == 0 && cap->fsync_maximum_wait_period != 0) {
         WT_RET_MSG(session, EINVAL,
