@@ -237,15 +237,17 @@ table_verify_mirror(
 
     /*
      * If we are not reading from a checkpoint, start a cursor to pin a page to ensure we never
-     * refresh our snapshot in verification.
+     * refresh our snapshot in verification. We may get a not found return when placing the cursor
+     * before the verification range, which would release the snapshot if there was no other active
+     * cursors.
      */
     if (checkpoint == NULL) {
         wt_wrap_open_cursor(session, base->uri, NULL, &pinned_cursor);
         pinned_ret = pinned_cursor->next(pinned_cursor);
+        trace_msg(session, "open a pinned cursor to pin the snapshot for verification");
         /* Nothing to verify. */
-        if (pinned_ret == WT_NOTFOUND) {
+        if (pinned_ret == WT_NOTFOUND)
             goto done;
-        }
         testutil_assert(pinned_ret == 0);
     }
 
