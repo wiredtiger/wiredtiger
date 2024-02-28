@@ -23,7 +23,7 @@ __wt_cache_aggressive(WT_SESSION_IMPL *session)
 static WT_INLINE uint64_t
 __wt_cache_read_gen(WT_SESSION_IMPL *session)
 {
-    return (S2C(session)->cache->read_gen);
+    return (__wt_atomic_load64(&S2C(session)->cache->read_gen));
 }
 
 /*
@@ -33,7 +33,7 @@ __wt_cache_read_gen(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wt_cache_read_gen_incr(WT_SESSION_IMPL *session)
 {
-    ++S2C(session)->cache->read_gen;
+    (void)__wt_atomic_add64(&S2C(session)->cache->read_gen, 1);
 }
 
 /*

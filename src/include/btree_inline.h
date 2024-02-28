@@ -1875,7 +1875,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
      * a reasonable amount of time is currently pretty arbitrary.
      */
     if (__wt_cache_aggressive(session) ||
-      mod->last_evict_pass_gen + 5 < S2C(session)->cache->evict_pass_gen)
+      mod->last_evict_pass_gen + 5 < __wt_atomic_load64(&S2C(session)->cache->evict_pass_gen))
         return (true);
 
     /* Retry if the global transaction state has moved forward. */

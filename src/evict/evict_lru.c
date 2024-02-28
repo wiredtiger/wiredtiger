@@ -44,7 +44,8 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
      * Use a custom lock acquisition back off loop so the eviction server notices any interrupt
      * quickly.
      */
-    for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY && cache->pass_intr == 0;
+    for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
+         __wt_atomic_loadv32(&cache->pass_intr) == 0;
          spins++) {
         if (spins < WT_THOUSAND)
             __wt_yield();
@@ -324,7 +325,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         ret = __evict_server(session, &did_work);
         FLD_CLR(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
-        was_intr = cache->pass_intr != 0;
+        was_intr = __wt_atomic_loadv32(&cache->pass_intr) != 0;
         __wt_spin_unlock(session, &cache->evict_pass_lock);
         WT_ERR(ret);
 
@@ -333,8 +334,8 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * system may otherwise be busy so don't go to sleep.
          */
         if (was_intr)
-            while (cache->pass_intr != 0 && F_ISSET(conn, WT_CONN_EVICTION_RUN) &&
-              F_ISSET(thread, WT_THREAD_RUN))
+            while (__wt_atomic_loadv32(&cache->pass_intr) != 0 &&
+              F_ISSET(conn, WT_CONN_EVICTION_RUN) && F_ISSET(thread, WT_THREAD_RUN))
                 __wt_yield();
         else {
             __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "%s", "sleeping");
@@ -418,7 +419,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
 
-    if (!F_ISSET(conn, WT_CONN_EVICTION_RUN) || cache->pass_intr != 0)
+    if (!F_ISSET(conn, WT_CONN_EVICTION_RUN) || __wt_atomic_loadv32(&cache->pass_intr) != 0)
         return (0);
 
     if (!__wt_cache_stuck(session)) {
@@ -728,7 +729,7 @@ __evict_pass(WT_SESSION_IMPL *session)
     prev_oldest_id = txn_global->oldest_id;
 
     /* Evict pages from the cache. */
-    for (loop = 0; cache->pass_intr == 0; loop++) {
+    for (loop = 0; __wt_atomic_loadv32(&cache->pass_intr) == 0; loop++) {
         time_now = __wt_clock(session);
         if (loop == 0)
             time_prev = time_now;
@@ -740,7 +741,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * server does need to do some work.
          */
         __wt_cache_read_gen_incr(session);
-        ++cache->evict_pass_gen;
+        __wt_atomic_add64(&cache->evict_pass_gen, 1);
 
         /*
          * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
@@ -780,7 +781,7 @@ __evict_pass(WT_SESSION_IMPL *session)
             !__evict_queue_empty(cache->evict_urgent_queue, false)))
             WT_RET(__evict_lru_pages(session, true));
 
-        if (cache->pass_intr != 0)
+        if (__wt_atomic_loadv32(&cache->pass_intr) != 0)
             break;
 
         /*
@@ -1478,7 +1479,7 @@ retry:
          * If another thread is waiting on the eviction server to clear the walk point in a tree,
          * give up.
          */
-        if (cache->pass_intr != 0)
+        if (__wt_atomic_loadv32(&cache->pass_intr) != 0)
             WT_ERR(EBUSY);
 
         /*
@@ -1637,7 +1638,7 @@ err:
     /*
      * If we didn't find any entries on a walk when we weren't interrupted, let our caller know.
      */
-    if (queue->evict_entries == slot && cache->pass_intr == 0)
+    if (queue->evict_entries == slot && __wt_atomic_loadv32(&cache->pass_intr) == 0)
         ret = WT_NOTFOUND;
 
     queue->evict_entries = slot;
@@ -1991,7 +1992,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
         page = ref->page;
         modified = __wt_page_is_modified(page);
-        page->evict_pass_gen = cache->evict_pass_gen;
+        page->evict_pass_gen = __wt_atomic_load64(&cache->evict_pass_gen);
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
