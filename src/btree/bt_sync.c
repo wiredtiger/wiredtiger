@@ -227,7 +227,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
-    saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
+    saved_pinned_id = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->pinned_id);
     time_start = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT) ? __wt_clock(session) : 0;
 
     switch (syncop) {

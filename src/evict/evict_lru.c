@@ -2509,7 +2509,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          * below 100%, limit the work to 5 evictions and return. If that's not the case, we can do
          * more.
          */
-        if (!busy && txn_shared->pinned_id != WT_TXN_NONE &&
+        if (!busy && __wt_atomic_loadv64(&txn_shared->pinned_id) != WT_TXN_NONE &&
           txn_global->current != txn_global->oldest_id)
             busy = true;
         max_progress = busy ? 5 : 20;
