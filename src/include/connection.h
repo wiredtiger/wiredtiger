@@ -570,6 +570,7 @@ struct __wt_connection_impl {
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
+#define WT_PREFETCH_THREAD_COUNT 8
     WT_SPINLOCK prefetch_lock;
     WT_THREAD_GROUP prefetch_threads;
     uint64_t prefetch_queue_count;
@@ -854,9 +855,10 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING 0x01000000u
 #define WT_CONN_RECOVERING 0x02000000u
 #define WT_CONN_RECOVERY_COMPLETE 0x04000000u
-#define WT_CONN_SALVAGE 0x08000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x10000000u
-#define WT_CONN_WAS_BACKUP 0x20000000u
+#define WT_CONN_RTS_THREAD_RUN 0x08000000u
+#define WT_CONN_SALVAGE 0x10000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x20000000u
+#define WT_CONN_WAS_BACKUP 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 };

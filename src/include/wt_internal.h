@@ -335,6 +335,8 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
+struct __wt_page_walk_skip_stats;
+typedef struct __wt_page_walk_skip_stats WT_PAGE_WALK_SKIP_STATS;
 struct __wt_prefetch;
 typedef struct __wt_prefetch WT_PREFETCH;
 struct __wt_prefetch_queue_entry;
@@ -363,6 +365,8 @@ struct __wt_row;
 typedef struct __wt_row WT_ROW;
 struct __wt_rts_cookie;
 typedef struct __wt_rts_cookie WT_RTS_COOKIE;
+struct __wt_rts_work_unit;
+typedef struct __wt_rts_work_unit WT_RTS_WORK_UNIT;
 struct __wt_rwlock;
 typedef struct __wt_rwlock WT_RWLOCK;
 struct __wt_salvage_cookie;
@@ -498,9 +502,10 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
-#include "stat.h"      /* required by dhandle.h */
-#include "dhandle.h"   /* required by btree.h */
-#include "timestamp.h" /* required by reconcile.h */
+#include "stat.h"         /* required by dhandle.h */
+#include "dhandle.h"      /* required by btree.h */
+#include "timestamp.h"    /* required by reconcile.h */
+#include "thread_group.h" /* required by rollback_to_stable.h */
 
 #include "api.h"
 #include "bitstring.h"
@@ -531,7 +536,6 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"
-#include "thread_group.h"
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"
