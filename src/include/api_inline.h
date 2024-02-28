@@ -41,13 +41,12 @@ __wt_api_track_cursor_end(WT_SESSION_IMPL *session)
     WT_ASSERT(session, session->api_call_counter != 0);
     if ((session)->api_call_counter == 1) {
         if (F_ISSET(session, WT_SESSION_INTERNAL)) {
-            (void)__wt_atomic_add64(&S2C(session)->api_count_cursor_internal_out, 1);
-            WT_ASSERT(session,
-              S2C(session)->api_count_cursor_internal_in >=
-                S2C(session)->api_count_cursor_internal_out);
+            (void)__wt_atomic_add64(&conn->api_count_cursor_internal_out, 1);
+            WT_ASSERT(
+              session, conn->api_count_cursor_internal_in >= conn->api_count_cursor_internal_out);
         } else {
-            (void)__wt_atomic_add64(&S2C(session)->api_count_cursor_out, 1);
-	    WT_API_COUNTER_CHECK(session, api_count_cursor);
+            (void)__wt_atomic_add64(&conn->api_count_cursor_out, 1);
+            WT_API_COUNTER_CHECK(session, api_count_cursor);
         }
     }
 }
