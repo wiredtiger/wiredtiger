@@ -47,9 +47,8 @@ usage(void)
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
       "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
       "database directory", "-L", "turn logging off for debug-mode", "-m", "run verify on metadata",
-      "-p", "disable pre-fetching on the connection",
-      "-R", "run recovery (if recovery configured)", "-r",
-      "access the database via a readonly connection", "-S",
+      "-p", "disable pre-fetching on the connection", "-R", "run recovery (if recovery configured)",
+      "-r", "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
       "-v", "verbose", "-?", "show this message", NULL, NULL};
     static const char *commands[] = {"alter", "alter an object", "backup", "database backup",
@@ -111,7 +110,8 @@ main(int argc, char *argv[])
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage = false;
+    backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
+      false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
     while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LmpRrSVv?")) != EOF)
