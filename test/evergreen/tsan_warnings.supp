@@ -9,3 +9,6 @@ mutex:src
 race:__wt_eviction_dirty_target
 race:__wt_eviction_dirty_needed
 race:__evict_update_work
+
+# Stats are allowed to be fuzzy. Ignore races in TSan
+race:src/include/stat.h
