@@ -136,6 +136,11 @@ struct __wt_cache {
     uint64_t cache_stuck_timeout_ms; /* Maximum time the cache can be stuck for in diagnostic mode
                                         before timing out */
 
+#ifdef HAVE_DIAGNOSTIC
+    bool adjust_evict_server_verbose;
+    WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
+#endif
+
     /*
      * Eviction thread tuning information.
      */
