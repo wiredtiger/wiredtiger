@@ -450,7 +450,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         btree->checksum = CKSUM_UNENCRYPTED;
 
-    if (__wt_config_gets(session, cfg, "huffman_value", &cval) != WT_NOTFOUND)
+    ret = __wt_config_gets(session, cfg, "huffman_value", &cval);
+    if (ret == 0 && cval.len != 0)
         WT_RET_MSG(session, ENOTSUP, "Huffman encoding for values is no longer supported.");
 
     /*
