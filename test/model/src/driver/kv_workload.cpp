@@ -26,6 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <string>
+#include <string_view>
+
 extern "C" {
 #include "wt_internal.h"
 }
@@ -46,15 +49,15 @@ namespace operation {
 any
 parse(const char *str)
 {
-    const char *p = str;
-
     /* Get the operation name. */
-    std::string name;
-    while (*p != '\0' && (std::isalnum(*p) || *p == '_'))
-        name += *(p++);
+    size_t i = 0;
+    while (std::isalnum(str[i]) || str[i] == '_')
+        ++i;
+    std::string_view name(str, i);
 
-    while (*p != '\0' && std::isspace(*p))
-        p++;
+    const char *p = str + i;
+    while (std::isspace(*p))
+        ++p;
     if (*(p++) != '(')
         throw model_exception("Expected '('");
 
@@ -97,7 +100,8 @@ parse(const char *str)
         }
 
         if (c == ',' || c == ')') {
-            if (!(c == ')' && current.empty() && !had_quotes))
+            /* An empty string must have quotes if it is not the last argument. */
+            if (!current.empty() || had_quotes || c == ',')
                 args.push_back(current);
             current = "";
             had_quotes = false;
@@ -113,8 +117,8 @@ parse(const char *str)
 
     if (!done)
         throw model_exception("Expected ')'");
-    while (*p != '\0' && std::isspace(*p))
-        p++;
+    while (std::isspace(*p))
+        ++p;
     if (*(p++) != '\0')
         throw model_exception("Extra characters at the end of the string.");
 
@@ -139,8 +143,8 @@ parse(const char *str)
     if (name == "commit_transaction") {
         CHECK_NUM_ARGS_RANGE(1, 3);
         return commit_transaction(parse_uint64(args[0]),
-          args.size() < 1 ? k_timestamp_none : parse_uint64(args[1]),
-          args.size() < 2 ? k_timestamp_none : parse_uint64(args[2]));
+          args.size() <= 1 ? k_timestamp_none : parse_uint64(args[1]),
+          args.size() <= 2 ? k_timestamp_none : parse_uint64(args[2]));
     }
     if (name == "crash") {
         CHECK_NUM_ARGS(0);
@@ -194,7 +198,8 @@ parse(const char *str)
 #undef CHECK_NUM_ARGS
 #undef CHECK_NUM_ARGS_RANGE
 
-    throw model_exception("Cannot parse operation: Unknown operation \"" + name + "\"");
+    throw model_exception(
+      "Cannot parse operation: Unknown operation \"" + std::string(name) + "\"");
 }
 
 } /* namespace operation */

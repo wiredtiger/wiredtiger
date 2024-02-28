@@ -294,7 +294,8 @@ parse_uint64(const char *str, char **end)
         throw std::runtime_error("Cannot parse a number");
 
     char *p = nullptr;
-    uint64_t r = (uint64_t)strtoull(str, &p, 0 /* automatically detect "0x" for hex numbers */);
+    uint64_t r =
+      (uint64_t)std::strtoull(str, &p, 0 /* automatically detect "0x" for hex numbers */);
     if (end != nullptr)
         *end = p;
     if (str == p || (end == nullptr && p[0] != '\0'))

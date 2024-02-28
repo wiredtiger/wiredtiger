@@ -352,6 +352,18 @@ test_workload_parse(void)
       model::operation::any(model::operation::create_table(1, "table\" \\", "Q", "")));
     testutil_assert(model::operation::parse("create_table\t\n(0x1 ,\"table\" \"1\", \"Q\", S )") ==
       model::operation::any(model::operation::create_table(1, "table1", "Q", "S")));
+
+    /* Test optional arguments. */
+    testutil_assert(model::operation::parse("checkpoint()") ==
+      model::operation::any(model::operation::checkpoint()));
+    testutil_assert(model::operation::parse("checkpoint(\"test\")") ==
+      model::operation::any(model::operation::checkpoint("test")));
+    testutil_assert(model::operation::parse("commit_transaction(1)") ==
+      model::operation::any(model::operation::commit_transaction(1)));
+    testutil_assert(model::operation::parse("commit_transaction(1, 2)") ==
+      model::operation::any(model::operation::commit_transaction(1, 2)));
+    testutil_assert(model::operation::parse("commit_transaction(1, 2, 3)") ==
+      model::operation::any(model::operation::commit_transaction(1, 2, 3)));
 }
 
 /*
