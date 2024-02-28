@@ -1556,15 +1556,6 @@ retry:
             continue;
         }
 
-        /*
-         * If we are filling the queue, skip files that haven't been useful in the past.
-         */
-        if (btree->evict_walk_period != 0 && btree->evict_walk_skips++ < btree->evict_walk_period) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_not_useful_before);
-            continue;
-        }
-        btree->evict_walk_skips = 0;
-
         (void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
         incr = true;
         __wt_readunlock(session, &conn->dhandle_lock);
@@ -1739,9 +1730,13 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      * interest.
      */
     if (target_pages == 0) {
-        btree_inuse = F_ISSET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_UPDATES) ?
-          __wt_btree_bytes_evictable(session) :
-          __wt_btree_dirty_leaf_inuse(session);
+        btree_inuse = 0;
+        if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
+            btree_inuse += __wt_btree_bytes_evictable(session);
+        if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
+            btree_inuse += __wt_btree_dirty_leaf_inuse(session);
+        if (F_ISSET(cache, WT_CACHE_EVICT_UPDATES))
+            btree_inuse += __wt_btree_bytes_updates(session);
 
         if (btree_inuse == 0)
             return (0);
@@ -2078,7 +2073,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
           F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             if (page == last_parent)
                 continue;
-            if (btree->evict_walk_period == 0 && !__wt_cache_aggressive(session))
+            if (!__wt_cache_aggressive(session))
                 continue;
         }
 
@@ -2132,19 +2127,10 @@ fast:
       session->dhandle->name, pages_seen, pages_queued);
 
     /*
-     * If we couldn't find the number of pages we were looking for, skip the tree next time.
+     * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
      */
-    if (pages_queued < target_pages / 2 && !urgent_queued)
-        btree->evict_walk_period = WT_MIN(WT_MAX(1, 2 * btree->evict_walk_period), 100);
-    else if (pages_queued == target_pages) {
-        btree->evict_walk_period = 0;
-        /*
-         * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
-         */
-        if (__wt_btree_bytes_evictable(session) == 0)
-            FLD_SET(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
-    } else if (btree->evict_walk_period > 0)
-        btree->evict_walk_period /= 2;
+    if (__wt_btree_bytes_evictable(session) == 0)
+        FLD_SET(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
 
     /*
      * Give up the walk occasionally.
