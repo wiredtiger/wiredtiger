@@ -624,7 +624,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     flags = 0;
 
     if (!F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
-        cache->flags = 0;
+        __wt_atomic_store32(&cache->flags, 0);
         return (false);
     }
 
@@ -700,7 +700,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     }
 
     /* Update the global eviction state. */
-    cache->flags = flags;
+    __wt_atomic_store32(&cache->flags, flags);
 
     return (F_ISSET(cache, WT_CACHE_EVICT_ALL | WT_CACHE_EVICT_URGENT));
 }
