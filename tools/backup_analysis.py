@@ -28,10 +28,8 @@
 
 # Compare WT data files in two different home directories.
 
-import fnmatch, glob, os, sys, time
+import fnmatch, glob, os, re, sys, time
 
-total_blocks_global = 0
-total_bytes_global = 0
 granularity = 0
 pct20 = granularity // 5
 pct80 = pct20 * 4
@@ -44,7 +42,6 @@ assert(len(global_names) == len(global_types))
 class TypeStats(object):
     def __init__(self, name):
         self.name = name
-        self.blocks = 0
         self.bytes = 0
         self.files = 0
         self.files_changed = 0
@@ -68,6 +65,27 @@ def get_metadata(mydir, filename):
             if uri_file in filekey:
                 return filemeta
     return None
+
+def get_checkpoint_time(meta):
+    pattern = 'checkpoint=\(.*time=([^,)]*)[,)]'
+    match = re.search(pattern, meta)
+    if match == None:
+        return 0
+    return match.group(1)
+    
+
+# Determine which of our two directories is older.
+def older_dir(dir1, dir2):
+    wtfile = 'WiredTigerHS.wt'
+    dir1_meta = get_metadata(dir1, wtfile)
+    dir2_meta = get_metadata(dir2, wtfile)
+    # Determine which is older by the checkpoint time. 
+    time1 = get_checkpoint_time(dir1_meta)
+    time2 = get_checkpoint_time(dir2_meta)
+    if time1 <= time2:
+        return dir1
+    else:
+        return dir2
 
 # This function is where all of the fragile and brittle knowledge of how MongoDB uses tables
 # is kept to analyze the state of the system.
@@ -121,8 +139,6 @@ def check_backup(mydir):
     return True
 
 def compare_file(dir1, dir2, filename, cmp_size):
-    global total_blocks_global
-    global total_bytes_global
 
     f1_size = os.stat(os.path.join(dir1, filename)).st_size
     f2_size = os.stat(os.path.join(dir2, filename)).st_size
@@ -151,7 +167,6 @@ def compare_file(dir1, dir2, filename, cmp_size):
     # Time how long it takes to compare each file.
     start = time.asctime()
     # Compare the bytes in cmp_size blocks between both files.
-    print("")
     for b in range(0, num_cmp_blocks + 1):
         # Compare the two blocks. We know both files are at least min_size so all reads should work.
         buf1 = fp1.read(cmp_size)
@@ -159,12 +174,10 @@ def compare_file(dir1, dir2, filename, cmp_size):
         # If they're different, gather information.
         if buf1 != buf2:
             total_bytes_diff += cmp_size
-            total_bytes_global += cmp_size
             # Count how many granularity level blocks changed.
             if bytes_gran == 0:
                 gran_blocks += 1
                 ts.gran_blocks += 1
-                total_blocks_global += 1
             bytes_gran += cmp_size
             ts.bytes += cmp_size
         # Gather and report block information when we cross a granularity boundary or we're on
@@ -192,7 +205,6 @@ def compare_file(dir1, dir2, filename, cmp_size):
         # If they're different, gather information.
         if buf1 != buf2:
             total_bytes_diff += partial_cmp
-            total_bytes_global += partial_cmp
             bytes_gran += partial_cmp
             ts.bytes += partial_cmp
             part_bytes = offset + partial_cmp - start_off
@@ -202,7 +214,6 @@ def compare_file(dir1, dir2, filename, cmp_size):
     end = time.asctime()
 
     # Report for each file.
-    print(f'{filename}: time: started {start} completed {end}')
     if f1_size < f2_size:
         change = "grew"
         change_diff = f2_size - f1_size
@@ -212,6 +223,16 @@ def compare_file(dir1, dir2, filename, cmp_size):
     else:
         change = "remained equal"
         change_diff = 0
+    # Print the time even if no changes because we may want to know how long it took to not
+    # see any changes. Only print if the time is not identical.
+    if start != end:
+        print(f'{filename}: time: started {start} completed {end}')
+    if total_bytes_diff == 0:
+        # If the file is unchanged return now.
+        print(f'{filename}: is unchanged')
+        return
+
+    # Otherwise print out the change information.
     if change_diff != 0:
         print(f'{filename}: size: {f1_size} {f2_size} {change} by {change_diff} bytes')
     else:
@@ -223,25 +244,51 @@ def compare_file(dir1, dir2, filename, cmp_size):
         pct80_blocks = round(abs(pct80_count / gran_blocks * 100))
         print(f'{filename}: smallest 20%: {pct20_count} of {gran_blocks} blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
         print(f'{filename}: largest 80%: {pct80_count} of {gran_blocks} blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
+    print("")
 
 #
 # Print a detailed summary of all of the blocks and bytes over all of the files. We accumulated
 # the changes as we went through each of the files.
 #
 def print_summary():
-    print("")
     print('SUMMARY')
-    print(f'Total: {total_bytes_global} bytes changed in {total_blocks_global} blocks')
+    # Calculate overall totals from each of the different types first.
+    total_blocks = 0
+    total_bytes = 0
+    total_files = 0
+    total_files_changed = 0
+    total_gran_blocks = 0
+    for t in global_types:
+        ts = typestats[t]
+        total_bytes += ts.bytes
+        total_files += ts.files
+        total_files_changed += ts.files_changed
+        total_gran_blocks += ts.gran_blocks
+    print(f'Total: {total_bytes} bytes changed in {total_gran_blocks} granularity-sized ({granularity}) blocks')
+    if total_files_changed == 1:
+        word = 'file'
+    else:
+        word = 'files'
+    print(f'Total: {total_files_changed} {word} changed out of {total_files} total files')
+
     # Walk through all the types printing out final information per type.
     for n, t in zip(global_names, global_types):
         ts = typestats[t]
-        print(f'{n}: {ts.files_changed} of {ts.files} changed')
+        if ts.files_changed == 1:
+            word = 'file'
+        else:
+            word = 'files'
+        if ts.files == 1:
+            word2 = 'file'
+        else:
+            word2 = 'files'
+        print(f'{n}: {ts.files_changed} {word} changed out of {ts.files} {word2}')
         if ts.gran_blocks != 0:
             if ts.files_changed == 1:
                 word = 'file'
             else:
                 word = 'files'
-            print(f'{ts.files_changed} changed {word}: differs by {ts.blocks} granularity blocks in {ts.gran_blocks} total granularity blocks')
+            print(f'{ts.files_changed} changed {word}: differs by {ts.gran_blocks} granularity blocks in {ts.gran_blocks} total granularity blocks')
             print(f'{ts.files_changed} changed {word}: differs by {ts.bytes} bytes in {ts.gran_blocks} total granularity blocks')
             pct20_blocks = round(abs(ts.pct20 / ts.gran_blocks * 100))
             pct80_blocks = round(abs(ts.pct80 / ts.gran_blocks * 100))
@@ -251,16 +298,28 @@ def print_summary():
 def compare_backups(dir1, dir2):
     files1=set(fnmatch.filter(os.listdir(dir1), "*.wt"))
     files2=set(fnmatch.filter(os.listdir(dir2), "*.wt"))
+    older = older_dir(dir1, dir2)
+    if older == dir1:
+        diff1 = 'dropped'
+        diff2 = 'created'
+    else:
+        diff1 = 'created'
+        diff2 = 'dropped'
 
     common = files1.intersection(files2)
     # For now assume the first directory is the older one. Once we add functionality to parse the
     # text in WiredTiger.backup we can look at the checkpoint timestamp of a known table like the
     # history store and figure out which is older.
     # NOTE: Update the assumption in the usage statement also when this changes.
+    printed_diff = False
     for file in files1.difference(files2):
-        print(file + ": dropped between backups")
+        print(f'{file}: {diff1} between backups')
+        printed_diff = True
     for file in files2.difference(files1):
-        print(file + ": created between backups")
+        print(f'{file}: {diff2} between backups')
+        printed_diff = True
+    if printed_diff:
+        print("")
     #print(common)
     for f in sorted(common):
         # For now we're only concerned with changed blocks between backups.
