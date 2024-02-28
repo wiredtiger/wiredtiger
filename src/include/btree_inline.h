@@ -1879,7 +1879,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
         return (true);
 
     /* Retry if the global transaction state has moved forward. */
-    if (txn_global->current == __wt_atomic_loadv64(&txn_global->oldest_id) ||
+    if (__wt_atomic_loadv64(&txn_global->current) == __wt_atomic_loadv64(&txn_global->oldest_id) ||
       mod->last_eviction_id != __wt_txn_oldest_id(session))
         return (true);
 

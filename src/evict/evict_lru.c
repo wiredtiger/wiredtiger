@@ -798,7 +798,8 @@ __evict_pass(WT_SESSION_IMPL *session)
                 if (cache->evict_aggressive_score < WT_EVICT_SCORE_MAX)
                     ++cache->evict_aggressive_score;
                 oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
-                if (prev_oldest_id == oldest_id && txn_global->current != oldest_id &&
+                if (prev_oldest_id == oldest_id &&
+                  __wt_atomic_loadv64(&txn_global->current) != oldest_id &&
                   cache->evict_aggressive_score < WT_EVICT_SCORE_MAX)
                     ++cache->evict_aggressive_score;
                 time_prev = time_now;
@@ -2514,7 +2515,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          * more.
          */
         if (!busy && __wt_atomic_loadv64(&txn_shared->pinned_id) != WT_TXN_NONE &&
-          txn_global->current != __wt_atomic_loadv64(&txn_global->oldest_id))
+          __wt_atomic_loadv64(&txn_global->current) != __wt_atomic_loadv64(&txn_global->oldest_id))
             busy = true;
         max_progress = busy ? 5 : 20;
 

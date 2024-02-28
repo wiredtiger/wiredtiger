@@ -228,7 +228,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
 
-    current_id = pinned_id = txn_global->current;
+    current_id = pinned_id = __wt_atomic_loadv64(&txn_global->current);
     prev_oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
 
     /*
@@ -411,7 +411,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
 
     /* The oldest ID cannot change while we are holding the scan lock. */
     prev_oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
-    last_running = oldest_id = txn_global->current;
+    last_running = oldest_id = __wt_atomic_loadv64(&txn_global->current);
     if ((metadata_pinned = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.id)) ==
       WT_TXN_NONE)
         metadata_pinned = oldest_id;
@@ -498,7 +498,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     strict = LF_ISSET(WT_TXN_OLDEST_STRICT);
     wait = LF_ISSET(WT_TXN_OLDEST_WAIT);
 
-    current_id = last_running = metadata_pinned = txn_global->current;
+    current_id = last_running = metadata_pinned = __wt_atomic_loadv64(&txn_global->current);
     prev_last_running = __wt_atomic_loadv64(&txn_global->last_running);
     prev_metadata_pinned = __wt_atomic_loadv64(&txn_global->metadata_pinned);
     prev_oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
@@ -2424,7 +2424,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     checkpoint_pinned = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.pinned_id);
 
     WT_STAT_SET(session, stats, txn_pinned_range,
-      txn_global->current - __wt_atomic_loadv64(&txn_global->oldest_id));
+      __wt_atomic_loadv64(&txn_global->current) - __wt_atomic_loadv64(&txn_global->oldest_id));
 
     checkpoint_timestamp = txn_global->checkpoint_timestamp;
     durable_timestamp = txn_global->durable_timestamp;
@@ -2448,7 +2448,9 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     }
 
     WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
-      checkpoint_pinned == WT_TXN_NONE ? 0 : txn_global->current - checkpoint_pinned);
+      checkpoint_pinned == WT_TXN_NONE ?
+        0 :
+        __wt_atomic_loadv64(&txn_global->current) - checkpoint_pinned);
 
     WT_STAT_SET(session, stats, checkpoint_scrub_max, conn->ckpt_scrub_max);
     if (conn->ckpt_scrub_min != UINT64_MAX)
@@ -2514,7 +2516,7 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
 
     txn_global = &conn->txn_global;
-    txn_global->current = WT_TXN_FIRST;
+    __wt_atomic_storev64(&txn_global->current, WT_TXN_FIRST);
     __wt_atomic_storev64(&txn_global->last_running, WT_TXN_FIRST);
     __wt_atomic_storev64(&txn_global->metadata_pinned, WT_TXN_FIRST);
     __wt_atomic_storev64(&txn_global->oldest_id, WT_TXN_FIRST);
@@ -2810,7 +2812,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "transaction state dump"));
 
-    WT_RET(__wt_msg(session, "current ID: %" PRIu64, txn_global->current));
+    WT_RET(__wt_msg(session, "current ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->current)));
     WT_RET(__wt_msg(
       session, "last running ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->last_running)));
     WT_RET(__wt_msg(

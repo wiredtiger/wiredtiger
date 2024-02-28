@@ -2364,7 +2364,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
     if (pinned == WT_TXN_NONE)
         *prange = 0;
     else
-        *prange = S2C(session)->txn_global.current - pinned;
+        *prange = __wt_atomic_loadv64(&S2C(session)->txn_global.current) - pinned;
 
 err:
     API_END_RET(session, ret);

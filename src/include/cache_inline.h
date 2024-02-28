@@ -472,7 +472,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     busy = busy || __wt_atomic_loadv64(&txn_shared->id) != WT_TXN_NONE ||
       session->hazards.num_active > 0 ||
       (__wt_atomic_loadv64(&txn_shared->pinned_id) != WT_TXN_NONE &&
-        txn_global->current != __wt_atomic_loadv64(&txn_global->oldest_id));
+        __wt_atomic_loadv64(&txn_global->current) != __wt_atomic_loadv64(&txn_global->oldest_id));
 
     /*
      * LSM sets the "ignore cache size" flag when holding the LSM tree lock, in that case, or when
