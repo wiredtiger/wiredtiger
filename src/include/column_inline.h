@@ -21,7 +21,8 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      *
      * Place an acquire barrier to avoid this issue.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(ins, WT_SKIP_LAST(ins_head));
+    ins = WT_SKIP_LAST(ins_head);
+    WT_ACQUIRE_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -92,7 +93,8 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      *
      * Place an acquire barrier to avoid this issue.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(ins, WT_SKIP_FIRST(ins_head));
+    ins = WT_SKIP_FIRST(ins_head);
+    WT_ACQUIRE_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -142,7 +144,8 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
      *
      * Place an acquire barrier to avoid this issue.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(ins, WT_SKIP_LAST(ins_head));
+    ins = WT_SKIP_LAST(ins_head);
+    WT_ACQUIRE_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -203,7 +206,8 @@ __col_insert_search(
      *
      * Place an acquire barrier to avoid this issue.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(ret_ins, WT_SKIP_LAST(ins_head));
+    ret_ins = WT_SKIP_LAST(ins_head);
+    WT_ACQUIRE_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ret_ins == NULL)
