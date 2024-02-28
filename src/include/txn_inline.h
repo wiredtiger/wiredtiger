@@ -539,7 +539,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * The metadata is tracked specially because of optimizations for checkpoints.
      */
     if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
-        return (txn_global->metadata_pinned);
+        return (__wt_atomic_loadv64(&txn_global->metadata_pinned));
 
     /*
      * Take a local copy of these IDs in case they are updated while we are checking visibility. The
@@ -1772,7 +1772,8 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      */
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
         if (__wt_atomic_loadv64(&txn_shared->pinned_id) == WT_TXN_NONE)
-            __wt_atomic_storev64(&txn_shared->pinned_id, txn_global->last_running);
+            __wt_atomic_storev64(
+              &txn_shared->pinned_id, __wt_atomic_loadv64(&txn_global->last_running));
         if (__wt_atomic_loadv64(&txn_shared->metadata_pinned) == WT_TXN_NONE)
             __wt_atomic_storev64(
               &txn_shared->metadata_pinned, __wt_atomic_loadv64(&txn_shared->pinned_id));
@@ -1804,7 +1805,7 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     *txn_active = (txn_global->oldest_id != txn_global->current ||
-      txn_global->metadata_pinned != txn_global->current);
+      __wt_atomic_loadv64(&txn_global->metadata_pinned) != txn_global->current);
 
     return (0);
 }

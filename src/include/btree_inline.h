@@ -706,7 +706,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
-        last_running = S2C(session)->txn_global.last_running;
+        last_running = __wt_atomic_loadv64(&S2C(session)->txn_global.last_running);
 
     /*
      * We depend on the atomic operation being a release barrier, that is, a barrier to ensure all

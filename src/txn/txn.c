@@ -77,7 +77,7 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    WT_ASSERT(session, !WT_TXNID_LT(txn->id, txn_global->last_running));
+    WT_ASSERT(session, !WT_TXNID_LT(txn->id, __wt_atomic_loadv64(&txn_global->last_running)));
     WT_ASSERT(
       session, txn->id != WT_TXN_NONE && __wt_atomic_loadv64(&txn_shared->id) != WT_TXN_NONE);
 #else
@@ -499,8 +499,8 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     wait = LF_ISSET(WT_TXN_OLDEST_WAIT);
 
     current_id = last_running = metadata_pinned = txn_global->current;
-    prev_last_running = txn_global->last_running;
-    prev_metadata_pinned = txn_global->metadata_pinned;
+    prev_last_running = __wt_atomic_loadv64(&txn_global->last_running);
+    prev_metadata_pinned = __wt_atomic_loadv64(&txn_global->metadata_pinned);
     prev_oldest_id = txn_global->oldest_id;
 
     /* Try to move the pinned timestamp forward. */
@@ -543,8 +543,8 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
      * If the oldest ID has been updated while we waited, don't bother scanning.
      */
     if (WT_TXNID_LE(oldest_id, txn_global->oldest_id) &&
-      WT_TXNID_LE(last_running, txn_global->last_running) &&
-      WT_TXNID_LE(metadata_pinned, txn_global->metadata_pinned))
+      WT_TXNID_LE(last_running, __wt_atomic_loadv64(&txn_global->last_running)) &&
+      WT_TXNID_LE(metadata_pinned, __wt_atomic_loadv64(&txn_global->metadata_pinned)))
         goto done;
 
     /*
@@ -555,12 +555,12 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     __txn_oldest_scan(session, &oldest_id, &last_running, &metadata_pinned, &oldest_session);
 
     /* Update the public IDs. */
-    if (WT_TXNID_LT(txn_global->metadata_pinned, metadata_pinned))
-        txn_global->metadata_pinned = metadata_pinned;
+    if (WT_TXNID_LT(__wt_atomic_loadv64(&txn_global->metadata_pinned), metadata_pinned))
+        __wt_atomic_storev64(&txn_global->metadata_pinned, metadata_pinned);
     if (WT_TXNID_LT(txn_global->oldest_id, oldest_id))
         txn_global->oldest_id = oldest_id;
-    if (WT_TXNID_LT(txn_global->last_running, last_running)) {
-        txn_global->last_running = last_running;
+    if (WT_TXNID_LT(__wt_atomic_loadv64(&txn_global->last_running), last_running)) {
+        __wt_atomic_storev64(&txn_global->last_running, last_running);
 
         /* Output a verbose message about long-running transactions,
          * but only when some progress is being made. */
@@ -783,7 +783,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
          * Be extra careful to cleanup everything for checkpoints: once the global checkpoint ID is
          * cleared, we can no longer tell if this session is doing a checkpoint.
          */
-        txn_global->checkpoint_id = 0;
+        __wt_atomic_storev32(&txn_global->checkpoint_id, 0);
     } else if (F_ISSET(txn, WT_TXN_HAS_ID)) {
         /*
          * If transaction is prepared, this would have been done in prepare.
@@ -2513,8 +2513,9 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
 
     txn_global = &conn->txn_global;
-    txn_global->current = txn_global->last_running = txn_global->metadata_pinned =
-      txn_global->oldest_id = WT_TXN_FIRST;
+    txn_global->current = txn_global->oldest_id = WT_TXN_FIRST;
+    __wt_atomic_storev64(&txn_global->last_running, WT_TXN_FIRST);
+    __wt_atomic_storev64(&txn_global->metadata_pinned, WT_TXN_FIRST);
 
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
     WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
@@ -2808,8 +2809,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "transaction state dump"));
 
     WT_RET(__wt_msg(session, "current ID: %" PRIu64, txn_global->current));
-    WT_RET(__wt_msg(session, "last running ID: %" PRIu64, txn_global->last_running));
-    WT_RET(__wt_msg(session, "metadata_pinned ID: %" PRIu64, txn_global->metadata_pinned));
+    WT_RET(__wt_msg(
+      session, "last running ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->last_running)));
+    WT_RET(__wt_msg(
+      session, "metadata_pinned ID: %" PRIu64, __wt_atomic_loadv64(&txn_global->metadata_pinned)));
     WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, txn_global->oldest_id));
 
     WT_RET(__wt_msg(session, "durable timestamp: %s",
