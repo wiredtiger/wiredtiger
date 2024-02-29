@@ -246,6 +246,7 @@ struct __wt_btree {
     wt_shared int32_t evict_disabled;       /* Eviction disabled count */
     bool evict_disabled_open;               /* Eviction disabled on open */
     wt_shared volatile uint32_t evict_busy; /* Count of threads in eviction */
+    wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
     WT_EVICT_WALK_TYPE evict_start_type;
 
 /*
