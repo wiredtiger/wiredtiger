@@ -47,8 +47,11 @@ usage(void)
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
       "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
       "database directory", "-L", "turn logging off for debug-mode", "-m", "run verify on metadata",
-      "-p", "disable pre-fetching on the connection", "-R", "run recovery (if recovery configured)",
-      "-r", "access the database via a readonly connection", "-S",
+      "-p",
+      "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
+      "data",
+      "-R", "run recovery (if recovery configured)", "-r",
+      "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
       "-v", "verbose", "-?", "show this message", NULL, NULL};
     static const char *commands[] = {"alter", "alter an object", "backup", "database backup",
