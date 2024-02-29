@@ -86,6 +86,7 @@
  * support offsets.
  */
 #ifdef HAVE_RCPC
+#ifndef TSAN_BUILD
 #define WT_ACQUIRE_READ(v, val)                                      \
     do {                                                             \
         if (0) {                                                     \
@@ -99,8 +100,14 @@
             __asm__ volatile("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
         } else if (sizeof((val)) == 8) {                             \
             __asm__ volatile("ldapr %0, %1" : "=r"(v) : "Q"(val));   \
+            printf("abc");                                           \
         }                                                            \
     } while (0)
+#else
+#define WT_ACQUIRE_READ(v, val)                                      \
+v = __atomic_load_n(val, __ATOMIC_ACQUIRE);                          \
+printf("AAAAA");
+#endif
 #else
 #define WT_ACQUIRE_READ(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
 #endif
