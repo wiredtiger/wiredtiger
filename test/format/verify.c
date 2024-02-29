@@ -236,11 +236,10 @@ table_verify_mirror(
     trace_msg(session, "%s: start", buf);
 
     /*
-     * If we're not reading from a checkpoint, start a cursor to pin a page. This cursor ensures the
-     * session never refreshes its snapshot in verification of the live tree. If we didn't open this
-     * cursor, we could get a WT_NOTFOUND return when placing the live cursor before the
-     * verification range. That WT_NOTFOUND return result would cause the session to release its
-     * snapshot if there are no other active cursors.
+     * If we are not reading from a checkpoint, start a cursor to pin a page to ensure we never
+     * refresh our snapshot in verification. We may get a not found return when placing the cursor
+     * before the verification range, which would cause the session to release the snapshot if there
+     * was no other active cursors.
      */
     if (checkpoint == NULL) {
         wt_wrap_open_cursor(session, base->uri, NULL, &pinned_cursor);

@@ -196,7 +196,11 @@ util_usage(const char *usage, const char *tag, const char *list[])
 void *
 util_malloc(size_t len)
 {
+#ifdef HAVE_LIBTCMALLOC
+    return (tc_malloc(len));
+#else
     return (malloc(len));
+#endif
 }
 
 /*
@@ -206,7 +210,11 @@ util_malloc(size_t len)
 void *
 util_calloc(size_t members, size_t sz)
 {
+#ifdef HAVE_LIBTCMALLOC
+    return (tc_calloc(members, sz));
+#else
     return (calloc(members, sz));
+#endif
 }
 
 /*
@@ -216,7 +224,11 @@ util_calloc(size_t members, size_t sz)
 void *
 util_realloc(void *p, size_t len)
 {
+#ifdef HAVE_LIBTCMALLOC
+    return (tc_realloc(p, len));
+#else
     return (realloc(p, len));
+#endif
 }
 
 /*
@@ -227,7 +239,11 @@ util_realloc(void *p, size_t len)
 void
 util_free(void *p)
 {
+#ifdef HAVE_LIBTCMALLOC
+    tc_free(p);
+#else
     free(p);
+#endif
 }
 
 /*
@@ -237,5 +253,15 @@ util_free(void *p)
 char *
 util_strdup(const char *s)
 {
+#ifdef HAVE_LIBTCMALLOC
+    char *new = util_malloc(strlen(s) + 1);
+    if (new == NULL)
+        return (NULL);
+
+    strcpy(new, s);
+
+    return (new);
+#else
     return (strdup(s));
+#endif
 }
