@@ -75,7 +75,9 @@
 
 /*
  * The below assembly implements the read-acquire semantic. The if branches get removed at compile
- * time as the sizeof instruction evaluates at compile time.
+ * time as the sizeof instruction evaluates at compile time. Additionally ldapr results in a loss of
+ * type checking, to circumvent this we have an if (0) block which contains the direct assignment.
+ * This forces the compiler to type check.
  *
  * Depending on the size of the given type we choose the appropriate ldapr variant, additionally the
  * W register variants are used if possible which map to the lower word of the associated X
@@ -100,13 +102,10 @@
             __asm__ volatile("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
         } else if (sizeof((val)) == 8) {                             \
             __asm__ volatile("ldapr %0, %1" : "=r"(v) : "Q"(val));   \
-            printf("abc");                                           \
         }                                                            \
     } while (0)
 #else
-#define WT_ACQUIRE_READ(v, val)                                      \
-v = __atomic_load_n(val, __ATOMIC_ACQUIRE);                          \
-printf("AAAAA");
+#define WT_ACQUIRE_READ(v, val) v = __atomic_load_n(&val, __ATOMIC_ACQUIRE);
 #endif
 #else
 #define WT_ACQUIRE_READ(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
