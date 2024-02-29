@@ -304,7 +304,7 @@ def describe_complexity_categories() -> list:
     return description
 
 
-# coverage_string converts a coverage value ana a total into a colour-coded html string
+# coverage_string converts a coverage value and a total into a colour-coded html string
 def coverage_string(covered: int, total: int) -> str:
     string = ""
     if total > 0:
