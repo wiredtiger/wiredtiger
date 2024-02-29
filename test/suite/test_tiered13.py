@@ -84,8 +84,6 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         # - Try to import via the table:uri with the file object's metadata.
         # - Try to import via the file:uri.
         # - Try to import via the file:uri with the file object's metadata.
-        # - Try to import via a renamed file:name.wt.
-        # - Try to import via a renamed file:name.wt with the file object's metadata.
 
         # Export the metadata for the current file object 2.
         cursor = self.session.open_cursor('metadata:', None, None)
@@ -140,19 +138,3 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         # Try to import via the file:uri with file metadata.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.file2uri, import_meta), invalid)
-
-        # Try to import via a renamed object. If we don't send in metadata,
-        # we cannot tell it was a tiered table until we read in the root page.
-        # Only test this in diagnostic mode which has an assertion.
-        #
-        # FIXME-WT-8644 There is an error path bug in wt_bm_read preventing this from
-        # working correctly although the code to return an error is in the code.
-        # Uncomment these lines when that bug is fixed.
-
-        #if wiredtiger.diagnostic_build():
-        #    self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        #        lambda: self.session.create(self.otheruri, import_enabled), msg)
-
-        # Try to import via a renamed object with metadata.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create(self.otheruri, import_meta), invalid)

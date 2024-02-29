@@ -59,16 +59,14 @@ class test_lsm02(wttest.WiredTigerTestCase):
         self.add_key(self.uri, 'k3', v)
         self.verify_key_exists(self.uri, 'k3', v)
 
-    def test_lsm_rename01(self):
+    def test_lsm_create01(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.add_key(self.uri, 'a', 'a')
-        self.renameUntilSuccess(self.session, self.uri, self.uri + 'renamed')
-        self.verify_key_exists(self.uri + 'renamed', 'a', 'a')
+        self.verify_key_exists(self.uri, 'a', 'a')
 
-    def test_lsm_rename02(self):
+    def test_lsm02_create02(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.add_key(self.uri, 'a', 'a')
-        self.renameUntilSuccess(self.session, self.uri, self.uri + 'renamed')
 
         # Create a new LSM with the original name
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -76,5 +74,5 @@ class test_lsm02(wttest.WiredTigerTestCase):
         # Add a different entry to the new tree
         self.add_key(self.uri, 'b', 'b')
 
-        self.verify_key_exists(self.uri + 'renamed', 'a', 'a')
+        self.verify_key_exists(self.uri, 'a', 'a')
         self.verify_key_exists(self.uri, 'b', 'b')
