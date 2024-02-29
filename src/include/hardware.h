@@ -88,6 +88,9 @@
 #ifdef HAVE_RCPC
 #define WT_ACQUIRE_READ(v, val)                                      \
     do {                                                             \
+        if (0) {                                                     \
+            v = val;                                                 \
+        }                                                            \
         if (sizeof((val)) == 1) {                                    \
             __asm__ volatile("ldaprb %w0, %1" : "=r"(v) : "Q"(val)); \
         } else if (sizeof((val)) == 2) {                             \

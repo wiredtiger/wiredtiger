@@ -15,9 +15,11 @@ set(WT_BUFFER_ALIGNMENT_DEFAULT "4096" CACHE STRING "")
 # ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC.
 if (HAVE_RCPC)
     # If the builder specifies also turn on the RCpc instructions.
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8.3-a+crc" CACHE STRING "" FORCE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8.2-a+rcpc+crc" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8.2-a+rcpc+crc" CACHE STRING "" FORCE)
 else()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8-a+crc" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+crc" CACHE STRING "" FORCE)
 endif()
 check_c_compiler_flag("-moutline-atomics" has_moutline_atomics)
 
