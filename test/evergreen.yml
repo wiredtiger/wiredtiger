@@ -3061,7 +3061,7 @@ tasks:
               git checkout `git merge-base develop HEAD`
             else
               # Checkout the previous commit
-              git checkout HEAD~`
+              git checkout HEAD~
             fi
 
             cd src
