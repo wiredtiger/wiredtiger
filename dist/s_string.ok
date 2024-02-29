@@ -34,7 +34,7 @@ BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
 BLKCACHE
-BLmRrSVv
+BLmpRrSVv
 BOOL
 BSR
 BTREE
@@ -142,6 +142,7 @@ FORALL
 FOREACH
 FS
 FULLFSYNC
+FUNC
 FUNCSIG
 Failpoint
 FindClose
@@ -244,7 +245,6 @@ MapViewOfFile
 Marsaglia
 Marsaglia's
 Mellor
-Mewhort
 Mitzenmacher
 MongoDB
 MoveFileExW
@@ -375,7 +375,9 @@ TODO
 TORTIOUS
 TRET
 TRYLOCK
+TSAN
 TSO
+TSan
 TW
 TXN
 ThreadList
@@ -482,6 +484,7 @@ argv
 asdf
 assertfmt
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -501,12 +504,10 @@ bbuilddir
 bcr
 bd
 beginthreadex
-bigram
 binutils
 bitcnt
 bitfield
 bitfields
-bitpos
 bitstr
 bitstring
 bitwise
@@ -664,7 +665,6 @@ decrypts
 deflateEnd
 deflateInit
 del
-dequeue
 dequeued
 der
 dereference
@@ -714,8 +714,6 @@ encodings
 encryptor
 encryptors
 endian
-english
-enqueue
 enum
 env
 eof
@@ -933,6 +931,7 @@ linux
 llll
 llu
 llvm
+loadbool
 loadtext
 loc
 localTime
@@ -1026,6 +1025,7 @@ newfile
 newuri
 newv
 nextprev
+nf
 nfilename
 nhex
 nlohmann
@@ -1053,7 +1053,6 @@ nset
 nul
 nullptr
 num
-numSymbols
 numbare
 nvram
 offpage
@@ -1171,7 +1170,6 @@ repositions
 requeue
 resizable
 ret
-retp
 revint
 rf
 risc
@@ -1239,6 +1237,7 @@ stderr
 stdin
 stdout
 stepp
+storebool
 str
 strace
 strcat
@@ -1330,7 +1329,6 @@ umount
 unallocated
 unbare
 unbuffered
-uncompressing
 unconfigured
 uncustomized
 undef

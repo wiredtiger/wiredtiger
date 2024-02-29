@@ -65,6 +65,8 @@ functions:
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
               export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
               export TESTUTIL_MSAN=1
+            elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
             fi
@@ -1622,6 +1624,20 @@ tasks:
       - func: "make check directory"
         vars:
           directory: examples/c
+
+  - name: examples-c-tsan
+    # There's a lot of TSan warnings to resolve and TSan is a runtime tool so they aren't always reliably detected.
+    # For now only run TSan tasks in patches until we're confident the tests are stable.
+    # tags: ["pull_request"]
+    patch_only: true
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: examples/c
+          # We're starting small with just ex_hello. This will grow over time.
+          extra_args: -R "ex_hello" -j ${num_jobs}
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
@@ -3664,6 +3680,22 @@ tasks:
             ${PREPARE_TEST_ENV}
             ./test_model.sh
 
+  - name: model-test-long
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/tools"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # Keep repeating the model test for 600 seconds
+            ./model_test -l 2000-3000 -t 600
+
   - name: format-stress-zseries-test
     tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
@@ -5223,6 +5255,9 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    # FIXME-WT-12539
+    #- name: model-test-long
+    #  batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
@@ -5242,6 +5277,21 @@ buildvariants:
     - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest"
     - name: examples-c-test
     - name: format-asan-smoke-test
+
+- name: ubuntu2004-tsan
+  display_name: "! Ubuntu 20.04 TSAN"
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    additional_env_vars: |
+      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
+      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: examples-c-tsan
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
@@ -5474,7 +5524,7 @@ buildvariants:
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
-  - ubuntu1804-large
+  - ubuntu2204-large
   batchtime: 4320 # 3 days
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
@@ -5573,6 +5623,9 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    # FIXME-WT-12539
+    #- name: model-test-long
+    #  batchtime: 1440 # once a day
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
@@ -5584,9 +5637,11 @@ buildvariants:
     posix_configure_flags: -DHAVE_RCPC=1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
+  # Using large distro for a few tests here as more memory is required.
   tasks:
     - name: compile
     - name: make-check-test
+      distros: amazon2-arm64-large
     - name: unit-test
     - name: fops
     - name: format-failure-configs-test
@@ -5597,8 +5652,10 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
+      distros: amazon2-arm64-large
     - name: wtperf-test
     - name: long-test
+      distros: amazon2-arm64-large
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
 
@@ -5821,6 +5878,8 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
+      # Using large distro as more memory is required.
+      distros: amazon2-arm64-large
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
