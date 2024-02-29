@@ -3067,7 +3067,7 @@ tasks:
               # Checkout the previous commit
               git checkout HEAD~
             fi
-            
+
             # Log the current git status of the 'previous' code
             git status
 
@@ -3075,7 +3075,7 @@ tasks:
             python3 "../../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
             python3 "../../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../../coverage_report/metrixpp_prev.csv
             cd ../..
-            
+
             #########################################
             # Generate the change info and the report
             #########################################
