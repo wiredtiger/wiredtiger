@@ -1463,8 +1463,8 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     unpack = &_unpack;
     page = ref->home;
 
-    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
-      "Any thread accessing ref address must hold a valid split generation");
+    /* Any thread accessing ref address must hold a valid split generation. */
+    WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0);
 
     /*
      * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
