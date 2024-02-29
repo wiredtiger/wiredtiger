@@ -64,7 +64,7 @@ __curlog_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    CURSOR_API_CALL(a, session, compare, NULL);
+    CURSOR_API_CALL(a, session, ret, compare, NULL);
 
     acl = (WT_CURSOR_LOG *)a;
     bcl = (WT_CURSOR_LOG *)b;
@@ -201,7 +201,7 @@ __curlog_next(WT_CURSOR *cursor)
 
     cl = (WT_CURSOR_LOG *)cursor;
 
-    CURSOR_API_CALL(cursor, session, next, NULL);
+    CURSOR_API_CALL(cursor, session, ret, next, NULL);
 
     /*
      * If we don't have a record, or went to the end of the record we have, or we are in the
@@ -241,7 +241,7 @@ __curlog_search(WT_CURSOR *cursor)
     raw = F_MASK(cursor, WT_CURSTD_RAW);
     F_CLR(cursor, WT_CURSTD_RAW);
 
-    CURSOR_API_CALL(cursor, session, search, NULL);
+    CURSOR_API_CALL(cursor, session, ret, search, NULL);
 
     /*
      * !!! We are ignoring the counter and only searching based on the LSN.
@@ -381,7 +381,7 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
          * The user may be trying to read a log record they just wrote. Log records may be buffered,
          * so force out any now.
          */
-        WT_ERR(__wt_log_force_write(session, 1, NULL));
+        WT_ERR(__wt_log_force_write(session, true, NULL));
 
         /* Log cursors block removal. */
         __wt_readlock(session, &log->log_remove_lock);

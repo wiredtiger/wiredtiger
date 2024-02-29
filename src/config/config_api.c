@@ -160,17 +160,6 @@ wiredtiger_config_validate(
 }
 
 /*
- * wiredtiger_test_config_validate --
- *     Validate a test configuration string.
- */
-int
-wiredtiger_test_config_validate(
-  WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const char *name, const char *config)
-{
-    return (__config_validate(wt_session, event_handler, name, config, __wt_test_config_match));
-}
-
-/*
  * __conn_foc_add --
  *     Add a new entry into the connection's free-on-close list.
  */
@@ -320,10 +309,6 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         WT_RET_MSG(session, EINVAL, "no configuration specified");
     if (type == NULL)
         WT_RET_MSG(session, EINVAL, "no configuration type specified");
-    if (strcmp(type, "boolean") != 0 && strcmp(type, "int") != 0 && strcmp(type, "list") != 0 &&
-      strcmp(type, "string") != 0)
-        WT_RET_MSG(
-          session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
 
     /* Determine the compiled type. */
     compiled_type = 0;
@@ -430,7 +415,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
      * want to acquire locks every time we access configuration strings, since that's done on every
      * API call.
      */
-    WT_PUBLISH(*epp, entry);
+    WT_RELEASE_WRITE_WITH_BARRIER(*epp, entry);
 
     if (0) {
 err:

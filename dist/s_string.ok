@@ -58,6 +58,7 @@ CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
+CONF
 CONFIG
 CPP
 CPUs
@@ -141,6 +142,7 @@ FORALL
 FOREACH
 FS
 FULLFSYNC
+FUNC
 FUNCSIG
 Failpoint
 FindClose
@@ -219,6 +221,7 @@ LazyFS's
 LeafGreen
 LibFuzzer
 LoadLoad
+LoadStore
 LockFile
 LogBackend
 LogSink
@@ -297,6 +300,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Precompiled
 Preload
 Prepend
 Prepending
@@ -369,8 +373,11 @@ TID
 TMP
 TODO
 TORTIOUS
+TRET
 TRYLOCK
+TSAN
 TSO
+TSan
 TW
 TXN
 ThreadList
@@ -395,6 +402,7 @@ Unbuffered
 Unencrypted
 Unhandled
 UnixLib
+Unlink
 UnlockFile
 Unmap
 UnmapViewOfFile
@@ -454,7 +462,7 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
-acSstu
+ackSstu
 addl
 addr
 addrs
@@ -476,6 +484,7 @@ argv
 asdf
 assertfmt
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -519,6 +528,7 @@ breakpoint
 bs
 bstorage
 bswap
+bt
 btcur
 btmem
 btree
@@ -609,6 +619,7 @@ csv
 ctime
 ctype
 curbackup
+curbt
 curbulk
 curconfig
 curdump
@@ -630,6 +641,7 @@ cust
 customizable
 customp
 cv
+cval
 cx
 cxa
 dT
@@ -816,6 +828,7 @@ hashval
 havesize
 hdr
 hhh
+hijinx
 hpp
 hs
 html
@@ -853,6 +866,7 @@ initn
 initsize
 initval
 inlined
+inlining
 inmem
 inmemory
 inserters
@@ -872,6 +886,7 @@ isb
 isdigit
 ish
 ishld
+ishst
 islocked
 ispo
 isprint
@@ -918,6 +933,7 @@ linux
 llll
 llu
 llvm
+loadbool
 loadtext
 loc
 localTime
@@ -1011,6 +1027,7 @@ newfile
 newuri
 newv
 nextprev
+nf
 nfilename
 nhex
 nlohmann
@@ -1090,6 +1107,9 @@ pre
 pread
 prealloc
 precomp
+precompilation
+precompiled
+precompiling
 prefetch
 preload
 prepend
@@ -1166,6 +1186,7 @@ rotn
 rpc
 rts
 ru
+runnable
 runone
 runtime
 rw
@@ -1180,12 +1201,15 @@ scr
 sd
 sdk
 secretkey
+sempty
+sencrypted
 sessionp
 setkv
 setname
 setstr
 setv
 setvbuf
+sfast
 shareability
 sig
 sigchld
@@ -1217,6 +1241,7 @@ stderr
 stdin
 stdout
 stepp
+storebool
 str
 strace
 strcat
@@ -1248,6 +1273,7 @@ subtest
 subtree
 sumv
 sunique
+sunused
 supd
 superset
 sw
@@ -1292,7 +1318,6 @@ trylock
 tryrdlock
 trywrlock
 tupdate
-tvalue
 tw
 txn
 txnid
@@ -1303,6 +1328,7 @@ typeof
 uS
 ui
 uint
+uintAny
 umount
 unallocated
 unbare
@@ -1327,6 +1353,8 @@ unmodify
 unmount
 unpackv
 unpositioned
+unredact
+unredacts
 unreferenced
 unsized
 unterminated

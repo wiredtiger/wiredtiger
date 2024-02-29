@@ -335,6 +335,19 @@ get_dir_size_mb(const std::string &dir)
     return result / WT_MEGABYTE;
 }
 
+/*
+ * Get the number of WiredTiger tables under the given directory.
+ */
+static uint32_t
+get_dir_num_files(const std::string &dir)
+{
+    auto dirIter = std::filesystem::directory_iterator(dir);
+    uint32_t fileCount = std::count_if(begin(dirIter), end(dirIter),
+      [](auto &entry) { return entry.is_regular_file() && entry.path().extension() == ".wt"; });
+
+    return fileCount;
+}
+
 // 5 random characters + Null terminator
 #define DYNAMIC_TABLE_LEN 6
 /*
@@ -476,40 +489,50 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     }
 
     ContextInternal *icontext = _workload->_context->_internal;
-    bool manage_db_size =
-      _workload->options.create_target > 0 && _workload->options.create_trigger > 0;
-    uint32_t db_size = 0;
+    int create_target = _workload->options.create_target;
+    int create_trigger = _workload->options.create_trigger;
+    int max_files = _workload->options.max_num_files;
+    bool manage_db_size = create_target > 0 && create_trigger > 0;
     bool creating = true;
 
     if (manage_db_size) {
-        db_size = get_dir_size_mb(_wt_home);
-        // Initially we start creating tables if the database size is less than the create target.
-        creating = db_size < _workload->options.create_target;
+        uint32_t db_size = get_dir_size_mb(_wt_home);
+        uint32_t num_files = get_dir_num_files(_wt_home);
+        /*
+         * Initially we start creating tables if:
+         *  - the database size is less than the create target and
+         *  - the number of files is below the limit.
+         */
+        creating = db_size < create_target && num_files < max_files;
     }
 
     while (!stopping) {
         /*
-         * When managing the database size: If we are creating tables, continue until we reach the
-         * create target size. If we are not creating tables, begin to do so if the database size
-         * falls below the create trigger.
+         * When managing the database size: if we are creating tables, continue until we reach the
+         * create target size or the number the number of files limit. If we are not creating
+         * tables, begin to do so if the database size falls below the create trigger and we are
+         * allowed to create more files.
          */
         if (manage_db_size) {
-            db_size = get_dir_size_mb(_wt_home);
+            uint32_t db_size = get_dir_size_mb(_wt_home);
+            uint32_t num_files = get_dir_num_files(_wt_home);
             if (creating) {
-                creating = db_size < _workload->options.create_target;
+                creating = db_size < create_target && num_files < max_files;
                 if (!creating) {
                     VERBOSE(*_workload,
-                      "Stopped creating new tables. db_size now "
-                        << db_size << " MB has reached the create target of "
-                        << _workload->options.create_target << " MB.");
+                      "Stopped creating new tables. Database size is now "
+                        << db_size << " MB (target: " << create_target
+                        << "MB) and the number of files is " << num_files
+                        << " (limit: " << max_files << ").");
                 }
             } else {
-                creating = db_size < _workload->options.create_trigger;
+                creating = db_size < create_trigger && num_files < max_files;
                 if (creating) {
                     VERBOSE(*_workload,
-                      "Started creating new tables. db_size now "
-                        << db_size << " MB has reached the create trigger of "
-                        << _workload->options.create_trigger << " MB.");
+                      "Started creating new tables. Database size is now "
+                        << db_size << " MB (trigger: " << create_trigger
+                        << " MB) and the number of files is " << num_files
+                        << " (limit: " << max_files << ").");
                 }
             }
         }
@@ -523,9 +546,16 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
         const std::string config(
           "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA);
 
+        uint32_t num_files = get_dir_num_files(_wt_home);
         int creates = 0, retries = 0;
-        while (
-          !stopping && creates < _workload->options.create_count && retries < TABLE_MAX_RETRIES) {
+        // Make sure not to exceed the maximum number of files that can exist in the database.
+        int num_files_to_create = 0;
+        if (num_files + _workload->options.create_count > max_files)
+            num_files_to_create = max_files - num_files;
+        else
+            num_files_to_create = _workload->options.create_count;
+
+        while (!stopping && creates < num_files_to_create && retries < TABLE_MAX_RETRIES) {
             // Generate a table name from the user specified prefix and a random alphanumeric
             // sequence.
             char rand_chars[DYNAMIC_TABLE_LEN];
@@ -1482,6 +1512,14 @@ pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
     return testutil_pareto((uint64_t)r, recno_max, pareto.param);
 }
 
+bool
+ThreadRunner::op_has_mirror(tint_t tint) const
+{
+    const std::shared_lock lock(*_icontext->_dyn_mutex);
+    return _icontext->_dyn_table_runtime.count(tint) > 0 &&
+      _icontext->_dyn_table_runtime.at(tint).has_mirror();
+}
+
 uint64_t
 ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
 {
@@ -1825,6 +1863,9 @@ ThreadRunner::op_run(Operation *op)
             _in_transaction = true;
         }
         if (op->is_table_op()) {
+            bool has_mirror = op_has_mirror(tint);
+            // Ensure explicit transactions are used for mirrored operations.
+            ASSERT(!has_mirror || _in_transaction);
             switch (op->_optype) {
             case Operation::OP_INSERT:
                 ret = cursor->insert(cursor);
@@ -1858,13 +1899,10 @@ ThreadRunner::op_run(Operation *op)
                 cursor->reset(cursor);
             else {
                 /*
-                 * We don't retry on a WT_ROLLBACK error when:
-                 * - it is a mirrored operation as Workgen will create a new transaction and
-                 * - the mirror table is the one that faced the WT_ROLLBACK error as the operation
-                 * on the base table will be lost.
+                 * We don't retry on a WT_ROLLBACK error when it is a mirrored operation as Workgen
+                 * will create a new transaction.
                  */
-                if (op->_random_table && _icontext->_dyn_table_runtime[tint].has_mirror() &&
-                  !_icontext->_dyn_table_runtime[tint]._is_base) {
+                if (op->_random_table && has_mirror) {
                     VERBOSE(*this,
                       "The table "
                         << table_uri
@@ -1872,8 +1910,10 @@ ThreadRunner::op_run(Operation *op)
                 } else
                     retry_op = true;
                 track->rollbacks++;
-                _in_transaction = false;
-                WT_ERR(_session->rollback_transaction(_session, nullptr));
+                if (_in_transaction) {
+                    _in_transaction = false;
+                    WT_ERR(_session->rollback_transaction(_session, nullptr));
+                }
             }
         } else {
             // Never retry on an internal op.
@@ -1902,10 +1942,21 @@ ThreadRunner::op_run(Operation *op)
 
         do {
             // Wait for transactions to complete before stopping.
+            bool has_mirror;
             for (int count = 0; (!_stop || _in_transaction) && count < op->_repeatgroup; count++) {
                 for (std::vector<Operation>::iterator i = op->_group->begin();
                      i != op->_group->end(); i++) {
-                    WT_ERR(op_run_setup(&*i));
+                    auto [table_uri, tint] = op_get_table(&*i);
+                    has_mirror = op_has_mirror(tint);
+                    /*
+                     * If a mirrored operation has started and there is no active transaction, it
+                     * means it has been interrupted, quit.
+                     */
+                    if ((*i)._random_table && has_mirror && (i != op->_group->begin()) &&
+                      !_in_transaction)
+                        goto err;
+                    else
+                        WT_ERR(op_run_setup(&*i));
                 }
             }
             workgen_clock(&now);
@@ -3042,7 +3093,8 @@ WorkloadOptions::WorkloadOptions()
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
       create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
       drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
-      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), _options()
+      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), max_num_files(INT_MAX),
+      _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -3105,6 +3157,8 @@ WorkloadOptions::WorkloadOptions()
       "mirror_suffix", mirror_suffix, "the suffix to append to mirrored table names");
     _options.add_int("background_compact", background_compact,
       "minimum amount of space recoverable for compaction to proceed in MB, 0 to disable.");
+    _options.add_int("max_num_files", max_num_files,
+      "if specified, maximum number of files that can be present in the database.");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -3396,6 +3450,9 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     if (options->create_interval > 0) {
         if (options->create_count < 1) {
             std::cerr << "create_count needs to be greater than 0" << std::endl;
+            stopping = true;
+        } else if (options->create_count > options->max_num_files) {
+            std::cerr << "create_count cannot be greater than max_num_files" << std::endl;
             stopping = true;
         } else if (options->create_target > 0 && options->create_trigger <= 0) {
             std::cerr << "Need to specify a create_trigger when setting a create_target."

@@ -129,7 +129,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     cb = (WT_CURSOR_BACKUP *)cursor;
     btree = cb->incr_cursor == NULL ? NULL : CUR2BT(cb->incr_cursor);
     raw = F_MASK(cursor, WT_CURSTD_RAW);
-    CURSOR_API_CALL(cursor, session, next, btree);
+    CURSOR_API_CALL(cursor, session, ret, next, btree);
     F_CLR(cursor, WT_CURSTD_RAW);
 
     if (!F_ISSET(cb, WT_CURBACKUP_INCR_INIT) &&
@@ -262,7 +262,7 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     WT_CURSOR_BACKUP *cb, *other_cb;
     WT_DECL_ITEM(open_uri);
     WT_DECL_RET;
-    uint64_t session_cache_flags;
+    uint32_t session_cache_flags;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     other_cb = (WT_CURSOR_BACKUP *)other;

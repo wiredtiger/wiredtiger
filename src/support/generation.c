@@ -26,10 +26,10 @@ __gen_name(int which)
     switch (which) {
     case WT_GEN_CHECKPOINT:
         return ("checkpoint");
-    case WT_GEN_COMMIT:
-        return ("commit");
     case WT_GEN_EVICT:
         return ("evict");
+    case WT_GEN_HAS_SNAPSHOT:
+        return ("snapshot");
     case WT_GEN_HAZARD:
         return ("hazard");
     case WT_GEN_SPLIT:
@@ -56,7 +56,7 @@ __wt_gen_init(WT_SESSION_IMPL *session)
         S2C(session)->generations[i] = 1;
 
     /* Ensure threads see the state change. */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 }
 
 /*
@@ -118,7 +118,7 @@ __gen_drain_callback(
 
     for (;;) {
         /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, array_session->generations[cookie->base.which]);
+        WT_ACQUIRE_READ_WITH_BARRIER(v, array_session->generations[cookie->base.which]);
 
         /*
          * The generation argument is newer than the limit. Wait for threads in generations older
@@ -254,7 +254,7 @@ __gen_oldest_callback(
     WT_UNUSED(exit_walkp);
     cookie = (WT_GENERATION_COOKIE *)cookiep;
 
-    WT_ORDERED_READ(v, array_session->generations[cookie->which]);
+    WT_ACQUIRE_READ_WITH_BARRIER(v, array_session->generations[cookie->which]);
     if (v != 0 && v < cookie->ret_oldest_gen)
         cookie->ret_oldest_gen = v;
 
@@ -281,7 +281,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * it could read an earlier session generation value. This would then violate the acquisition
      * semantics and could result in us reading 0 for the session generation when it is non-zero.
      */
-    WT_ORDERED_READ(cookie.ret_oldest_gen, conn->generations[which]);
+    WT_ACQUIRE_READ_WITH_BARRIER(cookie.ret_oldest_gen, conn->generations[which]);
 
     WT_IGNORE_RET(__wt_session_array_walk(session, __gen_oldest_callback, false, &cookie));
 
@@ -303,7 +303,7 @@ __gen_active_callback(
     WT_UNUSED(session);
     cookie = (WT_GENERATION_COOKIE *)cookiep;
 
-    WT_ORDERED_READ(v, array_session->generations[cookie->which]);
+    WT_ACQUIRE_READ_WITH_BARRIER(v, array_session->generations[cookie->which]);
     if (v != 0 && cookie->target_generation >= v) {
         cookie->ret_active = true;
         *exit_walkp = true;
@@ -354,13 +354,12 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      */
     WT_ASSERT(session, session->generations[which] == 0);
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_array.cnt);
+    WT_ASSERT(session, session->id < __wt_atomic_load32(&S2C(session)->session_array.cnt));
 
     /*
-     * Assign the thread's resource generation and publish it, ensuring threads waiting on a
-     * resource to drain see the new value. Check we haven't raced with a generation update after
-     * publishing, we rely on the published value not being missed when scanning for the oldest
-     * generation and for draining.
+     * Assign the thread's resource generation, ensuring threads waiting on a resource to drain see
+     * the new value. Check we haven't raced with a generation update after assigning, we rely on
+     * the new value not being missed when scanning for the oldest generation and for draining.
      *
      * This requires a full barrier as the second read of the connection generation needs to be
      * ordered after the write of our session's generation. If it is reordered it could be read, for
@@ -381,10 +380,10 @@ void
 __wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
 {
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_array.cnt);
+    WT_ASSERT(session, session->id < __wt_atomic_load32(&S2C(session)->session_array.cnt));
 
     /* Ensure writes made by this thread are visible. */
-    WT_PUBLISH(session->generations[which], 0);
+    WT_RELEASE_WRITE_WITH_BARRIER(session->generations[which], 0);
 
     /* Let threads waiting for the resource to drain proceed quickly. */
     WT_FULL_BARRIER();

@@ -26,10 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DRIVER_KV_WORKLOAD_H
-#define MODEL_DRIVER_KV_WORKLOAD_H
+#pragma once
 
 #include <deque>
+#include <iostream>
 #include <variant>
 #include "model/core.h"
 #include "model/data_value.h"
@@ -60,6 +60,17 @@ struct begin_transaction {
 };
 
 /*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const begin_transaction &op)
+{
+    out << "begin_transaction(" << op.txn_id << ")";
+    return out;
+}
+
+/*
  * checkpoint --
  *     A representation of this workload operation.
  */
@@ -72,6 +83,17 @@ struct checkpoint {
      */
     inline checkpoint(const char *name = nullptr) : name(name == nullptr ? "" : name) {}
 };
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const checkpoint &op)
+{
+    out << "checkpoint(" << op.name << ")";
+    return out;
+}
 
 /*
  * commit_transaction --
@@ -92,6 +114,42 @@ struct commit_transaction {
     {
     }
 };
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const commit_transaction &op)
+{
+    out << "commit_transaction(" << op.txn_id << ", " << op.commit_timestamp << ", "
+        << op.durable_timestamp << ")";
+    return out;
+}
+
+/*
+ * crash --
+ *     A representation of this workload operation.
+ */
+struct crash {
+
+    /*
+     * crash::crash --
+     *     Create the operation.
+     */
+    inline crash() {}
+};
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const crash &op)
+{
+    out << "crash()";
+    return out;
+}
 
 /*
  * create_table --
@@ -115,6 +173,18 @@ struct create_table {
 };
 
 /*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const create_table &op)
+{
+    out << "create_table(" << op.table_id << ", " << op.name << ", " << op.key_format << ", "
+        << op.value_format << ")";
+    return out;
+}
+
+/*
  * insert --
  *     A representation of this workload operation.
  */
@@ -136,6 +206,18 @@ struct insert {
 };
 
 /*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const insert &op)
+{
+    out << "insert(" << op.table_id << ", " << op.txn_id << ", " << op.key << ", " << op.value
+        << ")";
+    return out;
+}
+
+/*
  * prepare_transaction --
  *     A representation of this workload operation.
  */
@@ -152,6 +234,17 @@ struct prepare_transaction {
     {
     }
 };
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const prepare_transaction &op)
+{
+    out << "prepare_transaction(" << op.txn_id << ", " << op.prepare_timestamp << ")";
+    return out;
+}
 
 /*
  * remove --
@@ -173,6 +266,17 @@ struct remove {
 };
 
 /*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const remove &op)
+{
+    out << "remove(" << op.table_id << ", " << op.txn_id << ", " << op.key << ")";
+    return out;
+}
+
+/*
  * restart --
  *     A representation of this workload operation.
  */
@@ -184,6 +288,17 @@ struct restart {
      */
     inline restart() {}
 };
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const restart &op)
+{
+    out << "restart()";
+    return out;
+}
 
 /*
  * rollback_to_stable --
@@ -199,6 +314,17 @@ struct rollback_to_stable {
 };
 
 /*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const rollback_to_stable &op)
+{
+    out << "rollback_to_stable()";
+    return out;
+}
+
+/*
  * rollback_transaction --
  *     A representation of this workload operation.
  */
@@ -211,6 +337,17 @@ struct rollback_transaction {
      */
     inline rollback_transaction(txn_id_t txn_id) : txn_id(txn_id) {}
 };
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const rollback_transaction &op)
+{
+    out << "rollback_transaction(" << op.txn_id << ")";
+    return out;
+}
 
 /*
  * set_commit_timestamp --
@@ -231,6 +368,17 @@ struct set_commit_timestamp {
 };
 
 /*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const set_commit_timestamp &op)
+{
+    out << "set_commit_timestamp(" << op.txn_id << ", " << op.commit_timestamp << ")";
+    return out;
+}
+
+/*
  * set_stable_timestamp --
  *     A representation of this workload operation.
  */
@@ -245,6 +393,17 @@ struct set_stable_timestamp {
     {
     }
 };
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const set_stable_timestamp &op)
+{
+    out << "set_stable_timestamp(" << op.stable_timestamp << ")";
+    return out;
+}
 
 /*
  * truncate --
@@ -268,12 +427,35 @@ struct truncate {
 };
 
 /*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const truncate &op)
+{
+    out << "truncate(" << op.table_id << ", " << op.txn_id << ", " << op.start << ", " << op.stop
+        << ")";
+    return out;
+}
+
+/*
  * any --
  *     Any workload operation.
  */
-using any = std::variant<begin_transaction, checkpoint, commit_transaction, create_table, insert,
-  prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
+using any = std::variant<begin_transaction, checkpoint, commit_transaction, crash, create_table,
+  insert, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
   set_commit_timestamp, set_stable_timestamp, truncate>;
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const any &op)
+{
+    std::visit([&out](auto &&x) { out << x; }, op);
+    return out;
+}
 
 } /* namespace operation */
 
@@ -282,6 +464,8 @@ using any = std::variant<begin_transaction, checkpoint, commit_transaction, crea
  *     A workload representation for a key-value database.
  */
 class kv_workload {
+
+    friend std::ostream &operator<<(std::ostream &out, const kv_workload &workload);
 
 public:
     /*
@@ -313,6 +497,36 @@ public:
     }
 
     /*
+     * kv_workload_sequence::size --
+     *     Get the length of the sequence.
+     */
+    inline size_t
+    size() const noexcept
+    {
+        return _operations.size();
+    }
+
+    /*
+     * kv_workload_sequence::operator[] --
+     *     Get an operation in the sequence.
+     */
+    inline operation::any &
+    operator[](size_t index)
+    {
+        return _operations[index];
+    }
+
+    /*
+     * kv_workload_sequence::operator[] --
+     *     Get an operation in the sequence.
+     */
+    inline const operation::any &
+    operator[](size_t index) const
+    {
+        return _operations[index];
+    }
+
+    /*
      * kv_workload::run --
      *     Run the workload in the model.
      */
@@ -322,11 +536,34 @@ public:
      * kv_workload::run_in_wiredtiger --
      *     Run the workload in WiredTiger.
      */
-    void run_in_wiredtiger(const char *home, const char *connection_config) const;
+    void run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
+      const char *table_config = nullptr) const;
 
 private:
     std::deque<operation::any> _operations;
 };
 
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const kv_workload &workload)
+{
+    for (const operation::any &op : workload._operations)
+        out << op << std::endl;
+    return out;
+}
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const std::shared_ptr<kv_workload> &workload)
+{
+    out << *workload.get();
+    return out;
+}
+
 } /* namespace model */
-#endif

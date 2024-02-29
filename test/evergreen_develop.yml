@@ -6,7 +6,7 @@ include:
 variables:
 # Template for perf-tasks
 - &perf-tasks-template
-  batchtime: 1440 # 1 day
+  batchtime: 360 # 6 hours
   expansions: &ubuntu2004-perf-tests-expansions-template
     additional_env_vars: export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_BUILDDIR/test/utility/"
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
@@ -65,7 +65,7 @@ buildvariants:
     - name: doc-update
 
 - name: code-statistics
-  display_name: "Code statistics (ARM)"
+  display_name: "Code statistics (ARM64)"
   run_on:
   - ubuntu2004-arm64-small
   expansions:
@@ -84,7 +84,7 @@ buildvariants:
   display_name: Compatibility tests (less frequent)
   batchtime: 10080 # 7 days
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)

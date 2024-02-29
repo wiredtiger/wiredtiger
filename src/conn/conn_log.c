@@ -40,7 +40,7 @@ __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
         FLD_SET(txn_logsync, WT_LOG_FSYNC);
     else if (WT_STRING_MATCH("none", cval.str, cval.len))
         FLD_SET(txn_logsync, WT_LOG_FLUSH);
-    WT_PUBLISH(conn->txn_logsync, txn_logsync);
+    WT_RELEASE_WRITE_WITH_BARRIER(conn->txn_logsync, txn_logsync);
     return (0);
 }
 
@@ -606,7 +606,7 @@ __log_file_server(void *arg)
          * Writers will set the log close lsn first and then the log close file handle, so we need
          * to read them in the reverse order to see a consistent state.
          */
-        WT_ORDERED_READ(close_fh, log->log_close_fh);
+        WT_ACQUIRE_READ_WITH_BARRIER(close_fh, log->log_close_fh);
         if (close_fh != NULL) {
             WT_ERR(__wt_log_extract_lognum(session, close_fh->name, &filenum));
             /*
@@ -833,7 +833,7 @@ __log_wrlsn_server(void *arg)
         else
             WT_STAT_CONN_INCR(session, log_write_lsn_skip);
         prev = log->alloc_lsn;
-        did_work = yield == 0;
+        did_work = (yield == 0);
 
         /*
          * If __wt_log_wrlsn did work we want to yield instead of sleep.
@@ -847,7 +847,7 @@ __log_wrlsn_server(void *arg)
      * On close we need to do this one more time because there could be straggling log writes that
      * need to be written.
      */
-    WT_ERR(__wt_log_force_write(session, 1, NULL));
+    WT_ERR(__wt_log_force_write(session, true, NULL));
     __wt_log_wrlsn(session, NULL);
     if (0) {
 err:
@@ -902,7 +902,7 @@ __log_server(void *arg)
          */
         if (conn->log_force_write_wait == 0 ||
           force_write_timediff >= conn->log_force_write_wait * WT_THOUSAND) {
-            WT_ERR_ERROR_OK(__wt_log_force_write(session, 0, &did_work), EBUSY, false);
+            WT_ERR_ERROR_OK(__wt_log_force_write(session, false, &did_work), EBUSY, false);
             force_write_time_start = __wt_clock(session);
         }
         /*
@@ -961,6 +961,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
+    uint64_t now;
 
     conn = S2C(session);
 
@@ -1006,6 +1007,9 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
     WT_RET(__wt_log_open(session));
     WT_RET(__wt_log_slot_init(session, true));
 
+    /* Write the start log record on creation, which is before recovery is run. */
+    __wt_seconds(session, &now);
+    WT_RET(__wt_log_printf(session, "SYSTEM: Log manager created at %" PRIu64, now));
     return (0);
 }
 
@@ -1017,6 +1021,7 @@ int
 __wt_logmgr_open(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    uint64_t now;
     uint32_t session_flags;
 
     conn = S2C(session);
@@ -1078,6 +1083,10 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
         conn->log_tid_set = true;
     }
 
+    /* Write another startup log record with timestamp after recovery completes. */
+    __wt_seconds(session, &now);
+    WT_RET(__wt_log_printf(
+      session, "SYSTEM: Log manager threads started post-recovery at %" PRIu64, now));
     return (0);
 }
 

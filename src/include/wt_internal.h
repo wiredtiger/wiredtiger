@@ -153,6 +153,14 @@ struct __wt_compact_state;
 typedef struct __wt_compact_state WT_COMPACT_STATE;
 struct __wt_condvar;
 typedef struct __wt_condvar WT_CONDVAR;
+struct __wt_conf;
+typedef struct __wt_conf WT_CONF;
+struct __wt_conf_bind_desc;
+typedef struct __wt_conf_bind_desc WT_CONF_BIND_DESC;
+struct __wt_conf_bindings;
+typedef struct __wt_conf_bindings WT_CONF_BINDINGS;
+struct __wt_conf_value;
+typedef struct __wt_conf_value WT_CONF_VALUE;
 struct __wt_config;
 typedef struct __wt_config WT_CONFIG;
 struct __wt_config_check;
@@ -327,6 +335,8 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
+struct __wt_page_walk_skip_stats;
+typedef struct __wt_page_walk_skip_stats WT_PAGE_WALK_SKIP_STATS;
 struct __wt_prefetch;
 typedef struct __wt_prefetch WT_PREFETCH;
 struct __wt_prefetch_queue_entry;
@@ -355,6 +365,8 @@ struct __wt_row;
 typedef struct __wt_row WT_ROW;
 struct __wt_rts_cookie;
 typedef struct __wt_rts_cookie WT_RTS_COOKIE;
+struct __wt_rts_work_unit;
+typedef struct __wt_rts_work_unit WT_RTS_WORK_UNIT;
 struct __wt_rwlock;
 typedef struct __wt_rwlock WT_RWLOCK;
 struct __wt_salvage_cookie;
@@ -444,6 +456,20 @@ typedef uint64_t wt_timestamp_t;
  * DO NOT EDIT: automatically built by dist/s_typedef.
  */
 
+/*
+ * Clang and gcc use different mechanisms to detect TSan, clang using __has_feature. Consolidate
+ * them into a single TSAN_BUILD pre-processor flag.
+ */
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define TSAN_BUILD 1
+#endif
+#endif
+
+#if defined(__SANITIZE_THREAD__)
+#define TSAN_BUILD 1
+#endif
+
 /*******************************************
  * WiredTiger internal include files.
  *******************************************/
@@ -476,11 +502,13 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
-#include "stat.h"      /* required by dhandle.h */
-#include "dhandle.h"   /* required by btree.h */
-#include "timestamp.h" /* required by reconcile.h */
+#include "stat.h"         /* required by dhandle.h */
+#include "dhandle.h"      /* required by btree.h */
+#include "timestamp.h"    /* required by reconcile.h */
+#include "thread_group.h" /* required by rollback_to_stable.h */
 
 #include "api.h"
+#include "bitstring.h"
 #include "block.h"
 #include "block_cache.h"
 #include "block_chunkcache.h"
@@ -492,6 +520,8 @@ typedef uint64_t wt_timestamp_t;
 #include "cell.h"
 #include "checkpoint.h"
 #include "compact.h"
+#include "conf_keys.h" /* required by conf.h */
+#include "conf.h"
 #include "config.h"
 #include "cursor.h"
 #include "dlh.h"
@@ -506,7 +536,6 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"
-#include "thread_group.h"
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"
@@ -540,6 +569,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btree_inline.h" /* required by cursor_inline.h */
 #include "btree_cmp_inline.h"
 #include "column_inline.h"
+#include "conf_inline.h"
 #include "cursor_inline.h"
 #include "log_inline.h"
 #include "os_fhandle_inline.h"

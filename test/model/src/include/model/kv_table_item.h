@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_TABLE_ITEM_H
-#define MODEL_KV_TABLE_ITEM_H
+#pragma once
 
 #include <deque>
 #include <memory>
@@ -51,12 +50,6 @@ public:
      *     Create a new instance.
      */
     inline kv_table_item() noexcept {}
-
-    /*
-     * kv_table_item::add_update --
-     *     Add an update. Throw exception on error.
-     */
-    void add_update(kv_update &&update, bool must_exist, bool must_not_exist);
 
     /*
      * kv_table_item::add_update --
@@ -239,4 +232,3 @@ private:
 };
 
 } /* namespace model */
-#endif
