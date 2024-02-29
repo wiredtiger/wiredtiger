@@ -46,8 +46,6 @@ class test_tiered13(test_import_base, TieredConfigMixin):
     file1uri = fileuri_base + '1.wtobj'
     file2 = base + '2.wtobj'
     file2uri = fileuri_base + '2.wtobj'
-    otherfile = 'other.wt'
-    otheruri = 'file:' + otherfile
     uri = "table:test_tiered13"
 
     # Load the storage store extension.
@@ -114,12 +112,6 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         conn_params = self.saved_conn + ext
         self.conn = self.wiredtiger_open(newdir, conn_params)
         self.session = self.setUpSessionOpen(self.conn)
-
-        # Copy the file to the file names we're going to test later.
-        self.copy_file(self.file2, '.', newdir)
-        copy_from = self.file2
-        copy_to = os.path.join(newdir, self.otherfile)
-        shutil.copy(copy_from, copy_to)
 
         msg = '/Operation not supported/'
         enoent = '/No such file/'
