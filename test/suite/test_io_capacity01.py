@@ -114,7 +114,8 @@ class test_io_capacity01(wttest.WiredTigerTestCase):
         while (self.get_stat(stat.conn.fsync_all_fh_total) == 0):
             retry_times += 1
             time.sleep(0.1)
-            if retry_times > 10:
+            # Config fsync_maximum_wait_period=1, we ensure that the waiting time is greater than 1 second
+            if retry_times > 11:
                 raise Exception("Timed out waiting for fsync_all_fh_total statistic")
 
 if __name__ == '__main__':
