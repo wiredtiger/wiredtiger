@@ -81,7 +81,7 @@ test_wake_one(TEST_OPTS *opts)
     testutil_check(posix_memalign((void **)&futex, sizeof(void *), sizeof(uint32_t)));
     waker_arg = (waker_thread_ctx){ futex, 1, 1, 0};
     __wt_epoch(NULL, &start);
-    WT_PUBLISH(*futex, FTX_INITIAL_VAL);
+    WT_RELEASE_WRITE_WITH_BARRIER(*futex, FTX_INITIAL_VAL);
     testutil_check(pthread_create(&waker_id, NULL, waker_thread, &waker_arg));
     testutil_check(__wt_futex_wait(futex, FTX_INITIAL_VAL, WAIT_TIMEOUT_MS));
     testutil_check(pthread_join(waker_id, NULL));
@@ -113,7 +113,7 @@ test_timeout_one(TEST_OPTS *opts)
     testutil_check(posix_memalign((void **)&futex, sizeof(void *), sizeof(uint32_t)));
     waiter_arg = WAITER_CTX(futex, FTX_INITIAL_VAL, FTX_WAKE_VAL, 
         WAITER_EXPECT_TIMEOUT, WAITER_TIMEOUT_MS);
-    WT_PUBLISH(*futex, FTX_INITIAL_VAL);
+    WT_RELEASE_WRITE_WITH_BARRIER(*futex, FTX_INITIAL_VAL);
     testutil_check(pthread_create(&waiter_id, NULL, waiter_thread, &waiter_arg));
     testutil_check(pthread_join(waiter_id, NULL));
 
@@ -139,7 +139,7 @@ waker_thread(void *arg)
     waker_thread_ctx *ctx = arg;
     uint32_t *futex = ctx->futex;
     __wt_sleep(ctx->delay_sec, ctx->delay_usec);
-    WT_PUBLISH(*futex, ctx->wake_value);
+    WT_RELEASE_WRITE_WITH_BARRIER(*futex, ctx->wake_value);
     testutil_check(__wt_futex_wake(futex, WT_FUTEX_WAKE_ONE));
     return (NULL);
 }
@@ -155,7 +155,7 @@ waiter_thread(void *arg)
     ret = __wt_futex_wait(futex, ctx->initial_value, ctx->timeout_ms);
     if (ret == 0) {
         testutil_assert(ctx->expect == WAITER_EXPECT_WAKEUP);
-        WT_ORDERED_READ(wake_value, *futex);
+        WT_ACQUIRE_READ_WITH_BARRIER(wake_value, *futex);
         testutil_assert(wake_value == ctx->wake_value);
     }
     else if (ret == -1 && errno == ETIMEDOUT)
