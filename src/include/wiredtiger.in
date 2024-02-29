@@ -177,6 +177,8 @@ struct __wt_modify {
  */
 #define WT_INTPACK32_MAXSIZE    ((int)sizeof(int32_t) + 1)
 
+#if !defined(SWIG) && !defined(DOXYGEN)
+
 /*!
  * A set of statistics for WT_SESSION.
  */
@@ -190,6 +192,8 @@ struct __wt_session_stats {
     int64_t lock_schema_wait;
     int64_t cache_time;
 };
+
+#endif
 
 /*!
  * A WT_CURSOR handle is the interface to a cursor.
@@ -2084,7 +2088,9 @@ struct __wt_session {
      * @errors
      */
     int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
+    /*! @} */
 
+#if !defined(SWIG) && !defined(DOXYGEN)
     /*!
      * Get session statistics.
      *
@@ -2093,8 +2099,7 @@ struct __wt_session {
      * @errors
      */
     int __F(get_session_stats)(WT_SESSION *session, WT_SESSION_STATS* session_statsp);
-
-    /*! @} */
+#endif
 
 #ifndef DOXYGEN
     /*!
