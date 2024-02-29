@@ -2492,7 +2492,7 @@ __wt_session_breakpoint(WT_SESSION *wt_session)
  * __session_get_session_stats --
  *     WT_SESSION->get_session_stats method.
  */
-int
+static int
 __session_get_session_stats(WT_SESSION *wt_session, WT_SESSION_STATS *session_statsp)
 {
     WT_DECL_RET;

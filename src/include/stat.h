@@ -1361,6 +1361,4 @@ struct __wt_join_stats {
  * Statistics entries for session.
  */
 #define WT_SESSION_STATS_BASE 4000
-
-
 /* Statistics section: END */
