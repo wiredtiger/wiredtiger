@@ -78,6 +78,8 @@ struct __wt_file_system;    typedef struct __wt_file_system WT_FILE_SYSTEM;
 struct __wt_item;       typedef struct __wt_item WT_ITEM;
 struct __wt_modify;     typedef struct __wt_modify WT_MODIFY;
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
+struct __wt_session_stats;  typedef struct __wt_session_stats WT_SESSION_STATS;
+
 #if !defined(DOXYGEN)
 struct __wt_storage_source; typedef struct __wt_storage_source WT_STORAGE_SOURCE;
 #endif
@@ -174,6 +176,20 @@ struct __wt_modify {
  * function will pack single integers into at most this many bytes.
  */
 #define WT_INTPACK32_MAXSIZE    ((int)sizeof(int32_t) + 1)
+
+/*!
+ * A set of statistics for WT_SESSION.
+ */
+struct __wt_session_stats {
+    int64_t bytes_read;
+    int64_t bytes_write;
+    int64_t lock_dhandle_wait;
+    int64_t txn_bytes_dirty;
+    int64_t read_time;
+    int64_t write_time;
+    int64_t lock_schema_wait;
+    int64_t cache_time;
+};
 
 /*!
  * A WT_CURSOR handle is the interface to a cursor.
@@ -2068,6 +2084,16 @@ struct __wt_session {
      * @errors
      */
     int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
+
+    /*!
+     * Get session statistics.
+     *
+     * @param session the session handle
+     * @param[out] session_statsp pointer to WT_SESSION_STATS
+     * @errors
+     */
+    int __F(get_session_stats)(WT_SESSION *session, WT_SESSION_STATS* session_statsp);
+
     /*! @} */
 
 #ifndef DOXYGEN

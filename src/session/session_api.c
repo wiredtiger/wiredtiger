@@ -2489,6 +2489,25 @@ __wt_session_breakpoint(WT_SESSION *wt_session)
 }
 
 /*
+ * __session_get_session_stats --
+ *     WT_SESSION->get_session_stats method.
+ */
+int
+__session_get_session_stats(WT_SESSION *wt_session, WT_SESSION_STATS *session_statsp)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    SESSION_API_CALL_NOCONF(session, get_session_stats);
+
+    memcpy(session_statsp, &session->stats, sizeof(session->stats));
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __open_session --
  *     Allocate a session handle.
  */
@@ -2505,7 +2524,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_commit_transaction, __session_prepare_transaction, __session_rollback_transaction,
         __session_query_timestamp, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_checkpoint, __session_reset_snapshot,
-        __session_transaction_pinned_range, __session_get_rollback_reason, __wt_session_breakpoint},
+        __session_transaction_pinned_range, __session_get_session_stats,
+        __session_get_rollback_reason, __wt_session_breakpoint},
       stds_min = {NULL, NULL, __session_close, __session_reconfigure_notsup, __wt_session_strerror,
         __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
         __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
@@ -2517,7 +2537,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_query_timestamp_notsup, __session_timestamp_transaction_notsup,
         __session_timestamp_transaction_uint_notsup, __session_checkpoint_readonly,
         __session_reset_snapshot_notsup, __session_transaction_pinned_range_notsup,
-        __session_get_rollback_reason, __wt_session_breakpoint},
+        __session_get_session_stats, __session_get_rollback_reason, __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
         __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
         __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
@@ -2528,8 +2548,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_prepare_transaction_readonly, __session_rollback_transaction,
         __session_query_timestamp, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_checkpoint_readonly,
-        __session_reset_snapshot, __session_transaction_pinned_range, __session_get_rollback_reason,
-        __wt_session_breakpoint};
+        __session_reset_snapshot, __session_transaction_pinned_range, __session_get_session_stats,
+        __session_get_rollback_reason, __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;
