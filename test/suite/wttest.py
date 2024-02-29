@@ -717,7 +717,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
     # Some tests do table drops as a means to perform some test repeatedly in a loop.
     # These tests require that a name be completely removed before the next iteration
-    # can begin.  However, tiered storage does not always provide a way to remove
+    # can begin.  However, tiered storage does not always provide a way to remove objects
     # that have been stored to the cloud, as doing that is not the normal
     # part of a workflow (at this writing, GC is not yet implemented). Most storage sources
     # return ENOTSUP when asked to remove a cloud object, so we really don't have a way to

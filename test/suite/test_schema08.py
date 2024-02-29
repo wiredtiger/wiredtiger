@@ -155,7 +155,7 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
     # log records.
     def test_schema08_create(self):
         if self.is_tiered_scenario() and (self.uri == 'lsm:' or self.uri == 'file:'):
-            self.skipTest('Tiered storage does not support LSM and file URIs.')
+            self.skipTest('Tiered storage does not support LSM or file URIs.')
 
         self.count = 0
         self.lsns = []

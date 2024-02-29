@@ -56,8 +56,10 @@ def tty(message):
 # Here are some useful terms to know, with some commentary for each.
 #
 #   API functions
-#      potentially any WiredTiger API functions that a hook creator wishes to modify. In Python most everything is an object.  Of course an instance of
-#      "Session" is an object, but also the "Session" class itself is an object. Also in Python,
+#      potentially any WiredTiger API functions that a hook creator wishes to modify (like
+#      Session.remove). In Python most everything is an object.  Of course an instance of
+#      "Session" is an object, but also the "Session" class itself is an object. The Session.remove
+#      function is also an object (of a certain form that can be called). Also in Python,
 #      attributes on an object don't have to be "pre-declared", they can be created at any time.
 #      So it's easy to imagine assigning Session._remove_orig to be (the original value of)
 #      Session.remove, and then assigning Session.remove to be some other function object, that
