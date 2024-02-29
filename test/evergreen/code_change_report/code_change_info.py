@@ -244,9 +244,9 @@ def get_function_info(file_path: str,
                 if preprocessed_prev_complexity_data is not None:
                     file_prev_info = preprocessed_prev_complexity_data[detail_file]
                     if function_name in file_prev_info:
-                        function__prev_info = file_prev_info[function_name]
-                        function_info['prev_complexity'] = int(function__prev_info['std.code.complexity:cyclomatic'])
-                        function_info['prev_lines_of_code'] = int(function__prev_info['std.code.lines:code'])
+                        function_prev_info = file_prev_info[function_name]
+                        function_info['prev_complexity'] = int(function_prev_info['std.code.complexity:cyclomatic'])
+                        function_info['prev_lines_of_code'] = int(function_prev_info['std.code.lines:code'])
                 break
 
     return function_info
@@ -254,11 +254,7 @@ def get_function_info(file_path: str,
 
 # get_num_branches_covered returns the number of branches covered from coverage info
 def get_num_branches_covered(branch_coverage_info: list) -> int:
-    num_branches_covered = 0
-    for branch in branch_coverage_info:
-        if branch['count'] > 0:
-            num_branches_covered += 1
-    return num_branches_covered
+    return len([x for x in branch_coverage_info if x['count'] > 0])
 
 
 # create_report_info generates the code change info report as a dict
@@ -272,7 +268,7 @@ def create_report_info(change_list: dict,
     change_num_lines = 0
     change_num_lines_covered = 0
     change_num_branches = 0
-    change_num_branched_covered = 0
+    change_num_branches_covered = 0
 
     change_branch_coverage = 0
 
@@ -303,14 +299,18 @@ def create_report_info(change_list: dict,
                                                             line_number=line.new_lineno)
                     line_info['count'] = line_coverage
                     line_info['branches'] = branch_coverage
+
+                    # Added lines of code don't have a 'old_lineno' value (ie the value will be < 0).
+                    # Changed lines of code appear as two entries: (1) a deleted line and (2) on added line.
+                    # This means that added or changed lines of code will have an 'old_lineno' < 0.
                     if line.old_lineno < 0:
-                        # Ihe line was changed, so update the counts for the overall change
+                        # Ihe line was added or changed, so update the counts for the overall change
                         if line_coverage >= 0 and is_useful_line(line.content):
                             change_num_lines += 1
                             if line_coverage > 0:
                                 change_num_lines_covered += 1
                         change_num_branches += len(branch_coverage)
-                        change_num_branched_covered += get_num_branches_covered(branch_coverage_info=branch_coverage)
+                        change_num_branches_covered += get_num_branches_covered(branch_coverage_info=branch_coverage)
 
                     if preprocessed_complexity_data:
                         function_info = get_function_info(file_path=new_file,
@@ -335,7 +335,7 @@ def create_report_info(change_list: dict,
     report['summary_info'] = {'num_lines': change_num_lines,
                               'num_lines_covered': change_num_lines_covered,
                               'num_branches': change_num_branches,
-                              'num_branches_covered': change_num_branched_covered}
+                              'num_branches_covered': change_num_branches_covered}
     report['change_info_list'] = file_change_list
     report['changed_functions'] = changed_function_info
 
@@ -345,8 +345,8 @@ def create_report_info(change_list: dict,
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--coverage', required=True, help='Path to the gcovr json code coverage data file')
-    parser.add_argument('-m', '--metrix_complexity_data', help='Path to the Metrix++ complexity data csv file')
-    parser.add_argument('-p', '--prev_metrix_complexity_data',
+    parser.add_argument('-m', '--metrix_complexity_data', required=True, help='Path to the Metrix++ complexity data csv file')
+    parser.add_argument('-p', '--prev_metrix_complexity_data', required=True,
                         help='Path to the Metrix++ complexity data csv file for the previous version')
     parser.add_argument('-g', '--git_root', required=True, help='path of the Git working directory')
     parser.add_argument('-d', '--git_diff', help='Path to the git diff file')
@@ -375,13 +375,11 @@ def main():
 
     coverage_data = read_coverage_data(args.coverage)
 
-    if complexity_data_file is not None:
-        complexity_data = read_complexity_data(complexity_data_file)
-        preprocessed_complexity_data = preprocess_complexity_data(complexity_data=complexity_data)
+    complexity_data = read_complexity_data(complexity_data_file)
+    preprocessed_complexity_data = preprocess_complexity_data(complexity_data=complexity_data)
 
-    if prev_complexity_data_file is not None:
-        prev_complexity_data = read_complexity_data(prev_complexity_data_file)
-        preprocessed_prev_complexity_data = preprocess_complexity_data(complexity_data=prev_complexity_data)
+    prev_complexity_data = read_complexity_data(prev_complexity_data_file)
+    preprocessed_prev_complexity_data = preprocess_complexity_data(complexity_data=prev_complexity_data)
 
     if git_diff is None:
         diff = get_git_diff(git_working_tree_dir=git_working_tree_dir, verbose=verbose)
