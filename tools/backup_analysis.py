@@ -30,6 +30,9 @@
 
 import fnmatch, glob, os, re, sys, time
 
+# This comparison size is a global and unchanging right now. It is the basic unit
+# to count differences between files.
+compare_size = 4096
 granularity = 0
 pct20 = granularity // 5
 pct80 = pct20 * 4
@@ -71,9 +74,8 @@ def get_checkpoint_time(meta):
     match = re.search(pattern, meta)
     if match == None:
         return 0
-    return match.group(1)
+    return int(match.group(1))
     
-
 # Determine which of our two directories is older.
 def older_dir(dir1, dir2):
     wtfile = 'WiredTigerHS.wt'
@@ -118,7 +120,6 @@ def compute_type(filename, filemeta):
 def usage_exit():
     print('Usage: backup_analysis.py dir1 dir2 [granularity]')
     print('  dir1 and dir2 are POSIX pathnames to WiredTiger backup directories.')
-    print('  dir1 is assumed to be an older/earlier backup to dir2.')
     print('Options:')
     print('  granularity - an (optional) positive integer indicating the granularity')
     print('  size in integer number of bytes of the incremental backup blocks.')
@@ -129,6 +130,12 @@ def die(reason):
     print('backup_analysis.py: error: ' + reason, file=sys.stderr)
     sys.exit(1)
 
+def plural(s, count):
+    if count == 1:
+        return s
+    else:
+        return s + 's'
+
 # Check that the directory given is a backup. Look for the WiredTiger.backup file.
 def check_backup(mydir):
     if not os.path.isdir(mydir):
@@ -138,30 +145,41 @@ def check_backup(mydir):
         return False
     return True
 
+# This is the core comparison function to compare a file common between the two
+# directories. 
 def compare_file(dir1, dir2, filename, cmp_size):
-
+    #
+    # For now we're only concerned with changed blocks between backups.
+    # So only compare the minimum size both files have in common.
+    #
     f1_size = os.stat(os.path.join(dir1, filename)).st_size
     f2_size = os.stat(os.path.join(dir2, filename)).st_size
     min_size = min(f1_size, f2_size)
     #
-    # Figure out what kind of table this file is. Use the first directory for basis.
+    # Figure out what kind of table this file is. Get both files to verify they
+    # are the same type in both directories.
     #
-    metadata = get_metadata(dir1, filename)
-    assert(metadata != None)
-    count_type = compute_type(filename, metadata)
+    metadata1 = get_metadata(dir1, filename)
+    assert(metadata1 != None)
+    metadata2 = get_metadata(dir2, filename)
+    assert(metadata2 != None)
+    count_type = compute_type(filename, metadata1)
+    count_type2 = compute_type(filename, metadata2)
+    # Sanity check to make sure they're the same in both directories.
+    assert(count_type == count_type2)
     ts = typestats[count_type]
     ts.files += 1
 
-    # Initialize all of our counters per file.
-    bytes_gran = 0
-    gran_blocks = 0
-    num_cmp_blocks = min_size // cmp_size
-    offset = 0
+    # Initialize all of our per-file counters.
+    bytes_gran = 0          # Number of bytes changed within a granularity block.
+    gran_blocks = 0         # Number of granularity blocks changed.
+    num_cmp_blocks = min_size // cmp_size # Number of comparisons .
+    offset = 0              # Current offset within the filel
     partial_cmp = min_size % cmp_size
-    pct20_count = 0
-    pct80_count = 0
-    start_off = offset
-    total_bytes_diff = 0
+    pct20_count = 0         # Number of granularity blocks that changed 20% or less.
+    pct80_count = 0         # Number of granularity blocks that changed 80% or more.
+    start_off = offset      # Starting offset of current granularity block.
+    total_bytes_diff = 0    # Number of cmp_size bytes different in the file overall.
     fp1 = open(os.path.join(dir1, filename), "rb")
     fp2 = open(os.path.join(dir2, filename), "rb")
     # Time how long it takes to compare each file.
@@ -265,52 +283,42 @@ def print_summary():
         total_files_changed += ts.files_changed
         total_gran_blocks += ts.gran_blocks
     print(f'Total: {total_bytes} bytes changed in {total_gran_blocks} granularity-sized ({granularity}) blocks')
-    if total_files_changed == 1:
-        word = 'file'
-    else:
-        word = 'files'
-    print(f'Total: {total_files_changed} {word} changed out of {total_files} total files')
+    print(f'Total: {total_files_changed} {plural("file", total_files_changed)} changed out of {total_files} total files')
 
     # Walk through all the types printing out final information per type.
     for n, t in zip(global_names, global_types):
         ts = typestats[t]
-        if ts.files_changed == 1:
-            word = 'file'
-        else:
-            word = 'files'
-        if ts.files == 1:
-            word2 = 'file'
-        else:
-            word2 = 'files'
-        print(f'{n}: {ts.files_changed} {word} changed out of {ts.files} {word2}')
+        changed = plural('file', ts.files_changed)
+        total = plural('file', ts.files)
+        print(f'{n}: {ts.files_changed} {changed} changed out of {ts.files} {total}')
         if ts.gran_blocks != 0:
-            if ts.files_changed == 1:
-                word = 'file'
-            else:
-                word = 'files'
-            print(f'{ts.files_changed} changed {word}: differs by {ts.gran_blocks} granularity blocks in {ts.gran_blocks} total granularity blocks')
-            print(f'{ts.files_changed} changed {word}: differs by {ts.bytes} bytes in {ts.gran_blocks} total granularity blocks')
+            print(f'{ts.files_changed} changed {changed}: differs by {ts.gran_blocks} granularity blocks in {ts.gran_blocks} total granularity blocks')
+            print(f'{ts.files_changed} changed {changed}: differs by {ts.bytes} bytes in {ts.gran_blocks} total granularity blocks')
             pct20_blocks = round(abs(ts.pct20 / ts.gran_blocks * 100))
             pct80_blocks = round(abs(ts.pct80 / ts.gran_blocks * 100))
             print(f'{n}: smallest 20%: {pct20_blocks} of {ts.gran_blocks} blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
             print(f'{n}: largest 80%: {pct80_blocks} of {ts.gran_blocks} blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
 
+#
+# This is the wrapper function to compare two backup directories. This function
+# will then drill down and compare each common file individually. 
+#
 def compare_backups(dir1, dir2):
     files1=set(fnmatch.filter(os.listdir(dir1), "*.wt"))
     files2=set(fnmatch.filter(os.listdir(dir2), "*.wt"))
-    older = older_dir(dir1, dir2)
-    if older == dir1:
+
+    # Determine which directory is older so that various messages make sense.
+    olderdir = older_dir(dir1, dir2)
+    if olderdir == dir1:
         diff1 = 'dropped'
         diff2 = 'created'
+        newerdir = dir2
     else:
         diff1 = 'created'
         diff2 = 'dropped'
+        newerdir = dir1
 
     common = files1.intersection(files2)
-    # For now assume the first directory is the older one. Once we add functionality to parse the
-    # text in WiredTiger.backup we can look at the checkpoint timestamp of a known table like the
-    # history store and figure out which is older.
-    # NOTE: Update the assumption in the usage statement also when this changes.
     printed_diff = False
     for file in files1.difference(files2):
         print(f'{file}: {diff1} between backups')
@@ -322,10 +330,8 @@ def compare_backups(dir1, dir2):
         print("")
     #print(common)
     for f in sorted(common):
-        # For now we're only concerned with changed blocks between backups.
-        # So only compare the minimum size both files have in common.
         # FIXME: More could be done here to report extra blocks added/removed.
-        compare_file(dir1, dir2, f, 4096)
+        compare_file(olderdir, newerdir, f, compare_size)
 
 def backup_analysis(args):
     global granularity
@@ -336,10 +342,12 @@ def backup_analysis(args):
         usage_exit()
     dir1 = args[0]
     dir2 = args[1]
+    # FIXME: Right now the granularity must be an integer for the number of bytes.
+    # It would be better if it could accept '8M' or '1024K', etc.
     if len(args) > 2:
         granularity = int(args[2])
     else:
-        granularity = 16*1024*1024
+        granularity = 16 * 1024 * 1024
     pct20 = granularity // 5
     pct80 = pct20 * 4
 
