@@ -1361,15 +1361,6 @@ struct __wt_join_stats {
  * Statistics entries for session.
  */
 #define WT_SESSION_STATS_BASE 4000
-struct __wt_session_stats {
-    int64_t bytes_read;
-    int64_t bytes_write;
-    int64_t lock_dhandle_wait;
-    int64_t txn_bytes_dirty;
-    int64_t read_time;
-    int64_t write_time;
-    int64_t lock_schema_wait;
-    int64_t cache_time;
-};
+
 
 /* Statistics section: END */
