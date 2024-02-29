@@ -61,11 +61,10 @@ class test_bug006(wttest.WiredTigerTestCase):
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.verify(uri, None))
 
-        self.session.checkpoint()
         cursor.close()
 
         # Table operations should succeed, the cursor is closed.
-        self.session.salvage(uri, None)
+        self.salvageUntilSuccess(self.session, uri)
         self.session.truncate(uri, None, None, None)
         self.upgradeUntilSuccess(self.session, uri)
         self.verifyUntilSuccess(self.session, uri)
