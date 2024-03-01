@@ -140,7 +140,9 @@ __wt_rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (entry == NULL)
             break;
 
-        WT_ERR(__wt_rts_btree_work_unit(session, entry));
+        ret = __wt_rts_btree_work_unit(session, entry);
+        __wt_rts_work_free(session, entry);
+        WT_ERR(ret);
     }
 
     if (0) {
@@ -291,12 +293,15 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
      * final pass. Moreover, the main thread joins the processing queue rather than waiting for the
      * workers alone to complete the task.
      */
-    while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
-        __wt_rts_pop_work(session, &entry);
-        if (entry == NULL)
-            break;
-        WT_ERR(__wt_rts_btree_work_unit(session, entry));
-        __wt_rts_work_free(session, entry);
+    if (S2C(session)->rts->threads_num != 0) {
+        while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
+            __wt_rts_pop_work(session, &entry);
+            if (entry == NULL)
+                break;
+            ret = __wt_rts_btree_work_unit(session, entry);
+            __wt_rts_work_free(session, entry);
+            WT_ERR(ret);
+        }
     }
 
     WT_ERR(__wt_rts_thread_destroy(session));
