@@ -26,13 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
-#from abstract_test_case import AbstractWiredTigerTestCase
-import abstract_test_case
-
-# Ignore unexpected output
-#AbstractWiredTigerTestCase._ignoreStdout = True
-abstract_test_case.AbstractWiredTigerTestCase._ignoreStdout = True
+import wiredtiger, wttest
+from helper import confirm_does_not_exist
 
 # test_drop03.py
 # Test dropping a collection under an active transaction. We should return EBUSY.
@@ -43,6 +38,7 @@ class test_drop03(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(uri, None)
         value_read = cursor[key]
         self.assertTrue(value_read == value)
+        cursor.close()
 
     def test_drop_during_txn(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -56,7 +52,7 @@ class test_drop03(wttest.WiredTigerTestCase):
         cursor['key: aad'] = 'value: aad1'
         cursor['key: bbb'] = 'value: bbb1'
         cursor.close()
-        self.prout("Set first values. commit_transaction()")
+        self.prout("Set first values. commit_transaction().")
         self.session.commit_transaction()
         # Verify values
         self.prout("Verify values before active transaction.")
@@ -105,6 +101,24 @@ class test_drop03(wttest.WiredTigerTestCase):
         self.verify_value(self.uri, self.session, 'key: aad', 'value: aad')
         self.verify_value(self.uri, self.session, 'key: bbb', 'value: bbb')
         self.session.close()
+
+        # Drop call should succeed without the force option.
+        self.prout("drop force=false without active transaction should succeed.")
+        self.dropUntilSuccess(self.session, self.uri, "force=false")
+
+        # Check that the table is dropped.
+        self.prout("Does not exist after successful drop. confirm_does_not_exist().")
+        confirm_does_not_exist(self, self.uri)
+
+        # Drop call of non-existent table should fail without the force option.
+        self.prout("drop force=false without active transaction should succeed.")
+        self.assertRaises(wiredtiger.WiredTigerError,
+                          lambda: self.session.drop(self.uri, "force=false"))
+
+        # Drop call of non-existent table should succeed with the force option.
+        self.prout("drop force=true of non-existent table should succeed.")
+        self.session.drop(self.uri, "force=true")
+
         self.prout("Done.")
 
 if __name__ == '__main__':

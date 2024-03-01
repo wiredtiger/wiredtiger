@@ -27,13 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-#from abstract_test_case import AbstractWiredTigerTestCase
-import abstract_test_case
-
-# Ignore unexpected output
-#AbstractWiredTigerTestCase._ignoreStdout = True
-abstract_test_case.AbstractWiredTigerTestCase._ignoreStdout = True
-
 from helper import confirm_does_not_exist
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtdataset import SimpleIndexDataSet
@@ -47,10 +40,9 @@ class test_drop(wttest.WiredTigerTestCase):
     extra_config = ''
 
     scenarios = make_scenarios([
-# XXX TEMPORARY
-#        ('file', dict(uri='file:')),
+        ('file', dict(uri='file:')),
         ('table', dict(uri='table:')),
-#        ('table-lsm', dict(uri='table:', extra_config=',type=lsm')),
+        ('table-lsm', dict(uri='table:', extra_config=',type=lsm')),
     ])
 
     # Populate an object, remove it and confirm it no longer exists.
@@ -114,9 +106,17 @@ class test_drop(wttest.WiredTigerTestCase):
 
         confirm_does_not_exist(self, drop_uri)
 
+        # Test dropping a non-existent table
+        # Fail without force or force=false
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.session.drop(drop_uri, None))
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.session.drop(drop_uri, "force=false"))
+        # Succeed with force=true.
+        self.session.drop(drop_uri, "force=true")
+
     # Test drop of an object.
     def test_drop(self):
-        self.pr('test_drop: self.uri=' + self.uri);
         # SimpleDataSet: Simple file or table object.
         # Try all combinations except dropping the index, the simple
         # case has no indices.
@@ -147,23 +147,25 @@ class test_drop(wttest.WiredTigerTestCase):
 
     # Test drop of a non-existent object: force succeeds, without force fails.
     def test_drop_dne(self):
-        if False:
-            if 'tiered' in self.hook_names:
-                self.skipTest("negative tests for drop do not work in tiered storage")
-            uri = self.uri + self.name
-            cguri = 'colgroup:' + self.name
-            idxuri = 'index:' + self.name + ':indexname'
-            lsmuri = 'lsm:' + self.name
-            confirm_does_not_exist(self, uri)
-            self.session.drop(uri, 'force')
-            self.assertRaises(
-                wiredtiger.WiredTigerError, lambda: self.session.drop(uri, None))
-            self.session.drop(cguri, 'force')
-            self.assertRaises(
-                wiredtiger.WiredTigerError, lambda: self.session.drop(cguri, None))
-            self.session.drop(idxuri, 'force')
-            self.assertRaises(
-                wiredtiger.WiredTigerError, lambda: self.session.drop(idxuri, None))
-            self.session.drop(lsmuri, 'force')
-            self.assertRaises(
-                wiredtiger.WiredTigerError, lambda: self.session.drop(lsmuri, None))
+        if 'tiered' in self.hook_names:
+            self.skipTest("negative tests for drop do not work in tiered storage")
+        uri = self.uri + self.name
+        cguri = 'colgroup:' + self.name
+        idxuri = 'index:' + self.name + ':indexname'
+        lsmuri = 'lsm:' + self.name
+        confirm_does_not_exist(self, uri)
+        self.session.drop(uri, 'force')
+        self.assertRaises(
+            wiredtiger.WiredTigerError, lambda: self.session.drop(uri, None))
+
+        self.session.drop(cguri, 'force')
+        self.assertRaises(
+            wiredtiger.WiredTigerError, lambda: self.session.drop(cguri, None))
+
+        self.session.drop(idxuri, 'force')
+        self.assertRaises(
+            wiredtiger.WiredTigerError, lambda: self.session.drop(idxuri, None))
+
+        self.session.drop(lsmuri, 'force')
+        self.assertRaises(
+            wiredtiger.WiredTigerError, lambda: self.session.drop(lsmuri, None))
