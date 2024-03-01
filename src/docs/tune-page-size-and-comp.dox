@@ -388,7 +388,6 @@ different compression options.
       Reduces on-disk size, CPU and Memory cost}
 @row{Key-prefix, yes, no, no, disabled, yes, yes, minor}
 @row{Dictionary, yes, yes, no, disabled, yes, yes, minor}
-@row{Huffman, yes, yes, no, disabled, yes, yes, can be high}
 @row{Block, yes, yes, yes, disabled, no, yes, can be high}
 </table>
 
