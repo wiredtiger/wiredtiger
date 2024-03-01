@@ -335,6 +335,8 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
+struct __wt_page_walk_skip_stats;
+typedef struct __wt_page_walk_skip_stats WT_PAGE_WALK_SKIP_STATS;
 struct __wt_prefetch;
 typedef struct __wt_prefetch WT_PREFETCH;
 struct __wt_prefetch_queue_entry;
@@ -451,6 +453,20 @@ typedef uint64_t wt_timestamp_t;
  * Forward type declarations for internal types: END
  * DO NOT EDIT: automatically built by dist/s_typedef.
  */
+
+/*
+ * Clang and gcc use different mechanisms to detect TSan, clang using __has_feature. Consolidate
+ * them into a single TSAN_BUILD pre-processor flag.
+ */
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define TSAN_BUILD 1
+#endif
+#endif
+
+#if defined(__SANITIZE_THREAD__)
+#define TSAN_BUILD 1
+#endif
 
 /*******************************************
  * WiredTiger internal include files.

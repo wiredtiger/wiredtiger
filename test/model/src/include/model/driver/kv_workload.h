@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DRIVER_KV_WORKLOAD_H
-#define MODEL_DRIVER_KV_WORKLOAD_H
+#pragma once
 
 #include <deque>
 #include <iostream>
@@ -537,7 +536,8 @@ public:
      * kv_workload::run_in_wiredtiger --
      *     Run the workload in WiredTiger.
      */
-    void run_in_wiredtiger(const char *home, const char *connection_config) const;
+    void run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
+      const char *table_config = nullptr) const;
 
 private:
     std::deque<operation::any> _operations;
@@ -567,4 +567,3 @@ operator<<(std::ostream &out, const std::shared_ptr<kv_workload> &workload)
 }
 
 } /* namespace model */
-#endif

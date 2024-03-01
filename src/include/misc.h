@@ -96,7 +96,6 @@
 #define WT_BLOCK_FITS(p, len, begin, maxlen)             \
     ((const uint8_t *)(p) >= (const uint8_t *)(begin) && \
       ((const uint8_t *)(p) + (len) <= (const uint8_t *)(begin) + (maxlen)))
-#define WT_PTR_IN_RANGE(p, begin, maxlen) WT_BLOCK_FITS((p), 1, (begin), (maxlen))
 
 /*
  * Align an unsigned value of any type to a specified power-of-2, including the offset result of a
@@ -203,10 +202,22 @@
  * constant might be a negative integer), and to ensure the hex constant is the correct size before
  * applying the bitwise not operator.
  */
+#ifdef TSAN_BUILD
+/*
+ * FIXME-WT-12534 We need atomics to fix data races detected by TSan, however these atomics come
+ * with a large performance cost. Define these atomics only for TSan builds as they aren't
+ * performance critical and we'll investigate a long term solution separately.
+ */
+#define FLD_CLR(field, mask) (void)__wt_atomic_and_generic(&field, (__typeof__(field))(~(mask)))
+#define FLD_MASK(field, mask) (__wt_atomic_load_generic(&field) & (mask))
+#define FLD_ISSET(field, mask) (FLD_MASK(field, (mask)) != 0)
+#define FLD_SET(field, mask) ((void)__wt_atomic_or_generic(&field, (mask)))
+#else
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
 #define FLD_ISSET(field, mask) (FLD_MASK(field, mask) != 0)
 #define FLD_SET(field, mask) ((void)((field) |= (mask)))
+#endif
 
 #define F_CLR(p, mask) FLD_CLR((p)->flags, mask)
 #define F_ISSET(p, mask) FLD_ISSET((p)->flags, mask)

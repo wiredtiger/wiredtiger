@@ -658,6 +658,7 @@ conn_stats = [
     SessionOpStat('session_table_alter_skip', 'table alter unchanged and skipped', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_success', 'table alter successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_trigger_checkpoint', 'table alter triggering checkpoint calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_compact_conflicting_checkpoint', 'table compact conflicted with checkpoint', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_dhandle_success', 'table compact dhandle successful calls', 'no_scale'),
     SessionOpStat('session_table_compact_fail', 'table compact failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_fail_cache_pressure', 'table compact failed calls due to cache pressure', 'no_clear,no_scale'),
@@ -1052,6 +1053,9 @@ conn_dsrc_stats = [
     CursorStat('cursor_reposition_failed', 'Total number of times cursor fails to temporarily release pinned page to encourage eviction of hot or large page'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
+    CursorStat('cursor_tree_walk_del_page_skip', 'Total number of deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
 
     ##########################################
     # Cursor API error statistics

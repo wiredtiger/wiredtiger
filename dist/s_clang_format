@@ -4,6 +4,7 @@ set -o pipefail
 . `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
 setup_trap
 cd_top
+check_fast_mode_flag
 
 download_clang_format() {
     version=$1
@@ -50,40 +51,22 @@ fi
 # If we're not allowed to run Clang-Format, let's exit (should be obvious from the dialog).
 clang-format --version &> /dev/null || exit 1
 
-exclude=true
-case $# in
-0)
-    # Get all source files.
-    search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cpp'`
-    ;;
-1)
-    # If the -F option is not specified then find every source file.
-    if [ $1 == "-F" ]; then
-        # We are running in fast mode, get all the source files modified according to git.
-        check_fast_mode
-        search=`git diff --name-only $(last_commit_from_dev) | grep -E '\.(c|h|cpp)$'`
-    else
-        search="$1"
-        exclude=false
-    fi
-    ;;
-*)
-    echo "usage: $0 [-F] [file]"
-    echo "-F apply clang format to modified source files in the git index"
-    echo "Only a file or -F can be provided"
-    exit 1
-    ;;
-esac
-
-if $exclude; then
+# Parallel execution: if it's the main onvocation of the script, collect the file names
+# to process and run them in subprocesses.
+if is_main_run; then
+    search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cpp' | filter_if_fast`
     for f in `cat dist/s_clang_format.list`; do
         search=`echo "$search" | sed "\#$f#d"`
     done
+    echo "$search" | do_in_parallel
+    exit $?
 fi
+
+# A list of files provided: process them one by one.
 
 # Don't format inplace with -i flag.
 # We want to be able to detect modifications.
-for f in $search; do
+for f in "$@"; do
     cat "$f" | \
             clang-format --fallback-style=none | \
             python3 dist/s_comment.py > "$t" || exit 1
