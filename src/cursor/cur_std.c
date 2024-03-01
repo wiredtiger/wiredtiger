@@ -952,10 +952,11 @@ return_false:
  *     WT_CURSTD_DEBUG_RESET_EVICT, WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
  */
 static int
-__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
-  uint64_t overwrite_flag, bool *readonlyp)
+__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *cursor,
+  const char *cfg[], uint64_t overwrite_flag, bool *readonlyp, WT_CURSOR **cdumpp)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR *cdump;
     /* Default cleared all flags set by this func. */
     F_CLR(cursor,
       WT_CURSTD_APPEND | WT_CURSTD_CACHEABLE | WT_CURSTD_DEBUG_RESET_EVICT | WT_CURSTD_OVERWRITE |
@@ -995,6 +996,37 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
     if (*readonlyp) /* We do not cache read-only cursors. */
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
 
+    /*
+     * dump If an index cursor is opened with dump, then this function is called on the index files,
+     * with the dump config string, and with the index cursor as an owner. We don't want to create a
+     * dump cursor in that case, because we'll create the dump cursor on the index cursor itself.
+     */
+    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+    if (cval.len != 0 && owner == NULL) {
+        uint64_t dump_flag;
+        if (WT_STRING_MATCH("json", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_JSON;
+        else if (WT_STRING_MATCH("print", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_PRINT;
+        else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_PRETTY;
+        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY;
+        else
+            dump_flag = WT_CURSTD_DUMP_HEX;
+        F_SET(cursor, dump_flag);
+
+        /*
+         * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
+         * dump cursor.
+         */
+        WT_RET(__wt_curdump_create(cursor, owner, &cdump));
+        owner = cdump;
+        F_CLR(cursor, WT_CURSTD_CACHEABLE);
+    } else
+        cdump = NULL;
+    *cdumpp = cdump;
+
     return (0);
 }
 
@@ -1009,8 +1041,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
   WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR *cdump;
     WT_CURSOR *cursor;
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     uint64_t bucket, overwrite_flag;
     bool cacheable;
@@ -1063,19 +1095,17 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly));
+            WT_RET(__cursor_reuse_or_init(
+              session, NULL, cursor, cfg, overwrite_flag, &readonly, &cdump));
 
             /*
              * If this is a btree cursor, clear its read_once flag.
              */
             if (WT_BTREE_PREFIX(cursor->internal_uri)) {
+                WT_CURSOR_BTREE *cbt;
                 cbt = (WT_CURSOR_BTREE *)cursor;
                 F_CLR(cbt, WT_CBT_READ_ONCE);
-            } else {
-                cbt = NULL;
-            }
 
-            if (cbt) {
                 if (have_config) {
                     WT_RET(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
                     if (cval.val != 0)
@@ -1551,12 +1581,6 @@ __wt_cursor_init(
 
     session = CUR2S(cursor);
 
-    /* Document some flags that are cleared when this is called */
-    WT_ASSERT(session,
-      !F_ISSET(cursor,
-        WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_JSON | WT_CURSTD_DUMP_JSON | WT_CURSTD_DUMP_PRETTY |
-          WT_CURSTD_DUMP_PRINT));
-
     if (cursor->internal_uri == NULL) {
         /* Various cursor code assumes there is an internal URI, so there better be one to set. */
         WT_ASSERT(session, uri != NULL);
@@ -1566,7 +1590,7 @@ __wt_cursor_init(
     WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
     overwrite_flag = cval.val ? WT_CURSTD_OVERWRITE : 0;
 
-    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly));
+    WT_RET(__cursor_reuse_or_init(session, owner, cursor, cfg, overwrite_flag, &readonly, &cdump));
 
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
@@ -1575,35 +1599,6 @@ __wt_cursor_init(
         cursor->reserve = __wt_cursor_notsup;
         cursor->update = __wt_cursor_notsup;
     }
-
-    /*
-     * dump If an index cursor is opened with dump, then this function is called on the index files,
-     * with the dump config string, and with the index cursor as an owner. We don't want to create a
-     * dump cursor in that case, because we'll create the dump cursor on the index cursor itself.
-     */
-    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
-    if (cval.len != 0 && owner == NULL) {
-        uint64_t dump_flag;
-        if (WT_STRING_MATCH("json", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_JSON;
-        else if (WT_STRING_MATCH("print", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRINT;
-        else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRETTY;
-        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY;
-        else
-            dump_flag = WT_CURSTD_DUMP_HEX;
-        F_SET(cursor, dump_flag);
-        /*
-         * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
-         * dump cursor.
-         */
-        WT_RET(__wt_curdump_create(cursor, owner, &cdump));
-        owner = cdump;
-        F_CLR(cursor, WT_CURSTD_CACHEABLE);
-    } else
-        cdump = NULL;
 
     /*
      * WT_CURSOR.modify supported on 'S' and 'u' value formats, but may have been already
