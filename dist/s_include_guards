@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Check if every .h file has an include guard of any style:
+# either "#ifndef/#define {FILE}_H" or "#pragma once".
+# If not, add "#pragma once".
+
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+cd_top
+check_fast_mode_flag
+check_xargs_P
+
+# This is a temporary implementation.
+# It needs to be rewritten using one of our supported languages:
+# python / bash / awk / sed / etc.
+
+# Since we don't require Perl to be present in the system to build WiredTiger,
+# just exit if it's not available.
+which perl 2>&1 >/dev/null || exit 0
+
+find bench ext src test tools -name \*.h |
+  fgrep -v wtperf_opt_inline.h |
+  filter_if_fast |
+  xargs $XARGS_P -n1 -- perl -i -E '
+    # Read all
+    do { local $/=undef; $_=<>; };
+    # Check if an include guard is present
+    if (!/#pragma\s+once/s && !/#define[^\n]+_H[_]*\n/s) {
+      say STDERR "Added include guard in: $ARGV";
+      m{^/\*}s ?
+        s{\*/[\n]++}{*/\n\n#pragma once\n\n} :
+        s/^[\n]*/#pragma once\n\n/;
+    }
+    # Output the result
+    print;'
+
