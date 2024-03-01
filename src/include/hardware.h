@@ -92,7 +92,7 @@
 #define WT_ACQUIRE_READ(v, val)                                      \
     do {                                                             \
         if (0) {                                                     \
-            v = val;                                                 \
+            (v) = (val);                                             \
         }                                                            \
         if (sizeof((val)) == 1) {                                    \
             __asm__ volatile("ldaprb %w0, %1" : "=r"(v) : "Q"(val)); \
@@ -101,11 +101,11 @@
         } else if (sizeof((val)) == 4) {                             \
             __asm__ volatile("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
         } else if (sizeof((val)) == 8) {                             \
-            __asm__ volatile("ldapr %0, %1" : "=r"(v) : "Q"(val));   \
+            __asm__ volatile("ldapr %x0, %1" : "=r"(v) : "Q"(val));  \
         }                                                            \
     } while (0)
 #else
-#define WT_ACQUIRE_READ(v, val) v = __atomic_load_n(&val, __ATOMIC_ACQUIRE);
+#define WT_ACQUIRE_READ(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE);
 #endif
 #else
 #define WT_ACQUIRE_READ(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
