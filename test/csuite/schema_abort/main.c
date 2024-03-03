@@ -629,6 +629,8 @@ thread_ckpt_run(void *arg)
          */
         WT_ORDERED_READ(stable_ts_copy, stable_timestamp);
 
+        /* Set the configurations. Set use_timestamps regardless of whether timestamps are in use.
+         */
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
 
         /*
