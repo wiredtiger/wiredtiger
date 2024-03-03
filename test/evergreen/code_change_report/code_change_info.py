@@ -301,7 +301,7 @@ def create_report_info(change_list: dict,
                     line_info['branches'] = branch_coverage
 
                     # Added lines of code don't have a 'old_lineno' value (ie the value will be < 0).
-                    # Changed lines of code appear as two entries: (1) a deleted line and (2) on added line.
+                    # Changed lines of code appear as two entries: (1) a deleted line and (2) an added line.
                     # This means that added or changed lines of code will have an 'old_lineno' < 0.
                     if line.old_lineno < 0:
                         # Ihe line was added or changed, so update the counts for the overall change
