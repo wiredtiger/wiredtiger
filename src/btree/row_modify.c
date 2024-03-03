@@ -429,5 +429,6 @@ __wt_update_obsolete_check(
     if (next != NULL)
         __wt_free_update_list(session, &next);
 
+    page->modify->obsolete_check_memory_footprint = page->memory_footprint;
     WT_PAGE_UNLOCK(session, page);
 }

@@ -299,9 +299,14 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     /*
      * Look for obsolete updates if:
      * 1. The page is configured to evict soon.
-     * 2. There are several updates in the cache that need to be removed.
+     * 2. The page size has changed by more than 10% of the maximum split page size
+     *    allowed by btree. By doing this, the obsolete updates will be removed,
+     *    preventing needless page splits.
+     * 3. There are several updates in the cache that need to be removed.
      */
     if (WT_READGEN_EVICT_SOON(page->read_gen) ||
+      ((page->memory_footprint - page->modify->obsolete_check_memory_footprint) >
+        (S2BT(session)->splitmempage / 10)) ||
       F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_UPDATES))
         __wt_update_obsolete_check(session, cbt, upd->next, true);
 
