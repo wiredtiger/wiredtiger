@@ -107,7 +107,7 @@ considered.   (See @ref compression_considerations for details.)
 
   Block compression is disabled by default.
 
-Variable-length column stores support four types of compression:
+Variable-length column stores support three types of compression:
 run-length encoding, dictionary compression and block compression.
 
 - Run-length encoding reduces the size requirement of both the in-memory
