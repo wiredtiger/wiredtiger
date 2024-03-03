@@ -136,7 +136,6 @@ run "log.py"
 run "stat.py"
 run "verbose.py"
 run "s_copyright"
-run "s_include_guards"
 run "s_style"
 run "s_clang_format"
 run "prototypes.py"
@@ -169,6 +168,7 @@ run --bg "function.py" &
 run --bg "style.py" &
 run --bg "comment_style.py" &
 run --bg "type_to_str.py" &
+run --bg "s_include_guards" &
 
 # Wait for completion.
 if [[ -n "$ISTTY" ]]; then
