@@ -254,7 +254,10 @@ def get_function_info(file_path: str,
 
 # get_num_branches_covered returns the number of branches covered from coverage info
 def get_num_branches_covered(branch_coverage_info: list) -> int:
-    return len([x for x in branch_coverage_info if x['count'] > 0])
+    # Calculate the number of covered branches by creating a list of branches where that branch has a count > 0,
+    # and then calculating the length of that list.
+    covered_branches = [x for x in branch_coverage_info if x['count'] > 0]
+    return len(covered_branches)
 
 
 # create_report_info generates the code change info report as a dict
