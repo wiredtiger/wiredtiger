@@ -244,7 +244,7 @@ table_verify_mirror(
      */
     if (checkpoint == NULL) {
         wt_wrap_open_cursor(session, base->uri, NULL, &pinned_cursor);
-        pinned_ret = pinned_cursor->next(pinned_cursor);
+        pinned_ret = read_op(pinned_cursor, NEXT, NULL);
         testutil_snprintf(
           buf, sizeof(buf), "open a pinned cursor to pin the snapshot for verification");
         trace_msg(session, "%s", buf);
