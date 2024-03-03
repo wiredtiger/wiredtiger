@@ -996,6 +996,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 
+    /* Remove obsolete updates that exist on the update chain. */
+    if (!F_ISSET(r, WT_REC_EVICT) && !upd_saved && upd_select->upd != NULL &&
+      upd_select->upd->next != NULL)
+        __wt_update_obsolete_check_nolock(session, r->ref, upd_select->upd, true);
+
     WT_ASSERT(
       session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);
 

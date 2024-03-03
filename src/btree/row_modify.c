@@ -333,12 +333,13 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
 }
 
 /*
- * __wt_update_obsolete_check --
- *     Check for obsolete updates and force evict the page if the update list is too long.
+ * __wt_update_obsolete_check_nolock --
+ *     Check for obsolete updates and force evict the page if the update list is too long. The
+ *     caller is responsible to acquire and release the page lock.
  */
 void
-__wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
+__wt_update_obsolete_check_nolock(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, bool update_accounting)
 {
     WT_PAGE *page;
     WT_UPDATE *first, *next;
@@ -346,12 +347,7 @@ __wt_update_obsolete_check(
     u_int count;
 
     next = NULL;
-    page = cbt->ref->page;
-
-    WT_ASSERT(session, page->modify != NULL);
-    /* If we can't lock it, don't scan, that's okay. */
-    if (WT_PAGE_TRYLOCK(session, page) != 0)
-        return;
+    page = ref->page;
 
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
@@ -423,12 +419,32 @@ __wt_update_obsolete_check(
      */
     if (count > WT_THOUSAND) {
         WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
-        __wt_page_evict_soon(session, cbt->ref);
+        __wt_page_evict_soon(session, ref);
     }
 
     if (next != NULL)
         __wt_free_update_list(session, &next);
 
     page->modify->obsolete_check_memory_footprint = page->memory_footprint;
+}
+
+/*
+ * __wt_update_obsolete_check --
+ *     Check for obsolete updates and force evict the page if the update list is too long.
+ */
+void
+__wt_update_obsolete_check(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
+{
+    WT_PAGE *page;
+
+    page = cbt->ref->page;
+
+    WT_ASSERT(session, page->modify != NULL);
+    /* If we can't lock it, don't scan, that's okay. */
+    if (WT_PAGE_TRYLOCK(session, page) != 0)
+        return;
+
+    __wt_update_obsolete_check_nolock(session, cbt->ref, upd, update_accounting);
     WT_PAGE_UNLOCK(session, page);
 }
