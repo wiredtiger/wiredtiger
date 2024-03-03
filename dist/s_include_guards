@@ -9,7 +9,7 @@ check_fast_mode_flag
 
 for f in $(
     find bench ext src test tools -name \*.h |
-    fgrep -v wtperf_opt_inline.h |
+    grep -F -v wtperf_opt_inline.h |
     filter_if_fast
 ); do
   if ! grep -qE '#pragma\s+once|#define[^\n]+_H[_]*$' $f; then
