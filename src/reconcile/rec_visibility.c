@@ -998,7 +998,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
     /* Remove obsolete updates that exist on the update chain. */
     if (!F_ISSET(r, WT_REC_EVICT) && !upd_saved && upd_select->upd != NULL &&
-      upd_select->upd->next != NULL)
+      WT_UPDATE_DATA_VALUE(upd_select->upd) && upd_select->upd->next != NULL)
         __wt_update_obsolete_check_nolock(session, r->ref, upd_select->upd, true);
 
     WT_ASSERT(
