@@ -355,7 +355,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    char uri1[50], uri2[50];
+    char uri1[50];
     const char *retry_opname;
 
     if (!has_schema_operation(id, op))
@@ -392,16 +392,14 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
     case 2:
         /* Update the single value in the table. */
         gen_table_name(uri1, sizeof(uri1), id, threadid);
-        gen_table2_name(uri2, sizeof(uri2), id, threadid);
-        testutil_check(session->open_cursor(session, uri2, NULL, NULL, &cursor));
-        cursor->set_key(cursor, uri1);
-        cursor->set_value(cursor, uri2);
+        testutil_check(session->open_cursor(session, uri1, NULL, NULL, &cursor));
+        cursor->set_value(cursor, uri1);
         /*
-        fprintf(stderr, "UPDATE: %s\n", uri2);
+        fprintf(stderr, "UPDATE: %s\n", uri1);
         */
-        testutil_check(session->log_printf(session, "UPDATE: %s", uri2));
+        testutil_check(session->log_printf(session, "UPDATE: %s", uri1));
         testutil_check(cursor->update(cursor));
-        testutil_check(session->log_printf(session, "UPDATE: DONE %s", uri2));
+        testutil_check(session->log_printf(session, "UPDATE: DONE %s", uri1));
         testutil_check(cursor->close(cursor));
         break;
     case 3:
@@ -418,8 +416,8 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         }
     }
     /*
-     * XXX We notice occasional EBUSY errors from rename or drop, even though neither URI should be
-     * used by any other thread. Report it, and retry.
+     * XXX We notice occasional EBUSY errors from drop, even though the URI should not be used by
+     * any other thread. Report it, and retry.
      */
     if (retry_opname != NULL && ret == EBUSY)
         printf("%s(\"%s\", ....) failed, retrying transaction\n", retry_opname, uri1);
