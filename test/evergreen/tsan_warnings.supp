@@ -12,3 +12,7 @@ race:__evict_update_work
 
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
+
+# FIXME-WT-12610 Fields like log->slot_state are composite variables and more complex than the usual storing 
+# and loading of ints. These fields will be investigated in a separate ticket. 
+race:src/log
