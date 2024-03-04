@@ -308,7 +308,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      */
     if (WT_READGEN_EVICT_SOON(page->read_gen) ||
       ((page->memory_footprint - page->modify->obsolete_check_memory_footprint) >
-        (S2BT(session)->splitmempage / 10)) ||
+        (S2BT(session)->splitmempage * 0.05)) ||
       F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_UPDATES))
         __wt_update_obsolete_check(session, cbt, upd->next, true);
 
