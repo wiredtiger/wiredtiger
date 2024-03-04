@@ -163,7 +163,6 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     ++conn->prefetch_queue_count;
     __wt_spin_unlock(session, &conn->prefetch_lock);
     __wt_cond_signal(session, conn->prefetch_threads.wait_cond);
-    return (0);
 
     if (0) {
 err:
