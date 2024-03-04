@@ -393,6 +393,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         /* Update the single value in the table. */
         gen_table_name(uri1, sizeof(uri1), id, threadid);
         testutil_check(session->open_cursor(session, uri1, NULL, NULL, &cursor));
+        cursor->set_key(cursor, uri1);
         cursor->set_value(cursor, uri1);
         /*
         fprintf(stderr, "UPDATE: %s\n", uri1);
@@ -405,7 +406,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
     case 3:
         /* Drop the table. */
         if (LF_ISSET(SCHEMA_DROP)) {
-            gen_table2_name(uri1, sizeof(uri1), id, threadid);
+            gen_table_name(uri1, sizeof(uri1), id, threadid);
             retry_opname = "drop";
             /*
             fprintf(stderr, "DROP: %s\n", uri1);
