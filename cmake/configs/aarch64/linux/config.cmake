@@ -1,5 +1,5 @@
 include(CheckCCompilerFlag)
-include(cmake/configs/aarch64/linux/rcpc_test.cmake)
+include(cmake/rcpc_test.cmake)
 
 set(WT_ARCH "aarch64" CACHE STRING "")
 set(WT_OS "linux" CACHE STRING "")
