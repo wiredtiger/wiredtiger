@@ -317,27 +317,6 @@ create_table(WT_SESSION *session, WT_RAND_STATE *rand, TABLE_INFO *tinfo, uint32
 }
 
 /*
- * rename_table --
- *     TODO: Add a comment describing this function.
- */
-static void
-rename_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
-{
-    char *olduri, *uri;
-
-    testutil_assert(TABLE_VALID(&tinfo->table[slot]));
-    uri = dcalloc(1, URI_MAX_LEN);
-    testutil_snprintf(
-      uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++);
-
-    olduri = tinfo->table[slot].name;
-    VERBOSE(3, "rename %s %s\n", olduri, uri);
-    WT_OP_CHECKPOINT_WAIT(session, session->rename(session, olduri, uri, NULL));
-    free(olduri);
-    tinfo->table[slot].name = uri;
-}
-
-/*
  * drop_table --
  *     TODO: Add a comment describing this function.
  */
