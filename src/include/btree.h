@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Supported btree formats: the "current" version is the maximum supported major/minor versions.
  */
@@ -120,8 +122,6 @@ struct __wt_btree {
     uint64_t maxmempage;            /* In-memory page max size */
     uint32_t maxmempage_image;      /* In-memory page image max size */
     uint64_t splitmempage;          /* In-memory split trigger size */
-
-    void *huffman_value; /* Value huffman encoding */
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 

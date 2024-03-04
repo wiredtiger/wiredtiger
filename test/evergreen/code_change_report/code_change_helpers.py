@@ -18,43 +18,18 @@
 # relinquishment in perpetuity of all present and future rights to this
 # software under copyright law.
 #
-# THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 # MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 # IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
 
-import wttest
-
-# test_lsm02.py
-#    Test LSM schema level operations
-class test_lsm02(wttest.WiredTigerTestCase):
-    uri = 'lsm:test_lsm02'
-
-    def add_key(self, uri, key, value):
-        cursor = self.session.open_cursor(uri, None, None)
-        cursor[key] = value
-        cursor.close()
-
-    def verify_key_exists(self, uri, key, value):
-        cursor = self.session.open_cursor(uri, None, None)
-        cursor.set_key(key)
-        cursor.search()
-        if value != cursor.get_value():
-            print('Unexpected value from LSM tree')
-        cursor.close()
-
-    # Put some special values that start with the LSM tombstone
-    def test_lsm_tombstone(self):
-        self.session.create(self.uri, 'key_format=S,value_format=u')
-        v = b'\x14\x14'
-        self.add_key(self.uri, 'k1', v)
-        self.verify_key_exists(self.uri, 'k1', v)
-        v = b'\x14\x14\0\0\0\0\0\0'
-        self.add_key(self.uri, 'k2', v)
-        self.verify_key_exists(self.uri, 'k2', v)
-        v += b'a' * 1000
-        self.add_key(self.uri, 'k3', v)
-        self.verify_key_exists(self.uri, 'k3', v)
+# is_useful_line detects lines of code that have 'useful' code in them.
+# It is used to filter out displaying data, such as code coverage, for lines of code that don't do anything useful.
+# This is used because gcov, for example, sometimes coverage reports counts for lines that only contain '}'
+def is_useful_line(content: str) -> bool:
+    useful_line = content != '\n' and content.strip() != '{' and content.strip() != '}'
+    return useful_line

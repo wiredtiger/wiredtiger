@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * This macro doesn't do anything and is used for annotation only. We use it to highlight
  * the variable is used in lock-less inter-thread communication - using mechanisms like memory
@@ -21,10 +23,10 @@
  * Release write a value to a shared location. All previous stores must complete before the value is
  * made public.
  */
-#define WT_RELEASE_WRITE_WITH_BARRIER(v, val) \
-    do {                                      \
-        WT_RELEASE_BARRIER();                 \
-        (v) = (val);                          \
+#define WT_RELEASE_WRITE_WITH_BARRIER(v, val)   \
+    do {                                        \
+        WT_RELEASE_BARRIER();                   \
+        __wt_atomic_store_generic(&(v), (val)); \
     } while (0)
 
 /*
@@ -76,10 +78,10 @@
 /*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
  */
-#define WT_ACQUIRE_READ_WITH_BARRIER(v, val) \
-    do {                                     \
-        (v) = (val);                         \
-        WT_ACQUIRE_BARRIER();                \
+#define WT_ACQUIRE_READ_WITH_BARRIER(v, val)    \
+    do {                                        \
+        (v) = __wt_atomic_load_generic(&(val)); \
+        WT_ACQUIRE_BARRIER();                   \
     } while (0)
 
 /*
