@@ -852,7 +852,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          */
         if (txn_global->has_stable_timestamp) {
             /* A checkpoint should never proceed when timestamps are out of order. */
-            if (txn_global->has_oldest_timestamp &&
+            if (__wt_atomic_loadbool(&txn_global->has_oldest_timestamp) &&
               txn_global->oldest_timestamp > txn_global->stable_timestamp) {
                 __wt_readunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
