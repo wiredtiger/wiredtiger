@@ -22,7 +22,6 @@
         a = 10;                                       \
         WT_ACQUIRE_READ_WITH_BARRIER(a_result, *ap);  \
         REQUIRE(a == a_result);                       \
-        REQUIRE(true);                                \
     }
 
 /*
