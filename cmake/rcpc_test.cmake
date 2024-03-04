@@ -23,3 +23,7 @@ set(CMAKE_REQUIRED_FLAGS -march=armv8.2-a+rcpc+crc)
 endfunction()
 
 cmake_language(CALL rcpc_test)
+
+if(HAVE_RCPC)
+    message(DEBUG "Machine supports RCPC, Setting HAVE_RCPC")
+endif()

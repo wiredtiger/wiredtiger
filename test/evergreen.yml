@@ -5300,6 +5300,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    # Compile with clang so we test that path for the catch2 unittests.
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
