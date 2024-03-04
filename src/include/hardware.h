@@ -86,6 +86,9 @@
  * Finally the "Q" constraint is used for the given input operand, this instructs the compiler to
  * generate offset free ldapr instructions. ldapr instructions, prior to version RCpc 3, don't
  * support offsets.
+ *
+ * The flag HAVE_RCPC is determined by the build system, if this macro is removed in the future be
+ * sure to remove that part of the compilation.
  */
 #ifdef HAVE_RCPC
 #ifndef TSAN_BUILD
