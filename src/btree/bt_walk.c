@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -113,15 +113,15 @@ __ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, u
          * with the namespaces a-f, g-h and i-j; the first child page
          * splits. The parent starts out with the following page-index:
          *
-         *	| ... | a | g | i | ... |
+         *  | ... | a | g | i | ... |
          *
          * which changes to this:
          *
-         *	| ... | a | c | e | g | i | ... |
+         *  | ... | a | c | e | g | i | ... |
          *
          * The split page starts out with the following page-index:
          *
-         *	| a | b | c | d | e | f |
+         *  | a | b | c | d | e | f |
          *
          * Imagine a cursor finishing the 'f' part of the namespace that
          * starts its ascent to the parent's 'a' slot. Then the page
@@ -188,11 +188,11 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * g-h and i-j; the first child page splits. The parent starts out with
      * the following page-index:
      *
-     *	| ... | a | g | i | ... |
+     *  | ... | a | g | i | ... |
      *
      * The split page starts out with the following page-index:
      *
-     *	| a | b | c | d | e | f |
+     *  | a | b | c | d | e | f |
      *
      * The first step is to move the c-f ranges into a new subtree, so, for
      * example we might have two new internal pages 'c' and 'e', where the
@@ -202,7 +202,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * the subtree won't be able to ascend out of the subtree. However, once
      * the parent page's page index is updated to this:
      *
-     *	| ... | a | c | e | g | i | ... |
+     *  | ... | a | c | e | g | i | ... |
      *
      * threads in the subtree can ascend into the parent. Imagine a cursor
      * in the c-d part of the namespace that ascends to the parent's 'c'
@@ -214,7 +214,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * the 'f' slot, which is incorrect. Once the split page's page index is
      * updated to this:
      *
-     *	| a | b |
+     *  | a | b |
      *
      * the previous-cursor movement will select the 'b' slot, which is
      * correct.
@@ -349,13 +349,16 @@ restart:
     __ref_index_slot(session, ref, &pindex, &slot);
 
     for (;;) {
+        printf("We are at the outer loop top.\n");
         /*
          * If we're at the last/first slot on the internal page, return it in post-order traversal.
          * Otherwise move to the next/prev slot and left/right-most element in that subtree.
          */
         while ((prev && slot == 0) || (!prev && slot == pindex->entries - 1)) {
+            printf("ref=%p, ref->page=%p: ascending to parent from slot %d\n", (void*)ref, (void*)ref->page, slot);
             /* Ascend to the parent. */
             __ref_ascend(session, &ref, &pindex, &slot);
+            printf("Parent: ref=%p, ref->page=%p: ascending to parent, slot = %d\n", (void*)ref, (void*)ref->page, slot);
 
             /*
              * If at the root and returning internal pages, return the root page, otherwise we're
@@ -395,6 +398,7 @@ restart:
                 couple = NULL;
                 *refp = ref;
                 WT_ASSERT(session, ref != ref_orig);
+                printf("Returning internal page: ref=%p, ref->page=%p\n", (void*)ref, (void*)ref->page);
                 goto done;
             }
 
@@ -406,11 +410,14 @@ restart:
         else
             ++slot;
 
+        printf("Adjusted slot to %d for page: ref=%p, ref->page=%p.\n", slot, (void*)ref, (void*)ref->page);
+
         if (walkcntp != NULL)
             ++*walkcntp;
 
         for (;;) {
 descend:
+            printf("Descend\n");
             /*
              * Get a reference, setting the reference hint if it's wrong (used when we continue the
              * walk). We don't always update the hints when splitting, it's expected for them to be
@@ -419,7 +426,7 @@ descend:
             ref = pindex->index[slot];
             if (ref->pindex_hint != slot)
                 ref->pindex_hint = slot;
-
+            printf("Descended to page: ref=%p, ref->page=%p\n", (void*)ref, (void*)ref->page);
             /*
              * If we see any child states other than deleted, the page isn't empty.
              */
@@ -467,6 +474,7 @@ descend:
                 if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                     *refp = ref;
                     WT_ASSERT(session, ref != ref_orig);
+                    printf("Returning LEAF page ref=%p, ref->page=%p\n", (void*)ref, (void*)ref->page);
                     goto done;
                 }
 
@@ -474,6 +482,7 @@ descend:
                 couple = ref;
 
                 /* Configure traversal of any internal page. */
+                printf("This was an internal. page ref=%p, ref->page=%p. EMPTY=true.\n", (void*)ref, (void*)ref->page);
                 empty_internal = true;
                 if (prev) {
                     if (__split_prev_race(session, ref, &pindex))
@@ -495,6 +504,7 @@ descend:
             if (ret == WT_NOTFOUND) {
                 WT_STAT_CONN_INCR(session, cache_eviction_walk_leaf_notfound);
                 WT_NOT_READ(ret, 0);
+                printf("ret == WT_NOTFOUND. Go back up\n");
                 break;
             }
 
