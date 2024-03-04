@@ -74,10 +74,12 @@
 #endif
 
 /*
- * The below assembly implements the read-acquire semantic. The if branches get removed at compile
- * time as the sizeof instruction evaluates at compile time. Additionally ldapr results in a loss of
- * type checking, to circumvent this we have an if (0) block which contains the direct assignment.
- * This forces the compiler to type check.
+ * The below assembly implements the read-acquire semantic. Acquire semantics prevent memory
+ * reordering of the read-acquire with and load or store that follows it in program order.
+ *
+ * The if branches get removed at compile time as the sizeof instruction evaluates at compile time.
+ * Additionally ldapr results in a loss of type checking, to circumvent this we have an if (0) block
+ * which contains the direct assignment. This forces the compiler to type check.
  *
  * Depending on the size of the given type we choose the appropriate ldapr variant, additionally the
  * W register variants are used if possible which map to the lower word of the associated X
