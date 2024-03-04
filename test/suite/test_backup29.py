@@ -109,19 +109,15 @@ class test_backup29(backup_base):
         # the library keep track of the bitmaps.
         config = 'incremental=(enabled,granularity=4k,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
-        backup_stat = self.get_stat(stat.conn.backup_cursor_open)
-        self.assertEqual(backup_stat, 1)
-        backup_stat = self.get_stat(stat.conn.backup_incremental)
-        self.assertEqual(backup_stat, 1)
+        self.assertEqual(1, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(1, self.get_stat(stat.conn.backup_incremental))
         # Uncomment these lines if actually taking the full backup is helpful for debugging.
         # os.mkdir(self.dir)
         # self.take_full_backup(self.dir, bkup_c)
         bkup_c.close()
 
-        backup_stat = self.get_stat(stat.conn.backup_cursor_open)
-        self.assertEqual(backup_stat, 0)
-        backup_stat = self.get_stat(stat.conn.backup_incremental)
-        self.assertEqual(backup_stat, 1)
+        self.assertEqual(0, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(1, self.get_stat(stat.conn.backup_incremental))
 
         # Add a lot more data to both tables to generate a filled-in block mod bitmap.
         last_i = self.few
@@ -168,28 +164,19 @@ class test_backup29(backup_base):
     def test_backup29_reopen(self):
         self.setup_test()
         # Make sure all the stats are not set
-        backup_stat = self.get_stat(stat.conn.backup_blocks)
-        self.assertEqual(backup_stat, 0)
-        backup_stat = self.get_stat(stat.conn.backup_cursor_open)
-        self.assertEqual(backup_stat, 0)
-        backup_stat = self.get_stat(stat.conn.backup_dup_open)
-        self.assertEqual(backup_stat, 0)
-        backup_stat = self.get_stat(stat.conn.backup_start)
-        self.assertEqual(backup_stat, 0)
+        self.assertEqual(0, self.get_stat(stat.conn.backup_blocks))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_dup_open))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_start))
 
         self.pr("CLOSE and REOPEN conn")
         self.reopen_conn()
-        backup_stat = self.get_stat(stat.conn.backup_blocks)
-        self.assertEqual(backup_stat, 0)
-        backup_stat = self.get_stat(stat.conn.backup_cursor_open)
-        self.assertEqual(backup_stat, 0)
-        backup_stat = self.get_stat(stat.conn.backup_dup_open)
-        self.assertEqual(backup_stat, 0)
-        backup_stat = self.get_stat(stat.conn.backup_incremental)
+        self.assertEqual(0, self.get_stat(stat.conn.backup_blocks))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_dup_open))
         # NOTE: Incremental should be set after restart.
-        self.assertEqual(backup_stat, 1)
-        backup_stat = self.get_stat(stat.conn.backup_start)
-        self.assertEqual(backup_stat, 0)
+        self.assertEqual(1, self.get_stat(stat.conn.backup_incremental))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_start))
         self.pr("Reopened conn")
 
         self.incr_backup_and_validate()
