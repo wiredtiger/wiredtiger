@@ -179,11 +179,10 @@ static uint64_t schema_frequency;
 #define SCHEMA_DROP 0x0008u
 #define SCHEMA_DROP_CHECK 0x0010u
 #define SCHEMA_INTEGRATED 0x0020u
-#define SCHEMA_RENAME 0x0040u
 #define SCHEMA_VERBOSE 0x0080u
 #define SCHEMA_ALL                                                                               \
     (SCHEMA_CREATE | SCHEMA_CREATE_CHECK | SCHEMA_DATA_CHECK | SCHEMA_DROP | SCHEMA_DROP_CHECK | \
-      SCHEMA_INTEGRATED | SCHEMA_RENAME)
+      SCHEMA_INTEGRATED)
 #define SCHEMA_MASK 0xffffu
 #define TEST_CKPT 0x10000u
 
@@ -342,13 +341,9 @@ gen_table_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
  *     Generate a second table name used for the schema test.
  */
 static void
-gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid, uint32_t flags)
+gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 {
-    if (!LF_ISSET(SCHEMA_RENAME))
-        /* table is not renamed, so use original table name */
-        gen_table_name(buf, buf_size, id, threadid);
-    else
-        testutil_snprintf(buf, buf_size, "table:B%" PRIu64 "-%" PRIu32, id, threadid);
+    testutil_snprintf(buf, buf_size, "table:B%" PRIu64 "-%" PRIu32, id, threadid);
 }
 
 /*
@@ -397,7 +392,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
     case 2:
         /* Update the single value in the table. */
         gen_table_name(uri1, sizeof(uri1), id, threadid);
-        gen_table2_name(uri2, sizeof(uri2), id, threadid, flags);
+        gen_table2_name(uri2, sizeof(uri2), id, threadid);
         testutil_check(session->open_cursor(session, uri2, NULL, NULL, &cursor));
         cursor->set_key(cursor, uri1);
         cursor->set_value(cursor, uri2);
@@ -412,7 +407,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
     case 3:
         /* Drop the table. */
         if (LF_ISSET(SCHEMA_DROP)) {
-            gen_table2_name(uri1, sizeof(uri1), id, threadid, flags);
+            gen_table2_name(uri1, sizeof(uri1), id, threadid);
             retry_opname = "drop";
             /*
             fprintf(stderr, "DROP: %s\n", uri1);
@@ -819,12 +814,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
         if (LF_ISSET(SCHEMA_DATA_CHECK))
             check_one_entry(session, uri, uri, uri);
     }
-    if (LF_ISSET(SCHEMA_RENAME) && has_schema_operation(lastid, 2)) {
-        /* Table rename operation. */
-        gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
-        gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid, flags);
-        if (LF_ISSET(SCHEMA_VERBOSE))
-            fprintf(stderr, " rename %s,%s\n", uri, uri2);
+    if (has_schema_operation(lastid, 2)) {
         if (LF_ISSET(SCHEMA_DROP_CHECK))
             check_dropped(session, uri);
         if (LF_ISSET(SCHEMA_CREATE_CHECK))
@@ -833,7 +823,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
     if (has_schema_operation(lastid, 3)) {
         /* Value update operation. */
         gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
-        gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid, flags);
+        gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
         if (LF_ISSET(SCHEMA_VERBOSE))
             fprintf(stderr, " update %s\n", uri2);
         if (LF_ISSET(SCHEMA_DATA_CHECK))
@@ -841,7 +831,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
     }
     if (LF_ISSET(SCHEMA_DROP_CHECK) && has_schema_operation(lastid, 4)) {
         /* Drop table operation. */
-        gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid, flags);
+        gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
         if (LF_ISSET(SCHEMA_VERBOSE))
             fprintf(stderr, " drop %s\n", uri2);
         check_dropped(session, uri2);
@@ -1254,8 +1244,6 @@ main(int argc, char *argv[])
                     LF_SET(SCHEMA_INTEGRATED);
                 else if (WT_STREQ(arg, "none"))
                     flags = flags & ~SCHEMA_MASK;
-                else if (WT_STREQ(arg, "rename"))
-                    LF_SET(SCHEMA_RENAME);
                 else if (WT_STREQ(arg, "verbose"))
                     LF_SET(SCHEMA_VERBOSE);
                 else {
@@ -1299,7 +1287,7 @@ main(int argc, char *argv[])
         fprintf(stderr, "Verify option requires specifying number of threads\n");
         return (EXIT_FAILURE);
     }
-    if ((LF_ISSET(SCHEMA_RENAME | SCHEMA_DROP | SCHEMA_CREATE_CHECK | SCHEMA_DATA_CHECK) &&
+    if ((LF_ISSET(SCHEMA_DROP | SCHEMA_CREATE_CHECK | SCHEMA_DATA_CHECK) &&
           !LF_ISSET(SCHEMA_CREATE)) ||
       (LF_ISSET(SCHEMA_DROP_CHECK) && !LF_ISSET(SCHEMA_DROP))) {
         fprintf(stderr, "Schema operations incompatible\n");
