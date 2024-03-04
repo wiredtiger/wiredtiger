@@ -395,20 +395,6 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         testutil_check(cursor->close(cursor));
         break;
     case 2:
-        /* Rename the table. */
-        if (LF_ISSET(SCHEMA_RENAME)) {
-            gen_table_name(uri1, sizeof(uri1), id, threadid);
-            gen_table2_name(uri2, sizeof(uri2), id, threadid, flags);
-            retry_opname = "rename";
-            /*
-            fprintf(stderr, "RENAME: %s->%s\n", uri1, uri2);
-            */
-            testutil_check(session->log_printf(session, "RENAME: %s->%s", uri1, uri2));
-            ret = session->rename(session, uri1, uri2, NULL);
-            testutil_check(session->log_printf(session, "RENAME: DONE %s->%s", uri1, uri2));
-        }
-        break;
-    case 3:
         /* Update the single value in the table. */
         gen_table_name(uri1, sizeof(uri1), id, threadid);
         gen_table2_name(uri2, sizeof(uri2), id, threadid, flags);
@@ -423,7 +409,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         testutil_check(session->log_printf(session, "UPDATE: DONE %s", uri2));
         testutil_check(cursor->close(cursor));
         break;
-    case 4:
+    case 3:
         /* Drop the table. */
         if (LF_ISSET(SCHEMA_DROP)) {
             gen_table2_name(uri1, sizeof(uri1), id, threadid, flags);

@@ -245,8 +245,6 @@ main(int argc, char *argv[])
     case 'r':
         if (strcmp(command, "read") == 0)
             func = util_read;
-        else if (strcmp(command, "rename") == 0)
-            func = util_rename;
         break;
     case 's':
         if (strcmp(command, "salvage") == 0)
