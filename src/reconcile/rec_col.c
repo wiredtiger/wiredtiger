@@ -1397,6 +1397,8 @@ record_loop:
                     WT_ERR(__wt_dsk_cell_data_ref_kv(session, WT_PAGE_COL_VAR, vpack, orig));
                     data = orig->data;
                     size = (uint32_t)orig->size;
+
+                    ovfl_state = OVFL_IGNORE;
                     break;
                 case OVFL_IGNORE:
                     /* The original wasn't an overflow item. */
