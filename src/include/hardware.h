@@ -75,7 +75,7 @@
 
 /*
  * The below assembly implements the read-acquire semantic. Acquire semantics prevent memory
- * reordering of the read-acquire with and load or store that follows it in program order.
+ * reordering of the read-acquire with any load or store that follows it in program order.
  *
  * The if branches get removed at compile time as the sizeof instruction evaluates at compile time.
  * Additionally ldapr results in a loss of type checking, to circumvent this we have an if (0) block
