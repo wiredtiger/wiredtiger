@@ -929,6 +929,7 @@ llu
 llvm
 loadbool
 loadtext
+loadvbool
 loc
 localTime
 localkey
@@ -1234,6 +1235,7 @@ stdin
 stdout
 stepp
 storebool
+storevbool
 str
 strace
 strcat

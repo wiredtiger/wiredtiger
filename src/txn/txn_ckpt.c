@@ -1546,7 +1546,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    txn_global->checkpoint_running = true;
+    __wt_atomic_storevbool(&txn_global->checkpoint_running, true);
 
     /*
      * FIXME-WT-11149: Some reading threads rely on the value of checkpoint running flag being
@@ -1557,7 +1557,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     ret = __txn_checkpoint(session, cfg);
 
-    txn_global->checkpoint_running = false;
+    __wt_atomic_storevbool(&txn_global->checkpoint_running, false);
 
     /*
      * Signal the tiered storage thread because it waits for the checkpoint to complete to process
