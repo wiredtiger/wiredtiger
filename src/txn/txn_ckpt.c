@@ -99,7 +99,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
      * - Move the objects.
      */
     conn->flush_state = 0;
-    conn->flush_ckpt_complete = false;
+    __wt_atomic_storebool(&conn->flush_ckpt_complete, false);
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->flush_most_recent = session->current_ckpt_sec;
     /* Storing the last flush timestamp here for the future and for debugging. */
@@ -1564,7 +1564,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
      * flush units. Indicate that the checkpoint has completed.
      */
     if (conn->tiered_cond != NULL) {
-        conn->flush_ckpt_complete = true;
+        __wt_atomic_storebool(&conn->flush_ckpt_complete, true);
         __wt_cond_signal(session, conn->tiered_cond);
     }
 
