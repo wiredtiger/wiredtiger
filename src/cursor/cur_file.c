@@ -694,14 +694,12 @@ __curfile_cache(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, ret, cache, CUR2BT(cbt));
     session = CUR2S(cursor);
 
     WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
     WT_TRET(__wt_session_release_dhandle(session));
 
-err:
-    API_END_RET_STAT(session, ret, cursor_cache);
+    API_END_STAT(session, ret, cursor_cache);
     return (ret);
 }
 
