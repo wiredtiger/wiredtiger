@@ -814,12 +814,6 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
             check_one_entry(session, uri, uri, uri);
     }
     if (has_schema_operation(lastid, 2)) {
-        if (LF_ISSET(SCHEMA_DROP_CHECK))
-            check_dropped(session, uri);
-        if (LF_ISSET(SCHEMA_CREATE_CHECK))
-            check_one_entry(session, uri2, uri, uri);
-    }
-    if (has_schema_operation(lastid, 3)) {
         /* Value update operation. */
         gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
         gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
@@ -828,7 +822,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
         if (LF_ISSET(SCHEMA_DATA_CHECK))
             check_one_entry(session, uri2, uri, uri2);
     }
-    if (LF_ISSET(SCHEMA_DROP_CHECK) && has_schema_operation(lastid, 4)) {
+    if (LF_ISSET(SCHEMA_DROP_CHECK) && has_schema_operation(lastid, 3)) {
         /* Drop table operation. */
         gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
         if (LF_ISSET(SCHEMA_VERBOSE))
