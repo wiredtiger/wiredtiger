@@ -5548,17 +5548,6 @@ buildvariants:
     python_config_search_string: '_Python3_EXECUTABLE'
     <<: *mac_test_template_expansions
 
-#- <<: *mac_test_template
-#  name: macos-1100
-#  display_name: "macOS 11.00"
-#  run_on:
-#    - macos-1100
-#  batchtime: 120 # 2 hours
-#  expansions:
-#    python_binary: '/usr/bin/python3'
-#    python_config_search_string: 'PYTHON_EXECUTABLE'
-#    <<: *mac_test_template_expansions
-
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
