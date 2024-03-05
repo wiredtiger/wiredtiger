@@ -78,7 +78,7 @@ static bool do_drop = true;
  */
 typedef struct {
     char *name;            /* non-null entries represent tables in use */
-    uint32_t name_index;   /* bumped when drop, so we get unique names. */
+    uint32_t name_index;   /* bumped when we drop, so we get unique names. */
     uint64_t change_count; /* number of changes so far to the table */
     WT_RAND_STATE rand;
     uint32_t max_value_size;
@@ -643,9 +643,9 @@ main(int argc, char *argv[])
         if (tinfo.tables_in_use == 0 || __wt_random(&rnd) % 2 != 0) {
             while (__wt_random(&rnd) % 10 != 0) {
                 /*
-                 * For schema events, we choose to create, rename or drop tables. We pick a random
-                 * slot, and if it is empty, create a table there. Otherwise we drop. That should
-                 * give us a steady state with slots mostly filled.
+                 * For schema events, we choose to create or drop tables. We pick a random slot, and
+                 * if it is empty, create a table there. Otherwise we drop. That should give us a
+                 * steady state with slots mostly filled.
                  */
                 slot = __wt_random(&rnd) % tinfo.table_count;
                 if (!TABLE_VALID(&tinfo.table[slot]))
