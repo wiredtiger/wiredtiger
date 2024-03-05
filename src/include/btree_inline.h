@@ -102,6 +102,7 @@ __wt_page_evict_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
 {
     WT_BTREE *btree;
     WT_PAGE *page;
+    uint64_t page_read_gen;
 
     btree = S2BT(session);
     page = ref->page;
@@ -116,7 +117,8 @@ __wt_page_evict_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * checkpointed, and no other thread can help with that. Checkpoints don't rely on this code for
      * dirty eviction: that is handled explicitly in __wt_sync_file.
      */
-    if (WT_READGEN_EVICT_SOON(page->read_gen) && btree->evict_disabled == 0 &&
+    page_read_gen = __wt_atomic_load64(&page->read_gen);
+    if (WT_READGEN_EVICT_SOON(page_read_gen) && btree->evict_disabled == 0 &&
       __wt_page_can_evict(session, ref, inmem_split) &&
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
         return (true);
@@ -728,7 +730,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * In the event we dirty a page which is flagged for eviction soon, we update its read
          * generation to avoid evicting a dirty page prematurely.
          */
-        if (page->read_gen == WT_READGEN_WONT_NEED)
+        if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
             __wt_cache_read_gen_new(session, page);
 
         /*

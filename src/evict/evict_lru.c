@@ -64,13 +64,14 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
-    uint64_t read_gen;
+    uint64_t page_read_gen, read_gen;
 
     btree = S2BT(session);
     page = ref->page;
 
+    page_read_gen = __wt_atomic_load64(&page->read_gen);
     /* Any page set to the oldest generation should be discarded. */
-    if (WT_READGEN_EVICT_SOON(page->read_gen))
+    if (WT_READGEN_EVICT_SOON(page_read_gen))
         return (WT_READGEN_OLDEST);
 
     /* Any page from a dead tree is a great choice. */
@@ -93,7 +94,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
       !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN))
         read_gen = page->modify->update_txn;
     else
-        read_gen = page->read_gen;
+        read_gen = __wt_atomic_load64(&page->read_gen);
 
     read_gen += btree->evict_priority;
 
@@ -1779,7 +1780,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_PAGE *last_parent, *page;
     WT_REF *ref;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
-    uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
+    uint64_t min_pages, pages_already_queued, page_read_gen, pages_seen, pages_queued, refs_walked;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, want_page;
@@ -2018,12 +2019,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * the read instantiating the page. Set the page's read generation here to ensure a bug
          * doesn't somehow leave a page without a read generation.
          */
-        if (page->read_gen == WT_READGEN_NOTSET)
+        if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
             __wt_cache_read_gen_new(session, page);
 
         /* Pages being forcibly evicted go on the urgent queue. */
         if (modified &&
-          (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage)) {
+          (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST ||
+            page->memory_footprint >= btree->splitmempage)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
@@ -2170,10 +2172,12 @@ fast:
                 WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
             WT_RET(__wt_page_release(cache->walk_session, ref, walk_flags));
             ref = NULL;
-        } else
-            while (ref != NULL &&
-              (ref->state != WT_REF_MEM || WT_READGEN_EVICT_SOON(ref->page->read_gen)))
+        } else {
+            page_read_gen = __wt_atomic_load64(&ref->page->read_gen);
+            while (
+              ref != NULL && (ref->state != WT_REF_MEM || WT_READGEN_EVICT_SOON(page_read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
+        }
         btree->evict_ref = ref;
     }
 
