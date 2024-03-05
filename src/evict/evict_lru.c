@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -1777,6 +1777,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
 
+    __wt_verbose(session, WT_VERB_CACHE_TRACE, "rem slots: %d, target pages: %d, slot number %d\n",
+      remaining_slots, target_pages, *slotp);
+
     /*
      * Reduce the number of pages to be selected from btrees other than the history store (HS) if
      * the cache pressure is high and HS content dominates the cache. Evicting unclean non-HS pages
@@ -1852,14 +1855,18 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
+        printf("WT_EVICT_WALK_NEXT\n");
         break;
     case WT_EVICT_WALK_PREV:
         FLD_SET(walk_flags, WT_READ_PREV);
+        printf("WT_EVICT_WALK_PREV\n");
         break;
     case WT_EVICT_WALK_RAND_PREV:
+        printf("WT_EVICT_WALK_RAND_PREV\n");
         FLD_SET(walk_flags, WT_READ_PREV);
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
+        printf("WT_EVICT_WALK_RAND_NEXT\n");
         read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
           WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
         if (btree->evict_ref == NULL) {
@@ -2070,6 +2077,7 @@ fast:
         WT_ASSERT(session, evict->ref == NULL);
         if (!__evict_push_candidate(session, queue, evict, ref))
             continue;
+        __wt_page_trace(session, ref, "added to evict queue", NULL);
         ++evict;
         ++pages_queued;
         ++btree->evict_walk_progress;

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -72,6 +72,8 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     cache = S2C(session)->cache;
     page->read_gen = (__wt_cache_read_gen(session) + cache->read_gen_oldest) / 2;
+    printf("Setting read_gen to %" PRIu64 ", from cache read_gen of %" PRIu64 " and read_gen_oldest of %" PRIu64 "\n",
+           page->read_gen, __wt_cache_read_gen(session), cache->read_gen_oldest);
 }
 
 /*

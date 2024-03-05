@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -370,6 +370,8 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
     btree = S2BT(session);
     current = NULL;
     retry = 100;
+
+    printf("random descent\n");
     /*
      * This function is called by eviction to find a random page in the cache. That case is
      * indicated by the WT_READ_CACHE flag. Ordinary lookups in a tree will read pages into cache as
@@ -454,6 +456,12 @@ descend:
      */
     if (!eviction || !__wt_ref_is_root(current))
         *refp = current;
+
+    if (F_ISSET(*refp, WT_REF_FLAG_LEAF))
+        printf("random descent returning LEAF\n");
+    else if (F_ISSET(*refp, WT_REF_FLAG_INTERNAL))
+        printf("random descent returning INTERNAL\n");
+    printf("ref was %d\n", ret);
     return (0);
 }
 
