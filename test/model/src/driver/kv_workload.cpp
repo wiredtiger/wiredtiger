@@ -202,6 +202,46 @@ parse(const char *str)
       "Cannot parse operation: Unknown operation \"" + std::string(name) + "\"");
 }
 
+/*
+ * transactional --
+ *     Check if the workload operation is a transactional operation, including begin and commit.
+ */
+bool
+transactional(const any &op) noexcept
+{
+    return std::holds_alternative<begin_transaction>(op) ||
+      std::holds_alternative<commit_transaction>(op) || std::holds_alternative<insert>(op) ||
+      std::holds_alternative<prepare_transaction>(op) || std::holds_alternative<remove>(op) ||
+      std::holds_alternative<rollback_transaction>(op) ||
+      std::holds_alternative<set_commit_timestamp>(op) || std::holds_alternative<truncate>(op);
+}
+
+/*
+ * transaction --
+ *     Extract the transaction ID.
+ */
+txn_id_t
+transaction(const any &op)
+{
+    if (std::holds_alternative<begin_transaction>(op))
+        return std::get<begin_transaction>(op).txn_id;
+    if (std::holds_alternative<commit_transaction>(op))
+        return std::get<commit_transaction>(op).txn_id;
+    if (std::holds_alternative<insert>(op))
+        return std::get<insert>(op).txn_id;
+    if (std::holds_alternative<prepare_transaction>(op))
+        return std::get<prepare_transaction>(op).txn_id;
+    if (std::holds_alternative<remove>(op))
+        return std::get<remove>(op).txn_id;
+    if (std::holds_alternative<rollback_transaction>(op))
+        return std::get<rollback_transaction>(op).txn_id;
+    if (std::holds_alternative<set_commit_timestamp>(op))
+        return std::get<set_commit_timestamp>(op).txn_id;
+    if (std::holds_alternative<truncate>(op))
+        return std::get<truncate>(op).txn_id;
+    throw model_exception("Not a transactional operation");
+}
+
 } /* namespace operation */
 
 /*

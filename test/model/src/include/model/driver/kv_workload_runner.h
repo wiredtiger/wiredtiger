@@ -70,7 +70,7 @@ public:
     run(const kv_workload &workload)
     {
         for (size_t i = 0; i < workload.size(); i++)
-            run_operation(workload[i]);
+            run_operation(workload[i].operation);
     }
 
     /*

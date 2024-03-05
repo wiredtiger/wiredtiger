@@ -757,7 +757,49 @@ parse(const std::string &str)
     return parse(str.c_str());
 }
 
+/*
+ * transactional --
+ *     Check if the workload operation is a transactional operation, including begin and commit.
+ */
+bool transactional(const any &op) noexcept;
+
+/*
+ * transaction --
+ *     Extract the transaction ID.
+ */
+txn_id_t transaction(const any &op);
+
 } /* namespace operation */
+
+/*
+ * k_no_seq_no --
+ *     No sequence.
+ */
+constexpr size_t k_no_seq_no = std::numeric_limits<size_t>::max();
+
+/*
+ * kv_workload_operation --
+ *     A workload operation in a key-value database.
+ */
+struct kv_workload_operation {
+
+    operation::any operation; /* The operation. */
+    size_t seq_no;            /* The source sequence number, if known. */
+
+    /*
+     * kv_workload_operation::kv_workload_operation --
+     *     Create a new workload operation.
+     */
+    inline kv_workload_operation(const operation::any &operation, size_t seq_no = k_no_seq_no)
+        : operation(operation), seq_no(seq_no){};
+
+    /*
+     * kv_workload_operation::kv_workload_operation --
+     *     Create a new workload operation.
+     */
+    inline kv_workload_operation(operation::any &&operation, size_t seq_no = k_no_seq_no)
+        : operation(operation), seq_no(seq_no){};
+};
 
 /*
  * kv_workload --
@@ -781,7 +823,7 @@ public:
     inline kv_workload &
     operator<<(const operation::any &op)
     {
-        _operations.push_back(op);
+        _operations.push_back(kv_workload_operation(op));
         return *this;
     }
 
@@ -791,6 +833,28 @@ public:
      */
     inline kv_workload &
     operator<<(operation::any &&op)
+    {
+        _operations.push_back(kv_workload_operation(std::move(op)));
+        return *this;
+    }
+
+    /*
+     * kv_workload::operator<< --
+     *     Add an operation to the workload.
+     */
+    inline kv_workload &
+    operator<<(const kv_workload_operation &op)
+    {
+        _operations.push_back(op);
+        return *this;
+    }
+
+    /*
+     * kv_workload::operator<< --
+     *     Add an operation to the workload.
+     */
+    inline kv_workload &
+    operator<<(kv_workload_operation &&op)
     {
         _operations.push_back(std::move(op));
         return *this;
@@ -810,7 +874,7 @@ public:
      * kv_workload_sequence::operator[] --
      *     Get an operation in the sequence.
      */
-    inline operation::any &
+    inline kv_workload_operation &
     operator[](size_t index)
     {
         return _operations[index];
@@ -820,7 +884,7 @@ public:
      * kv_workload_sequence::operator[] --
      *     Get an operation in the sequence.
      */
-    inline const operation::any &
+    inline const kv_workload_operation &
     operator[](size_t index) const
     {
         return _operations[index];
@@ -840,7 +904,7 @@ public:
       const char *table_config = nullptr) const;
 
 private:
-    std::deque<operation::any> _operations;
+    std::deque<kv_workload_operation> _operations;
 };
 
 /*
@@ -850,8 +914,8 @@ private:
 inline std::ostream &
 operator<<(std::ostream &out, const kv_workload &workload)
 {
-    for (const operation::any &op : workload._operations)
-        out << op << std::endl;
+    for (const kv_workload_operation &op : workload._operations)
+        out << op.operation << std::endl;
     return out;
 }
 
