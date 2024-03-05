@@ -5539,7 +5539,7 @@ buildvariants:
 
 - <<: *mac_test_template
   name: macos-1300-arm64
-  display_name: "macOS 13.00 ARM64"
+  display_name: "macOS 13.00 (ARM64)"
   run_on:
     - macos-1300-arm64
   batchtime: 120 # 2 hours
