@@ -341,7 +341,8 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
         for (size_t i = 0; i < workload->size(); i++) {
             const model::kv_workload_operation &op = (*workload)[i];
 
-            if ((enabled[op.seq_no] && !(op.seq_no >= range.first && op.seq_no < range.second)) ||
+            if (op.seq_no == model::k_no_seq_no ||
+              (enabled[op.seq_no] && !(op.seq_no >= range.first && op.seq_no < range.second)) ||
               std::holds_alternative<model::operation::create_table>(op.operation))
                 *w << op;
         }
