@@ -1,0 +1,15 @@
+# Run many tables with a lot of entries spread out.
+conn_config="cache_size=200M,eviction=(threads_max=8)"
+table_config="type=file"
+icount=100000000
+report_interval=5
+run_time=300
+populate_threads=1
+table_count=10
+threads=((count=10,update=1),(count=6,read=1))
+# Add throughput/latency monitoring
+max_latency=2000
+sample_interval=5
+# Take actual backups.
+backup_complete=1
+backup_interval=30
