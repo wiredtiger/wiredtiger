@@ -98,7 +98,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
      * - Do the work to create said objects.
      * - Move the objects.
      */
-    conn->flush_state = 0;
+    __wt_atomic_storev32(&conn->flush_state, 0);
     __wt_atomic_storebool(&conn->flush_ckpt_complete, false);
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->flush_most_recent = session->current_ckpt_sec;
