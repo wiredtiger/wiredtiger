@@ -1274,7 +1274,7 @@ struct __wt_ref {
     do {                                                                       \
         uint8_t __previous_state;                                              \
         for (;; __wt_yield()) {                                                \
-            __previous_state = (ref)->state;                                   \
+            __previous_state = __wt_atomic_loadv8(&(ref)->state);              \
             if (__previous_state != WT_REF_LOCKED &&                           \
               WT_REF_CAS_STATE(session, ref, __previous_state, WT_REF_LOCKED)) \
                 break;                                                         \
