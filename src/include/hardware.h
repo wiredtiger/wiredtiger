@@ -49,7 +49,7 @@
         }                                                           \
     } while (0)
 #else
-#define WT_RELEASE_WRITE(v, val) __atomic_store_n((v), (val), __ATOMIC_RELEASE);
+#define WT_RELEASE_WRITE(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE);
 #endif
 #else
 #define WT_RELEASE_WRITE(v, val) WT_RELEASE_WRITE_WITH_BARRIER(v, val);

@@ -19,9 +19,9 @@
         WT_ACQUIRE_READ(a_result, *ap);              \
         REQUIRE(a == a_result);                      \
                                                      \
-        type b;                                      \
+        type b = 10;                                 \
         type *bp = &b;                               \
-        type b_result = 5;                           \
+        type b_result;                               \
         WT_ACQUIRE_READ_WITH_BARRIER(b_result, *bp); \
         REQUIRE(b == b_result);                      \
     }
@@ -56,7 +56,10 @@ TEST_ACQUIRE_TYPE(uint32_t);
 TEST_ACQUIRE_TYPE(uint16_t);
 TEST_ACQUIRE_TYPE(uint8_t);
 
-/* Test each branch of the release macro. */
+/*
+ * Test each branch of the release macro. Use values that can only fit inside the type being tested
+ * to make sure integer truncation doesn't occur.
+ */
 TEST_RELEASE_TYPE(uint64_t, UINT32_MAX + 1);
 TEST_RELEASE_TYPE(uint32_t, UINT16_MAX + 1);
 TEST_RELEASE_TYPE(uint16_t, UINT8_MAX + 1);
@@ -70,7 +73,8 @@ TEST_RELEASE_TYPE(uint8_t, 1);
  */
 TEST_CASE("Demonstrate hash define int size workaround", "[acqrel]")
 {
-    #define TEST_VALUE ((uint8_t)6)
+    /* If we don't cast this value the test won't compile. */
+    #define TEST_VALUE ((int8_t)6)
 
     int8_t a;
     int8_t *ap = &a;
