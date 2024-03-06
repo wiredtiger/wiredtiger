@@ -114,7 +114,7 @@ err:
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size);
     (void)__wt_atomic_add64(&cache->pages_inmem, 1);
-    page->cache_create_gen = cache->evict_pass_gen;
+    page->cache_create_gen = __wt_atomic_load64(&cache->evict_pass_gen);
 
     *pagep = page;
     return (0);
@@ -857,9 +857,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 
         switch (unpack.type) {
         case WT_CELL_KEY:
-            /*
-             * Note: we don't Huffman encode internal page keys, there's no decoding work to do.
-             */
             __wt_ref_key_onpage_set(page, ref, &unpack);
             break;
         case WT_CELL_KEY_OVFL:

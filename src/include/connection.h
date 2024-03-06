@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*******************************************
  * Global per-process structure.
  *******************************************/
@@ -297,6 +299,7 @@ struct __wt_name_flag {
     do {                                                     \
         F_SET((conn), WT_CONN_INCR_BACKUP);                  \
         FLD_SET((conn)->log_flags, WT_CONN_LOG_INCR_BACKUP); \
+        WT_STAT_CONN_SET(session, backup_incremental, 1);    \
     } while (0)
 
 /*
@@ -855,9 +858,10 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING 0x01000000u
 #define WT_CONN_RECOVERING 0x02000000u
 #define WT_CONN_RECOVERY_COMPLETE 0x04000000u
-#define WT_CONN_SALVAGE 0x08000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x10000000u
-#define WT_CONN_WAS_BACKUP 0x20000000u
+#define WT_CONN_RTS_THREAD_RUN 0x08000000u
+#define WT_CONN_SALVAGE 0x10000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x20000000u
+#define WT_CONN_WAS_BACKUP 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 };

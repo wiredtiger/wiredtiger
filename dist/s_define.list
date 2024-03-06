@@ -23,6 +23,7 @@ TXN_API_CALL_NOCONF
 TXN_API_END
 UNLIKELY
 WIN32_LEAN_AND_MEAN
+WT_ACQUIRE_READ
 WT_ATOMIC_CAS
 WT_ATOMIC_CAS_FUNC
 WT_ATOMIC_FUNC
@@ -120,6 +121,7 @@ __WT_MISC_H
 __wt_atomic_and_generic
 __wt_atomic_load_generic
 __wt_atomic_or_generic
+__wt_atomic_store_generic
 __wt_bswap16
 __wt_checksum_with_seed
 __wt_conf_gets

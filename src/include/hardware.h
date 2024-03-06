@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * This macro doesn't do anything and is used for annotation only. We use it to highlight
  * the variable is used in lock-less inter-thread communication - using mechanisms like memory
@@ -21,10 +23,10 @@
  * Release write a value to a shared location. All previous stores must complete before the value is
  * made public.
  */
-#define WT_RELEASE_WRITE_WITH_BARRIER(v, val) \
-    do {                                      \
-        WT_RELEASE_BARRIER();                 \
-        (v) = (val);                          \
+#define WT_RELEASE_WRITE_WITH_BARRIER(v, val)   \
+    do {                                        \
+        WT_RELEASE_BARRIER();                   \
+        __wt_atomic_store_generic(&(v), (val)); \
     } while (0)
 
 /*
@@ -74,12 +76,56 @@
 #endif
 
 /*
+ * The below assembly implements the read-acquire semantic. Acquire semantics prevent memory
+ * reordering of the read-acquire with any load or store that follows it in program order.
+ *
+ * The if branches get removed at compile time as the sizeof instruction evaluates at compile time.
+ * The inline assembly results in a loss of type checking, to circumvent this we utilize an
+ * unreachable if (0) block which contains the direct assignment. This forces the compiler to type
+ * check. We also statically assert that both types match in size to avoid potential loss of sign
+ * when loading from a smaller type to a larger type.
+ *
+ * Depending on the size of the given type we choose the appropriate ldapr variant, additionally the
+ * W register variants are used if possible which map to the lower word of the associated X
+ * register. Finally the "Q" constraint is used for the given input operand, this instructs the
+ * compiler to generate offset free ldapr instructions. ldapr instructions, prior to version RCpc 3,
+ * don't support offsets.
+ *
+ * The flag HAVE_RCPC is determined by the build system, if this macro is removed in the future be
+ * sure to remove that part of the compilation.
+ */
+#ifdef HAVE_RCPC
+#ifndef TSAN_BUILD
+#define WT_ACQUIRE_READ(v, val)                                      \
+    do {                                                             \
+        if (0) {                                                     \
+            static_assert(sizeof((v)) == sizeof((val)));             \
+            (v) = (val);                                             \
+        }                                                            \
+        if (sizeof((val)) == 1) {                                    \
+            __asm__ volatile("ldaprb %w0, %1" : "=r"(v) : "Q"(val)); \
+        } else if (sizeof((val)) == 2) {                             \
+            __asm__ volatile("ldaprh %w0, %1" : "=r"(v) : "Q"(val)); \
+        } else if (sizeof((val)) == 4) {                             \
+            __asm__ volatile("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
+        } else if (sizeof((val)) == 8) {                             \
+            __asm__ volatile("ldapr %x0, %1" : "=r"(v) : "Q"(val));  \
+        }                                                            \
+    } while (0)
+#else
+#define WT_ACQUIRE_READ(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE);
+#endif
+#else
+#define WT_ACQUIRE_READ(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
+#endif
+
+/*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
  */
-#define WT_ACQUIRE_READ_WITH_BARRIER(v, val) \
-    do {                                     \
-        (v) = (val);                         \
-        WT_ACQUIRE_BARRIER();                \
+#define WT_ACQUIRE_READ_WITH_BARRIER(v, val)    \
+    do {                                        \
+        (v) = __wt_atomic_load_generic(&(val)); \
+        WT_ACQUIRE_BARRIER();                   \
     } while (0)
 
 /*
