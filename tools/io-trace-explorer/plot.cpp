@@ -327,7 +327,7 @@ plot_widget::zoom_out()
 /*
  * plot_widget::set_view --
  *     Set the viewport. This can be optionally done "in place," i.e., without modifying the
- *  undo/redo stacks.
+ *     undo/redo stacks.
  */
 void
 plot_widget::set_view(const plot_view &view, bool in_place)
