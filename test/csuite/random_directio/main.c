@@ -116,7 +116,7 @@ static const char *const uri_rev = "table:rev";
  * operations that are begun when the id is in the range 0 to 9, 100 to 109,
  * 200 to 209, etc. That is, 10 sequences per 100.  A higher number (say 1000)
  * means there are 10 sequences started per 1000.  A sequence of schema
- * operations lasts for 4 ids.  So, for example, if thread 3 is inserting id
+ * operations lasts for 3 ids.  So, for example, if thread 3 is inserting id
  * 100 into the main table, an additional schema operation is done (creating a
  * table), and operations on this table continue (while other schema operations
  * continue).
@@ -134,20 +134,20 @@ static const char *const uri_rev = "table:rev";
  * create table:A101-3          (starts a new sequence)
  *
  * insert k/v 102 into table:main
- * rename table:A100-3 -> table:B100-3  (third step in sequence)
+ * update key in table:A100-3           (third step in sequence)
  * insert into table:A101-3             (second step in sequence)
  * create table:A102-3                  (starting new sequence)
  *
  * insert k/v 103 into table:main
- * update key in table:B100-3          (fourth step)
- * rename table:A101-3 -> table:B101-3 (third step)
+ * update key in table:B100-3
+ * update key in table:A101-3
  * insert into table:A102-3
  * create table:A103-3
  *
  * insert k/v 104 into table:main
- * drop table:B100-3                   (fifth and last step)
- * update key in table:B101-3          (fourth step)
- * rename table:A102-3 -> table:B102-3
+ * drop table:A100-3                   (fourth and last step)
+ * update key in table:B101-3
+ * update key in table:A102-3
  * insert into table:A103-3
  * create table:A104-3
  * ...
@@ -236,7 +236,6 @@ usage(void)
       "check contents of files for various ops (requires create)");
     fprintf(stderr, "  %-5s%-15s%s\n", "", "integrated",
       "schema operations are integrated into main table transactions");
-    fprintf(stderr, "  %-5s%-15s%s\n", "", "rename", "rename tables (requires create)");
     fprintf(stderr, "  %-5s%-15s%s\n", "", "drop", "drop tables (requires create)");
     fprintf(stderr, "  %-5s%-15s%s\n", "", "drop_check",
       "after recovery, dropped tables are checked (requires drop)");
@@ -337,13 +336,13 @@ gen_table_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 }
 
 /*
- * gen_table2_name --
- *     Generate a second table name used for the schema test.
+ * gen_updated_value --
+ *     Generate a value to indicate a table value has been updated.
  */
 static void
-gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
+gen_updated_value(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 {
-    testutil_snprintf(buf, buf_size, "table:B%" PRIu64 "-%" PRIu32, id, threadid);
+    testutil_snprintf(buf, buf_size, "UPDATED:%" PRIu64 "-%" PRIu32, id, threadid);
 }
 
 /*
@@ -355,7 +354,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    char uri1[50];
+    char uri1[50], uri2[50];
     const char *retry_opname;
 
     if (!has_schema_operation(id, op))
@@ -392,9 +391,11 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
     case 2:
         /* Update the single value in the table. */
         gen_table_name(uri1, sizeof(uri1), id, threadid);
+        gen_updated_value(uri2, sizeof(uri2), id, threadid);
+
         testutil_check(session->open_cursor(session, uri1, NULL, NULL, &cursor));
         cursor->set_key(cursor, uri1);
-        cursor->set_value(cursor, uri1);
+        cursor->set_value(cursor, uri2);
         /*
         fprintf(stderr, "UPDATE: %s\n", uri1);
         */
@@ -816,18 +817,18 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
     if (has_schema_operation(lastid, 2)) {
         /* Value update operation. */
         gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
-        gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
+        gen_updated_value(uri2, sizeof(uri2), lastid - 2, threadid);
         if (LF_ISSET(SCHEMA_VERBOSE))
-            fprintf(stderr, " update %s\n", uri2);
+            fprintf(stderr, " update %s\n", uri);
         if (LF_ISSET(SCHEMA_DATA_CHECK))
-            check_one_entry(session, uri2, uri, uri2);
+            check_one_entry(session, uri, uri, uri2);
     }
     if (LF_ISSET(SCHEMA_DROP_CHECK) && has_schema_operation(lastid, 3)) {
         /* Drop table operation. */
-        gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
+        gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
         if (LF_ISSET(SCHEMA_VERBOSE))
-            fprintf(stderr, " drop %s\n", uri2);
-        check_dropped(session, uri2);
+            fprintf(stderr, " drop %s\n", uri);
+        check_dropped(session, uri);
     }
 }
 
