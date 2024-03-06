@@ -305,7 +305,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      */
     if (WT_READGEN_EVICT_SOON(page->read_gen) ||
       F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_UPDATES))
-        __wt_update_obsolete_check(session, cbt, upd->next, true);
+        __wt_update_obsolete_check(session, cbt->ref, upd->next, true);
 
     return (0);
 }

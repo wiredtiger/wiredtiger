@@ -333,21 +333,30 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
 }
 
 /*
- * __wt_update_obsolete_check_nolock --
- *     Check for obsolete updates and force evict the page if the update list is too long. The
- *     caller is responsible to acquire and release the page lock.
+ * __wt_update_obsolete_check --
+ *     Check for obsolete updates and force evict the page if the update list is too long.
  */
 void
-__wt_update_obsolete_check_nolock(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, bool update_accounting)
+__wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, bool need_lock)
 {
     WT_PAGE *page;
     WT_UPDATE *first, *next;
     size_t size;
     u_int count;
+    bool locked;
 
     next = NULL;
     page = ref->page;
+    locked = false;
+
+    WT_ASSERT(session, page->modify != NULL);
+
+    if (need_lock) {
+        /* If we can't lock it, don't scan, that's okay. */
+        if (WT_PAGE_TRYLOCK(session, page) != 0)
+            return;
+        locked = true;
+    }
 
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
@@ -403,12 +412,10 @@ __wt_update_obsolete_check_nolock(
          * Decrement the dirty byte count while holding the page lock, else we can race with
          * checkpoints cleaning a page.
          */
-        if (update_accounting) {
-            for (size = 0, upd = next; upd != NULL; upd = upd->next)
-                size += WT_UPDATE_MEMSIZE(upd);
-            if (size != 0)
-                __wt_cache_page_inmem_decr(session, page, size);
-        }
+        for (size = 0, upd = next; upd != NULL; upd = upd->next)
+            size += WT_UPDATE_MEMSIZE(upd);
+        if (size != 0)
+            __wt_cache_page_inmem_decr(session, page, size);
     }
 
     /*
@@ -424,25 +431,7 @@ __wt_update_obsolete_check_nolock(
 
     if (next != NULL)
         __wt_free_update_list(session, &next);
-}
 
-/*
- * __wt_update_obsolete_check --
- *     Check for obsolete updates and force evict the page if the update list is too long.
- */
-void
-__wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
-{
-    WT_PAGE *page;
-
-    page = cbt->ref->page;
-
-    WT_ASSERT(session, page->modify != NULL);
-    /* If we can't lock it, don't scan, that's okay. */
-    if (WT_PAGE_TRYLOCK(session, page) != 0)
-        return;
-
-    __wt_update_obsolete_check_nolock(session, cbt->ref, upd, update_accounting);
-    WT_PAGE_UNLOCK(session, page);
+    if (locked)
+        WT_PAGE_UNLOCK(session, page);
 }
