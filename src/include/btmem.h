@@ -325,9 +325,6 @@ struct __wt_page_modify {
     wt_shared size_t bytes_dirty;
     wt_shared size_t bytes_updates;
 
-    /* Memory footprint of the page after checking for obsolete updates. */
-    wt_shared size_t obsolete_check_memory_footprint;
-
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
      * can be in one of two states: it was written to disk, and so we have a block address, or it

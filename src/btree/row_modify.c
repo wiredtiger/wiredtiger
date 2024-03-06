@@ -424,8 +424,6 @@ __wt_update_obsolete_check_nolock(
 
     if (next != NULL)
         __wt_free_update_list(session, &next);
-
-    page->modify->obsolete_check_memory_footprint = page->memory_footprint;
 }
 
 /*
