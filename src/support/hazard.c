@@ -198,10 +198,10 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
     for (hp = session->hazards.arr + session->hazards.inuse - 1; hp >= session->hazards.arr; --hp)
         if (hp->ref == ref) {
             /*
-             * We don't release write the hazard pointer clear in the general case. It's not
-             * required for correctness.
+             * Release write the hazard pointer. By doing so we guarantee that reads and writes of
+             * the pages memory cannot cross this point.
              */
-            hp->ref = NULL;
+            WT_RELEASE_WRITE(hp->ref, NULL);
 
             /*
              * If this was the last hazard pointer in the session, reset the size so that checks can
