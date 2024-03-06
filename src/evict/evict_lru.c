@@ -1859,10 +1859,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_both_clean_and_dirty);
 
     if (btree->evict_ref == NULL) {
-        (void)__wt_get_page_from_npos(session, &btree->evict_ref,
+        WT_UNUSED(__wt_get_page_from_npos(session, &btree->evict_ref,
                 WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
                 WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK,
-                btree->evict_pos);
+                btree->evict_pos));
         __wt_verbose_debug1(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: restored saved position from %lf => %p",
             btree->evict_pos, (void*)btree->evict_ref);
     }
