@@ -1542,18 +1542,6 @@ retry:
         }
 
         /*
-         * Skip files if we have too many active walks.
-         *
-         * This used to be limited by the configured maximum number of hazard pointers per session.
-         * Even though that ceiling has been removed, we need to test eviction with huge numbers of
-         * active trees before allowing larger numbers of hazard pointers in the walk session.
-         */
-        if (btree->evict_ref == NULL && session->hazards.num_active > WT_EVICT_MAX_TREES) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_too_many_active_walks);
-            continue;
-        }
-
-        /*
          * If we are filling the queue, skip files that haven't been useful in the past.
          */
         if (btree->evict_walk_period != 0 && btree->evict_walk_skips++ < btree->evict_walk_period) {
