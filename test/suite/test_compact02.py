@@ -171,7 +171,7 @@ class test_compact02(wttest.WiredTigerTestCase):
         compact_cfg = "free_space_target=1MB"
         if (self.dryrun):
             compact_cfg += ",dryrun=true"
-            
+
         for i in range(1, 100):
             if not self.raisesBusy(
               lambda: self.session.compact(self.uri, compact_cfg)):
