@@ -28,6 +28,8 @@
 
 #include "wtperf.h"
 
+#define BACKUP_RETAIN 4
+
 /* Default values. */
 #define DEFAULT_HOME "WT_TEST"
 #define DEFAULT_MONITOR_DIR "WT_TEST"
@@ -1274,7 +1276,7 @@ backup_worker(void *arg)
         else {
             testutil_backup_create_full(
               conn, wtperf->home, (int)thread->backup.ops, false, 1024, NULL);
-            testutil_delete_old_backups(4);
+            testutil_delete_old_backups(BACKUP_RETAIN);
         }
         wtperf->backup = false;
         ++thread->backup.ops;
