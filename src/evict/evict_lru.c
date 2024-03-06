@@ -2169,7 +2169,7 @@ fast:
         btree->evict_ref = ref;
         __evict_clear_walk(session);  /* We use soft refs - no need to pin the page */
     } else {
-        btree->evict_pos = 0.0;
+        btree->evict_pos = 0.0; /* Reached the end - reset the position */
     }
 
     WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);

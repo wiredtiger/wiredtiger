@@ -198,7 +198,7 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref)
 /*
  * __wt_get_page_from_npos --
  *     Go to a leaf page given its normalized position. (The code is largely borrowed from
- *     __wt_get_page_from_position)
+ *     __wt_random_descent)
  */
 int
 __wt_get_page_from_npos(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, double npos)
