@@ -1662,6 +1662,30 @@ __txn_mod_compare(const void *a, const void *b)
 }
 
 /*
+ * __txn_check_if_stable_has_moved_ahead_commit_ts --
+ *     Check if the stable timestamp has moved ahead of the commit timestamp.
+ */
+static int
+__txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
+
+    conn = S2C(session);
+    txn = session->txn;
+    txn_global = &conn->txn_global;
+
+    if (txn_global->has_stable_timestamp && txn->first_commit_timestamp != 0 &&
+      txn_global->stable_timestamp >= txn->first_commit_timestamp)
+        WT_RET_MSG(session, WT_ROLLBACK,
+          "Rollback the transaction because the stable timestamp has moved ahead of the commit "
+          "timestamp.");
+
+    return (0);
+}
+
+/*
  * __wt_txn_commit --
  *     Commit the current transaction.
  */
@@ -1712,17 +1736,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!prepare)
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
-    /* Enter the commit generation before timestamp validity check. */
-    if (!prepare)
-        __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
-
     /* Set the commit and the durable timestamps. */
     WT_ERR(__wt_txn_set_timestamp(session, cfg, true));
-
-    /* Add a 2 second wait to simulate commit transaction slowness. */
-    tsp.tv_sec = 2;
-    tsp.tv_nsec = 0;
-    __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1886,6 +1901,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     txn->prepare_count = 0;
 #endif
 
+    /* Add a 2 second wait to simulate commit transaction slowness. */
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
+
+    if (!prepare) {
+        WT_ERR(__txn_check_if_stable_has_moved_ahead_commit_ts(session));
+        __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
+    }
+
     /*
      * Note: we're going to commit: nothing can fail after this point. Set a check, it's too easy to
      * call an error handling macro between here and the end of the function.
@@ -1997,12 +2022,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 
 err:
-    /*
-     * Leave the commit generation in the error scenario.
-     */
-    if (!prepare)
-        __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
-
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
 

@@ -45,7 +45,7 @@
 
 static const char conn_config[] =
   "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_"
-  "test=[commit_transaction_slow]";
+  "test=[commit_transaction_slow, prepare_checkpoint_delay]";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=Q";
 static const char *const uri = "table:wt9199-checkpoint-txn-commit-race";
@@ -63,7 +63,6 @@ struct thread_data {
 static void run_test(const char *);
 static void *thread_func_checkpoint(void *);
 static void *thread_func_insert_txn(void *);
-void validate(void *);
 
 /*
  * main --
@@ -120,8 +119,6 @@ run_test(const char *home)
     (void)pthread_join(thread_insert_txn, NULL);
     (void)pthread_join(thread_checkpoint, NULL);
 
-    validate(&td);
-
     testutil_check(session->close(session, NULL));
     session = NULL;
 
@@ -150,9 +147,6 @@ thread_func_checkpoint(void *arg)
         __wt_sleep(0, 1000);
     }
 
-    /* Wait for sometime to let the commit transaction checks the timestamp validity. */
-    __wt_sleep(1, 0);
-
     /*
      * Increment and set the stable timestamp so that checkpoint picks this timestamp as the
      * checkpoint timestamp.
@@ -160,6 +154,9 @@ thread_func_checkpoint(void *arg)
     global_stable_ts += 20;
     testutil_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%" PRIu64, global_stable_ts);
     testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+
+    /* Wait for sometime to let the commit transaction checks the timestamp validity. */
+    __wt_sleep(2, 0);
 
     testutil_check(session->checkpoint(session, NULL));
     testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
@@ -178,6 +175,7 @@ thread_func_insert_txn(void *arg)
 {
     struct thread_data *td;
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_SESSION *session;
     uint64_t i;
     uint64_t val;
@@ -211,36 +209,13 @@ thread_func_insert_txn(void *arg)
     global_stable_ts += 20;
 
     testutil_snprintf(tscfg_1, sizeof(tscfg_1), "commit_timestamp=%" PRIu64, global_stable_ts);
-    testutil_check(session->commit_transaction(session, tscfg_1));
+    ret = session->commit_transaction(session, tscfg_1);
+
+    testutil_assert(ret == WT_ROLLBACK);
 
     testutil_check(cursor->close(cursor));
     cursor = NULL;
 
     testutil_check(session->close(session, NULL));
     return (NULL);
-}
-
-/*
- * validate --
- *     Function to validate the checkpointed data.
- */
-void
-validate(void *arg)
-{
-    struct thread_data *td;
-    WT_CURSOR *cursor;
-    WT_SESSION *session;
-    uint64_t i, val;
-
-    td = (struct thread_data *)arg;
-
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    testutil_check(
-      session->open_cursor(session, uri, NULL, "checkpoint=WiredTigerCheckpoint", &cursor));
-
-    for (i = 0; i < NUM_RECORDS; i++) {
-        cursor->set_key(cursor, i + 1);
-        testutil_check(cursor->search(cursor));
-        testutil_check(cursor->get_value(cursor, &val));
-    }
 }
