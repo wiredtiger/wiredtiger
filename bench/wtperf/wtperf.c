@@ -2682,7 +2682,7 @@ main(int argc, char *argv[])
         /* If running backups move down a directory level. */
         if (opts->backup_interval != 0 && opts->backup_complete != 0) {
             if (chdir(wtperf->home) != 0)
-                testutil_die(errno, "parent chdir: %s", wtperf->home);
+                testutil_die(errno, "backup chdir: %s", wtperf->home);
             testutil_recreate_dir(wtperf->home);
         }
         testutil_check(create_tiered_bucket(wtperf));
