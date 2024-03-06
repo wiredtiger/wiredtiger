@@ -83,13 +83,6 @@ typedef enum {
     CKSUM_UNENCRYPTED = 4   /* Unencrypted blocks only */
 } WT_BTREE_CHECKSUM;
 
-typedef enum { /* Start position for eviction walk */
-    WT_EVICT_WALK_NEXT,
-    WT_EVICT_WALK_PREV,
-    WT_EVICT_WALK_RAND_NEXT,
-    WT_EVICT_WALK_RAND_PREV
-} WT_EVICT_WALK_TYPE;
-
 /* An invalid btree file ID value. ID 0 is reserved for the metadata file. */
 #define WT_BTREE_ID_INVALID UINT32_MAX
 
@@ -240,6 +233,7 @@ struct __wt_btree {
      * code.
      */
     WT_REF *evict_ref;                         /* Eviction thread's location */
+    double evict_pos;                          /* Eviction thread's location */
     uint64_t evict_priority;                   /* Relative priority of cached pages */
     uint32_t evict_walk_progress;              /* Eviction walk progress */
     uint32_t evict_walk_target;                /* Eviction walk target */
@@ -250,7 +244,6 @@ struct __wt_btree {
     bool evict_disabled_open;                  /* Eviction disabled on open */
     wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
     wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
-    WT_EVICT_WALK_TYPE evict_start_type;
 
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an

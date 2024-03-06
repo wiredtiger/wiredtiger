@@ -449,7 +449,7 @@ descend:
      */
     if (!eviction || !__wt_ref_is_root(current))
         *refp = current;
-    return (0);
+    return (0);  /* TODO: Possible bug: should this return `ret`? */
 }
 
 /*

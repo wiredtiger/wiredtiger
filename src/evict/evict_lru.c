@@ -432,12 +432,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             return (0);
         WT_RET(ret);
 
-        /*
-         * Clear the walks so we don't pin pages while asleep, otherwise we can block applications
-         * evicting large pages.
-         */
-        ret = __evict_clear_all_walks(session);
-
         __wt_readunlock(session, &conn->dhandle_lock);
         WT_RET(ret);
 
@@ -1780,7 +1774,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_REF *ref;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
-    uint32_t read_flags, remaining_slots, target_pages, walk_flags;
+    uint32_t remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, want_page;
 
@@ -1865,6 +1859,22 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_both_clean_and_dirty);
 
     if (btree->evict_ref == NULL) {
+        (void)__wt_get_page_from_npos(session, &btree->evict_ref,
+                WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
+                WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK,
+                btree->evict_pos);
+        __wt_verbose_debug1(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: restored saved position from %lf => %p",
+            btree->evict_pos, (void*)btree->evict_ref);
+    }
+
+    if (btree->evict_ref != NULL)
+        __wt_verbose_debug3(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: walk start from: %p pos %lf",
+            (void*)btree->evict_ref, __wt_page_npos(session, btree->evict_ref));
+    else
+        __wt_verbose_debug3(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: walk start from: %p",
+            (void*)btree->evict_ref);
+
+    if (btree->evict_ref == NULL) {
         WT_STAT_CONN_INCR(session, cache_eviction_walk_from_root);
         WT_STAT_DATA_INCR(session, cache_eviction_walk_from_root);
     } else {
@@ -1876,36 +1886,21 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         walk_flags |= WT_READ_VISIBLE_ALL;
 
-    /*
-     * Choose a random point in the tree if looking for candidates in a tree with no starting point
-     * set. This is mostly aimed at ensuring eviction fairly visits all pages in trees with a lot of
-     * in-cache content.
-     */
-    switch (btree->evict_start_type) {
-    case WT_EVICT_WALK_NEXT:
-        break;
-    case WT_EVICT_WALK_PREV:
-        FLD_SET(walk_flags, WT_READ_PREV);
-        break;
-    case WT_EVICT_WALK_RAND_PREV:
-        FLD_SET(walk_flags, WT_READ_PREV);
-    /* FALLTHROUGH */
-    case WT_EVICT_WALK_RAND_NEXT:
-        read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
-          WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
-        if (btree->evict_ref == NULL) {
-            for (;;) {
-                /* Ensure internal pages indexes remain valid */
-                WT_WITH_PAGE_INDEX(session,
-                  ret = __wt_random_descent(session, &btree->evict_ref, read_flags, &session->rnd));
-                if (ret != WT_RESTART)
-                    break;
-                WT_STAT_CONN_INCR(session, cache_eviction_walk_restart);
-                WT_STAT_DATA_INCR(session, cache_eviction_walk_restart);
-            }
-            WT_RET_NOTFOUND_OK(ret);
+    /* If there's still no starting point, start from a random one */
+    if (btree->evict_ref == NULL) {
+        for (;;) {
+            /* Ensure internal pages indexes remain valid */
+            WT_WITH_PAGE_INDEX(session,
+                ret = __wt_random_descent(session, &btree->evict_ref,
+                WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
+                    WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK,
+                &session->rnd));
+            if (ret != WT_RESTART)
+                break;
+            WT_STAT_CONN_INCR(session, cache_eviction_walk_restart);
+            WT_STAT_DATA_INCR(session, cache_eviction_walk_restart);
         }
-        break;
+        WT_RET_NOTFOUND_OK(ret);
     }
 
     /*
@@ -1941,22 +1936,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
           (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
         if (give_up) {
             /*
-             * Try a different walk start point next time if a walk gave up.
+             * TODO: ?pick a random starting point [0 ... 1] or do __wt_random_descent next time?
              */
-            switch (btree->evict_start_type) {
-            case WT_EVICT_WALK_NEXT:
-                btree->evict_start_type = WT_EVICT_WALK_PREV;
-                break;
-            case WT_EVICT_WALK_PREV:
-                btree->evict_start_type = WT_EVICT_WALK_RAND_PREV;
-                break;
-            case WT_EVICT_WALK_RAND_PREV:
-                btree->evict_start_type = WT_EVICT_WALK_RAND_NEXT;
-                break;
-            case WT_EVICT_WALK_RAND_NEXT:
-                btree->evict_start_type = WT_EVICT_WALK_NEXT;
-                break;
-            }
 
             /*
              * We differentiate the reasons we gave up on this walk and increment the stats
@@ -1994,6 +1975,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         page = ref->page;
         modified = __wt_page_is_modified(page);
         page->evict_pass_gen = __wt_atomic_load64(&cache->evict_pass_gen);
+
+        __wt_verbose_debug3(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: consider: %p, size %" WT_SIZET_FMT ", dirty %d, index %u, pos %lf",
+          (void *)page,
+          page->memory_footprint,
+          modified,
+          ref->pindex_hint,
+          __wt_page_npos(session, ref));
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -2164,6 +2152,10 @@ fast:
      * the next walk.
      */
     if (ref != NULL) {
+        btree->evict_pos = __wt_page_npos(session, ref);
+        __wt_verbose_debug3(session, WT_VERB_EVICTSERVER, "__evict_walk_tree: saved position: %p => %lf",
+            (void*)ref, btree->evict_pos);
+
         if (__wt_ref_is_root(ref) || evict == start || give_up ||
           ref->page->memory_footprint >= btree->splitmempage) {
             if (restarts == 0)
@@ -2175,6 +2167,9 @@ fast:
               (ref->state != WT_REF_MEM || WT_READGEN_EVICT_SOON(ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         btree->evict_ref = ref;
+        __evict_clear_walk(session);  /* We use soft refs - no need to pin the page */
+    } else {
+        btree->evict_pos = 0.0;
     }
 
     WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
