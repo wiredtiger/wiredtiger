@@ -5977,7 +5977,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_READ_DELETED			1209
 /*! cache: pages read into cache after truncate in prepare state */
 #define	WT_STAT_CONN_CACHE_READ_DELETED_PREPARED	1210
-/*! cache: pages read into cache by the checkpoint */
+/*! cache: pages read into cache by checkpoint */
 #define	WT_STAT_CONN_CACHE_READ_CHECKPOINT		1211
 /*!
  * cache: pages removed from the ordinary queue to be queued for urgent
@@ -7419,7 +7419,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_READ_DELETED			2107
 /*! cache: pages read into cache after truncate in prepare state */
 #define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2108
-/*! cache: pages read into cache by the checkpoint */
+/*! cache: pages read into cache by checkpoint */
 #define	WT_STAT_DSRC_CACHE_READ_CHECKPOINT		2109
 /*! cache: pages requested from the cache */
 #define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2110
