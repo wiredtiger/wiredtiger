@@ -29,7 +29,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 /*
  * This program takes a file and a checksum and checks whether the checksum
