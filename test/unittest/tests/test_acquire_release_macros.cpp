@@ -38,7 +38,6 @@
         type b;                                      \
         type *bp = &b;                               \
         type b_set = value;                          \
-                                                     \
         WT_RELEASE_WRITE_WITH_BARRIER(*bp, b_set);   \
         REQUIRE(b == b_set);                         \
     }
