@@ -1279,6 +1279,7 @@ backup_worker(void *arg)
             testutil_delete_old_backups(BACKUP_RETAIN);
         }
         wtperf->backup = false;
+        ++wtperf->backup_ops;
         ++thread->backup.ops;
     }
 
