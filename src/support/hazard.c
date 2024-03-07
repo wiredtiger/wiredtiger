@@ -199,7 +199,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
         if (hp->ref == ref) {
             /*
              * Release write the hazard pointer. We want to ensure that all operations performed on
-             * the page, be it writes or reads occur while we are holding the hazard pointer and
+             * the page, be it writes or reads, occur while we are holding the hazard pointer and
              * thus preventing the page from being freed.
              */
             WT_RELEASE_WRITE(hp->ref, NULL);
