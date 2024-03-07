@@ -344,8 +344,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_log_subconfigs[] 
     INT64_MAX, NULL},
   {"os_cache_dirty_pct", "int", NULL, "min=0,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
     237, 0, 100, NULL},
-  {"prealloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 238,
-    INT64_MIN, INT64_MAX, NULL},
+  {"prealloc", "int", NULL, "min=0,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 238, 0,
+    100, NULL},
   {"remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 239, INT64_MIN,
     INT64_MAX, NULL},
   {"zero_fill", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 240,
@@ -2574,8 +2574,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_log_subconfigs[] = {
     237, 0, 100, NULL},
   {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 245, INT64_MIN,
     INT64_MAX, NULL},
-  {"prealloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 238,
-    INT64_MIN, INT64_MAX, NULL},
+  {"prealloc", "int", NULL, "min=0,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 238, 0,
+    100, NULL},
   {"recover", "string", NULL, "choices=[\"error\",\"on\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_STRING, 292, INT64_MIN, INT64_MAX, confchk_recover_choices},
   {"remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 239, INT64_MIN,
@@ -3692,8 +3692,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "close_idle_time=30,close_scan_interval=10),"
     "generation_drain_timeout_ms=240000,history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
-    "log=(archive=true,os_cache_dirty_pct=0,prealloc=true,remove=true"
-    ",zero_fill=false),lsm_manager=(merge=true,worker_thread_max=4),"
+    "log=(archive=true,os_cache_dirty_pct=0,prealloc=1,remove=true,"
+    "zero_fill=false),lsm_manager=(merge=true,worker_thread_max=4),"
     "operation_timeout_ms=0,operation_tracking=(enabled=false,"
     "path=\".\"),shared_cache=(chunk=10MB,name=,quota=0,reserve=0,"
     "size=500MB),statistics=none,statistics_log=(json=false,"
@@ -4008,17 +4008,17 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "history_store=(file_max=0),in_memory=false,"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
-    "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
-    ",recover=on,remove=true,zero_fill=false),lsm_manager=(merge=true"
-    ",worker_thread_max=4),mmap=true,mmap_all=false,"
-    "multiprocess=false,operation_timeout_ms=0,"
-    "operation_tracking=(enabled=false,path=\".\"),"
-    "prefetch=(available=false,default=false),readonly=false,"
-    "salvage=false,session_max=100,session_scratch_max=2MB,"
-    "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
-    "reserve=0,size=500MB),statistics=none,statistics_log=(json=false"
-    ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
-    ",wait=0),tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=1,"
+    "recover=on,remove=true,zero_fill=false),lsm_manager=(merge=true,"
+    "worker_thread_max=4),mmap=true,mmap_all=false,multiprocess=false"
+    ",operation_timeout_ms=0,operation_tracking=(enabled=false,"
+    "path=\".\"),prefetch=(available=false,default=false),"
+    "readonly=false,salvage=false,session_max=100,"
+    "session_scratch_max=2MB,session_table_cache=true,"
+    "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
+    "statistics=none,statistics_log=(json=false,on_close=false,"
+    "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,interval=60,local_retention=300,name=,"
     "shared=false),timing_stress_for_test=,"
     "transaction_sync=(enabled=false,method=fsync),"
@@ -4058,17 +4058,17 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "history_store=(file_max=0),in_memory=false,"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
-    "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
-    ",recover=on,remove=true,zero_fill=false),lsm_manager=(merge=true"
-    ",worker_thread_max=4),mmap=true,mmap_all=false,"
-    "multiprocess=false,operation_timeout_ms=0,"
-    "operation_tracking=(enabled=false,path=\".\"),"
-    "prefetch=(available=false,default=false),readonly=false,"
-    "salvage=false,session_max=100,session_scratch_max=2MB,"
-    "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
-    "reserve=0,size=500MB),statistics=none,statistics_log=(json=false"
-    ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
-    ",wait=0),tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=1,"
+    "recover=on,remove=true,zero_fill=false),lsm_manager=(merge=true,"
+    "worker_thread_max=4),mmap=true,mmap_all=false,multiprocess=false"
+    ",operation_timeout_ms=0,operation_tracking=(enabled=false,"
+    "path=\".\"),prefetch=(available=false,default=false),"
+    "readonly=false,salvage=false,session_max=100,"
+    "session_scratch_max=2MB,session_table_cache=true,"
+    "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
+    "statistics=none,statistics_log=(json=false,on_close=false,"
+    "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,interval=60,local_retention=300,name=,"
     "shared=false),timing_stress_for_test=,"
     "transaction_sync=(enabled=false,method=fsync),"
@@ -4109,8 +4109,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "history_store=(file_max=0),io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
-    "path=\".\",prealloc=true,recover=on,remove=true,zero_fill=false)"
-    ",lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
+    "path=\".\",prealloc=1,recover=on,remove=true,zero_fill=false),"
+    "lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
     "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
     "prefetch=(available=false,default=false),readonly=false,"
@@ -4158,8 +4158,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "history_store=(file_max=0),io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
-    "path=\".\",prealloc=true,recover=on,remove=true,zero_fill=false)"
-    ",lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
+    "path=\".\",prealloc=1,recover=on,remove=true,zero_fill=false),"
+    "lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
     "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
     "prefetch=(available=false,default=false),readonly=false,"

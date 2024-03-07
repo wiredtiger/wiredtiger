@@ -922,9 +922,9 @@ log_configuration_common = [
         cache after that percentage of the log has been written into the buffer cache without
         an intervening file sync.''',
         min='0', max='100'),
-    Config('prealloc', 'true', r'''
+    Config('prealloc', '1', r'''
         pre-allocate log files''',
-        type='boolean'),
+        min='0', max='100'),
     Config('remove', 'true', r'''
         automatically remove unneeded log files''',
         type='boolean'),

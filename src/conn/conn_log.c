@@ -310,7 +310,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
      */
     WT_RET(__wt_config_gets(session, cfg, "log.prealloc", &cval));
     if (cval.val != 0)
-        conn->log_prealloc = 1;
+        conn->log_prealloc = (uint32_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
     if (cval.val != 0)
