@@ -59,9 +59,9 @@ TEST_ACQUIRE_TYPE(uint8_t);
  * Test each branch of the release macro. Use values that can only fit inside the type being tested
  * to make sure integer truncation doesn't occur.
  */
-TEST_RELEASE_TYPE(uint64_t, UINT32_MAX + 1);
-TEST_RELEASE_TYPE(uint32_t, UINT16_MAX + 1);
-TEST_RELEASE_TYPE(uint16_t, UINT8_MAX + 1);
+TEST_RELEASE_TYPE(uint64_t, UINT64_MAX);
+TEST_RELEASE_TYPE(uint32_t, UINT32_MAX);
+TEST_RELEASE_TYPE(uint16_t, UINT16_MAX);
 TEST_RELEASE_TYPE(uint8_t, 1);
 
 /*
