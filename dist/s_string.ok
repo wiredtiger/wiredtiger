@@ -749,9 +749,13 @@ fcntl
 fd
 fdatasync
 fe
+feffff
 fextend
 ffc
 fff
+fffff
+ffffff
+ffffffff
 ffffffffffffffff
 fflush
 ffs

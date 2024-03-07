@@ -68,9 +68,8 @@ parse_blkmods(WT_SESSION *session, std::string const &file_uri)
     return hex_blkmod;
 }
 
-
 static uint8_t
-get_hex_value_from_string(std::string const& source_string, size_t index)
+get_hex_value_from_string(std::string const &source_string, size_t index)
 {
     uint8_t hex_value = 0;
 
@@ -80,15 +79,12 @@ get_hex_value_from_string(std::string const& source_string, size_t index)
     return hex_value;
 }
 
-
 /*
- * bool
- * is_new_blkmods_ok()
- * Returns true if all bits that were 1 in orig_blkmod_table are still 1 in new_blkmod_table.
- * Otherwise, it returns 0.
+ * bool is_new_blkmods_ok() Returns true if all bits that were 1 in orig_blkmod_table are still 1 in
+ * new_blkmod_table. Otherwise, it returns 0.
  */
 static bool
-is_new_blkmods_ok(std::string const& orig_blkmod_table, std::string const& new_blkmod_table)
+is_new_blkmods_ok(std::string const &orig_blkmod_table, std::string const &new_blkmod_table)
 {
     /*
      * If any bits that were 1 in the original blkmod changed, we have an issue.
@@ -97,7 +93,8 @@ is_new_blkmods_ok(std::string const& orig_blkmod_table, std::string const& new_b
     for (size_t index = 0; index < orig_blkmod_table.length(); index++) {
         uint8_t orig_blkmod_hex_value = get_hex_value_from_string(orig_blkmod_table, index);
         uint8_t new_blkmod_hex_value = get_hex_value_from_string(new_blkmod_table, index);
-        uint8_t reverted_bits = (orig_blkmod_hex_value ^ new_blkmod_hex_value) & orig_blkmod_hex_value;
+        uint8_t reverted_bits =
+          (orig_blkmod_hex_value ^ new_blkmod_hex_value) & orig_blkmod_hex_value;
 
         if (reverted_bits != 0)
             return false;
@@ -105,7 +102,6 @@ is_new_blkmods_ok(std::string const& orig_blkmod_table, std::string const& new_b
 
     return true;
 }
-
 
 TEST_CASE("Backup: Test get_hex_value_from_string()", "[backup]")
 {
@@ -125,7 +121,6 @@ TEST_CASE("Backup: Test get_hex_value_from_string()", "[backup]")
     REQUIRE(get_hex_value_from_string(source_string, 1000) == 0x0);
 }
 
-
 TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
 {
     std::string orig_blkmod_table1 = "feffff0700000000";
@@ -133,12 +128,12 @@ TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
     std::string orig_blkmod_table3 = "feffff0700000000";
 
     // new_blkmod_table1 is ok
-    std::string new_blkmod_table1  = "ffffffff01000000";
+    std::string new_blkmod_table1 = "ffffffff01000000";
     // new_blkmod_table2 is not ok, as some bits have switched to 0
-    std::string new_blkmod_table2  = "ff0fffff01000000";
+    std::string new_blkmod_table2 = "ff0fffff01000000";
     // new_blkmod_table3 is not ok, as it is shorter than the original and some set
     // bits have been lost
-    std::string new_blkmod_table3  = "ffffff";
+    std::string new_blkmod_table3 = "ffffff";
 
     bool is_table1_ok = is_new_blkmods_ok(orig_blkmod_table1, new_blkmod_table1);
     bool is_table2_ok = is_new_blkmods_ok(orig_blkmod_table2, new_blkmod_table2);
@@ -148,7 +143,6 @@ TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
     REQUIRE_FALSE(is_table2_ok);
     REQUIRE_FALSE(is_table3_ok);
 }
-
 
 TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 {
