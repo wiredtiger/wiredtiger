@@ -214,7 +214,7 @@ static void
 __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_EXT *ext;
-    WT_VERBOSE_LEVEL level;
+    WT_VERBOSE_LEVEL verbose_level;
     wt_off_t avg_block_size, avg_internal_block_size, depth1_subtree_size, leaves_per_internal_page;
     wt_off_t compact_start_off, extra_space, file_size, last, off, rewrite_size, size, write_off;
     uint64_t n, pages_to_move, pages_to_move_orig, total_pages_to_move;
@@ -228,9 +228,9 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     /* Output the estimation logs as info if we're in dryrun mode. */
     if (session->compact->dryrun)
-        level = WT_VERBOSE_INFO;
+        verbose_level = WT_VERBOSE_INFO;
     else
-        level = WT_VERBOSE_DEBUG_2;
+        verbose_level = WT_VERBOSE_DEBUG_2;
 
     /*
      * Get the average block size that we encountered so far during compaction. Note that we are not
@@ -258,10 +258,10 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
      */
     depth1_subtree_size = avg_block_size * leaves_per_internal_page + avg_internal_block_size;
 
-    __wt_verbose_level(session, WT_VERB_COMPACT, level,
+    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " blocks)", block->name,
       avg_block_size, block->compact_pages_reviewed);
-    __wt_verbose_level(session, WT_VERB_COMPACT, level,
+    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: reviewed %" PRIu64 " internal pages so far", block->name,
       block->compact_internal_pages_reviewed);
 
@@ -293,7 +293,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         compact_start_off = file_size - compact_pct_tenths * file_size / 10;
         if (write_off >= compact_start_off)
             break;
-        __wt_verbose_level(session, WT_VERB_COMPACT, level,
+        __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: file size: %" PRId64 " MB (%" PRId64
           "B), compact offset: %" PRId64 ", will move blocks from the last %d%% of the file",
           block->name, iteration, file_size / WT_MEGABYTE, file_size, compact_start_off,
@@ -379,7 +379,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (pages_to_move > 0)
                 extra_space += size - rewrite_size;
         }
-        __wt_verbose_level(session, WT_VERB_COMPACT, level,
+        __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: will rewrite %" PRIu64 " pages, next write offset: %" PRId64
           ", extra space: %" PRId64,
           block->name, iteration, pages_to_move_orig - pages_to_move, write_off, extra_space);
@@ -404,7 +404,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     block->compact_estimated = true;
     block->compact_pages_rewritten_expected = block->compact_pages_rewritten + total_pages_to_move;
 
-    __wt_verbose_level(session, WT_VERB_COMPACT, level,
+    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
       " total, target %" PRIu64 "MB (%" PRIu64 "B)",
       block->name, total_pages_to_move,
