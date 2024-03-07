@@ -8,18 +8,6 @@
 
 #include "wt_internal.h"
 
-/*
- * __f_areallset --
- *     Returns true if all bits set in mask are set in cursor->flags.
- *
- * Not a macro since a macro would evaluate mask twice.
- */
-static inline bool
-__f_areallset(const WT_CURSOR *cursor, uint64_t mask)
-{
-    return ((cursor->flags & mask) == mask);
-}
-
 static int __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[]);
 
 /*
@@ -770,7 +758,9 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     WT_ASSERT(session,
       !F_ISSET(
         cursor, WT_CURSTD_BOUND_ALL | WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE));
-    WT_ASSERT(session, __f_areallset(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
+    WT_ASSERT(session,
+      F_MASK(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED) ==
+        (WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
 
     API_RET_STAT(session, ret, cursor_cache);
 }
@@ -1079,7 +1069,9 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     bucket = hash_value & (S2C(session)->hash_size - 1);
     TAILQ_FOREACH (cursor, &session->cursor_cache[bucket], q) {
         /* Document some flags always set in the cache */
-        WT_ASSERT(session, __f_areallset(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
+        WT_ASSERT(session,
+          F_MASK(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED) ==
+            (WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
 
         /* Document some flags always cleared in the cache */
         WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE));
