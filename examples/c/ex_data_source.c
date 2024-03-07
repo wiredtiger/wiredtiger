@@ -565,55 +565,6 @@ main(int argc, char *argv[])
         /*! [WT_DATA_SOURCE register] */
     }
 
-    /*! [WT_DATA_SOURCE configure boolean] */
-    /* my_boolean defaults to true. */
-    error_check(conn->configure_method(
-      conn, "WT_SESSION.open_cursor", NULL, "my_boolean=true", "boolean", NULL));
-    /*! [WT_DATA_SOURCE configure boolean] */
-
-    /*! [WT_DATA_SOURCE configure integer] */
-    /* my_integer defaults to 5. */
-    error_check(
-      conn->configure_method(conn, "WT_SESSION.open_cursor", NULL, "my_integer=5", "int", NULL));
-    /*! [WT_DATA_SOURCE configure integer] */
-
-    /*! [WT_DATA_SOURCE configure string] */
-    /* my_string defaults to "name". */
-    error_check(conn->configure_method(
-      conn, "WT_SESSION.open_cursor", NULL, "my_string=name", "string", NULL));
-    /*! [WT_DATA_SOURCE configure string] */
-
-    /*! [WT_DATA_SOURCE configure list] */
-    /* my_list defaults to "first" and "second". */
-    error_check(conn->configure_method(
-      conn, "WT_SESSION.open_cursor", NULL, "my_list=[first, second]", "list", NULL));
-    /*! [WT_DATA_SOURCE configure list] */
-
-    /*! [WT_DATA_SOURCE configure integer with checking] */
-    /*
-     * Limit the number of devices to between 1 and 30; the default is 5.
-     */
-    error_check(conn->configure_method(
-      conn, "WT_SESSION.open_cursor", NULL, "devices=5", "int", "min=1, max=30"));
-    /*! [WT_DATA_SOURCE configure integer with checking] */
-
-    /*! [WT_DATA_SOURCE configure string with checking] */
-    /*
-     * Limit the target string to one of /device, /home or /target; default to /home.
-     */
-    error_check(conn->configure_method(conn, "WT_SESSION.open_cursor", NULL, "target=/home",
-      "string", "choices=[/device, /home, /target]"));
-    /*! [WT_DATA_SOURCE configure string with checking] */
-
-    /*! [WT_DATA_SOURCE configure list with checking] */
-    /*
-     * Limit the paths list to one or more of /device, /home, /mnt or
-     * /target; default to /mnt.
-     */
-    error_check(conn->configure_method(conn, "WT_SESSION.open_cursor", NULL, "paths=[/mnt]", "list",
-      "choices=[/device, /home, /mnt, /target]"));
-    /*! [WT_DATA_SOURCE configure list with checking] */
-
     /*! [WT_EXTENSION_API default_session] */
     (void)wt_api->msg_printf(wt_api, NULL, "configuration complete");
     /*! [WT_EXTENSION_API default_session] */

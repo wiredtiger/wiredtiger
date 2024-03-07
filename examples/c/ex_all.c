@@ -1073,26 +1073,6 @@ connection_ops(WT_CONNECTION *conn)
         session_ops(session);
     }
 
-    /*! [Configure method configuration] */
-    /*
-     * Applications opening a cursor for the data-source object "my_data" have an additional
-     * configuration option "entries", which is an integer type, defaults to 5, and must be an
-     * integer between 1 and 10.
-     *
-     * The method being configured is specified using a concatenation of the handle name, a period
-     * and the method name.
-     */
-    error_check(conn->configure_method(
-      conn, "WT_SESSION.open_cursor", "my_data:", "entries=5", "int", "min=1,max=10"));
-
-    /*
-     * Applications opening a cursor for the data-source object "my_data" have an additional
-     * configuration option "devices", which is a list of strings.
-     */
-    error_check(
-      conn->configure_method(conn, "WT_SESSION.open_cursor", "my_data:", "devices", "list", NULL));
-    /*! [Configure method configuration] */
-
     /*! [Close a connection] */
     error_check(conn->close(conn, NULL));
     /*! [Close a connection] */
