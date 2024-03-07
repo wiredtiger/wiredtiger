@@ -300,7 +300,10 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 
     /*
      * Look for obsolete updates if:
-     * 1. The page is configured to evict soon.
+     * 1. The page has been configured for eviction soon. It is possible for a hot page
+     *    that is marked for evicting soon but cannot be able to evicted due to the
+     *    concurrent access. Removing the obsolete updates from these pages can reduce
+     *    the page memory footprint and avoids the unnecessary forced eviction.
      * 2. There are several updates in the cache that need to be removed.
      */
     if (WT_READGEN_EVICT_SOON(page->read_gen) ||
