@@ -190,8 +190,7 @@ verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::
     std::vector<int> ret_wt = workload.run_in_wiredtiger(home.c_str(), env_config);
 
     /* Compare the return codes. */
-    if (ret_model != ret_wt)
-        throw model::model_exception("The return codes differ.");
+    testutil_assert(ret_model == ret_wt);
 
     /* Open the database that we just created. */
     WT_CONNECTION *conn;
