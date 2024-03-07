@@ -2537,10 +2537,7 @@ struct __wt_connection {
         const char *str, const char **compiled);
 
     /*!
-     * Add configuration options for a method.  See
-     * @ref custom_ds_config_add for more information.
-     *
-     * @snippet ex_all.c Configure method configuration
+     * Add configuration options for a method.
      *
      * @param connection the connection handle
      * @param method the method being configured
