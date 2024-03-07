@@ -1670,12 +1670,37 @@ __txn_mod_compare(const void *a, const void *b)
 }
 
 /*
+ * __txn_check_if_stable_has_moved_ahead_commit_ts --
+ *     Check if the stable timestamp has moved ahead of the commit timestamp.
+ */
+static int
+__txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
+
+    conn = S2C(session);
+    txn = session->txn;
+    txn_global = &conn->txn_global;
+
+    if (txn_global->has_stable_timestamp && txn->first_commit_timestamp != 0 &&
+      txn_global->stable_timestamp >= txn->first_commit_timestamp)
+        WT_RET_MSG(session, WT_ROLLBACK,
+          "Rollback the transaction because the stable timestamp has moved ahead of the commit "
+          "timestamp.");
+
+    return (0);
+}
+
+/*
  * __wt_txn_commit --
  *     Commit the current transaction.
  */
 int
 __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec tsp;
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -1853,7 +1878,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * the total mod_count.
                  */
                 if ((i * 36) % txn->mod_count == 0)
-                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1);
+                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION_1, NULL);
 
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
@@ -1883,6 +1908,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, txn->prepare_count == prepare_count);
     txn->prepare_count = 0;
 #endif
+
+    /* Add a 2 second wait to simulate commit transaction slowness. */
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
+
+    if (!prepare) {
+        WT_ERR(__txn_check_if_stable_has_moved_ahead_commit_ts(session));
+        __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
+    }
 
     /*
      * Note: we're going to commit: nothing can fail after this point. Set a check, it's too easy to
@@ -1980,6 +2015,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
+     * Leave the commit generation after all the updates are processed and the snapshot is released.
+     */
+    if (!prepare)
+        __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
+
+    /*
      * We're between transactions, if we need to block for eviction, it's a good time to do so.
      * Ignore error returns, the return must reflect the fate of the transaction.
      */
@@ -2009,6 +2050,7 @@ err:
 
     WT_TRET(__wt_session_reset_cursors(session, false));
     WT_TRET(__wt_txn_rollback(session, cfg));
+
     return (ret);
 }
 
