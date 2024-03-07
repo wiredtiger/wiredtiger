@@ -952,11 +952,12 @@ return_false:
  *     WT_CURSTD_DEBUG_RESET_EVICT, WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
  */
 static int
-__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *cursor,
-  const char *cfg[], uint64_t overwrite_flag, bool *readonlyp, WT_CURSOR **cdumpp)
+__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
+  uint64_t overwrite_flag, bool *readonlyp, WT_CURSOR **ownerp, WT_CURSOR **cdumpp)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cdump;
+    WT_CURSOR *owner;
     /* Default cleared all flags set by this func. */
     F_CLR(cursor,
       WT_CURSTD_APPEND | WT_CURSTD_CACHEABLE | WT_CURSTD_DEBUG_RESET_EVICT | WT_CURSTD_OVERWRITE |
@@ -1002,6 +1003,7 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *cu
      * dump cursor in that case, because we'll create the dump cursor on the index cursor itself.
      */
     WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+    owner = ownerp ? *ownerp : NULL;
     if (cval.len != 0 && owner == NULL) {
         uint64_t dump_flag;
         if (WT_STRING_MATCH("json", cval.str, cval.len))
@@ -1021,7 +1023,7 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *cu
          * dump cursor.
          */
         WT_RET(__wt_curdump_create(cursor, owner, &cdump));
-        owner = cdump;
+        *ownerp = cdump;
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
     } else
         cdump = NULL;
@@ -1041,7 +1043,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
   WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR *cdump;
+    WT_CURSOR *cdump = NULL;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     uint64_t bucket, overwrite_flag;
@@ -1096,7 +1098,9 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * than flag values, so fix them up according to the given configuration.
              */
             WT_RET(__cursor_reuse_or_init(
-              session, NULL, cursor, cfg, overwrite_flag, &readonly, &cdump));
+              session, cursor, cfg, overwrite_flag, &readonly, NULL, &cdump));
+            /* Since owner == NULL */
+            WT_ASSERT(session, cdump == NULL);
 
             /*
              * If this is a btree cursor, clear its read_once flag.
@@ -1574,7 +1578,7 @@ __wt_cursor_init(
   WT_CURSOR *cursor, const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR *cdump;
+    WT_CURSOR *cdump = NULL;
     WT_SESSION_IMPL *session;
     uint64_t overwrite_flag;
     bool readonly;
@@ -1590,7 +1594,7 @@ __wt_cursor_init(
     WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
     overwrite_flag = cval.val ? WT_CURSTD_OVERWRITE : 0;
 
-    WT_RET(__cursor_reuse_or_init(session, owner, cursor, cfg, overwrite_flag, &readonly, &cdump));
+    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly, &owner, &cdump));
 
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
