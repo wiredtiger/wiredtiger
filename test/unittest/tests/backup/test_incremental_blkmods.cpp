@@ -136,7 +136,7 @@ TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
     std::string new_blkmod_table1  = "ffffffff01000000";
     // new_blkmod_table2 is not ok, as some bits have switched to 0
     std::string new_blkmod_table2  = "ff0fffff01000000";
-    // new_blkmod_table3 is not ok, as it is shorter that the original and some set
+    // new_blkmod_table3 is not ok, as it is shorter than the original and some set
     // bits have been lost
     std::string new_blkmod_table3  = "ffffff";
 
