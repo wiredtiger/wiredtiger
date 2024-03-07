@@ -92,7 +92,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 
 /*
  * __wt_atomic_loadbool --
- *     Atomically read a boolean.
+ *     Read a boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics for
+ *     booleans per the comment above.
  */
 static inline bool
 __wt_atomic_loadbool(bool *vp)
@@ -102,7 +103,8 @@ __wt_atomic_loadbool(bool *vp)
 
 /*
  * __wt_atomic_storebool --
- *     Atomically set a boolean.
+ *     Set a boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics for
+ *     booleans per the comment above.
  */
 static inline void
 __wt_atomic_storebool(bool *vp, bool v)
@@ -112,7 +114,8 @@ __wt_atomic_storebool(bool *vp, bool v)
 
 /*
  * __wt_atomic_loadvbool --
- *     Atomically read a volatile boolean.
+ *     Read a volatile boolean. These reads are non-atomic due to MSVC lacking Interlocked
+ *     intrinsics for booleans per the comment above.
  */
 static inline bool
 __wt_atomic_loadvbool(volatile bool *vp)
@@ -122,7 +125,8 @@ __wt_atomic_loadvbool(volatile bool *vp)
 
 /*
  * __wt_atomic_storevbool --
- *     Atomically set a volatile boolean.
+ *     Set a volatile boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
+ *     for booleans per the comment above.
  */
 static inline void
 __wt_atomic_storevbool(volatile bool *vp, bool v)
