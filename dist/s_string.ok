@@ -462,10 +462,8 @@ Zstd
 Zstd's
 aa
 aaa
-abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
-abcef
 ackSstu
 addl
 addr
@@ -602,7 +600,6 @@ config
 configs
 conn
 connectionp
-const
 constantp
 consts
 cookiep
