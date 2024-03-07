@@ -85,6 +85,7 @@ main(int argc, char *argv[])
     if (!opts->preserve)
         testutil_remove(opts->home);
 
+    testutil_cleanup(opts);
     return (EXIT_SUCCESS);
 }
 
@@ -211,7 +212,7 @@ thread_func_insert_txn(void *arg)
     testutil_snprintf(tscfg_1, sizeof(tscfg_1), "commit_timestamp=%" PRIu64, global_stable_ts);
     ret = session->commit_transaction(session, tscfg_1);
 
-    testutil_assert(ret == WT_ROLLBACK);
+    testutil_assert(ret == EINVAL);
 
     testutil_check(cursor->close(cursor));
     cursor = NULL;

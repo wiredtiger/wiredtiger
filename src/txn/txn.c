@@ -1684,9 +1684,9 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
     txn = session->txn;
     txn_global = &conn->txn_global;
 
-    if (txn_global->has_stable_timestamp && txn->first_commit_timestamp != 0 &&
+    if (txn_global->has_stable_timestamp && txn->first_commit_timestamp != WT_TS_NONE &&
       txn_global->stable_timestamp >= txn->first_commit_timestamp)
-        WT_RET_MSG(session, WT_ROLLBACK,
+        WT_RET_MSG(session, EINVAL,
           "Rollback the transaction because the stable timestamp has moved ahead of the commit "
           "timestamp.");
 
@@ -1915,8 +1915,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
 
     if (!prepare) {
-        WT_ERR(__txn_check_if_stable_has_moved_ahead_commit_ts(session));
         __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
+        WT_ERR(__txn_check_if_stable_has_moved_ahead_commit_ts(session));
     }
 
     /*
@@ -2050,7 +2050,6 @@ err:
 
     WT_TRET(__wt_session_reset_cursors(session, false));
     WT_TRET(__wt_txn_rollback(session, cfg));
-
     return (ret);
 }
 
