@@ -275,7 +275,7 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
 
         /* Transaction operations, such as begin, insert, etc. */
         if (model::operation::transactional(op.operation)) {
-            model::txn_id_t txn_id = model::operation::transaction(op.operation);
+            model::txn_id_t txn_id = model::operation::transaction_id(op.operation);
 
             if (std::holds_alternative<model::operation::begin_transaction>(op.operation)) {
                 /* A new transaction. */
