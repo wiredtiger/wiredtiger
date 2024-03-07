@@ -98,7 +98,7 @@ kv_workload_runner_wt::~kv_workload_runner_wt()
 
 /*
  * kv_workload_runner_wt::run --
- *     Run the workload in WiredTiger.
+ *     Run the workload in WiredTiger. Return the return codes of the workload operations.
  */
 std::vector<int>
 kv_workload_runner_wt::run(const kv_workload &workload)

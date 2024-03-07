@@ -206,7 +206,7 @@ parse(const char *str)
 
 /*
  * kv_workload::run --
- *     Run the workload in the model.
+ *     Run the workload in the model. Return the return codes of the workload operations.
  */
 std::vector<int>
 kv_workload::run(kv_database &database) const
@@ -217,7 +217,7 @@ kv_workload::run(kv_database &database) const
 
 /*
  * kv_workload::run_in_wiredtiger --
- *     Run the workload in WiredTiger.
+ *     Run the workload in WiredTiger. Return the return codes of the workload operations.
  */
 std::vector<int>
 kv_workload::run_in_wiredtiger(

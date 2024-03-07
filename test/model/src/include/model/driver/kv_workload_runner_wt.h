@@ -169,7 +169,7 @@ public:
 
     /*
      * kv_workload::run --
-     *     Run the workload in WiredTiger.
+     *     Run the workload in WiredTiger. Return the return codes of the workload operations.
      */
     std::vector<int> run(const kv_workload &workload);
 
@@ -183,13 +183,6 @@ protected:
     {
         int ret;
         std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
-
-        /*
-         * Allow only certain return codes to propagate through. Turn unexpected error codes into
-         * exceptions.
-         */
-        if (ret != 0 && ret != WT_NOTFOUND)
-            throw wiredtiger_exception(ret);
         return ret;
     }
 
