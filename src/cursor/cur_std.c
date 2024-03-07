@@ -1033,7 +1033,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
   WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR *cdump = NULL;
+    WT_CURSOR *cdump;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     uint64_t bucket, overwrite_flag;
@@ -1089,6 +1089,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
+            cdump = NULL;
             WT_RET(__cursor_reuse_or_init(
               session, cursor, cfg, overwrite_flag, &readonly, NULL, &cdump));
             /* Since owner == NULL */
@@ -1570,7 +1571,7 @@ __wt_cursor_init(
   WT_CURSOR *cursor, const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR *cdump = NULL;
+    WT_CURSOR *cdump;
     WT_SESSION_IMPL *session;
     uint64_t overwrite_flag;
     bool readonly;
@@ -1586,6 +1587,7 @@ __wt_cursor_init(
     WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
     overwrite_flag = cval.val ? WT_CURSTD_OVERWRITE : 0;
 
+    cdump = NULL;
     WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly, &owner, &cdump));
 
     if (readonly) {
