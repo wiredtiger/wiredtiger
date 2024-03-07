@@ -694,7 +694,6 @@ dmb
 dmsg
 drealloc
 dryrun
-ds
 dsb
 dsbs
 dsk
@@ -994,7 +993,6 @@ mkdir
 mmap
 mmrand
 mn
-mnt
 mongod
 mrs
 msecs
