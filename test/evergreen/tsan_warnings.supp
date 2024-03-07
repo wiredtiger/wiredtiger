@@ -17,9 +17,6 @@ race:src/include/stat.h
 # and loading of ints. These fields will be investigated in a separate ticket. 
 race:src/log
 
-# The ref track code is diagnostic only and allows for races
-race:__ref_save_state
-
 # FIXME-WT-12611 CONNECTION_API_CALL contains a data race that touches the session array, but the number of macro 
 # calls makes diagnosing this very hard. For now suppress the surrounding function and handle this in a separate ticket.
 race:__conn_open_session
