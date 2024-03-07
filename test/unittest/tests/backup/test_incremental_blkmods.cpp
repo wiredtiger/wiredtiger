@@ -13,7 +13,6 @@
 #include "wiredtiger.h"
 #include "wt_internal.h"
 #include "../utils.h"
-#include "../helpers/vector_bool.h"
 #include "../wrappers/connection_wrapper.h"
 #include "../wrappers/item_wrapper.h"
 
@@ -48,7 +47,7 @@ insert_sample_values(WT_CURSOR *cursor1, WT_CURSOR *cursor2, int first_value, in
     }
 }
 
-static std::vector<bool>
+static std::string
 parse_blkmods(WT_SESSION *session, std::string const &file_uri)
 {
     WT_CURSOR *metadata_cursor = nullptr;
@@ -66,9 +65,90 @@ parse_blkmods(WT_SESSION *session, std::string const &file_uri)
 
     REQUIRE(metadata_cursor->close(metadata_cursor) == 0);
 
-    std::vector<bool> result(vector_bool_from_hex_string(hex_blkmod));
-    return result;
+    return hex_blkmod;
 }
+
+
+static uint8_t
+get_hex_value_from_string(std::string const& source_string, size_t index)
+{
+    uint8_t hex_value = 0;
+
+    if (index < source_string.length())
+        hex_value = std::stoi(std::string(1, source_string[index]), nullptr, 16);
+
+    return hex_value;
+}
+
+
+/*
+ * bool
+ * is_new_blkmods_ok()
+ * Returns true if all bits that were 1 in orig_blkmod_table are still 1 in new_blkmod_table.
+ * Otherwise, it returns 0.
+ */
+static bool
+is_new_blkmods_ok(std::string const& orig_blkmod_table, std::string const& new_blkmod_table)
+{
+    /*
+     * If any bits that were 1 in the original blkmod changed, we have an issue.
+     */
+
+    for (size_t index = 0; index < orig_blkmod_table.length(); index++) {
+        uint8_t orig_blkmod_hex_value = get_hex_value_from_string(orig_blkmod_table, index);
+        uint8_t new_blkmod_hex_value = get_hex_value_from_string(new_blkmod_table, index);
+        uint8_t reverted_bits = (orig_blkmod_hex_value ^ new_blkmod_hex_value) & orig_blkmod_hex_value;
+
+        if (reverted_bits != 0)
+            return false;
+    }
+
+    return true;
+}
+
+
+TEST_CASE("Backup: Test get_hex_value_from_string()", "[backup]")
+{
+    std::string source_string = "feffff0700000000";
+    REQUIRE(get_hex_value_from_string(source_string, 0) == 0xf);
+    REQUIRE(get_hex_value_from_string(source_string, 1) == 0xe);
+    REQUIRE(get_hex_value_from_string(source_string, 2) == 0xf);
+    REQUIRE(get_hex_value_from_string(source_string, 3) == 0xf);
+    REQUIRE(get_hex_value_from_string(source_string, 4) == 0xf);
+    REQUIRE(get_hex_value_from_string(source_string, 5) == 0xf);
+    REQUIRE(get_hex_value_from_string(source_string, 6) == 0x0);
+    REQUIRE(get_hex_value_from_string(source_string, 7) == 0x7);
+    REQUIRE(get_hex_value_from_string(source_string, 8) == 0x0);
+    REQUIRE(get_hex_value_from_string(source_string, 9) == 0x0);
+
+    // Test access beyond the length of the source string.
+    REQUIRE(get_hex_value_from_string(source_string, 1000) == 0x0);
+}
+
+
+TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
+{
+    std::string orig_blkmod_table1 = "feffff0700000000";
+    std::string orig_blkmod_table2 = "feffff0700000000";
+    std::string orig_blkmod_table3 = "feffff0700000000";
+
+    // new_blkmod_table1 is ok
+    std::string new_blkmod_table1  = "ffffffff01000000";
+    // new_blkmod_table2 is not ok, as some bits have switched to 0
+    std::string new_blkmod_table2  = "ff0fffff01000000";
+    // new_blkmod_table3 is not ok, as it is shorter that the original and some set
+    // bits have been lost
+    std::string new_blkmod_table3  = "ffffff";
+
+    bool is_table1_ok = is_new_blkmods_ok(orig_blkmod_table1, new_blkmod_table1);
+    bool is_table2_ok = is_new_blkmods_ok(orig_blkmod_table2, new_blkmod_table2);
+    bool is_table3_ok = is_new_blkmods_ok(orig_blkmod_table3, new_blkmod_table3);
+
+    REQUIRE(is_table1_ok);
+    REQUIRE_FALSE(is_table2_ok);
+    REQUIRE_FALSE(is_table3_ok);
+}
+
 
 TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 {
@@ -85,10 +165,10 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
     const int num_few_keys = 100;
     const int num_more_keys = 5000;
 
-    std::vector<bool> orig_blkmod_table1;
-    std::vector<bool> orig_blkmod_table2;
-    std::vector<bool> new_blkmod_table1;
-    std::vector<bool> new_blkmod_table2;
+    std::string orig_blkmod_table1;
+    std::string orig_blkmod_table2;
+    std::string new_blkmod_table1;
+    std::string new_blkmod_table2;
 
     {
         // Setup
@@ -169,13 +249,9 @@ TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
         REQUIRE(cursor2->close(cursor2) == 0);
     }
 
-    /*
-     * If any bits that were 1 in the original blkmod changed, we have an issue. Each of these two
-     * check vectors should contain only false values. Any true values indicate a problem.
-     */
-    std::vector<bool> check_table1 = (orig_blkmod_table1 ^ new_blkmod_table1) & orig_blkmod_table1;
-    std::vector<bool> check_table2 = (orig_blkmod_table2 ^ new_blkmod_table2) & orig_blkmod_table2;
+    bool is_table1_ok = is_new_blkmods_ok(orig_blkmod_table1, new_blkmod_table1);
+    bool is_table2_ok = is_new_blkmods_ok(orig_blkmod_table2, new_blkmod_table2);
 
-    REQUIRE(get_true_count(check_table1) == 0);
-    REQUIRE(get_true_count(check_table2) == 0);
+    REQUIRE(is_table1_ok);
+    REQUIRE(is_table2_ok);
 }
