@@ -1914,6 +1914,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW, &tsp);
 
+    /*
+     * There is a possible scenario where the checkpoint can miss the normal transactions updates to
+     * include whose stable timestamps are ahead of the commit timestamp. This could happen when the
+     * stable timestamps moves ahead of commit timestamp after the timestamp validity check in
+     * commit transaction.
+     *
+     * Rollback the updates of the transactions whose commit timestamp have moved ahead of the
+     * stable timestamp. Enter the commit generation for transactions whose commit timestamps are
+     * behind stable timestamp and let the checkpoint drain for the transactions that are currently
+     * committing to include in the checkpoint.
+     */
     if (!prepare) {
         __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
         WT_ERR(__txn_check_if_stable_has_moved_ahead_commit_ts(session));
@@ -1970,6 +1981,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         candidate_durable_timestamp = txn->commit_timestamp;
 
     __wt_txn_release(session);
+
+    /* Leave the commit generation after snapshot is released. */
+    if (!prepare)
+        __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
+
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
 
@@ -2013,12 +2029,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
           "stable timestamp is larger than or equal to the committing prepared transaction's "
           "durable timestamp");
     }
-
-    /*
-     * Leave the commit generation after all the updates are processed and the snapshot is released.
-     */
-    if (!prepare)
-        __wt_session_gen_leave(session, WT_GEN_TXN_COMMIT);
 
     /*
      * We're between transactions, if we need to block for eviction, it's a good time to do so.
