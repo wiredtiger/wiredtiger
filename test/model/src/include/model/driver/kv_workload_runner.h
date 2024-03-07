@@ -30,6 +30,7 @@
 
 #include <shared_mutex>
 #include <unordered_map>
+#include <vector>
 #include "model/driver/kv_workload.h"
 #include "model/core.h"
 #include "model/kv_database.h"
@@ -66,32 +67,32 @@ public:
      * kv_workload_runner::run --
      *     Run the workload in the model.
      */
-    inline void
+    inline std::vector<int>
     run(const kv_workload &workload)
     {
+        std::vector<int> ret;
         for (size_t i = 0; i < workload.size(); i++)
-            run_operation(workload[i]);
+            ret.push_back(run_operation(workload[i]));
+        return ret;
     }
 
     /*
      * kv_workload_runner::run_operation --
      *     Run the given operation.
      */
-    inline void
+    inline int
     run_operation(const operation::any &op)
     {
-        std::visit(
-          [this](auto &&x) {
-              int ret = do_operation(x);
-              /*
-               * In the future, we would like to be able to test operations that can fail, at which
-               * point we would record and compare return codes. But we're not there yet, so just
-               * fail on error.
-               */
-              if (ret != 0 && ret != WT_NOTFOUND)
-                  throw wiredtiger_exception(ret);
-          },
-          op);
+        int ret;
+        std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
+
+        /*
+         * Allow only certain return codes to propagate through. Turn unexpected error codes into
+         * exceptions.
+         */
+        if (ret != 0 && ret != WT_NOTFOUND)
+            throw wiredtiger_exception(ret);
+        return ret;
     }
 
 protected:

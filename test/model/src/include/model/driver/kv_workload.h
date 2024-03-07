@@ -830,13 +830,13 @@ public:
      * kv_workload::run --
      *     Run the workload in the model.
      */
-    void run(kv_database &database) const;
+    std::vector<int> run(kv_database &database) const;
 
     /*
      * kv_workload::run_in_wiredtiger --
      *     Run the workload in WiredTiger.
      */
-    void run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
+    std::vector<int> run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
       const char *table_config = nullptr) const;
 
 private:

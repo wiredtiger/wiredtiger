@@ -180,14 +180,18 @@ verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::
 {
     /* Run the workload in the model. */
     model::kv_database database;
-    workload.run(database);
+    std::vector<int> ret_model = workload.run(database);
 
     /* When we load the workload from WiredTiger, that would be after running recovery. */
     database.restart();
 
     /* Run the workload in WiredTiger. */
     testutil_recreate_dir(home.c_str());
-    workload.run_in_wiredtiger(home.c_str(), env_config);
+    std::vector<int> ret_wt = workload.run_in_wiredtiger(home.c_str(), env_config);
+
+    /* Compare the return codes. */
+    if (ret_model != ret_wt)
+        throw model::model_exception("The return codes differ.");
 
     /* Open the database that we just created. */
     WT_CONNECTION *conn;
