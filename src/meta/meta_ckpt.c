@@ -1290,16 +1290,16 @@ static int
 __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *output_item)
 {
     WT_CONFIG blkconf;
-    WT_CONFIG_ITEM blocks, key, backup_config_value, blocks_key, blocks_value;
+    WT_CONFIG_ITEM backup_config_value, blocks, blocks_key, blocks_value, key;
     WT_CURSOR *metadata_cursor;
     WT_DECL_RET;
     char *file_config;
 
-    WT_CLEAR(blocks);
-    WT_CLEAR(key);
     WT_CLEAR(backup_config_value);
+    WT_CLEAR(blocks);
     WT_CLEAR(blocks_key);
     WT_CLEAR(blocks_value);
+    WT_CLEAR(key);
     WT_CLEAR(*output_item);
 
     metadata_cursor = NULL;
@@ -1319,16 +1319,15 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
         /* Loop through the incremental backup blocks data looking for the correct id */
         while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
             if (blocks_value.len > 0) {
-                if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len) == 0)
-                    continue;
-
-                /* We've found the right blocks so read the bit pattern into output_item */
-                ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
-                if ((ret == 0) && (blocks.len > 0)) {
-                    ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
-                    break;
+                if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
+                    /* We've found the right blocks so read the bit pattern into output_item */
+                    ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
+                    if ((ret == 0) && (blocks.len > 0)) {
+                        ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
+                        break;
+                    }
+                    WT_ERR_NOTFOUND_OK(ret, false);
                 }
-                WT_ERR_NOTFOUND_OK(ret, false);
             }
         }
     }
@@ -1344,16 +1343,16 @@ err:
 
 /*
  * __check_incorrect_modified_bits --
- *     This function takes as input two bitmaps (in WT_ITEMs), an original and a new. If any bits in
- *     the original changed from 1 to 0, it's an error, and the new bitmap is NOT ok. Otherwise the
+ *     This function takes as input two bitmaps (in WT_ITEMs), an original and a new. If any bit in
+ *     the original changed from 1 to 0, it's an error, and the new bitmap is NOT ok. Otherwise, the
  *     new bitmap is ok.
  */
 static int
 __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
 {
     size_t index;
-    unsigned char *new_ptr, *original_ptr;
-    unsigned char partial_result;
+    uint8_t *new_ptr, *original_ptr;
+    uint8_t partial_result;
 
     WT_NOT_READ(index, 0);
     original_ptr = NULL;
@@ -1363,14 +1362,14 @@ __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, b
     *ok = false;
 
     if ((original_bitmap == NULL) || (new_bitmap == NULL))
-        WT_RET(EINVAL);
+        return (EINVAL);
 
     /* If the new bitmap is smaller, then some bits have been lost which is a problem. */
     if (original_bitmap->size > new_bitmap->size)
-        WT_RET(EINVAL);
+        return (EINVAL);
 
-    original_ptr = (unsigned char *)original_bitmap->data;
-    new_ptr = (unsigned char *)new_bitmap->data;
+    original_ptr = (uint8_t *)original_bitmap->data;
+    new_ptr = (uint8_t *)new_bitmap->data;
 
     *ok = true;
 
