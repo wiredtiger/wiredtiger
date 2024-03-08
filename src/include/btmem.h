@@ -1082,12 +1082,12 @@ struct __wt_ref {
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
-#define WT_REF_DISK 0                 /* Page is on disk */
-#define WT_REF_DELETED 1              /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2               /* Page locked for exclusive access */
-#define WT_REF_MEM 3                  /* Page is in cache and valid */
-#define WT_REF_SPLIT 4                /* Parent page split (WT_REF dead) */
-    wt_shared volatile uint8_t state; /* Page state */
+#define WT_REF_DISK 0                   /* Page is on disk */
+#define WT_REF_DELETED 1                /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2                 /* Page locked for exclusive access */
+#define WT_REF_MEM 3                    /* Page is in cache and valid */
+#define WT_REF_SPLIT 4                  /* Parent page split (WT_REF dead) */
+    wt_shared volatile uint8_t __state; /* Page state */
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
@@ -1246,13 +1246,19 @@ struct __wt_ref {
 #define WT_REF_SET_STATE(ref, s)                                  \
     do {                                                          \
         WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s);           \
+        WT_RELEASE_WRITE_WITH_BARRIER((ref)->__state, s);         \
     } while (0)
 #else
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #define WT_REF_SET_STATE(ref, s) WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s)
 #endif
 };
+
+static WT_INLINE uint8_t
+__wt_ref_state(WT_REF *ref)
+{
+    return (__wt_atomic_loadv8(&ref->__state));
+}
 
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
@@ -1272,7 +1278,7 @@ struct __wt_ref {
     do {                                                                       \
         uint8_t __previous_state;                                              \
         for (;; __wt_yield()) {                                                \
-            __previous_state = __wt_atomic_loadv8(&(ref)->state);              \
+            __previous_state = __wt_ref_state(ref);                            \
             if (__previous_state != WT_REF_LOCKED &&                           \
               WT_REF_CAS_STATE(session, ref, __previous_state, WT_REF_LOCKED)) \
                 break;                                                         \

@@ -47,7 +47,7 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state,
     WT_UNUSED(func);
     WT_UNUSED(line);
 
-    cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
+    cas_result = __wt_atomic_casv8(&ref->__state, old_state, new_state);
 
 #ifdef HAVE_REF_TRACK
     /*
@@ -2145,7 +2145,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
         return (true);
 
     first = pindex->index[0];
-    if (__wt_atomic_loadv8(&first->state) != WT_REF_MEM) /* no child page, ignore */
+    if (__wt_ref_state(first) != WT_REF_MEM) /* no child page, ignore */
         return (false);
 
     /*
