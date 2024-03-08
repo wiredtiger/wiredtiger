@@ -5418,7 +5418,7 @@ buildvariants:
   tasks:
     - name: ".pull_request_compilers"
 
-- name: ubuntu2004-compilers
+- name: ubuntu2004-compilers-arm
   display_name: "! Ubuntu 20.04 Compilers ARM64"
   run_on:
   - ubuntu2004-arm64-small
