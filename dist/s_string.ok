@@ -465,6 +465,7 @@ aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
+acqrel
 addl
 addr
 addrs
@@ -941,6 +942,7 @@ llu
 llvm
 loadbool
 loadtext
+loadvbool
 loc
 localTime
 localkey
@@ -1154,6 +1156,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readgen
 readlock
 readonly
 readunlock
@@ -1246,7 +1249,11 @@ stderr
 stdin
 stdout
 stepp
+stlr
+stlrb
+stlrh
 storebool
+storevbool
 str
 strace
 strcat
