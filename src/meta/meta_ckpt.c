@@ -1313,20 +1313,24 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
     WT_ERR(
       __wt_config_getones(session, file_config, "checkpoint_backup_info", &backup_config_value));
 
-    if ((backup_config_value.len > 0) && (backup_config_value.type == WT_CONFIG_ITEM_STRUCT)) {
-        __wt_config_subinit(session, &blkconf, &backup_config_value);
+    if (backup_config_value.len > 0) {
+        if (backup_config_value.type == WT_CONFIG_ITEM_STRUCT) {
+            __wt_config_subinit(session, &blkconf, &backup_config_value);
 
-        /* Loop through the incremental backup blocks data looking for the correct id */
-        while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
-            if (blocks_value.len > 0) {
-                if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
-                    /* We've found the right blocks so read the bit pattern into output_item */
-                    ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
-                    if ((ret == 0) && (blocks.len > 0)) {
-                        ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
-                        break;
+            /* Loop through the incremental backup blocks data looking for the correct id */
+            while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
+                if (blocks_value.len > 0) {
+                    if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
+                        /* We've found the right blocks so read the bit pattern into output_item */
+                        ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
+                        if (ret == 0) {
+                            if (blocks.len > 0) {
+                                ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
+                                break;
+                            }
+                        }
+                        WT_ERR_NOTFOUND_OK(ret, false);
                     }
-                    WT_ERR_NOTFOUND_OK(ret, false);
                 }
             }
         }
@@ -1423,15 +1427,17 @@ __check_backup_blocks(
           session, ckpt, blk->id_str, checkpoint_blkmods_buffer));
 
         WT_ERR(__get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
-        if (file_blkmods_buffer.size > 0 && checkpoint_blkmods_buffer->size > 0) {
-            blkmods_are_ok = false;
-            ret = __check_incorrect_modified_bits(
-              &file_blkmods_buffer, checkpoint_blkmods_buffer, &blkmods_are_ok);
+        if (file_blkmods_buffer.size > 0) {
+            if (checkpoint_blkmods_buffer->size > 0) {
+                blkmods_are_ok = false;
+                ret = __check_incorrect_modified_bits(
+                  &file_blkmods_buffer, checkpoint_blkmods_buffer, &blkmods_are_ok);
 
-            if ((ret != 0) || !blkmods_are_ok) {
-                WT_ASSERT(session, false);
-                WT_ERR_PANIC(session, WT_PANIC,
-                  "File blkmods are not compatible with those in the checkpoint");
+                if ((ret != 0) || !blkmods_are_ok) {
+                    WT_ASSERT(session, false);
+                    WT_ERR_PANIC(session, WT_PANIC,
+                      "File blkmods are not compatible with those in the checkpoint");
+                }
             }
         }
     }

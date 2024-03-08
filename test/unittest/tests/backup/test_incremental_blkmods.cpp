@@ -181,6 +181,19 @@ TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
     REQUIRE(is_new_blkmods_ok("1", "1"));
 }
 
+TEST_CASE("Backup: null pointer params to __check_incorrect_modified_bits()", "[backup]")
+{
+    bool is_ok;
+    WT_ITEM item;
+
+    is_ok = false;
+    WT_CLEAR(item);
+
+    REQUIRE(__ut_check_incorrect_modified_bits(&item, nullptr, &is_ok) == EINVAL);
+    REQUIRE(__ut_check_incorrect_modified_bits(nullptr, &item, &is_ok) == EINVAL);
+    REQUIRE(__ut_check_incorrect_modified_bits(nullptr, nullptr, &is_ok) == EINVAL);
+}
+
 TEST_CASE("Backup: check modified bits - simple", "[backup]")
 {
     REQUIRE(test_check_incorrect_modified_bits("10", "10"));
