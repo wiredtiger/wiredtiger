@@ -1401,6 +1401,46 @@ __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, b
     return (0);
 }
 
+
+static int
+__check_backup_blocks(
+  WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *checkpoint_blkmods_buffer,
+  const char *filename) {
+    WT_BLOCK_MODS *blk;
+    bool blkmods_are_ok;
+    WT_ITEM file_blkmods_buffer;
+    u_int i;
+    WT_DECL_RET;
+
+    blkmods_are_ok = true;
+    WT_CLEAR(file_blkmods_buffer);
+
+    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
+        if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
+            continue;
+
+        WT_ERR(__ckpt_extract_blkmod_bitmap(
+          session, ckpt, blk->id_str, checkpoint_blkmods_buffer));
+
+        WT_ERR(__get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
+        if (file_blkmods_buffer.size > 0 && checkpoint_blkmods_buffer->size > 0) {
+            blkmods_are_ok = false;
+            ret = __check_incorrect_modified_bits(
+              &file_blkmods_buffer, checkpoint_blkmods_buffer, &blkmods_are_ok);
+
+            if ((ret != 0) || !blkmods_are_ok) {
+                WT_ASSERT(session, false);
+                WT_ERR_PANIC(session, WT_PANIC,
+                  "File blkmods are not compatible with those in the checkpoint");
+            }
+        }
+    }
+
+err:
+    __wt_buf_free(session, &file_blkmods_buffer);
+    return (ret);
+}
+
 /*
  * __wt_meta_ckptlist_set --
  *     Set a file's checkpoint value from the WT_CKPT list.
@@ -1409,19 +1449,15 @@ int
 __wt_meta_ckptlist_set(
   WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
 {
-    WT_BLOCK_MODS *blk;
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_ITEM checkpoint_blkmods_buffer, file_blkmods_buffer;
-    u_int i;
+    WT_ITEM checkpoint_blkmods_buffer;
     const char *filename;
-    bool blkmods_are_ok, has_lsn;
+    bool has_lsn;
 
     filename = dhandle->name;
-    blkmods_are_ok = true;
     WT_CLEAR(checkpoint_blkmods_buffer);
-    WT_CLEAR(file_blkmods_buffer);
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
@@ -1429,7 +1465,6 @@ __wt_meta_ckptlist_set(
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             WT_CLEAR(checkpoint_blkmods_buffer);
-            WT_CLEAR(file_blkmods_buffer);
 
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
 
@@ -1438,26 +1473,7 @@ __wt_meta_ckptlist_set(
             } else if (F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
                 /* Skip */
             } else {
-                for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
-                    if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
-                        continue;
-
-                    WT_ERR(__ckpt_extract_blkmod_bitmap(
-                      session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
-
-                    WT_ERR(__get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
-                    if (file_blkmods_buffer.size > 0 && checkpoint_blkmods_buffer.size > 0) {
-                        blkmods_are_ok = false;
-                        ret = __check_incorrect_modified_bits(
-                          &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
-
-                        if ((ret != 0) || !blkmods_are_ok) {
-                            WT_ASSERT(session, false);
-                            WT_ERR_PANIC(session, WT_PANIC,
-                              "File blkmods are not compatible with those in the checkpoint");
-                        }
-                    }
-                }
+                WT_ERR(__check_backup_blocks(session, ckpt, &checkpoint_blkmods_buffer, filename));
             }
         }
 
@@ -1474,7 +1490,6 @@ __wt_meta_ckptlist_set(
 err:
     __wt_scr_free(session, &buf);
     __wt_buf_free(session, &checkpoint_blkmods_buffer);
-    __wt_buf_free(session, &file_blkmods_buffer);
 
     return (ret);
 }
@@ -2044,3 +2059,11 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
     __wt_meta_checkpoint_free(session, &ckpt);
     return (ret);
 }
+
+
+#ifdef HAVE_UNITTEST
+int
+__ut_check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok) {
+    return (__check_incorrect_modified_bits(original_bitmap, new_bitmap, ok));
+}
+#endif /* HAVE_UNIT_TEST */

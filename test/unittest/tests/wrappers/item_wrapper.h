@@ -12,6 +12,7 @@
 
 class item_wrapper {
 public:
+    explicit item_wrapper(std::string const &string);
     explicit item_wrapper(const char *string);
     ~item_wrapper();
     WT_ITEM *

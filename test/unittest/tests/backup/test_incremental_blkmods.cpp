@@ -12,6 +12,7 @@
 #include <sstream>
 #include "wiredtiger.h"
 #include "wt_internal.h"
+#include "extern.h"
 #include "../utils.h"
 #include "../wrappers/connection_wrapper.h"
 #include "../wrappers/item_wrapper.h"
@@ -103,6 +104,30 @@ is_new_blkmods_ok(std::string const &orig_blkmod_table, std::string const &new_b
     return true;
 }
 
+
+static bool
+test_check_incorrect_modified_bits(std::string const &orig_bitmap, std::string const &new_bitmap, int expected_result = 0)
+{
+    WT_ITEM orig_item, new_item;
+    WT_CLEAR(orig_item);
+    WT_CLEAR(new_item);
+
+    WT_RET(__wt_buf_init(nullptr, &orig_item, 256));
+    WT_RET(__wt_buf_init(nullptr, &new_item, 256));
+
+    REQUIRE(__wt_nhex_to_raw(nullptr, orig_bitmap.c_str(), orig_bitmap.length(), &orig_item) == 0);
+    REQUIRE(__wt_nhex_to_raw(nullptr, new_bitmap.c_str(), new_bitmap.length(), &new_item) == 0);
+
+    bool is_ok = false;
+    REQUIRE(__ut_check_incorrect_modified_bits(&orig_item, &new_item, &is_ok) == expected_result);
+
+    __wt_buf_free(nullptr, &orig_item);
+    __wt_buf_free(nullptr, &new_item);
+
+    return is_ok;
+}
+
+
 TEST_CASE("Backup: Test get_hex_value_from_string()", "[backup]")
 {
     std::string source_string = "feffff0700000000";
@@ -119,6 +144,16 @@ TEST_CASE("Backup: Test get_hex_value_from_string()", "[backup]")
 
     // Test access beyond the length of the source string.
     REQUIRE(get_hex_value_from_string(source_string, 1000) == 0x0);
+}
+
+TEST_CASE("Backup: Test is_new_blkmods_ok() - simple", "[backup]")
+{
+    REQUIRE(is_new_blkmods_ok("10", "10"));
+    REQUIRE(is_new_blkmods_ok("10", "30"));
+
+    REQUIRE_FALSE(is_new_blkmods_ok("10", "00"));
+    REQUIRE_FALSE(is_new_blkmods_ok("10", "20"));
+    REQUIRE_FALSE(is_new_blkmods_ok("10", ""));
 }
 
 TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
@@ -142,7 +177,45 @@ TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
     REQUIRE(is_table1_ok);
     REQUIRE_FALSE(is_table2_ok);
     REQUIRE_FALSE(is_table3_ok);
+
+    REQUIRE(is_new_blkmods_ok("1", "1"));
 }
+
+TEST_CASE("Backup: check modified bits - simple", "[backup]")
+{
+    REQUIRE(test_check_incorrect_modified_bits("10", "10"));
+    REQUIRE(test_check_incorrect_modified_bits("10", "30"));
+    REQUIRE(test_check_incorrect_modified_bits("60", "70"));
+    REQUIRE(test_check_incorrect_modified_bits("e0", "f0"));
+
+    REQUIRE_FALSE(test_check_incorrect_modified_bits("10", "00"));
+    REQUIRE_FALSE(test_check_incorrect_modified_bits("10", "20"));
+    REQUIRE_FALSE(test_check_incorrect_modified_bits("10", "", EINVAL));
+}
+
+TEST_CASE("Backup: check modified bits", "[backup]")
+{
+    std::string orig_blkmod_table1 = "feffff0700000000";
+    std::string orig_blkmod_table2 = "feffff0700000000";
+    std::string orig_blkmod_table3 = "feffff0700000000";
+
+    // new_blkmod_table1 is ok
+    std::string new_blkmod_table1 = "ffffffff01000000";
+    // new_blkmod_table2 is not ok, as some bits have switched to 0
+    std::string new_blkmod_table2 = "ff0fffff01000000";
+    // new_blkmod_table3 is not ok, as it is shorter than the original and some set
+    // bits have been lost
+    std::string new_blkmod_table3 = "ffffff";
+
+    bool is_table1_ok = test_check_incorrect_modified_bits(orig_blkmod_table1, new_blkmod_table1);
+    bool is_table2_ok = test_check_incorrect_modified_bits(orig_blkmod_table2, new_blkmod_table2);
+    bool is_table3_ok = test_check_incorrect_modified_bits(orig_blkmod_table3, new_blkmod_table3, EINVAL);
+
+    REQUIRE(is_table1_ok);
+    REQUIRE_FALSE(is_table2_ok);
+    REQUIRE_FALSE(is_table3_ok);
+}
+
 
 TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 {

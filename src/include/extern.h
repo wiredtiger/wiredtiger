@@ -2655,5 +2655,6 @@ extern int __ut_ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 extern void __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off);
 extern void __ut_block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack);
 extern void __ut_chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t bit_index);
-
+extern int __ut_check_incorrect_modified_bits(
+  WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok);
 #endif
