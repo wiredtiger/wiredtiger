@@ -1413,8 +1413,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * was a forced eviction, in which case we leave the new page with the read generation unset.
      * Eviction will set the read generation next time it visits this page.
      */
-    orig_read_gen = __wt_atomic_load64(&orig->read_gen);
-    if (!WT_READGEN_EVICT_SOON(orig_read_gen))
+    WT_READ_ONCE(orig_read_gen, orig->read_gen);
+    if (!__wt_readgen_evict_soon(&orig_read_gen))
         __wt_atomic_store64(&page->read_gen, orig_read_gen);
 
     /*

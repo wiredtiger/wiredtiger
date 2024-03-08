@@ -64,14 +64,13 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
-    uint64_t page_read_gen, read_gen;
+    uint64_t read_gen;
 
     btree = S2BT(session);
     page = ref->page;
 
-    page_read_gen = __wt_atomic_load64(&page->read_gen);
     /* Any page set to the oldest generation should be discarded. */
-    if (WT_READGEN_EVICT_SOON(page_read_gen))
+    if (__wt_readgen_evict_soon(&page->read_gen))
         return (WT_READGEN_OLDEST);
 
     /* Any page from a dead tree is a great choice. */
@@ -1320,8 +1319,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
          */
         read_gen_oldest = WT_READGEN_START_VALUE;
         for (candidates = 0; candidates < entries; ++candidates) {
-            read_gen_oldest = queue->evict_queue[candidates].score;
-            if (!WT_READGEN_EVICT_SOON(read_gen_oldest))
+            WT_READ_ONCE(read_gen_oldest, queue->evict_queue[candidates].score);
+            if (!__wt_readgen_evict_soon(&read_gen_oldest))
                 break;
         }
 
@@ -1333,7 +1332,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
          * 50% of the entries were at the oldest read generation, take
          * all of them.
          */
-        if (WT_READGEN_EVICT_SOON(read_gen_oldest))
+        if (__wt_readgen_evict_soon(&read_gen_oldest))
             queue->evict_candidates = entries;
         else if (candidates > entries / 2)
             queue->evict_candidates = candidates;
@@ -1780,7 +1779,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_PAGE *last_parent, *page;
     WT_REF *ref;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
-    uint64_t min_pages, pages_already_queued, page_read_gen, pages_seen, pages_queued, refs_walked;
+    uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, want_page;
@@ -2173,9 +2172,8 @@ fast:
             WT_RET(__wt_page_release(cache->walk_session, ref, walk_flags));
             ref = NULL;
         } else {
-            page_read_gen = __wt_atomic_load64(&ref->page->read_gen);
-            while (
-              ref != NULL && (ref->state != WT_REF_MEM || WT_READGEN_EVICT_SOON(page_read_gen)))
+            while (ref != NULL &&
+              (ref->state != WT_REF_MEM || __wt_readgen_evict_soon(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
         btree->evict_ref = ref;
