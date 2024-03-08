@@ -1426,8 +1426,8 @@ __check_backup_blocks(
         WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, checkpoint_blkmods_buffer));
 
         WT_ERR(__get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
-        if (file_blkmods_buffer.size > 0) {
-            if (checkpoint_blkmods_buffer->size > 0) {
+        if (checkpoint_blkmods_buffer->size > 0) {
+            if (file_blkmods_buffer.size > 0) {
                 blkmods_are_ok = false;
                 ret = __check_incorrect_modified_bits(
                   &file_blkmods_buffer, checkpoint_blkmods_buffer, &blkmods_are_ok);
