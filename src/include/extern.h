@@ -2182,9 +2182,6 @@ static WT_INLINE bool __wt_rec_need_split(WT_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref,
-  uint8_t old_state, uint8_t new_state, const char *func, int line)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_ref_is_root(WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
@@ -2542,6 +2539,8 @@ static WT_INLINE uint64_t __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publi
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_txn_oldest_id(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE uint8_t __wt_ref_get_state(WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wt_btree_disable_bulk(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_buf_free(WT_SESSION_IMPL *session, WT_ITEM *buf);
 static WT_INLINE void __wt_cache_decr_check_size(
@@ -2599,6 +2598,8 @@ static WT_INLINE void __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_
 static WT_INLINE void __wt_ref_key_clear(WT_REF *ref);
 static WT_INLINE void __wt_ref_key_onpage_set(
   WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack);
+static WT_INLINE void __wt_ref_lock(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *previous_statep);
 static WT_INLINE void __wt_row_leaf_key_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip);
 static WT_INLINE void __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp,
   WT_CELL **cellp, void *datap, size_t *sizep, uint8_t *prefixp);

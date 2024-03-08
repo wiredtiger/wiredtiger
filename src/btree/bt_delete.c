@@ -112,7 +112,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     *skipp = false;
 
     /* If we have a clean page in memory, attempt to evict it. */
-    previous_state = __wt_ref_state(ref);
+    previous_state = __wt_ref_get_state(ref);
     if (previous_state == WT_REF_MEM &&
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
@@ -131,7 +131,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     /*
      * Fast check to see if it's worth locking, then atomically switch the page's state to lock it.
      */
-    previous_state = __wt_ref_state(ref);
+    previous_state = __wt_ref_get_state(ref);
     switch (previous_state) {
     case WT_REF_DISK:
         break;
@@ -221,7 +221,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Lock the reference. We cannot access ref->page_del except when locked. */
     for (locked = false, sleep_usecs = yield_count = 0;;) {
-        switch (current_state = __wt_ref_state(ref)) {
+        switch (current_state = __wt_ref_get_state(ref)) {
         case WT_REF_LOCKED:
             break;
         case WT_REF_DELETED:
@@ -307,7 +307,7 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
     if (ref->page != NULL) {
         WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
-            if (__wt_ref_state(child) == WT_REF_DELETED && child->page_del != NULL)
+            if (__wt_ref_get_state(child) == WT_REF_DELETED && child->page_del != NULL)
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
         }
         WT_INTL_FOREACH_END;

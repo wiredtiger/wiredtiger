@@ -409,14 +409,14 @@ restart:
         descent = NULL;
         for (i = 0; i < entries; ++i) {
             descent = pindex->index[__wt_random(rnd) % entries];
-            WT_READ_ONCE(descent_state, descent->__state);
+            descent_state = __wt_ref_get_state(descent);
             if (descent_state == WT_REF_DISK || descent_state == WT_REF_MEM)
                 break;
         }
         if (i == entries)
             for (i = 0; i < entries; ++i) {
                 descent = pindex->index[i];
-                WT_READ_ONCE(descent_state, descent->__state);
+                descent_state = __wt_ref_get_state(descent);
                 if (descent_state == WT_REF_DISK || descent_state == WT_REF_MEM)
                     break;
             }

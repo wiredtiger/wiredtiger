@@ -2609,10 +2609,10 @@ split:
          * Note: if we're in eviction, the ref is already locked.
          */
         if (!F_ISSET(r, WT_REC_EVICT)) {
-            WT_REF_LOCK(session, ref, &previous_ref_state);
+            __wt_ref_lock(session, ref, &previous_ref_state);
             WT_ASSERT(session, previous_ref_state == WT_REF_MEM);
         } else
-            WT_ASSERT(session, __wt_ref_state(ref) == WT_REF_LOCKED);
+            WT_ASSERT(session, __wt_ref_get_state(ref) == WT_REF_LOCKED);
 
         /* Check the instantiated flag again in case it got cleared while we waited. */
         if (mod->instantiated) {

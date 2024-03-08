@@ -170,7 +170,7 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
     /* Lock the WT_REF. */
-    WT_REF_LOCK(session, ref, &previous_state);
+    __wt_ref_lock(session, ref, &previous_state);
 
     /*
      * Don't bother rewriting deleted pages but also don't skip. The on-disk block is discarded by

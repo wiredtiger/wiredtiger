@@ -1224,69 +1224,28 @@ struct __wt_ref {
     wt_shared WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
 #ifdef HAVE_REF_TRACK
+#define WT_REF_SAVE_STATE_MAX 3
+    /* Capture history of ref state changes. */
+    WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
+    uint64_t histoff;
+#endif
+};
+
+#ifdef HAVE_REF_TRACK
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures, but we want to retain ref
  * state history. Don't overwrite these fields.
  */
 #define WT_REF_CLEAR_SIZE (offsetof(WT_REF, hist))
-#define WT_REF_SAVE_STATE_MAX 3
-    /* Capture history of ref state changes. */
-    WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
-    uint64_t histoff;
-#define WT_REF_SAVE_STATE(ref, s, f, l)                                   \
-    do {                                                                  \
-        (ref)->hist[(ref)->histoff].session = session;                    \
-        (ref)->hist[(ref)->histoff].name = session->name;                 \
-        __wt_seconds32(session, &(ref)->hist[(ref)->histoff].time_sec);   \
-        (ref)->hist[(ref)->histoff].func = (f);                           \
-        (ref)->hist[(ref)->histoff].line = (uint16_t)(l);                 \
-        (ref)->hist[(ref)->histoff].state = (uint16_t)(s);                \
-        (ref)->histoff = ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist); \
-    } while (0)
-#define WT_REF_SET_STATE(ref, s)                                  \
-    do {                                                          \
-        WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        WT_RELEASE_WRITE_WITH_BARRIER((ref)->__state, s);         \
-    } while (0)
-#else
-#define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
-#define WT_REF_SET_STATE(ref, s) WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s)
-#endif
-};
-
-static WT_INLINE uint8_t
-__wt_ref_state(WT_REF *ref)
-{
-    return (__wt_atomic_loadv8(&ref->__state));
-}
-
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#ifdef HAVE_REF_TRACK
 #define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
 #define WT_REF_SIZE 48
+#define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
-
-/* A macro wrapper allowing us to remember the callers code location */
-#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
-    __wt_ref_cas_state_int(session, ref, old_state, new_state, __PRETTY_FUNCTION__, __LINE__)
-
-#define WT_REF_LOCK(session, ref, previous_statep)                             \
-    do {                                                                       \
-        uint8_t __previous_state;                                              \
-        for (;; __wt_yield()) {                                                \
-            __previous_state = __wt_ref_state(ref);                            \
-            if (__previous_state != WT_REF_LOCKED &&                           \
-              WT_REF_CAS_STATE(session, ref, __previous_state, WT_REF_LOCKED)) \
-                break;                                                         \
-        }                                                                      \
-        *(previous_statep) = __previous_state;                                 \
-    } while (0)
-
-#define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
 
 /*
  * WT_ROW --

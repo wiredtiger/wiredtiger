@@ -216,9 +216,9 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
      * checks. That's OK - in the worst case we might not review the ref this time, but we will on
      * subsequent reconciliations.
      */
-    WT_READ_ONCE(ref_state, ref->__state);
+    ref_state = __wt_ref_get_state(ref);
     if (ref_state == WT_REF_DELETED || ref_state == WT_REF_DISK) {
-        WT_REF_LOCK(session, ref, &previous_state);
+        __wt_ref_lock(session, ref, &previous_state);
         /*
          * There are two possible outcomes from the subsequent checks:
          * * The ref will be returned to it's previous state.

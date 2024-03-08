@@ -9,58 +9,6 @@
 #pragma once
 
 /*
- * __wt_ref_is_root --
- *     Return if the page reference is for the root page.
- */
-static WT_INLINE bool
-__wt_ref_is_root(WT_REF *ref)
-{
-    return (ref->home == NULL);
-}
-
-#ifdef HAVE_REF_TRACK
-/*
- * __ref_save_state --
- *     Save tracking data when REF_TRACK is enabled. This function wraps the WT_REF_SAVE_STATE macro
- *     so we can suppress it in our TSan ignore list.
- */
-static inline void
-__ref_save_state(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t new_state, const char *func, int line)
-{
-    WT_REF_SAVE_STATE(ref, new_state, func, line);
-}
-#endif
-
-/*
- * __wt_ref_cas_state_int --
- *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
- */
-static WT_INLINE bool
-__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_t new_state,
-  const char *func, int line)
-{
-    bool cas_result;
-
-    /* Parameters that are used in a macro for diagnostic builds */
-    WT_UNUSED(session);
-    WT_UNUSED(func);
-    WT_UNUSED(line);
-
-    cas_result = __wt_atomic_casv8(&ref->__state, old_state, new_state);
-
-#ifdef HAVE_REF_TRACK
-    /*
-     * The history update here has potential to race; if the state gets updated again after the CAS
-     * above but before the history has been updated.
-     */
-    if (cas_result)
-        __ref_save_state(session, ref, new_state, func, line);
-#endif
-    return (cas_result);
-}
-
-/*
  * __wt_btree_disable_bulk --
  *     Disable bulk loads into a tree.
  */
@@ -2145,7 +2093,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
         return (true);
 
     first = pindex->index[0];
-    if (__wt_ref_state(first) != WT_REF_MEM) /* no child page, ignore */
+    if (__wt_ref_get_state(first) != WT_REF_MEM) /* no child page, ignore */
         return (false);
 
     /*
@@ -2385,7 +2333,7 @@ __wt_btcur_skip_page(
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
      * make changes to the data structures (i.e., aggregate timestamps) we are reading.
      */
-    WT_REF_LOCK(session, ref, &previous_state);
+    __wt_ref_lock(session, ref, &previous_state);
 
     /*
      * Check the fast-truncate information; there are 3 cases:
