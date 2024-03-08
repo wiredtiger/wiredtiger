@@ -36,7 +36,7 @@ __ref_set_state(WT_REF *ref, uint8_t state)
  *     Save tracking data when REF_TRACK is enabled. This function wraps the WT_REF_SAVE_STATE macro
  *     so we can suppress it in our TSan ignore list.
  */
-static inline void
+static WT_INLINE void
 __ref_track_state(
   WT_SESSION_IMPL *session, WT_REF *ref, uint8_t new_state, const char *func, int line)
 {
@@ -56,7 +56,7 @@ __ref_track_state(
 #endif
 
 /*
- *  __wt_ref_get_state --
+ * __wt_ref_get_state --
  *     Get a ref's state variable safely.
  */
 static WT_INLINE uint8_t
@@ -97,17 +97,18 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_
 #define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
     __ref_cas_state(session, ref, old_state, new_state, __PRETTY_FUNCTION__, __LINE__)
 
-
-/* __wt_ref_lock --
- *     Spin until succesfully locking the ref. Return the previous state to the caller.
+/*
+ * __wt_ref_lock --
+ *     Spin until successfully locking the ref. Return the previous state to the caller.
  */
 static WT_INLINE void
-__wt_ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *previous_statep) {
+__wt_ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *previous_statep)
+{
     uint8_t previous_state;
     for (;; __wt_yield()) {
         previous_state = __wt_ref_get_state(ref);
         if (previous_state != WT_REF_LOCKED &&
-              WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
     }
     *(previous_statep) = previous_state;
