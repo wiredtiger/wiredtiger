@@ -21,8 +21,8 @@ __wt_ref_is_root(WT_REF *ref)
 #ifdef HAVE_REF_TRACK
 /*
  * __ref_save_state --
- *     Save tracking data when REF_TRACK is enabled. This function wraps the WT_REF_SAVE_STATE macro
- *     so we can suppress it in our TSan ignore list.
+ *     Record the state change of a ref when REF_TRACK is enabled. This function wraps the
+ *     WT_REF_SAVE_STATE macro so we can suppress it in our TSan ignore list.
  */
 static inline void
 __ref_save_state(
