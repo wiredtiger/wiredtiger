@@ -349,13 +349,11 @@ restart:
     __ref_index_slot(session, ref, &pindex, &slot);
 
     for (;;) {
-        printf("We are at the outer loop top.\n");
         /*
          * If we're at the last/first slot on the internal page, return it in post-order traversal.
          * Otherwise move to the next/prev slot and left/right-most element in that subtree.
          */
         while ((prev && slot == 0) || (!prev && slot == pindex->entries - 1)) {
-            printf("ref=%p, ref->page=%p: ascending to parent from slot %d\n", (void*)ref, (void*)ref->page, slot);
             /* Ascend to the parent. */
             __ref_ascend(session, &ref, &pindex, &slot);
             printf("Parent: ref=%p, ref->page=%p: ascending to parent, slot = %d\n", (void*)ref, (void*)ref->page, slot);
