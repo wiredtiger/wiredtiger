@@ -5418,6 +5418,16 @@ buildvariants:
   tasks:
     - name: ".pull_request_compilers"
 
+- name: ubuntu2004-compilers
+  display_name: "! Ubuntu 20.04 Compilers ARM64"
+  run_on:
+  - ubuntu2004-arm64-small
+  expansions:
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: ".pull_request_compilers"
+
 - name: ubuntu2004-stress-tests
   display_name: Ubuntu 20.04 Stress tests
   run_on:
