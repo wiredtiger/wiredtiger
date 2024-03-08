@@ -56,7 +56,8 @@ main(int argc, char *argv[])
     ssize_t io_bytes;
     size_t byte, size;
     int bit, fd, rval;
-    char *buffer, *filename;
+    char *filename;
+    uint8_t *buffer;
     uint8_t mask;
 
     if (argc < 3) {
