@@ -1406,6 +1406,11 @@ __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, b
     return (0);
 }
 
+/*
+ * __check_backup_blocks --
+ *     This function checks that the backup blocks for a checkpoint are correct, and that there are
+ *     no errors in the incremental backup blkmod information.
+ */
 static int
 __check_backup_blocks(
   WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *checkpoint_blkmods_buffer, const char *filename)
