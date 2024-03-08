@@ -55,27 +55,27 @@ main(int argc, char *argv[])
     uint32_t cksum_target;
     ssize_t io_bytes;
     size_t byte, size;
-    int bit, fd, ret;
+    int bit, fd, rval;
     char *buffer, *filename;
     uint8_t mask;
 
     if (argc < 3) {
         printf("Usage: %s checksum filename\n", argv[0]);
-        exit(1);
+        return (1);
     }
 
     tmp = strtol(argv[1], NULL, 16);
     if ((tmp ^ (tmp & 0xFFFFFFFF)) != 0) {
         fprintf(stderr, "Target checksum must be 32-bits\n");
-        exit(1);
+        return (1);
     }
     cksum_target = (uint32_t)tmp;
 
     filename = argv[2];
     fd = open(filename, O_RDONLY);
     testutil_assert(fd != -1);
-    ret = fstat(fd, &statbuf);
-    testutil_assert(ret != -1);
+    rval = fstat(fd, &statbuf);
+    testutil_assert(rval != -1);
     size = (size_t)statbuf.st_size;
     buffer = dmalloc(size);
 
@@ -85,7 +85,7 @@ main(int argc, char *argv[])
     /* See if the checksum matches the file contents. */
     if (__wt_checksum_sw(buffer, size) == cksum_target) {
         printf("Checksum matches without flipping bits\n");
-        exit(0);
+        return (0);
     }
 
     /*
@@ -97,13 +97,14 @@ main(int argc, char *argv[])
         for (bit = 0; bit < 8; bit++) {
             buffer[byte] ^= mask;
             if (__wt_checksum_sw(buffer, size) == cksum_target) {
-                printf("Checksum matches when flipping bit %d of byte %zu\n", bit, byte);
-                exit(0);
+                printf("Checksum matches when flipping bit %" PRIi32 " of byte %" PRIu64 "\n", bit,
+                  byte);
+                return (0);
             }
             buffer[byte] ^= mask;
             mask <<= 1;
         }
     }
     printf("No checksum match\n");
-    exit(1);
+    return (1);
 }

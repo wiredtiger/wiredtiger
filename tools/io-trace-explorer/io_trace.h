@@ -45,7 +45,7 @@ struct io_trace_operation {
     /*
      * wrap_timestamp --
      *     Wrap a timestamp into an instance of io_trace_operation, which is useful for filtering a
-     *     collection of traces.
+     * collection of traces.
      */
     static io_trace_operation
     wrap_timestamp(double t)

@@ -16,20 +16,16 @@
 
 class basic_semaphore {
 public:
-    explicit basic_semaphore(int count = 0) : _count(count){};
+    explicit basic_semaphore(int count = 0) : _count(count) {};
 
-    void
-    acquire()
-    {
+    void acquire() {
         std::unique_lock<std::mutex> lock(_mutex);
-        while (_count == 0)
+        while(_count == 0)
             _condition_variable.wait(lock);
         _count--;
     }
 
-    void
-    release()
-    {
+    void release() {
         std::lock_guard<std::mutex> lock(_mutex);
         _count++;
         _condition_variable.notify_one();
