@@ -104,9 +104,9 @@ is_new_blkmods_ok(std::string const &orig_blkmod_table, std::string const &new_b
     return true;
 }
 
-
 static bool
-test_check_incorrect_modified_bits(std::string const &orig_bitmap, std::string const &new_bitmap, int expected_result = 0)
+test_check_incorrect_modified_bits(
+  std::string const &orig_bitmap, std::string const &new_bitmap, int expected_result = 0)
 {
     WT_ITEM orig_item, new_item;
     WT_CLEAR(orig_item);
@@ -126,7 +126,6 @@ test_check_incorrect_modified_bits(std::string const &orig_bitmap, std::string c
 
     return is_ok;
 }
-
 
 TEST_CASE("Backup: Test get_hex_value_from_string()", "[backup]")
 {
@@ -222,13 +221,13 @@ TEST_CASE("Backup: check modified bits", "[backup]")
 
     bool is_table1_ok = test_check_incorrect_modified_bits(orig_blkmod_table1, new_blkmod_table1);
     bool is_table2_ok = test_check_incorrect_modified_bits(orig_blkmod_table2, new_blkmod_table2);
-    bool is_table3_ok = test_check_incorrect_modified_bits(orig_blkmod_table3, new_blkmod_table3, EINVAL);
+    bool is_table3_ok =
+      test_check_incorrect_modified_bits(orig_blkmod_table3, new_blkmod_table3, EINVAL);
 
     REQUIRE(is_table1_ok);
     REQUIRE_FALSE(is_table2_ok);
     REQUIRE_FALSE(is_table3_ok);
 }
-
 
 TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
 {

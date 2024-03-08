@@ -1325,7 +1325,8 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
                         ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
                         if (ret == 0) {
                             if (blocks.len > 0) {
-                                ret = __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
+                                ret =
+                                  __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
                                 break;
                             }
                         }
@@ -1405,16 +1406,15 @@ __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, b
     return (0);
 }
 
-
 static int
 __check_backup_blocks(
-  WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *checkpoint_blkmods_buffer,
-  const char *filename) {
+  WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *checkpoint_blkmods_buffer, const char *filename)
+{
     WT_BLOCK_MODS *blk;
-    bool blkmods_are_ok;
+    WT_DECL_RET;
     WT_ITEM file_blkmods_buffer;
     u_int i;
-    WT_DECL_RET;
+    bool blkmods_are_ok;
 
     blkmods_are_ok = true;
     WT_CLEAR(file_blkmods_buffer);
@@ -1423,8 +1423,7 @@ __check_backup_blocks(
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
 
-        WT_ERR(__ckpt_extract_blkmod_bitmap(
-          session, ckpt, blk->id_str, checkpoint_blkmods_buffer));
+        WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, checkpoint_blkmods_buffer));
 
         WT_ERR(__get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
         if (file_blkmods_buffer.size > 0) {
@@ -2066,10 +2065,10 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
     return (ret);
 }
 
-
 #ifdef HAVE_UNITTEST
 int
-__ut_check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok) {
+__ut_check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
+{
     return (__check_incorrect_modified_bits(original_bitmap, new_bitmap, ok));
 }
 #endif /* HAVE_UNIT_TEST */
