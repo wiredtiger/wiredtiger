@@ -419,7 +419,7 @@ __wt_row_ikey(
          * after a split.
          */
         WT_ASSERT(session, oldv == 0 || (oldv & WT_IK_FLAG) != 0);
-        WT_ASSERT(session, ref->state != WT_REF_SPLIT);
+        WT_ASSERT(session, __wt_atomic_loadv8(&ref->state) != WT_REF_SPLIT);
         WT_ASSERT(session, __wt_atomic_cas_ptr(&ref->ref_ikey, (WT_IKEY *)oldv, ikey));
     }
 #else
