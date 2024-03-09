@@ -98,8 +98,8 @@ main(int argc, char *argv[])
         for (bit = 0; bit < 8; bit++) {
             buffer[byte] ^= mask;
             if (__wt_checksum_sw(buffer, size) == cksum_target) {
-                printf("Checksum matches when flipping bit %" PRIi32 " of byte %" PRIu64 "\n", bit,
-                  byte);
+                printf("Checksum matches when flipping bit %" PRIi32 " of byte %" WT_SIZET_FMT "\n",
+                  bit, byte);
                 return (0);
             }
             buffer[byte] ^= mask;
