@@ -349,10 +349,12 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd
 
     WT_ASSERT(session, page->modify != NULL);
 
-    if (!is_locked)
+    if (!is_locked) {
         /* If we can't lock it, don't scan, that's okay. */
         if (WT_PAGE_TRYLOCK(session, page) != 0)
             return;
+    } else
+        WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
 
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
