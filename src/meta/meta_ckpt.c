@@ -1286,7 +1286,7 @@ __ckpt_extract_blkmod_bitmap(
  * __get_blkmods --
  *     Extracts the blkmod info from the metadata about a file+id into a bitmap in a WT_ITEM.
  */
-static int
+static WT_INLINE int
 __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *output_item)
 {
     WT_CONFIG blkconf;
@@ -1352,7 +1352,7 @@ err:
  *     the original changed from 1 to 0, it's an error, and the new bitmap is NOT ok. Otherwise, the
  *     new bitmap is ok.
  */
-static int
+static WT_INLINE int
 __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
 {
     size_t index;
@@ -1411,7 +1411,7 @@ __check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, b
  *     This function checks that the backup blocks for a checkpoint are correct, and that there are
  *     no errors in the incremental backup blkmod information.
  */
-static int
+static WT_INLINE int
 __check_backup_blocks(
   WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *checkpoint_blkmods_buffer, const char *filename)
 {
