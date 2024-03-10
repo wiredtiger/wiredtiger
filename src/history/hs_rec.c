@@ -514,7 +514,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (__wt_txn_upd_visible_all(session, upd) && WT_UPDATE_DATA_VALUE(upd)) {
                 /* Free obsolete updates if exist. */
                 if (!F_ISSET(r, WT_REC_EVICT) && upd->next != NULL)
-                    __wt_update_obsolete_check(session, r->ref, upd, false);
+                    __wt_update_obsolete_check(session, r->ref, upd, true);
                 break;
             }
 
