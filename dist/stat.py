@@ -46,12 +46,15 @@ sorted_dsrc_statistics = dsrc_stats
 sorted_dsrc_statistics.extend(conn_dsrc_stats)
 sorted_dsrc_statistics = sorted(sorted_dsrc_statistics, key=attrgetter('desc'))
 
-def print_struct(title, name, base, stats):
+def print_struct(title, name, base, stats, partial=False):
     '''Print the structures for the stat.h file.'''
     f.write('/*\n')
     f.write(' * Statistics entries for ' + title + '.\n')
     f.write(' */\n')
     f.write('#define\tWT_' + name.upper() + '_STATS_BASE\t' + str(base) + '\n')
+    if partial:
+        return
+    
     f.write('struct __wt_' + name + '_stats {\n')
 
     for l in stats:
@@ -74,7 +77,7 @@ for line in open('../src/include/stat.h', 'r'):
         print_struct('connections', 'connection', 1000, sorted_conn_stats)
         print_struct('data sources', 'dsrc', 2000, sorted_dsrc_statistics)
         print_struct('join cursors', 'join', 3000, join_stats)
-        print_struct('session', 'session', 4000, session_stats)
+        print_struct('session', 'session', 4000, session_stats, True)
 f.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/include/stat.h')

@@ -379,8 +379,6 @@ struct __wt_session_impl;
 typedef struct __wt_session_impl WT_SESSION_IMPL;
 struct __wt_session_stash;
 typedef struct __wt_session_stash WT_SESSION_STASH;
-struct __wt_session_stats;
-typedef struct __wt_session_stats WT_SESSION_STATS;
 struct __wt_shutdown_timeline;
 typedef struct __wt_shutdown_timeline WT_SHUTDOWN_TIMELINE;
 struct __wt_size;
