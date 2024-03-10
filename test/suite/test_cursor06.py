@@ -33,6 +33,12 @@
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
+#from abstract_test_case import AbstractWiredTigerTestCase
+import abstract_test_case
+
+# Ignore unexpected output
+#AbstractWiredTigerTestCase._ignoreStdout = True
+abstract_test_case.AbstractWiredTigerTestCase._ignoreStdout = True
 
 # test_cursor06.py
 #    Test cursor reconfiguration.
@@ -66,7 +72,7 @@ class test_cursor06(wttest.WiredTigerTestCase):
     def test_reconfigure_overwrite(self):
         uri = self.type + self.name
         for open_config in (None, "overwrite=0", "overwrite=1"):
-            self.session.drop(uri, "force")
+            self.dropUntilSuccess(self.session, uri, "force")
             self.populate(uri)
             cursor = self.ds.open_cursor(uri, None, open_config)
             if open_config != "overwrite=0":
@@ -85,7 +91,7 @@ class test_cursor06(wttest.WiredTigerTestCase):
     def test_reconfigure_readonly(self):
         uri = self.type + self.name
         for open_config in (None, "readonly=0", "readonly=1"):
-            self.session.drop(uri, "force")
+            self.dropUntilSuccess(self.session, uri, "force")
             self.populate(uri)
             cursor = self.ds.open_cursor(uri, None, open_config)
             msg = '/Unsupported cursor/'
