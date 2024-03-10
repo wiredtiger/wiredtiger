@@ -751,7 +751,7 @@ err:
  */
 static int
 __conn_dhandle_close_one(
-  WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, bool removed, bool mark_dead)
+  WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, bool removed)
 {
     WT_DECL_RET;
 
@@ -770,7 +770,7 @@ __conn_dhandle_close_one(
      */
     if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN)) {
         __wt_meta_track_sub_on(session);
-        ret = __wt_conn_dhandle_close(session, false, mark_dead);
+        ret = __wt_conn_dhandle_close(session, false, false);
 
         /*
          * If the close succeeded, drop any locks it acquired. If there was a failure, this function
@@ -793,7 +793,7 @@ __conn_dhandle_close_one(
  *     Close all data handles with matching name (including all checkpoint handles).
  */
 int
-__wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool removed, bool mark_dead)
+__wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool removed)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
@@ -809,7 +809,7 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
      * Lock the live handle first. This ordering is important: we rely on locking the live handle to
      * fail fast if the tree is busy (e.g., with cursors open or in a checkpoint).
      */
-    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, mark_dead));
+    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed));
 
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
@@ -817,8 +817,7 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
           F_ISSET(dhandle, WT_DHANDLE_DEAD))
             continue;
 
-        WT_ERR(__conn_dhandle_close_one(
-          session, dhandle->name, dhandle->checkpoint, removed, mark_dead));
+        WT_ERR(__conn_dhandle_close_one(session, dhandle->name, dhandle->checkpoint, removed));
     }
 
 err:
