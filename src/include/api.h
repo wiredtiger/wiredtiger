@@ -70,23 +70,21 @@
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, struct_name, func_name, dh)            \
-    WT_TRACK_OP_DECL;                                              \
-    API_SESSION_PUSH(s, struct_name, func_name, dh);               \
-    /*                                                             \
-     * No code before this line, otherwise error handling won't be \
-     * correct.                                                    \
-     */                                                            \
-    WT_ERR(WT_SESSION_CHECK_PANIC(s));                             \
-    WT_SINGLE_THREAD_CHECK_START(s);                               \
-    WT_TRACK_OP_INIT(s);                                           \
-    if ((s)->api_call_counter == 1) {                              \
-        if (!F_ISSET(s, WT_SESSION_INTERNAL))                      \
-            __wt_op_timer_start(s);                                \
-                                                                   \
-        /* Reset wait time if this isn't an API reentry. */        \
-        (s)->cache_wait_us = 0;                                    \
-    } \
+#define API_SESSION_INIT(s, struct_name, func_name, dh)                 \
+    WT_TRACK_OP_DECL;                                                   \
+    API_SESSION_PUSH(s, struct_name, func_name, dh);                    \
+    /*                                                                  \
+     * No code before this line, otherwise error handling won't be      \
+     * correct.                                                         \
+     */                                                                 \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                  \
+    WT_SINGLE_THREAD_CHECK_START(s);                                    \
+    WT_TRACK_OP_INIT(s);                                                \
+    if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) \
+        __wt_op_timer_start(s);                                         \
+    /* Reset wait time if this isn't an API reentry. */                 \
+    if ((s)->api_call_counter == 1)                                     \
+        (s)->cache_wait_us = 0;                                         \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
