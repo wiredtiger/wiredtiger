@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DRIVER_KV_WORKLOAD_SEQUENCE_H
-#define MODEL_DRIVER_KV_WORKLOAD_SEQUENCE_H
+#pragma once
 
 #include <deque>
 #include <memory>
@@ -82,6 +81,17 @@ public:
     type() const noexcept
     {
         return _type;
+    }
+
+    /*
+     * kv_workload_sequence::operator<< --
+     *     Add an operation to the sequence.
+     */
+    inline kv_workload_sequence &
+    operator<<(const operation::any &op)
+    {
+        _operations.push_back(op);
+        return *this;
     }
 
     /*
@@ -218,4 +228,3 @@ protected:
 using kv_workload_sequence_ptr = std::shared_ptr<kv_workload_sequence>;
 
 } /* namespace model */
-#endif

@@ -202,7 +202,7 @@ __rec_append_orig_value(
     }
 
     /* Append the new entry into the update list. */
-    WT_PUBLISH(upd->next, append);
+    WT_RELEASE_WRITE_WITH_BARRIER(upd->next, append);
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -524,7 +524,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
-    session_txnid = WT_SESSION_TXN_SHARED(session)->id;
+    session_txnid = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id);
     seen_prepare = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
@@ -844,7 +844,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     WT_ASSERT_ALWAYS(session,
       !WT_IS_METADATA(session->dhandle) || upd == NULL || upd->txnid == WT_TXN_NONE ||
-        upd->txnid != S2C(session)->txn_global.checkpoint_txn_shared.id ||
+        upd->txnid != __wt_atomic_loadv64(&S2C(session)->txn_global.checkpoint_txn_shared.id) ||
         WT_SESSION_IS_CHECKPOINT(session),
       "Metadata updates written from a checkpoint in a concurrent session");
 

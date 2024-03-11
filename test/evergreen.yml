@@ -65,6 +65,8 @@ functions:
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
               export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
               export TESTUTIL_MSAN=1
+            elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
             fi
@@ -78,7 +80,51 @@ functions:
             else
               export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
             fi
+  # Since Bazel (currently used in SCons) uses EngFlow's remote execution system instead of icecream,
+  # additional credentials need to be setup to maintain efficient compilation speed.
+  "get engflow creds": &get_engflow_creds
+  - command: s3.get
+    display_name: "get engflow key"
+    params:
+      aws_key: ${engflow_key}
+      aws_secret: ${engflow_secret}
+      remote_file: engflow/engflow.key
+      bucket: serverengflow
+      local_file: "mongo/engflow.key"
+  - command: s3.get
+    display_name: "get engflow cert"
+    params:
+      aws_key: ${engflow_key}
+      aws_secret: ${engflow_secret}
+      remote_file: engflow/engflow.cert
+      bucket: serverengflow
+      local_file: "mongo/engflow.cert"
+  - command: shell.exec
+    params:
+      display_name: "generate evergreen engflow bazelrc"
+      shell: bash
+      working_dir: mongo
+      script: |
+        set -o errexit
+        set -o verbose
 
+        # Pulled from evergreen/generate_evergreen_engflow_bazelrc.sh
+        # FIXME-SERVER-86966: consider consolidating once prelude.sh is runnable in the perf project.
+
+        source ./evergreen/bazel_RBE_supported.sh
+
+        if bazel_rbe_supported; then
+
+          uri="https://spruce.mongodb.com/task/${task_id}?execution=${execution}"
+
+          echo "build --tls_client_certificate=./engflow.cert" > .bazelrc.evergreen_engflow_creds
+          echo "build --tls_client_key=./engflow.key" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=engflow:CiCdPipelineName=${build_variant}" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=engflow:CiCdJobName=${task_name}" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=engflow:CiCdUri=$uri" >> .bazelrc.evergreen_engflow_creds
+          echo "build --bes_keywords=evg:project=${project}" >> .bazelrc.evergreen_engflow_creds
+          echo "build --workspace_status_command=./evergreen/engflow_workspace_status.sh" >> .bazelrc.evergreen_engflow_creds
+        fi
   "get project":
     command: git.get_project
     type: setup
@@ -200,7 +246,7 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
-        if [[ "${build_variant|}" =~ "macos-1100" ]]; then
+        if [[ "${build_variant|}" =~ "macos-1300" ]]; then
           # For mac builds, we want explicitly tell cmake which python to use, as
           # well as the matching library directory and header files. The find_libpython
           # module gives us the library.
@@ -226,7 +272,7 @@ functions:
              fi
           fi
 
-          if [ "${build_variant|}" = "macos-1100-arm64" ]; then
+          if [ "${build_variant|}" = "macos-1300-arm64" ]; then
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPython3_EXECUTABLE=$SYSPY -DPython3_LIBRARY=$SYSPYLIB -DPython3_INCLUDE_DIR=$SYSPYINCDEF"
           else
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB -DPYTHON_INCLUDE_DIR=$SYSPYINCDEF"
@@ -927,7 +973,7 @@ functions:
         # The first run is for calibration only.  We just want to run for the designated
         # time and get an appropriate stop timestamp that can be used in later runs.
         calibration_run_args="-PSD$r,E$x0 -T $nthreads -t $runtime"
-        ./test_schema_abort -p -h RUNDIR_0 $first_run_args || exit 1
+        ./test_schema_abort -p -h RUNDIR_0 $calibration_run_args || exit 1
         echo "Finished calibration run"
         stable_hex=$($toolsdir/wt_timestamps RUNDIR_0/WT_HOME | sed -e '/stable=/!d' -e 's/.*=//')
         op_count=$(echo $((0x$stable_hex)))
@@ -1578,6 +1624,19 @@ tasks:
       - func: "make check directory"
         vars:
           directory: examples/c
+
+  - name: examples-c-tsan
+    # There's a lot of TSan warnings to resolve and TSan is a runtime tool so they aren't always reliably detected.
+    # For now only run TSan tasks in patches until we're confident the tests are stable.
+    # tags: ["pull_request"]
+    patch_only: true
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: examples/c
+          extra_args: -R "(ex_access|ex_col_store|ex_config_parse|ex_cursor|ex_event_handler|ex_extending|ex_extra_diagnostics|ex_extractor|ex_hello|ex_pack|ex_process|ex_schema|ex_smoke|ex_thread|ex_tiered|ex_verbose)" -j ${num_jobs}
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
@@ -2982,7 +3041,45 @@ tasks:
               cat coverage_report/diff.txt
             fi
 
-            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . $EXTRA_CODE_CHANGE_PARAMETERS -o coverage_report/code_change_info.json
+            ######################################################
+            # Obtain the complexity metrics for the 'current' code
+            ######################################################
+            # Install Metrix++, ensuring it is outside the 'src' directory
+            source test/evergreen/download_metrixpp.sh
+
+            # We only want complexity measures for the 'src' directory
+            cd src
+            python3 "../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
+            python3 "../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../coverage_report/metrixpp.csv
+            cd ..
+
+            #######################################################
+            # Obtain the complexity metrics for the 'previous' code
+            #######################################################
+            git clone https://github.com/wiredtiger/wiredtiger.git wiredtiger_previous
+            cd wiredtiger_previous
+            git checkout ${github_commit}
+            if [ ${is_patch|false} = true ]; then
+              # Checkout the point at which this patch/branch diverged from develop
+              git checkout `python3 dist/common_functions.py last_commit_from_dev`
+            else
+              # Checkout the previous commit
+              git checkout HEAD~
+            fi
+
+            # Log the current git status of the 'previous' code
+            git status
+
+            cd src
+            python3 "../../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
+            python3 "../../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../../coverage_report/metrixpp_prev.csv
+            cd ../..
+
+            #########################################
+            # Generate the change info and the report
+            #########################################
+
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_info.py -v -c coverage_report/full_coverage_report.json -g . $EXTRA_CODE_CHANGE_PARAMETERS -m coverage_report/metrixpp.csv -p coverage_report/metrixpp_prev.csv -o coverage_report/code_change_info.json
 
             # Log the contents of the change info file
             cat coverage_report/code_change_info.json
@@ -3620,6 +3717,22 @@ tasks:
             ${PREPARE_TEST_ENV}
             ./test_model.sh
 
+  - name: model-test-long
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/tools"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # Keep repeating the model test for 600 seconds
+            ./model_test -l 2000-3000 -t 600
+
   - name: format-stress-zseries-test
     tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
@@ -3841,6 +3954,7 @@ tasks:
           timeout_secs: 86400
       - func: "fetch mongo repo"
       - func: "get project"
+      - func: "get engflow creds"
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
       - func: "fetch mongo-tests repo"
@@ -3893,7 +4007,7 @@ tasks:
             set -o verbose
 
             # Install Metrix++, ensuring it is outside the 'src' directory
-            git clone https://github.com/metrixplusplus/metrixplusplus metrixplusplus
+            source test/evergreen/download_metrixpp.sh
 
             mkdir -p code_statistics_report
 
@@ -5178,6 +5292,9 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    # FIXME-WT-12539
+    #- name: model-test-long
+    #  batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
@@ -5198,6 +5315,21 @@ buildvariants:
     - name: examples-c-test
     - name: format-asan-smoke-test
 
+- name: ubuntu2004-tsan
+  display_name: "! Ubuntu 20.04 TSAN"
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
+    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    additional_env_vars: |
+      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
+      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: examples-c-tsan
+
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
   display_name: "! Ubuntu 20.04 Minimal"
@@ -5205,6 +5337,8 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    # Compile with clang so we test that path for the catch2 unittests.
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
@@ -5386,10 +5520,10 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
 
-- name: windows-64
-  display_name: "! Windows 64-bit"
+- name: windows
+  display_name: "! Windows"
   run_on:
-  - windows-64-vs2017-test
+  - windows-2022-small
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
     # Remove the default configurations for the toolchain, install prefix and number of jobs.
@@ -5405,31 +5539,20 @@ buildvariants:
     - name: catch2-unittest-test
 
 - <<: *mac_test_template
-  name: macos-1100-arm64
-  display_name: "macOS 11.00 ARM64"
+  name: macos-1300-arm64
+  display_name: "macOS 13.00 (ARM64)"
   run_on:
-    - macos-1100-arm64
+    - macos-1300-arm64
   batchtime: 120 # 2 hours
   expansions:
     python_binary: '/opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
     python_config_search_string: '_Python3_EXECUTABLE'
     <<: *mac_test_template_expansions
 
-- <<: *mac_test_template
-  name: macos-1100
-  display_name: "macOS 11.00"
-  run_on:
-    - macos-1100
-  batchtime: 120 # 2 hours
-  expansions:
-    python_binary: '/usr/bin/python3'
-    python_config_search_string: 'PYTHON_EXECUTABLE'
-    <<: *mac_test_template_expansions
-
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
-  - ubuntu1804-large
+  - ubuntu2204-large
   batchtime: 4320 # 3 days
   expansions:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
@@ -5528,6 +5651,9 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    # FIXME-WT-12539
+    #- name: model-test-long
+    #  batchtime: 1440 # once a day
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
@@ -5538,9 +5664,11 @@ buildvariants:
     ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
+  # Using large distro for a few tests here as more memory is required.
   tasks:
     - name: compile
     - name: make-check-test
+      distros: amazon2-arm64-large
     - name: unit-test
     - name: fops
     - name: format-failure-configs-test
@@ -5551,8 +5679,10 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
+      distros: amazon2-arm64-large
     - name: wtperf-test
     - name: long-test
+      distros: amazon2-arm64-large
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
 
@@ -5775,6 +5905,8 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
+      # Using large distro as more memory is required.
+      distros: amazon2-arm64-large
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large

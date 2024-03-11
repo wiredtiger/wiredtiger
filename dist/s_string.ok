@@ -34,7 +34,7 @@ BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
 BLKCACHE
-BLmRrSVv
+BLmpRrSVv
 BOOL
 BSR
 BTREE
@@ -142,6 +142,7 @@ FORALL
 FOREACH
 FS
 FULLFSYNC
+FUNC
 FUNCSIG
 Failpoint
 FindClose
@@ -220,6 +221,7 @@ LazyFS's
 LeafGreen
 LibFuzzer
 LoadLoad
+LoadStore
 LockFile
 LogBackend
 LogSink
@@ -243,7 +245,6 @@ MapViewOfFile
 Marsaglia
 Marsaglia's
 Mellor
-Mewhort
 Mitzenmacher
 MongoDB
 MoveFileExW
@@ -308,7 +309,9 @@ Px
 QQQS
 QSQ
 Qsort
+RCPC
 RCS
+RCpc
 RDNOLOCK
 READONLY
 REALLOC
@@ -373,7 +376,9 @@ TODO
 TORTIOUS
 TRET
 TRYLOCK
+TSAN
 TSO
+TSan
 TW
 TXN
 ThreadList
@@ -459,6 +464,7 @@ aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
+acqrel
 addl
 addr
 addrs
@@ -480,6 +486,7 @@ argv
 asdf
 assertfmt
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -499,12 +506,11 @@ bbuilddir
 bcr
 bd
 beginthreadex
-bigram
 binutils
 bitcnt
 bitfield
 bitfields
-bitpos
+bitflip
 bitstr
 bitstring
 bitwise
@@ -572,6 +578,7 @@ ciphertext
 ckpt
 ckptfrag
 ckptlist
+cksum
 cloexec
 closedir
 clsm
@@ -662,7 +669,6 @@ decrypts
 deflateEnd
 deflateInit
 del
-dequeue
 dequeued
 der
 dereference
@@ -712,8 +718,6 @@ encodings
 encryptor
 encryptors
 endian
-english
-enqueue
 enum
 env
 eof
@@ -881,6 +885,7 @@ isb
 isdigit
 ish
 ishld
+ishst
 islocked
 ispo
 isprint
@@ -909,6 +914,9 @@ lazyfs
 lbrace
 lbracket
 ld
+ldapr
+ldaprb
+ldaprh
 le
 len
 lengthp
@@ -927,7 +935,9 @@ linux
 llll
 llu
 llvm
+loadbool
 loadtext
+loadvbool
 loc
 localTime
 localkey
@@ -1017,9 +1027,9 @@ nentries
 nentriesp
 newbar
 newfile
-newuri
 newv
 nextprev
+nf
 nfilename
 nhex
 nlohmann
@@ -1047,7 +1057,6 @@ nset
 nul
 nullptr
 num
-numSymbols
 numbare
 nvram
 offpage
@@ -1141,6 +1150,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readgen
 readlock
 readonly
 readunlock
@@ -1165,7 +1175,6 @@ repositions
 requeue
 resizable
 ret
-retp
 revint
 rf
 risc
@@ -1233,6 +1242,11 @@ stderr
 stdin
 stdout
 stepp
+stlr
+stlrb
+stlrh
+storebool
+storevbool
 str
 strace
 strcat
@@ -1324,7 +1338,6 @@ umount
 unallocated
 unbare
 unbuffered
-uncompressing
 unconfigured
 uncustomized
 undef
@@ -1419,6 +1432,7 @@ xX
 xdeadbeef
 xff
 xfff
+xxd
 xxpermdi
 xxxx
 xxxxx

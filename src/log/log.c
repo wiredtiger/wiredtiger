@@ -335,7 +335,7 @@ __wt_log_flush_lsn(WT_SESSION_IMPL *session, WT_LSN *lsn, bool start)
 
     conn = S2C(session);
     log = conn->log;
-    WT_RET(__wt_log_force_write(session, 1, NULL));
+    WT_RET(__wt_log_force_write(session, true, NULL));
     __wt_log_wrlsn(session, NULL);
     if (start)
         WT_ASSIGN_LSN(lsn, &log->write_start_lsn);
@@ -508,7 +508,7 @@ __wt_log_get_backup_files(
      * the backup.
      */
     F_SET(log, WT_LOG_FORCE_NEWFILE);
-    WT_RET(__wt_log_force_write(session, 1, NULL));
+    WT_RET(__wt_log_force_write(session, true, NULL));
     WT_RET(__log_get_files(session, WT_LOG_FILENAME, &files, &count));
 
     for (max = 0, i = 0; i < count;) {
@@ -1176,7 +1176,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
     else {
         WT_ASSIGN_LSN(&log->log_close_lsn, &log->alloc_lsn);
         /* Paired with an acquire read in the log file server path. */
-        WT_PUBLISH(log->log_close_fh, log->log_fh);
+        WT_RELEASE_WRITE_WITH_BARRIER(log->log_close_fh, log->log_fh);
     }
     log->fileid++;
 
@@ -1245,7 +1245,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
     }
     WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
-    WT_PUBLISH(log->log_fh, log_fh);
+    WT_RELEASE_WRITE_WITH_BARRIER(log->log_fh, log_fh);
 
     /*
      * If we're called from connection creation code, we need to update the LSNs since we're the
@@ -1322,7 +1322,7 @@ __wt_log_set_version(WT_SESSION_IMPL *session, uint16_t version, uint32_t first_
     /*
      * A new log file will be used when we force out the earlier slot.
      */
-    WT_ERR(__wt_log_force_write(session, 1, NULL));
+    WT_ERR(__wt_log_force_write(session, true, NULL));
 
     /*
      * We need to write a record to the new version log file so that a potential checkpoint finds
@@ -1910,7 +1910,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
     conn = S2C(session);
     log = conn->log;
     if (freep != NULL)
-        *freep = 1;
+        *freep = true;
     release_buffered = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
     release_bytes = release_buffered + slot->slot_unbuffered;
 
@@ -1939,7 +1939,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
     if (!F_ISSET_ATOMIC_16(slot, WT_SLOT_FLUSH | WT_SLOT_SYNC_FLAGS) &&
       FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
         if (freep != NULL)
-            *freep = 0;
+            *freep = false;
         slot->slot_state = WT_LOG_SLOT_WRITTEN;
         /*
          * After this point the worker thread owns the slot. There is nothing more to do but return.
@@ -2036,9 +2036,12 @@ static int
 __log_salvage_message(
   WT_SESSION_IMPL *session, const char *log_name, const char *extra_msg, wt_off_t offset)
 {
-    __wt_verbose_notice(session, WT_VERB_LOG,
-      "log file %s corrupted%s at position %" PRIuMAX ", truncated", log_name, extra_msg,
-      (uintmax_t)offset);
+    WT_LOG *log;
+
+    log = S2C(session)->log;
+
+    __wt_verbose_notice(session, WT_VERB_LOG, "log file %s corrupted%s at position %" PRIuMAX "%s.",
+      log_name, extra_msg, (uintmax_t)offset, log != NULL ? ", truncated" : "");
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     return (WT_ERROR);
 }
@@ -2422,7 +2425,9 @@ err:
     if (ret != 0 && ret != WT_PANIC && need_salvage) {
         WT_TRET(__wt_close(session, &log_fh));
         log_fh = NULL;
-        WT_TRET(__log_truncate(session, &rd_lsn, false, true));
+        /* Don't alter the file when the logging system is not set up. */
+        if (log != NULL)
+            WT_TRET(__log_truncate(session, &rd_lsn, false, true));
         ret = 0;
     }
 
@@ -2710,7 +2715,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
             __wt_cond_signal(session, conn->log_cond);
             __wt_yield();
         } else
-            WT_ERR(__wt_log_force_write(session, 1, NULL));
+            WT_ERR(__wt_log_force_write(session, true, NULL));
     }
     if (LF_ISSET(WT_LOG_FLUSH)) {
         /* Wait for our writes to reach the OS */

@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #ifdef HAVE_DIAGNOSTIC
 /*
  * Capture cases where a single session handle is used by multiple threads in parallel. The check
@@ -99,18 +101,18 @@
             (void)__wt_atomic_add64(&S2C(s)->api_count_in, 1);                               \
     }
 
-#define API_SESSION_POP(s)                                                                   \
-    if ((s)->api_call_counter == 1) {                                                        \
-        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                                         \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_internal_out, 1);                     \
-            WT_API_COUNTER_CHECK((s), api_count_internal);                                   \
-        } else {                                                                             \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);                              \
-            WT_API_COUNTER_CHECK((s), api_count);                                            \
-        }                                                                                    \
-    }                                                                                        \
-    (s)->dhandle = __olddh;                                                                  \
-    (s)->name = __oldname;                                                                   \
+#define API_SESSION_POP(s)                                               \
+    if ((s)->api_call_counter == 1) {                                    \
+        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                     \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_internal_out, 1); \
+            WT_API_COUNTER_CHECK((s), api_count_internal);               \
+        } else {                                                         \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);          \
+            WT_API_COUNTER_CHECK((s), api_count);                        \
+        }                                                                \
+    }                                                                    \
+    (s)->dhandle = __olddh;                                              \
+    (s)->name = __oldname;                                               \
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */

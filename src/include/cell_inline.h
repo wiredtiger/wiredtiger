@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * __cell_check_value_validity --
  *     Check the value's validity window for sanity.
@@ -1254,12 +1256,7 @@ static WT_INLINE int
 __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
   WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
-    WT_BTREE *btree;
     bool decoded;
-    void *huffman;
-
-    btree = S2BT(session);
-    huffman = NULL;
 
     /* Reference the cell's data, optionally decode it. */
     switch (unpack->type) {
@@ -1272,7 +1269,6 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
     case WT_CELL_VALUE:
         store->data = unpack->data;
         store->size = unpack->size;
-        huffman = btree->huffman_value;
         break;
     case WT_CELL_KEY_OVFL:
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
@@ -1288,15 +1284,12 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (decoded)
             return (0);
-        huffman = btree->huffman_value;
         break;
     default:
         return (__wt_illegal_value(session, unpack->type));
     }
 
-    return (huffman == NULL || store->size == 0 ?
-        0 :
-        __wt_huffman_decode(session, huffman, (const uint8_t *)store->data, store->size, store));
+    return (0);
 }
 
 /*

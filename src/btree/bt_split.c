@@ -296,7 +296,7 @@ __split_ref_final(WT_SESSION_IMPL *session, uint64_t split_gen, WT_PAGE ***locke
     size_t i;
 
     /* The parent page's page index has been updated. */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     if ((locked = *lockedp) == NULL)
         return;
@@ -499,7 +499,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     /*
      * Flush our writes and start making real changes to the tree, errors are fatal.
      */
-    WT_PUBLISH(complete, WT_ERR_PANIC);
+    WT_RELEASE_WRITE_WITH_BARRIER(complete, WT_ERR_PANIC);
 
     /* Prepare the WT_REFs for the move. */
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
@@ -1027,7 +1027,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     /*
      * Flush our writes and start making real changes to the tree, errors are fatal.
      */
-    WT_PUBLISH(complete, WT_ERR_PANIC);
+    WT_RELEASE_WRITE_WITH_BARRIER(complete, WT_ERR_PANIC);
 
     /* Prepare the WT_REFs for the move. */
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
@@ -1381,7 +1381,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
     WT_UPDATE *prev_onpage, *upd, *tmp;
-    uint64_t recno;
+    uint64_t orig_read_gen, recno;
     uint32_t i, slot;
     bool prepare;
 
@@ -1413,8 +1413,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * was a forced eviction, in which case we leave the new page with the read generation unset.
      * Eviction will set the read generation next time it visits this page.
      */
-    if (!WT_READGEN_EVICT_SOON(orig->read_gen))
-        page->read_gen = orig->read_gen;
+    WT_READ_ONCE(orig_read_gen, orig->read_gen);
+    if (!__wt_readgen_evict_soon(&orig_read_gen))
+        __wt_atomic_store64(&page->read_gen, orig_read_gen);
 
     /*
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
@@ -1974,7 +1975,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * The act of splitting into the parent releases the pages for eviction; ensure the page
      * contents are consistent.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     /*
      * Split into the parent.

@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_UTIL_H
-#define MODEL_UTIL_H
+#pragma once
 
 #include <cstring>
 #include <functional>
@@ -279,6 +278,16 @@ public:
     }
 
     /*
+     * config_map::get_float --
+     *     Get the corresponding float value. Throw an exception on error.
+     */
+    inline float
+    get_float(const char *key) const
+    {
+        return std::stof(std::get<std::string>(_map.find(key)->second));
+    }
+
+    /*
      * config_map::get_uint64 --
      *     Get the corresponding integer value. Throw an exception on error.
      */
@@ -302,6 +311,19 @@ public:
         uint64_t v;
         stream >> std::hex >> v;
         return v;
+    }
+
+    /*
+     * config_map::keys --
+     *     Get the collection of keys.
+     */
+    inline std::vector<std::string>
+    keys() const noexcept
+    {
+        std::vector<std::string> r;
+        for (std::pair<std::string, value_t> p : _map)
+            r.push_back(p.first);
+        return r;
     }
 
 private:
@@ -407,6 +429,22 @@ private:
 };
 
 /*
+ * parse_uint64 --
+ *     Parse the string into a number. Throw an exception on error.
+ */
+uint64_t parse_uint64(const char *str, char **end = nullptr);
+
+/*
+ * parse_uint64 --
+ *     Parse the string into a number. Throw an exception on error.
+ */
+inline uint64_t
+parse_uint64(const std::string &str)
+{
+    return parse_uint64(str.c_str());
+}
+
+/*
  * starts_with --
  *     Check whether the string has the given prefix. (C++ does not have this until C++20.)
  */
@@ -491,4 +529,3 @@ wt_cursor_update(WT_CURSOR *cursor, const data_value &key, const data_value &val
 std::vector<std::string> wt_list_tables(WT_CONNECTION *conn);
 
 } /* namespace model */
-#endif

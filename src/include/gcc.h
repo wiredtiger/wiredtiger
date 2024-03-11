@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #define WT_PTRDIFFT_FMT "td" /* ptrdiff_t format string */
 #define WT_SIZET_FMT "zu"    /* size_t format string */
 
@@ -59,20 +61,23 @@
  * accesses will always be in a single cache line.
  *
  * Atomic writes are often associated with memory barriers, implemented by the
- * WT_ACQUIRE_BARRIER and WT_WRITE_BARRIER macros.  WiredTiger's requirement as
+ * WT_ACQUIRE_BARRIER and WT_RELEASE_BARRIER macros.  WiredTiger's requirement as
  * described by the Solaris membar_enter description:
  *
  *	No stores from after the memory barrier will reach visibility and
  *	no loads from after the barrier will be resolved before the lock
  *	acquisition reaches global visibility
  *
- * In other words, the WT_WRITE_BARRIER macro must ensure that memory stores by
- * the processor, made before the WT_WRITE_BARRIER call, be visible to all
+ * In other words, the WT_RELEASE_BARRIER macro must ensure that memory stores by
+ * the processor, made before the WT_RELEASE_BARRIER call, be visible to all
  * processors in the system before any memory stores by the processor, made
- * after the WT_WRITE_BARRIER call, are visible to any processor.  The
+ * after the WT_RELEASE_BARRIER call, are visible to any processor.  The
  * WT_ACQUIRE_BARRIER macro ensures that all loads before the barrier are complete
  * before any loads after the barrier.  The compiler cannot reorder or cache
  * values across a barrier.
+ *
+ * The term publish - as it is used in WiredTiger - refers to writing a value to
+ * a shared memory location. It doesn't imply any memory ordering semantics.
  *
  * Lock and unlock operations imply both read and write barriers.  In other
  * words, barriers are not required for values protected by locking.
@@ -128,18 +133,37 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
 
-#define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
-    static inline ret __wt_atomic_add##name(vp_arg, v_arg)       \
-    {                                                            \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));    \
-    }                                                            \
-    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg) \
-    {                                                            \
-        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));    \
-    }                                                            \
-    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)       \
-    {                                                            \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));    \
+#define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                                                  \
+    static inline ret __wt_atomic_add##name(vp_arg, v_arg)                                        \
+    {                                                                                             \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg)                                  \
+    {                                                                                             \
+        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)                                        \
+    {                                                                                             \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    /*                                                                                            \
+     * !!!                                                                                        \
+     * The following atomic functions are ATOMIC_RELAXED while the preceding calls are            \
+     * ATOMIC_SEQ_CST. Mixing RELAXED and SEQ_CST means we will *not* get sequentially consistent \
+     * guarantees.                                                                                \
+     * Historically WiredTiger mixed the SEQ_CST calls above with non-atomic accesses to memory,  \
+     * and these non-atomic calls are being replaced with atomic calls. Using these new atomic    \
+     * functions with SEQ_CST memory ordering comes with a moderate performance cost so we're     \
+     * using RELAXED to maintain performance. In future these atomics will need to be reviewed    \
+     * and selectively moved to the appropriate memory ordering.                                  \
+     */                                                                                           \
+    static inline ret __wt_atomic_load##name(vp_arg)                                              \
+    {                                                                                             \
+        return (__atomic_load_n(vp, __ATOMIC_RELAXED));                                           \
+    }                                                                                             \
+    static inline void __wt_atomic_store##name(vp_arg, v_arg)                                     \
+    {                                                                                             \
+        __atomic_store_n(vp, v, __ATOMIC_RELAXED);                                                \
     }
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t *vp, uint8_t v)
 WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t *vp, volatile uint8_t v)
@@ -154,6 +178,60 @@ WT_ATOMIC_FUNC(i64, int64_t, int64_t *vp, int64_t v)
 WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t *vp, volatile int64_t v)
 WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 
+/*
+ * We can't use the WT_ATOMIC_FUNC macro for booleans as __atomic_add_fetch and __atomic_sub_fetch
+ * don't accept booleans when compiling with clang. Define them individually.
+ */
+
+/*
+ * __wt_atomic_loadbool --
+ *     Atomically read a boolean.
+ */
+static inline bool
+__wt_atomic_loadbool(bool *vp)
+{
+    return (__atomic_load_n(vp, __ATOMIC_RELAXED));
+}
+
+/*
+ * __wt_atomic_storebool --
+ *     Atomically set a boolean.
+ */
+static inline void
+__wt_atomic_storebool(bool *vp, bool v)
+{
+    __atomic_store_n(vp, v, __ATOMIC_RELAXED);
+}
+
+/*
+ * __wt_atomic_loadvbool --
+ *     Atomically read a volatile boolean.
+ */
+static inline bool
+__wt_atomic_loadvbool(volatile bool *vp)
+{
+    return (__atomic_load_n(vp, __ATOMIC_RELAXED));
+}
+
+/*
+ * __wt_atomic_storevbool --
+ *     Atomically set a volatile boolean.
+ */
+static inline void
+__wt_atomic_storevbool(volatile bool *vp, bool v)
+{
+    __atomic_store_n(vp, v, __ATOMIC_RELAXED);
+}
+
+/*
+ * Generic atomic functions that accept any type. The typed macros above should be preferred since
+ * they provide better type checking.
+ */
+#define __wt_atomic_and_generic(vp, v) __atomic_and_fetch(vp, v, __ATOMIC_RELAXED)
+#define __wt_atomic_or_generic(vp, v) __atomic_or_fetch(vp, v, __ATOMIC_RELAXED)
+#define __wt_atomic_load_generic(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
+#define __wt_atomic_store_generic(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
+
 /* Compile read-write barrier */
 #define WT_COMPILER_BARRIER() __asm__ volatile("" ::: "memory")
 
@@ -166,7 +244,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 /* We only need compiler barriers on x86 due to Total Store Ordering (TSO). */
 #define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
-#define WT_WRITE_BARRIER() WT_COMPILER_BARRIER()
+#define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
 
 #elif defined(i386) || defined(__i386__)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
@@ -176,7 +254,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 #define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
 #define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_WRITE_BARRIER() WT_FULL_BARRIER()
+#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__mips64el__) || defined(__mips__) || defined(__mips64__) || defined(__mips64)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
@@ -188,7 +266,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                                                                   \
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
     } while (0)
-#define WT_WRITE_BARRIER()                                                                 \
+#define WT_RELEASE_BARRIER()                                                               \
     do {                                                                                   \
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
     } while (0)
@@ -209,7 +287,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("lwsync" ::: "memory"); \
     } while (0)
-#define WT_WRITE_BARRIER()                       \
+#define WT_RELEASE_BARRIER()                     \
     do {                                         \
         __asm__ volatile("lwsync" ::: "memory"); \
     } while (0)
@@ -249,11 +327,14 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("dmb ishld" ::: "memory"); \
     } while (0)
 /*
- * This is necessary as we're moving to utilizing acquire and release semantics. The ARM load
- * barrier does provide us with acquire semantics but the store barrier does not. We upgrade it to a
- * full barrier for that reason.
+ * In order to achieve release semantics we need two arm barrier instructions. Firstly dmb ishst
+ * which gives us StoreStore, secondly a dmb ishld which gives us LoadLoad, LoadStore.
+ *
+ * This is sufficient for the release semantics which is StoreStore, LoadStore. We could issue a
+ * single dmb ish here but that is more expensive because it adds a StoreLoad barrier which is the
+ * most expensive reordering to prevent.
  */
-#define WT_WRITE_BARRIER() WT_FULL_BARRIER();
+#define WT_RELEASE_BARRIER() __asm__ volatile("dmb ishst; dmb ishld" ::: "memory");
 
 #elif defined(__s390x__)
 #define WT_PAUSE() __asm__ volatile("lr 0,0" ::: "memory")
@@ -262,7 +343,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("bcr 15,0\n" ::: "memory"); \
     } while (0)
 #define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_WRITE_BARRIER() WT_FULL_BARRIER()
+#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__sparc__)
 #define WT_PAUSE() __asm__ volatile("rd %%ccr, %%g0" ::: "memory")
@@ -280,7 +361,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                   \
         __asm__ volatile("" ::: "memory"); \
     } while (0)
-#define WT_WRITE_BARRIER()                 \
+#define WT_RELEASE_BARRIER()               \
     do {                                   \
         __asm__ volatile("" ::: "memory"); \
     } while (0)
@@ -306,7 +387,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * https://five-embeddev.com/riscv-isa-manual/latest/memory.html#sec:mm:fence
  *
  * On RISC-V, the fence instruction takes explicit flags that indicate the predecessor and successor
- * sets. Based on the file comment description of WT_ACQUIRE_BARRIER and WT_WRITE_BARRIER, those
+ * sets. Based on the file comment description of WT_ACQUIRE_BARRIER and WT_RELEASE_BARRIER, those
  * barriers only synchronize read/read and write/write respectively. The predecessor and successor
  * sets here are selected to match that description.
  */
@@ -318,7 +399,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                             \
         __asm__ volatile("fence r, r" ::: "memory"); \
     } while (0)
-#define WT_WRITE_BARRIER()                           \
+#define WT_RELEASE_BARRIER()                         \
     do {                                             \
         __asm__ volatile("fence w, w" ::: "memory"); \
     } while (0)
@@ -333,10 +414,10 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
-#define WT_WRITE_BARRIER()                       \
+#define WT_RELEASE_BARRIER()                     \
     do {                                         \
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
 #else
-#error "No write barrier implementation for this hardware"
+#error "No release barrier implementation for this hardware"
 #endif

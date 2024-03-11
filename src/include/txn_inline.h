@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * __wt_txn_context_prepare_check --
  *     Return an error if the current transaction is in the prepare state.
@@ -148,10 +150,10 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          * As updating timestamp might not be an atomic operation, we will manage using state.
          */
         upd->prepare_state = WT_PREPARE_LOCKED;
-        WT_WRITE_BARRIER();
+        WT_RELEASE_BARRIER();
         upd->start_ts = txn->commit_timestamp;
         upd->durable_ts = txn->durable_timestamp;
-        WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp. */
         upd->start_ts = txn->prepare_timestamp;
@@ -162,7 +164,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          * problem.
          */
         upd->durable_ts = WT_TS_NONE;
-        WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }
 
@@ -184,7 +186,7 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
          */
         page_del->timestamp = txn->commit_timestamp;
         page_del->durable_timestamp = txn->durable_timestamp;
-        WT_PUBLISH(page_del->prepare_state, WT_PREPARE_RESOLVED);
+        WT_RELEASE_WRITE_WITH_BARRIER(page_del->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp. */
         page_del->timestamp = txn->prepare_timestamp;
@@ -195,7 +197,7 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
          * problem.
          */
         page_del->durable_timestamp = WT_TS_NONE;
-        WT_PUBLISH(page_del->prepare_state, WT_PREPARE_INPROGRESS);
+        WT_RELEASE_WRITE_WITH_BARRIER(page_del->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }
 
@@ -539,7 +541,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * The metadata is tracked specially because of optimizations for checkpoints.
      */
     if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
-        return (txn_global->metadata_pinned);
+        return (__wt_atomic_loadv64(&txn_global->metadata_pinned));
 
     /*
      * Take a local copy of these IDs in case they are updated while we are checking visibility. The
@@ -556,7 +558,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
          * active checkpoint, keep changes until checkpoint is finished.
          */
-        checkpoint_pinned = txn_global->checkpoint_txn_shared.pinned_id;
+        checkpoint_pinned = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.pinned_id);
         if (checkpoint_pinned == WT_TXN_NONE || WT_TXNID_LT(oldest_id, checkpoint_pinned))
             return (oldest_id);
         return (checkpoint_pinned);
@@ -907,6 +909,8 @@ static WT_INLINE bool
 __wt_txn_snap_min_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
+    WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+
     /* Transaction snapshot minimum check. */
     if (!WT_TXNID_LT(id, session->txn->snapshot_data.snap_min))
         return (false);
@@ -1420,7 +1424,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      * necessary.
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
-      txn_shared->pinned_id == WT_TXN_NONE)
+      __wt_atomic_loadv64(&txn_shared->pinned_id) == WT_TXN_NONE)
         WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
 
     return (0);
@@ -1449,7 +1453,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      * to get their own snapshot for this transaction ID to retry.
      *
      * Then we do an atomic increment to allocate a unique ID. This will give the valid ID to this
-     * transaction that we publish to the global transaction table.
+     * transaction that we release to the global transaction table.
      *
      * We want the global value to lead the allocated values, so that any allocated transaction ID
      * eventually becomes globally visible. When there are no transactions running, the oldest_id
@@ -1460,12 +1464,12 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      * well defined, we must use an atomic increment here.
      */
     if (publish) {
-        WT_PUBLISH(txn_shared->is_allocating, true);
-        WT_PUBLISH(txn_shared->id, txn_global->current);
+        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
+        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, txn_global->current);
         id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
         session->txn->id = id;
-        WT_PUBLISH(txn_shared->id, id);
-        WT_PUBLISH(txn_shared->is_allocating, false);
+        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);
+        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, false);
     } else
         id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
 
@@ -1769,10 +1773,12 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      * positioned on a value, it can't be freed.
      */
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
-        if (txn_shared->pinned_id == WT_TXN_NONE)
-            txn_shared->pinned_id = txn_global->last_running;
-        if (txn_shared->metadata_pinned == WT_TXN_NONE)
-            txn_shared->metadata_pinned = txn_shared->pinned_id;
+        if (__wt_atomic_loadv64(&txn_shared->pinned_id) == WT_TXN_NONE)
+            __wt_atomic_storev64(
+              &txn_shared->pinned_id, __wt_atomic_loadv64(&txn_global->last_running));
+        if (__wt_atomic_loadv64(&txn_shared->metadata_pinned) == WT_TXN_NONE)
+            __wt_atomic_storev64(
+              &txn_shared->metadata_pinned, __wt_atomic_loadv64(&txn_shared->pinned_id));
     } else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_get_snapshot(session);
 }
@@ -1800,8 +1806,10 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
      */
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
-    *txn_active = (txn_global->oldest_id != txn_global->current ||
-      txn_global->metadata_pinned != txn_global->current);
+    *txn_active =
+      (__wt_atomic_loadv64(&txn_global->oldest_id) != __wt_atomic_loadv64(&txn_global->current) ||
+        __wt_atomic_loadv64(&txn_global->metadata_pinned) !=
+          __wt_atomic_loadv64(&txn_global->current));
 
     return (0);
 }

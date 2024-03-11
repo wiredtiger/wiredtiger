@@ -569,7 +569,7 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
      */
     WT_RET(__wt_meta_read_checkpoint_oldest(r->session, NULL, &oldest_timestamp, NULL));
     conn->txn_global.oldest_timestamp = oldest_timestamp;
-    conn->txn_global.has_oldest_timestamp = oldest_timestamp != WT_TS_NONE;
+    __wt_atomic_storebool(&conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
@@ -1143,6 +1143,8 @@ done:
      * 2. The history store file was found in the metadata.
      */
     if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
+        const char *rts_cfg[] = {
+          WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
@@ -1157,7 +1159,7 @@ done:
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
         rts_executed = true;
-        WT_ERR(conn->rts->rollback_to_stable(session, NULL, true));
+        WT_ERR(conn->rts->rollback_to_stable(session, rts_cfg, true));
 
         /* Time since the rollback to stable has started. */
         __wt_timer_evaluate_ms(session, &rts_timer, &conn->recovery_timeline.rts_ms);

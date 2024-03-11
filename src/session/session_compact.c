@@ -355,6 +355,8 @@ __compact_worker(WT_SESSION_IMPL *session)
                       session->op_handle[i]->name);
                 }
 
+                WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
+
                 __wt_verbose_info(session, WT_VERB_COMPACT,
                   "The compaction of the data handle %s returned EBUSY due to an in-progress "
                   "conflicting checkpoint.%s",
@@ -529,6 +531,10 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     session->compact->max_time = (uint64_t)cval.val;
     __wt_epoch(session, &session->compact->begin);
     session->compact->last_progress = session->compact->begin;
+
+    /* Configure dry run mode to only run estimation phase. */
+    WT_ERR(__wt_config_gets(session, cfg, "dryrun", &cval));
+    session->compact->dryrun = (bool)cval.val;
 
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a

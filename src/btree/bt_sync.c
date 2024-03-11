@@ -227,7 +227,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
-    saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
+    saved_pinned_id = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->pinned_id);
     time_start = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT) ? __wt_clock(session) : 0;
 
     switch (syncop) {
@@ -370,7 +370,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * any page modify structure. (It needs to be ordered else a page could be dirtied after
              * taking the local reference.)
              */
-            WT_ACQUIRE_READ_WITH_BARRIER(dirty, __wt_page_is_modified(page));
+            dirty = __wt_page_is_modified(page);
+            WT_ACQUIRE_BARRIER();
 
             /* Skip clean pages, but always update the maximum transaction ID. */
             if (!dirty) {
@@ -421,7 +422,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * pages. That happens prior to the final metadata checkpoint.
              */
             if (!is_internal &&
-              (page->read_gen == WT_READGEN_WONT_NEED ||
+              (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED ||
                 FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) &&
               !tried_eviction && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);

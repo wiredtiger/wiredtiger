@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Helper: in order to read without any calls to eviction, we have to ignore the cache size and
  * disable splits.
@@ -83,8 +85,8 @@ struct __wt_cache {
      * History store cache usage. TODO: The values for these variables are cached and potentially
      * outdated.
      */
-    uint64_t bytes_hs;       /* History store bytes inmem */
-    uint64_t bytes_hs_dirty; /* History store bytes inmem dirty */
+    wt_shared uint64_t bytes_hs; /* History store bytes inmem */
+    uint64_t bytes_hs_dirty;     /* History store bytes inmem dirty */
 
     wt_shared uint64_t pages_dirty_intl;
     wt_shared uint64_t pages_dirty_leaf;

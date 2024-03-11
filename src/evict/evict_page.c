@@ -140,7 +140,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
 
         /* Count page evictions in parallel with checkpoint. */
-        if (conn->txn_global.checkpoint_running)
+        if (__wt_atomic_loadvbool(&conn->txn_global.checkpoint_running))
             WT_STAT_CONN_INCR(session, cache_eviction_pages_in_parallel_with_checkpoint);
     } else {
         if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
@@ -494,12 +494,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
     case WT_PM_REC_REPLACE:
-        /*
-         * 1-for-1 page swap: Update the parent to reference the replacement page.
-         *
-         * Publish: a barrier to ensure the structure fields are set before the state change makes
-         * the page available to readers.
-         */
+        /* 1-for-1 page swap: Update the parent to reference the replacement page. */
         WT_ASSERT(session, mod->mod_replace.addr != NULL);
         WT_RET(__wt_calloc_one(session, &addr));
         *addr = mod->mod_replace;
@@ -851,7 +846,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * running application transaction.
      */
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
-      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
+      !WT_IS_METADATA(session->dhandle) &&
+      __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id) != WT_TXN_NONE &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
@@ -862,7 +858,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * If checkpoint is running concurrently, set the checkpoint running flag and we will abort the
      * eviction if we detect any updates without timestamps.
      */
-    if (conn->txn_global.checkpoint_running)
+    if (__wt_atomic_loadvbool(&conn->txn_global.checkpoint_running))
         LF_SET(WT_REC_CHECKPOINT_RUNNING);
 
     /* Eviction thread doing eviction. */

@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -432,6 +434,13 @@ struct __wt_page_modify {
     WT_OVFL_TRACK *ovfl_track;
 
     /*
+     * Stop aggregated timestamp information when all the keys on the page are removed. This time
+     * aggregate information is used to skip these deleted pages as part of the tree walk if the
+     * delete operation is visible to the reader.
+     */
+    wt_shared WT_TIME_AGGREGATE *stop_ta;
+
+    /*
      * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
      * set until the page is reconciled successfully; this indicates that the page_del information
      * in the ref remains valid. The update list remains set (if set at all) until the transaction
@@ -615,7 +624,7 @@ struct __wt_page {
     } while (0)
 #define WT_INTL_INDEX_SET(page, v)      \
     do {                                \
-        WT_WRITE_BARRIER();             \
+        WT_RELEASE_BARRIER();           \
         ((page)->u.intl.__index) = (v); \
     } while (0)
 
@@ -754,8 +763,6 @@ struct __wt_page {
 #define WT_READGEN_NOTSET 0
 #define WT_READGEN_OLDEST 1
 #define WT_READGEN_WONT_NEED 2
-#define WT_READGEN_EVICT_SOON(readgen) \
-    ((readgen) != WT_READGEN_NOTSET && (readgen) < WT_READGEN_START_VALUE)
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
@@ -789,6 +796,15 @@ struct __wt_page {
  */
 #define WT_PAGE_DISK_OFFSET(page, p) WT_PTRDIFF32(p, (page)->dsk)
 #define WT_PAGE_REF_OFFSET(page, o) ((void *)((uint8_t *)((page)->dsk) + (o)))
+
+/*
+ * WT_PAGE_WALK_SKIP_STATS --
+ *	Statistics to track how many deleted pages are skipped as part of the tree walk.
+ */
+struct __wt_page_walk_skip_stats {
+    size_t total_del_pages_skipped;
+    size_t total_inmem_del_pages_skipped;
+};
 
 /*
  * Prepare states.
@@ -888,15 +904,15 @@ struct __wt_page {
  * The writer thread has two orderings:
  * Prepare transaction:
  *  - start_ts = X
- *  - WT_WRITE_BARRIER
+ *  - WT_RELEASE_BARRIER
  *  - prepare_state = WT_PREPARE_INPROGRESS
  *
  * Commit transaction:
  *  - prepare_state = WT_PREPARE_LOCKED
- *  - WT_WRITE_BARRIER
+ *  - WT_RELEASE_BARRIER
  *  - start_ts = Y
  *  - durable_ts = Z
- *  - WT_WRITE_BARRIER
+ *  - WT_RELEASE_BARRIER
  *  - prepare_state = WT_PREPARE_RESOLVED
  *
  * The reader does the opposite. The more complex of the two is as follows:
@@ -1230,11 +1246,11 @@ struct __wt_ref {
 #define WT_REF_SET_STATE(ref, s)                                  \
     do {                                                          \
         WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        WT_PUBLISH((ref)->state, s);                              \
+        WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s);           \
     } while (0)
 #else
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
-#define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
+#define WT_REF_SET_STATE(ref, s) WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s)
 #endif
 };
 
