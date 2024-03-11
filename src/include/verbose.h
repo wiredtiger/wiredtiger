@@ -156,7 +156,7 @@ struct __wt_verbose_multi_category {
  */
 #define __wt_verbose_level(session, category, level, fmt, ...)               \
     do {                                                                     \
-        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                \
+        if (WT_UNLIKELY(WT_VERBOSE_LEVEL_ISSET(session, category, level)))   \
             __wt_verbose_worker(session, category, level, fmt, __VA_ARGS__); \
     } while (0)
 
