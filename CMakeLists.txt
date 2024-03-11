@@ -285,3 +285,6 @@ add_subdirectory(test)
 if(ENABLE_LLVM)
     add_subdirectory(tools/xray_to_optrack)
 endif()
+
+# Build other tools.
+add_subdirectory(tools/checksum_bitflip)

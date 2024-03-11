@@ -309,7 +309,9 @@ Px
 QQQS
 QSQ
 Qsort
+RCPC
 RCS
+RCpc
 RDNOLOCK
 READONLY
 REALLOC
@@ -462,6 +464,7 @@ aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
+acqrel
 addl
 addr
 addrs
@@ -507,6 +510,7 @@ binutils
 bitcnt
 bitfield
 bitfields
+bitflip
 bitstr
 bitstring
 bitwise
@@ -574,6 +578,7 @@ ciphertext
 ckpt
 ckptfrag
 ckptlist
+cksum
 cloexec
 closedir
 clsm
@@ -909,6 +914,9 @@ lazyfs
 lbrace
 lbracket
 ld
+ldapr
+ldaprb
+ldaprh
 le
 len
 lengthp
@@ -929,6 +937,7 @@ llu
 llvm
 loadbool
 loadtext
+loadvbool
 loc
 localTime
 localkey
@@ -1141,6 +1150,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readgen
 readlock
 readonly
 readunlock
@@ -1232,7 +1242,11 @@ stderr
 stdin
 stdout
 stepp
+stlr
+stlrb
+stlrh
 storebool
+storevbool
 str
 strace
 strcat
@@ -1418,6 +1432,7 @@ xX
 xdeadbeef
 xff
 xfff
+xxd
 xxpermdi
 xxxx
 xxxxx

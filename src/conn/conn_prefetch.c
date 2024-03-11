@@ -103,7 +103,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
         WT_PREFETCH_ASSERT(
-          session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), block_prefetch_skipped_no_flag_set);
+          session, F_ISSET(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
 
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
@@ -141,6 +141,7 @@ int
 __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_PREFETCH_QUEUE_ENTRY *pe;
 
     conn = S2C(session);
@@ -154,17 +155,21 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Don't queue pages for trees that have eviction disabled. */
     if (S2BT(session)->evict_disabled > 0) {
         __wt_spin_unlock(session, &conn->prefetch_lock);
-        WT_RET(EBUSY);
+        WT_ERR(EBUSY);
     }
 
     F_SET(ref, WT_REF_FLAG_PREFETCH);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
     ++conn->prefetch_queue_count;
     __wt_spin_unlock(session, &conn->prefetch_lock);
-
     __wt_cond_signal(session, conn->prefetch_threads.wait_cond);
 
-    return (0);
+    if (0) {
+err:
+        __wt_free(session, pe);
+    }
+
+    return (ret);
 }
 
 /*

@@ -63,7 +63,7 @@ __wt_page_alloc(
     WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    page->read_gen = WT_READGEN_NOTSET;
+    __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 
     switch (type) {
     case WT_PAGE_COL_FIX:
@@ -857,9 +857,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 
         switch (unpack.type) {
         case WT_CELL_KEY:
-            /*
-             * Note: we don't Huffman encode internal page keys, there's no decoding work to do.
-             */
             __wt_ref_key_onpage_set(page, ref, &unpack);
             break;
         case WT_CELL_KEY_OVFL:
