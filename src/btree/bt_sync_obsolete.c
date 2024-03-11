@@ -77,9 +77,9 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
     } else
         tag = "unexpected page state";
 
-    if (do_visibility_check)
+    if (do_visibility_check && WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
         obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+          session, newest_ta.newest_stop_txn, newest_ta.newest_page_stop_durable_ts);
 
     if (obsolete) {
         /*
@@ -161,8 +161,9 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
          * store.
          */
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
-        obsolete = __wt_txn_visible_all(
-          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+        if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
+            obsolete = __wt_txn_visible_all(
+              session, newest_ta.newest_stop_txn, newest_ta.newest_page_stop_durable_ts);
     }
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -367,7 +368,7 @@ __checkpoint_cleanup_page_skip(
      */
 
     if (addr.type == WT_ADDR_LEAF_NO ||
-      (addr.ta.newest_stop_durable_ts == WT_TS_NONE &&
+      (addr.ta.newest_page_stop_durable_ts == WT_TS_NONE &&
         (F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT) ||
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED)))) {
         __wt_verbose_debug2(
@@ -475,7 +476,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     while ((ret = __wt_config_next(&ckptconf, &key, &cval)) == 0) {
-        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
+        ret = __wt_config_subgets(session, &cval, "newest_page_stop_durable_ts", &value);
         if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);

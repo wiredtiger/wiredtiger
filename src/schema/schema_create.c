@@ -85,25 +85,11 @@ __check_imported_ts(
 
     /* Now iterate over each checkpoint and compare the aggregate timestamps with our oldest. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (ckpt->ta.newest_start_durable_ts > ts)
+        if (ckpt->ta.newest_durable_ts > ts)
             WT_ERR_MSG(session, WT_ROLLBACK,
-              "%s: import found aggregated newest start durable timestamp newer than the current "
-              "%s timestamp, newest_start_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
-              uri, ts_name, ckpt->ta.newest_start_durable_ts, ts_name, ts);
-
-        /*
-         * No need to check "newest stop" here as "newest stop durable" serves that purpose. When a
-         * file has at least one record without a stop timestamp, "newest stop" will be set to max
-         * whereas "newest stop durable" refers to the newest non-max timestamp which is more useful
-         * to us in terms of comparing with oldest.
-         */
-        if (ckpt->ta.newest_stop_durable_ts > ts) {
-            WT_ASSERT(session, ckpt->ta.newest_stop_durable_ts != WT_TS_MAX);
-            WT_ERR_MSG(session, WT_ROLLBACK,
-              "%s: import found aggregated newest stop durable timestamp newer than the current "
-              "%s timestamp, newest_stop_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
-              uri, ts_name, ckpt->ta.newest_stop_durable_ts, ts_name, ts);
-        }
+              "%s: import found aggregated newest durable timestamp newer than the current "
+              "%s timestamp, newest_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
+              uri, ts_name, ckpt->ta.newest_durable_ts, ts_name, ts);
     }
 
 err:

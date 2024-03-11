@@ -548,7 +548,7 @@ class Operation:
         matches = re.search('rollback_txnid=(\d+)', line)
         self.rollback_txnid= int(matches.group(1))
 
-        self.durable = self.__extract_simple_timestamp('newest_start_durable_timestamp', line)
+        self.durable = self.__extract_simple_timestamp('newest_durable_timestamp', line)
 
     def __init_update_chain_verify(self, line):
         self.type = OpType.UPDATE_CHAIN_VERIFY

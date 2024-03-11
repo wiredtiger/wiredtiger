@@ -2368,14 +2368,14 @@ __wt_btcur_skip_page(
          * point added to the page during the last reconciliation.
          */
         if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
-          __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
-            addr.ta.newest_stop_durable_ts)) {
+          __wt_txn_snap_min_visible(
+            session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts, addr.ta.newest_durable_ts)) {
             *skipp = true;
             walk_skip_stats->total_del_pages_skipped++;
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) &&
       __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_page_stop_durable_ts)) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate

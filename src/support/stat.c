@@ -278,8 +278,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: pages deleted",
-  "reconciliation: pages written including an aggregated newest start durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
+  "reconciliation: pages written including an aggregated newest durable timestamp ",
+  "reconciliation: pages written including an aggregated newest page stop durable timestamp ",
   "reconciliation: pages written including an aggregated newest stop timestamp ",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
   "reconciliation: pages written including an aggregated newest transaction ID ",
@@ -625,8 +625,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_page_delete = 0;
-    stats->rec_time_aggr_newest_start_durable_ts = 0;
-    stats->rec_time_aggr_newest_stop_durable_ts = 0;
+    stats->rec_time_aggr_newest_durable_ts = 0;
+    stats->rec_time_aggr_newest_page_stop_durable_ts = 0;
     stats->rec_time_aggr_newest_stop_ts = 0;
     stats->rec_time_aggr_newest_stop_txn = 0;
     stats->rec_time_aggr_newest_txn = 0;
@@ -964,8 +964,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_pages += from->rec_pages;
     to->rec_pages_eviction += from->rec_pages_eviction;
     to->rec_page_delete += from->rec_page_delete;
-    to->rec_time_aggr_newest_start_durable_ts += from->rec_time_aggr_newest_start_durable_ts;
-    to->rec_time_aggr_newest_stop_durable_ts += from->rec_time_aggr_newest_stop_durable_ts;
+    to->rec_time_aggr_newest_durable_ts += from->rec_time_aggr_newest_durable_ts;
+    to->rec_time_aggr_newest_page_stop_durable_ts +=
+      from->rec_time_aggr_newest_page_stop_durable_ts;
     to->rec_time_aggr_newest_stop_ts += from->rec_time_aggr_newest_stop_ts;
     to->rec_time_aggr_newest_stop_txn += from->rec_time_aggr_newest_stop_txn;
     to->rec_time_aggr_newest_txn += from->rec_time_aggr_newest_txn;
@@ -1323,10 +1324,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_pages += WT_STAT_DSRC_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_DSRC_READ(from, rec_pages_eviction);
     to->rec_page_delete += WT_STAT_DSRC_READ(from, rec_page_delete);
-    to->rec_time_aggr_newest_start_durable_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_aggr_newest_start_durable_ts);
-    to->rec_time_aggr_newest_stop_durable_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_durable_ts);
+    to->rec_time_aggr_newest_durable_ts += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_durable_ts);
+    to->rec_time_aggr_newest_page_stop_durable_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_aggr_newest_page_stop_durable_ts);
     to->rec_time_aggr_newest_stop_ts += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_ts);
     to->rec_time_aggr_newest_stop_txn += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_txn);
     to->rec_time_aggr_newest_txn += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_txn);
@@ -1957,8 +1957,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: page reconciliation calls that resulted in values with timestamps",
   "reconciliation: page reconciliation calls that resulted in values with transaction ids",
   "reconciliation: pages deleted",
-  "reconciliation: pages written including an aggregated newest start durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
+  "reconciliation: pages written including an aggregated newest durable timestamp ",
+  "reconciliation: pages written including an aggregated newest page stop durable timestamp ",
   "reconciliation: pages written including an aggregated newest stop timestamp ",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
   "reconciliation: pages written including an aggregated newest transaction ID ",
@@ -2697,8 +2697,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_pages_with_ts = 0;
     stats->rec_pages_with_txn = 0;
     stats->rec_page_delete = 0;
-    stats->rec_time_aggr_newest_start_durable_ts = 0;
-    stats->rec_time_aggr_newest_stop_durable_ts = 0;
+    stats->rec_time_aggr_newest_durable_ts = 0;
+    stats->rec_time_aggr_newest_page_stop_durable_ts = 0;
     stats->rec_time_aggr_newest_stop_ts = 0;
     stats->rec_time_aggr_newest_stop_txn = 0;
     stats->rec_time_aggr_newest_txn = 0;
@@ -3510,10 +3510,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_pages_with_ts += WT_STAT_CONN_READ(from, rec_pages_with_ts);
     to->rec_pages_with_txn += WT_STAT_CONN_READ(from, rec_pages_with_txn);
     to->rec_page_delete += WT_STAT_CONN_READ(from, rec_page_delete);
-    to->rec_time_aggr_newest_start_durable_ts +=
-      WT_STAT_CONN_READ(from, rec_time_aggr_newest_start_durable_ts);
-    to->rec_time_aggr_newest_stop_durable_ts +=
-      WT_STAT_CONN_READ(from, rec_time_aggr_newest_stop_durable_ts);
+    to->rec_time_aggr_newest_durable_ts += WT_STAT_CONN_READ(from, rec_time_aggr_newest_durable_ts);
+    to->rec_time_aggr_newest_page_stop_durable_ts +=
+      WT_STAT_CONN_READ(from, rec_time_aggr_newest_page_stop_durable_ts);
     to->rec_time_aggr_newest_stop_ts += WT_STAT_CONN_READ(from, rec_time_aggr_newest_stop_ts);
     to->rec_time_aggr_newest_stop_txn += WT_STAT_CONN_READ(from, rec_time_aggr_newest_stop_txn);
     to->rec_time_aggr_newest_txn += WT_STAT_CONN_READ(from, rec_time_aggr_newest_txn);

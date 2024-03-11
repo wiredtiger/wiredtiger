@@ -279,7 +279,7 @@ __wti_rts_btree_walk_btree_apply(
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
+    wt_timestamp_t newest_durable_ts;
     size_t addr_size;
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
@@ -296,19 +296,24 @@ __wti_rts_btree_walk_btree_apply(
     write_gen = 0;
 
     /* Find out the max durable timestamp of the object from checkpoint. */
-    newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
+    newest_durable_ts = WT_TS_NONE;
     prepared_updates = has_txn_updates_gt_than_ckpt_snap = false;
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-        ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
+        ret = __wt_config_subgets(session, &cval, "newest_durable_ts", &value);
         if (ret == 0)
-            newest_start_durable_ts = WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
-        WT_RET_NOTFOUND_OK(ret);
-        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
-        if (ret == 0)
-            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
+            newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
+        else if (ret == WT_NOTFOUND) {
+            ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
+            if (ret == 0)
+                newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
+
+            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
+            if (ret == 0)
+                newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
+        }
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "prepare", &value);
         if (ret == 0) {
@@ -332,14 +337,10 @@ __wti_rts_btree_walk_btree_apply(
         if (ret == 0)
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
               WT_RTS_VERB_TAG_TREE_OBJECT_LOG
-              "btree object found with newest_start_durable_timestamp=%s, "
-              "newest_stop_durable_timestamp=%s, "
+              "btree object found with newest_durable_timestamp=%s, "
               "rollback_txnid=%" PRIu64 ", write_gen=%" PRIu64,
-              __wt_timestamp_to_string(newest_start_durable_ts, ts_string[0]),
-              __wt_timestamp_to_string(newest_stop_durable_ts, ts_string[1]), rollback_txnid,
-              write_gen);
+              __wt_timestamp_to_string(newest_durable_ts, ts_string[0]), rollback_txnid, write_gen);
     }
-    max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
     /*
      * Perform rollback to stable when the newest written transaction of the btree is greater than
@@ -360,7 +361,7 @@ __wti_rts_btree_walk_btree_apply(
      * 2. The table has timestamped updates without a stable timestamp.
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-      (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
+      (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && newest_durable_ts != WT_TS_NONE))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_FILE_SKIP "skipping rollback to stable on file=%s because %s ", uri,
           addr_size == 0 ? "has never been checkpointed" :
@@ -381,7 +382,7 @@ __wti_rts_btree_walk_btree_apply(
 
     WT_RET_NOTFOUND_OK(ret);
 
-    if (modified || max_durable_ts > rollback_timestamp || prepared_updates ||
+    if (modified || newest_durable_ts > rollback_timestamp || prepared_updates ||
       has_txn_updates_gt_than_ckpt_snap) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_TREE
@@ -389,9 +390,10 @@ __wti_rts_btree_walk_btree_apply(
           ", modified=%s, durable_timestamp=%s > stable_timestamp=%s: %s, "
           "has_prepared_updates=%s, txnid=%" PRIu64 " > recovery_checkpoint_snap_min=%" PRIu64
           ": %s",
-          uri, modified ? "true" : "false", __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+          uri, modified ? "true" : "false",
+          __wt_timestamp_to_string(newest_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
-          max_durable_ts > rollback_timestamp ? "true" : "false",
+          newest_durable_ts > rollback_timestamp ? "true" : "false",
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
@@ -406,7 +408,7 @@ __wti_rts_btree_walk_btree_apply(
           "%s: tree skipped with durable_timestamp=%s and stable_timestamp=%s or txnid=%" PRIu64
           " has_prepared_updates=%s, txnid=%" PRIu64 " > recovery_checkpoint_snap_min=%" PRIu64
           ": %s",
-          uri, __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+          uri, __wt_timestamp_to_string(newest_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid,
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
@@ -420,7 +422,7 @@ __wti_rts_btree_walk_btree_apply(
      * timestamp to WT_TS_NONE, we need this exception.
      * 2. In-memory database - In this scenario, there is no history store to truncate.
      */
-    if ((file_skipped && !modified) && max_durable_ts == WT_TS_NONE &&
+    if ((file_skipped && !modified) && newest_durable_ts == WT_TS_NONE &&
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
