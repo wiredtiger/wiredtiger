@@ -2607,7 +2607,7 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) ||
       F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING_CHECKPOINT) ||
       F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        btree->rec_max_timestamp = WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
+        btree->rec_max_timestamp = WT_MAX(ta->newest_durable_ts, ta->newest_page_stop_durable_ts);
 }
 
 /*

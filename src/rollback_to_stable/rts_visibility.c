@@ -63,8 +63,8 @@ static wt_timestamp_t
 __rts_visibility_get_ref_max_durable_timestamp(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
 {
     if (WT_IS_HS(session->dhandle))
-        return (WT_MAX(ta->newest_stop_durable_ts, ta->newest_stop_ts));
-    return (WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts));
+        return (WT_MAX(ta->newest_page_stop_durable_ts, ta->newest_stop_ts));
+    return (WT_MAX(ta->newest_durable_ts, ta->newest_page_stop_durable_ts));
 }
 
 /*
