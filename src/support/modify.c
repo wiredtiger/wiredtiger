@@ -474,7 +474,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * a read-uncommitted reader can properly construct a full value. In this case, we will return
      * back to the user with a retry error.
      */
-    if (!reconciliation && session->isolation == WT_ISO_READ_UNCOMMITTED)
+    if (!reconciliation && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
         return (WT_RESTART);
 retry:
     /* Construct full update */
