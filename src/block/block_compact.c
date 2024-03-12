@@ -412,7 +412,8 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
       " total, target %" PRIu64 "MB (%" PRIu64 "B)",
-      block->name, total_pages_to_move, block->compact_bytes_rewritten_expected / WT_MEGABYTE,
+      block->name, total_pages_to_move,
+      total_pages_to_move * (uint64_t)avg_block_size / WT_MEGABYTE,
       block->compact_pages_rewritten_expected, session->compact->free_space_target / WT_MEGABYTE,
       session->compact->free_space_target);
 }
