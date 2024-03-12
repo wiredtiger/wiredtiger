@@ -139,6 +139,7 @@ static const char *const uri_rev = "table:rev";
  * create table:A102-3                  (starting new sequence)
  *
  * insert k/v 103 into table:main
+<<<<<<< HEAD
  * update key in table:B100-3
  * update key in table:A101-3
  * insert into table:A102-3
@@ -150,6 +151,12 @@ static const char *const uri_rev = "table:rev";
  * update key in table:A102-3
  * insert into table:A103-3
  * create table:A104-3
+=======
+ * drop table:A100-3                    (fourth and last step)
+ * update key in table:A101-3
+ * insert into table:A102-3
+ * create table:A103-3
+>>>>>>> develop
  * ...
  *
  * This continues, with the last table created when k/v 109 is inserted into
