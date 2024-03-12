@@ -83,7 +83,7 @@ public:
     inline int
     run_operation(const operation::any &op)
     {
-        int ret = WT_ERROR;
+        int ret = WT_ERROR; /* So that Coverity does not complain. */
         std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
         return ret;
     }
