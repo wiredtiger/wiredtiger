@@ -181,3 +181,4 @@ an aborted operation happened prior to the call of the function or if it has bee
 to the reader. Therefore whenever snapshot read-uncommitted readers encounter an update chain with a
 modify, the user will expect a WT_RESTART. Once the user reads the record again, the update
 chain will contain the aborted operations already.
+*/
