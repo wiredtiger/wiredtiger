@@ -352,12 +352,12 @@ file_config = format_meta + file_runtime_config + tiered_config + [
     Config('leaf_item_max', '0', r'''
         This option is no longer supported, retained for backward compatibility''',
         min=0, undoc=True),
-    Config('memory_page_image_max', '0', r'''
-        the maximum in-memory page image represented by a single storage block. Depending on
+    Config('memory_page_compression_ratio', '4', r'''
+        the in-memory page compression ratio represented by a single storage block. Depending on
         compression efficiency, compression can create storage blocks which require significant
         resources to re-instantiate in the cache, penalizing the performance of future point
-        updates. The value limits the maximum in-memory page image a storage block will need. If
-        set to 0, a default of 4 times \c leaf_page_max is used''',
+        updates. The value limits the maximum in-memory page image a storage block will need. 
+        a default of 4x compression''',
         min='0'),
     Config('memory_page_max', '5MB', r'''
         the maximum size a page can grow to in memory before being reconciled to disk. The

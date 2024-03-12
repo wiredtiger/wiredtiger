@@ -1963,6 +1963,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 {
     WT_BTREE *btree;
     uint64_t adjust, current, new;
+    uint64_t max_adjust_mempage_image;
     u_int ten_percent;
 
     btree = S2BT(session);
@@ -2016,11 +2017,12 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
         if (last_block || compressed_size > max - ten_percent)
             return;
 
+        max_adjust_mempage_image = WT_MAX(btree->maxmempage, btree->maxmempage_image);
         adjust = current + ten_percent;
-        if (adjust < btree->maxmempage_image)
+        if (adjust < max_adjust_mempage_image)
             new = adjust;
-        else if (current != btree->maxmempage_image)
-            new = btree->maxmempage_image;
+        else if (current != max_adjust_mempage_image)
+            new = max_adjust_mempage_image;
         else
             return;
     }
