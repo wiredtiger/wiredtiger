@@ -1857,6 +1857,9 @@ methods = {
 ]),
 
 'WT_SESSION.checkpoint' : Method([
+    Config('checkpoint_cleanup', 'false', r'''
+        if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
+        type='boolean'),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the
         following keys: \c "from=all" to drop all checkpoints, \c "from=<checkpoint>" to drop
