@@ -313,7 +313,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
     if (session->id != 0 && session->api_call_counter == 1) {
         if (F_ISSET(session, WT_SESSION_INTERNAL))
             (void)__wt_atomic_add64(&S2C(session)->api_count_internal_out, 1);
-	else
+        else
             (void)__wt_atomic_add64(&S2C(session)->api_count_out, 1);
     }
     WT_TRET(__wt_session_close_internal(session));

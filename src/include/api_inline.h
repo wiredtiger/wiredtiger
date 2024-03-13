@@ -20,7 +20,7 @@ __wt_api_track_cursor_start(WT_SESSION_IMPL *session)
      * need to be balanced. If the api call counter is zero, it means these have been used in the
      * wrong order compared to the other enter/end macros.
      */
-    WT_ASSERT(session, session->api_call_counter != 0);
+    WT_ASSERT(session, session->id == 0 || session->api_call_counter != 0);
     if (session->api_call_counter == 1) {
         if (F_ISSET(session, WT_SESSION_INTERNAL))
             (void)__wt_atomic_add64(&S2C(session)->api_count_cursor_internal_in, 1);
@@ -40,7 +40,7 @@ __wt_api_track_cursor_end(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    WT_ASSERT(session, session->api_call_counter != 0);
+    WT_ASSERT(session, session->id == 0 || session->api_call_counter != 0);
     if ((session)->api_call_counter == 1) {
         if (F_ISSET(session, WT_SESSION_INTERNAL)) {
             (void)__wt_atomic_add64(&conn->api_count_cursor_internal_out, 1);

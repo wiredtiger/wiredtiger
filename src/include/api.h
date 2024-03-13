@@ -94,15 +94,15 @@
     ++(s)->api_call_counter;                                                                 \
     (s)->dhandle = (dh);                                                                     \
     (s)->name = (s)->lastop = #struct_name "." #func_name;                                   \
-    if ((s)->id != 0 && (s)->api_call_counter == 1) {                                                        \
-        if (F_ISSET(session, WT_SESSION_INTERNAL))                                         \
+    if ((s)->id != 0 && (s)->api_call_counter == 1) {                                        \
+        if (F_ISSET(session, WT_SESSION_INTERNAL))                                           \
             (void)__wt_atomic_add64(&S2C(s)->api_count_internal_in, 1);                      \
         else                                                                                 \
             (void)__wt_atomic_add64(&S2C(s)->api_count_in, 1);                               \
     }
 
 #define API_SESSION_POP(s)                                               \
-    if ((s)->id != 0 && (s)->api_call_counter == 1) {                                    \
+    if ((s)->id != 0 && (s)->api_call_counter == 1) {                    \
         if (F_ISSET(session, WT_SESSION_INTERNAL)) {                     \
             (void)__wt_atomic_add64(&S2C(s)->api_count_internal_out, 1); \
             WT_API_COUNTER_CHECK((s), api_count_internal);               \
