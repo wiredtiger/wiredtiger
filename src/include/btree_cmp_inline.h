@@ -186,11 +186,7 @@ __lex_compare_skip_ge_16(
     const uint8_t *uendp, *userp, *tendp, *treep;
     bool firsteq;
 
-    WT_ASSERT(session, len >= WT_VECTOR_SIZE);
-
     match = *matchp;
-    len = len - match;
-
     uendp = ustartp + len;
     tendp = tstartp + len;
 
