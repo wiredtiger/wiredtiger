@@ -212,9 +212,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Check in memory, deleted and on-disk pages for obsolescence. An initial state check is done
      * without holding the ref locked - this is to avoid switching refs to locked if it's not
-     * worthwhile doing the check. It's possible that the ref changes state while we are doing these
-     * checks. That's OK - in the worst case we might not review the ref this time, but we will on
-     * subsequent reconciliations.
+     * worthwhile doing the check.
      */
     ref_state = __wt_ref_get_state(ref);
     if (ref_state == WT_REF_DELETED || ref_state == WT_REF_DISK) {

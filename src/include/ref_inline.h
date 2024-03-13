@@ -20,7 +20,7 @@ __wt_ref_is_root(WT_REF *ref)
 
 /*
  * __ref_set_state --
- *     Set a ref's state. Accessed from the WT_REF_SET_STATE_MACRO.
+ *     Set a ref's state. Accessed from the WT_REF_SET_STATE macro.
  */
 static WT_INLINE void
 __ref_set_state(WT_REF *ref, uint8_t state)
@@ -33,8 +33,8 @@ __ref_set_state(WT_REF *ref, uint8_t state)
 #else
 /*
  * __ref_track_state --
- *     Save tracking data when REF_TRACK is enabled. This function wraps the WT_REF_SAVE_STATE macro
- *     so we can suppress it in our TSan ignore list.
+ *     Save tracking data when REF_TRACK is enabled. This is diagnostic code and we allow it to
+ *     race. TSan warnings for this function are suppressed.
  */
 static WT_INLINE void
 __ref_track_state(
@@ -48,6 +48,7 @@ __ref_track_state(
     ref->hist[ref->histoff].state = (uint16_t)(new_state);
     ref->histoff = (ref->histoff + 1) % WT_ELEMENTS(ref->hist);
 }
+
 #define WT_REF_SET_STATE(ref, s)                                           \
     do {                                                                   \
         __ref_track_state(session, ref, s, __PRETTY_FUNCTION__, __LINE__); \
