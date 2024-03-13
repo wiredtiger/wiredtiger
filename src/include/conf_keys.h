@@ -208,7 +208,7 @@
 #define WT_CONF_ID_log_retention 205ULL
 #define WT_CONF_ID_log_size 191ULL
 #define WT_CONF_ID_max_percent_overhead 182ULL
-#define WT_CONF_ID_memory_page_compression_ratio 38ULL
+#define WT_CONF_ID_memory_page_image_max 38ULL
 #define WT_CONF_ID_memory_page_max 39ULL
 #define WT_CONF_ID_merge 244ULL
 #define WT_CONF_ID_merge_max 82ULL
@@ -636,7 +636,7 @@ static const struct {
     uint64_t leak_memory;
     uint64_t lock_wait;
     uint64_t log;
-    uint64_t memory_page_compression_ratio;
+    uint64_t memory_page_image_max;
     uint64_t memory_page_max;
     uint64_t mmap;
     uint64_t mmap_all;
@@ -999,7 +999,7 @@ static const struct {
   WT_CONF_ID_leak_memory,
   WT_CONF_ID_lock_wait,
   WT_CONF_ID_log,
-  WT_CONF_ID_memory_page_compression_ratio,
+  WT_CONF_ID_memory_page_image_max,
   WT_CONF_ID_memory_page_max,
   WT_CONF_ID_mmap,
   WT_CONF_ID_mmap_all,

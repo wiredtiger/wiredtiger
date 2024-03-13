@@ -939,15 +939,20 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
 
     /*
-     * Default in-memory page compression ratio, default is 4x, so page image size for compression is 4x the 
-     * maximum internal or leaf pagesize, and enforce the on-disk page sizes as a lower-limit for the in-memory 
-     * image size.
+     * Default in-memory page compression ratio, default is 4x, so page image size for compression
+     * is 4x the maximum internal or leaf pagesize, and enforce the on-disk page sizes as a
+     * lower-limit for the in-memory image size.
      */
-    WT_RET(__wt_config_gets(session, cfg, "memory_page_compression_ratio", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "memory_page_image_max", &cval));
+    btree->maxmempage_image = (uint32_t)cval.val;
     max = WT_MAX(btree->maxintlpage, btree->maxleafpage);
-    btree->maxmempage_image = (uint32_t)cval.val * max;
     if (btree->maxmempage_image == 0)
         btree->maxmempage_image = 4 * max;
+    else if (btree->maxmempage_image < max)
+        WT_RET_MSG(session, EINVAL,
+          "in-memory page image size must be larger than the maximum page size (%" PRIu32
+          "B < %" PRIu32 "B)",
+          btree->maxmempage_image, max);
 
     /*
      * Don't let pages grow large compared to the cache size or we can end
