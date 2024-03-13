@@ -186,23 +186,22 @@ __lex_compare_skip_ge_16(
     const uint8_t *uendp, *userp, *tendp, *treep;
     bool firsteq;
 
+    WT_ASSERT(session, len >= WT_VECTOR_SIZE);
+
     match = *matchp;
     len = len - match;
 
-    userp = ustartp + match;
-    treep = tstartp + match;
     uendp = ustartp + len;
     tendp = tstartp + len;
 
-    while (uendp - userp > WT_VECTOR_SIZE) {
+    for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
+         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
         memcpy(&udata, userp, WT_VECTOR_SIZE);
         memcpy(&tdata, treep, WT_VECTOR_SIZE);
         if (udata.a != tdata.a || udata.b != tdata.b) {
             match = (size_t)(userp - ustartp);
             goto final128;
         }
-        userp += WT_VECTOR_SIZE;
-        treep += WT_VECTOR_SIZE;
     }
 
     match = (size_t)(uendp - ustartp) - WT_VECTOR_SIZE;
