@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * __wt_api_track_cursor_start --
  *     Start tracking a cursor API entry point for statistics.
