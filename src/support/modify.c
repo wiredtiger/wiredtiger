@@ -445,6 +445,8 @@ err:
 /*
  * __wt_modify_reconstruct_from_upd_list --
  *     Takes an in-memory modify and populates an update value with the reconstructed full value.
+ *
+ * The reconciliation parameter should be set to true when called from reconciliation.
  */
 int
 __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
@@ -467,12 +469,11 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
 
     /*
      * It is possible that a read-uncommitted reader can not reconstruct a full value. This is
-     * because another isolation snapshot writer can abort the updates in parallel and leave the
-     * reader in an invalid state by skipping a needed modify or we are not able to find a base
-     * update. It is difficult to distinguish if an aborted modify or update happened prior to the
-     * call of the function or if it has been done in parallel. Therefore there is no guarantee that
-     * a read-uncommitted reader can properly construct a full value. In this case, we will return
-     * back to the user with a retry error.
+     * because a snapshot isolation writer can abort the updates in parallel and leave the reader
+     * with an update list that does not contain enough information to reconstruct the full value.
+     * It is impossible to distinguish if an aborted modify or update happened prior to the call of
+     * the function, or if it is being done in parallel. In this case, we will return back to the
+     * user with a retry error.
      */
     if (!reconciliation && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
         return (WT_RESTART);
