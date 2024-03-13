@@ -1683,14 +1683,14 @@ static const char *const __stats_connection_desc[] = {
   "connection: memory re-allocations",
   "connection: number of sessions without a sweep for 5+ minutes",
   "connection: number of sessions without a sweep for 60+ minutes",
-  "connection: number of threads currently inside the library application",
-  "connection: number of threads currently inside the library doing cursor operations application",
-  "connection: number of threads currently inside the library doing cursor operations internal",
-  "connection: number of threads currently inside the library internal",
   "connection: opening the backup cursor in progress",
   "connection: pthread mutex condition wait calls",
   "connection: pthread mutex shared lock read-lock calls",
   "connection: pthread mutex shared lock write-lock calls",
+  "connection: threads currently in the library application",
+  "connection: threads currently in the library doing cursor operations application",
+  "connection: threads currently in the library doing cursor operations internal",
+  "connection: threads currently in the library internal",
   "connection: total fsync I/Os",
   "connection: total modified incremental blocks",
   "connection: total read I/Os",
@@ -2419,14 +2419,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->memory_grow = 0;
     stats->no_session_sweep_5min = 0;
     stats->no_session_sweep_60min = 0;
-    /* not clearing api_call_count */
-    /* not clearing api_call_count_cursor */
-    /* not clearing api_call_count_cursor_internal */
-    /* not clearing api_call_count_internal */
     /* not clearing backup_start */
     stats->cond_wait = 0;
     stats->rwlock_read = 0;
     stats->rwlock_write = 0;
+    /* not clearing api_call_count */
+    /* not clearing api_call_count_cursor */
+    /* not clearing api_call_count_cursor_internal */
+    /* not clearing api_call_count_internal */
     stats->fsync_io = 0;
     stats->backup_blocks = 0;
     stats->read_io = 0;
@@ -3181,14 +3181,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->memory_grow += WT_STAT_READ(from, memory_grow);
     to->no_session_sweep_5min += WT_STAT_READ(from, no_session_sweep_5min);
     to->no_session_sweep_60min += WT_STAT_READ(from, no_session_sweep_60min);
-    to->api_call_count += WT_STAT_READ(from, api_call_count);
-    to->api_call_count_cursor += WT_STAT_READ(from, api_call_count_cursor);
-    to->api_call_count_cursor_internal += WT_STAT_READ(from, api_call_count_cursor_internal);
-    to->api_call_count_internal += WT_STAT_READ(from, api_call_count_internal);
     to->backup_start += WT_STAT_READ(from, backup_start);
     to->cond_wait += WT_STAT_READ(from, cond_wait);
     to->rwlock_read += WT_STAT_READ(from, rwlock_read);
     to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+    to->api_call_count += WT_STAT_READ(from, api_call_count);
+    to->api_call_count_cursor += WT_STAT_READ(from, api_call_count_cursor);
+    to->api_call_count_cursor_internal += WT_STAT_READ(from, api_call_count_cursor_internal);
+    to->api_call_count_internal += WT_STAT_READ(from, api_call_count_internal);
     to->fsync_io += WT_STAT_READ(from, fsync_io);
     to->backup_blocks += WT_STAT_READ(from, backup_blocks);
     to->read_io += WT_STAT_READ(from, read_io);

@@ -6226,28 +6226,28 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_NO_SESSION_SWEEP_5MIN		1324
 /*! connection: number of sessions without a sweep for 60+ minutes */
 #define	WT_STAT_CONN_NO_SESSION_SWEEP_60MIN		1325
-/*! connection: number of threads currently inside the library application */
-#define	WT_STAT_CONN_API_CALL_COUNT			1326
-/*!
- * connection: number of threads currently inside the library doing
- * cursor operations application
- */
-#define	WT_STAT_CONN_API_CALL_COUNT_CURSOR		1327
-/*!
- * connection: number of threads currently inside the library doing
- * cursor operations internal
- */
-#define	WT_STAT_CONN_API_CALL_COUNT_CURSOR_INTERNAL	1328
-/*! connection: number of threads currently inside the library internal */
-#define	WT_STAT_CONN_API_CALL_COUNT_INTERNAL		1329
 /*! connection: opening the backup cursor in progress */
-#define	WT_STAT_CONN_BACKUP_START			1330
+#define	WT_STAT_CONN_BACKUP_START			1326
 /*! connection: pthread mutex condition wait calls */
-#define	WT_STAT_CONN_COND_WAIT				1331
+#define	WT_STAT_CONN_COND_WAIT				1327
 /*! connection: pthread mutex shared lock read-lock calls */
-#define	WT_STAT_CONN_RWLOCK_READ			1332
+#define	WT_STAT_CONN_RWLOCK_READ			1328
 /*! connection: pthread mutex shared lock write-lock calls */
-#define	WT_STAT_CONN_RWLOCK_WRITE			1333
+#define	WT_STAT_CONN_RWLOCK_WRITE			1329
+/*! connection: threads currently in the library application */
+#define	WT_STAT_CONN_API_CALL_COUNT			1330
+/*!
+ * connection: threads currently in the library doing cursor operations
+ * application
+ */
+#define	WT_STAT_CONN_API_CALL_COUNT_CURSOR		1331
+/*!
+ * connection: threads currently in the library doing cursor operations
+ * internal
+ */
+#define	WT_STAT_CONN_API_CALL_COUNT_CURSOR_INTERNAL	1332
+/*! connection: threads currently in the library internal */
+#define	WT_STAT_CONN_API_CALL_COUNT_INTERNAL		1333
 /*! connection: total fsync I/Os */
 #define	WT_STAT_CONN_FSYNC_IO				1334
 /*! connection: total modified incremental blocks */

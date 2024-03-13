@@ -691,14 +691,14 @@ struct __wt_connection_stats {
     int64_t memory_grow;
     int64_t no_session_sweep_5min;
     int64_t no_session_sweep_60min;
-    int64_t api_call_count;
-    int64_t api_call_count_cursor;
-    int64_t api_call_count_cursor_internal;
-    int64_t api_call_count_internal;
     int64_t backup_start;
     int64_t cond_wait;
     int64_t rwlock_read;
     int64_t rwlock_write;
+    int64_t api_call_count;
+    int64_t api_call_count_cursor;
+    int64_t api_call_count_cursor_internal;
+    int64_t api_call_count_internal;
     int64_t fsync_io;
     int64_t backup_blocks;
     int64_t read_io;
