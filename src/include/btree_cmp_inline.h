@@ -190,8 +190,8 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
         remain = len % WT_VECTOR_SIZE;
         len -= remain;
         for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
-            u = _mm_load_si128((const __m128i *)userp);
-            t = _mm_load_si128((const __m128i *)treep);
+            u = _mm_loadu_si128((const __m128i *)userp);
+            t = _mm_loadu_si128((const __m128i *)treep);
             res_eq = _mm_cmpeq_epi8(u, t);
             if (_mm_movemask_epi8(res_eq) != 65535)
                 break;
@@ -418,8 +418,8 @@ __wt_lex_compare_skip(
         len -= remain;
         for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE,
              *matchp += WT_VECTOR_SIZE) {
-            u = _mm_load_si128((const __m128i *)userp);
-            t = _mm_load_si128((const __m128i *)treep);
+            u = _mm_loadu_si128((const __m128i *)userp);
+            t = _mm_loadu_si128((const __m128i *)treep);
             res_eq = _mm_cmpeq_epi8(u, t);
             if (_mm_movemask_epi8(res_eq) != 65535)
                 break;
