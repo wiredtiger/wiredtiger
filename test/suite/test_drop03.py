@@ -72,6 +72,7 @@ class test_drop03(wttest.WiredTigerTestCase):
         cursor['key: bbb'] = 'value: bbb'
         cursor.close()
         # Drop call should fail with EBUSY without the force option.
+        self.prout("drop with force=false should fail.")
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, "force=false")),
                         "was expecting drop call to fail with EBUSY")
         # Verify values after drop with force=false
@@ -81,7 +82,9 @@ class test_drop03(wttest.WiredTigerTestCase):
         self.verify_value(self.uri, self.session, 'key: aac', 'value: aac')
         self.verify_value(self.uri, self.session, 'key: aad', 'value: aad')
         self.verify_value(self.uri, self.session, 'key: bbb', 'value: bbb')
+
         # Drop call should fail with EBUSY with the force option.
+        self.prout("drop with force=true should fail.")
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, "force=true")),
                         "was expecting drop call to fail with EBUSY")
         # Verify values after drop with force=true
