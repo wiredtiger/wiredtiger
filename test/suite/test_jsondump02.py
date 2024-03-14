@@ -237,7 +237,7 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
                 ('"ikey" : 4,\n"Skey" : "key4"',
                  '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64'))
         self.check_json(self.table_uri4, table4_json)
-      
+
         # The dump config currently is not supported for the index type.
         self.check_json(uri4index1, (
                 ('"Skey" : "key1"',
