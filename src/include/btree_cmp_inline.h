@@ -88,30 +88,30 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         memcpy(&ub, uendp - sizeof(uint64_t), sizeof(uint64_t));
         memcpy(&tb, tendp - sizeof(uint64_t), sizeof(uint64_t));
     } else if (len & sizeof(uint32_t)) {
-        uint32_t UA, TA, UB, TB;
-        memcpy(&UA, ustartp, sizeof(uint32_t));
-        memcpy(&TA, tstartp, sizeof(uint32_t));
-        memcpy(&UB, uendp - sizeof(uint32_t), sizeof(uint32_t));
-        memcpy(&TB, tendp - sizeof(uint32_t), sizeof(uint32_t));
-        ua = UA;
-        ta = TA;
-        ub = UB;
-        tb = TB;
+        uint32_t ta32, tb32, ua32, ub32;
+        memcpy(&ua32, ustartp, sizeof(uint32_t));
+        memcpy(&ta32, tstartp, sizeof(uint32_t));
+        memcpy(&ub32, uendp - sizeof(uint32_t), sizeof(uint32_t));
+        memcpy(&tb32, tendp - sizeof(uint32_t), sizeof(uint32_t));
+        ua = ua32;
+        ta = ta32;
+        ub = ub32;
+        tb = tb32;
     } else if (len & sizeof(uint16_t)) {
-        uint16_t UA, TA, UB, TB;
-        memcpy(&UA, ustartp, sizeof(uint16_t));
-        memcpy(&TA, tstartp, sizeof(uint16_t));
-        memcpy(&UB, uendp - sizeof(uint16_t), sizeof(uint16_t));
-        memcpy(&TB, tendp - sizeof(uint16_t), sizeof(uint16_t));
-        ua = UA;
-        ta = TA;
-        ub = UB;
-        tb = TB;
+        uint16_t ta16, tb16, ua16, ub16;
+        memcpy(&ua16, ustartp, sizeof(uint16_t));
+        memcpy(&ta16, tstartp, sizeof(uint16_t));
+        memcpy(&ub16, uendp - sizeof(uint16_t), sizeof(uint16_t));
+        memcpy(&tb16, tendp - sizeof(uint16_t), sizeof(uint16_t));
+        ua = ua16;
+        ta = ta16;
+        ub = ub16;
+        tb = tb16;
     } else if (len & sizeof(uint8_t)) {
-        uint8_t UA, TA;
-        memcpy(&UA, ustartp, sizeof(uint8_t));
-        memcpy(&TA, tstartp, sizeof(uint8_t));
-        return (UA < TA ? -1 : UA > TA ? 1 : lencmp);
+        uint8_t ta8, ua8;
+        memcpy(&ua8, ustartp, sizeof(uint8_t));
+        memcpy(&ta8, tstartp, sizeof(uint8_t));
+        return (ua8 < ta8 ? -1 : ua8 > ta8 ? 1 : lencmp);
     } else
         return (lencmp);
 
