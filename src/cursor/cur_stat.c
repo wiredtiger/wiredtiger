@@ -95,6 +95,7 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
 
     WT_ERR(cst->stats_desc(cst, WT_STAT_KEY_OFFSET(cst), &desc));
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
+        /* The printed value is currently null. Create it now, it's needed for the packed result. */
         WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
         WT_ERR(__wt_struct_size(session, &size, cursor->value_format, desc, cst->pv.data, cst->v));
         WT_ERR(__wt_buf_initsize(session, &cursor->value, size));
