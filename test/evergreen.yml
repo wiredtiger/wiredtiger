@@ -4094,12 +4094,9 @@ buildvariants:
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
-<<<<<<< HEAD
   # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
   # find a smaller set of tests that give an optimal test coverage while being mindful of machine
   # costs and availability.
-=======
->>>>>>> 3fab6ef75 (WT-11845 Fix transaction visibility issue with truncate (#9841))
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
