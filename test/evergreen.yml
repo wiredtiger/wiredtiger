@@ -2456,15 +2456,6 @@ tasks:
 
             RW_LOCK_FILE=$(pwd)/../../cmake_build/test/csuite/rwlock/test_rwlock ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
-  - name: format-mirror-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.mirror
-          trace_args: -T all
-
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
     commands:
