@@ -5301,6 +5301,8 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
+      run on:
+      - ubuntu2004-medium
     - name: ".stress-test-sanitizer"
       run_on:
       - ubuntu2004-medium
@@ -5701,6 +5703,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
+      distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: compile
     - name: ".cppsuite-stress-test"
