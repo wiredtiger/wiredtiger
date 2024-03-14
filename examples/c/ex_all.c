@@ -564,6 +564,10 @@ cursor_statistics(WT_SESSION *session)
       session, "statistics:table:mytable", NULL, "statistics=(all,clear)", &cursor));
     /*! [Statistics cursor clear configuration] */
 
+    /*! [Statistics cursor session] */
+    error_check(session->open_cursor(session, "statistics:session", NULL, NULL, &cursor));
+    /*! [Statistics cursor session] */
+
     /*! [Statistics cursor ignore column] */
     error_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
