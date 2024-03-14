@@ -127,7 +127,7 @@ class test_cc01(test_cc_base):
 
         # Checkpoint to ensure that the history store is cleaned.
         self.session.checkpoint("checkpoint_cleanup=true")
-        self.check_gc_stats()
+        self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue2, uri, nrows, 100)

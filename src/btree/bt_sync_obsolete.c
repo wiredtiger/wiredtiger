@@ -447,43 +447,17 @@ err:
 static int
 __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
 {
-    WT_CONFIG ckptconf;
-    WT_CONFIG_ITEM cval, value, key;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    wt_timestamp_t newest_stop_durable_ts;
-    char ts_string[WT_TS_INT_STRING_SIZE];
-    const char *config, *uri;
-    bool have_cursor;
+    const char *uri;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
-    have_cursor = true;
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
-        WT_ERR(cursor->get_value(cursor, &config));
 
         /* Ignore non-btree objects as well as the metadata file. */
         if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
             continue;
-
-        /* Find out the newest stop durable timestamp of the object from checkpoint. */
-        newest_stop_durable_ts = WT_TS_NONE;
-
-        WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
-        __wt_config_subinit(session, &ckptconf, &cval);
-        for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
-            if (ret == 0)
-                newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
-            WT_ERR_NOTFOUND_OK(ret, false);
-        }
-
-        if (newest_stop_durable_ts == WT_TS_NONE)
-            continue;
-
-        __wt_verbose_level(session, WT_VERB_CHECKPOINT_CLEANUP, WT_VERBOSE_DEBUG_1,
-          "checkpoint cleanup tree. uri=%s, newest_stop_durable_ts=%s", uri,
-          __wt_timestamp_to_string(newest_stop_durable_ts, ts_string));
 
         ret = __checkpoint_cleanup_walk_btree(session, uri);
         WT_ERR_ERROR_OK(ret, EBUSY, false);
@@ -499,8 +473,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
-    if (have_cursor)
-        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
 

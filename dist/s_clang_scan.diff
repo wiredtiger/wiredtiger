@@ -1,7 +1,6 @@
 wiredtiger/src/btree/bt_curnext.c Value stored to 'inclusive_set' is never read [deadcode.DeadStores]
 wiredtiger/src/btree/bt_curprev.c Value stored to 'inclusive_set' is never read [deadcode.DeadStores]
 wiredtiger/src/btree/bt_delete.c The left operand of '!=' is a garbage value [core.UndefinedBinaryOperatorResult]
-wiredtiger/src/btree/bt_sync.c The left operand of '==' is a garbage value [core.UndefinedBinaryOperatorResult]
 wiredtiger/src/btree/bt_sync_obsolete.c The left operand of '==' is a garbage value [core.UndefinedBinaryOperatorResult]
 wiredtiger/src/btree/bt_vrfy.c Although the value stored to 'skip_hs' is used in the enclosing expression, the value is never actually read from 'skip_hs' [deadcode.DeadStores]
 wiredtiger/src/config/config_api.c Value stored to 'compiled_type' is never read [deadcode.DeadStores]
