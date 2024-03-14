@@ -1392,6 +1392,7 @@ variadic
 vd
 vdata
 vec
+vectorized
 verifier
 vfprintf
 vh
