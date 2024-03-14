@@ -300,13 +300,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt4699_json
-    SOURCES wt4699_json/main.c
-    DIR_NAME wt4699_json
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4699_json>/WT_HOME>
-)
-
-define_c_test(
     TARGET test_wt4803_history_store_abort
     SOURCES wt4803_history_store_abort/main.c
     DIR_NAME wt4803_history_store_abort
