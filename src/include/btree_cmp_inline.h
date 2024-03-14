@@ -43,6 +43,7 @@ __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     uendp = ustartp + len;
     tendp = tstartp + len;
 
+    /* skip 16 matching bytes at a time, starting at first possible difference. */
     for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
         memcpy(&udata, userp, WT_VECTOR_SIZE);
@@ -51,6 +52,10 @@ __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
             goto final128;
     }
 
+    /*
+     * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
+     * still in bound.
+     */
     memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
     memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
 
@@ -304,6 +309,7 @@ __lex_compare_skip_ge_16(
     uendp = ustartp + len;
     tendp = tstartp + len;
 
+    /* skip 16 matching bytes at a time, starting at first possible difference. */
     for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
         memcpy(&udata, userp, WT_VECTOR_SIZE);
@@ -314,6 +320,10 @@ __lex_compare_skip_ge_16(
         }
     }
 
+    /*
+     * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
+     * still in bound.
+     */
     match = (size_t)(uendp - ustartp) - WT_VECTOR_SIZE;
     memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
     memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
@@ -381,6 +391,10 @@ __wt_lex_compare_skip(
         WT_UNUSED(session);
 #endif
     } else
+        /*
+         * We completely ignore match when len < 16 because it wouldn't reduce the amount of work
+         * done, and would add overhead.
+         */
         ret_val = __lex_compare_lt_16(
           (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp);
 
