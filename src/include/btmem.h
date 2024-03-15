@@ -1082,12 +1082,16 @@ struct __wt_ref {
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
-#define WT_REF_DISK 0                   /* Page is on disk */
-#define WT_REF_DELETED 1                /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2                 /* Page locked for exclusive access */
-#define WT_REF_MEM 3                    /* Page is in cache and valid */
-#define WT_REF_SPLIT 4                  /* Parent page split (WT_REF dead) */
-    wt_shared volatile uint8_t __state; /* Page state */
+#define WT_REF_DISK 0    /* Page is on disk */
+#define WT_REF_DELETED 1 /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2  /* Page locked for exclusive access */
+#define WT_REF_MEM 3     /* Page is in cache and valid */
+#define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
+    /*
+     * Page state: Obscure the field name as this field shouldn't be accessed directly. This public
+     * interface is __ref_set_state, __ref_get_state, and __ref_cas_state.
+     */
+    wt_shared volatile uint8_t __state;
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
