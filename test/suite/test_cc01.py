@@ -30,7 +30,7 @@
 # checkpoint:checkpoint_cleanup
 # [END_TAGS]
 
-import time, wiredtiger, wttest 
+import time, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 
@@ -80,7 +80,7 @@ class test_cc_base(wttest.WiredTigerTestCase):
             c = self.session.open_cursor( 'statistics:')
             cc_success = c[stat.conn.checkpoint_cleanup_success][2]
             c.close()
-    
+
     def check_cc_stats(self):
         self.wait_for_cc_to_run()
         c = self.session.open_cursor( 'statistics:')
