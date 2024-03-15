@@ -142,14 +142,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2323_join_visibility
-    SOURCES wt2323_join_visibility/main.c
-    DIR_NAME wt2323_join_visibility
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2323_join_visibility>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET test_wt2535_insert_race
     SOURCES wt2535_insert_race/main.c
     DIR_NAME wt2535_insert_race
@@ -166,25 +158,11 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2592_join_schema
-    SOURCES wt2592_join_schema/main.c
-    DIR_NAME wt2592_join_schema
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2592_join_schema>/WT_HOME>
-)
-
-define_c_test(
     TARGET test_wt2719_reconfig
     SOURCES wt2719_reconfig/main.c
     DIR_NAME wt2719_reconfig
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
     DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_wt2834_join_bloom_fix
-    SOURCES wt2834_join_bloom_fix/main.c
-    DIR_NAME wt2834_join_bloom_fix
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2834_join_bloom_fix>/WT_HOME>
 )
 
 define_c_test(
@@ -198,13 +176,6 @@ define_c_test(
     ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_wt2909_checkpoint_integrity>
     DEPENDS "WT_POSIX"
     LABEL "long_running"
-)
-
-define_c_test(
-    TARGET test_wt2999_join_extractor
-    SOURCES wt2999_join_extractor/main.c
-    DIR_NAME wt2999_join_extractor
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2999_join_extractor>/WT_HOME>
 )
 
 define_c_test(
