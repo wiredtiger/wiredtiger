@@ -688,7 +688,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
     WT_TXN_GLOBAL *txn_global;
 
     hash_value = 0;
-    txn_global = &S2C(session)->txn_global;
+    WT_NOT_READ(txn_global, &S2C(session)->txn_global);
 
     /*
      * We should not open other cursors when there are open history store cursors in the session.
