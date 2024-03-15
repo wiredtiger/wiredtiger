@@ -1,9 +1,3 @@
-# A reasonable configuration for stress testing.
-cache.minimum=20
-runs.rows=1000000:5000000
-runs.tables=3:10
-runs.threads=4:32
-runs.timer=6:30
 ############################################
 #  RUN PARAMETERS: V3
 ############################################
@@ -169,8 +163,7 @@ table2.ops.truncate=1
 table2.runs.mirror=0
 table2.runs.source=file
 table2.runs.type=row-store
-############################table_op/903: (1 && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK: operation failed: -31804
-################
+############################################
 #  TABLE PARAMETERS: table 3
 ############################################
 table3.btree.bitcnt=4
