@@ -5301,8 +5301,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
-      run on:
-      - ubuntu2004-medium
+      distros: ubuntu2004-medium
     - name: ".stress-test-sanitizer"
       run_on:
       - ubuntu2004-medium
