@@ -659,7 +659,7 @@ prepare_transaction(TINFO *tinfo)
 #define OP_FAILED(notfound_ok)                                                               \
     do {                                                                                     \
         positioned = false;                                                                  \
-        if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK || ret == WT_RESTART))      \
+        if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))                           \
             return (WT_ROLLBACK);                                                            \
         testutil_assertfmt(                                                                  \
           (notfound_ok && ret == WT_NOTFOUND) || ret == WT_CACHE_FULL || ret == WT_ROLLBACK, \
