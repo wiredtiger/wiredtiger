@@ -1089,7 +1089,7 @@ struct __wt_ref {
 #define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
     /*
      * Page state: Obscure the field name as this field shouldn't be accessed directly. This public
-     * interface is __ref_set_state, __ref_get_state, and __ref_cas_state.
+     * interface is __wt_ref_set_state, __wt_ref_get_state, and WT_REF_CAS_STATE.
      */
     wt_shared volatile uint8_t __state;
 
