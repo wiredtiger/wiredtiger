@@ -118,7 +118,10 @@ class test_compact12(wttest.WiredTigerTestCase):
         self.truncate(uri, self.table_numkv // 10 * 9, self.table_numkv)
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
 
-        self.session.checkpoint()
+        # Perform two checkpoints and also trigger checkpoint cleanup to remove
+        # the obsolete content.
+        self.session.checkpoint("checkpoint_cleanup=true")
+        self.session.checkpoint("checkpoint_cleanup=true")
 
         self.assertGreater(self.get_fast_truncated_pages(), 0)
 
