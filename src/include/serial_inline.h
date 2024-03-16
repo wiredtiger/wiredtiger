@@ -299,14 +299,17 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         return (0);
 
     /*
-     * Look for obsolete updates if:
+     * Look for obsolete updates if any of the following conditions are satisfied to
+     * avoid unnecessary forced eviction:
      * 1. The page has been configured for eviction soon. We might not be able to evict
-     *    a page marked for eviction soon due to concurrent accesses. Removing obsolete
-     *    updates from these pages can reduce their memory footprint, which will avoid
-     *    unnecessary forced eviction.
-     * 2. There are several updates in the cache that need to be removed.
+     *    a page marked for eviction soon due to concurrent accesses.
+     * 2. The page size has changed by more than 5% of the maximum split page size
+     *    allowed by btree.
+     * 3. There are several updates in the cache that need to be removed.
      */
     if (__wt_readgen_evict_soon(&page->read_gen) ||
+      ((page->memory_footprint - page->modify->obsolete_check_memory_footprint) >
+        (S2BT(session)->splitmempage * 0.05)) ||
       F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_UPDATES))
         __wt_update_obsolete_check(session, cbt->ref, upd->next, false);
 
