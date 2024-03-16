@@ -32,6 +32,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree compact pages reviewed",
   "btree: btree compact pages rewritten",
   "btree: btree compact pages skipped",
+  "btree: btree expected number of compact bytes rewritten",
   "btree: btree expected number of compact pages rewritten",
   "btree: btree skipped by compaction as process would not reduce size",
   "btree: column-store fixed-size leaf pages",
@@ -388,6 +389,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_reviewed */
     /* not clearing btree_compact_pages_rewritten */
     /* not clearing btree_compact_pages_skipped */
+    /* not clearing btree_compact_bytes_rewritten_expected */
     /* not clearing btree_compact_pages_rewritten_expected */
     /* not clearing btree_compact_skipped */
     stats->btree_column_fix = 0;
@@ -703,6 +705,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
     to->btree_compact_pages_rewritten += from->btree_compact_pages_rewritten;
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
+    to->btree_compact_bytes_rewritten_expected += from->btree_compact_bytes_rewritten_expected;
     to->btree_compact_pages_rewritten_expected += from->btree_compact_pages_rewritten_expected;
     to->btree_compact_skipped += from->btree_compact_skipped;
     to->btree_column_fix += from->btree_column_fix;
@@ -1028,6 +1031,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += WT_STAT_READ(from, btree_compact_pages_reviewed);
     to->btree_compact_pages_rewritten += WT_STAT_READ(from, btree_compact_pages_rewritten);
     to->btree_compact_pages_skipped += WT_STAT_READ(from, btree_compact_pages_skipped);
+    to->btree_compact_bytes_rewritten_expected +=
+      WT_STAT_READ(from, btree_compact_bytes_rewritten_expected);
     to->btree_compact_pages_rewritten_expected +=
       WT_STAT_READ(from, btree_compact_pages_rewritten_expected);
     to->btree_compact_skipped += WT_STAT_READ(from, btree_compact_skipped);
@@ -1957,8 +1962,6 @@ static const char *const __stats_connection_desc[] = {
   "session: table create with import successful calls",
   "session: table drop failed calls",
   "session: table drop successful calls",
-  "session: table rename failed calls",
-  "session: table rename successful calls",
   "session: table salvage failed calls",
   "session: table salvage successful calls",
   "session: table truncate failed calls",
@@ -2687,8 +2690,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_create_import_success */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
-    /* not clearing session_table_rename_fail */
-    /* not clearing session_table_rename_success */
     /* not clearing session_table_salvage_fail */
     /* not clearing session_table_salvage_success */
     /* not clearing session_table_truncate_fail */
@@ -3466,8 +3467,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, session_table_create_import_success);
     to->session_table_drop_fail += WT_STAT_READ(from, session_table_drop_fail);
     to->session_table_drop_success += WT_STAT_READ(from, session_table_drop_success);
-    to->session_table_rename_fail += WT_STAT_READ(from, session_table_rename_fail);
-    to->session_table_rename_success += WT_STAT_READ(from, session_table_rename_success);
     to->session_table_salvage_fail += WT_STAT_READ(from, session_table_salvage_fail);
     to->session_table_salvage_success += WT_STAT_READ(from, session_table_salvage_success);
     to->session_table_truncate_fail += WT_STAT_READ(from, session_table_truncate_fail);
