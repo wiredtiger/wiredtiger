@@ -468,7 +468,6 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
               "%s: skipped performing checkpoint cleanup because the file %s", uri,
               ret == ENOENT ? "does not exist" : "is busy");
-            ret = 0;
             continue;
         }
         WT_ERR(ret);
