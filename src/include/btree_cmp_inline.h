@@ -23,7 +23,8 @@
  *     user_item is lexicographically < tree_item, = 0 if user_item is lexicographically =
  *     tree_item, > 0 if user_item is lexicographically > tree_item. We use the names "user" and
  *     "tree" so it's clear in the btree code which the application is looking at when we call its
- *     comparison function.
+ *     comparison function. Some platforms like ARM offer dedicated instructions for reading 16
+ *     bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
 __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
@@ -290,7 +291,8 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
  *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
  *     names "user" and "tree" so it's clear in the btree code which the application is looking at
  *     when we call its comparison function. Some platforms like ARM offer dedicated instructions
- *     for reading 16 bytes at a time, allowing for faster comparisons.
+ *     for reading 16 bytes at a time, allowing for faster comparisons. Some platforms like ARM
+ *     offer dedicated instructions for reading 16 bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
 __lex_compare_skip_ge_16(
