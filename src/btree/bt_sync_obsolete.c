@@ -460,7 +460,12 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             continue;
 
         ret = __checkpoint_cleanup_walk_btree(session, uri);
-        WT_ERR_ERROR_OK(ret, EBUSY, false);
+        if (ret == ENOENT || ret == EBUSY) {
+            __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "%s: skipped performing checkpoint cleanup because the file %s", uri,
+              ret == ENOENT ? "does not exist" : "is busy");
+            ret = 0;
+        }
 
         /* Wait for 5 seconds before proceeding with another table. */
         __wt_cond_wait(
