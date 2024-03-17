@@ -14,11 +14,6 @@
 #endif
 #endif
 
-#if defined(HAVE_ARM_NEON_INTRIN_H)
-#include <arm_neon.h>
-#endif
-/* 16B alignment */
-#define WT_ALIGNED_16(p) (((uintptr_t)(p)&0x0f) == 0)
 #define WT_VECTOR_SIZE 16 /* chunk size */
 
 #ifndef HAVE_X86INTRIN_H
@@ -78,6 +73,8 @@ final128:
  *     lexicographically < tree_item, = 0 if user_item is lexicographically = tree_item, > 0 if
  *     user_item is lexicographically > tree_item. We use the names "user" and "tree" so it's clear
  *     in the btree code which the application is looking at when we call its comparison function.
+ *     Some platforms like ARM offer dedicated instructions for reading 16 bytes at a time, allowing
+ *     for faster comparisons.
  */
 static WT_INLINE int
 __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
@@ -87,6 +84,7 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 
     uendp = ustartp + len;
     tendp = tstartp + len;
+    /* This function is only called with less than 16 bytes data. */
     if (len & sizeof(uint64_t)) {
         memcpy(&ua, ustartp, sizeof(uint64_t));
         memcpy(&ta, tstartp, sizeof(uint64_t));
@@ -291,7 +289,8 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
  *     bytes. Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
  *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
  *     names "user" and "tree" so it's clear in the btree code which the application is looking at
- *     when we call its comparison function.
+ *     when we call its comparison function. Some platforms like ARM offer dedicated instructions
+ *     for reading 16 bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
 __lex_compare_skip_ge_16(
