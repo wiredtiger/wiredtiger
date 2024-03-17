@@ -1264,7 +1264,7 @@ err:
 
 /*
  * __ckpt_extract_blkmod_bitmap --
- *     Extracts the blkmod info in a checkpoint into a bitmap in a WT_ITEM.
+ *     Extracts the blkmod info in a checkpoint into a bitmap within a WT_ITEM.
  */
 static int
 __ckpt_extract_blkmod_bitmap(
@@ -1284,7 +1284,7 @@ __ckpt_extract_blkmod_bitmap(
 
 /*
  * __get_blkmods --
- *     Extracts the blkmod info from the metadata about a file+id into a bitmap in a WT_ITEM.
+ *     Extracts the blkmod info from the metadata about a file+id into a bitmap within a WT_ITEM.
  */
 static WT_INLINE int
 __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *output_item)
@@ -1319,19 +1319,19 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
 
             /* Loop through the incremental backup blocks data looking for the correct id */
             while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
-                if (blocks_value.len > 0) {
-                    if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
-                        /* We've found the right blocks so read the bit pattern into output_item */
-                        ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
-                        if (ret == 0) {
-                            if (blocks.len > 0) {
-                                ret =
-                                  __wt_nhex_to_raw(session, blocks.str, blocks.len, output_item);
-                                break;
-                            }
+                if (blocks_value.len == 0)
+                    continue;
+
+                if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
+                    /* We've found the right blocks so read the bit pattern into output_item */
+                    ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
+                    if (ret == 0) {
+                        if (blocks.len > 0) {
+                            WT_ERR(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
+                            break;
                         }
-                        WT_ERR_NOTFOUND_OK(ret, false);
                     }
+                    WT_ERR_NOTFOUND_OK(ret, false);
                 }
             }
         }
@@ -1440,7 +1440,8 @@ __check_backup_blocks(
                 if ((ret != 0) || !blkmods_are_ok) {
                     WT_ASSERT(session, false);
                     WT_ERR_PANIC(session, WT_PANIC,
-                      "File blkmods are not compatible with those in the checkpoint");
+                      "File blkmods are not compatible with those in the checkpoint ('%s')",
+                      ckpt->name);
                 }
             }
         }
