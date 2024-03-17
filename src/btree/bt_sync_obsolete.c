@@ -392,6 +392,10 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, const char *uri)
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_REF *ref;
+    uint32_t flags;
+
+    ref = NULL;
+    flags = WT_READ_NO_EVICT;
 
     /*
      * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
@@ -399,7 +403,6 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, const char *uri)
      */
     WT_WITHOUT_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
-
     if (ret == WT_NOTFOUND)
         return (0);
 
@@ -422,9 +425,8 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, const char *uri)
         goto err;
 
     /* Walk the tree. */
-    ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(
-              session, &ref, __checkpoint_cleanup_page_skip, NULL, WT_READ_NO_EVICT)) == 0 &&
+              session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
@@ -436,6 +438,8 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, const char *uri)
     }
 
 err:
+    /* On error, clear any left-over tree walk. */
+    WT_TRET(__wt_page_release(session, ref, flags));
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
@@ -465,7 +469,9 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
               "%s: skipped performing checkpoint cleanup because the file %s", uri,
               ret == ENOENT ? "does not exist" : "is busy");
             ret = 0;
+            continue;
         }
+        WT_ERR(ret);
 
         /* Wait for 5 seconds before proceeding with another table. */
         __wt_cond_wait(
