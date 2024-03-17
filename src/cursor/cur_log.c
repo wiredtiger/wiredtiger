@@ -159,7 +159,6 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
      * If it is a commit and we have stepped over the header, peek to get the size and optype and
      * read out any key/value from this operation.
      */
-    // FIXME
     key_count = cl->step_count;
     ++(cl->step_count);
     if (key_count > 0) {
