@@ -52,7 +52,7 @@ __wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     tiered = (WT_TIERED *)session->dhandle;
 
-    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+    for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         dhandle = tiered->tiers[i].tier;
         if (dhandle == NULL)
             continue;
@@ -128,7 +128,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
          * opened the table, we can take a short cut and skip straight to the sources. If we have a
          * name function, it needs to know about the intermediate URIs.
          */
-        for (i = 0; i < WT_COLGROUPS(table); i++) {
+        for (i = 0; i < WT_COLGROUPS(table); ++i) {
             colgroup = table->cgroups[i];
 
             /* FIXME-WT-10520 - Let verify process tiered tables once it is supported. */
@@ -152,7 +152,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE))
             WT_ERR(__wt_schema_open_indices(session, table));
 
-        for (i = 0; i < table->nindices; i++) {
+        for (i = 0; i < table->nindices; ++i) {
             idx = table->indices[i];
             skip = false;
             if (name_func != NULL)

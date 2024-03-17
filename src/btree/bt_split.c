@@ -446,7 +446,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     alloc_index->index = (WT_REF **)(alloc_index + 1);
     alloc_index->entries = children;
     alloc_refp = alloc_index->index;
-    for (i = 0; i < children; alloc_refp++, ++i)
+    for (i = 0; i < children; ++alloc_refp, ++i)
         WT_ERR(__wt_calloc_one(session, alloc_refp));
     root_incr += children * sizeof(WT_REF);
 
@@ -1914,7 +1914,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      *   5) Drop down a level, and go to step 3 until at level 0.
      */
     prev_ins = NULL; /* -Wconditional-uninitialized */
-    for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; i--, insp--) {
+    for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; --i, --insp) {
         /* Level empty, or a single element. */
         if (ins_head->head[i] == NULL || ins_head->head[i] == ins_head->tail[i]) {
             /* Remove if it is the element being moved. */
@@ -1944,7 +1944,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Verify the moved insert item appears nowhere on the skip list.
      */
-    for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; i--, insp--)
+    for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; --i, --insp)
         for (ins = *insp; ins != NULL; ins = ins->next[i])
             WT_ASSERT(session, ins != moved_ins);
 #endif

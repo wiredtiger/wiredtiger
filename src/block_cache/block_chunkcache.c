@@ -37,12 +37,12 @@ __chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
     bitmap_size = (chunkcache->capacity / chunkcache->chunk_size) / 8;
 
     /* Iterate through the bytes and bits of the bitmap to find free chunks. */
-    for (i = 0; i < bitmap_size; i++) {
+    for (i = 0; i < bitmap_size; ++i) {
         map_byte = chunkcache->free_bitmap[i];
         if (map_byte != 0xff) {
             j = 0;
             while ((map_byte & 1) != 0) {
-                j++;
+                ++j;
                 map_byte >>= 1;
             }
             *bit_index = ((i * 8) + j);
@@ -52,7 +52,7 @@ __chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
 
     /* If the number of chunks isn't divisible by 8, iterate through the remaining bits. */
     bits_remainder = (chunkcache->capacity / chunkcache->chunk_size) % 8;
-    for (j = 0; j < bits_remainder; j++)
+    for (j = 0; j < bits_remainder; ++j)
         if ((chunkcache->free_bitmap[bitmap_size] & (0x01 << j)) == 0) {
             *bit_index = ((bitmap_size * 8) + j);
             return (0);
@@ -182,7 +182,7 @@ __chunkcache_metadata_queue_internal(WT_SESSION_IMPL *session, uint8_t type, con
         __chunkcache_drop_queued_work(session);
 
     TAILQ_INSERT_TAIL(&conn->chunkcache_metadataqh, entry, q);
-    ++conn->chunkcache_queue_len;
+    ++(conn->chunkcache_queue_len);
 
     __wt_spin_unlock(session, &conn->chunkcache_metadata_lock);
     __wt_cond_signal(session, conn->chunkcache_metadata_cond);
@@ -585,7 +585,7 @@ __chunkcache_eviction_thread(void *arg)
             __wt_sleep(1, 0);
             continue;
         }
-        for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
+        for (i = 0; i < (int)chunkcache->hashtable_size; ++i) {
             __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
             TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
             {
@@ -783,7 +783,7 @@ __chunkcache_unpin_old_versions(WT_SESSION_IMPL *session, const char *sp_obj_nam
          * Loop through the entire chunk cache and search for matching objects from the file and
          * clear the pinned flag.
          */
-        for (i = 0; i < chunkcache->hashtable_size; i++) {
+        for (i = 0; i < chunkcache->hashtable_size; ++i) {
             __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
             TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
             {
@@ -908,7 +908,7 @@ retry:
                  * and potentially obsolete chunks, while retaining the more recently accessed ones.
                  */
                 if (chunk->access_count < WT_CHUNK_ACCESS_CAP_LIMIT)
-                    chunk->access_count++;
+                    ++(chunk->access_count);
 
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
@@ -1098,7 +1098,7 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     __chunkcache_arr_free(session, &old_pinned_list);
 
     /* Iterate through all the chunks and mark them as pinned if necessary. */
-    for (i = 0; i < chunkcache->hashtable_size; i++) {
+    for (i = 0; i < chunkcache->hashtable_size; ++i) {
         __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
         TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
         {
@@ -1276,7 +1276,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
 
-    for (i = 0; i < chunkcache->hashtable_size; i++) {
+    for (i = 0; i < chunkcache->hashtable_size; ++i) {
         TAILQ_INIT(&(chunkcache->hashtable[i].colliding_chunks));
         WT_ERR(__wt_spin_init(
           session, &chunkcache->hashtable[i].bucket_lock, "chunk cache bucket lock"));

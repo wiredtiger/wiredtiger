@@ -482,7 +482,7 @@ retry:
          * offset in the chunk array.
          */
         if (start_chunk >= lsm_tree->nchunks || lsm_tree->chunk[start_chunk]->id != start_id) {
-            for (start_chunk = 0; start_chunk < lsm_tree->nchunks; start_chunk++) {
+            for (start_chunk = 0; start_chunk < lsm_tree->nchunks; ++start_chunk) {
                 chunk = lsm_tree->chunk[start_chunk];
                 if (chunk->id == start_id)
                     break;
@@ -505,7 +505,7 @@ retry:
              * Keep going until all updates in the next chunk are globally visible. Copy the maximum
              * transaction IDs into the cursor as we go.
              */
-            for (ngood = nchunks - 1, nupdates = 1; ngood > 0; ngood--, nupdates++) {
+            for (ngood = nchunks - 1, nupdates = 1; ngood > 0; ngood--, ++nupdates) {
                 chunk = lsm_tree->chunk[ngood - 1];
                 clsm->chunks[ngood - 1]->switch_txn = chunk->switch_txn;
                 if (__wt_lsm_chunk_visible_all(session, chunk))
@@ -517,7 +517,7 @@ retry:
         }
 
         /* Check how many cursors are already open. */
-        for (; ngood < clsm->nchunks && ngood < nchunks; ngood++) {
+        for (; ngood < clsm->nchunks && ngood < nchunks; ++ngood) {
             chunk = lsm_tree->chunk[ngood];
             cursor = clsm->chunks[ngood]->cursor;
 
@@ -594,7 +594,7 @@ retry:
     __wt_verbose(session, WT_VERB_LSM,
       "LSM opening cursor session(%p):clsm(%p)%s, chunks: %u, good: %u", (void *)session,
       (void *)clsm, update ? ", update" : "", nchunks, ngood);
-    for (i = ngood; i != nchunks; i++) {
+    for (i = ngood; i != nchunks; ++i) {
         chunk = lsm_tree->chunk[i + start_chunk];
         /* Copy the maximum transaction ID. */
         if (F_ISSET(clsm, WT_CLSM_OPEN_SNAPSHOT))
@@ -637,7 +637,7 @@ retry:
     }
 
     /* Setup the count values for each chunk in the chunks */
-    for (i = 0; i != clsm->nchunks; i++)
+    for (i = 0; i != clsm->nchunks; ++i)
         clsm->chunks[i]->count = lsm_tree->chunk[i + start_chunk]->count;
 
     /* The last chunk is our new primary. */
@@ -670,7 +670,7 @@ err:
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CURSOR_CHECK)) {
         /* Check that all cursors are open as expected. */
         if (ret == 0 && F_ISSET(clsm, WT_CLSM_OPEN_READ)) {
-            for (i = 0; i != clsm->nchunks; i++) {
+            for (i = 0; i != clsm->nchunks; ++i) {
                 cursor = clsm->chunks[i]->cursor;
                 chunk = lsm_tree->chunk[i + start_chunk];
 
@@ -939,7 +939,7 @@ __clsm_random_chunk(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, WT_CURSOR **c
      */
     if (clsm->nchunks == 0)
         return (WT_NOTFOUND);
-    for (total_docs = i = 0; i < clsm->nchunks; i++) {
+    for (total_docs = i = 0; i < clsm->nchunks; ++i) {
         total_docs += clsm->chunks[i]->count;
     }
     if (total_docs == 0)
@@ -947,7 +947,7 @@ __clsm_random_chunk(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, WT_CURSOR **c
 
     rand_doc = __wt_random(&session->rnd) % total_docs;
 
-    for (checked_docs = i = 0; i < clsm->nchunks; i++) {
+    for (checked_docs = i = 0; i < clsm->nchunks; ++i) {
         checked_docs += clsm->chunks[i]->count;
         if (rand_doc <= checked_docs) {
             *cursor = clsm->chunks[i]->cursor;
@@ -1409,7 +1409,7 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, const WT_ITEM *key, co
     if (position)
         clsm->current = primary;
 
-    for (i = 0, slot = clsm->nchunks - 1; i < clsm->nupdates; i++, slot--) {
+    for (i = 0, slot = clsm->nchunks - 1; i < clsm->nupdates; ++i, slot--) {
         /* Check if we need to keep updating old chunks. */
         if (i > 0 &&
           __wt_txn_visible(session, clsm->chunks[slot]->switch_txn, WT_TS_NONE, WT_TS_NONE)) {

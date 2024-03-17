@@ -31,7 +31,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *pro
     p = end = NULL; /* -Wuninitialized */
 
     /* Reset any of the buffers we will be setting. */
-    for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
+    for (proj = (char *)proj_arg; *proj != '\0'; ++proj) {
         arg = strtoul(proj, &proj, 10);
         if (*proj == WT_PROJ_KEY) {
             c = cp[arg];
@@ -42,7 +42,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *pro
         }
     }
 
-    for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
+    for (proj = (char *)proj_arg; *proj != '\0'; ++proj) {
         arg = strtoul(proj, &proj, 10);
 
         switch (*proj) {
@@ -152,7 +152,7 @@ __wt_schema_project_out(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *pr
 
     p = end = NULL; /* -Wuninitialized */
 
-    for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
+    for (proj = (char *)proj_arg; *proj != '\0'; ++proj) {
         arg = strtoul(proj, &proj, 10);
 
         switch (*proj) {
@@ -227,7 +227,7 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
     vend = vp + value->size;
 
     /* Reset any of the buffers we will be setting. */
-    for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
+    for (proj = (char *)proj_arg; *proj != '\0'; ++proj) {
         arg = strtoul(proj, &proj, 10);
         if (*proj == WT_PROJ_KEY) {
             c = cp[arg];
@@ -239,7 +239,7 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
     }
 
     skip = key_only;
-    for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
+    for (proj = (char *)proj_arg; *proj != '\0'; ++proj) {
         arg = strtoul(proj, &proj, 10);
 
         switch (*proj) {
@@ -392,7 +392,7 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
     WT_RET(__wt_buf_init(session, value, 0));
     WT_RET(__pack_init(session, &vpack, vformat));
 
-    for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
+    for (proj = (char *)proj_arg; *proj != '\0'; ++proj) {
         arg = strtoul(proj, &proj, 10);
 
         switch (*proj) {

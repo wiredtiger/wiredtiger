@@ -168,7 +168,7 @@ __wt_curstat_table_init(
      * Set the cursor to reference the data source statistics; we don't initialize it, instead we
      * copy (rather than aggregate), the first column's statistics, which has the same effect.
      */
-    for (i = 0; i < WT_COLGROUPS(table); i++) {
+    for (i = 0; i < WT_COLGROUPS(table); ++i) {
         WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->cgroups[i]->name));
         WT_ERR(__wt_curstat_open(session, buf->data, NULL, cfg, &stat_cursor));
         new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
@@ -181,7 +181,7 @@ __wt_curstat_table_init(
 
     /* Process the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));
-    for (i = 0; i < table->nindices; i++) {
+    for (i = 0; i < table->nindices; ++i) {
         WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->indices[i]->name));
         WT_ERR(__wt_curstat_open(session, buf->data, NULL, cfg, &stat_cursor));
         new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);

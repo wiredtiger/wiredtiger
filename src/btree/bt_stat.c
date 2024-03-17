@@ -158,19 +158,19 @@ __stat_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
      */
     stat_tws = 0;
     numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
-    for (tw = 0; tw < numtws; tw++) {
+    for (tw = 0; tw < numtws; ++tw) {
         /* Unpack in case the time window becomes empty. */
         cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
 
         if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
-            stat_tws++;
+            ++stat_tws;
     }
 
     /* Visit the append list to count the full number of entries on the page. */
     stat_entries = page->entries;
     WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
-        stat_entries++;
+        ++stat_entries;
 
     WT_STAT_INCRV(session, stats, btree_column_tws, stat_tws);
     WT_STAT_INCRV(session, stats, btree_entries, stat_entries);

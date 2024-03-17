@@ -592,7 +592,7 @@ __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)
 #endif
 
     /* Checksum in 8B chunks. */
-    for (nqwords = len / sizeof(uint64_t); nqwords; nqwords--) {
+    for (nqwords = len / sizeof(uint64_t); nqwords; --nqwords) {
         crc ^= *(uint32_t *)p;
         p += sizeof(uint32_t);
         next = *(uint32_t *)p;
@@ -620,7 +620,7 @@ __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)
     crc = ((crc << 24) & 0xFF000000) | ((crc << 8) & 0x00FF0000) | ((crc >> 8) & 0x0000FF00) |
       ((crc >> 24) & 0x000000FF);
 #else
-    for (len &= 0x7; len > 0; ++p, len--)
+    for (len &= 0x7; len > 0; ++p, --len)
         crc = g_crc_slicing[0][(crc ^ *p) & 0xFF] ^ (crc >> 8);
 #endif
     return (~crc);

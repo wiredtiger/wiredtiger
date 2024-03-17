@@ -55,7 +55,7 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
          * the time they are checked against the next stack inside the
          * serialized insert function.
          */
-        for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
+        for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; --i) {
             cbt->ins_stack[i] = (i == 0)  ? &ins->next[0] :
               (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] :
                                             &ins_head->head[i];
@@ -182,7 +182,7 @@ __wt_search_insert(
             cbt->ins_stack[i--] = insp--;
             skiphigh = match;
         } else
-            for (; i >= 0; i--) {
+            for (; i >= 0; --i) {
                 /*
                  * It is possible that we read an old value down the stack due to read reordering on
                  * CPUs with weak memory ordering. Add an acquire barrier to avoid this issue.
@@ -238,7 +238,7 @@ __validate_next_stack(
     WT_CLEAR(lower_key);
     cmp = 0;
 
-    for (i = WT_SKIP_MAXDEPTH - 2; i >= 0; i--) {
+    for (i = WT_SKIP_MAXDEPTH - 2; i >= 0; --i) {
 
         /* If lower levels point to the end of the skiplist, higher levels must as well. */
         if (next_stack[i] == NULL)

@@ -205,12 +205,12 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
     __wt_free(session, table->key_format);
     __wt_free(session, table->value_format);
     if (table->cgroups != NULL) {
-        for (i = 0; i < WT_COLGROUPS(table); i++)
+        for (i = 0; i < WT_COLGROUPS(table); ++i)
             __wt_schema_destroy_colgroup(session, &table->cgroups[i]);
         __wt_free(session, table->cgroups);
     }
     if (table->indices != NULL) {
-        for (i = 0; i < table->nindices; i++)
+        for (i = 0; i < table->nindices; ++i)
             WT_TRET(__wt_schema_destroy_index(session, &table->indices[i]));
         __wt_free(session, table->indices);
     }

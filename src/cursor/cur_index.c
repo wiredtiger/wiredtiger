@@ -110,7 +110,7 @@ __curindex_move(WT_CURSOR_INDEX *cindex)
     __wt_cursor_set_raw_key(&cindex->iface, &cindex->child->key);
     F_CLR(&cindex->iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++) {
+    for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); ++i, ++cp) {
         if (*cp == NULL)
             continue;
         if (first == NULL) {
@@ -197,7 +197,7 @@ __curindex_reset(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     WT_TRET(cindex->child->reset(cindex->child));
-    for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++) {
+    for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); ++i, ++cp) {
         if (*cp == NULL)
             continue;
         WT_TRET((*cp)->reset(*cp));
@@ -491,7 +491,7 @@ __curindex_close(WT_CURSOR *cursor)
 err:
 
     if (cindex->cg_cursors != NULL)
-        for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++)
+        for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); ++i, ++cp)
             if (*cp != NULL) {
                 WT_TRET((*cp)->close(*cp));
                 *cp = NULL;

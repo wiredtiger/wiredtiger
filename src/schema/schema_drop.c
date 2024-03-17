@@ -126,7 +126,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
 
     /* Drop the column groups. */
-    for (i = 0; i < WT_COLGROUPS(table); i++) {
+    for (i = 0; i < WT_COLGROUPS(table); ++i) {
         if ((colgroup = table->cgroups[i]) == NULL)
             continue;
         /*
@@ -139,7 +139,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
     /* Drop the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));
-    for (i = 0; i < table->nindices; i++) {
+    for (i = 0; i < table->nindices; ++i) {
         if ((idx = table->indices[i]) == NULL)
             continue;
         /*

@@ -247,7 +247,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
             }
             full_checksum_mismatch = true;
         }
-        failures++;
+        ++failures;
 
         /*
          * If chunk cache is configured we want to account for the race condition where the chunk

@@ -658,7 +658,7 @@ __meta_ckptlist_allocate_new_ckpt(
 
     if (ckptbase != NULL)
         WT_CKPT_FOREACH (ckptbase, ckpt)
-            slot++;
+            ++slot;
 
     /*
      * Either we have a configuration or an existing checkpoint to initialize with. Also, If we are
@@ -779,7 +779,7 @@ __assert_checkpoint_list_matches(WT_SESSION_IMPL *session, WT_CKPT *saved_list, 
 
     for (ckpt_saved = saved_list, ckpt_new = new_list;
          ckpt_saved != NULL && ckpt_saved->order != 0 && ckpt_new != NULL && ckpt_new->order != 0;
-         ckpt_saved++, ckpt_new++)
+         ++ckpt_saved, ++ckpt_new)
         __assert_ckpt_matches(session, ckpt_saved, ckpt_new);
 
     WT_ASSERT(session,

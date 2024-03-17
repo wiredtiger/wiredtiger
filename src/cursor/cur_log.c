@@ -159,7 +159,10 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
      * If it is a commit and we have stepped over the header, peek to get the size and optype and
      * read out any key/value from this operation.
      */
-    if ((key_count = cl->step_count++) > 0) {
+    // FIXME
+    key_count = cl->step_count;
+    ++(cl->step_count);
+    if (key_count > 0) {
         WT_ERR(__wt_logop_read(session, &cl->stepp, cl->stepp_end, &optype, &opsize));
         WT_ERR(__curlog_op_read(session, cl, optype, opsize, &fileid));
         /* Position on the beginning of the next record part. */

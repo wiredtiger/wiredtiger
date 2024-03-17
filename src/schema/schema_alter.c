@@ -170,7 +170,7 @@ __alter_objects(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *newcfg[
      * Iterate over all objects in the range oldest-current object IDs and alter metadata of each of
      * them.
      */
-    for (object_id = oldest_id; object_id < current_id; object_id++) {
+    for (object_id = oldest_id; object_id < current_id; ++object_id) {
         WT_ERR(__wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &name));
 
         /*
@@ -361,7 +361,7 @@ __alter_table(
         WT_RET(ret);
 
         /* Alter the column groups. */
-        for (i = 0; i < WT_COLGROUPS(table); i++) {
+        for (i = 0; i < WT_COLGROUPS(table); ++i) {
             if ((colgroup = table->cgroups[i]) == NULL)
                 continue;
             WT_RET(__alter_tree(session, colgroup->name, newcfg));
@@ -369,7 +369,7 @@ __alter_table(
 
         /* Alter the indices. */
         WT_RET(__wt_schema_open_indices(session, table));
-        for (i = 0; i < table->nindices; i++) {
+        for (i = 0; i < table->nindices; ++i) {
             if ((idx = table->indices[i]) == NULL)
                 continue;
             WT_RET(__alter_tree(session, idx->name, newcfg));

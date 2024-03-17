@@ -1238,31 +1238,31 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, " | flags: ["));
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_BUILD_KEYS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "keys-built") : ds->f(ds, ", keys-built"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "disk-alloc") : ds->f(ds, ", disk-alloc"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "disk-mapped") : ds->f(ds, ", disk-mapped"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "evict-lru") : ds->f(ds, ", evict-lru"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_INTL_OVERFLOW_KEYS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "overflow-keys") : ds->f(ds, ", overflow-keys"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_SPLIT_INSERT)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "split-insert") : ds->f(ds, ", split-insert"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "update-ignore") : ds->f(ds, ", update-ignore"));
-            flag_num++;
+            ++flag_num;
         }
         WT_RET(ds->f(ds, "]"));
     }
@@ -1336,7 +1336,7 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
                 __wt_cell_unpack_kv(ds->session, page->dsk, cell, &unpack);
                 if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
                     WT_RET(ds->f(ds, " | %s", __wt_time_window_to_string(&unpack.tw, time_string)));
-                curtw++;
+                ++curtw;
             }
             WT_RET(ds->f(ds, "\n"));
 

@@ -93,7 +93,7 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bu
         }
         if (pv->type == 's' || pv->havesize) {
             end = p + pv->size;
-            for (; p < end; p++) {
+            for (; p < end; ++p) {
                 n = __wt_json_unpack_char(*p, buf, bufsz, false);
                 if (n > bufsz)
                     bufsz = 0;
@@ -104,7 +104,7 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bu
                 s += n;
             }
         } else
-            for (; *p; p++) {
+            for (; *p; ++p) {
                 n = __wt_json_unpack_char(*p, buf, bufsz, false);
                 if (n > bufsz)
                     bufsz = 0;
@@ -127,7 +127,7 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bu
             *buf++ = '"';
             bufsz--;
         }
-        for (; p < end; p++) {
+        for (; p < end; ++p) {
             n = __wt_json_unpack_char(*p, buf, bufsz, true);
             if (n > bufsz)
                 bufsz = 0;
@@ -406,21 +406,21 @@ __wt_json_column_init(WT_CURSOR *cursor, const char *uri, const char *keyformat,
         WT_RET(__wt_strndup(session, idxconf->str, len, &json->key_names.str));
         json->key_names.len = len;
     } else if (colconf->len > 0 && *beginkey == '(') {
-        beginkey++;
+        ++beginkey;
         if (end[-1] == ')')
             end--;
     }
 
-    for (nkeys = 0; *keyformat; keyformat++)
+    for (nkeys = 0; *keyformat; ++keyformat)
         if (!__wt_isdigit((u_char)*keyformat))
-            nkeys++;
+            ++nkeys;
 
     p = beginkey;
     keycnt = 0;
     while (p < end && keycnt < nkeys) {
         if (*p == ',')
-            keycnt++;
-        p++;
+            ++keycnt;
+        ++p;
     }
     if ((lparen = strchr(uri, '(')) != NULL) {
         /* This cursor is a projection. */
@@ -479,7 +479,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype, const cha
     result = -1;
     session = (WT_SESSION_IMPL *)wt_session;
     while (__wt_isspace((u_char)*src))
-        src++;
+        ++src;
     *tokstart = src;
 
     if (*src == '\0') {
@@ -492,11 +492,11 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype, const cha
     switch (*src) {
     case '"':
         backslash = false;
-        src++;
+        ++src;
         while ((ch = *src) != '\0') {
             if (!backslash) {
                 if (ch == '"') {
-                    src++;
+                    ++src;
                     result = 's';
                     break;
                 }
@@ -515,7 +515,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype, const cha
                 }
                 backslash = false;
             }
-            src++;
+            ++src;
         }
         if (result == 's')
             break;
@@ -533,22 +533,22 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype, const cha
     case '9':
         isfloat = false;
         if (*src == '-')
-            src++;
+            ++src;
         while ((ch = *src) != '\0' && __wt_isdigit((u_char)ch))
-            src++;
+            ++src;
         if (*src == '.') {
             isfloat = true;
-            src++;
+            ++src;
             while ((ch = *src) != '\0' && __wt_isdigit((u_char)ch))
-                src++;
+                ++src;
         }
         if (*src == 'e' || *src == 'E') {
             isfloat = true;
-            src++;
+            ++src;
             if (*src == '+' || *src == '-')
-                src++;
+                ++src;
             while ((ch = *src) != '\0' && __wt_isdigit((u_char)ch))
-                src++;
+                ++src;
         }
         result = isfloat ? 'f' : 'i';
         break;
@@ -573,10 +573,10 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype, const cha
         /* An illegal token, move past it anyway */
         bad = src;
         isalph = __wt_isalnum((u_char)*src);
-        src++;
+        ++src;
         if (isalph)
             while (*src != '\0' && __wt_isalnum((u_char)*src))
-                src++;
+                ++src;
         WT_RET_MSG(session, EINVAL, "unknown token \"%.*s\" in JSON", (int)(src - bad), bad);
         /* NOTREACHED */
     }

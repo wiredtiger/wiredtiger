@@ -871,12 +871,12 @@ __rts_btree_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
                                     WT_STAT_CONN_DATA_INCR(session, txn_rts_stable_rle_skipped);
                                 goto stop;
                             }
-                            j++;
+                            ++j;
                         }
                         /* If this key has a stable update, skip over it. */
                         if (recno + j == ins_recno &&
                           __wt_rts_visibility_has_stable_update(ins->upd))
-                            j++;
+                            ++j;
                     }
                 }
                 /* Process the rest of the keys. */
@@ -889,7 +889,7 @@ __rts_btree_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
                             WT_STAT_CONN_DATA_INCR(session, txn_rts_stable_rle_skipped);
                         goto stop;
                     }
-                    j++;
+                    ++j;
                 }
             }
 stop:
@@ -988,19 +988,19 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
                   __wt_timestamp_to_string(rollback_timestamp, ts_string));
                 WT_RET(__rts_btree_abort_col_fix_one(
                   session, ref, tw, recno_offset, rollback_timestamp));
-                tw++;
+                ++tw;
             }
             /* If this key has a stable update, skip over it. */
             if (tw < numtws && page->pg_fix_tws[tw].recno_offset == ins_recno_offset &&
               ins->upd != NULL && __wt_rts_visibility_has_stable_update(ins->upd))
-                tw++;
+                ++tw;
         }
     }
     /* Process the rest of the keys with time windows. */
     while (tw < numtws) {
         recno_offset = page->pg_fix_tws[tw].recno_offset;
         WT_RET(__rts_btree_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
-        tw++;
+        ++tw;
     }
 
     /* Review the append list. */

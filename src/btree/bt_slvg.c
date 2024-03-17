@@ -635,7 +635,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                         continue;
                     WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
                 }
-                cell_num++;
+                ++cell_num;
             }
             WT_CELL_FOREACH_END;
             if (cell_num / 2 < dsk->u.entries || cell_num == 0) {

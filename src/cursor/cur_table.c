@@ -16,7 +16,7 @@ static int __curtable_update(WT_CURSOR *cursor);
         WT_CURSOR **__cp;                                                               \
         u_int __i;                                                                      \
         for (__i = 0, __cp = (ctable)->cg_cursors; __i < WT_COLGROUPS((ctable)->table); \
-             __i++, __cp++) {                                                           \
+             __i++, ++__cp) {                                                           \
             WT_TRET((*__cp)->f(*__cp));                                                 \
             WT_ERR_NOTFOUND_OK(ret, true);                                              \
         }                                                                               \
@@ -156,7 +156,7 @@ __apply_idx(WT_CURSOR_TABLE *ctable, size_t func_off, bool skip_immutable)
     cp = ctable->idx_cursors;
     session = CUR2S(ctable);
 
-    for (i = 0; i < ctable->table->nindices; i++, cp++) {
+    for (i = 0; i < ctable->table->nindices; ++i, ++cp) {
         idx = ctable->table->indices[i];
         if (skip_immutable && F_ISSET(idx, WT_INDEX_IMMUTABLE))
             continue;
@@ -238,7 +238,7 @@ __wt_curtable_set_key(WT_CURSOR *cursor, ...)
         return;
 
     /* Copy the primary key to the other cursors. */
-    for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
+    for (i = 1; i < WT_COLGROUPS(ctable->table); ++i, ++cp) {
         (*cp)->recno = primary->recno;
         (*cp)->key.data = primary->key.data;
         (*cp)->key.size = primary->key.size;
@@ -274,7 +274,7 @@ __curtable_set_valuev(WT_CURSOR *cursor, va_list ap)
          * The user may be passing us pointers returned by get_value that point into the buffers we
          * are about to update. Move them aside first.
          */
-        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++) {
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); ++i, ++cp) {
             item = &(*cp)->value;
             if (F_ISSET(*cp, WT_CURSTD_VALUE_SET) && WT_DATA_IN_ITEM(item)) {
                 ctable->cg_valcopy[i] = *item;
@@ -285,7 +285,7 @@ __curtable_set_valuev(WT_CURSOR *cursor, va_list ap)
 
         ret = __wt_schema_project_in(session, ctable->cg_cursors, ctable->plan, ap);
 
-        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++) {
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); ++i, ++cp) {
             tmp = &ctable->cg_valcopy[i];
             if (tmp->mem != NULL) {
                 item = &(*cp)->value;
@@ -298,7 +298,7 @@ __curtable_set_valuev(WT_CURSOR *cursor, va_list ap)
         }
     }
 
-    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); ++i, ++cp)
         if (ret == 0)
             F_SET(*cp, WT_CURSTD_VALUE_EXT);
         else {
@@ -396,7 +396,7 @@ __curtable_next_random(WT_CURSOR *cursor)
     WT_ERR(primary->next(primary));
 
     /* Fill in the rest of the columns. */
-    for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
+    for (i = 1; i < WT_COLGROUPS(ctable->table); ++i, ++cp) {
         (*cp)->key.data = primary->key.data;
         (*cp)->key.size = primary->key.size;
         (*cp)->recno = primary->recno;
@@ -458,7 +458,7 @@ __curtable_reset(WT_CURSOR *cursor)
      * going through curfile_reset for that reason.
      */
     if (API_USER_ENTRY(session))
-        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); ++i, ++cp)
             __wt_cursor_bound_reset(*cp);
 
 err:
@@ -510,7 +510,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
     primary = *cp;
     WT_ERR(primary->search_near(primary, exact));
 
-    for (i = 1, ++cp; i < WT_COLGROUPS(ctable->table); i++) {
+    for (i = 1, ++cp; i < WT_COLGROUPS(ctable->table); ++i) {
         (*cp)->key.data = primary->key.data;
         (*cp)->key.size = primary->key.size;
         (*cp)->recno = primary->recno;
@@ -579,7 +579,7 @@ __curtable_insert(WT_CURSOR *cursor)
     } else {
         WT_ERR(ret);
 
-        for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
+        for (i = 1; i < WT_COLGROUPS(ctable->table); ++i, ++cp) {
             (*cp)->recno = primary->recno;
             WT_ERR((*cp)->insert(*cp));
         }
@@ -870,12 +870,12 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     WT_ERR(__wt_cursor_bounds_save(session, primary, &saved_bounds));
 
     /* Call bound function on all column groups. */
-    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); ++i, ++cp)
         WT_ERR((*cp)->bound(*cp, config));
 err:
     /* If applying bounds fails on one colgroup cursor, restore the previous state. */
     if (ret != 0)
-        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); ++i, ++cp)
             WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
 
     __wt_scr_free(session, &saved_bounds.lower_bound);
@@ -902,14 +902,14 @@ __curtable_close(WT_CURSOR *cursor)
 err:
 
     if (ctable->cg_cursors != NULL)
-        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); ++i, ++cp)
             if (*cp != NULL) {
                 WT_TRET((*cp)->close(*cp));
                 *cp = NULL;
             }
 
     if (ctable->idx_cursors != NULL)
-        for (i = 0, cp = ctable->idx_cursors; i < ctable->table->nindices; i++, cp++)
+        for (i = 0, cp = ctable->idx_cursors; i < ctable->table->nindices; ++i, ++cp)
             if (*cp != NULL) {
                 WT_TRET((*cp)->close(*cp));
                 *cp = NULL;
@@ -981,7 +981,7 @@ __curtable_open_colgroups(WT_CURSOR_TABLE *ctable, const char *cfg_arg[])
     WT_RET(__wt_calloc_def(session, WT_COLGROUPS(table), &ctable->cg_cursors));
     WT_RET(__wt_calloc_def(session, WT_COLGROUPS(table), &ctable->cg_valcopy));
 
-    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(table); i++, cp++) {
+    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(table); ++i, ++cp) {
         WT_RET(__wt_open_cursor(session, table->cgroups[i]->source, &ctable->iface, cfg, cp));
         cfg[3] = "next_random=false";
     }
@@ -1014,7 +1014,7 @@ __curtable_open_indices(WT_CURSOR_TABLE *ctable)
         WT_RET_MSG(session, ENOTSUP, "Bulk load is not supported for tables with indices");
 
     WT_RET(__wt_calloc_def(session, table->nindices, &ctable->idx_cursors));
-    for (i = 0, cp = ctable->idx_cursors; i < table->nindices; i++, cp++)
+    for (i = 0, cp = ctable->idx_cursors; i < table->nindices; ++i, ++cp)
         WT_ERR(
           __wt_open_cursor(session, table->indices[i]->source, &ctable->iface, ctable->cfg, cp));
 
@@ -1029,7 +1029,7 @@ err:
          * opened when the table cursor is opened, and a failure there cannot result in an open
          * table cursor.
          */
-        for (i = 0, cp = ctable->idx_cursors; i < table->nindices; i++, cp++)
+        for (i = 0, cp = ctable->idx_cursors; i < table->nindices; ++i, ++cp)
             if (*cp != NULL) {
                 WT_TRET((*cp)->close(*cp));
                 *cp = NULL;

@@ -364,7 +364,7 @@ __log_remove_once_int(
     uint32_t lognum;
     u_int i;
 
-    for (i = 0; i < logcount; i++) {
+    for (i = 0; i < logcount; ++i) {
         WT_RET(__wt_log_extract_lognum(session, logfiles[i], &lognum));
         if (lognum < min_lognum)
             WT_RET(__wt_log_remove(session, WT_LOG_FILENAME, lognum));
@@ -524,7 +524,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
     /*
      * Allocate up to the maximum number that we just computed and detected.
      */
-    for (i = reccount; i < (u_int)conn->log_prealloc; i++) {
+    for (i = reccount; i < (u_int)conn->log_prealloc; ++i) {
         WT_ERR(__wt_log_allocfile(session, ++log->prep_fileid, WT_LOG_PREPNAME));
         WT_STAT_CONN_INCR(session, log_prealloc_files);
     }

@@ -323,7 +323,7 @@ err:
         __wt_free(session, cursor->value_format);
     }
 
-    for (entry = cjoin->entries, i = 0; i < cjoin->entries_next; entry++, i++) {
+    for (entry = cjoin->entries, i = 0; i < cjoin->entries_next; ++entry, ++i) {
         if (entry->subjoin != NULL) {
             F_CLR(&entry->subjoin->iface, WT_CURSTD_JOINED);
             entry->subjoin->parent = NULL;
@@ -332,7 +332,7 @@ err:
             WT_TRET(entry->main->close(entry->main));
         if (F_ISSET(entry, WT_CURJOIN_ENTRY_OWN_BLOOM))
             WT_TRET(__wt_bloom_close(entry->bloom));
-        for (end = &entry->ends[0]; end < &entry->ends[entry->ends_next]; end++) {
+        for (end = &entry->ends[0]; end < &entry->ends[entry->ends_next]; ++end) {
             F_CLR(end->cursor, WT_CURSTD_JOINED);
             if (F_ISSET(end, WT_CURJOIN_END_OWN_CURSOR))
                 WT_TRET(end->cursor->close(end->cursor));
@@ -409,7 +409,7 @@ __curjoin_entries_in_range(
         slowret = 0;
     }
     pos = iter == NULL ? 0 : iter->entry_pos;
-    for (entry = &cjoin->entries[pos]; pos < cjoin->entries_next; entry++, pos++) {
+    for (entry = &cjoin->entries[pos]; pos < cjoin->entries_next; ++entry, ++pos) {
         ret = __curjoin_entry_member(session, entry, curkey, iter);
         if (ret == fastret)
             return (fastret);
@@ -452,7 +452,7 @@ __curjoin_entry_in_range(
         pos = iter->end_pos + iter->end_skip;
     }
 
-    for (end = &entry->ends[pos]; end < endmax; end++) {
+    for (end = &entry->ends[pos]; end < endmax; ++end) {
         WT_RET(__wt_compare(session, collator, curkey, &end->key, &cmp));
         switch (WT_CURJOIN_END_RANGE(end)) {
         case WT_CURJOIN_END_EQ:
@@ -795,7 +795,7 @@ __curjoin_init_bloom(
               (entry->repack_format != NULL ? entry->repack_format : entry->index->idxkey_format),
               &c->key, &curkey));
         }
-        for (end = &entry->ends[skip]; end < endmax; end++) {
+        for (end = &entry->ends[skip]; end < endmax; ++end) {
             WT_ERR(__wt_compare(session, collator, &curkey, &end->key, &cmp));
             if (F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION)) {
                 /* if condition satisfied, insert immediately */
@@ -907,7 +907,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
     WT_ERR(__wt_open_cursor(session, urimain, (WT_CURSOR *)cjoin, config, &cjoin->main));
 
     jeend = &cjoin->entries[cjoin->entries_next];
-    for (je = cjoin->entries; je < jeend; je++) {
+    for (je = cjoin->entries; je < jeend; ++je) {
         if (je->subjoin != NULL) {
             WT_ERR(__curjoin_init_next(session, je->subjoin, iterable));
             continue;
@@ -926,7 +926,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
             WT_ERR(end->cursor->next(end->cursor));
             F_CLR(je, WT_CURJOIN_ENTRY_DISJUNCTION);
         }
-        for (end = &je->ends[0]; end < &je->ends[je->ends_next]; end++)
+        for (end = &je->ends[0]; end < &je->ends[je->ends_next]; ++end)
             WT_ERR(__curjoin_endpoint_init_key(session, je, end));
 
         /*
@@ -945,7 +945,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
                  */
                 f = je->bloom_bit_count;
                 k = je->bloom_hash_count;
-                for (je2 = je + 1; je2 < jeend; je2++)
+                for (je2 = je + 1; je2 < jeend; ++je2)
                     if (F_ISSET(je2, WT_CURJOIN_ENTRY_BLOOM) && je2->count == je->count) {
                         f = WT_MAX(je2->bloom_bit_count, f);
                         k = WT_MAX(je2->bloom_hash_count, k);
@@ -958,7 +958,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
                 /*
                  * Share the Bloom filter, making all config info consistent.
                  */
-                for (je2 = je + 1; je2 < jeend; je2++)
+                for (je2 = je + 1; je2 < jeend; ++je2)
                     if (F_ISSET(je2, WT_CURJOIN_ENTRY_BLOOM) && je2->count == je->count) {
                         WT_ASSERT(session, je2->bloom == NULL);
                         je2->bloom = je->bloom;

@@ -518,7 +518,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
         }
 
         /* Delete each key. */
-        for (j = 0; j < rle; j++) {
+        for (j = 0; j < rle; ++j) {
             WT_ERR(__instantiate_tombstone(
               session, page_del, update_list, countp, &unpack.tw, &upd, NULL));
             if (upd != NULL) {

@@ -270,7 +270,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ASSERT(session, WT_COL_FIX_TWS_SET(page));
         /* Search for prepare records. */
         numtws = page->pg_fix_numtws;
-        for (tw = 0; tw < numtws; tw++) {
+        for (tw = 0; tw < numtws; ++tw) {
             cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             if (!unpack.tw.prepare)
@@ -372,7 +372,7 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
         alloc_entries = dsk->u.entries;
         WT_CELL_FOREACH_ADDR (session, dsk, unpack_addr) {
             if (unpack_addr.v != dsk->recno)
-                alloc_entries++;
+                ++alloc_entries;
             break;
         }
         WT_CELL_FOREACH_END;
@@ -590,9 +590,9 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
                 page->pg_fix_tws[entry_num].cell_offset = WT_PAGE_DISK_OFFSET(page, unpack.cell);
                 if (unpack.tw.prepare)
                     prepare = true;
-                entry_num++;
+                ++entry_num;
             } else
-                skipped++;
+                ++skipped;
         }
         WT_CELL_FOREACH_END;
 
@@ -772,7 +772,7 @@ __inmem_col_var(
     cip = page->pg_var;
     WT_CELL_FOREACH_KV (session, page->dsk, unpack) {
         WT_COL_PTR_SET(cip, WT_PAGE_DISK_OFFSET(page, unpack.cell));
-        cip++;
+        ++cip;
 
         /*
          * Add records with repeat counts greater than 1 to an array we use for fast lookups. The
@@ -800,7 +800,7 @@ __inmem_col_var(
         if (unpack.tw.prepare)
             prepare = true;
 
-        indx++;
+        ++indx;
         recno += rle;
     }
     WT_CELL_FOREACH_END;

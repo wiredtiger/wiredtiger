@@ -2066,7 +2066,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_DIAGNOSTIC
     flags = WT_DIAGNOSTIC_ALL;
-    for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
+    for (ft = extra_diagnostics_types; ft->name != NULL; ++ft) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
             WT_RET_MSG(session, EINVAL,
               "WiredTiger has been compiled with HAVE_DIAGNOSTIC=1 and all assertions are always "
@@ -2075,7 +2075,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     }
 #else
     flags = 0;
-    for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
+    for (ft = extra_diagnostics_types; ft->name != NULL; ++ft) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
             LF_SET(ft->flag);
         WT_RET_NOTFOUND_OK(ret);
@@ -2277,7 +2277,7 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     /* Check if JSON-encoded message strings are enabled, per event handler category. */
     WT_RET(__wt_config_gets(session, cfg, "json_output", &cval));
     flags = 0;
-    for (ft = jsontypes; ft->name != NULL; ft++) {
+    for (ft = jsontypes; ft->name != NULL; ++ft) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
             LF_SET(ft->flag);
         WT_RET_NOTFOUND_OK(ret);
@@ -2355,7 +2355,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s' with value '%" PRId64 "'",
           ft->name, sval.val);
 
-    for (ft = verbtypes; ft->name != NULL; ft++) {
+    for (ft = verbtypes; ft->name != NULL; ++ft) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         WT_RET_NOTFOUND_OK(ret);
 
@@ -2472,7 +2472,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "timing_stress_for_test", &cval));
 
     flags = 0;
-    for (ft = __wt_stress_types; ft->name != NULL; ft++) {
+    for (ft = __wt_stress_types; ft->name != NULL; ++ft) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
             LF_SET(ft->flag);
         WT_RET_NOTFOUND_OK(ret);
@@ -3015,7 +3015,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * it is nearly identical to direct I/O.
      */
     WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
-    for (ft = file_types; ft->name != NULL; ft++) {
+    for (ft = file_types; ft->name != NULL; ++ft) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
             if (sval.val)
@@ -3025,7 +3025,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     }
 
     WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
-    for (ft = file_types; ft->name != NULL; ft++) {
+    for (ft = file_types; ft->name != NULL; ++ft) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
             if (sval.val)
@@ -3064,7 +3064,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * That size is not known until it is initialized as part of the log server initialization.
      */
     conn->log_extend_len = WT_CONFIG_UNSET;
-    for (ft = file_types; ft->name != NULL; ft++) {
+    for (ft = file_types; ft->name != NULL; ++ft) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
             switch (ft->flag) {

@@ -181,7 +181,7 @@ __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key) WT_GCC_FUNC_ATTRIBUTE((visibili
 
     h1 = __wt_hash_fnv64(key->data, key->size);
     h2 = __wt_hash_city64(key->data, key->size);
-    for (i = 0; i < bloom->k; i++, h1 += h2)
+    for (i = 0; i < bloom->k; ++i, h1 += h2)
         __bit_set(bloom->bitstring, h1 % bloom->m);
 }
 
@@ -270,7 +270,7 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
     h2 = bhash->h2;
 
     result = 0;
-    for (i = 0; i < bloom->k; i++, h1 += h2) {
+    for (i = 0; i < bloom->k; ++i, h1 += h2) {
         /*
          * Add 1 to the hash because WiredTiger tables are 1 based and the original bitstring array
          * was 0 based.
@@ -330,7 +330,7 @@ __wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key)
 
     h1 = __wt_hash_fnv64(key->data, key->size);
     h2 = __wt_hash_city64(key->data, key->size);
-    for (i = 0; i < bloom->k; i++, h1 += h2) {
+    for (i = 0; i < bloom->k; ++i, h1 += h2) {
         if (!__bit_test(bloom->bitstring, h1 % bloom->m))
             return (WT_NOTFOUND);
     }
@@ -354,7 +354,7 @@ __wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other)
           bloom->k, other->k, bloom->factor, other->factor, bloom->m, other->m, bloom->n, other->n);
 
     nbytes = __bitstr_size(bloom->m);
-    for (i = 0; i < nbytes; i++)
+    for (i = 0; i < nbytes; ++i)
         bloom->bitstring[i] &= other->bitstring[i];
     return (0);
 }

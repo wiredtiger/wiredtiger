@@ -236,12 +236,12 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
          * into the list.
          */
         if (cbt->ins_stack[0] == NULL || recno == WT_RECNO_OOB)
-            for (i = 0; i < skipdepth; i++) {
+            for (i = 0; i < skipdepth; ++i) {
                 cbt->ins_stack[i] = &ins_head->head[i];
                 ins->next[i] = cbt->next_stack[i] = NULL;
             }
         else
-            for (i = 0; i < skipdepth; i++)
+            for (i = 0; i < skipdepth; ++i)
                 ins->next[i] = cbt->next_stack[i];
 
         /* Append or insert the WT_INSERT structure. */

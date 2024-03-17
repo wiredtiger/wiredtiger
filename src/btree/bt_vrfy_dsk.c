@@ -874,7 +874,7 @@ __verify_dsk_col_fix(WT_VERIFY_INFO *vi)
 
     /* The space between the end of the auxiliary header and the auxiliary data should be zeroed. */
     for (p = (uint8_t *)vi->dsk + auxhdr.emptyoffset; p != (uint8_t *)vi->dsk + auxhdr.dataoffset;
-         p++) {
+         ++p) {
         if (*p != 0)
             WT_RET_VRFY(vi->session,
               "%s page at %s has nonzero filler byte %u at offset %u (auxiliary start %u)",

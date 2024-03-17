@@ -140,7 +140,7 @@ skip:
     WT_ERR(__wt_config_collapse(session, firstcfg, value_ret));
 
 err:
-    for (; cfg < lastcfg; cfg++)
+    for (; cfg < lastcfg; ++cfg)
         __wt_free(session, *cfg);
     if (c != NULL)
         WT_TRET(c->reset(c));

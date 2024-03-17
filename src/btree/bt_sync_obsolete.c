@@ -281,7 +281,7 @@ __wt_sync_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
       (void *)parent->page);
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
-    for (slot = 0; slot < pindex->entries; slot++) {
+    for (slot = 0; slot < pindex->entries; ++slot) {
         ref = pindex->index[slot];
 
         WT_RET(__sync_obsolete_cleanup_one(session, ref));

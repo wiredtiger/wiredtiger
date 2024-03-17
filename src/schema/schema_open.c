@@ -67,7 +67,7 @@ __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
     __wt_config_subinit(session, &cparser, &table->cgconf);
 
     /* Open each column group. */
-    for (i = 0; i < WT_COLGROUPS(table); i++) {
+    for (i = 0; i < WT_COLGROUPS(table); ++i) {
         if (table->ncolgroups > 0)
             WT_ERR(__wt_config_next(&cparser, &ckey, &cval));
         else
@@ -190,7 +190,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
         WT_ERR(__wt_config_getones(session, idx->config, "index_key_columns", &cval));
         npublic_cols = (u_int)cval.val;
         WT_ASSERT(session, npublic_cols != 0);
-        for (i = 0; i < npublic_cols; i++)
+        for (i = 0; i < npublic_cols; ++i)
             WT_ERR(__wt_buf_catfmt(session, buf, "\"bad col\","));
     }
 
@@ -199,7 +199,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
      */
     __wt_config_subinit(session, &colconf, &table->colconf);
     for (i = 0; i < table->nkey_columns && (ret = __wt_config_next(&colconf, &ckey, &cval)) == 0;
-         i++) {
+         ++i) {
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
@@ -276,7 +276,7 @@ __schema_open_index(
     cursor->set_key(cursor, tmp->data);
     if ((ret = cursor->search_near(cursor, &cmp)) == 0 && cmp < 0)
         ret = cursor->next(cursor);
-    for (i = 0; ret == 0; i++, ret = cursor->next(cursor)) {
+    for (i = 0; ret == 0; ++i, ret = cursor->next(cursor)) {
         WT_ERR(cursor->get_key(cursor, &uri));
         name = uri;
 
@@ -496,7 +496,7 @@ __wt_schema_get_colgroup(
     WT_RET(
       __wt_schema_get_table(session, tablename, WT_PTRDIFF(tend, tablename), false, 0, &table));
 
-    for (i = 0; i < WT_COLGROUPS(table); i++) {
+    for (i = 0; i < WT_COLGROUPS(table); ++i) {
         colgroup = table->cgroups[i];
         if (strcmp(colgroup->name, uri) == 0) {
             *colgroupp = colgroup;
@@ -538,7 +538,7 @@ __wt_schema_get_index(
       __wt_schema_get_table(session, tablename, WT_PTRDIFF(tend, tablename), false, 0, &table));
 
     /* Try to find the index in the table. */
-    for (i = 0; i < table->nindices; i++) {
+    for (i = 0; i < table->nindices; ++i) {
         idx = table->indices[i];
         if (idx != NULL && strcmp(idx->name, uri) == 0) {
             *indexp = idx;

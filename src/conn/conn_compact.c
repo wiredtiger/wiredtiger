@@ -392,7 +392,7 @@ __background_compact_list_cleanup(
     conn = S2C(session);
     cur_time = __wt_clock(session);
 
-    for (i = 0; i < conn->hash_size; i++)
+    for (i = 0; i < conn->hash_size; ++i)
         TAILQ_FOREACH_SAFE(
           compact_stat, &conn->background_compact.stat_hash[i], hashq, temp_compact_stat)
         {
@@ -655,7 +655,7 @@ __wt_background_compact_server_create(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->background_compact.stat_hash));
     WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->background_compact.exclude_list_hash));
-    for (i = 0; i < conn->hash_size; i++) {
+    for (i = 0; i < conn->hash_size; ++i) {
         TAILQ_INIT(&conn->background_compact.stat_hash[i]);
         TAILQ_INIT(&conn->background_compact.exclude_list_hash[i]);
     }

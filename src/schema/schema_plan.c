@@ -28,7 +28,7 @@ __find_next_col(WT_SESSION_IMPL *session, WT_TABLE *table, WT_CONFIG_ITEM *colna
     matchcol = (*coltype == WT_PROJ_KEY) ? *colnump : *colnump + table->nkey_columns;
 
     getnext = true;
-    for (colgroup = NULL, cg = 0; cg < WT_COLGROUPS(table); cg++) {
+    for (colgroup = NULL, cg = 0; cg < WT_COLGROUPS(table); ++cg) {
         colgroup = table->cgroups[cg];
 
         /*
@@ -45,7 +45,7 @@ cgcols:
             col = table->nkey_columns;
         }
         __wt_config_subinit(session, &conf, &cval);
-        for (; (ret = __wt_config_next(&conf, &k, &v)) == 0; col++) {
+        for (; (ret = __wt_config_next(&conf, &k, &v)) == 0; ++col) {
             if (k.len == colname->len && strncmp(colname->str, k.str, k.len) == 0) {
                 if (getnext) {
                     foundcg = cg;
@@ -91,18 +91,18 @@ __wt_schema_colcheck(WT_SESSION_IMPL *session, const char *key_format, const cha
     u_int kcols, ncols, vcols;
 
     WT_RET(__pack_init(session, &pack, key_format));
-    for (kcols = 0; (ret = __pack_next(&pack, &pv)) == 0; kcols++)
+    for (kcols = 0; (ret = __pack_next(&pack, &pv)) == 0; ++kcols)
         ;
     WT_RET_NOTFOUND_OK(ret);
 
     WT_RET(__pack_init(session, &pack, value_format));
-    for (vcols = 0; (ret = __pack_next(&pack, &pv)) == 0; vcols++)
+    for (vcols = 0; (ret = __pack_next(&pack, &pv)) == 0; ++vcols)
         ;
     WT_RET_TEST(ret != WT_NOTFOUND, ret);
 
     /* Walk through the named columns. */
     __wt_config_subinit(session, &conf, colconf);
-    for (ncols = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0; ncols++)
+    for (ncols = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0; ++ncols)
         ;
     WT_RET_TEST(ret != WT_NOTFOUND, ret);
 
@@ -139,7 +139,7 @@ __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
     __wt_config_subinit(session, &conf, &table->colconf);
 
     /* Skip over the key columns. */
-    for (i = 0; i < table->nkey_columns; i++)
+    for (i = 0; i < table->nkey_columns; ++i)
         WT_RET(__wt_config_next(&conf, &k, &v));
     cg = col = 0;
     coltype = '\0';
@@ -180,13 +180,13 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table, const char *columns,
     /* Work through the value columns by skipping over the key columns. */
     __wt_config_initn(session, &conf, columns, len);
     if (value_only)
-        for (i = 0; i < table->nkey_columns; i++)
+        for (i = 0; i < table->nkey_columns; ++i)
             WT_RET(__wt_config_next(&conf, &k, &v));
 
     current_cg = cg = 0;
     current_col = col = INT_MAX;
     current_coltype = coltype = WT_PROJ_KEY; /* Keep lint quiet. */
-    for (i = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0; i++) {
+    for (i = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0; ++i) {
         have_it = false;
 
         while ((ret = __find_next_col(session, table, &k, &cg, &col, &coltype)) == 0 &&

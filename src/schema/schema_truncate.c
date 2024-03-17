@@ -23,12 +23,12 @@ __truncate_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
     /* Truncate the column groups. */
-    for (i = 0; i < WT_COLGROUPS(table); i++)
+    for (i = 0; i < WT_COLGROUPS(table); ++i)
         WT_ERR(__wt_schema_truncate(session, table->cgroups[i]->source, cfg));
 
     /* Truncate the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));
-    for (i = 0; i < table->nindices; i++)
+    for (i = 0; i < table->nindices; ++i)
         WT_ERR(__wt_schema_truncate(session, table->indices[i]->source, cfg));
 
 err:

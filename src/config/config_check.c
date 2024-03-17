@@ -68,7 +68,7 @@ __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u
      * sorted, do a binary search. Else, do it the slow way.
      */
     if (entries == 0) {
-        for (indx = 0; checks[indx].name != NULL; indx++)
+        for (indx = 0; checks[indx].name != NULL; ++indx)
             if (WT_STRING_MATCH(checks[indx].name, item->str, item->len)) {
                 *resultp = &checks[indx];
                 return (0);

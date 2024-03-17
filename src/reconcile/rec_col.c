@@ -351,9 +351,9 @@ __wt_col_fix_estimate_auxiliary_space(WT_PAGE *page)
      *
      */
     WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page))
-        count++;
+        ++count;
     WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
-        count++;
+        ++count;
 
     /* Add in the existing time windows. */
     if (WT_COL_FIX_TWS_SET(page))
@@ -641,7 +641,7 @@ __wt_rec_col_fix(
          * byte-alignment and then memcpy, but don't do that, on the grounds that it would be easy
          * to get the code wrong and hard to test it.
          */
-        for (i = salvage->skip; i < salvage->skip + salvage->take; i++, entry++)
+        for (i = salvage->skip; i < salvage->skip + salvage->take; ++i, ++entry)
             __bit_setv(
               r->first_free, entry, btree->bitcnt, __bit_getv(page->pg_fix_bitf, i, btree->bitcnt));
         salvage->skip = 0;
@@ -687,7 +687,7 @@ __wt_rec_col_fix(
         /* Salvage wanted us to skip some records. Skip their time windows too. */
         WT_ASSERT(session, curstartrecno > origstartrecno);
         while (tw < numtws && origstartrecno + page->pg_fix_tws[tw].recno_offset < curstartrecno)
-            tw++;
+            ++tw;
     }
 
     WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page)) {
@@ -724,7 +724,7 @@ __wt_rec_col_fix(
                 WT_ERR(__wt_rec_col_fix_addtw(session, r,
                   (uint32_t)(origstartrecno + page->pg_fix_tws[tw].recno_offset - curstartrecno),
                   &unpack.tw));
-            tw++;
+            ++tw;
         }
 
         /*
@@ -795,7 +795,7 @@ __wt_rec_col_fix(
 
         /* If there was an entry in the time windows index for this key, skip over it. */
         if (tw < numtws && origstartrecno + page->pg_fix_tws[tw].recno_offset == recno)
-            tw++;
+            ++tw;
 
         /* We should never see an update off the end of the tree. Those should be inserts. */
         WT_ASSERT(session, recno - curstartrecno < entry);
@@ -822,7 +822,7 @@ __wt_rec_col_fix(
         else if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
             WT_ERR(
               __wt_rec_col_fix_addtw(session, r, (uint32_t)(recno - curstartrecno), &unpack.tw));
-        tw++;
+        ++tw;
     }
 
     /*

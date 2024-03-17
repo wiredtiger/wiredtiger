@@ -2295,7 +2295,7 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
             *ckpt_itr = *ckpt;
             WT_CLEAR(*ckpt);
         }
-        ckpt_itr++;
+        ++ckpt_itr;
     }
 
     /*

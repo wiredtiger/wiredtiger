@@ -179,7 +179,7 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     /* Walk the array of concurrent transactions. */
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; ++i, ++s) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* If the transaction is in the list, it is uncommitted. */
         if (__wt_atomic_loadv64(&s->id) == txnid)
@@ -257,7 +257,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     /* Walk the array of concurrent transactions. */
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; ++i, ++s) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /*
          * Build our snapshot of any concurrent transaction IDs.
@@ -419,7 +419,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     /* Walk the array of concurrent transactions. */
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; ++i, ++s) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* Update the last running transaction ID. */
         while ((id = __wt_atomic_loadv64(&s->id)) != WT_TXN_NONE &&
@@ -1808,7 +1808,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Process updates. */
-    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+    for (i = 0, op = txn->mod; i < txn->mod_count; ++i, ++op) {
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
@@ -1899,7 +1899,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * (if any), associated with the commit. We're the only consumer of that list and we no longer
      * need it, and eviction knows it means abort or commit has completed on instantiated pages.
      */
-    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+    for (i = 0, op = txn->mod; i < txn->mod_count; ++i, ++op) {
         if (op->type == WT_TXN_OP_REF_DELETE) {
             WT_REF_LOCK(session, op->u.ref, &previous_state);
 
@@ -2056,7 +2056,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_session_copy_values(session));
     }
 
-    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+    for (i = 0, op = txn->mod; i < txn->mod_count; ++i, ++op) {
         /* Assert it's not an update to the history store file. */
         WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree->dhandle));
 
@@ -2185,7 +2185,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* Rollback and free updates. */
-    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+    for (i = 0, op = txn->mod; i < txn->mod_count; ++i, ++op) {
         /* Assert it's not an update to the history store file. */
         WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree->dhandle));
 
@@ -2526,7 +2526,7 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_calloc_def(session, conn->session_array.size, &txn_global->txn_shared_list));
 
-    for (i = 0, s = txn_global->txn_shared_list; i < conn->session_array.size; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < conn->session_array.size; ++i, ++s) {
         __wt_atomic_storev64(&s->id, WT_TXN_NONE);
         __wt_atomic_storev64(&s->pinned_id, WT_TXN_NONE);
         __wt_atomic_storev64(&s->metadata_pinned, WT_TXN_NONE);
@@ -2859,7 +2859,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
      * are active at the same time, which is OK since this is diagnostic code.
      */
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; ++i, ++s) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* Skip sessions with no active transaction */
         if ((id = __wt_atomic_loadv64(&s->id)) == WT_TXN_NONE &&

@@ -232,12 +232,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
          * into the list.
          */
         if (cbt->ins_stack[0] == NULL)
-            for (i = 0; i < skipdepth; i++) {
+            for (i = 0; i < skipdepth; ++i) {
                 cbt->ins_stack[i] = &ins_head->head[i];
                 ins->next[i] = cbt->next_stack[i] = NULL;
             }
         else
-            for (i = 0; i < skipdepth; i++)
+            for (i = 0; i < skipdepth; ++i)
                 ins->next[i] = cbt->next_stack[i];
 
         /* Insert the WT_INSERT structure. */
@@ -364,7 +364,7 @@ __wt_update_obsolete_check(
      *
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
-    for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
+    for (first = NULL, count = 0; upd != NULL; upd = upd->next, ++count) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 

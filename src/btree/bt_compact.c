@@ -387,7 +387,7 @@ __wt_compact(WT_SESSION_IMPL *session)
          * the page is in memory.
          */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            bm->block->compact_internal_pages_reviewed++;
+            ++bm->block->compact_internal_pages_reviewed;
             WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
         }
 

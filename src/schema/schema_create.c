@@ -838,7 +838,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
      */
     __wt_config_subinit(session, &pkcols, &table->colconf);
     for (i = 0; i < table->nkey_columns && (ret = __wt_config_next(&pkcols, &ckey, &cval)) == 0;
-         i++) {
+         ++i) {
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
@@ -959,7 +959,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
             WT_ERR(__wt_find_import_metadata(session, uri, &cfg[1]));
         else if (!import_repair) {
             __wt_config_init(session, &conf, config);
-            for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
+            for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; ++nkeys)
                 ;
             if (nkeys == 1)
                 WT_ERR_MSG(session, EINVAL,
@@ -979,7 +979,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 
     WT_ERR(__wt_config_gets(session, cfg, "colgroups", &cval));
     __wt_config_subinit(session, &conf, &cval);
-    for (ncolgroups = 0; (ret = __wt_config_next(&conf, &cgkey, &cgval)) == 0; ncolgroups++)
+    for (ncolgroups = 0; (ret = __wt_config_next(&conf, &cgkey, &cgval)) == 0; ++ncolgroups)
         ;
     WT_ERR_NOTFOUND_OK(ret, false);
 

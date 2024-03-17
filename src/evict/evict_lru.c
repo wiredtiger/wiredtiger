@@ -46,7 +46,7 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
      */
     for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
          __wt_atomic_loadv32(&cache->pass_intr) == 0;
-         spins++) {
+         ++spins) {
         if (spins < WT_THOUSAND)
             __wt_yield();
         else
@@ -175,10 +175,10 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
 
     WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_queue_lock);
 
-    for (q = 0; q < last_queue_idx && !found; q++) {
+    for (q = 0; q < last_queue_idx && !found; ++q) {
         __wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
         elem = cache->evict_queues[q].evict_max;
-        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
+        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; ++i, ++evict)
             if (evict->ref == ref) {
                 found = true;
                 __evict_list_clear(session, evict);
@@ -729,7 +729,7 @@ __evict_pass(WT_SESSION_IMPL *session)
     prev_oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
 
     /* Evict pages from the cache. */
-    for (loop = 0; __wt_atomic_loadv32(&cache->pass_intr) == 0; loop++) {
+    for (loop = 0; __wt_atomic_loadv32(&cache->pass_intr) == 0; ++loop) {
         time_now = __wt_clock(session);
         if (loop == 0)
             time_prev = time_now;
@@ -939,10 +939,10 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
      */
     __wt_spin_lock(session, &cache->evict_queue_lock);
 
-    for (q = 0; q < WT_EVICT_QUEUE_MAX; q++) {
+    for (q = 0; q < WT_EVICT_QUEUE_MAX; ++q) {
         __wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
         elem = cache->evict_queues[q].evict_max;
-        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
+        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; ++i, ++evict)
             if (evict->btree == btree)
                 __evict_list_clear(session, evict);
         __wt_spin_unlock(session, &cache->evict_queues[q].evict_lock);
@@ -1133,7 +1133,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
             thread_surplus = (int32_t)conn->evict_threads.current_threads -
               (int32_t)cache->evict_tune_workers_best;
 
-            for (i = 0; i < thread_surplus; i++) {
+            for (i = 0; i < thread_surplus; ++i) {
                 __wt_thread_group_stop_one(session, &conn->evict_threads);
                 WT_STAT_CONN_INCR(session, cache_eviction_worker_removed);
             }
@@ -1997,13 +1997,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-            internal_pages_seen++;
+            ++internal_pages_seen;
 
         /* Use the EVICT_LRU flag to avoid putting pages onto the list multiple times. */
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
-            pages_already_queued++;
+            ++pages_already_queued;
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-                internal_pages_already_queued++;
+                ++internal_pages_already_queued;
             continue;
         }
 
@@ -2123,7 +2123,7 @@ fast:
 
         /* Count internal pages queued. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-            internal_pages_queued++;
+            ++internal_pages_queued;
 
         __wt_verbose(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
           (void *)page, page->memory_footprint);

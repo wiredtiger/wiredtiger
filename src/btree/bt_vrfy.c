@@ -1071,7 +1071,7 @@ __verify_page_content_fix(
     /* Examine each row; iterate the keys and time windows in parallel. */
     /* Walk the time windows, if there are any. */
     numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
-    for (recno_offset = 0, tw = 0; recno_offset < page->entries; recno_offset++) {
+    for (recno_offset = 0, tw = 0; recno_offset < page->entries; ++recno_offset) {
         if (tw < numtws && page->pg_fix_tws[tw].recno_offset == recno_offset) {
             /* This row has a time window. */
 
@@ -1106,7 +1106,7 @@ __verify_page_content_fix(
                   session, NULL, ref, cell_num, unpack.tw.start_ts, unpack.tw.stop_ts, vs));
 
             start_ts = unpack.tw.start_ts;
-            tw++;
+            ++tw;
         } else
             start_ts = WT_TS_NONE;
 
