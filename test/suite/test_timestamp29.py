@@ -28,50 +28,62 @@
 #
 # test_timestamp29.py
 #   Test commit timestamp is set correctly on updates done before the
-#   first commit timestamp is set
+#   first commit timestamp is set.
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 class test_timestamp28(wttest.WiredTigerTestCase):
+    key_format_values = [
+        ('fix', dict(key_format='r', value_format='8t')),
+        ('row', dict(key_format='i', value_format='i')),
+        ('var', dict(key_format='r', value_format='i')),
+    ]
+
+    scenarios = make_scenarios(key_format_values)
     def test_timestamp29(self):
         uri = 'table:timestamp29'
-        self.session.create(uri, 'key_format=i,value_format=S')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds.populate()
         c = self.session.open_cursor(uri)
 
-        value = "value"
+        value = 1
         self.session.begin_transaction()
-        c[1] = value
+        c[ds.key(1)] = value
         self.session.timestamp_transaction("commit_timestamp=" + self.timestamp_str(10))
-        c[2] = value
+        c[ds.key(2)] = value
         self.session.timestamp_transaction("commit_timestamp=" + self.timestamp_str(20))
-        c[3] = value
+        c[ds.key(3)] = value
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(30))
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
-        c.set_key(1)
-        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        c.set_key(2)
-        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        c.set_key(3)
-        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
+        for i in [1, 2, 3]:
+            if self.value_format == '8t':
+                self.assertEqual(c[ds.key(i)], 0)
+            else:
+                c.set_key(ds.key(i))
+                self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
-        self.assertEqual(c[1], value)
-        self.assertEqual(c[2], value)
-        c.set_key(3)
-        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(c[ds.key(1)], value)
+        self.assertEqual(c[ds.key(2)], value)
+        if self.value_format == '8t':
+            self.assertEqual(c[ds.key(3)], 0)
+        else:
+            c.set_key(ds.key(3))
+            self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(20))
-        self.assertEqual(c[1], value)
-        self.assertEqual(c[2], value)
-        self.assertEqual(c[3], value)
+        self.assertEqual(c[ds.key(1)], value)
+        self.assertEqual(c[ds.key(2)], value)
+        self.assertEqual(c[ds.key(3)], value)
         self.session.rollback_transaction()
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(30))
-        self.assertEqual(c[1], value)
-        self.assertEqual(c[2], value)
-        self.assertEqual(c[3], value)
+        self.assertEqual(c[ds.key(1)], value)
+        self.assertEqual(c[ds.key(2)], value)
+        self.assertEqual(c[ds.key(3)], value)
         self.session.rollback_transaction()
