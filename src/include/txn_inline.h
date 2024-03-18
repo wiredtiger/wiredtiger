@@ -340,8 +340,7 @@ __txn_op_delete_commit_apply_page_del_timestamp(
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
 static WT_INLINE void
-__wt_txn_op_delete_commit_apply_timestamps(
-  WT_SESSION_IMPL *session, WT_REF *ref, bool first_commit_timestamp)
+__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
@@ -349,7 +348,7 @@ __wt_txn_op_delete_commit_apply_timestamps(
     uint8_t previous_state;
 
     txn = session->txn;
-    commit_timestamp = first_commit_timestamp ? txn->first_commit_timestamp : txn->commit_timestamp;
+    commit_timestamp = commit ? txn->first_commit_timestamp : txn->commit_timestamp;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -414,7 +413,7 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
  *     existing timestamp.
  */
 static WT_INLINE void
-__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool first_commit_timestamp)
+__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 {
     WT_TXN *txn;
     WT_UPDATE *upd;
@@ -440,10 +439,9 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool first_co
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref, first_commit_timestamp);
+            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref, commit);
         else {
-            commit_timestamp =
-              first_commit_timestamp ? txn->first_commit_timestamp : txn->commit_timestamp;
+            commit_timestamp = commit ? txn->first_commit_timestamp : txn->commit_timestamp;
             upd = op->u.op_upd;
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = commit_timestamp;
