@@ -60,7 +60,7 @@ final128:
     u64 = firsteq ? udata.b : udata.a;
     t64 = firsteq ? tdata.b : tdata.a;
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#ifndef WORDS_BIGENDIAN
     u64 = __wt_bswap64(u64);
     t64 = __wt_bswap64(t64);
 #endif
@@ -125,7 +125,7 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     u64 = ua == ta ? ub : ua;
     t64 = ua == ta ? tb : ta;
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#ifndef WORDS_BIGENDIAN
     u64 = __wt_bswap64(u64);
     t64 = __wt_bswap64(t64);
 #endif
@@ -338,7 +338,7 @@ final128:
     t64 = firsteq ? tdata.b : tdata.a;
     match += firsteq ? sizeof(uint64_t) : 0;
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#ifndef WORDS_BIGENDIAN
     u64 = __wt_bswap64(u64);
     t64 = __wt_bswap64(t64);
 #endif
