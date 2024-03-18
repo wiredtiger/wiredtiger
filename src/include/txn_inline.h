@@ -316,8 +316,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
  *     Apply the correct start and durable timestamps to the page delete structure.
  */
 static WT_INLINE void
-__txn_op_delete_commit_apply_page_del_timestamp(
-  WT_SESSION_IMPL *session, WT_REF *ref, bool first_commit_timestamp)
+__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
@@ -325,7 +324,7 @@ __txn_op_delete_commit_apply_page_del_timestamp(
 
     txn = session->txn;
     page_del = ref->page_del;
-    commit_timestamp = first_commit_timestamp ? txn->first_commit_timestamp : txn->commit_timestamp;
+    commit_timestamp = commit ? txn->first_commit_timestamp : txn->commit_timestamp;
 
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
@@ -382,7 +381,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
             }
     }
 
-    __txn_op_delete_commit_apply_page_del_timestamp(session, ref, first_commit_timestamp);
+    __txn_op_delete_commit_apply_page_del_timestamp(session, ref, commit);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
