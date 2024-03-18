@@ -1337,10 +1337,10 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
         }
     }
 
+err:
     if (ret == WT_NOTFOUND)
         ret = 0;
 
-err:
     WT_TRET(metadata_cursor->close(metadata_cursor));
 
     return (ret);
