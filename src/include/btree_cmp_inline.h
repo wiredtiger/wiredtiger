@@ -111,8 +111,10 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     uendp = ustartp + len;
     tendp = tstartp + len;
     if (len & sizeof(uint64_t)) {
-        /* len >= 64 bits. len is implicitly less than 128bits since the function accepts 16 bytes
-         * or less. */
+        /*
+         * len >= 64 bits. len is implicitly less than 128bits since the function accepts 16 bytes
+         * or less.
+         */
         memcpy(&ua, ustartp, sizeof(uint64_t));
         memcpy(&ta, tstartp, sizeof(uint64_t));
         memcpy(&ub, uendp - sizeof(uint64_t), sizeof(uint64_t));
