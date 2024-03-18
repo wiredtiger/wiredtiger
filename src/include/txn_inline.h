@@ -378,11 +378,12 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
              * either set the timestamp on all the updates, or we have set the timestamp on none of
              * the updates.
              */
-            if ((*updp) != NULL && (*updp)->start_ts == WT_TS_NONE) {
-                for (; *updp != NULL; ++updp) {
+            if (*updp != NULL && (*updp)->start_ts == WT_TS_NONE) {
+                do {
                     (*updp)->start_ts = commit_timestamp;
                     (*updp)->durable_ts = commit_timestamp;
-                }
+                    ++updp;
+                } while (*updp != NULL);
             }
     }
 
