@@ -61,8 +61,8 @@ final128:
     t64 = firsteq ? tdata.b : tdata.a;
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    u64 = __builtin_bswap64(u64);
-    t64 = __builtin_bswap64(t64);
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
 #endif
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
@@ -85,13 +85,15 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 
     uendp = ustartp + len;
     tendp = tstartp + len;
-    /* This function is only called with less than 16 bytes data. */
     if (len & sizeof(uint64_t)) {
+        /* len >= 64 bits. len is implicitly less than 128bits since the function accepts 16 bytes
+         * or less. */
         memcpy(&ua, ustartp, sizeof(uint64_t));
         memcpy(&ta, tstartp, sizeof(uint64_t));
         memcpy(&ub, uendp - sizeof(uint64_t), sizeof(uint64_t));
         memcpy(&tb, tendp - sizeof(uint64_t), sizeof(uint64_t));
     } else if (len & sizeof(uint32_t)) {
+        /* len >= 32 bits */
         uint32_t ta32, tb32, ua32, ub32;
         memcpy(&ua32, ustartp, sizeof(uint32_t));
         memcpy(&ta32, tstartp, sizeof(uint32_t));
@@ -102,6 +104,7 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         ub = ub32;
         tb = tb32;
     } else if (len & sizeof(uint16_t)) {
+        /* len >= 16 bits */
         uint16_t ta16, tb16, ua16, ub16;
         memcpy(&ua16, ustartp, sizeof(uint16_t));
         memcpy(&ta16, tstartp, sizeof(uint16_t));
@@ -123,8 +126,8 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     t64 = ua == ta ? tb : ta;
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    u64 = __builtin_bswap64(u64);
-    t64 = __builtin_bswap64(t64);
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
 #endif
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
@@ -336,8 +339,8 @@ final128:
     match += firsteq ? sizeof(uint64_t) : 0;
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    u64 = __builtin_bswap64(u64);
-    t64 = __builtin_bswap64(t64);
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
 #endif
 
     match += (size_t)__builtin_clzll(u64 ^ t64) / 8;
