@@ -1438,7 +1438,9 @@ __check_backup_blocks(
                   &file_blkmods_buffer, checkpoint_blkmods_buffer, &blkmods_are_ok);
 
                 if ((ret != 0) || !blkmods_are_ok) {
-                    WT_ASSERT(session, false);
+                    WT_ASSERT_ALWAYS(session, false,
+                      "File blkmods are not compatible with those in the checkpoint ('%s')",
+                      ckpt->name);
                     WT_ERR_PANIC(session, WT_PANIC,
                       "File blkmods are not compatible with those in the checkpoint ('%s')",
                       ckpt->name);
