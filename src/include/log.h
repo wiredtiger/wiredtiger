@@ -36,7 +36,7 @@ union __wt_lsn {
         uint32_t file;
         uint32_t offset;
 #else
-        uint32_t offset;
+        wt_shared uint32_t offset;
         uint32_t file;
 #endif
     } l;
