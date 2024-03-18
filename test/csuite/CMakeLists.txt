@@ -159,15 +159,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2447_join_main_table
-    SOURCES wt2447_join_main_table/main.c
-    DIR_NAME wt2447_join_main_table
-    VARIANTS
-        "test_wt2447_join_main_table_row;-t r"
-        "test_wt2447_join_main_table_col;-t c"
-)
-
-define_c_test(
     TARGET test_wt2695_checksum
     SOURCES wt2695_checksum/main.c
     DIR_NAME wt2695_checksum
@@ -300,13 +291,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt4699_json
-    SOURCES wt4699_json/main.c
-    DIR_NAME wt4699_json
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4699_json>/WT_HOME>
-)
-
-define_c_test(
     TARGET test_wt4803_history_store_abort
     SOURCES wt4803_history_store_abort/main.c
     DIR_NAME wt4803_history_store_abort
@@ -346,6 +330,15 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt7989_compact_checkpoint>/WT_HOME>
     DEPENDS "WT_POSIX"
     # This test takes over 40 minutes under ASan testing
+    LABEL "long_running"
+)
+
+define_c_test(
+    TARGET test_wt9199_checkpoint_txn_commit_race
+    SOURCES wt9199_checkpoint_txn_commit_race/main.c
+    DIR_NAME wt9199_checkpoint_txn_commit_race
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt9199_checkpoint_txn_commit_race>/WT_HOME>
+    DEPENDS "WT_POSIX"
     LABEL "long_running"
 )
 

@@ -855,7 +855,6 @@ ifdef's
 iiSii
 iiiS
 iiii
-iiu
 ikey
 im
 img
@@ -1201,7 +1200,6 @@ runone
 runtime
 rw
 rwlock
-sH
 sHQ
 sXXXXXX
 sanitizer
@@ -1299,7 +1297,6 @@ sz
 t's
 tIf
 tV
-tablename
 td
 teardown
 tempdir
