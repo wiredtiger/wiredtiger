@@ -184,6 +184,8 @@ conn_stats = [
     # System statistics
     ##########################################
     ConnStat('backup_blocks', 'total modified incremental blocks'),
+    ConnStat('backup_blocks_compressed', 'total modified incremental blocks in tables with block compression'),
+    ConnStat('backup_blocks_uncompressed', 'total modified incremental blocks in tables without block compression'),
     ConnStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
     ConnStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
     ConnStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),

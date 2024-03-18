@@ -697,6 +697,8 @@ struct __wt_connection_stats {
     int64_t rwlock_write;
     int64_t fsync_io;
     int64_t backup_blocks;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t read_io;
     int64_t write_io;
     int64_t cursor_tree_walk_del_page_skip;

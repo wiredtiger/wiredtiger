@@ -322,7 +322,11 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         incr_c.close()
         self.assertEqual(0, self.get_stat(stat.conn.backup_dup_open))
         if did_work:
-            self.assertNotEqual(0, self.get_stat(stat.conn.backup_blocks))
+            blocks = self.get_stat(stat.conn.backup_blocks)
+            self.assertNotEqual(0, blocks)
+            comp = self.get_stat(stat.conn.backup_blocks_compressed)
+            uncomp = self.get_stat(stat.conn.backup_blocks_uncompressed)
+            self.assertEqual(blocks, comp + uncomp)
         return lens
 
     #

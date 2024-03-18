@@ -1694,6 +1694,8 @@ static const char *const __stats_connection_desc[] = {
   "connection: pthread mutex shared lock write-lock calls",
   "connection: total fsync I/Os",
   "connection: total modified incremental blocks",
+  "connection: total modified incremental blocks in tables with block compression",
+  "connection: total modified incremental blocks in tables without block compression",
   "connection: total read I/Os",
   "connection: total write I/Os",
   "cursor: Total number of deleted pages skipped during tree walk",
@@ -2426,6 +2428,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rwlock_write = 0;
     stats->fsync_io = 0;
     stats->backup_blocks = 0;
+    stats->backup_blocks_compressed = 0;
+    stats->backup_blocks_uncompressed = 0;
     stats->read_io = 0;
     stats->write_io = 0;
     stats->cursor_tree_walk_del_page_skip = 0;
@@ -3184,6 +3188,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rwlock_write += WT_STAT_READ(from, rwlock_write);
     to->fsync_io += WT_STAT_READ(from, fsync_io);
     to->backup_blocks += WT_STAT_READ(from, backup_blocks);
+    to->backup_blocks_compressed += WT_STAT_READ(from, backup_blocks_compressed);
+    to->backup_blocks_uncompressed += WT_STAT_READ(from, backup_blocks_uncompressed);
     to->read_io += WT_STAT_READ(from, read_io);
     to->write_io += WT_STAT_READ(from, write_io);
     to->cursor_tree_walk_del_page_skip += WT_STAT_READ(from, cursor_tree_walk_del_page_skip);
