@@ -328,6 +328,10 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF
 
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
+    /*
+     * Prepared commit doesn't go through this code path. Therefore, we set the durable timestamp
+     * the same as the commit timestamp.
+     */
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = commit_timestamp;
         page_del->durable_timestamp = commit_timestamp;
