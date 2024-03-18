@@ -30,6 +30,59 @@
 
 #define WT_BACKUP_COPY_SIZE (128 * 1024)
 
+int
+delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_t keyno)
+{
+    CONFIG_OPTS *opts;
+    uint64_t i, index_val;
+    size_t len;
+    int ret;
+
+    opts = wtperf->opts;
+    len = opts->key_sz + opts->value_sz_max;
+
+    /* Delete any earlier index entries. */
+    for (i = 1; i < wtperf->index_multiplier; ++i) {
+        index_val = i * INDEX_BASE;
+        testutil_snprintf(key_buf, len, "%" PRIu64 ":%" PRIu64, index_val, keyno);
+        index_cursor->set_key(index_cursor, key_buf);
+        ret = index_cursor->remove(index_cursor);
+        if (ret == 0)
+            break;
+        if (ret == WT_NOTFOUND)
+            continue;
+        lprintf(wtperf, ret, 1, "Delete earlier index key failed");
+    }
+    return (0);
+}
+
+/*
+ * Set up an index key based on global values.
+ */
+void
+generate_index_key(WTPERF *wtperf, char *key_buf, uint64_t keyno)
+{
+    CONFIG_OPTS *opts;
+    uint64_t index_val;
+    size_t len;
+
+    opts = wtperf->opts;
+    len = opts->key_sz + opts->value_sz_max;
+
+    index_val = wtperf->index_multiplier * INDEX_BASE;
+    testutil_snprintf(key_buf, len, "%" PRIu64 ":%" PRIu64, index_val, keyno);
+}
+
+void
+increment_index_info(WTPERF *wtperf)
+{
+    uint64_t op;
+
+    op = __wt_atomic_add64(&wtperf->index_ops, 1);
+    if (op % wtperf->opts->icount == 0)
+        (void)__wt_atomic_add64(&wtperf->index_multiplier, 1);
+}
+
 /* Setup the logging output mechanism. */
 int
 setup_log_file(WTPERF *wtperf)

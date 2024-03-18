@@ -77,6 +77,9 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define MAX_MODIFY_PCT 10
 #define MAX_MODIFY_NUM 16
 
+#define INDEX_BASE 10000
+#define INDEX_VALUE "SMALL_VALUE"
+
 typedef struct {
     int64_t threads;   /* Thread count */
     int64_t insert;    /* Insert ratio */
@@ -136,13 +139,14 @@ typedef struct {
 
 #define LOG_PARTIAL_CONFIG ",log=(enabled=false)"
 #define READONLY_CONFIG ",readonly=true"
-struct __wtperf {         /* Per-database structure */
-    char *home;           /* WiredTiger home */
-    char *monitor_dir;    /* Monitor output dir */
-    char *partial_config; /* Config string for partial logging */
-    char *reopen_config;  /* Config string for conn reopen */
-    char *log_table_uri;  /* URI for log table */
-    char **uris;          /* URIs */
+struct __wtperf {          /* Per-database structure */
+    char *home;            /* WiredTiger home */
+    char *monitor_dir;     /* Monitor output dir */
+    char *partial_config;  /* Config string for partial logging */
+    char *reopen_config;   /* Config string for conn reopen */
+    char *index_table_uri; /* URI for index-like table */
+    char *log_table_uri;   /* URI for log table */
+    char **uris;           /* URIs */
 
     WT_CONNECTION *conn; /* Database connection */
 
@@ -178,6 +182,8 @@ struct __wtperf {         /* Per-database structure */
     uint64_t truncate_ops; /* truncate operations */
     uint64_t update_ops;   /* update operations */
 
+    uint64_t index_multiplier;   /* used to find and modify index keys */
+    uint64_t index_ops;          /* used to allocate IDs for index table */
     uint64_t insert_key;         /* insert key */
     uint64_t log_like_table_key; /* used to allocate IDs for log table */
 
@@ -270,7 +276,8 @@ struct __wtperf_thread {    /* Per-thread structure */
 
     wt_thread_t handle; /* Handle */
 
-    char *key_buf, *value_buf; /* Key/value memory */
+    char *index_buf, *index_del_buf; /* Index memory */
+    char *key_buf, *value_buf;       /* Key/value memory */
 
     WORKLOAD *workload; /* Workload */
 
@@ -302,6 +309,9 @@ int config_opt_str(WTPERF *, const char *);
 void config_opt_usage(void);
 char *config_reopen(CONFIG_OPTS *);
 int config_sanity(WTPERF *);
+int delete_index_key(WTPERF *, WT_CURSOR *, char *, uint64_t);
+void generate_index_key(WTPERF *, char *, uint64_t);
+void increment_index_info(WTPERF *);
 void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_print(WTPERF *);

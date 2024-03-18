@@ -115,7 +115,8 @@ DEF_OPT_AS_UINT32(max_idle_table_cycle, 0,
   "setting.")
 DEF_OPT_AS_BOOL(max_idle_table_cycle_fatal, 0,
   "print warning (false) or abort (true) of max_idle_table_cycle failure.")
-DEF_OPT_AS_BOOL(index, 0, "Whether to create an index on the value field.")
+DEF_OPT_AS_BOOL(index, 0, "Whether to create a WiredTiger index on the value field.")
+DEF_OPT_AS_BOOL(index_like_table, 0, "Add an index-like modification to another shared table.")
 DEF_OPT_AS_BOOL(insert_rmw, 0, "execute a read prior to each insert in workload phase")
 DEF_OPT_AS_UINT32(key_sz, 20, "key size")
 DEF_OPT_AS_BOOL(log_partial, 0, "perform partial logging on first table only.")

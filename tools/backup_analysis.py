@@ -312,8 +312,12 @@ def print_summary():
 # will then drill down and compare each common file individually. 
 #
 def compare_backups(dir1, dir2):
-    files1=set(fnmatch.filter(os.listdir(dir1), "*.wt"))
-    files2=set(fnmatch.filter(os.listdir(dir2), "*.wt"))
+    files1t=set(fnmatch.filter(os.listdir(dir1), "*.wt"))
+    files1i=set(fnmatch.filter(os.listdir(dir1), "*.wti"))
+    files1 = files1t.union(files1i)
+    files2t=set(fnmatch.filter(os.listdir(dir2), "*.wt"))
+    files2i=set(fnmatch.filter(os.listdir(dir2), "*.wti"))
+    files2 = files2t.union(files2i)
 
     # Determine which directory is older so that various messages make sense.
     olderdir = older_dir(dir1, dir2)
