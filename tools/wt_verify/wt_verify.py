@@ -171,6 +171,59 @@ def parse_output():
     return output
 
 
+def mean(array):
+    return round(sum(array) / len(array), 2)
+
+
+def median(array):
+    return array[len(array) // 2]
+
+
+def num_len(num):
+    return len(str(num))
+
+
+def table(int_stats, leaf_stats):
+    string = """
+<style>
+table, th, td {
+  border:1px solid black;
+  font-family: Helvetica, Sans-Serif;
+}
+td, th {
+  padding: 10px;
+}
+</style>
+"""
+    string += """
+<table style="margin-left:4cm;border-collapse: collapse;">
+  <tr>
+    <th>Page type</th>
+    <th>Mean</th>
+    <th>Median</th>
+    <th>Min</th>
+    <th>Max</th>
+  </tr>
+  <tr>
+    <td>Internal</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+  </tr>
+  <tr>
+    <td>Leaf</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+    <td>{}</td>
+  </tr>
+</table>
+    """.format(int_stats[0], int_stats[1], int_stats[2], int_stats[3], leaf_stats[0], 
+               leaf_stats[1], leaf_stats[2], leaf_stats[3])
+    return string
+
+
 def histogram(field, chkpt, chkpt_name):
     """
     Rendering histogram in HTML for the specified field for leaf and internal pages 
@@ -200,6 +253,9 @@ def histogram(field, chkpt, chkpt_name):
 
     imgs = mpld3.fig_to_html(fig) 
     plt.close()
+    internal_stats = [mean(internal), median(internal), min(internal), max(internal)]
+    leaf_stats = [mean(leaf), median(leaf), min(leaf), max(leaf)]
+    imgs += table(internal_stats, leaf_stats)
     return imgs
 
 
