@@ -2150,6 +2150,7 @@ wtperf_free(WTPERF *wtperf)
     free(wtperf->monitor_dir);
     free(wtperf->partial_config);
     free(wtperf->reopen_config);
+    free(wtperf->index_table_uri);
     free(wtperf->log_table_uri);
 
     if (wtperf->uris != NULL) {
