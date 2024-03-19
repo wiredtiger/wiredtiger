@@ -236,8 +236,8 @@ begin_transaction_null(WT_SESSION *session)
  *     Run the test with or without configuration compilation.
  */
 static void
-do_config_run(WT_SESSION *session, u_int variant, const char *compiled, const char **compiled_array,
-  bool check, uint64_t *nsec)
+do_config_run(WT_SESSION *session, uint32_t variant, const char *compiled,
+  const char **compiled_array, bool check, uint64_t *nsec)
 {
     struct timespec before, after;
     WT_RAND_STATE rnd;
@@ -325,7 +325,8 @@ benchmark_thread(void *thread_arg)
     THREAD_OPTS *thread_opts;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    u_int runs, variant;
+    uint32_t variant;
+    u_int runs;
 
     thread_opts = (THREAD_OPTS *)thread_arg;
     conn = thread_opts->test_opts->conn;
@@ -350,7 +351,7 @@ main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
     uint64_t base_ns, ns, *nsecs, total_nsecs;
-    u_int i, nthreads, variant;
+    uint32_t i, nthreads, variant;
     const char *compiled_config, **compiled_config_array;
     THREAD_OPTS *thread_opts;
     pthread_t *tids;
@@ -385,7 +386,7 @@ main(int argc, char *argv[])
         pthread_join(tids[i], NULL);
 
     printf("number of calls: %d\n", N_CALLS * N_RUNS);
-    printf("number of threads: %d\n", nthreads);
+    printf("number of threads: %" PRIu32 "\n", nthreads);
     base_ns = 0;
     for (variant = 0; variant < N_VARIANTS; ++variant) {
         total_nsecs = 0;
@@ -395,7 +396,8 @@ main(int argc, char *argv[])
         if (variant == 0)
             base_ns = ns;
 
-        printf("variant %d: %s, nsec per begin/rollback pair = %" PRIu64 ", vs baseline = %f\n",
+        printf("variant %" PRIu32 ": %s, nsec per begin/rollback pair = %" PRIu64
+               ", vs baseline = %f\n",
           variant, descriptions[variant], ns, ((double)base_ns) / ns);
     }
 
