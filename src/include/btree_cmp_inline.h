@@ -316,6 +316,7 @@ __lex_compare_skip_ge_16(
 {
     __m128i res_eq, t, u;
     uint64_t t64, tfirst, u64, ufirst;
+    int leading_zero_bytes;
     size_t match;
     const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
@@ -360,7 +361,8 @@ final128:
     t64 = __wt_bswap64(t64);
 #endif
 
-    match += (size_t)__builtin_clzll(u64 ^ t64) / 8;
+    WT_LEADING_ZEROS(u64 ^ t64, leading_zero_bytes);
+    match += leading_zero_bytes;
     *matchp = match;
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
@@ -385,6 +387,7 @@ __lex_compare_skip_ge_16(
     } tdata, udata;
     size_t match;
     uint64_t t64, u64;
+    int leading_zero_bytes;
     const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
 
@@ -425,7 +428,8 @@ final128:
     t64 = __wt_bswap64(t64);
 #endif
 
-    match += (size_t)__builtin_clzll(u64 ^ t64) / 8;
+    WT_LEADING_ZEROS(u64 ^ t64, leading_zero_bytes);
+    match += leading_zero_bytes;
     *matchp = match;
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
