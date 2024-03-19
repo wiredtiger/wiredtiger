@@ -692,7 +692,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
 
     /*
      * We should not open other cursors when there are open history store cursors in the session.
-     * There are three exceptions to this rule:
+     * There are some exceptions to this rule:
      *  - Verifying the metadata through an internal session.
      *  - The btree is being verified.
      *  - Opening the meta file itself while performing a checkpoint.
