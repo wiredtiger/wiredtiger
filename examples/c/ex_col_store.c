@@ -262,8 +262,7 @@ find_min_and_max_temp(
     uint8_t temp;
 
     /* Open the cursor. */
-    error_check(
-      session->open_cursor(session, "table:weather(hour,temp)", NULL, NULL, &cursor));
+    error_check(session->open_cursor(session, "table:weather(hour,temp)", NULL, NULL, &cursor));
 
     /* Initialize minimum temperature and maximum temperature to temperature of the first record. */
     ret = cursor->next(cursor);
@@ -277,7 +276,8 @@ find_min_and_max_temp(
     *min_temp = temp;
     *max_temp = temp;
 
-    /* Iterating through all records selecting records between start and end time to find the min & max temps. */
+    /* Iterating through all records selecting records between start and end time to find the min &
+     * max temps. */
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_value(cursor, &hour, &temp));
         if ((start_time <= hour) && (hour <= end_time)) {

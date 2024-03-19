@@ -137,10 +137,6 @@ The following is an example of printing statistics about a table:
 
 @snippet ex_stat.c statistics table function
 
-The following is an example of printing statistics about a join cursor:
-
-@snippet ex_stat.c statistics join cursor function
-
 The following is an example of printing statistics about a session cursor:
 
 @snippet ex_stat.c statistics session function
