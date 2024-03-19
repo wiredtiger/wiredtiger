@@ -318,10 +318,6 @@ err:
 
     /* This is owned by the table */
     cursor->key_format = NULL;
-    if (cjoin->projection != NULL) {
-        __wt_free(session, cjoin->projection);
-        __wt_free(session, cursor->value_format);
-    }
 
     for (entry = cjoin->entries, i = 0; i < cjoin->entries_next; entry++, i++) {
         if (entry->subjoin != NULL) {
@@ -879,10 +875,9 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
     WT_CURSOR_JOIN_ENDPOINT *end;
     WT_CURSOR_JOIN_ENTRY *je, *jeend, *je2;
     WT_DECL_RET;
-    size_t size;
     uint32_t f, k;
     char *mainbuf;
-    const char **config, *proj, *urimain;
+    const char **config, *urimain;
     const char *def_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
     const char *raw_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw", NULL};
 
@@ -898,12 +893,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
     else
         config = &def_cfg[0];
     urimain = cjoin->table->iface.name;
-    if ((proj = cjoin->projection) != NULL) {
-        size = strlen(urimain) + strlen(proj) + 1;
-        WT_ERR(__wt_calloc(session, size, 1, &mainbuf));
-        WT_ERR(__wt_snprintf(mainbuf, size, "%s%s", urimain, proj));
-        urimain = mainbuf;
-    }
+
     WT_ERR(__wt_open_cursor(session, urimain, (WT_CURSOR *)cjoin, config, &cjoin->main));
 
     jeend = &cjoin->entries[cjoin->entries_next];
@@ -1072,43 +1062,15 @@ err:
 
 /*
  * __curjoin_open_main --
- *     For the given index, open the main file with a projection that is the index keys.
+ *     FIXME: WT-12487 this function will be removed. 
  */
 static int
 __curjoin_open_main(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, WT_CURSOR_JOIN_ENTRY *entry)
 {
-    WT_DECL_RET;
-    WT_INDEX *idx;
-    size_t len, newsize;
-    char *main_uri, *newformat;
-    const char *raw_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw", NULL};
-
-    main_uri = newformat = NULL;
-    idx = entry->index;
-
-    newsize = strlen(cjoin->table->iface.name) + idx->colconf.len + 1;
-    WT_ERR(__wt_calloc(session, 1, newsize, &main_uri));
-    WT_ERR(__wt_snprintf(main_uri, newsize, "%s%.*s", cjoin->table->iface.name,
-      (int)idx->colconf.len, idx->colconf.str));
-    WT_ERR(__wt_open_cursor(session, main_uri, (WT_CURSOR *)cjoin, raw_cfg, &entry->main));
-    if (idx->extractor == NULL) {
-        /*
-         * Add no-op padding so trailing 'u' formats are not transformed to 'U'. This matches what
-         * happens in the index. We don't do this when we have an extractor, extractors already use
-         * the padding byte trick.
-         */
-        len = strlen(entry->main->value_format) + 3;
-        WT_ERR(__wt_calloc(session, len, 1, &newformat));
-        WT_ERR(__wt_snprintf(newformat, len, "%s0x", entry->main->value_format));
-        __wt_free(session, entry->main->value_format);
-        entry->main->value_format = newformat;
-        newformat = NULL;
-    }
-
-err:
-    __wt_free(session, main_uri);
-    __wt_free(session, newformat);
-    return (ret);
+    WT_UNUSED(entry);
+    WT_UNUSED(session);
+    WT_UNUSED(cjoin);
+    return (0);
 }
 
 /*
@@ -1266,14 +1228,6 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 
     cjoin->table = table;
 
-    /* Handle projections. */
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-    if (columns != NULL) {
-        WT_ERR(__wt_struct_reformat(session, table, columns, strlen(columns), NULL, false, tmp));
-        WT_ERR(__wt_strndup(session, tmp->data, tmp->size, &cursor->value_format));
-        WT_ERR(__wt_strdup(session, columns, &cjoin->projection));
-    }
-
     WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
     if (0) {
@@ -1425,7 +1379,7 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, WT_INDEX *idx
 
         if (entry->main == NULL && idx != NULL) {
             /*
-             * Open the main file with a projection of the indexed columns.
+             * FIXME: WT-12487 to be removed. 
              */
             WT_RET(__curjoin_open_main(session, cjoin, entry));
 

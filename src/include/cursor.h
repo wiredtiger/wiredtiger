@@ -370,7 +370,6 @@ struct __wt_cursor_index {
 
     WT_TABLE *table;
     WT_INDEX *index;
-    const char *key_plan, *value_plan;
 
     WT_CURSOR *child;
     WT_CURSOR **cg_cursors;
@@ -400,7 +399,7 @@ struct __wt_cursor_join_iter {
     WT_CURSOR_JOIN *cjoin;
     WT_CURSOR_JOIN_ENTRY *entry;
     WT_CURSOR_JOIN_ITER *child;
-    WT_CURSOR *cursor; /* has null projection */
+    WT_CURSOR *cursor; 
     WT_ITEM *curkey;   /* primary key */
     WT_ITEM idxkey;
     u_int entry_pos;   /* the current entry */
@@ -469,8 +468,7 @@ struct __wt_cursor_join {
     WT_CURSOR iface;
 
     WT_TABLE *table;
-    const char *projection;
-    WT_CURSOR *main;           /* main table with projection */
+    WT_CURSOR *main;          
     WT_CURSOR_JOIN *parent;    /* parent of nested group */
     WT_CURSOR_JOIN_ITER *iter; /* chain of iterators */
     WT_CURSOR_JOIN_ENTRY *entries;
