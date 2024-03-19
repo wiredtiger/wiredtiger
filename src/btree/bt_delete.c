@@ -132,12 +132,9 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * Fast check to see if it's worth locking, then atomically switch the page's state to lock it.
      */
     previous_state = __wt_ref_get_state(ref);
-    switch (previous_state) {
-    case WT_REF_DISK:
-        break;
-    default:
+    if (previous_state != WT_REF_DISK)
         return (0);
-    }
+
     if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
         return (0);
 
