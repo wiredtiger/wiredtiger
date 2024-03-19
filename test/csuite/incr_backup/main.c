@@ -542,7 +542,6 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     /* Save the rnd state in the seed global variable for error reporting */
     seed = rnd->v;
 
-    preserve = false;
     ncheckpoints = nreopens = 0;
     WT_CLEAR(tinfo);
 
