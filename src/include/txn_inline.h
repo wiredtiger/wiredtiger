@@ -383,6 +383,10 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
              * the updates.
              */
             if (*updp != NULL && (*updp)->start_ts == WT_TS_NONE) {
+                /*
+                 * Prepared commit doesn't go through this code path. Therefore, we set the durable
+                 * timestamp the same as the commit timestamp.
+                 */
                 do {
                     (*updp)->start_ts = commit_timestamp;
                     (*updp)->durable_ts = commit_timestamp;
@@ -452,6 +456,10 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
         else {
             commit_timestamp = commit ? txn->first_commit_timestamp : txn->commit_timestamp;
             upd = op->u.op_upd;
+            /*
+             * Prepared commit doesn't go through this code path. Therefore, we set the durable
+             * timestamp the same as the commit timestamp.
+             */
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = commit_timestamp;
                 upd->durable_ts = commit_timestamp;
