@@ -1503,7 +1503,7 @@ __wt_session_range_truncate(
     WT_TRUNCATE_INFO *trunc_info, _trunc_info;
     int cmp;
     const char *actual_uri;
-    bool local_start, local_stop, log_op, log_trunc, supports_bounds;
+    bool local_start, local_stop, log_op, log_trunc, needs_next_prev, supports_bounds;
 
     actual_uri = NULL;
     local_start = local_stop = log_trunc = false;
@@ -1587,7 +1587,11 @@ __wt_session_range_truncate(
     trunc_info->uri = actual_uri;
 
     /*
-     * We would like to use bounded cursors if possible, so check whether they are supported.
+     * We would like to use bounded cursors if possible, so check whether they are supported. We
+     * don't currently support bounded cursors for fixed column stores. For now, also fall back to
+     * not using bounded cursors for complex types, such as tables with column groups and indexes.
+     * Those tables may or may not support bounded cursors and it is not easy to check at this
+     * abstraction level.
      */
     if (CUR2BT(start) == NULL || CUR2BT(start)->type == BTREE_COL_FIX)
         supports_bounds = false;
@@ -1606,6 +1610,7 @@ __wt_session_range_truncate(
      * No need to search the record again if it is already pointing to the btree.
      */
     if (!F_ISSET(start, WT_CURSTD_KEY_INT)) {
+        needs_next_prev = true;
         if (supports_bounds) {
             if (!local_start) {
                 /*
@@ -1626,6 +1631,16 @@ __wt_session_range_truncate(
                 __wt_cursor_set_raw_key(start, orig_stop_key);
                 WT_ERR(start->bound(start, "bound=upper"));
             }
+        } else if (orig_start_key != NULL) {
+            WT_ERR_NOTFOUND_OK(start->search_near(start, &cmp), true);
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
+                log_trunc = true;
+                goto done;
+            }
+            needs_next_prev = (cmp < 0);
+        }
+        if (needs_next_prev) {
             WT_ERR_NOTFOUND_OK(start->next(start), true);
             if (ret == WT_NOTFOUND) {
                 /* If there are no elements, there is nothing to do. */
@@ -1633,21 +1648,10 @@ __wt_session_range_truncate(
                 log_trunc = true;
                 goto done;
             }
-        } else if (orig_start_key == NULL) {
-            WT_ERR_NOTFOUND_OK(start->next(start), true);
-            if (ret == WT_NOTFOUND) {
-                ret = 0;
-                log_trunc = true;
-                goto done;
-            }
-        } else if ((ret = start->search_near(start, &cmp)) != 0 ||
-          (cmp < 0 && (ret = start->next(start)) != 0)) {
-            WT_ERR_NOTFOUND_OK(ret, false);
-            log_trunc = true;
-            goto done;
         }
     }
     if (stop != NULL && !F_ISSET(stop, WT_CURSTD_KEY_INT)) {
+        needs_next_prev = true;
         if (supports_bounds) {
             WT_ERR(__session_open_cursor((WT_SESSION *)session, actual_uri, NULL, NULL, &stop));
             trunc_info->stop = stop;
@@ -1660,17 +1664,22 @@ __wt_session_range_truncate(
                 __wt_cursor_set_raw_key(stop, orig_stop_key);
                 WT_ERR(stop->bound(stop, "bound=upper"));
             }
+        } else {
+            WT_ERR_NOTFOUND_OK(stop->search_near(stop, &cmp), true);
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
+                log_trunc = true;
+                goto done;
+            }
+            needs_next_prev = (cmp > 0);
+        }
+        if (needs_next_prev) {
             WT_ERR_NOTFOUND_OK(stop->prev(stop), true);
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 log_trunc = true;
                 goto done;
             }
-        } else if ((ret = stop->search_near(stop, &cmp)) != 0 ||
-          (cmp > 0 && (ret = stop->prev(stop)) != 0)) {
-            WT_ERR_NOTFOUND_OK(ret, false);
-            log_trunc = true;
-            goto done;
         }
     }
 
