@@ -1413,8 +1413,7 @@ __ckpt_verify_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool 
  *     no errors in the incremental backup blkmod information.
  */
 static WT_INLINE int
-__ckpt_check_backup_blocks(
-  WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *filename)
+__ckpt_check_backup_blocks(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *filename)
 {
     WT_BLOCK_MODS *blk;
     WT_DECL_RET;
@@ -1431,7 +1430,8 @@ __ckpt_check_backup_blocks(
             continue;
 
         WT_ERR(__ckpt_get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
-        WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
+        WT_ERR(
+          __ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
 
         if ((checkpoint_blkmods_buffer.size > 0) && (file_blkmods_buffer.size > 0)) {
             blkmods_are_ok = false;
