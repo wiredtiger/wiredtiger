@@ -119,7 +119,7 @@ test_check_incorrect_modified_bits(
     REQUIRE(__wt_nhex_to_raw(nullptr, new_bitmap.c_str(), new_bitmap.length(), &new_item) == 0);
 
     bool is_ok = false;
-    REQUIRE(__ut_check_incorrect_modified_bits(&orig_item, &new_item, &is_ok) == expected_result);
+    REQUIRE(__ut_ckpt_verify_modified_bits(&orig_item, &new_item, &is_ok) == expected_result);
 
     __wt_buf_free(nullptr, &orig_item);
     __wt_buf_free(nullptr, &new_item);
@@ -188,9 +188,9 @@ TEST_CASE("Backup: null pointer params to __check_incorrect_modified_bits()", "[
     is_ok = false;
     WT_CLEAR(item);
 
-    REQUIRE(__ut_check_incorrect_modified_bits(&item, nullptr, &is_ok) == EINVAL);
-    REQUIRE(__ut_check_incorrect_modified_bits(nullptr, &item, &is_ok) == EINVAL);
-    REQUIRE(__ut_check_incorrect_modified_bits(nullptr, nullptr, &is_ok) == EINVAL);
+    REQUIRE(__ut_ckpt_verify_modified_bits(&item, nullptr, &is_ok) == EINVAL);
+    REQUIRE(__ut_ckpt_verify_modified_bits(nullptr, &item, &is_ok) == EINVAL);
+    REQUIRE(__ut_ckpt_verify_modified_bits(nullptr, nullptr, &is_ok) == EINVAL);
 }
 
 TEST_CASE("Backup: check modified bits - simple", "[backup]")

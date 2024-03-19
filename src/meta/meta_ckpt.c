@@ -1347,13 +1347,13 @@ err:
 }
 
 /*
- * __check_incorrect_modified_bits --
+ * __ckpt_verify_modified_bits --
  *     This function takes as input two bitmaps (in WT_ITEMs), an original and a new. If any bit in
  *     the original changed from 1 to 0, it's an error, and the new bitmap is NOT ok. Otherwise, the
  *     new bitmap is ok.
  */
 static WT_INLINE int
-__check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
+__ckpt_verify_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
 {
     size_t index;
     uint8_t *new_ptr, *original_ptr;
@@ -1434,7 +1434,7 @@ __check_backup_blocks(
         if (checkpoint_blkmods_buffer->size > 0) {
             if (file_blkmods_buffer.size > 0) {
                 blkmods_are_ok = false;
-                ret = __check_incorrect_modified_bits(
+                ret = __ckpt_verify_modified_bits(
                   &file_blkmods_buffer, checkpoint_blkmods_buffer, &blkmods_are_ok);
 
                 if ((ret != 0) || !blkmods_are_ok) {
@@ -2073,8 +2073,8 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
 
 #ifdef HAVE_UNITTEST
 int
-__ut_check_incorrect_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
+__ut_ckpt_verify_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
 {
-    return (__check_incorrect_modified_bits(original_bitmap, new_bitmap, ok));
+    return (__ckpt_verify_modified_bits(original_bitmap, new_bitmap, ok));
 }
 #endif /* HAVE_UNIT_TEST */
