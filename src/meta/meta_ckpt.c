@@ -1328,11 +1328,9 @@ __ckpt_get_blkmods(
                 if (WT_STRING_MATCH(id_str, blocks_key.str, blocks_key.len)) {
                     /* We've found the right blocks so read the bit pattern into output_item */
                     ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
-                    if (ret == 0) {
-                        if (blocks.len > 0) {
-                            WT_ERR(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
-                            break;
-                        }
+                    if ((ret == 0) && (blocks.len > 0)) {
+                        WT_ERR(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
+                        break;
                     }
                     WT_ERR_NOTFOUND_OK(ret, false);
                 }
@@ -1435,20 +1433,18 @@ __ckpt_check_backup_blocks(
         WT_ERR(__ckpt_get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
         WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
 
-        if (checkpoint_blkmods_buffer.size > 0) {
-            if (file_blkmods_buffer.size > 0) {
-                blkmods_are_ok = false;
-                ret = __ckpt_verify_modified_bits(
-                  &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
+        if ((checkpoint_blkmods_buffer.size > 0) && (file_blkmods_buffer.size > 0)) {
+            blkmods_are_ok = false;
+            ret = __ckpt_verify_modified_bits(
+              &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
 
-                if ((ret != 0) || !blkmods_are_ok) {
-                    WT_ASSERT_ALWAYS(session, false,
-                      "File blkmods are not compatible with those in the checkpoint ('%s')",
-                      ckpt->name);
-                    WT_ERR_PANIC(session, WT_PANIC,
-                      "File blkmods are not compatible with those in the checkpoint ('%s')",
-                      ckpt->name);
-                }
+            if ((ret != 0) || !blkmods_are_ok) {
+                WT_ASSERT_ALWAYS(session, false,
+                  "File blkmods are not compatible with those in the checkpoint ('%s')",
+                  ckpt->name);
+                WT_ERR_PANIC(session, WT_PANIC,
+                  "File blkmods are not compatible with those in the checkpoint ('%s')",
+                  ckpt->name);
             }
         }
 
@@ -1487,11 +1483,8 @@ __wt_meta_ckptlist_set(
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
 
-            if (F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
-                /* Skip as there are no backup blocks allocated for the metadata file */
-            } else {
+            if (!F_ISSET(dhandle, WT_DHANDLE_IS_METADATA))
                 WT_ERR(__ckpt_check_backup_blocks(session, ckpt, filename));
-            }
         }
 
     has_lsn = ckptlsn != NULL;
