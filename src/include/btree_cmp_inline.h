@@ -37,7 +37,10 @@ __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     uendp = ustartp + len;
     tendp = tstartp + len;
 
-    /* skip 16 matching bytes at a time, starting at first possible difference. */
+    /*
+     * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
+     * compare.
+     */
     for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
         u = _mm_loadu_si128((const __m128i *)userp);
@@ -49,7 +52,7 @@ __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 
     /*
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
-     * still in bound.
+     * still in bounds.
      */
     u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
     t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
@@ -61,9 +64,10 @@ final128:
     u64 = firsteq ? (uint64_t)_mm_extract_epi64(u, 1) : ufirst;
     t64 = firsteq ? (uint64_t)_mm_extract_epi64(t, 1) : tfirst;
 
-    /* x86 is little endian so we need to flip the bytes. */
+#ifndef WORDS_BIGENDIAN
     u64 = __wt_bswap64(u64);
     t64 = __wt_bswap64(t64);
+#endif
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
 }
@@ -90,7 +94,10 @@ __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     uendp = ustartp + len;
     tendp = tstartp + len;
 
-    /* skip 16 matching bytes at a time, starting at first possible difference. */
+    /*
+     * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
+     * compare.
+     */
     for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
         memcpy(&udata, userp, WT_VECTOR_SIZE);
@@ -101,7 +108,7 @@ __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 
     /*
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
-     * still in bound.
+     * still in bounds.
      */
     memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
     memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
@@ -317,7 +324,10 @@ __lex_compare_skip_ge_16(
     uendp = ustartp + len;
     tendp = tstartp + len;
 
-    /* skip 16 matching bytes at a time, starting at first possible difference. */
+    /*
+     * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
+     * compare.
+     */
     for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
         u = _mm_loadu_si128((const __m128i *)userp);
@@ -345,9 +355,10 @@ final128:
     t64 = firsteq ? (uint64_t)_mm_extract_epi64(t, 1) : tfirst;
     match += firsteq ? sizeof(uint64_t) : 0;
 
-    /* x86 is little endian so we need to flip the bytes. */
+#ifndef WORDS_BIGENDIAN
     u64 = __wt_bswap64(u64);
     t64 = __wt_bswap64(t64);
+#endif
 
     match += (size_t)__builtin_clzll(u64 ^ t64) / 8;
     *matchp = match;
@@ -381,7 +392,10 @@ __lex_compare_skip_ge_16(
     uendp = ustartp + len;
     tendp = tstartp + len;
 
-    /* skip 16 matching bytes at a time, starting at first possible difference. */
+    /*
+     * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
+     * compare.
+     */
     for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
         memcpy(&udata, userp, WT_VECTOR_SIZE);
