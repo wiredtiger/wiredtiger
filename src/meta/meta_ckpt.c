@@ -1287,7 +1287,8 @@ __ckpt_extract_blkmod_bitmap(
  *     Extracts the blkmod info from the metadata about a file+id into a bitmap within a WT_ITEM.
  */
 static WT_INLINE int
-__ckpt_get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id_str, WT_ITEM *output_item)
+__ckpt_get_blkmods(
+  WT_SESSION_IMPL *session, const char *uri, const char *id_str, WT_ITEM *output_item)
 {
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM backup_config_value, blocks, blocks_key, blocks_value, key;

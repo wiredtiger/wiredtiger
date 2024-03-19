@@ -691,11 +691,11 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
 int
 main(int argc, char *argv[])
 {
-    int ch;
-    bool preserve;
     WT_RAND_STATE rnd;
     uint64_t seed_param;
+    int ch;
     const char *working_dir;
+    bool preserve;
 
     preserve = false;
     seed_param = 0;
