@@ -16,6 +16,7 @@
 
 #define WT_VECTOR_SIZE 16 /* chunk size */
 
+#ifdef HAVE_X86INTRIN_H
 /*
  * __lex_compare_ge_16 --
  *     Lexicographic comparison routine for data greater than or equal to 16 bytes. Returns: < 0 if
@@ -28,16 +29,10 @@
 static WT_INLINE int
 __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
-#ifdef HAVE_X86INTRIN_H
     __m128i res_eq, t, u;
     uint64_t tfirst, ufirst;
-#else
-    struct {
-        uint64_t a, b;
-    } udata, tdata;
-#endif
-    uint64_t u64, t64;
-    const uint8_t *uendp, *userp, *tendp, *treep;
+    uint64_t t64, tfirst, u64, ufirst;
+    const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
 
     uendp = ustartp + len;
@@ -46,44 +41,76 @@ __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     /* skip 16 matching bytes at a time, starting at first possible difference. */
     for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
-#ifdef HAVE_X86INTRIN_H
         u = _mm_loadu_si128((const __m128i *)userp);
         t = _mm_loadu_si128((const __m128i *)treep);
         res_eq = _mm_cmpeq_epi8(u, t);
         if (_mm_movemask_epi8(res_eq) != 65535)
             goto final128;
-#else
-        memcpy(&udata, userp, WT_VECTOR_SIZE);
-        memcpy(&tdata, treep, WT_VECTOR_SIZE);
-        if (udata.a != tdata.a || udata.b != tdata.b)
-            goto final128;
-#endif
     }
 
     /*
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bound.
      */
-#ifdef HAVE_X86INTRIN_H
     u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
     t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
-#else
-    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-#endif
 
 final128:
-#ifdef HAVE_X86INTRIN_H
     ufirst = (uint64_t)_mm_extract_epi64(u, 0);
     tfirst = (uint64_t)_mm_extract_epi64(t, 0);
     firsteq = ufirst == tfirst;
     u64 = firsteq ? (uint64_t)_mm_extract_epi64(u, 1) : ufirst;
     t64 = firsteq ? (uint64_t)_mm_extract_epi64(t, 1) : tfirst;
+
+    /* x86 is little endian so we need to flip the bytes. */
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
+
+    return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
+}
 #else
+/*
+ * __lex_compare_ge_16 --
+ *     Lexicographic comparison routine for data greater than or equal to 16 bytes. Returns: < 0 if
+ *     user_item is lexicographically < tree_item, = 0 if user_item is lexicographically =
+ *     tree_item, > 0 if user_item is lexicographically > tree_item. We use the names "user" and
+ *     "tree" so it's clear in the btree code which the application is looking at when we call its
+ *     comparison function. Some platforms like ARM offer dedicated instructions for reading 16
+ *     bytes at a time, allowing for faster comparisons.
+ */
+static WT_INLINE int
+__lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
+{
+    struct {
+        uint64_t a, b;
+    } tdata, udata;
+    uint64_t t64, u64;
+    const uint8_t *tendp, *treep, *uendp, *userp;
+    bool firsteq;
+
+    uendp = ustartp + len;
+    tendp = tstartp + len;
+
+    /* skip 16 matching bytes at a time, starting at first possible difference. */
+    for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
+         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+        memcpy(&udata, userp, WT_VECTOR_SIZE);
+        memcpy(&tdata, treep, WT_VECTOR_SIZE);
+        if (udata.a != tdata.a || udata.b != tdata.b)
+            goto final128;
+    }
+
+    /*
+     * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
+     * still in bound.
+     */
+    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
+    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
+
+final128:
     firsteq = udata.a == tdata.a;
     u64 = firsteq ? udata.b : udata.a;
     t64 = firsteq ? tdata.b : tdata.a;
-#endif
 
 #ifndef WORDS_BIGENDIAN
     u64 = __wt_bswap64(u64);
@@ -92,6 +119,7 @@ final128:
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
 }
+#endif
 
 /*
  * __lex_compare_lt_16 --
@@ -265,6 +293,7 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
     return (0);
 }
 
+#ifdef HAVE_X86INTRIN_H
 /*
  * __lex_compare_skip_ge_16 --
  *     Lexicographic comparison routine for data greater than or equal to 16 bytes, skipping leading
@@ -279,17 +308,10 @@ static WT_INLINE int
 __lex_compare_skip_ge_16(
   const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
 {
-#ifdef HAVE_X86INTRIN_H
     __m128i res_eq, t, u;
-    uint64_t tfirst, ufirst;
-#else
-    struct {
-        uint64_t a, b;
-    } udata, tdata;
-#endif
+    uint64_t t64, tfirst, u64, ufirst;
     size_t match;
-    uint64_t u64, t64;
-    const uint8_t *uendp, *userp, *tendp, *treep;
+    const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
 
     match = *matchp;
@@ -299,7 +321,6 @@ __lex_compare_skip_ge_16(
     /* skip 16 matching bytes at a time, starting at first possible difference. */
     for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
          userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
-#ifdef HAVE_X86INTRIN_H
         u = _mm_loadu_si128((const __m128i *)userp);
         t = _mm_loadu_si128((const __m128i *)treep);
         res_eq = _mm_cmpeq_epi8(u, t);
@@ -307,41 +328,83 @@ __lex_compare_skip_ge_16(
             match = (size_t)(userp - ustartp);
             goto final128;
         }
-#else
-        memcpy(&udata, userp, WT_VECTOR_SIZE);
-        memcpy(&tdata, treep, WT_VECTOR_SIZE);
-        if (udata.a != tdata.a || udata.b != tdata.b) {
-            match = (size_t)(userp - ustartp);
-            goto final128;
-        }
-#endif
     }
 
     /*
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bound.
      */
-#ifdef HAVE_X86INTRIN_H
     u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
     t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
-#else
-    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-#endif
     match = (size_t)(uendp - ustartp) - WT_VECTOR_SIZE;
 
 final128:
-#ifdef HAVE_X86INTRIN_H
     ufirst = (uint64_t)_mm_extract_epi64(u, 0);
     tfirst = (uint64_t)_mm_extract_epi64(t, 0);
     firsteq = ufirst == tfirst;
     u64 = firsteq ? (uint64_t)_mm_extract_epi64(u, 1) : ufirst;
     t64 = firsteq ? (uint64_t)_mm_extract_epi64(t, 1) : tfirst;
+    match += firsteq ? sizeof(uint64_t) : 0;
+
+    /* x86 is little endian so we need to flip the bytes. */
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
+
+    match += (size_t)__builtin_clzll(u64 ^ t64) / 8;
+    *matchp = match;
+
+    return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
+}
 #else
+/*
+ * __lex_compare_skip_ge_16 --
+ *     Lexicographic comparison routine for data greater than or equal to 16 bytes, skipping leading
+ *     bytes. Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
+ *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
+ *     names "user" and "tree" so it's clear in the btree code which the application is looking at
+ *     when we call its comparison function. Some platforms like ARM offer dedicated instructions
+ *     for reading 16 bytes at a time, allowing for faster comparisons. Some platforms like ARM
+ *     offer dedicated instructions for reading 16 bytes at a time, allowing for faster comparisons.
+ */
+static WT_INLINE int
+__lex_compare_skip_ge_16(
+  const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
+{
+    struct {
+        uint64_t a, b;
+    } tdata, udata;
+    size_t match;
+    uint64_t t64, u64;
+    const uint8_t *tendp, *treep, *uendp, *userp;
+    bool firsteq;
+
+    match = *matchp;
+    uendp = ustartp + len;
+    tendp = tstartp + len;
+
+    /* skip 16 matching bytes at a time, starting at first possible difference. */
+    for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
+         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+        memcpy(&udata, userp, WT_VECTOR_SIZE);
+        memcpy(&tdata, treep, WT_VECTOR_SIZE);
+        if (udata.a != tdata.a || udata.b != tdata.b) {
+            match = (size_t)(userp - ustartp);
+            goto final128;
+        }
+    }
+
+    /*
+     * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
+     * still in bound.
+     */
+    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
+    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
+    match = (size_t)(uendp - ustartp) - WT_VECTOR_SIZE;
+
+final128:
     firsteq = udata.a == tdata.a;
     u64 = firsteq ? udata.b : udata.a;
     t64 = firsteq ? tdata.b : tdata.a;
-#endif
     match += firsteq ? sizeof(uint64_t) : 0;
 
 #ifndef WORDS_BIGENDIAN
@@ -354,6 +417,7 @@ final128:
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
 }
+#endif
 
 /*
  * __wt_lex_compare_skip --
