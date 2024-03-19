@@ -369,7 +369,6 @@ Su
 Subdirectory
 Subprocess
 TAILQ
-TCMalloc
 TESTUTIL
 TID
 TMP
@@ -449,7 +448,6 @@ WiredTigerTmplog
 WithSeeds
 Wmissing
 WriteFile
-Wundef
 Wuninitialized
 Wunused
 XP
@@ -609,7 +607,6 @@ cookiep
 copydoc
 countp
 cp
-cplusplus
 cpp
 cppsuite
 cpuid
