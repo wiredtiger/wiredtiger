@@ -1836,8 +1836,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     break;
 
                 /*
-                 * Apply the first commit timestamp instead of the current commit timestamp because
-                 * these updates are done before the first commit timestamp is set.
+                 * Apply the first commit timestamp instead of the current commit timestamp for the
+                 * the updates that are done before the first commit timestamp is set.
                  */
                 __wt_txn_op_set_timestamp(session, op, true);
                 WT_ERR(__txn_timestamp_usage_check(session, op, upd));
