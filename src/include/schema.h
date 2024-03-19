@@ -8,13 +8,6 @@
 
 #pragma once
 
-/* Character constants for projection plans */
-#define WT_PROJ_KEY 'k'   /* Go to key in cursor <arg> */
-#define WT_PROJ_NEXT 'n'  /* Process the next item (<arg> repeats) */
-#define WT_PROJ_REUSE 'r' /* Reuse the previous item (<arg> repeats) */
-#define WT_PROJ_SKIP 's'  /* Skip a column in the cursor (<arg> repeats) */
-#define WT_PROJ_VALUE 'v' /* Go to the value in cursor <arg> */
-
 struct __wt_colgroup {
     const char *name;   /* Logical name */
     const char *source; /* Underlying data source */
@@ -37,9 +30,7 @@ struct __wt_index {
     int extractor_owned;     /* Extractor is owned by this index */
 
     const char *key_format; /* Key format */
-    const char *key_plan;   /* Key projection plan */
-    const char *value_plan; /* Value projection plan */
-
+    
     const char *idxkey_format; /* Index key format (hides primary) */
     const char *exkey_format;  /* Key format for custom extractors */
 

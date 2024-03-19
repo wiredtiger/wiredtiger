@@ -29,8 +29,8 @@ __alter_apply(
     WT_ASSERT(session, newcfg[0] != NULL);
 
     /*
-     * Start with the base configuration because collapse is like a projection and if we are reading
-     * older metadata, it may not have all the components.
+     * Start with the base configuration because if we are reading older metadata, it may not have 
+     * all the components.
      */
     cfg[0] = base_config;
     cfg[1] = config;

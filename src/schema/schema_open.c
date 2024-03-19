@@ -218,7 +218,6 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 
     WT_ERR(__wt_scr_alloc(session, 0, &plan));
     WT_ERR(__wt_struct_plan(session, table, buf->data, buf->size, false, plan));
-    WT_ERR(__wt_strndup(session, plan->data, plan->size, &idx->key_plan));
 
     /* Set up the cursor key format (the visible columns). */
     WT_ERR(__wt_buf_init(session, buf, 0));

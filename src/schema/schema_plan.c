@@ -25,7 +25,7 @@ __find_next_col(WT_SESSION_IMPL *session, WT_TABLE *table, WT_CONFIG_ITEM *colna
 
     foundcg = foundcol = UINT_MAX;
     matchcg = *cgnump;
-    matchcol = (*coltype == WT_PROJ_KEY) ? *colnump : *colnump + table->nkey_columns;
+    // matchcol = ? *colnump : *colnump + table->nkey_columns;
 
     getnext = true;
     for (colgroup = NULL, cg = 0; cg < WT_COLGROUPS(table); cg++) {
@@ -66,10 +66,8 @@ cgcols:
 
     *cgnump = foundcg;
     if (foundcol < table->nkey_columns) {
-        *coltype = WT_PROJ_KEY;
         *colnump = foundcol;
     } else {
-        *coltype = WT_PROJ_VALUE;
         *colnump = foundcol - table->nkey_columns;
     }
     return (0);
@@ -147,100 +145,8 @@ __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
         if (__find_next_col(session, table, &k, &cg, &col, &coltype) != 0)
             WT_RET_MSG(session, EINVAL, "Column '%.*s' in '%s' does not appear in a column group",
               (int)k.len, k.str, table->iface.name);
-        /*
-         * Column groups can't store key columns in their value:
-         * __wt_struct_reformat should have already detected this case.
-         */
-        WT_ASSERT(session, coltype == WT_PROJ_VALUE);
     }
     WT_RET_TEST(ret != WT_NOTFOUND, ret);
-
-    return (0);
-}
-
-/*
- * __wt_struct_plan --
- *     Given a table cursor containing a complete table, build the "projection plan" to distribute
- *     the columns to dependent stores. A string representing the plan will be appended to the plan
- *     buffer.
- */
-int
-__wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table, const char *columns, size_t len,
-  bool value_only, WT_ITEM *plan)
-{
-    WT_CONFIG conf;
-    WT_CONFIG_ITEM k, v;
-    WT_DECL_RET;
-    u_int cg, col, current_cg, current_col, i, start_cg, start_col;
-    char coltype, current_coltype;
-    bool have_it;
-
-    start_cg = start_col = UINT_MAX; /* -Wuninitialized */
-
-    /* Work through the value columns by skipping over the key columns. */
-    __wt_config_initn(session, &conf, columns, len);
-    if (value_only)
-        for (i = 0; i < table->nkey_columns; i++)
-            WT_RET(__wt_config_next(&conf, &k, &v));
-
-    current_cg = cg = 0;
-    current_col = col = INT_MAX;
-    current_coltype = coltype = WT_PROJ_KEY; /* Keep lint quiet. */
-    for (i = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0; i++) {
-        have_it = false;
-
-        while ((ret = __find_next_col(session, table, &k, &cg, &col, &coltype)) == 0 &&
-          (!have_it || cg != start_cg || col != start_col)) {
-            /*
-             * First we move to the column. If that is in a different column group to the last
-             * column we accessed, or before the last column in the same column group, or moving
-             * from the key to the value, we need to switch column groups or rewind.
-             */
-            if (current_cg != cg || current_col > col || current_coltype != coltype) {
-                WT_ASSERT(session, !value_only || coltype == WT_PROJ_VALUE);
-                WT_RET(__wt_buf_catfmt(session, plan, "%u%c", cg, coltype));
-
-                /*
-                 * Set the current column group and column within the table.
-                 */
-                current_cg = cg;
-                current_col = 0;
-                current_coltype = coltype;
-            }
-            /* Now move to the column we want. */
-            if (current_col < col) {
-                if (col - current_col > 1)
-                    WT_RET(__wt_buf_catfmt(session, plan, "%u", col - current_col));
-                WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_SKIP));
-            }
-            /*
-             * Now copy the value in / out. In the common case, where each value is used in one
-             * column, we do a "next" operation. If the value is used again, we do a "reuse"
-             * operation to avoid making another copy.
-             */
-            if (!have_it) {
-                WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_NEXT));
-
-                start_cg = cg;
-                start_col = col;
-                have_it = true;
-            } else
-                WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_REUSE));
-            current_col = col + 1;
-        }
-        /*
-         * We may fail to find a column if it is a custom extractor. In that case, treat it as the
-         * first value column: we only ever use such plans to extract the primary key from the
-         * index.
-         */
-        if (ret == WT_NOTFOUND)
-            WT_RET(__wt_buf_catfmt(session, plan, "0%c%c", WT_PROJ_VALUE, WT_PROJ_NEXT));
-    }
-    WT_RET_TEST(ret != WT_NOTFOUND, ret);
-
-    /* Special case empty plans. */
-    if (i == 0 && plan->size == 0)
-        WT_RET(__wt_buf_set(session, plan, "", 1));
 
     return (0);
 }
