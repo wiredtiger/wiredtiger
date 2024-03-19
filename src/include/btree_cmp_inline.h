@@ -362,7 +362,7 @@ final128:
 #endif
 
     WT_LEADING_ZEROS(u64 ^ t64, leading_zero_bytes);
-    match += leading_zero_bytes;
+    match += (size_t)leading_zero_bytes;
     *matchp = match;
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
@@ -429,7 +429,7 @@ final128:
 #endif
 
     WT_LEADING_ZEROS(u64 ^ t64, leading_zero_bytes);
-    match += leading_zero_bytes;
+    match += (size_t)leading_zero_bytes;
     *matchp = match;
 
     return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
