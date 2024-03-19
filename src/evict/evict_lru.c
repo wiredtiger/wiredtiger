@@ -1466,7 +1466,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
      */
     total_candidates = (u_int)(F_ISSET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_UPDATES) ?
         __wt_cache_pages_inuse(cache) :
-        cache->pages_dirty_leaf);
+        __wt_atomic_load64(&cache->pages_dirty_leaf));
     max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
 
 retry:
@@ -2844,7 +2844,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     /*
      * Apply the overhead percentage so our total bytes are comparable with the tracked value.
      */
-    total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
+    total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, &total_bytes);
     cache_bytes_updates = __wt_cache_bytes_updates(cache);
 
     bytes_inmem = __wt_atomic_load64(&cache->bytes_inmem);

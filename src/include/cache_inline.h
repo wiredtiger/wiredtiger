@@ -133,12 +133,14 @@ __wt_cache_pages_inuse(WT_CACHE *cache)
  *     Apply the cache overhead to a size in bytes.
  */
 static WT_INLINE uint64_t
-__wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t sz)
+__wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t *sz)
 {
+    uint64_t size;
+    size = __wt_atomic_load64(sz);
     if (cache->overhead_pct != 0)
-        sz += (sz * (uint64_t)cache->overhead_pct) / 100;
+        size += (size * (uint64_t)cache->overhead_pct) / 100;
 
-    return (sz);
+    return (size);
 }
 
 /*
@@ -148,7 +150,7 @@ __wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t sz)
 static WT_INLINE uint64_t
 __wt_cache_bytes_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_inmem)));
+    return (__wt_cache_bytes_plus_overhead(cache, &cache->bytes_inmem));
 }
 
 /*
@@ -158,8 +160,10 @@ __wt_cache_bytes_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_dirty_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache,
-      __wt_atomic_load64(&cache->bytes_dirty_intl) + __wt_atomic_load64(&cache->bytes_dirty_leaf)));
+    uint64_t dirty_inuse;
+    dirty_inuse =
+      __wt_atomic_load64(&cache->bytes_dirty_intl) + __wt_atomic_load64(&cache->bytes_dirty_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, &dirty_inuse));
 }
 
 /*
@@ -169,7 +173,7 @@ __wt_cache_dirty_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_dirty_leaf)));
+    return (__wt_cache_bytes_plus_overhead(cache, &cache->bytes_dirty_leaf));
 }
 
 /*
@@ -179,7 +183,7 @@ __wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_bytes_updates(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_updates)));
+    return (__wt_cache_bytes_plus_overhead(cache, &cache->bytes_updates));
 }
 
 /*
@@ -189,8 +193,10 @@ __wt_cache_bytes_updates(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_bytes_image(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache,
-      __wt_atomic_load64(&cache->bytes_image_intl) + __wt_atomic_load64(&cache->bytes_image_leaf)));
+    uint64_t bytes_image;
+    bytes_image =
+      __wt_atomic_load64(&cache->bytes_image_intl) + __wt_atomic_load64(&cache->bytes_image_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, &bytes_image));
 }
 
 /*
@@ -200,14 +206,16 @@ __wt_cache_bytes_image(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_bytes_other(WT_CACHE *cache)
 {
-    uint64_t bytes_other;
+    uint64_t bytes_other, bytes_inmem, bytes_image_intl, bytes_image_leaf;
 
+    bytes_inmem = __wt_atomic_load64(&cache->bytes_inmem);
+    bytes_image_intl = __wt_atomic_load64(&cache->bytes_image_intl);
+    bytes_image_leaf = __wt_atomic_load64(&cache->bytes_image_leaf);
     /*
      * Reads can race with changes to the values, so check that the calculation doesn't go negative.
      */
-    bytes_other = __wt_safe_sub(__wt_atomic_load64(&cache->bytes_inmem),
-      __wt_atomic_load64(&cache->bytes_image_intl) + __wt_atomic_load64(&cache->bytes_image_leaf));
-    return (__wt_cache_bytes_plus_overhead(cache, bytes_other));
+    bytes_other = __wt_safe_sub(bytes_inmem, bytes_image_intl + bytes_image_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, &bytes_other));
 }
 
 /*
@@ -329,18 +337,22 @@ static WT_INLINE bool
 __wt_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CACHE *cache;
+    uint64_t bytes_dirty;
     uint64_t bytes_max;
 
     cache = S2C(session)->cache;
     bytes_max = S2C(session)->cache_size + 1;
 
-    if (__wt_cache_bytes_plus_overhead(cache, btree->bytes_inmem) >
+    if (__wt_cache_bytes_plus_overhead(cache, &btree->bytes_inmem) >
       (uint64_t)(0.5 * cache->eviction_target * bytes_max) / 100)
         return (true);
-    if (__wt_cache_bytes_plus_overhead(cache, btree->bytes_dirty_intl + btree->bytes_dirty_leaf) >
+
+    bytes_dirty =
+      __wt_atomic_load64(&btree->bytes_dirty_intl) + __wt_atomic_load64(&btree->bytes_dirty_leaf);
+    if (__wt_cache_bytes_plus_overhead(cache, &bytes_dirty) >
       (uint64_t)(0.5 * cache->eviction_dirty_target * bytes_max) / 100)
         return (true);
-    if (__wt_cache_bytes_plus_overhead(cache, btree->bytes_updates) >
+    if (__wt_cache_bytes_plus_overhead(cache, &btree->bytes_updates) >
       (uint64_t)(0.5 * cache->eviction_updates_target * bytes_max) / 100)
         return (true);
 
@@ -428,7 +440,7 @@ __wt_cache_hs_dirty(WT_SESSION_IMPL *session)
     cache = conn->cache;
     bytes_max = conn->cache_size;
 
-    return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_hs_dirty) >=
+    return (__wt_cache_bytes_plus_overhead(cache, &cache->bytes_hs_dirty) >=
       ((uint64_t)(cache->eviction_dirty_trigger * bytes_max) / 100));
 }
 
