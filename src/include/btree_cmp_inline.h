@@ -14,7 +14,8 @@
 #endif
 #endif
 
-#define WT_VECTOR_SIZE 16 /* chunk size */
+#define WT_VECTOR_SIZE 16         /* chunk size */
+#define WT_COMPARE_SHORT_MAXLEN 9 /* The maximum packed uint64_t is 9B. */
 
 #ifdef HAVE_X86INTRIN_H
 /*
@@ -204,7 +205,7 @@ __lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 static WT_INLINE int
 __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 {
-    size_t len, usz, tsz;
+    size_t len, tsz, usz;
     int lencmp, ret_val;
 
     usz = user_item->size;
@@ -447,7 +448,7 @@ static WT_INLINE int
 __wt_lex_compare_skip(
   WT_SESSION_IMPL *session, const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
 {
-    size_t len, usz, tsz;
+    size_t len, tsz, usz;
     int lencmp, ret_val;
 
     usz = user_item->size;
@@ -518,78 +519,22 @@ __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM
 static WT_INLINE int
 __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 {
-    size_t len, usz, tsz;
-    const uint8_t *userp, *treep;
+    size_t len, tsz, usz;
+    int lencmp;
 
     usz = user_item->size;
     tsz = tree_item->size;
-    len = WT_MIN(usz, tsz);
-
-    userp = (const uint8_t *)user_item->data;
-    treep = (const uint8_t *)tree_item->data;
-
-/*
- * The maximum packed uint64_t is 9B, catch row-store objects using packed record numbers as keys.
- *
- * Don't use a #define to compress this case statement: gcc7 complains about implicit fallthrough
- * and doesn't support explicit fallthrough comments in macros.
- */
-#define WT_COMPARE_SHORT_MAXLEN 9
-    switch (len) {
-    case 9:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 8:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 7:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 6:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 5:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 4:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 3:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 2:
-        if (*userp != *treep)
-            break;
-        ++userp;
-        ++treep;
-    /* FALLTHROUGH */
-    case 1:
-        if (*userp != *treep)
-            break;
-
-        /* Contents are equal up to the smallest length. */
-        return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+    if (usz < tsz) {
+        len = usz;
+        lencmp = -1;
+    } else if (usz > tsz) {
+        len = tsz;
+        lencmp = 1;
+    } else {
+        len = usz;
+        lencmp = 0;
     }
-    return (*userp < *treep ? -1 : 1);
+
+    return (__lex_compare_lt_16(
+      (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp));
 }
