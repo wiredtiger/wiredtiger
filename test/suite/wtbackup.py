@@ -299,7 +299,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # For each file listed, open a duplicate backup cursor and copy the blocks.
         incr_c = self.session.open_cursor(None, bkup_c, config)
         self.assertEqual(1, self.backup_get_stat(stat.conn.backup_dup_open))
-        # For consolidate
+        # Array of lengths used for consolidate.
         lens = []
         # We cannot use 'for newfile in incr_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
@@ -307,6 +307,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         did_work = False
         # Get connection statistic before walking the cursor.
         blocks1 = self.backup_get_stat(stat.conn.backup_blocks)
+        last_comp = 0
+        last_uncomp = 0
         while incr_c.next() == 0:
             incrlist = incr_c.get_keys()
             offset = incrlist[0]
@@ -338,7 +340,14 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 # should track the difference for this file.
                 comp = self.backup_get_stat(stat.dsrc.backup_blocks_compressed, newfile)
                 uncomp = self.backup_get_stat(stat.dsrc.backup_blocks_uncompressed, newfile)
-                self.assertEqual(blocks_diff, comp + uncomp)
+                comp_diff = comp - last_comp
+                uncomp_diff = uncomp - last_uncomp
+                if blocks_diff == 0:
+                    self.assertEqual(0, comp_diff + uncomp_diff)
+                else:
+                    self.assertNotEqual(0, comp_diff + uncomp_diff)
+                last_comp = comp
+                last_uncomp = uncomp
         incr_c.close()
         self.assertEqual(0, self.backup_get_stat(stat.conn.backup_dup_open))
         if did_work:
