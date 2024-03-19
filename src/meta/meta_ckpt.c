@@ -1432,9 +1432,9 @@ __ckpt_check_backup_blocks(
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
 
+        WT_ERR(__ckpt_get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
         WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
 
-        WT_ERR(__ckpt_get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
         if (checkpoint_blkmods_buffer.size > 0) {
             if (file_blkmods_buffer.size > 0) {
                 blkmods_are_ok = false;
@@ -1451,6 +1451,11 @@ __ckpt_check_backup_blocks(
                 }
             }
         }
+
+        __wt_buf_free(session, &checkpoint_blkmods_buffer);
+        __wt_buf_free(session, &file_blkmods_buffer);
+        WT_CLEAR(checkpoint_blkmods_buffer);
+        WT_CLEAR(file_blkmods_buffer);
     }
 
 err:
