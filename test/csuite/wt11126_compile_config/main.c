@@ -350,10 +350,10 @@ int
 main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
+    THREAD_OPTS *thread_opts;
     uint64_t base_ns, ns, *nsecs, total_nsecs;
     uint32_t i, nthreads, variant;
     const char *compiled_config, **compiled_config_array;
-    THREAD_OPTS *thread_opts;
     pthread_t *tids;
 
     opts = &_opts;
@@ -375,6 +375,9 @@ main(int argc, char *argv[])
     thread_opts = dcalloc(nthreads, sizeof(*thread_opts));
     tids = dcalloc(nthreads, sizeof(*tids));
 
+    printf("number of calls: %d\n", N_CALLS * N_RUNS);
+    printf("number of threads: %" PRIu32 "\n", nthreads);
+
     for (i = 0; i < nthreads; ++i) {
         thread_opts[i].test_opts = opts;
         thread_opts[i].compiled_config = compiled_config;
@@ -385,8 +388,6 @@ main(int argc, char *argv[])
     for (i = 0; i < nthreads; ++i)
         pthread_join(tids[i], NULL);
 
-    printf("number of calls: %d\n", N_CALLS * N_RUNS);
-    printf("number of threads: %" PRIu32 "\n", nthreads);
     base_ns = 0;
     for (variant = 0; variant < N_VARIANTS; ++variant) {
         total_nsecs = 0;
