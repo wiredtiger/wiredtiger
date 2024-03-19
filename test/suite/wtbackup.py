@@ -52,8 +52,11 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Temporary directory used to verify consistent data between multiple incremental backups.
     home_tmp = "WT_TEST_TMP"
 
-    def get_stat(self, stat_name):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
+    def get_stat(self, stat_name, uri = None):
+        if uri == None:
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+        else:
+            stat_cursor = self.session.open_cursor('statistics:file:' + uri, None, None)
         value = stat_cursor[stat_name][2]
         stat_cursor.close()
         return value
@@ -315,10 +318,17 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 self.copy_file(newfile, backup_incr_dir)
             else:
                 # Copy the block range.
+                blocks1 = self.get_stat(stat.conn.backup_blocks)
                 self.pr(f"Range copy file '{newfile}' offset {offset} len {size}")
                 self.range_copy(newfile, offset, size, backup_incr_dir, consolidate)
                 lens.append(size)
                 did_work = True
+                # Check backup stats.
+                blocks2 = self.get_stat(stat.conn.backup_blocks)
+                blocks_diff = blocks2 - blocks1
+                comp = self.get_stat(stat.dsrc.backup_blocks_compressed, newfile)
+                uncomp = self.get_stat(stat.dsrc.backup_blocks_uncompressed, newfile)
+                self.assertEqual(blocks_diff, comp + uncomp)
         incr_c.close()
         self.assertEqual(0, self.get_stat(stat.conn.backup_dup_open))
         if did_work:

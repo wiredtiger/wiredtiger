@@ -221,9 +221,11 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                         /* Count all the blocks even if we return them consolidated. */
                         WT_STAT_CONN_INCR(session, backup_blocks);
                         if (F_ISSET(cb, WT_CURBACKUP_COMPRESSED))
-                            WT_STAT_CONN_INCR(session, backup_blocks_compressed);
+                            WT_WITH_DHANDLE(session, btree->dhandle,
+                              WT_STAT_CONN_DATA_INCR(session, backup_blocks_compressed));
                         else
-                            WT_STAT_CONN_INCR(session, backup_blocks_uncompressed);
+                            WT_WITH_DHANDLE(session, btree->dhandle,
+                              WT_STAT_CONN_DATA_INCR(session, backup_blocks_uncompressed));
                     }
                 }
                 break;
