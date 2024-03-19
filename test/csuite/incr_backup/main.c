@@ -691,18 +691,18 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
 int
 main(int argc, char *argv[])
 {
+    int ch;
+    bool preserve;
     WT_RAND_STATE rnd;
     uint64_t seed_param;
-    int ch;
     const char *working_dir;
-    bool preserve;
 
-    seed_param = 0;
     preserve = false;
+    seed_param = 0;
+    working_dir = "WT_TEST.incr_backup";
+
     (void)testutil_set_progname(argv);
     custom_die = die; /* Set our own abort handler */
-
-    working_dir = "WT_TEST.incr_backup";
 
     while ((ch = __wt_getopt(progname, argc, argv, "h:pS:v:")) != EOF)
         switch (ch) {

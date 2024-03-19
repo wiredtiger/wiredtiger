@@ -1268,7 +1268,7 @@ err:
  */
 static int
 __ckpt_extract_blkmod_bitmap(
-  WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *id, WT_ITEM *output_bitmap)
+  WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *id_str, WT_ITEM *output_bitmap)
 {
     WT_BLOCK_MODS *blk;
     u_int i;
@@ -1276,18 +1276,18 @@ __ckpt_extract_blkmod_bitmap(
     WT_CLEAR(*output_bitmap);
 
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
-        if (F_ISSET(blk, WT_BLOCK_MODS_VALID) && strcmp(id, blk->id_str) == 0)
+        if (F_ISSET(blk, WT_BLOCK_MODS_VALID) && strcmp(id_str, blk->id_str) == 0)
             WT_RET(__wt_buf_set(session, output_bitmap, blk->bitstring.data, blk->bitstring.size));
 
     return (0);
 }
 
 /*
- * __get_blkmods --
+ * __ckpt_get_blkmods --
  *     Extracts the blkmod info from the metadata about a file+id into a bitmap within a WT_ITEM.
  */
 static WT_INLINE int
-__get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM *output_item)
+__ckpt_get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id_str, WT_ITEM *output_item)
 {
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM backup_config_value, blocks, blocks_key, blocks_value, key;
@@ -1322,7 +1322,7 @@ __get_blkmods(WT_SESSION_IMPL *session, const char *uri, const char *id, WT_ITEM
                 if (blocks_value.len == 0)
                     continue;
 
-                if (WT_STRING_MATCH(id, blocks_key.str, blocks_key.len)) {
+                if (WT_STRING_MATCH(id_str, blocks_key.str, blocks_key.len)) {
                     /* We've found the right blocks so read the bit pattern into output_item */
                     ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
                     if (ret == 0) {
@@ -1430,7 +1430,7 @@ __check_backup_blocks(
 
         WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, checkpoint_blkmods_buffer));
 
-        WT_ERR(__get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
+        WT_ERR(__ckpt_get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
         if (checkpoint_blkmods_buffer->size > 0) {
             if (file_blkmods_buffer.size > 0) {
                 blkmods_are_ok = false;
