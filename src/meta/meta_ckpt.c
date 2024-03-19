@@ -1276,8 +1276,10 @@ __ckpt_extract_blkmod_bitmap(
     WT_CLEAR(*output_bitmap);
 
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
-        if (F_ISSET(blk, WT_BLOCK_MODS_VALID) && strcmp(id_str, blk->id_str) == 0)
+        if (F_ISSET(blk, WT_BLOCK_MODS_VALID) && strcmp(id_str, blk->id_str) == 0) {
             WT_RET(__wt_buf_set(session, output_bitmap, blk->bitstring.data, blk->bitstring.size));
+            break;
+        }
 
     return (0);
 }
@@ -1408,35 +1410,36 @@ __ckpt_verify_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool 
 }
 
 /*
- * __check_backup_blocks --
+ * __ckpt_check_backup_blocks --
  *     This function checks that the backup blocks for a checkpoint are correct, and that there are
  *     no errors in the incremental backup blkmod information.
  */
 static WT_INLINE int
-__check_backup_blocks(
-  WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_ITEM *checkpoint_blkmods_buffer, const char *filename)
+__ckpt_check_backup_blocks(
+  WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *filename)
 {
     WT_BLOCK_MODS *blk;
     WT_DECL_RET;
-    WT_ITEM file_blkmods_buffer;
+    WT_ITEM checkpoint_blkmods_buffer, file_blkmods_buffer;
     u_int i;
     bool blkmods_are_ok;
 
     blkmods_are_ok = true;
+    WT_CLEAR(checkpoint_blkmods_buffer);
     WT_CLEAR(file_blkmods_buffer);
 
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
 
-        WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, checkpoint_blkmods_buffer));
+        WT_ERR(__ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
 
         WT_ERR(__ckpt_get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
-        if (checkpoint_blkmods_buffer->size > 0) {
+        if (checkpoint_blkmods_buffer.size > 0) {
             if (file_blkmods_buffer.size > 0) {
                 blkmods_are_ok = false;
                 ret = __ckpt_verify_modified_bits(
-                  &file_blkmods_buffer, checkpoint_blkmods_buffer, &blkmods_are_ok);
+                  &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
 
                 if ((ret != 0) || !blkmods_are_ok) {
                     WT_ASSERT_ALWAYS(session, false,
@@ -1451,6 +1454,7 @@ __check_backup_blocks(
     }
 
 err:
+    __wt_buf_free(session, &checkpoint_blkmods_buffer);
     __wt_buf_free(session, &file_blkmods_buffer);
     return (ret);
 }
@@ -1466,26 +1470,22 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_ITEM checkpoint_blkmods_buffer;
     const char *filename;
     bool has_lsn;
 
     filename = dhandle->name;
-    WT_CLEAR(checkpoint_blkmods_buffer);
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
-            WT_CLEAR(checkpoint_blkmods_buffer);
-
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
 
             if (F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
                 /* Skip as there are no backup blocks allocated for the metadata file */
             } else {
-                WT_ERR(__check_backup_blocks(session, ckpt, &checkpoint_blkmods_buffer, filename));
+                WT_ERR(__ckpt_check_backup_blocks(session, ckpt, filename));
             }
         }
 
@@ -1501,7 +1501,6 @@ __wt_meta_ckptlist_set(
 
 err:
     __wt_scr_free(session, &buf);
-    __wt_buf_free(session, &checkpoint_blkmods_buffer);
 
     return (ret);
 }
