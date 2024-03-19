@@ -14,21 +14,21 @@
 #endif
 #endif
 
-#define WT_VECTOR_SIZE 16         /* chunk size */
-#define WT_COMPARE_SHORT_MAXLEN 9 /* The maximum packed uint64_t is 9B. */
+#define WT_VECTOR_SIZE 16 /* chunk size */
+#define WT_COMPARE_SHORT_MAXLEN 16
 
 #ifdef HAVE_X86INTRIN_H
 /*
  * __lex_compare_ge_16 --
- *     Lexicographic comparison routine for data greater than or equal to 16 bytes. Returns: < 0 if
- *     user_item is lexicographically < tree_item, = 0 if user_item is lexicographically =
- *     tree_item, > 0 if user_item is lexicographically > tree_item. We use the names "user" and
- *     "tree" so it's clear in the btree code which the application is looking at when we call its
- *     comparison function. Some platforms like ARM offer dedicated instructions for reading 16
- *     bytes at a time, allowing for faster comparisons.
+ *     Lexicographic comparison routine for data greater than 16 bytes. Returns: < 0 if user_item is
+ *     lexicographically < tree_item, = 0 if user_item is lexicographically = tree_item, > 0 if
+ *     user_item is lexicographically > tree_item. We use the names "user" and "tree" so it's clear
+ *     in the btree code which the application is looking at when we call its comparison function.
+ *     Some platforms like ARM offer dedicated instructions for reading 16 bytes at a time, allowing
+ *     for faster comparisons.
  */
 static WT_INLINE int
-__lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
+__lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     __m128i res_eq, t, u;
     uint64_t t64, tfirst, u64, ufirst;
@@ -74,16 +74,16 @@ final128:
 }
 #else
 /*
- * __lex_compare_ge_16 --
- *     Lexicographic comparison routine for data greater than or equal to 16 bytes. Returns: < 0 if
- *     user_item is lexicographically < tree_item, = 0 if user_item is lexicographically =
- *     tree_item, > 0 if user_item is lexicographically > tree_item. We use the names "user" and
- *     "tree" so it's clear in the btree code which the application is looking at when we call its
- *     comparison function. Some platforms like ARM offer dedicated instructions for reading 16
- *     bytes at a time, allowing for faster comparisons.
+ * __lex_compare_gt_16 --
+ *     Lexicographic comparison routine for data greater than 16 bytes. Returns: < 0 if user_item is
+ *     lexicographically < tree_item, = 0 if user_item is lexicographically = tree_item, > 0 if
+ *     user_item is lexicographically > tree_item. We use the names "user" and "tree" so it's clear
+ *     in the btree code which the application is looking at when we call its comparison function.
+ *     Some platforms like ARM offer dedicated instructions for reading 16 bytes at a time, allowing
+ *     for faster comparisons.
  */
 static WT_INLINE int
-__lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
+__lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     struct {
         uint64_t a, b;
@@ -129,16 +129,16 @@ final128:
 #endif
 
 /*
- * __lex_compare_lt_16 --
- *     Lexicographic comparison routine for data less than 16 bytes. Returns: < 0 if user_item is
- *     lexicographically < tree_item, = 0 if user_item is lexicographically = tree_item, > 0 if
- *     user_item is lexicographically > tree_item. We use the names "user" and "tree" so it's clear
- *     in the btree code which the application is looking at when we call its comparison function.
- *     Some platforms like ARM offer dedicated instructions for reading 16 bytes at a time, allowing
- *     for faster comparisons.
+ * __lex_compare_le_16 --
+ *     Lexicographic comparison routine for data less than or equal to 16 bytes. Returns: < 0 if
+ *     user_item is lexicographically < tree_item, = 0 if user_item is lexicographically =
+ *     tree_item, > 0 if user_item is lexicographically > tree_item. We use the names "user" and
+ *     "tree" so it's clear in the btree code which the application is looking at when we call its
+ *     comparison function. Some platforms like ARM offer dedicated instructions for reading 16
+ *     bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
-__lex_compare_lt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
+__lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     uint64_t ta, tb, ua, ub, u64, t64;
     const uint8_t *tendp, *uendp;
@@ -221,11 +221,11 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
         lencmp = 0;
     }
 
-    if (len >= WT_VECTOR_SIZE)
-        ret_val = __lex_compare_ge_16(
+    if (len > WT_VECTOR_SIZE)
+        ret_val = __lex_compare_gt_16(
           (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp);
     else
-        ret_val = __lex_compare_lt_16(
+        ret_val = __lex_compare_le_16(
           (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp);
 
     return (ret_val);
@@ -302,9 +302,9 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
 
 #ifdef HAVE_X86INTRIN_H
 /*
- * __lex_compare_skip_ge_16 --
- *     Lexicographic comparison routine for data greater than or equal to 16 bytes, skipping leading
- *     bytes. Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
+ * __lex_compare_skip_gt_16 --
+ *     Lexicographic comparison routine for data greater than 16 bytes, skipping leading bytes.
+ *     Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
  *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
  *     names "user" and "tree" so it's clear in the btree code which the application is looking at
  *     when we call its comparison function. Some platforms like ARM offer dedicated instructions
@@ -312,7 +312,7 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
  *     offer dedicated instructions for reading 16 bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
-__lex_compare_skip_ge_16(
+__lex_compare_skip_gt_16(
   const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
 {
     __m128i res_eq, t, u;
@@ -371,8 +371,8 @@ final128:
 #else
 /*
  * __lex_compare_skip_ge_16 --
- *     Lexicographic comparison routine for data greater than or equal to 16 bytes, skipping leading
- *     bytes. Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
+ *     Lexicographic comparison routine for data greater than 16 bytes, skipping leading bytes.
+ *     Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
  *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
  *     names "user" and "tree" so it's clear in the btree code which the application is looking at
  *     when we call its comparison function. Some platforms like ARM offer dedicated instructions
@@ -380,7 +380,7 @@ final128:
  *     offer dedicated instructions for reading 16 bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
-__lex_compare_skip_ge_16(
+__lex_compare_skip_gt_16(
   const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
 {
     struct {
@@ -464,8 +464,8 @@ __wt_lex_compare_skip(
         lencmp = 0;
     }
 
-    if (len >= WT_VECTOR_SIZE) {
-        ret_val = __lex_compare_skip_ge_16(
+    if (len > WT_VECTOR_SIZE) {
+        ret_val = __lex_compare_skip_gt_16(
           (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp, matchp);
 
 #ifdef HAVE_DIAGNOSTIC
@@ -484,10 +484,10 @@ __wt_lex_compare_skip(
 #endif
     } else
         /*
-         * We completely ignore match when len < 16 because it wouldn't reduce the amount of work
+         * We completely ignore match when len <= 16 because it wouldn't reduce the amount of work
          * done, and would add overhead.
          */
-        ret_val = __lex_compare_lt_16(
+        ret_val = __lex_compare_le_16(
           (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp);
 
     return (ret_val);
@@ -535,6 +535,6 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
         lencmp = 0;
     }
 
-    return (__lex_compare_lt_16(
+    return (__lex_compare_le_16(
       (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp));
 }
