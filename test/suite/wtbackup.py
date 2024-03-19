@@ -305,6 +305,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
         did_work = False
+        # Get connection statistic before walking the cursor.
+        blocks1 = self.get_stat(stat.conn.backup_blocks)
         while incr_c.next() == 0:
             incrlist = incr_c.get_keys()
             offset = incrlist[0]
@@ -318,7 +320,6 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 self.copy_file(newfile, backup_incr_dir)
             else:
                 # Copy the block range.
-                blocks1 = self.get_stat(stat.conn.backup_blocks)
                 self.pr(f"Range copy file '{newfile}' offset {offset} len {size}")
                 self.range_copy(newfile, offset, size, backup_incr_dir, consolidate)
                 lens.append(size)
@@ -326,6 +327,15 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 # Check backup stats.
                 blocks2 = self.get_stat(stat.conn.backup_blocks)
                 blocks_diff = blocks2 - blocks1
+                self.pr(f"{newfile}: Start {blocks1} range copy end {blocks2}, total blocks {blocks_diff}")
+
+                # Connection stats should track for compressed and uncompressed should
+                # track the total changed.
+                comp = self.get_stat(stat.conn.backup_blocks_compressed)
+                uncomp = self.get_stat(stat.conn.backup_blocks_uncompressed)
+                self.assertEqual(blocks2, comp + uncomp)
+                # Now check the same data source stats. The change for this range copy
+                # should track the difference for this file.
                 comp = self.get_stat(stat.dsrc.backup_blocks_compressed, newfile)
                 uncomp = self.get_stat(stat.dsrc.backup_blocks_uncompressed, newfile)
                 self.assertEqual(blocks_diff, comp + uncomp)
