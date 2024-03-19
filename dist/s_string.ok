@@ -368,7 +368,6 @@ Su
 Subdirectory
 Subprocess
 TAILQ
-TCMalloc
 TESTUTIL
 TID
 TMP
@@ -448,7 +447,6 @@ WiredTigerTmplog
 WithSeeds
 Wmissing
 WriteFile
-Wundef
 Wuninitialized
 Wunused
 XP
@@ -607,7 +605,6 @@ cookiep
 copydoc
 countp
 cp
-cplusplus
 cpp
 cppsuite
 cpuid
@@ -848,7 +845,6 @@ ifdef's
 iiSii
 iiiS
 iiii
-iiu
 ikey
 im
 img
@@ -1192,7 +1188,6 @@ runone
 runtime
 rw
 rwlock
-sH
 sHQ
 sXXXXXX
 sanitizer
@@ -1290,7 +1285,6 @@ sz
 t's
 tIf
 tV
-tablename
 td
 teardown
 tempdir
