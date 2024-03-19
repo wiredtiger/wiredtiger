@@ -5322,7 +5322,7 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    # Exclude this test for ASan builds, as it results in a false positives owing 
+    # Exclude this test for ASan builds, as it results in a false positives owing
     # to deliberate killing of processes to invoke corruption.
     extra_args: -E "wt12015_backup_corruption"
   tasks:
