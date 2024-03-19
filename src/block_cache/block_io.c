@@ -128,6 +128,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
             WT_STAT_DATA_INCR(session, compress_read);
         WT_STAT_CONN_DATA_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
+        WT_STAT_SESSION_INCR(session, bytes_read_app_count);
         (void)__wt_atomic_add64(&S2C(session)->cache->bytes_read, dsk->mem_size);
     }
 
