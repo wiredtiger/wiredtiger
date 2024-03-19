@@ -1366,7 +1366,7 @@ __ckpt_verify_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool 
 
     *ok = false;
 
-    if ((original_bitmap == NULL) || (new_bitmap == NULL))
+    if ((new_bitmap == NULL) || (original_bitmap == NULL))
         return (EINVAL);
 
     /* If the new bitmap is smaller, then some bits have been lost which is a problem. */
