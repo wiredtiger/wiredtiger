@@ -19,7 +19,7 @@
 
 #ifdef HAVE_X86INTRIN_H
 /*
- * __lex_compare_ge_16 --
+ * __lex_compare_gt_16 --
  *     Lexicographic comparison routine for data greater than 16 bytes. Returns: < 0 if user_item is
  *     lexicographically < tree_item, = 0 if user_item is lexicographically = tree_item, > 0 if
  *     user_item is lexicographically > tree_item. We use the names "user" and "tree" so it's clear
@@ -145,7 +145,7 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 
     uendp = ustartp + len;
     tendp = tstartp + len;
-    if (len & sizeof(uint64_t)) {
+    if (len >> 3) {
         /*
          * len >= 64 bits. len is implicitly less than 128bits since the function accepts 16 bytes
          * or less.
@@ -370,7 +370,7 @@ final128:
 }
 #else
 /*
- * __lex_compare_skip_ge_16 --
+ * __lex_compare_skip_gt_16 --
  *     Lexicographic comparison routine for data greater than 16 bytes, skipping leading bytes.
  *     Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
  *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
