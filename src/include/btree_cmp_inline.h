@@ -30,7 +30,6 @@ static WT_INLINE int
 __lex_compare_ge_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     __m128i res_eq, t, u;
-    uint64_t tfirst, ufirst;
     uint64_t t64, tfirst, u64, ufirst;
     const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
