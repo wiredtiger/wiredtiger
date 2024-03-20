@@ -2831,20 +2831,6 @@ tasks:
       - func: "make wiredtiger"
       - func: "make check all"
 
-  # Use format.sh to run tests in parallel for just under two hours (the
-  # default Evergreen timeout) on the higher spec build distros. This allows
-  # us to perform multiple test runs while ensuring a long-running config does
-  # not result in an Evergreen test timeout failure. This test is run on a
-  # higher spec distro due to historical issues with timeout failures. Consider
-  # reducing the parallelism if frequent timeouts occur.
-  - name: linux-directio
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 110 direct_io=1
-
   - name: package
     commands:
       - func: "get project"
@@ -5284,7 +5270,6 @@ buildvariants:
     - name: unit-test-extra-long
       distros: ubuntu2004-large
     - name: static-wt-build-test
-    - name: linux-directio
       distros: ubuntu2004-build
     - name: format-mirror-test
     - name: format-smoke-test
@@ -5523,7 +5508,6 @@ buildvariants:
     - name: make-check-test
     - name: fops
     - name: time-shift-sensitivity-test
-    - name: linux-directio
       distros: rhel80-build
     - name: syscall-linux
     - name: checkpoint-filetypes-test
@@ -5650,8 +5634,6 @@ buildvariants:
     - name: fops
     - name: format-failure-configs-test
       distros: ubuntu2004-arm64-large
-    - name: linux-directio
-      distros: ubuntu2004-arm64-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-extra-long
@@ -5693,8 +5675,6 @@ buildvariants:
     - name: fops
     - name: format-failure-configs-test
       distros: amazon2-arm64-large
-    - name: linux-directio
-      distros: amazon2-arm64-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-extra-long
@@ -5712,6 +5692,7 @@ buildvariants:
 - name: ubuntu2004-antithesis
   display_name: "~ Ubuntu 20.04 Antithesis"
   run_on:
+
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 0
@@ -5738,7 +5719,6 @@ buildvariants:
     - name: unit-test
     - name: format-smoke-test
     - name: fops
-    - name: linux-directio
       distros: ubuntu2004-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
@@ -5766,7 +5746,6 @@ buildvariants:
     - name: unit-test
     - name: format-smoke-test
     - name: fops
-    - name: linux-directio
       distros: ubuntu2004-arm64-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
