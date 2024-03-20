@@ -5487,15 +5487,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BACKUP_START			1027
 /*! backup: total modified incremental blocks */
 #define	WT_STAT_CONN_BACKUP_BLOCKS			1028
-/*!
- * backup: total modified incremental blocks in tables with block
- * compression
- */
+/*! backup: total modified incremental blocks with compressed data */
 #define	WT_STAT_CONN_BACKUP_BLOCKS_COMPRESSED		1029
-/*!
- * backup: total modified incremental blocks in tables without block
- * compression
- */
+/*! backup: total modified incremental blocks without compressed data */
 #define	WT_STAT_CONN_BACKUP_BLOCKS_UNCOMPRESSED		1030
 /*! block-cache: cached blocks updated */
 #define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_UPDATE		1031
@@ -7126,15 +7120,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_AUTOCOMMIT_READONLY_RETRY		2012
 /*! autocommit: retries for update operations */
 #define	WT_STAT_DSRC_AUTOCOMMIT_UPDATE_RETRY		2013
-/*!
- * backup: total modified incremental blocks in tables with block
- * compression
- */
+/*! backup: total modified incremental blocks with compressed data */
 #define	WT_STAT_DSRC_BACKUP_BLOCKS_COMPRESSED		2014
-/*!
- * backup: total modified incremental blocks in tables without block
- * compression
- */
+/*! backup: total modified incremental blocks without compressed data */
 #define	WT_STAT_DSRC_BACKUP_BLOCKS_UNCOMPRESSED		2015
 /*! block-manager: allocations requiring file extension */
 #define	WT_STAT_DSRC_BLOCK_EXTENSION			2016

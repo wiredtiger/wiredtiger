@@ -967,8 +967,8 @@ conn_dsrc_stats = [
     ##########################################
     # Backup statistics
     ##########################################
-    BackupStat('backup_blocks_compressed', 'total modified incremental blocks in tables with block compression'),
-    BackupStat('backup_blocks_uncompressed', 'total modified incremental blocks in tables without block compression'),
+    BackupStat('backup_blocks_compressed', 'total modified incremental blocks with compressed data'),
+    BackupStat('backup_blocks_uncompressed', 'total modified incremental blocks without compressed data'),
 
     ##########################################
     # Cache and eviction statistics
