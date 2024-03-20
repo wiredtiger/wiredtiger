@@ -1587,11 +1587,9 @@ __wt_session_range_truncate(
     trunc_info->uri = actual_uri;
 
     /*
-     * We would like to use bounded cursors if possible, so check whether they are supported. We
-     * don't currently support bounded cursors for fixed column stores. For now, also fall back to
-     * not using bounded cursors for complex types, such as tables with column groups and indexes.
-     * Those tables may or may not support bounded cursors and it is not easy to check at this
-     * abstraction level.
+     * Don't use bounded cursors for FLCS as it isn't supported, additionally skip using them for
+     * complex types such as column groups and indexes. We can't check support for those complex
+     * types at this abstraction level.
      */
     if (CUR2BT(start) == NULL || CUR2BT(start)->type == BTREE_COL_FIX)
         supports_bounds = false;
@@ -1600,12 +1598,10 @@ __wt_session_range_truncate(
 
     /*
      * Truncate does not require keys actually exist so that applications can discard parts of the
-     * object's name space without knowing exactly what records currently appear in the object. For
-     * this reason, position the start/stop cursors to the actual first/last keys in the truncation
-     * range. If possible, we implement this using bounded cursors to prevent false conflicts with
-     * transactions that touch keys right outside of the truncation range. If the table does not
-     * support bounded cursors, we have to fall back to using search-near, but that's not preferable
-     * as it would access the first key following the range, which could result in a false conflict.
+     * object's name space without knowing exactly what records currently appear in the object. When
+     * possible use bounded cursors to position the start and stop cursors, if they aren't available
+     * then use search-near. Search-near is suboptimal, because it may return prepare conflicts
+     * outside of the truncate key range, as it will walk beyond the end key.
      *
      * No need to search the record again if it is already pointing to the btree.
      */
