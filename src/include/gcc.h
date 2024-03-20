@@ -27,71 +27,147 @@
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x) __attribute__(x)
 
 /*
- * Atomic writes:
+ * ### The wiredtiger memory model. ###
  *
- * WiredTiger requires pointers (void *) and some variables to be read/written
- * atomically, that is, in a single cycle.  This is not write ordering -- to be
- * clear, the requirement is that no partial value can ever be read or written.
- * For example, if 8-bits of a 32-bit quantity were written, then the rest of
- * the 32-bits were written, and another thread of control was able to read the
- * memory location after the first 8-bits were written and before the subsequent
- * 24-bits were written, WiredTiger would break. Or, if two threads of control
- * attempt to write the same location simultaneously, the result must be one or
- * the other of the two values, not some combination of both.
+ * This comment aims to describe the current WiredTiger memory model. WiredTiger does not utilize
+ * the C memory model, however it may migrate to it in the future. We define the hardware
+ * requirements of WiredTiger and the memory ordering semantics it depends on.
  *
- * To reduce memory requirements, we use a 32-bit type on 64-bit machines, which
- * is OK if the compiler doesn't accumulate two adjacent 32-bit variables into a
- * single 64-bit write, that is, there needs to be a single load/store of the 32
- * bits, not a load/store of 64 bits, where the 64 bits is comprised of two
- * adjacent 32-bit locations.  The problem is when two threads are cooperating
- * (thread X finds 32-bits set to 0, writes in a new value, flushes memory;
- * thread Y reads 32-bits that are non-zero, does some operation, resets the
- * memory location to 0 and flushes). If thread X were to read the 32 bits
- * adjacent to a different 32 bits, and write them both, the two threads could
- * race.  If that can happen, you must increase the size of the memory type to
- * a type guaranteed to be written atomically in a single cycle, without writing
- * an adjacent memory location.
+ * ## Hardware Requirements ##
+ * # Atomic reads and writes #
+ * WiredTiger requires that pointers (void *) and variables that are 8, 16, 32 and 64 bits to be
+ * read/written to atomically. For example if 8-bits of a 32-bit memory location were written and
+ * then the rest of the 32-bits were written, and another thread of control was able to read the
+ * memory location after the first 8-bits were written and before the subsequent 24-bits were
+ * written, WiredTiger would read invalid states. If two threads of control attempt to write to the
+ * same location simultaneously, the result must be one of the two values, not some combination of
+ * both.
  *
- * WiredTiger additionally requires atomic writes for 64-bit memory locations,
- * and so cannot run on machines with a 32-bit memory bus.
+ * # Multi copy atomicity #
  *
- * We don't depend on writes across cache lines being atomic, and to make sure
- * that never happens, we check address alignment: we know of no architectures
- * with cache lines other than a multiple of 4 bytes in size, so aligned 4-byte
- * accesses will always be in a single cache line.
+ * # No Aggregated Writes of Adjacent Memory Locations #
+ * To reduce memory requirements, WiredTiger may use a 32-bit type on 64-bit machines, which is OK
+ * if the compiler doesn't turn a 32-bit load/store into a 64-bit load/store, where the 64 bits
+ * consists of two adjacent 32-bit locations.
  *
- * Atomic writes are often associated with memory barriers, implemented by the
- * WT_ACQUIRE_BARRIER and WT_RELEASE_BARRIER macros.  WiredTiger's requirement as
- * described by the Solaris membar_enter description:
+ * Violating this can lead to races when two threads are cooperating. Suppose there is a thread X
+ * that finds the variable A of 32-bits set to 0 and writes in a new value. Concurrently another
+ * thread Y reads the adjacent variable B of 32-bits that are non-zero, does some operation, resets
+ * the memory location to 0. If thread X were to read the 64-bits consisting of the variable A and
+ * the adjacent variable B together, and write them both, the two threads could race.
  *
- *	No stores from after the memory barrier will reach visibility and
- *	no loads from after the barrier will be resolved before the lock
- *	acquisition reaches global visibility
+ * # Writes Across Cache Lines #
+ * WiredTiger doesn't depend on writes across cache lines being atomic and it ensures that a single
+ * write that is smaller or equal to 4 bytes long is never split across the cache lines. This is
+ * achieved through address alignment: we know of no architectures with cache lines other than a
+ * multiple of 4 bytes in size, therefore, aligned 4-byte accesses will always be in a single cache
+ * line.
  *
- * In other words, the WT_RELEASE_BARRIER macro must ensure that memory stores by
- * the processor, made before the WT_RELEASE_BARRIER call, be visible to all
- * processors in the system before any memory stores by the processor, made
- * after the WT_RELEASE_BARRIER call, are visible to any processor.  The
- * WT_ACQUIRE_BARRIER macro ensures that all loads before the barrier are complete
- * before any loads after the barrier.  The compiler cannot reorder or cache
- * values across a barrier.
+ * # Cache coherency #
+ * WiredTiger depends on running on a coherent cache, it cannot run on hardware that doesn't
+ * implement a typical cache coherence protocol.
  *
- * The term publish - as it is used in WiredTiger - refers to writing a value to
- * a shared memory location. It doesn't imply any memory ordering semantics.
+ * ## Managing concurrency ##
+ * # Volatile #
+ * A controversial tool in the C toolkit. WiredTiger utilizes volatile for one reason, managing
+ * compiler optimization. Leveraging the definitions from Is Parallel Programming Hard, And, If So,
+ * What Can You Do About It?, Paul E. McKenney, WiredTiger utilizes volatile to prevent the
+ * following type of compiler optimizations: Load fusing, store fusing, invented loads, invented
+ * stores and code reordering. WiredTiger defines the following macros WT_READ_ONCE and
+ * WT_WRITE_ONCE, these macros, if used correctly, prevent the described forms of compiler
+ * optimization. Additionally some variables in WiredTiger are defined with the volatile keyword if
+ * it is known that they will be frequently accessed in a concurrent context.
  *
- * Lock and unlock operations imply both read and write barriers.  In other
- * words, barriers are not required for values protected by locking.
+ * # Locking #
+ * There are three types of locks in WiredTiger:
+ *  - Condition Variables
+ *  - Spin Locks
+ *  - Read Write Locks
  *
- * Data locations may also be marked volatile, forcing the compiler to re-load
- * the data on each access.  This is a weaker semantic than barriers provide,
- * only ensuring that the compiler will not cache values.  It makes no ordering
- * guarantees and may have no effect on systems with weaker cache guarantees.
+ * Each mechanism guarantees that once a thread relinquishes its lock and another thread obtains the
+ * same lock, all modifications made by the first thread will be visible to the thread now holding
+ * the lock.
  *
- * In summary, locking > barriers > volatile.
+ * Condition Variables:
+ * Condition variables are used to force a thread to wait until a certain condition is fulfilled. A
+ * common usage pattern is as follows: a thread is waiting for a signal to wake up, and once the
+ * required condition is met, another thread will then send the signal to one of the waiting
+ * threads. There are two implementations of condition variables in WiredTiger respectively for
+ * POSIX and MSVC under the same interface. The specific implementation is determined at compile
+ * time based on the platform.
  *
- * To avoid locking shared data structures such as statistics and to permit
- * atomic state changes, we rely on the atomic-add and atomic-cas (compare and
- * swap) operations.
+ * Spin Locks:
+ * A spin lock forces any thread trying to obtain it to wait in a loop while repeatedly checking
+ * whether the lock is available. Only one thread is able to have the lock at any given time,
+ * effectively serializing the execution of the critical sections. There are three different
+ * implementations for spin locks in WiredTiger under the same interface:
+ *  - An implementation using GCC's builtin atomic operations.
+ *  - An implementation using a POSIX based mutex.
+ *  - An implementation for MSVC.
+ * The specific implementation is determined at compile time based on the platform and compile-time
+ * configurations.
+ *
+ * A spin lock is an exclusive lock that generally expects all reads and writes on shared memory
+ * locations under its protection to be performed under the lock. In WiredTiger this pattern
+ * occasionally is not upheld and we read variables written to within the lock without locking. Such
+ * instances are only permitted if reading inconsistent data is sufficient for the use case.
+ *
+ * Read Write Locks:
+ * A read-write lock allows concurrent shared access for read-only operations, whereas write
+ * operations require exclusive access. This means that multiple threads can read the data in
+ * parallel but an exclusive lock is needed for writing or modifying data. When a writer is writing
+ * data, all other writers and readers will be blocked until the writer is finished writing.
+ * WiredTiger has its own read-write lock implementation. It is based on atomic operations and
+ * condition variables.
+ *
+ * It is expected that all the reads and writes of a shared variable protected by a read-write lock
+ * will be performed under the lock. For the same reason as spinlocks, WiredTiger may allow usages
+ * that read the shared variables without taking the lock. Such instances are only permitted if
+ * reading inconsistent data is sufficient for the use case.
+ *
+ * # Atomic operations  #
+ * As previously mentioned WiredTiger already expects loads and stores to specific sizes of points
+ * to be atomic and prevent tearing. WiredTiger also relies on atomic RMW operations, these include:
+ * - Compare and Swap
+ * - Fetch add / sub
+ * - Add / sub fetch
+ *
+ * Currently WiredTiger is undergoing a transition where all shared memory variable access will be
+ * wrapped by an atomic function, this will enable TSan to run on the code base.
+ *
+ * # Memory barriers #
+ * WiredTiger utilizes memory barriers in a number of places to ensure that CPU instruction
+ * reordering doesn't result in a concurrency bug. Specifically CPUs are allowed to reorder load and
+ * store instructions. If this occurs when two threads are reading or writing to the same shared
+ * memory locations it can result in those threads seeing what would otherwise be impossible values.
+ *
+ * WiredTiger defines barriers by describing which kind of reordering they prevent, for example a
+ * LoadLoad barrier prevents load instructions before the barrier from being reordered with load
+ * instructions after the barrier. Using this definition we can define 4 types of reorderings,
+ * LoadLoad, StoreStore, LoadStore and StoreLoad. To simplify the barrier semantics further
+ * WiredTiger defines acquire and release barriers, firstly we have the WT_ACQUIRE_READ_WITH_BARRIER
+ * macro which prevents LoadLoad and LoadStore reorderings. Next we have the
+ * WT_RELEASE_WRITE_WITH_BARRIER macro which prevents StoreStore and LoadStore reorderings, these
+ * barriers should be used as pairs. If one location requires an acquire barrier then there must be
+ * another location that requires a release barrier. Two more barrier constructs are defined in
+ * WiredTiger. WT_FULL_BARRIER which prevents all 4 kinds of described reorderings and
+ * WT_COMPILER_BARRIER which is a basic compiler barrier preventing compiler optimization from
+ * occurring across it, the compiler barrier does not impact CPU reordering.
+ *
+ * Previously WiredTiger defined a WT_PUBLISH macro which prevented StoreStore reordering, this
+ * macro has since been removed however the term publish still exists in the code base. This is
+ * used to refer to writing a value to a shared memory location. It doesn't define any memory
+ * ordering semantics.
+ *
+ * # Marked access #
+ * Barriers are a heavy hammer for situations that only need to prevent reordering of instructions
+ * on one side of a load or store. To reduce the amount of reorderings prevented, and to access an
+ * ARM specific optimization WiredTiger defines two marked access macros. These are loads and stores
+ * that prevent reordering from one direction across that load or store. Firstly there is the
+ * WT_ACQUIRE_READ, this prevents loads and stores following the load from being reordered across
+ * it. Then we have the WT_RELEASE_WRITE macro which prevents loads and stores prior to the store
+ * from being reordered across it. As with the acquire and release barriers these marked access
+ * macros should be paired together to function correctly.
  */
 
 /*
