@@ -1311,7 +1311,9 @@ __ckpt_get_blkmods(
     WT_RET(__wt_metadata_cursor_open(session, NULL, &metadata_cursor));
 
     metadata_cursor->set_key(metadata_cursor, uri);
-    WT_ERR(metadata_cursor->search(metadata_cursor));
+    ret = metadata_cursor->search(metadata_cursor);
+    WT_ASSERT(session, ret != WT_NOTFOUND);
+    WT_ERR(ret);
     WT_ERR(metadata_cursor->get_value(metadata_cursor, &file_config));
     WT_ERR(
       __wt_config_getones(session, file_config, "checkpoint_backup_info", &backup_config_value));
@@ -1338,10 +1340,9 @@ __ckpt_get_blkmods(
         }
     }
 
-err:
     if (ret == WT_NOTFOUND)
         ret = 0;
-
+err:
     WT_TRET(metadata_cursor->close(metadata_cursor));
 
     return (ret);
