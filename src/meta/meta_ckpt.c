@@ -1469,10 +1469,10 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    const char *filename;
+    const char *fname;
     bool has_lsn;
 
-    filename = dhandle->name;
+    fname = dhandle->name;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
@@ -1482,7 +1482,7 @@ __wt_meta_ckptlist_set(
             WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
 
             if (!F_ISSET(dhandle, WT_DHANDLE_IS_METADATA))
-                WT_ERR(__ckpt_check_backup_blocks(session, ckpt, filename));
+                WT_ERR(__ckpt_check_backup_blocks(session, ckpt, fname));
         }
 
     has_lsn = ckptlsn != NULL;
@@ -1493,7 +1493,7 @@ __wt_meta_ckptlist_set(
     if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 
-    WT_ERR(__ckpt_set(session, filename, buf->mem, has_lsn));
+    WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
 err:
     __wt_scr_free(session, &buf);
