@@ -1318,24 +1318,22 @@ __ckpt_get_blkmods(
     WT_ERR(
       __wt_config_getones(session, file_config, "checkpoint_backup_info", &backup_config_value));
 
-    if (backup_config_value.len > 0) {
-        if (backup_config_value.type == WT_CONFIG_ITEM_STRUCT) {
-            __wt_config_subinit(session, &blkconf, &backup_config_value);
+    if ((backup_config_value.len > 0) && (backup_config_value.type == WT_CONFIG_ITEM_STRUCT)) {
+        __wt_config_subinit(session, &blkconf, &backup_config_value);
 
-            /* Loop through the incremental backup blocks data looking for the correct id */
-            while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
-                if (blocks_value.len == 0)
-                    continue;
+        /* Loop through the incremental backup blocks data looking for the correct id */
+        while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
+            if (blocks_value.len == 0)
+                continue;
 
-                if (WT_STRING_MATCH(id_str, blocks_key.str, blocks_key.len)) {
-                    /* We've found the right blocks so read the bit pattern into output_item */
-                    ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
-                    if ((ret == 0) && (blocks.len > 0)) {
-                        WT_ERR(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
-                        break;
-                    }
-                    WT_ERR_NOTFOUND_OK(ret, false);
+            if (WT_STRING_MATCH(id_str, blocks_key.str, blocks_key.len)) {
+                /* We've found the right blocks so read the bit pattern into output_item */
+                ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
+                if ((ret == 0) && (blocks.len > 0)) {
+                    WT_ERR(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
+                    break;
                 }
+                WT_ERR_NOTFOUND_OK(ret, false);
             }
         }
     }
