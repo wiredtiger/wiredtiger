@@ -1256,16 +1256,6 @@ main(int argc, char *argv[])
     error_check(wiredtiger_open(home, NULL, conf, &conn));
     /*! [Configure sodium extension] */
     error_check(conn->close(conn, NULL));
-
-    /*
-     * This example code gets run, and direct I/O might not be available, causing the open to fail.
-     * The documentation requires code snippets, use #ifdef's to avoid running it.
-     */
-    /* Might Not Run: direct I/O may not be available. */
-    /*! [Configure direct_io for data files] */
-    error_check(wiredtiger_open(home, NULL, "create,direct_io=[data]", &conn));
-    /*! [Configure direct_io for data files] */
-    error_check(conn->close(conn, NULL));
 #endif
 
     /*! [Configure file_extend] */

@@ -24,12 +24,6 @@ read using a (read-only) checkpoint cursor. Configuring direct I/O for data
 files will also configure direct I/O for all internal data files created by
 WiredTiger itself as well as application owned data files.
 
-Direct I/O is configured using the \c direct_io configuration string to
-the ::wiredtiger_open function.  An example of configuring direct I/O for
-data files:
-
-@snippet ex_all.c Configure direct_io for data files
-
 Systems require alignment for I/O buffers when direct I/O is configured, and
 using the wrong alignment can cause data loss or corruption.  If direct I/O is
 configured, WiredTiger aligns I/O buffers to a default of 4KB; if different
