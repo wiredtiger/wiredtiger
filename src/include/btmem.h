@@ -1087,9 +1087,17 @@ struct __wt_ref {
 #define WT_REF_LOCKED 2  /* Page locked for exclusive access */
 #define WT_REF_MEM 3     /* Page is in cache and valid */
 #define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
+
     /*
-     * Page state: Obscure the field name as this field shouldn't be accessed directly. This public
-     * interface is WT_REF_SET_STATE, __wt_ref_get_state, and WT_REF_CAS_STATE.
+     * Ref state: Obscure the field name as this field shouldn't be accessed directly. The public
+     * interface is made up of five functions:
+     *  - __wt_ref_get_state
+     *  - WT_REF_SET_STATE
+     *  - WT_REF_CAS_STATE
+     *  - __wt_ref_lock
+     *  - WT_REF_UNLOCK
+     *
+     * For more details on these functions see ref_inline.h.
      */
     wt_shared volatile uint8_t __state;
 

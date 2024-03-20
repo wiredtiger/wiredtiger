@@ -19,6 +19,35 @@ __wt_ref_is_root(WT_REF *ref)
 }
 
 /*
+ * # The ref state API. #
+ *
+ * 5 functions* (3 macros) are defined to manipulate the ref state. This is a highly sensitive
+ * field and protected via the double underscore keyword. The field should only be accessed
+ * via these functions.
+ *
+ * __wt_ref_get_state:
+ * Get the state of the ref, wraps a relaxed atomic volatile load. At the time of writing this
+ * comment this was done to enable TSan and to enable burying the field behind the
+ * aforementioned double underscore.
+ *
+ * WT_REF_SET_STATE:
+ * Set the ref state. If HAVE_REF_TRACK is defined, track where the set call originated from. The
+ * ref state tracking is why we use macros here, since the tracking utilizes gcc identifiers to get
+ * the function and line number where the macro was called.
+ *
+ * WT_REF_CAS_STATE:
+ * Swap in a new state to the ref, tracking where the call originated from.
+ *
+ * __wt_ref_lock:
+ * Spin until the state WT_REF_LOCKED is swapped into the ref state field. Once the call to this
+ * function completes the caller has exclusive access to the ref.
+ *
+ * WT_REF_UNLOCK:
+ * Effectively wraps WT_REF_SET_STATE, however should only be used when returning the ref to the
+ * previous state as returned by __wt_ref_lock.
+ */
+
+/*
  * __ref_set_state --
  *     Set a ref's state. Accessed from the WT_REF_SET_STATE macro.
  */
