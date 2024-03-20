@@ -1342,7 +1342,6 @@ __ckpt_get_blkmods(
         ret = 0;
 err:
     WT_TRET(metadata_cursor->close(metadata_cursor));
-
     return (ret);
 }
 
@@ -1498,7 +1497,6 @@ __wt_meta_ckptlist_set(
 
 err:
     __wt_scr_free(session, &buf);
-
     return (ret);
 }
 
