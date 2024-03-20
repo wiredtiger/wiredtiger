@@ -305,10 +305,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
         did_work = False
-        # Get connection statistic before walking the cursor.
-        blocks1 = self.backup_get_stat(stat.conn.backup_blocks)
-        last_comp = 0
-        last_uncomp = 0
+        first = True
         while incr_c.next() == 0:
             incrlist = incr_c.get_keys()
             offset = incrlist[0]
@@ -321,31 +318,36 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 # Copy the whole file.
                 self.copy_file(newfile, backup_incr_dir)
             else:
+                # We can count backup dsrc statistics in the range case. Initialize here.
+                if first:
+                    # Get connection statistic before walking the cursor.
+                    last_blocks = self.backup_get_stat(stat.conn.backup_blocks)
+                    last_comp = self.backup_get_stat(stat.dsrc.backup_blocks_compressed, newfile)
+                    last_uncomp = self.backup_get_stat(stat.dsrc.backup_blocks_uncompressed, newfile)
+                    first = False
                 # Copy the block range.
                 self.pr(f"Range copy file '{newfile}' offset {offset} len {size}")
                 self.range_copy(newfile, offset, size, backup_incr_dir, consolidate)
                 lens.append(size)
                 did_work = True
                 # Check backup stats.
-                blocks2 = self.backup_get_stat(stat.conn.backup_blocks)
-                blocks_diff = blocks2 - blocks1
-                self.pr(f"{newfile}: Start {blocks1} range copy end {blocks2}, total blocks {blocks_diff}")
+                blocks = self.backup_get_stat(stat.conn.backup_blocks)
+                blocks_diff = blocks - last_blocks
+                self.pr(f"{newfile}: Start {last_blocks} range copy end {blocks}, total blocks {blocks_diff}")
 
                 # Connection stats should track for compressed and uncompressed should
                 # track the total changed.
                 comp = self.backup_get_stat(stat.conn.backup_blocks_compressed)
                 uncomp = self.backup_get_stat(stat.conn.backup_blocks_uncompressed)
-                self.assertEqual(blocks2, comp + uncomp)
+                self.assertEqual(blocks, comp + uncomp)
                 # Now check the same data source stats. The change for this range copy
                 # should track the difference for this file.
                 comp = self.backup_get_stat(stat.dsrc.backup_blocks_compressed, newfile)
                 uncomp = self.backup_get_stat(stat.dsrc.backup_blocks_uncompressed, newfile)
                 comp_diff = comp - last_comp
                 uncomp_diff = uncomp - last_uncomp
-                if blocks_diff == 0:
-                    self.assertEqual(0, comp_diff + uncomp_diff)
-                else:
-                    self.assertNotEqual(0, comp_diff + uncomp_diff)
+                self.assertEqual(blocks_diff, comp_diff + uncomp_diff)
+                last_blocks = blocks
                 last_comp = comp
                 last_uncomp = uncomp
         incr_c.close()
