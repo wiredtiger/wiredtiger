@@ -1970,8 +1970,12 @@ struct __wt_session {
      *
      * @param session the session handle
      * @configstart{WT_SESSION.checkpoint, see dist/api_data.py}
-     * @config{checkpoint_cleanup, if true\, checkpoint cleanup thread is triggered to perform the
-     * checkpoint cleanup., a boolean flag; default \c false.}
+     * @config{debug = (, configure debug specific behavior on a checkpoint.  Generally only used
+     * for internal testing purposes., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_cleanup, if true\, checkpoint cleanup thread is
+     * triggered to perform the checkpoint cleanup., a boolean flag; default \c false.}
+     * @config{
+     * ),,}
      * @config{drop, specify a list of checkpoints to drop.  The list may additionally contain one
      * of the following keys: \c "from=all" to drop all checkpoints\, \c "from=<checkpoint>" to drop
      * all checkpoints after and including the named checkpoint\, or \c "to=<checkpoint>" to drop

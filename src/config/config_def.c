@@ -910,6 +910,18 @@ static const uint8_t confchk_WT_SESSION_begin_transaction_jump[WT_CONFIG_JUMP_TA
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 4, 5, 6, 6, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
 
+static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_debug_subconfigs[] = {
+  {"checkpoint_cleanup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 163,
+    INT64_MIN, INT64_MAX, NULL},
+  {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
+
+static const uint8_t
+  confchk_WT_SESSION_checkpoint_debug_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_flush_tier_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 37, INT64_MIN,
     INT64_MAX, NULL},
@@ -929,7 +941,8 @@ static const uint8_t
     0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
-  {"checkpoint_cleanup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 163,
+  {"debug", "category", NULL, NULL, confchk_WT_SESSION_checkpoint_debug_subconfigs, 1,
+    confchk_WT_SESSION_checkpoint_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 122,
     INT64_MIN, INT64_MAX, NULL},
   {"drop", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 164, INT64_MIN,
     INT64_MAX, NULL},
@@ -949,7 +962,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
 static const uint8_t confchk_WT_SESSION_checkpoint_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 4,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4,
   4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 
 static const char *confchk_sync_choices[] = {__WT_CONFIG_CHOICE_off, __WT_CONFIG_CHOICE_on, NULL};
@@ -3736,8 +3749,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     confchk_WT_SESSION_begin_transaction, 9, confchk_WT_SESSION_begin_transaction_jump, 19,
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, begin_transaction), true},
   {"WT_SESSION.checkpoint",
-    "checkpoint_cleanup=false,drop=,flush_tier=(enabled=false,"
-    "force=false,sync=true,timeout=0),force=false,name=,target=,"
+    "debug=(checkpoint_cleanup=false),drop=,flush_tier=(enabled=false"
+    ",force=false,sync=true,timeout=0),force=false,name=,target=,"
     "use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 7, confchk_WT_SESSION_checkpoint_jump, 20, WT_CONF_SIZING_NONE,
     false},

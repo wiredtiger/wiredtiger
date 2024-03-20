@@ -8,6 +8,12 @@
 
 #include "wt_internal.h"
 
+/* Checkpoint cleanup interval times. */
+#define WT_CHECKPOINT_CLEANUP_INTERVAL 10 * 60 /* 10 minutes */
+#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1  /* 1 second */
+
+#define WT_URI_FILE_PREFIX "file:"
+
 /*
  * __sync_obsolete_inmem_evict --
  *     Check whether the inmem ref is obsolete according to the newest stop time point and mark it
@@ -298,12 +304,12 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 static bool
 __checkpoint_cleanup_run_chk(WT_SESSION_IMPL *session)
 {
-    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_CLENAUP));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP));
 }
 
 /*
  * __checkpoint_cleanup_page_skip --
- *     Return if checkpoint cleanup requires we read this page.
+ *     Return if checkpoint cleanup should read this page.
  */
 static int
 __checkpoint_cleanup_page_skip(
@@ -387,7 +393,7 @@ __checkpoint_cleanup_page_skip(
  *     Check and perform checkpoint cleanup on the uri.
  */
 static int
-__checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, const char *uri)
+__checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -395,21 +401,22 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, const char *uri)
     uint32_t flags;
 
     ref = NULL;
-    flags = WT_READ_NO_EVICT;
+    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
 
     /*
      * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
      * dhandles that are already opened.
      */
     WT_WITHOUT_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, (ret = __wt_conn_dhandle_find(session, uri->data, NULL))));
     if (ret == WT_NOTFOUND)
         return (0);
 
     /* Open a handle for processing. */
-    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+    ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
     if (ret != 0)
-        WT_RET_MSG(session, ret, "%s: unable to open handle%s", uri,
+        WT_RET_MSG(session, ret, "%s: unable to open handle%s", (char *)uri->data,
           ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
 
     btree = S2BT(session);
@@ -445,46 +452,93 @@ err:
 }
 
 /*
+ * __checkpoint_cleanup_get_uri --
+ *     Given a URI, find the next one in the metadata.
+ */
+static int
+__checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    int exact;
+    const char *key;
+
+    cursor = NULL;
+    exact = 0;
+    key = NULL;
+
+    /* Use a metadata cursor to have access to the existing URIs. */
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
+
+    /* Position the cursor on the given URI. */
+    cursor->set_key(cursor, (const char *)uri->data);
+    WT_ERR(cursor->search_near(cursor, &exact));
+
+    /*
+     * The given URI may not exist in the metadata file. Since we always want to return a URI that
+     * is lexicographically larger the given one, make sure not to go backwards.
+     */
+    if (exact <= 0)
+        WT_ERR(cursor->next(cursor));
+
+    /* Loop through the eligible candidates. */
+    WT_ERR(cursor->get_key(cursor, &key));
+    /* Check we are still dealing with keys that have the right prefix. */
+    if (!WT_PREFIX_MATCH(key, WT_URI_FILE_PREFIX)) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+
+    /* Save the selected uri. */
+    WT_ERR(__wt_buf_set(session, uri, cursor->key.data, cursor->key.size));
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
  * __checkpoint_cleanup_int --
  *     Internal function to perform checkpoint cleanup of all eligible files.
  */
 static int
 __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
 {
-    WT_CURSOR *cursor;
     WT_DECL_RET;
-    const char *uri;
+    WT_DECL_ITEM(uri);
 
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-    while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &uri));
+    WT_RET(__wt_scr_alloc(session, 1024, &uri));
+    WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
 
-        /* Ignore non-btree objects as well as the metadata file. */
-        if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
+    while ((ret = __checkpoint_cleanup_get_uri(session, uri)) == 0) {
+        /* Ignore the metadata file. */
+        if (strcmp(uri->data, WT_METAFILE_URI) == 0)
             continue;
 
         ret = __checkpoint_cleanup_walk_btree(session, uri);
         if (ret == ENOENT || ret == EBUSY) {
             __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
-              "%s: skipped performing checkpoint cleanup because the file %s", uri,
+              "%s: skipped performing checkpoint cleanup because the file %s", (char *)uri->data,
               ret == ENOENT ? "does not exist" : "is busy");
             continue;
         }
         WT_ERR(ret);
 
-        /* Wait for 5 seconds before proceeding with another table. */
-        __wt_cond_wait(
-          session, S2C(session)->cc_cleanup.cond, 5 * WT_MILLION, __checkpoint_cleanup_run_chk);
+        /*
+         * Wait here for some time before proceeding with another table to minimize the impact of
+         * checkpoint cleanup on the regular workload.
+         */
+        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
+          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __checkpoint_cleanup_run_chk);
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
             break;
     }
-    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
+    __wt_scr_free(session, &uri);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
@@ -517,9 +571,9 @@ __checkpoint_cleanup(void *arg)
 
         /*
          * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that
-         * typically has long intervals so skipping some should have little impact.
+         * typically involves many IO operations so skipping some should have little impact.
          */
-        if (!cv_signalled && (now - last < 60))
+        if (!cv_signalled && (now - last < WT_CHECKPOINT_CLEANUP_INTERVAL))
             continue;
 
         WT_ERR(__checkpoint_cleanup_int(session));
@@ -549,7 +603,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session)
         return (0);
 
     /* Set first, the thread might run before we finish up. */
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLENAUP);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
 
     /*
      * Checkpoint cleanup does enough I/O it may be called upon to perform slow operations for the
@@ -580,7 +634,7 @@ __wt_checkpoint_cleanup_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLENAUP);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
     if (conn->cc_cleanup.tid_set) {
         __wt_cond_signal(session, conn->cc_cleanup.cond);
         WT_TRET(__wt_thread_join(session, &conn->cc_cleanup.tid));

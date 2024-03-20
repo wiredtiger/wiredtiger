@@ -1611,7 +1611,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     orig_flags = F_MASK(session, WT_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
 
-    WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
     checkpoint_cleanup = cval.val;
 
     /*

@@ -82,6 +82,16 @@ class test_compact12(wttest.WiredTigerTestCase):
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
         c.close()
 
+    def wait_for_cc_to_run(self):
+        c = self.session.open_cursor( 'statistics:')
+        cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+        c.close()
+        while cc_success - prev_cc_success == 0:
+            time.sleep(0.1)
+            c = self.session.open_cursor( 'statistics:')
+            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+            c.close()
+
     def test_compact12_truncate(self):
         # FIXME-WT-11399
         if self.runningHook('tiered'):
@@ -120,8 +130,10 @@ class test_compact12(wttest.WiredTigerTestCase):
 
         # Perform two checkpoints and also trigger checkpoint cleanup to remove
         # the obsolete content.
-        self.session.checkpoint("checkpoint_cleanup=true")
-        self.session.checkpoint("checkpoint_cleanup=true")
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
+        self.wait_for_cc_to_run()
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
+        self.wait_for_cc_to_run()
 
         self.assertGreater(self.get_fast_truncated_pages(), 0)
 

@@ -79,9 +79,9 @@ class test_cc05(test_cc_base):
 
         # Perform a checkpoint.
         if self.named:
-            self.session.checkpoint("name=checkpoint_one,checkpoint_cleanup=true")
+            self.session.checkpoint("name=checkpoint_one,debug=(checkpoint_cleanup=true)")
         else:
-            self.session.checkpoint("checkpoint_cleanup=true")
+            self.session.checkpoint("debug=(checkpoint_cleanup=true)")
 
         # Check statistics.
         self.check_cc_stats()
@@ -106,7 +106,7 @@ class test_cc05(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(70))
 
         # Perform a checkpoint.
-        self.session.checkpoint("checkpoint_cleanup=true")
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.check_cc_stats()
 
         # Verify the open checkpoint still exists and contains the expected values.
