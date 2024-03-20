@@ -1038,9 +1038,6 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
           F_MASK(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED) ==
             (WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
 
-        /* Document some flags always cleared in the cache */
-        WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE));
-
         if (cursor->uri_hash == hash_value && strcmp(cursor->uri, uri) == 0) {
             /* cursor->reopen() */
             if ((ret = cursor->reopen(cursor, false)) != 0) {
