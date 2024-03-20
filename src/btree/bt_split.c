@@ -1803,7 +1803,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
-    __wt_ref_set_state(child, WT_REF_MEM); /* Visible as soon as the split completes. */
+    WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
         __wt_ref_key(ref->home, ref, &key, &key_size);
@@ -1843,7 +1843,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     child->page = right;
     F_SET(child, WT_REF_FLAG_LEAF);
-    __wt_ref_set_state(child, WT_REF_MEM); /* Visible as soon as the split completes. */
+    WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wt_row_ikey(
           session, 0, WT_INSERT_KEY(moved_ins), WT_INSERT_KEY_SIZE(moved_ins), child));

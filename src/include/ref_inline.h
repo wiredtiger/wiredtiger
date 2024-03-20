@@ -19,17 +19,17 @@ __wt_ref_is_root(WT_REF *ref)
 }
 
 /*
- * __wt_ref_set_state --
+ * __ref_set_state --
  *     Set a ref's state. Accessed from the WT_REF_SET_STATE macro.
  */
 static WT_INLINE void
-__wt_ref_set_state(WT_REF *ref, uint8_t state)
+__ref_set_state(WT_REF *ref, uint8_t state)
 {
     WT_RELEASE_WRITE_WITH_BARRIER(ref->__state, state);
 }
 
 #ifndef HAVE_REF_TRACK
-#define WT_REF_SET_STATE(ref, s) __wt_ref_set_state((ref), (s))
+#define WT_REF_SET_STATE(ref, s) __ref_set_state((ref), (s))
 #else
 /*
  * __ref_track_state --
@@ -52,7 +52,7 @@ __ref_track_state(
 #define WT_REF_SET_STATE(ref, s)                                           \
     do {                                                                   \
         __ref_track_state(session, ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        __wt_ref_set_state((ref), (s));                                    \
+        __ref_set_state((ref), (s));                                       \
     } while (0)
 #endif
 
