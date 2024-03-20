@@ -20,8 +20,8 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     if (block->compact_session_id != WT_SESSION_ID_INVALID) {
         __wt_verbose_info(session, WT_VERB_COMPACT,
-          "Compaction already happening on data handle %s by session %p, returning EBUSY.",
-          block->name, (void *)session);
+          "Compaction already happening on data handle %s by session %" PRIu32 ", returning EBUSY.",
+          block->name, session->id);
         return (EBUSY);
     }
 
