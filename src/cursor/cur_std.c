@@ -938,8 +938,10 @@ return_false:
  * __cursor_reuse_or_init --
  *     Initialization shared between reuse of a cached cursor and initialization of a new cursor.
  *
- * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_CACHEABLE,
- *     WT_CURSTD_DEBUG_RESET_EVICT, WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
+ * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_DEBUG_RESET_EVICT,
+ *     WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
+ *
+ * Flags cleared by this functions: WT_CURSTD_CACHEABLE
  */
 static int
 __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
@@ -947,9 +949,8 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
 {
     WT_CONFIG_ITEM cval;
     /* Default cleared all flags set by this func. */
-    F_CLR(cursor,
-      WT_CURSTD_APPEND | WT_CURSTD_CACHEABLE | WT_CURSTD_DEBUG_RESET_EVICT | WT_CURSTD_OVERWRITE |
-        WT_CURSTD_RAW);
+    F_CLR(
+      cursor, WT_CURSTD_APPEND | WT_CURSTD_DEBUG_RESET_EVICT | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
     /* WT_CURSTD_OVERWRITE */
     F_SET(cursor, overwrite_flag);
