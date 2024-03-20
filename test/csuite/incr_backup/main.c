@@ -531,12 +531,12 @@ static void
 run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
 {
     WT_CONNECTION *conn;
+    WT_FILE_COPY_OPTS copy_opts;
     WT_SESSION *session;
     TABLE_INFO tinfo;
     uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
     const char *backup_verbose;
     int ncheckpoints, nreopens;
-    WT_FILE_COPY_OPTS copy_opts;
     char backup_src[1024], conf[1024], home[1024];
 
     /* Save the rnd state in the seed global variable for error reporting */
