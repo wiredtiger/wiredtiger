@@ -16,7 +16,6 @@ checkpoint=wiredtiger
 checkpoint.log_size=75
 checkpoint.wait=7
 disk.data_extend=0
-disk.direct_io=0
 disk.encryption=none
 disk.mmap=1
 disk.mmap_all=0
