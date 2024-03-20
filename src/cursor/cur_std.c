@@ -755,9 +755,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     F_SET(cursor, WT_CURSTD_CACHED);
 
     /* Document the flags cleared, and set by this function */
-    WT_ASSERT(session,
-      !F_ISSET(
-        cursor, WT_CURSTD_BOUND_ALL | WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE));
+    WT_ASSERT(session, !WT_CURSOR_BOUNDS_SET(cursor)); /* __wt_cursor_bound_reset() */
     WT_ASSERT(session,
       F_MASK(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED) ==
         (WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
