@@ -680,8 +680,6 @@ op_err:
                  * does break the guarantee of insertion order in cases of ordered inserts, as we
                  * aren't retrying here.
                  */
-                //lprintf(wtperf, ret, 1, "%s for: %s, range: %" PRIu64, op_name(op), key_buf,
-                //  wtperf_value_range(wtperf));
                 if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                     lprintf(wtperf, ret, 0, "Failed rollback_transaction");
                     goto err;
@@ -705,7 +703,6 @@ op_err:
 	        if (ret != WT_ROLLBACK)
                     lprintf(wtperf, ret, 1, "Cursor index delete failed");
 	    if (ret == 0) {
-                // lprintf(wtperf, 0, 0, "th %u cursor %p insert new index key: %s", thread->id, (void*)index_cursor, index_buf);
                 index_cursor->set_key(index_cursor, index_buf);
                 index_cursor->set_value(index_cursor, INDEX_VALUE);
                 increment_index_info(wtperf);
@@ -715,7 +712,6 @@ op_err:
 	    }
             if (ret != 0) {
                 if (ret == WT_ROLLBACK && ops_per_txn == 0) {
-                    //lprintf(wtperf, ret, 1, "index-table: ROLLBACK");
                     if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                         lprintf(wtperf, ret, 0, "Failed rollback_transaction");
                         goto err;

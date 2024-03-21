@@ -46,7 +46,6 @@ delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_
         index_val = i * INDEX_BASE;
         testutil_snprintf(key_buf, len, "%" PRIu64 ":%" PRIu64, index_val, keyno);
         index_cursor->set_key(index_cursor, key_buf);
-        //lprintf(wtperf, 0, 0, "Delete earlier index key %s", key_buf);
         ret = index_cursor->remove(index_cursor);
         if (ret == 0)
             break;
