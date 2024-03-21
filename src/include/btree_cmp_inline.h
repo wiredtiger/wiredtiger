@@ -346,8 +346,8 @@ final128:
         *matchp = len;
         return (lencmp);
     } else {
-        WT_TRAILING_ZEROS(~eq_bits, leading_zero_bytes);
-        match += leading_zero_bytes;
+        WT_LEADING_ZEROS(~eq_bits, leading_zero_bytes);
+        match += (size_t)leading_zero_bytes;
         *matchp = match;
         res_gt = _mm_cmpgt_epi8(u, t);
         return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
