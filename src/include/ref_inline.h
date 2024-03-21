@@ -95,7 +95,7 @@ __ref_get_state(WT_REF *ref)
     return (__wt_atomic_loadv8(&ref->__state));
 }
 
-#define WT_REF_GET_STATE __ref_get_state
+#define WT_REF_GET_STATE(ref) __ref_get_state((ref))
 
 /*
  * __ref_cas_state --
@@ -146,6 +146,6 @@ __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *previous_statep)
     *(previous_statep) = previous_state;
 }
 
-#define WT_REF_LOCK __ref_lock
+#define WT_REF_LOCK(session, ref, previous_statep) __ref_lock((session), (ref), (previous_statep))
 
 #define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
