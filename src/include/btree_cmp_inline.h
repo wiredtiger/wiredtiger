@@ -344,7 +344,7 @@ final128:
         *matchp = len;
         return (lencmp);
     } else {
-        match += __builtin_stdc_leading_ones(eq_bits);
+        match += (size_t)__builtin_stdc_leading_ones(eq_bits);
         *matchp = match;
         res_gt = _mm_cmpgt_epi8(u, t);
         return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
