@@ -38,6 +38,7 @@ from wiredtiger import stat
 # Smoke test bulk-load.
 class test_bulk_load(wttest.WiredTigerTestCase):
     name = 'test_bulk'
+    conn_config = "statistics=(fast)"
 
     types = [
         ('file', dict(type='file:')),
