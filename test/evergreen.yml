@@ -5270,7 +5270,6 @@ buildvariants:
     - name: unit-test-extra-long
       distros: ubuntu2004-large
     - name: static-wt-build-test
-      distros: ubuntu2004-build
     - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
@@ -5508,7 +5507,6 @@ buildvariants:
     - name: make-check-test
     - name: fops
     - name: time-shift-sensitivity-test
-      distros: rhel80-build
     - name: syscall-linux
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
@@ -5692,7 +5690,6 @@ buildvariants:
 - name: ubuntu2004-antithesis
   display_name: "~ Ubuntu 20.04 Antithesis"
   run_on:
-
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 0
@@ -5746,7 +5743,6 @@ buildvariants:
     - name: unit-test
     - name: format-smoke-test
     - name: fops
-      distros: ubuntu2004-arm64-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: spinlock-gcc-test
