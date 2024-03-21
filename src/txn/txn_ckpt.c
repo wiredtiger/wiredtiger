@@ -531,7 +531,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
  * __checkpoint_set_scrub_target --
  *     Set the scrub target for the checkpoint.
  */
-static inline void
+static WT_INLINE void
 __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 {
     __wt_set_shared_double(&S2C(session)->cache->eviction_scrub_target, target);
