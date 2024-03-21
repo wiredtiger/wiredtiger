@@ -821,7 +821,8 @@ __wt_lsm_tree_retire_chunks(
  *     Drop an LSM tree.
  */
 int
-__wt_lsm_tree_drop(WT_SESSION_IMPL *session, const char *name, const char *cfg[])
+__wt_lsm_tree_drop(
+  WT_SESSION_IMPL *session, const char *name, const char *cfg[], bool check_visibility)
 {
     WT_DECL_RET;
     WT_LSM_CHUNK *chunk;
@@ -843,18 +844,18 @@ __wt_lsm_tree_drop(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
     /* Drop the chunks. */
     for (i = 0; i < lsm_tree->nchunks; i++) {
         chunk = lsm_tree->chunk[i];
-        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, false));
+        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, check_visibility));
         if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
-            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, false));
+            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, check_visibility));
     }
 
     /* Drop any chunks on the obsolete list. */
     for (i = 0; i < lsm_tree->nold_chunks; i++) {
         if ((chunk = lsm_tree->old_chunks[i]) == NULL)
             continue;
-        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, false));
+        WT_ERR(__wt_schema_drop(session, chunk->uri, cfg, check_visibility));
         if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
-            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, false));
+            WT_ERR(__wt_schema_drop(session, chunk->bloom_uri, cfg, check_visibility));
     }
 
     locked = false;
@@ -865,7 +866,8 @@ __wt_lsm_tree_drop(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
 err:
     if (locked)
         __wt_lsm_tree_writeunlock(session, lsm_tree);
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __lsm_tree_discard(session, lsm_tree, false));
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, tret = __lsm_tree_discard(session, lsm_tree, check_visibility));
     WT_TRET(tret);
     return (ret);
 }

@@ -13,7 +13,8 @@
  *     Drop a file.
  */
 static int
-__drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_file(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -29,7 +30,7 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
     WT_RET(__wt_schema_backup_check(session, filename));
     /* Close all btree handles associated with this file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, false));
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
     WT_RET(ret);
 
     /* Remove the metadata entry (ignore missing items). */
@@ -74,14 +75,15 @@ __drop_colgroup(WT_SESSION_IMPL *session, const char *uri, bool force, const cha
  *     WT_SESSION::drop for an index.
  */
 static int
-__drop_index(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_index(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_DECL_RET;
     WT_INDEX *idx;
 
     /* If we can get the index, detach it from the table. */
     if ((ret = __wt_schema_get_index(session, uri, true, force, &idx)) == 0)
-        WT_TRET(__wt_schema_drop(session, idx->source, cfg, false));
+        WT_TRET(__wt_schema_drop(session, idx->source, cfg, check_visibility));
 
     WT_TRET(__wt_metadata_remove(session, uri));
     return (ret);
@@ -174,7 +176,8 @@ err:
  *     Drop a tiered store.
  */
 static int
-__drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_tiered(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -223,7 +226,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_ERR(__wt_session_release_dhandle(session));
     got_dhandle = false;
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, true));
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
     WT_ERR(ret);
 
     /*
@@ -340,15 +343,15 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
         ret = __drop_colgroup(session, uri, force, cfg);
     else if (WT_PREFIX_MATCH(uri, "file:"))
-        ret = __drop_file(session, uri, force, cfg);
+        ret = __drop_file(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "index:"))
-        ret = __drop_index(session, uri, force, cfg);
+        ret = __drop_index(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
-        ret = __wt_lsm_tree_drop(session, uri, cfg);
+        ret = __wt_lsm_tree_drop(session, uri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __drop_table(session, uri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
-        ret = __drop_tiered(session, uri, force, cfg);
+        ret = __drop_tiered(session, uri, force, cfg, check_visibility);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->drop == NULL ? __wt_object_unsupported(session, uri) :
                                    dsrc->drop(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);
