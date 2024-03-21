@@ -13,7 +13,6 @@ set(WT_BUFFER_ALIGNMENT_DEFAULT "4096" CACHE STRING "")
 # Enable x86 SIMD instrinsics when available.
 CHECK_INCLUDE_FILE("x86intrin.h" has_x86intrin)
 if(has_x86intrin)
-    # Add -msse4.1 for the old compilers
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_X86INTRIN_H" CACHE STRING "" FORCE)
 endif()
 unset(has_x86intrin CACHE)
