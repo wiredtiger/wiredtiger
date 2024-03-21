@@ -61,8 +61,9 @@ __ref_set_state(WT_REF *ref, uint8_t state)
 #else
 /*
  * __ref_track_state --
- *     Save tracking data when REF_TRACK is enabled. This is diagnostic code and we allow it to
- *     race. TSan warnings for this function are suppressed.
+ *     Save tracking data when REF_TRACK is enabled. This is diagnostic code and ref->state changes
+ *     are a hot path. As such we allow some racing in the history tracking code instead of
+ *     requiring a lock and slowing down ref state transitions.
  */
 static WT_INLINE void
 __ref_track_state(
