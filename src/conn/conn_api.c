@@ -1165,18 +1165,6 @@ err:
 }
 
 /*
- * __conn_ramp_eviction_targets --
- *     Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
- *     of cache.
- */
-static inline void
-__conn_ramp_eviction_targets(WT_CONNECTION_IMPL *conn)
-{
-    conn->cache->eviction_dirty_trigger = 1.0;
-    conn->cache->eviction_dirty_target = 0.1;
-}
-
-/*
  * __conn_close --
  *     WT_CONNECTION->close method.
  */
@@ -1195,7 +1183,13 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 err:
 
     __wt_timer_start(session, &timer);
-    __conn_ramp_eviction_targets(conn);
+
+    /*
+     * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
+     * of cache.
+     */
+    __wt_set_shared_double(&conn->cache->eviction_dirty_trigger, 1.0);
+    __wt_set_shared_double(&conn->cache->eviction_dirty_target, 0.1);
 
     if (conn->default_session->event_handler->handle_general != NULL &&
       F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))

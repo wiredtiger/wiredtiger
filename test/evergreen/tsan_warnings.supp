@@ -5,10 +5,8 @@
 # FIXME-WT-12512 TSan is raising warnings about mutexes that are non-intuitive. These will be investigated separately.
 mutex:src
 
-# These function modifh eviction targets concurrently. We can't do floats atomically so we'll just
-# ignore it.
-race:__conn_ramp_eviction_targets
-race:__checkpoint_set_scrub_target
+# This function enables threads to set double values in a shared context, and catches all TSan warnings.
+race:__wt_set_shared_double
 
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
