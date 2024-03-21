@@ -3729,7 +3729,7 @@ tasks:
   - name: model-test-failure-workloads
     tags: ["model_checking"]
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
       - func: "compile wiredtiger"
       - command: shell.exec
         params:
