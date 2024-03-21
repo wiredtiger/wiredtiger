@@ -69,19 +69,36 @@ parse_blkmods(WT_SESSION *session, std::string const &file_uri)
     return hex_blkmod;
 }
 
-static uint8_t
-get_hex_value_from_string(std::string const &source_string, size_t index)
+/*
+ * convert_hex_string_to_byte_vector converts a hex string into a vector of bytes.
+ *
+ * If the string contains invalided hex characters it will throw a std::invalid_argument
+ * exception.
+ */
+static std::vector<uint8_t>
+convert_hex_string_to_byte_vector(std::string const &source_hex_string)
 {
-    uint8_t hex_value = 0;
+    // Confirm that we have a string with an even number of hex digits
+    REQUIRE((source_hex_string.size() % 2) == 0);
 
-    if (index < source_string.length())
-        hex_value = std::stoi(std::string(1, source_string[index]), nullptr, 16);
+    std::vector<uint8_t> byte_vector;
 
-    return hex_value;
+    for (int index = 0; index < (source_hex_string.size() / 2); index++) {
+        int const string_index = index * 2;
+        std::string const sub_string = source_hex_string.substr(string_index, 2);
+        unsigned int value = std::stoi(sub_string, nullptr, 16);
+        REQUIRE(0 <= value);
+        REQUIRE(value <= 255);
+
+        uint8_t byte_value = value;
+        byte_vector.push_back(byte_value);
+    }
+
+    return byte_vector;
 }
 
 /*
- * bool is_new_blkmods_ok() Returns true if all bits that were 1 in orig_blkmod_table are still 1 in
+ * is_new_blkmods_ok() Returns true if all bits that were 1 in orig_blkmod_table are still 1 in
  * new_blkmod_table. Otherwise, it returns 0.
  */
 static bool
@@ -91,9 +108,17 @@ is_new_blkmods_ok(std::string const &orig_blkmod_table, std::string const &new_b
      * If any bits that were 1 in the original blkmod changed, we have an issue.
      */
 
-    for (size_t index = 0; index < orig_blkmod_table.length(); index++) {
-        uint8_t orig_blkmod_hex_value = get_hex_value_from_string(orig_blkmod_table, index);
-        uint8_t new_blkmod_hex_value = get_hex_value_from_string(new_blkmod_table, index);
+    std::vector<uint8_t> orig_blkmod_as_bytes(convert_hex_string_to_byte_vector(orig_blkmod_table));
+    std::vector<uint8_t> new_blkmod_as_bytes(convert_hex_string_to_byte_vector(new_blkmod_table));
+
+    for (size_t index = 0; index < orig_blkmod_as_bytes.size(); index++) {
+        uint8_t orig_blkmod_hex_value = orig_blkmod_as_bytes[index];
+        uint8_t new_blkmod_hex_value = 0;
+
+        // If there is a corresponding byte value in the new blkmods then use it, otherwise use 0
+        if (index < new_blkmod_as_bytes.size())
+            new_blkmod_hex_value = new_blkmod_as_bytes[index];
+
         uint8_t reverted_bits =
           (orig_blkmod_hex_value ^ new_blkmod_hex_value) & orig_blkmod_hex_value;
 
@@ -127,22 +152,13 @@ test_check_incorrect_modified_bits(
     return is_ok;
 }
 
-TEST_CASE("Backup: Test get_hex_value_from_string()", "[backup]")
+TEST_CASE("Backup: Test convert_hex_string_to_byte_vector()", "[backup]")
 {
-    std::string source_string = "feffff0700000000";
-    REQUIRE(get_hex_value_from_string(source_string, 0) == 0xf);
-    REQUIRE(get_hex_value_from_string(source_string, 1) == 0xe);
-    REQUIRE(get_hex_value_from_string(source_string, 2) == 0xf);
-    REQUIRE(get_hex_value_from_string(source_string, 3) == 0xf);
-    REQUIRE(get_hex_value_from_string(source_string, 4) == 0xf);
-    REQUIRE(get_hex_value_from_string(source_string, 5) == 0xf);
-    REQUIRE(get_hex_value_from_string(source_string, 6) == 0x0);
-    REQUIRE(get_hex_value_from_string(source_string, 7) == 0x7);
-    REQUIRE(get_hex_value_from_string(source_string, 8) == 0x0);
-    REQUIRE(get_hex_value_from_string(source_string, 9) == 0x0);
+    std::string hex_source_string = "feffff0700000000";
+    std::vector<uint8_t> byte_vector {0xfe, 0xff, 0xff, 0x07, 0x00, 0x00, 0x00, 0x00};
+    REQUIRE(convert_hex_string_to_byte_vector(hex_source_string) == byte_vector);
 
-    // Test access beyond the length of the source string.
-    REQUIRE(get_hex_value_from_string(source_string, 1000) == 0x0);
+    REQUIRE_THROWS_AS(convert_hex_string_to_byte_vector("invalid hex "), std::invalid_argument);
 }
 
 TEST_CASE("Backup: Test is_new_blkmods_ok() - simple", "[backup]")
@@ -177,7 +193,7 @@ TEST_CASE("Backup: Test is_new_blkmods_ok()", "[backup]")
     REQUIRE_FALSE(is_table2_ok);
     REQUIRE_FALSE(is_table3_ok);
 
-    REQUIRE(is_new_blkmods_ok("1", "1"));
+    REQUIRE(is_new_blkmods_ok("10", "10"));
 }
 
 TEST_CASE("Backup: null pointer params to __check_incorrect_modified_bits()", "[backup]")
@@ -207,26 +223,51 @@ TEST_CASE("Backup: check modified bits - simple", "[backup]")
 
 TEST_CASE("Backup: check modified bits", "[backup]")
 {
-    std::string orig_blkmod_table1 = "feffff0700000000";
-    std::string orig_blkmod_table2 = "feffff0700000000";
-    std::string orig_blkmod_table3 = "feffff0700000000";
+    SECTION("Simpler cases")
+    {
+        std::string orig_blkmod_table1 = "feffff0700000000";
+        std::string orig_blkmod_table2 = "feffff0700000000";
+        std::string orig_blkmod_table3 = "feffff0700000000";
 
-    // new_blkmod_table1 is ok
-    std::string new_blkmod_table1 = "ffffffff01000000";
-    // new_blkmod_table2 is not ok, as some bits have switched to 0
-    std::string new_blkmod_table2 = "ff0fffff01000000";
-    // new_blkmod_table3 is not ok, as it is shorter than the original and some set
-    // bits have been lost
-    std::string new_blkmod_table3 = "ffffff";
+        // new_blkmod_table1 is ok
+        std::string new_blkmod_table1 = "ffffffff01000000";
+        // new_blkmod_table2 is not ok, as some bits have switched to 0
+        std::string new_blkmod_table2 = "ff0fffff01000000";
+        // new_blkmod_table3 is not ok, as it is shorter than the original and some set
+        // bits have been lost
+        std::string new_blkmod_table3 = "ffffff";
 
-    bool is_table1_ok = test_check_incorrect_modified_bits(orig_blkmod_table1, new_blkmod_table1);
-    bool is_table2_ok = test_check_incorrect_modified_bits(orig_blkmod_table2, new_blkmod_table2);
-    bool is_table3_ok =
-      test_check_incorrect_modified_bits(orig_blkmod_table3, new_blkmod_table3, EINVAL);
+        bool is_table1_ok =
+          test_check_incorrect_modified_bits(orig_blkmod_table1, new_blkmod_table1);
+        bool is_table2_ok =
+          test_check_incorrect_modified_bits(orig_blkmod_table2, new_blkmod_table2);
+        bool is_table3_ok =
+          test_check_incorrect_modified_bits(orig_blkmod_table3, new_blkmod_table3, EINVAL);
 
-    REQUIRE(is_table1_ok);
-    REQUIRE_FALSE(is_table2_ok);
-    REQUIRE_FALSE(is_table3_ok);
+        REQUIRE(is_table1_ok);
+        REQUIRE_FALSE(is_table2_ok);
+        REQUIRE_FALSE(is_table3_ok);
+    }
+
+    SECTION("Longer patterns")
+    {
+        // These blk_mod patterns match those from "Backup: Test blkmods in incremental backup"
+
+        std::string orig_blkmod_table1 = "feffff07000000000000000000000000";
+
+        // new_blkmod_table1 is ok
+        std::string new_blkmod_table1 = "ffffffff010000000000000000000000";
+
+        bool is_table1_ok =
+          test_check_incorrect_modified_bits(orig_blkmod_table1, new_blkmod_table1);
+
+        REQUIRE(is_table1_ok);
+
+        bool is_table1_ok2 =
+          is_new_blkmods_ok(orig_blkmod_table1, new_blkmod_table1);
+
+        REQUIRE(is_table1_ok2);
+    }
 }
 
 TEST_CASE("Backup: Test blkmods in incremental backup", "[backup]")
