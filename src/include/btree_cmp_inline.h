@@ -29,7 +29,7 @@
  *     application is looking at when we call its comparison function.
  */
 static WT_INLINE int
-__wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
+__wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix)
 {
     size_t len, usz, tsz;
     const uint8_t *userp, *treep;
@@ -89,12 +89,28 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     /*
      * Use the non-vectorized version for the remaining bytes and for the small key sizes.
      */
-    for (; len > 0; --len, ++userp, ++treep)
+    for (; len > 0; --len, ++userp, ++treep) {
+        /*
+         * When prefix is enabled and we are performing lexicographic comparison on schema formats s
+         * or S, we only want to compare the characters before either of them reach a NUL character.
+         * For format S, a NUL character is always at the end of the string, while for the format s,
+         * NUL characters are set for the remaining unused bytes. If we are at the end of the user
+         * item (which is the prefix here), there is a prefix match. Otherwise, the tree item is
+         * lexicographically smaller than the prefix.
+         */
+        if (prefix && (*userp == '\0' || *treep == '\0'))
+            return (*userp == '\0' ? 0 : 1);
         if (*userp != *treep)
             return (*userp < *treep ? -1 : 1);
+    }
 
-    /* Contents are equal up to the smallest length. */
-    return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+    /*
+     * Contents are equal up to the smallest length. In the case of a prefix match, we consider the
+     * tree item and the prefix equal only if the tree item is bigger in size.
+     */
+    if (usz == tsz || (prefix && usz < tsz))
+        return (0);
+    return ((usz < tsz) ? -1 : 1);
 }
 
 /*
@@ -106,10 +122,20 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
   const WT_ITEM *tree_item, int *cmpp)
 {
     if (collator == NULL) {
-        *cmpp = __wt_lex_compare(user_item, tree_item);
+        *cmpp = __wt_lex_compare(user_item, tree_item, false);
         return (0);
     }
     return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
+}
+
+/*
+ * __wt_prefix_match --
+ *     Check if the prefix item is equal to the leading bytes of the tree item.
+ */
+static inline int
+__wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
+{
+    return (__wt_lex_compare(prefix, tree_item, true));
 }
 
 /*
@@ -256,7 +282,7 @@ __wt_lex_compare_skip(
      */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREFIX_COMPARE)) {
         int full_cmp_ret;
-        full_cmp_ret = __wt_lex_compare(user_item, tree_item);
+        full_cmp_ret = __wt_lex_compare(user_item, tree_item, false);
         WT_ASSERT_ALWAYS(NULL, full_cmp_ret == ret_val,
           "Comparison that skipped prefix returned different result than a full comparison");
     }

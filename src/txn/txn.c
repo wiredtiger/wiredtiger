@@ -1659,7 +1659,7 @@ __txn_mod_compare(const void *a, const void *b)
     /* Finally, order by key. We cannot sort if there is a collator as we need a session pointer. */
     if (aopt->btree->type == BTREE_ROW) {
         return (aopt->btree->collator == NULL ?
-            __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
+            __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key, false) :
             0);
     }
     if (aopt->u.op_col.recno < bopt->u.op_col.recno)
