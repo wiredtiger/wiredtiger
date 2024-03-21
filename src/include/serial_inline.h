@@ -300,7 +300,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 
     /*
      * Look for obsolete updates if the page size is more than 50% of the maximum split page size
-     * allowed by btree.
+     * allowed by btree. This is to prevent unnecessary page splits due to the obsolete updates
+     * present on the page.
      */
     if (page->memory_footprint > (S2BT(session)->splitmempage * 0.5))
         __wt_update_obsolete_check(session, cbt->ref, upd->next, false);

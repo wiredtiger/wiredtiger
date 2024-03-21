@@ -366,6 +366,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
+        WT_MEMORY_PREFETCH(upd->next);
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
