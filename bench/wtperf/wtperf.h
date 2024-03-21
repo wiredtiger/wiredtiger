@@ -275,6 +275,7 @@ struct __wtperf_thread {    /* Per-thread structure */
     WT_RAND_STATE rnd; /* Random number generation state */
 
     wt_thread_t handle; /* Handle */
+    u_int id;
 
     char *index_buf, *index_del_buf; /* Index memory */
     char *key_buf, *value_buf;       /* Key/value memory */
