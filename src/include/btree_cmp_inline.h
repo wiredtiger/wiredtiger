@@ -29,7 +29,7 @@ static WT_INLINE int
 __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     __m128i res_eq, res_gt, t, u;
-    uint16_t eq_bits;
+    int32_t eq_bits;
     const uint8_t *tendp, *treep, *uendp, *userp;
 
     uendp = ustartp + len;
@@ -44,7 +44,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         u = _mm_loadu_si128((const __m128i *)userp);
         t = _mm_loadu_si128((const __m128i *)treep);
         res_eq = _mm_cmpeq_epi8(u, t);
-        if ((eq_bits = (uint16_t)_mm_movemask_epi8(res_eq)) != 65535)
+        if ((eq_bits = _mm_movemask_epi8(res_eq)) != 65535)
             goto final128;
     }
 
@@ -55,7 +55,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
     t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
     res_eq = _mm_cmpeq_epi8(u, t);
-    eq_bits = (uint16_t)_mm_movemask_epi8(res_eq);
+    eq_bits = _mm_movemask_epi8(res_eq);
 
 final128:
     if (eq_bits == 65535)
@@ -344,7 +344,7 @@ final128:
         *matchp = len;
         return (lencmp);
     } else {
-        match += (size_t)__builtin_clz(eq_bits) - 16;
+        match += (size_t)__builtin_clz((uint32_t)eq_bits) - 16;
         *matchp = match;
         res_gt = _mm_cmpgt_epi8(u, t);
         return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
