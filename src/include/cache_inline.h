@@ -15,7 +15,12 @@
 static WT_INLINE bool
 __wt_cache_aggressive(WT_SESSION_IMPL *session)
 {
-    return (S2C(session)->cache->evict_aggressive_score >= WT_EVICT_SCORE_CUTOFF);
+    /*
+     * If the aggressive score of eviction exceeds the cutoff score or the cache utilization exceeds
+     * the cache size, the cache will operate in aggressive mode.
+     */
+    return (S2C(session)->cache->evict_aggressive_score >= WT_EVICT_SCORE_CUTOFF ||
+      S2C(session)->cache->bytes_inmem > S2C(session)->cache_size);
 }
 
 /*
