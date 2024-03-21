@@ -5,10 +5,10 @@
 # FIXME-WT-12512 TSan is raising warnings about mutexes that are non-intuitive. These will be investigated separately.
 mutex:src
 
-# FIXME-WT-12514 Some of our shared variables are floats or doubles which can't be accessed using atomic instrinsics.
-race:__wt_eviction_dirty_target
-race:__wt_eviction_dirty_needed
-race:__evict_update_work
+# These function modifh eviction targets concurrently. We can't do floats atomically so we'll just
+# ignore it.
+race:__conn_ramp_eviction_targets
+race:__checkpoint_set_scrub_target
 
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
