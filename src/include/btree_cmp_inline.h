@@ -312,7 +312,6 @@ __lex_compare_skip_gt_16(
     int leading_zero_bytes;
     size_t match;
     const uint8_t *tendp, *treep, *uendp, *userp;
-    bool firsteq;
 
     match = *matchp;
     uendp = ustartp + len;
