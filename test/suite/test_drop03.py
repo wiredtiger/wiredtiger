@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from helper import confirm_does_not_exist
+from helper import confirm_does_not_exist, confirm_nonempty
 
 # test_drop03.py
 # Test dropping a collection under an active transaction. We should return EBUSY.
@@ -75,6 +75,8 @@ class test_drop03(wttest.WiredTigerTestCase):
         self.prout("drop with force=false should fail.")
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, "force=false")),
                         "was expecting drop call to fail with EBUSY")
+        self.prout("Exists after first unsuccessful drop. confirm_nonempty().")
+        confirm_nonempty(self, self.uri)
         # Verify values after drop with force=false
         self.prout("Verify values after drop with force=false.")
         self.verify_value(self.uri, self.session, 'key: aaa', 'value: aaa')
@@ -87,6 +89,8 @@ class test_drop03(wttest.WiredTigerTestCase):
         self.prout("drop with force=true should fail.")
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, "force=true")),
                         "was expecting drop call to fail with EBUSY")
+        self.prout("Exists after second unsuccessful drop. confirm_nonempty().")
+        confirm_nonempty(self, self.uri)
         # Verify values after drop with force=true
         self.prout("Verify values after drop with force=true.")
         self.verify_value(self.uri, self.session, 'key: aaa', 'value: aaa')
@@ -114,7 +118,7 @@ class test_drop03(wttest.WiredTigerTestCase):
         confirm_does_not_exist(self, self.uri)
 
         # Drop call of non-existent table should fail without the force option.
-        self.prout("drop force=false without active transaction should succeed.")
+        self.prout("drop force=false of non-existent table should fail.")
         self.assertRaises(wiredtiger.WiredTigerError,
                           lambda: self.session.drop(self.uri, "force=false"))
 
