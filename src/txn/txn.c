@@ -1901,7 +1901,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         if (op->type == WT_TXN_OP_REF_DELETE) {
-            __wt_ref_lock(session, op->u.ref, &previous_state);
+            WT_REF_LOCK(session, op->u.ref, &previous_state);
 
             /*
              * Only two cases are possible. First: the state is WT_REF_DELETED. In this case

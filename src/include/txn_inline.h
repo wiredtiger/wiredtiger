@@ -278,7 +278,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
     uint8_t previous_state;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
-    __wt_ref_lock(session, ref, &previous_state);
+    WT_REF_LOCK(session, ref, &previous_state);
 
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
@@ -324,7 +324,7 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF
     txn = session->txn;
     page_del = ref->page_del;
 
-    WT_ASSERT(session, __wt_ref_get_state(ref) == WT_REF_LOCKED);
+    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = txn->commit_timestamp;
@@ -346,7 +346,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
     txn = session->txn;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
-    __wt_ref_lock(session, ref, &previous_state);
+    WT_REF_LOCK(session, ref, &previous_state);
 
     /*
      * Timestamps are in the page deleted structure for truncates, or in the updates in the case of

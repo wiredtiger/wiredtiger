@@ -2093,7 +2093,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
         return (true);
 
     first = pindex->index[0];
-    if (__wt_ref_get_state(first) != WT_REF_MEM) /* no child page, ignore */
+    if (WT_REF_GET_STATE(first) != WT_REF_MEM) /* no child page, ignore */
         return (false);
 
     /*
@@ -2333,7 +2333,7 @@ __wt_btcur_skip_page(
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
      * make changes to the data structures (i.e., aggregate timestamps) we are reading.
      */
-    __wt_ref_lock(session, ref, &previous_state);
+    WT_REF_LOCK(session, ref, &previous_state);
 
     /*
      * Check the fast-truncate information; there are 3 cases:

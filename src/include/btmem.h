@@ -1091,10 +1091,10 @@ struct __wt_ref {
     /*
      * Ref state: Obscure the field name as this field shouldn't be accessed directly. The public
      * interface is made up of five functions:
-     *  - __wt_ref_get_state
+     *  - WT_REF_GET_STATE
      *  - WT_REF_SET_STATE
      *  - WT_REF_CAS_STATE
-     *  - __wt_ref_lock
+     *  - WT_REF_LOCK
      *  - WT_REF_UNLOCK
      *
      * For more details on these functions see ref_inline.h.
