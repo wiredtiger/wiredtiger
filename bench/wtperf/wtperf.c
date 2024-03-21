@@ -405,8 +405,8 @@ worker(void *arg)
         goto err;
     }
     if (opts->index_like_table)
-        lprintf(wtperf, 0, 0, "worker %u: Opened index cursor to %s cursor %p", thread->id,
-          wtperf->index_table_uri, (void *)index_cursor);
+        lprintf(wtperf, 0, 0, "worker index multiplier %u: Opened index cursor to %s cursor %p",
+          thread->index_mult, wtperf->index_table_uri, (void *)index_cursor);
 
     if (opts->log_like_table &&
       (ret = session->open_cursor(session, wtperf->log_table_uri, NULL, NULL, &log_table_cursor)) !=
@@ -482,7 +482,7 @@ worker(void *arg)
 
         generate_key(opts, key_buf, next_val);
         if (opts->index_like_table)
-            generate_index_key(wtperf, index_buf, next_val);
+            generate_index_key(wtperf, thread->index_mult, index_buf, next_val);
 
         if (workload->table_index == INT32_MAX)
             /*
@@ -706,7 +706,6 @@ op_err:
             if (ret == 0) {
                 index_cursor->set_key(index_cursor, index_buf);
                 index_cursor->set_value(index_cursor, INDEX_VALUE);
-                increment_index_info(wtperf);
                 ret = index_cursor->insert(index_cursor);
                 if (ret != 0 && ret != WT_ROLLBACK)
                     lprintf(wtperf, ret, 1, "Cursor index insert failed");
@@ -1007,7 +1006,7 @@ populate_thread(void *arg)
         cursor = cursors[map_key_to_table(wtperf->opts, op)];
         generate_key(opts, key_buf, op);
         if (opts->index_like_table)
-            generate_index_key(wtperf, index_buf, op);
+            generate_index_key(wtperf, INDEX_POPULATE_MULT, index_buf, op);
         measure_latency =
           opts->sample_interval != 0 && trk->ops != 0 && (trk->ops % opts->sample_rate == 0);
         if (measure_latency)
@@ -1029,7 +1028,7 @@ populate_thread(void *arg)
             goto err;
         }
         if (opts->index_like_table) {
-            generate_index_key(wtperf, key_buf, op);
+            generate_index_key(wtperf, INDEX_POPULATE_MULT, key_buf, op);
             index_cursor->set_key(index_cursor, key_buf);
             index_cursor->set_value(index_cursor, INDEX_VALUE);
             if ((ret = index_cursor->insert(index_cursor)) == WT_ROLLBACK) {
@@ -1044,7 +1043,6 @@ populate_thread(void *arg)
                 lprintf(wtperf, ret, 0, "Failed index inserting");
                 goto err;
             }
-            increment_index_info(wtperf);
         }
         /*
          * Gather statistics. We measure the latency of inserting a single key. If there are
@@ -1651,8 +1649,7 @@ execute_populate(WTPERF *wtperf)
     /* Start cycling idle tables if configured. */
     start_idle_table_cycle(wtperf, &idle_table_cycle_thread);
 
-    wtperf->index_multiplier = 1;
-    wtperf->index_ops = 0;
+    wtperf->index_max_multiplier = 1;
     wtperf->insert_key = 0;
 
     wtperf->popthreads = dcalloc(opts->populate_threads, sizeof(WTPERF_THREAD));
@@ -2274,6 +2271,9 @@ create_tiered_bucket(WTPERF *wtperf)
     char buf[1024];
     size_t home_len, bucket_len;
 
+    /* If tiered storage is not set, there is nothing to do. */
+    if (wtperf->tiered_ext == NULL)
+        return (0);
     opts = wtperf->opts;
     home_len = strlen(wtperf->home);
     bucket_len = strlen(opts->tiered_bucket);
@@ -2819,7 +2819,11 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
     for (i = 0, thread = base; i < num; ++i, ++thread) {
         thread->wtperf = wtperf;
         thread->workload = workp;
-        thread->id = i;
+        /*
+         * Thread counter starts at zero and the populate threads reserve a value so start the index
+         * multiplier after that. Keep track of the largest we generate.
+         */
+        thread->index_mult = wtperf->index_max_multiplier = INDEX_POPULATE_MULT + i + 1;
 
         /*
          * We don't want the threads executing in lock-step, seed each one differently.

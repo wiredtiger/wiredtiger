@@ -78,6 +78,7 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define MAX_MODIFY_NUM 16
 
 #define INDEX_BASE 10000
+#define INDEX_POPULATE_MULT 1
 #define INDEX_VALUE "SMALL_VALUE"
 
 typedef struct {
@@ -182,10 +183,9 @@ struct __wtperf {          /* Per-database structure */
     uint64_t truncate_ops; /* truncate operations */
     uint64_t update_ops;   /* update operations */
 
-    uint64_t index_multiplier;   /* used to find and modify index keys */
-    uint64_t index_ops;          /* used to allocate IDs for index table */
-    uint64_t insert_key;         /* insert key */
-    uint64_t log_like_table_key; /* used to allocate IDs for log table */
+    uint64_t index_max_multiplier; /* used to find and modify index keys */
+    uint64_t insert_key;           /* insert key */
+    uint64_t log_like_table_key;   /* used to allocate IDs for log table */
 
     volatile bool backup;    /* backup in progress */
     volatile bool ckpt;      /* checkpoint in progress */
@@ -275,7 +275,7 @@ struct __wtperf_thread {    /* Per-thread structure */
     WT_RAND_STATE rnd; /* Random number generation state */
 
     wt_thread_t handle; /* Handle */
-    u_int id;
+    u_int index_mult;
 
     char *index_buf, *index_del_buf; /* Index memory */
     char *key_buf, *value_buf;       /* Key/value memory */
@@ -311,8 +311,7 @@ void config_opt_usage(void);
 char *config_reopen(CONFIG_OPTS *);
 int config_sanity(WTPERF *);
 int delete_index_key(WTPERF *, WT_CURSOR *, char *, uint64_t);
-void generate_index_key(WTPERF *, char *, uint64_t);
-void increment_index_info(WTPERF *);
+void generate_index_key(WTPERF *, u_int, char *, uint64_t);
 void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_print(WTPERF *);
