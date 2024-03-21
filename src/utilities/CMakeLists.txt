@@ -33,10 +33,6 @@ target_include_directories(wt
 )
 target_link_libraries(wt wt::wiredtiger)
 
-if(ENABLE_TCMALLOC)
-    target_link_libraries(wt wt::wiredtiger wt::tcmalloc)
-endif()
-
 if(ENABLE_ANTITHESIS)
     target_link_libraries(wt wt::voidstar)
 endif()
