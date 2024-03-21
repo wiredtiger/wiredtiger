@@ -24,14 +24,13 @@
  *     lexicographically < tree_item, = 0 if user_item is lexicographically = tree_item, > 0 if
  *     user_item is lexicographically > tree_item. We use the names "user" and "tree" so it's clear
  *     in the btree code which the application is looking at when we call its comparison function.
- *     Some platforms like ARM offer dedicated instructions for reading 16 bytes at a time, allowing
- *     for faster comparisons.
  */
 static WT_INLINE int
 __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
-    __m128i res_eq, t, u;
+    __m128i res_eq, res_gt, t, u;
     uint64_t t64, tfirst, u64, ufirst;
+    uint32_t eq_bits;
     const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
 
@@ -47,7 +46,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         u = _mm_loadu_si128((const __m128i *)userp);
         t = _mm_loadu_si128((const __m128i *)treep);
         res_eq = _mm_cmpeq_epi8(u, t);
-        if (_mm_movemask_epi8(res_eq) != 65535)
+        if ((eq_bits = _mm_movemask_epi8(res_eq)) != 65535)
             goto final128;
     }
 
@@ -57,20 +56,16 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
      */
     u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
     t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
+    res_eq = _mm_cmpeq_epi8(u, t);
+    eq_bits = _mm_movemask_epi8(res_eq);
 
 final128:
-    ufirst = (uint64_t)_mm_extract_epi64(u, 0);
-    tfirst = (uint64_t)_mm_extract_epi64(t, 0);
-    firsteq = ufirst == tfirst;
-    u64 = firsteq ? (uint64_t)_mm_extract_epi64(u, 1) : ufirst;
-    t64 = firsteq ? (uint64_t)_mm_extract_epi64(t, 1) : tfirst;
-
-#ifndef WORDS_BIGENDIAN
-    u64 = __wt_bswap64(u64);
-    t64 = __wt_bswap64(t64);
-#endif
-
-    return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
+    if (eq_bits == 65535)
+        return (lencmp);
+    else {
+        res_gt = _mm_cmpgt_epi8(u, t);
+        return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
+    }
 }
 #else
 /*
@@ -307,9 +302,7 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
  *     Returns: < 0 if user_item is lexicographically < tree_item = 0 if user_item is
  *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
  *     names "user" and "tree" so it's clear in the btree code which the application is looking at
- *     when we call its comparison function. Some platforms like ARM offer dedicated instructions
- *     for reading 16 bytes at a time, allowing for faster comparisons. Some platforms like ARM
- *     offer dedicated instructions for reading 16 bytes at a time, allowing for faster comparisons.
+ *     when we call its comparison function.
  */
 static WT_INLINE int
 __lex_compare_skip_gt_16(
@@ -347,26 +340,20 @@ __lex_compare_skip_gt_16(
      */
     u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
     t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
-    match = (size_t)(uendp - ustartp) - WT_VECTOR_SIZE;
+    res_eq = _mm_cmpeq_epi8(u, t);
+    eq_bits = _mm_movemask_epi8(res_eq);
 
 final128:
-    ufirst = (uint64_t)_mm_extract_epi64(u, 0);
-    tfirst = (uint64_t)_mm_extract_epi64(t, 0);
-    firsteq = ufirst == tfirst;
-    u64 = firsteq ? (uint64_t)_mm_extract_epi64(u, 1) : ufirst;
-    t64 = firsteq ? (uint64_t)_mm_extract_epi64(t, 1) : tfirst;
-    match += firsteq ? sizeof(uint64_t) : 0;
-
-#ifndef WORDS_BIGENDIAN
-    u64 = __wt_bswap64(u64);
-    t64 = __wt_bswap64(t64);
-#endif
-
-    WT_LEADING_ZEROS(u64 ^ t64, leading_zero_bytes);
-    match += (size_t)leading_zero_bytes;
-    *matchp = match;
-
-    return (u64 < t64 ? -1 : u64 > t64 ? 1 : lencmp);
+    if (eq_bits == 65535) {
+        *matchp = len;
+        return (lencmp);
+    } else {
+        WT_TRAILING_ZEROS(~eq_bits, leading_zero_bytes);
+        match += leading_zero_bytes;
+        *matchp = match;
+        res_gt = _mm_cmpgt_epi8(u, t);
+        return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
+    }
 }
 #else
 /*
@@ -376,8 +363,7 @@ final128:
  *     lexicographically = tree_item > 0 if user_item is lexicographically > tree_item We use the
  *     names "user" and "tree" so it's clear in the btree code which the application is looking at
  *     when we call its comparison function. Some platforms like ARM offer dedicated instructions
- *     for reading 16 bytes at a time, allowing for faster comparisons. Some platforms like ARM
- *     offer dedicated instructions for reading 16 bytes at a time, allowing for faster comparisons.
+ *     for reading 16 bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
 __lex_compare_skip_gt_16(
@@ -422,7 +408,7 @@ final128:
     firsteq = udata.a == tdata.a;
     u64 = firsteq ? udata.b : udata.a;
     t64 = firsteq ? tdata.b : tdata.a;
-    match += firsteq ? sizeof(uint64_t) : 0;
+    match += firsteq * sizeof(uint64_t);
 
 #ifndef WORDS_BIGENDIAN
     u64 = __wt_bswap64(u64);
