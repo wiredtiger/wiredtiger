@@ -405,8 +405,8 @@ worker(void *arg)
         goto err;
     }
     if (opts->index_like_table)
-        lprintf(wtperf, 0, 0, "worker index multiplier %u: Opened index cursor to %s cursor %p",
-          thread->index_mult, wtperf->index_table_uri, (void *)index_cursor);
+        lprintf(wtperf, 0, 0, "worker index multiplier %u: Opened index cursor %p to %s",
+          thread->index_mult, (void *)index_cursor, wtperf->index_table_uri);
 
     if (opts->log_like_table &&
       (ret = session->open_cursor(session, wtperf->log_table_uri, NULL, NULL, &log_table_cursor)) !=
