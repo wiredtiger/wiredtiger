@@ -7,8 +7,8 @@ cd $(git rev-parse --show-toplevel)/cmake_build/test/model/tools || exit 1
 
 # Check the existence of the 'model_test' binary.
 if [ ! -x model_test ]; then
-	echo "'model_test' binary does not exist, exiting ..."
-	exit 1
+    echo "'model_test' binary does not exist, exiting ..."
+    exit 1
 fi
 
 # Run all workloads.
@@ -16,11 +16,11 @@ SUCCESS=0
 FAILURE=0
 for W in $(find ../../../../test/model/workloads -name "*.workload" | sort)
 do
-	BASENAME_WORKLOAD=$(basename ${W%.workload})
+    BASENAME_WORKLOAD=$(basename ${W%.workload})
     echo
-	echo "Testing workload $BASENAME_WORKLOAD"
+    echo "Testing workload $BASENAME_WORKLOAD"
 
-	./model_test -R -h "WT_TEST_$BASENAME_WORKLOAD" -w "$W"
+    ./model_test -R -h "WT_TEST_$BASENAME_WORKLOAD" -w "$W"
     RESULT="$?"
 
     if [ $RESULT == 0 ]; then
