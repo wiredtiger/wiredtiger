@@ -405,7 +405,8 @@ worker(void *arg)
         goto err;
     }
     if (opts->index_like_table)
-        lprintf(wtperf, 0, 0, "worker %u: Opened index cursor to %s cursor %p", thread->id, wtperf->index_table_uri, (void *)index_cursor);
+        lprintf(wtperf, 0, 0, "worker %u: Opened index cursor to %s cursor %p", thread->id,
+          wtperf->index_table_uri, (void *)index_cursor);
 
     if (opts->log_like_table &&
       (ret = session->open_cursor(session, wtperf->log_table_uri, NULL, NULL, &log_table_cursor)) !=
@@ -700,16 +701,16 @@ op_err:
         /* Update the index-like table. */
         if (opts->index_like_table && (*op != WORKER_READ && *op != WORKER_TRUNCATE)) {
             if ((ret = delete_index_key(wtperf, index_cursor, index_del_buf, next_val)) != 0)
-	        if (ret != WT_ROLLBACK)
+                if (ret != WT_ROLLBACK)
                     lprintf(wtperf, ret, 1, "Cursor index delete failed");
-	    if (ret == 0) {
+            if (ret == 0) {
                 index_cursor->set_key(index_cursor, index_buf);
                 index_cursor->set_value(index_cursor, INDEX_VALUE);
                 increment_index_info(wtperf);
                 ret = index_cursor->insert(index_cursor);
-		if (ret != 0 && ret != WT_ROLLBACK)
+                if (ret != 0 && ret != WT_ROLLBACK)
                     lprintf(wtperf, ret, 1, "Cursor index insert failed");
-	    }
+            }
             if (ret != 0) {
                 if (ret == WT_ROLLBACK && ops_per_txn == 0) {
                     if ((ret = session->rollback_transaction(session, NULL)) != 0) {
@@ -2818,7 +2819,7 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
     for (i = 0, thread = base; i < num; ++i, ++thread) {
         thread->wtperf = wtperf;
         thread->workload = workp;
-	thread->id = i;
+        thread->id = i;
 
         /*
          * We don't want the threads executing in lock-step, seed each one differently.

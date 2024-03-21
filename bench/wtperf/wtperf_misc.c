@@ -52,7 +52,7 @@ delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_
         if (ret == WT_NOTFOUND)
             continue;
         if (ret == WT_ROLLBACK)
-	    return (ret);
+            return (ret);
         lprintf(wtperf, ret, 1, "Delete earlier index key failed");
     }
     return (0);
