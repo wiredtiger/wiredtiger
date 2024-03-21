@@ -72,8 +72,7 @@ parse_blkmods(WT_SESSION *session, std::string const &file_uri)
 /*
  * convert_hex_string_to_byte_vector converts a hex string into a vector of bytes.
  *
- * If the string contains invalided hex characters it will throw a std::invalid_argument
- * exception.
+ * If the string contains invalided hex characters it will throw a std::invalid_argument exception.
  */
 static std::vector<uint8_t>
 convert_hex_string_to_byte_vector(std::string const &source_hex_string)
@@ -155,7 +154,7 @@ test_check_incorrect_modified_bits(
 TEST_CASE("Backup: Test convert_hex_string_to_byte_vector()", "[backup]")
 {
     std::string hex_source_string = "feffff0700000000";
-    std::vector<uint8_t> byte_vector {0xfe, 0xff, 0xff, 0x07, 0x00, 0x00, 0x00, 0x00};
+    std::vector<uint8_t> byte_vector{0xfe, 0xff, 0xff, 0x07, 0x00, 0x00, 0x00, 0x00};
     REQUIRE(convert_hex_string_to_byte_vector(hex_source_string) == byte_vector);
 
     REQUIRE_THROWS_AS(convert_hex_string_to_byte_vector("invalid hex "), std::invalid_argument);
@@ -263,8 +262,7 @@ TEST_CASE("Backup: check modified bits", "[backup]")
 
         REQUIRE(is_table1_ok);
 
-        bool is_table1_ok2 =
-          is_new_blkmods_ok(orig_blkmod_table1, new_blkmod_table1);
+        bool is_table1_ok2 = is_new_blkmods_ok(orig_blkmod_table1, new_blkmod_table1);
 
         REQUIRE(is_table1_ok2);
     }
