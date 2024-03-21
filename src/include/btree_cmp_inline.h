@@ -345,7 +345,7 @@ final128:
         *matchp = len;
         return (lencmp);
     } else {
-        WT_LEADING_ZEROS(~eq_bits, leading_zero_bytes);
+        WT_LEADING_ZEROS(~(uint32_t)eq_bits, leading_zero_bytes);
         match += (size_t)leading_zero_bytes;
         *matchp = match;
         res_gt = _mm_cmpgt_epi8(u, t);
