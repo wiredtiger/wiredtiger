@@ -308,8 +308,7 @@ __lex_compare_skip_gt_16(
 {
     __m128i res_eq, res_gt, t, u;
     uint16_t eq_bits;
-    int leading_zero_bytes;
-    size_t match;
+    size_t match, leading_zero_bytes;
     const uint8_t *tendp, *treep, *uendp, *userp;
 
     match = *matchp;
@@ -345,8 +344,8 @@ final128:
         *matchp = len;
         return (lencmp);
     } else {
-        __builtin_clzll(~eq_bits);
-        match += (size_t)leading_zero_bytes;
+        leading_zero_bytes = __builtin_clzll(~eq_bits);
+        match += leading_zero_bytes;
         *matchp = match;
         res_gt = _mm_cmpgt_epi8(u, t);
         return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
