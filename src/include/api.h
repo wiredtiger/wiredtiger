@@ -55,6 +55,36 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
+/*
+ * Helper macros to correctly read and check the API counters. Carefully read the out counter before
+ * the in counter otherwise the out counter can include more API calls than the in and make the
+ * balance negative.
+ */
+#define WT_API_COUNTER_REALIZE(s, counter, output)                                      \
+    {                                                                                   \
+        uint64_t _api_count_in, _api_count_out;                                         \
+        WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out);                            \
+        WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);                              \
+        if ((s)->id != 0)                                                               \
+            WT_ASSERT(session, _api_count_in >= _api_count_out);                        \
+        (output) = _api_count_out > _api_count_in ? 0 : _api_count_in - _api_count_out; \
+    }
+
+#ifdef HAVE_DIAGNOSTIC
+#define WT_API_COUNTER_CHECK(s, counter)                                                  \
+    {                                                                                     \
+        /* The global connection session is shared so the count can be off temporarily */ \
+        if ((s)->id != 0) {                                                               \
+            uint64_t _api_count_in, _api_count_out;                                       \
+            WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out);                          \
+            WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);                            \
+            WT_ASSERT(session, _api_count_in >= _api_count_out);                          \
+        }                                                                                 \
+    }
+#else
+#define WT_API_COUNTER_CHECK(s, counter) /* No-op in release builds */
+#endif
+
 #define API_SESSION_PUSH(s, struct_name, func_name, dh)                                      \
     WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
     const char *__oldname;                                                                   \
@@ -63,10 +93,26 @@
     __oldname = (s)->name;                                                                   \
     ++(s)->api_call_counter;                                                                 \
     (s)->dhandle = (dh);                                                                     \
-    (s)->name = (s)->lastop = #struct_name "." #func_name
-#define API_SESSION_POP(s)  \
-    (s)->dhandle = __olddh; \
-    (s)->name = __oldname;  \
+    (s)->name = (s)->lastop = #struct_name "." #func_name;                                   \
+    if ((s)->id != 0 && (s)->api_call_counter == 1) {                                        \
+        if (F_ISSET(session, WT_SESSION_INTERNAL))                                           \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_internal_in, 1);                      \
+        else                                                                                 \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_in, 1);                               \
+    }
+
+#define API_SESSION_POP(s)                                               \
+    if ((s)->id != 0 && (s)->api_call_counter == 1) {                    \
+        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                     \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_internal_out, 1); \
+            WT_API_COUNTER_CHECK((s), api_count_internal);               \
+        } else {                                                         \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);          \
+            WT_API_COUNTER_CHECK((s), api_count);                        \
+        }                                                                \
+    }                                                                    \
+    (s)->dhandle = __olddh;                                              \
+    (s)->name = __oldname;                                               \
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */

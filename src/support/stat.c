@@ -1692,6 +1692,10 @@ static const char *const __stats_connection_desc[] = {
   "connection: pthread mutex condition wait calls",
   "connection: pthread mutex shared lock read-lock calls",
   "connection: pthread mutex shared lock write-lock calls",
+  "connection: threads currently in the library application",
+  "connection: threads currently in the library doing cursor operations application",
+  "connection: threads currently in the library doing cursor operations internal",
+  "connection: threads currently in the library internal",
   "connection: total fsync I/Os",
   "connection: total modified incremental blocks",
   "connection: total read I/Os",
@@ -2424,6 +2428,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cond_wait = 0;
     stats->rwlock_read = 0;
     stats->rwlock_write = 0;
+    /* not clearing api_call_count */
+    /* not clearing api_call_count_cursor */
+    /* not clearing api_call_count_cursor_internal */
+    /* not clearing api_call_count_internal */
     stats->fsync_io = 0;
     stats->backup_blocks = 0;
     stats->read_io = 0;
@@ -3182,6 +3190,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cond_wait += WT_STAT_READ(from, cond_wait);
     to->rwlock_read += WT_STAT_READ(from, rwlock_read);
     to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+    to->api_call_count += WT_STAT_READ(from, api_call_count);
+    to->api_call_count_cursor += WT_STAT_READ(from, api_call_count_cursor);
+    to->api_call_count_cursor_internal += WT_STAT_READ(from, api_call_count_cursor_internal);
+    to->api_call_count_internal += WT_STAT_READ(from, api_call_count_internal);
     to->fsync_io += WT_STAT_READ(from, fsync_io);
     to->backup_blocks += WT_STAT_READ(from, backup_blocks);
     to->read_io += WT_STAT_READ(from, read_io);
