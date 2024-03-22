@@ -503,8 +503,8 @@ err:
 static int
 __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
 {
-    WT_DECL_RET;
     WT_DECL_ITEM(uri);
+    WT_DECL_RET;
 
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
