@@ -29,6 +29,7 @@ static WT_INLINE int
 __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     __m128i res_eq, res_gt, t, u;
+    uint64_t t64, u64;
     int32_t eq_bits;
     const uint8_t *tendp, *treep, *uendp, *userp;
 
@@ -61,8 +62,20 @@ final128:
     if (eq_bits == 65535)
         return (lencmp);
     else {
-        res_gt = _mm_cmpgt_epi8(u, t);
-        return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
+        if (__builtin_clz((uint32_t)eq_bits) > (__m128i + sizeof(uint64_t))) {
+            u64 = (uint64_t)_mm_extract_epi64(u, 1);
+            t64 = (uint64_t)_mm_extract_epi64(t, 1);
+        } else {
+            u64 = (uint64_t)_mm_extract_epi64(u, 0);
+            t64 = (uint64_t)_mm_extract_epi64(t, 0);
+        }
+
+#ifndef WORDS_BIGENDIAN
+        u64 = __wt_bswap64(u);
+        t64 = __wt_bswap64(t);
+#endif
+
+        return (u64 < t64 ? -1 : 1);
     }
 }
 #else
@@ -307,8 +320,9 @@ __lex_compare_skip_gt_16(
   const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
 {
     __m128i res_eq, res_gt, t, u;
+    uint64_t t64, u64;
     int32_t eq_bits;
-    size_t match;
+    size_t match, final_match;
     const uint8_t *tendp, *treep, *uendp, *userp;
 
     match = *matchp;
@@ -344,10 +358,23 @@ final128:
         *matchp = len;
         return (lencmp);
     } else {
-        match += (size_t)__builtin_clz((uint32_t)eq_bits) - 16;
+        final_match += (size_t)__builtin_clz((uint32_t)eq_bits) - 16;
+        match += final_match;
         *matchp = match;
-        res_gt = _mm_cmpgt_epi8(u, t);
-        return (_mm_movemask_epi8(res_gt) != 0 ? 1 : -1);
+        if (final_match > sizeof(uint64_t)) {
+            u64 = (uint64_t)_mm_extract_epi64(u, 1);
+            t64 = (uint64_t)_mm_extract_epi64(t, 1);
+        } else {
+            u64 = (uint64_t)_mm_extract_epi64(u, 0);
+            t64 = (uint64_t)_mm_extract_epi64(t, 0);
+        }
+
+#ifndef WORDS_BIGENDIAN
+        u64 = __wt_bswap64(u);
+        t64 = __wt_bswap64(t);
+#endif
+
+        return (u64 < t64 ? -1 : 1);
     }
 }
 #else
