@@ -62,7 +62,7 @@ final128:
     if (eq_bits == 65535)
         return (lencmp);
     else {
-        if ((size_t)__builtin_clz((uint32_t)eq_bits) > (sizeof(__m128i) + sizeof(uint64_t))) {
+        if ((size_t)__builtin_clz((uint32_t)(eq_bits ^ 0xFFFF)) > (sizeof(__m128i) + sizeof(uint64_t))) {
             u64 = (uint64_t)_mm_extract_epi64(u, 1);
             t64 = (uint64_t)_mm_extract_epi64(t, 1);
         } else {
@@ -358,7 +358,7 @@ final128:
         *matchp = len;
         return (lencmp);
     } else {
-        final_match = (size_t)__builtin_clz((uint32_t)eq_bits) - 16;
+        final_match = (size_t)__builtin_clz((uint32_t)(eq_bits ^ 0xFFFF)) - 16;
         match += final_match;
         *matchp = match;
         if (final_match > sizeof(uint64_t)) {
