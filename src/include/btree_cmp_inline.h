@@ -28,7 +28,7 @@
 static WT_INLINE int
 __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
-    __m128i res_eq, res_gt, t, u;
+    __m128i res_eq, t, u;
     uint64_t t64, u64;
     int32_t eq_bits;
     const uint8_t *tendp, *treep, *uendp, *userp;
@@ -319,7 +319,7 @@ static WT_INLINE int
 __lex_compare_skip_gt_16(
   const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
 {
-    __m128i res_eq, res_gt, t, u;
+    __m128i res_eq, t, u;
     uint64_t t64, u64;
     int32_t eq_bits;
     size_t match, final_match;
