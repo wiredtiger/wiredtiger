@@ -5320,6 +5320,7 @@ buildvariants:
       batchtime: 1440 # 24 hours
     - name: model-unit-test
     - name: model-test-failure-workloads
+      batchtime: 1440 # 24 hours
     # FIXME-WT-12637
     #- name: model-test-long
     #  batchtime: 1440 # once a day
@@ -5688,6 +5689,7 @@ buildvariants:
       batchtime: 1440 # 24 hours
     - name: model-unit-test
     - name: model-test-failure-workloads
+      batchtime: 1440 # 24 hours
     # FIXME-WT-12637
     #- name: model-test-long
     #  batchtime: 1440 # once a day
