@@ -71,8 +71,8 @@ final128:
         }
 
 #ifndef WORDS_BIGENDIAN
-        u64 = __wt_bswap64(u);
-        t64 = __wt_bswap64(t);
+        u64 = __wt_bswap64(u64);
+        t64 = __wt_bswap64(t64);
 #endif
 
         return (u64 < t64 ? -1 : 1);
@@ -370,8 +370,8 @@ final128:
         }
 
 #ifndef WORDS_BIGENDIAN
-        u64 = __wt_bswap64(u);
-        t64 = __wt_bswap64(t);
+        u64 = __wt_bswap64(u64);
+        t64 = __wt_bswap64(t64);
 #endif
 
         return (u64 < t64 ? -1 : 1);
