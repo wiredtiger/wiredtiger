@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /* Checkpoint cleanup interval times. */
-#define WT_CHECKPOINT_CLEANUP_INTERVAL 10 * 60 /* 10 minutes */
+#define WT_CHECKPOINT_CLEANUP_INTERVAL 30 * 60 /* 30 minutes */
 #define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1  /* 1 second */
 
 #define WT_URI_FILE_PREFIX "file:"
@@ -346,12 +346,6 @@ __checkpoint_cleanup_page_skip(
         return (0);
     }
 
-    /* Don't read pages into cache during startup or shutdown phase. */
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT)) {
-        *skipp = true;
-        return (0);
-    }
-
     /*
      * Ignore the pages with no on-disk address. It is possible that a page with deleted state may
      * not have an on-disk address.
@@ -534,10 +528,11 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
         if (!__checkpoint_cleanup_run_chk(session))
             break;
     }
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     __wt_scr_free(session, &uri);
-    return (ret == WT_NOTFOUND ? 0 : ret);
+    return (ret);
 }
 
 /*
