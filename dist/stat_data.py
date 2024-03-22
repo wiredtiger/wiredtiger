@@ -260,6 +260,7 @@ conn_stats = [
     BlockStat('block_byte_write_compact', 'bytes written by compaction', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
+    BlockStat('block_byte_write_unused', 'unused bytes written', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
