@@ -62,7 +62,7 @@ final128:
     if (eq_bits == 65535)
         return (lencmp);
     else {
-        if (__builtin_clz((uint32_t)eq_bits) > (__m128i + sizeof(uint64_t))) {
+        if (__builtin_clz((uint32_t)eq_bits) > (sizeof(__m128i) + sizeof(uint64_t))) {
             u64 = (uint64_t)_mm_extract_epi64(u, 1);
             t64 = (uint64_t)_mm_extract_epi64(t, 1);
         } else {
