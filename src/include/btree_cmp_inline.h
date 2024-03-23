@@ -352,6 +352,7 @@ __lex_compare_skip_gt_16(
     t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
     res_eq = _mm_cmpeq_epi8(u, t);
     eq_bits = _mm_movemask_epi8(res_eq);
+    match = len - WT_VECTOR_SIZE;
 
 final128:
     if (eq_bits == 65535) {
@@ -424,7 +425,7 @@ __lex_compare_skip_gt_16(
      */
     memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
     memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-    match = (size_t)(uendp - ustartp) - WT_VECTOR_SIZE;
+    match = len - WT_VECTOR_SIZE;
 
 final128:
     firsteq = udata.a == tdata.a;
