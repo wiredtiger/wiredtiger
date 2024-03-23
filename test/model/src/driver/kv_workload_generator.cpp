@@ -622,18 +622,18 @@ data_value
 kv_workload_generator::generate_key(table_context_ptr table, op_category op)
 {
     /* Get the probability of choosing an existing key. */
-    float p_existing;
+    float p_existing = 0;
     switch (op) {
+    case op_category::none:
+        p_existing = 0;
+        break;
+
     case op_category::remove:
         p_existing = _spec.remove_existing;
         break;
 
     case op_category::update:
         p_existing = _spec.update_existing;
-        break;
-
-    default:
-        p_existing = 0;
         break;
     }
 
