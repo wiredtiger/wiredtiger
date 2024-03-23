@@ -26,7 +26,7 @@
  *     in the btree code which the application is looking at when we call its comparison function.
  */
 static WT_INLINE int
-__lex_compare_gt_16(const int8_t *ustartp, const int8_t *tstartp, size_t len, int lencmp)
+__lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     __m128i res_eq, t, u;
     int32_t eq_bits;
@@ -76,12 +76,12 @@ final128:
  *     for faster comparisons.
  */
 static WT_INLINE int
-__lex_compare_gt_16(const int8_t *ustartp, const int8_t *tstartp, size_t len, int lencmp)
+__lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
     struct {
-        int64_t a, b;
+        uint64_t a, b;
     } tdata, udata;
-    int64_t t64, u64;
+    uint64_t t64, u64;
     size_t i, final_bytes;
     bool firsteq;
 
@@ -112,8 +112,8 @@ final128:
     t64 = firsteq ? tdata.b : tdata.a;
 
 #ifndef WORDS_BIGENDIAN
-    u64 = (int64_t)__wt_bswap64((uint64_t)u64);
-    t64 = (int64_t)__wt_bswap64((uint64_t)t64);
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
 #endif
 
     return (u64 == t64 ? lencmp : (int)(u64 - t64));
@@ -130,10 +130,10 @@ final128:
  *     bytes at a time, allowing for faster comparisons.
  */
 static WT_INLINE int
-__lex_compare_le_16(const int8_t *ustartp, const int8_t *tstartp, size_t len, int lencmp)
+__lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp)
 {
-    int64_t ta, tb, ua, ub, u64, t64;
-    const int8_t *tendp, *uendp;
+    uint64_t ta, tb, ua, ub, u64, t64;
+    const uint8_t *tendp, *uendp;
 
     uendp = ustartp + len;
     tendp = tstartp + len;
@@ -142,37 +142,37 @@ __lex_compare_le_16(const int8_t *ustartp, const int8_t *tstartp, size_t len, in
          * len >= 64 bits. len is implicitly less than or equal to 128bits since the function
          * accepts 16 bytes or less.
          */
-        memcpy(&ua, ustartp, sizeof(int64_t));
-        memcpy(&ta, tstartp, sizeof(int64_t));
-        memcpy(&ub, uendp - sizeof(int64_t), sizeof(int64_t));
-        memcpy(&tb, tendp - sizeof(int64_t), sizeof(int64_t));
+        memcpy(&ua, ustartp, sizeof(uint64_t));
+        memcpy(&ta, tstartp, sizeof(uint64_t));
+        memcpy(&ub, uendp - sizeof(uint64_t), sizeof(uint64_t));
+        memcpy(&tb, tendp - sizeof(uint64_t), sizeof(uint64_t));
     } else if (len >> 2) {
         /* len >= 32 bits */
-        int32_t ta32, tb32, ua32, ub32;
-        memcpy(&ua32, ustartp, sizeof(int32_t));
-        memcpy(&ta32, tstartp, sizeof(int32_t));
-        memcpy(&ub32, uendp - sizeof(int32_t), sizeof(int32_t));
-        memcpy(&tb32, tendp - sizeof(int32_t), sizeof(int32_t));
+        uint32_t ta32, tb32, ua32, ub32;
+        memcpy(&ua32, ustartp, sizeof(uint32_t));
+        memcpy(&ta32, tstartp, sizeof(uint32_t));
+        memcpy(&ub32, uendp - sizeof(uint32_t), sizeof(uint32_t));
+        memcpy(&tb32, tendp - sizeof(uint32_t), sizeof(uint32_t));
         ua = ua32;
         ta = ta32;
         ub = ub32;
         tb = tb32;
     } else if (len >> 1) {
         /* len >= 16 bits */
-        int16_t ta16, tb16, ua16, ub16;
-        memcpy(&ua16, ustartp, sizeof(int16_t));
-        memcpy(&ta16, tstartp, sizeof(int16_t));
-        memcpy(&ub16, uendp - sizeof(int16_t), sizeof(int16_t));
-        memcpy(&tb16, tendp - sizeof(int16_t), sizeof(int16_t));
+        uint16_t ta16, tb16, ua16, ub16;
+        memcpy(&ua16, ustartp, sizeof(uint16_t));
+        memcpy(&ta16, tstartp, sizeof(uint16_t));
+        memcpy(&ub16, uendp - sizeof(uint16_t), sizeof(uint16_t));
+        memcpy(&tb16, tendp - sizeof(uint16_t), sizeof(uint16_t));
         ua = ua16;
         ta = ta16;
         ub = ub16;
         tb = tb16;
     } else if (len) {
-        int8_t ta8, ua8;
-        memcpy(&ua8, ustartp, sizeof(int8_t));
-        memcpy(&ta8, tstartp, sizeof(int8_t));
-        return (ua8 == ta8 ? lencmp : (int)(ua8 - ta8));
+        uint8_t ta8, ua8;
+        memcpy(&ua8, ustartp, sizeof(uint8_t));
+        memcpy(&ta8, tstartp, sizeof(uint8_t));
+        return (ua8 < ta8 ? -1 : ua8 > ta8 ? 1 : lencmp);
     } else
         return (lencmp);
 
@@ -180,8 +180,8 @@ __lex_compare_le_16(const int8_t *ustartp, const int8_t *tstartp, size_t len, in
     t64 = ua == ta ? tb : ta;
 
 #ifndef WORDS_BIGENDIAN
-    u64 = (int64_t)__wt_bswap64((uint64_t)u64);
-    t64 = (int64_t)__wt_bswap64((uint64_t)t64);
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
 #endif
 
     return (u64 == t64 ? lencmp : (int)(u64 - t64));
@@ -215,10 +215,10 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 
     if (len > WT_VECTOR_SIZE)
         ret_val = __lex_compare_gt_16(
-          (const int8_t *)user_item->data, (const int8_t *)tree_item->data, len, lencmp);
+          (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp);
     else
         ret_val = __lex_compare_le_16(
-          (const int8_t *)user_item->data, (const int8_t *)tree_item->data, len, lencmp);
+          (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp);
 
     return (ret_val);
 }
@@ -303,7 +303,7 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
  */
 static WT_INLINE int
 __lex_compare_skip_gt_16(
-  const int8_t *ustartp, const int8_t *tstartp, size_t len, int lencmp, size_t *matchp)
+  const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
 {
     __m128i res_eq, t, u;
     int32_t eq_bits;
@@ -357,13 +357,13 @@ final128:
  */
 static WT_INLINE int
 __lex_compare_skip_gt_16(
-  const int8_t *ustartp, const int8_t *tstartp, size_t len, int lencmp, size_t *matchp)
+  const uint8_t *ustartp, const uint8_t *tstartp, size_t len, int lencmp, size_t *matchp)
 {
     struct {
-        int64_t a, b;
+        uint64_t a, b;
     } tdata, udata;
     size_t match, final_bytes;
-    int64_t t64, u64;
+    uint64_t t64, u64;
     int leading_zero_bytes;
     bool firsteq;
 
@@ -393,14 +393,14 @@ final128:
     firsteq = udata.a == tdata.a;
     u64 = firsteq ? udata.b : udata.a;
     t64 = firsteq ? tdata.b : tdata.a;
-    match += firsteq * sizeof(int64_t);
+    match += firsteq * sizeof(uint64_t);
 
 #ifndef WORDS_BIGENDIAN
-    u64 = (int64_t)__wt_bswap64((uint64_t)u64);
-    t64 = (int64_t)__wt_bswap64((uint64_t)t64);
+    u64 = __wt_bswap64(u64);
+    t64 = __wt_bswap64(t64);
 #endif
 
-    WT_LEADING_ZEROS((uint64_t)(u64 ^ t64), leading_zero_bytes);
+    WT_LEADING_ZEROS(u64 ^ t64, leading_zero_bytes);
     match += (size_t)leading_zero_bytes;
     *matchp = match;
 
@@ -437,7 +437,7 @@ __wt_lex_compare_skip(
 
     if (len > WT_VECTOR_SIZE) {
         ret_val = __lex_compare_skip_gt_16(
-          (const int8_t *)user_item->data, (const int8_t *)tree_item->data, len, lencmp, matchp);
+          (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp, matchp);
 
 #ifdef HAVE_DIAGNOSTIC
         /*
@@ -459,7 +459,7 @@ __wt_lex_compare_skip(
          * done, and would add overhead.
          */
         ret_val = __lex_compare_le_16(
-          (const int8_t *)user_item->data, (const int8_t *)tree_item->data, len, lencmp);
+          (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp);
 
     return (ret_val);
 }
@@ -507,5 +507,5 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     }
 
     return (__lex_compare_le_16(
-      (const int8_t *)user_item->data, (const int8_t *)tree_item->data, len, lencmp));
+      (const uint8_t *)user_item->data, (const uint8_t *)tree_item->data, len, lencmp));
 }
