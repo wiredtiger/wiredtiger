@@ -62,7 +62,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 final128:
         i += __builtin_ctz(~(uint32_t)eq_bits);
 
-        return ((int)(ustartp[i] - tstartp[i]));
+        return (ustartp[i] - tstartp[i]);
     }
 }
 #else
@@ -116,7 +116,7 @@ final128:
     t64 = __wt_bswap64(t64);
 #endif
 
-    return (u64 == t64 ? lencmp : (int)(u64 - t64));
+    return (u64 == t64 ? lencmp : u64 - t64);
 }
 #endif
 
@@ -184,7 +184,7 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     t64 = __wt_bswap64(t64);
 #endif
 
-    return (u64 == t64 ? lencmp : (int)(u64 - t64));
+    return (u64 = t64 ? lencmp : u64 - t64);
 }
 
 /*
@@ -342,7 +342,7 @@ final128:
         match += (size_t)__builtin_ctz(~(uint32_t)eq_bits);
         *matchp = match;
 
-        return ((int)(ustartp[match] - tstartp[match]));
+        return (ustartp[match] - tstartp[match]);
     }
 }
 #else
@@ -404,7 +404,7 @@ final128:
     match += (size_t)leading_zero_bytes;
     *matchp = match;
 
-    return (u64 == t64 ? lencmp : (int)(u64 - t64));
+    return (u64 == t64 ? lencmp : u64 - t64);
 }
 #endif
 
