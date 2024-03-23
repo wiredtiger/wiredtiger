@@ -201,10 +201,11 @@ __wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
 
 /*
  * __wt_timing_stress --
- *     Optionally add delay to stress code paths.
+ *     Optionally add delay to stress code paths. Sleep for the specified amount of time if passed
+ *     in the argument.
  */
 static WT_INLINE void
-__wt_timing_stress(WT_SESSION_IMPL *session, uint32_t flag)
+__wt_timing_stress(WT_SESSION_IMPL *session, uint32_t flag, struct timespec *tsp)
 {
 #ifdef ENABLE_ANTITHESIS
     const WT_NAME_FLAG *ft;
@@ -221,7 +222,13 @@ __wt_timing_stress(WT_SESSION_IMPL *session, uint32_t flag)
             break;
         }
 #else
-    __wt_timing_stress_sleep_random(session);
+    /*
+     * Sleep for a specified amount of time if passed as an argument else sleep for a random time.
+     */
+    if (tsp != NULL)
+        __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
+    else
+        __wt_timing_stress_sleep_random(session);
 #endif
 }
 
@@ -286,6 +293,16 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
     WT_ASSERT(session, probability <= 10 * WT_THOUSAND);
 
     return (__wt_random(&session->rnd) % (10 * WT_THOUSAND) <= probability);
+}
+
+/*
+ * __wt_set_shared_double --
+ *     This function enables suppressing TSan warnings about setting doubles in a shared context.
+ */
+static WT_INLINE void
+__wt_set_shared_double(double *to_set, double value)
+{
+    *to_set = value;
 }
 
 /*
