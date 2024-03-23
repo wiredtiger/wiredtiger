@@ -31,19 +31,17 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     __m128i res_eq, t, u;
     uint64_t t64, u64;
     int32_t eq_bits;
-    const uint8_t *tendp, *treep, *uendp, *userp;
+    size_t i, final_bytes;
 
-    uendp = ustartp + len;
-    tendp = tstartp + len;
+    final_bytes = len - WT_VECTOR_SIZE;
 
     /*
      * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
      * compare.
      */
-    for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
-         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
-        u = _mm_loadu_si128((const __m128i *)userp);
-        t = _mm_loadu_si128((const __m128i *)treep);
+    for (i = 0; i < final_bytes; i += WT_VECTOR_SIZE) {
+        u = _mm_loadu_si128((const __m128i *)(ustartp + i));
+        t = _mm_loadu_si128((const __m128i *)(tstartp + i));
         res_eq = _mm_cmpeq_epi8(u, t);
         if ((eq_bits = _mm_movemask_epi8(res_eq)) != 65535)
             goto final128;
@@ -53,8 +51,9 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bounds.
      */
-    u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
-    t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
+    i = final_bytes;
+    u = _mm_loadu_si128((const __m128i *)(ustartp + i));
+    t = _mm_loadu_si128((const __m128i *)(tstartp + i));
     res_eq = _mm_cmpeq_epi8(u, t);
     eq_bits = _mm_movemask_epi8(res_eq);
 
@@ -95,20 +94,18 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         uint64_t a, b;
     } tdata, udata;
     uint64_t t64, u64;
-    const uint8_t *tendp, *treep, *uendp, *userp;
+    size_t i, final_bytes;
     bool firsteq;
 
-    uendp = ustartp + len;
-    tendp = tstartp + len;
+    final_bytes = len - WT_VECTOR_SIZE;
 
     /*
      * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
      * compare.
      */
-    for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
-         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
-        memcpy(&udata, userp, WT_VECTOR_SIZE);
-        memcpy(&tdata, treep, WT_VECTOR_SIZE);
+    for (i = 0; i < final_bytes; i += WT_VECTOR_SIZE) {
+        memcpy(&udata, ustartp + i, WT_VECTOR_SIZE);
+        memcpy(&tdata, tstartp + i, WT_VECTOR_SIZE);
         if (udata.a != tdata.a || udata.b != tdata.b)
             goto final128;
     }
@@ -117,8 +114,9 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bounds.
      */
-    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
+    i = final_bytes;
+    memcpy(&udata, ustartp + i, WT_VECTOR_SIZE);
+    memcpy(&tdata, tstartp + i, WT_VECTOR_SIZE);
 
 final128:
     firsteq = udata.a == tdata.a;
@@ -322,37 +320,32 @@ __lex_compare_skip_gt_16(
     __m128i res_eq, t, u;
     uint64_t t64, u64;
     int32_t eq_bits;
-    size_t match, final_match;
-    const uint8_t *tendp, *treep, *uendp, *userp;
+    size_t match, final_bytes, final_match;
 
     match = *matchp;
-    uendp = ustartp + len;
-    tendp = tstartp + len;
+    final_bytes = len - WT_VECTOR_SIZE;
 
     /*
      * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
      * compare.
      */
-    for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
-         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
-        u = _mm_loadu_si128((const __m128i *)userp);
-        t = _mm_loadu_si128((const __m128i *)treep);
+    for (; match < final_bytes; match += WT_VECTOR_SIZE) {
+        u = _mm_loadu_si128((const __m128i *)(ustartp + match));
+        t = _mm_loadu_si128((const __m128i *)(tstartp + match));
         res_eq = _mm_cmpeq_epi8(u, t);
-        if ((eq_bits = _mm_movemask_epi8(res_eq)) != 65535) {
-            match = (size_t)(userp - ustartp);
+        if ((eq_bits = _mm_movemask_epi8(res_eq)) != 65535)
             goto final128;
-        }
     }
 
     /*
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bound.
      */
-    u = _mm_loadu_si128((const __m128i *)(uendp - WT_VECTOR_SIZE));
-    t = _mm_loadu_si128((const __m128i *)(tendp - WT_VECTOR_SIZE));
+    match = final_bytes;
+    u = _mm_loadu_si128((const __m128i *)(ustartp + final_bytes));
+    t = _mm_loadu_si128((const __m128i *)(tstartp + final_bytes));
     res_eq = _mm_cmpeq_epi8(u, t);
     eq_bits = _mm_movemask_epi8(res_eq);
-    match = len - WT_VECTOR_SIZE;
 
     if (eq_bits == 65535) {
         *matchp = len;
@@ -395,37 +388,32 @@ __lex_compare_skip_gt_16(
     struct {
         uint64_t a, b;
     } tdata, udata;
-    size_t match;
+    size_t match, final_bytes;
     uint64_t t64, u64;
     int leading_zero_bytes;
-    const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
 
     match = *matchp;
-    uendp = ustartp + len;
-    tendp = tstartp + len;
+    final_bytes = len - WT_VECTOR_SIZE;
 
     /*
      * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
      * compare.
      */
-    for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
-         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
-        memcpy(&udata, userp, WT_VECTOR_SIZE);
-        memcpy(&tdata, treep, WT_VECTOR_SIZE);
-        if (udata.a != tdata.a || udata.b != tdata.b) {
-            match = (size_t)(userp - ustartp);
+    for (; match < final_bytes; match += WT_VECTOR_SIZE) {
+        memcpy(&udata, ustartp + match, WT_VECTOR_SIZE);
+        memcpy(&tdata, tstartp + match, WT_VECTOR_SIZE);
+        if (udata.a != tdata.a || udata.b != tdata.b)
             goto final128;
-        }
     }
 
     /*
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bound.
      */
-    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
-    match = len - WT_VECTOR_SIZE;
+    match = final_bytes;
+    memcpy(&udata, ustartp + match, WT_VECTOR_SIZE);
+    memcpy(&tdata, tstartp + match, WT_VECTOR_SIZE);
 
 final128:
     firsteq = udata.a == tdata.a;
