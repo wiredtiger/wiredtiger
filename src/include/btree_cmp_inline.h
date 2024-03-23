@@ -58,10 +58,10 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     res_eq = _mm_cmpeq_epi8(u, t);
     eq_bits = _mm_movemask_epi8(res_eq);
 
-final128:
     if (eq_bits == 65535)
         return (lencmp);
     else {
+final128:
         if ((uint32_t)__builtin_ctz(~(uint32_t)eq_bits) >= sizeof(uint64_t)) {
             u64 = (uint64_t)_mm_extract_epi64(u, 1);
             t64 = (uint64_t)_mm_extract_epi64(t, 1);
@@ -354,11 +354,11 @@ __lex_compare_skip_gt_16(
     eq_bits = _mm_movemask_epi8(res_eq);
     match = len - WT_VECTOR_SIZE;
 
-final128:
     if (eq_bits == 65535) {
         *matchp = len;
         return (lencmp);
     } else {
+final128:
         final_match = (size_t)__builtin_ctz(~(uint32_t)eq_bits);
         match += final_match;
         *matchp = match;
