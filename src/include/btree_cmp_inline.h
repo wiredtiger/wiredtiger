@@ -60,7 +60,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         return (lencmp);
     else {
 final128:
-        i += (size_t)__builtin_ctz(~(uint32_t)eq_bits);
+        i += __builtin_ctz(~(uint32_t)eq_bits);
 
         return ((int)(ustartp[i] - tstartp[i]));
     }
