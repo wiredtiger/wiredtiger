@@ -176,7 +176,7 @@ __wt_btree_bytes_inuse(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(cache, &btree->bytes_inmem));
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_inmem)));
 }
 
 /*
@@ -200,8 +200,7 @@ __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
     bytes_root = root_page == NULL ? 0 : root_page->memory_footprint;
     evictable_bytes = bytes_inmem - bytes_root;
 
-    return (
-      bytes_inmem <= bytes_root ? 0 : __wt_cache_bytes_plus_overhead(cache, &evictable_bytes));
+    return (bytes_inmem <= bytes_root ? 0 : __wt_cache_bytes_plus_overhead(cache, evictable_bytes));
 }
 
 /*
@@ -220,7 +219,7 @@ __wt_btree_dirty_inuse(WT_SESSION_IMPL *session)
 
     dirty_inuse =
       __wt_atomic_load64(&btree->bytes_dirty_intl) + __wt_atomic_load64(&btree->bytes_dirty_leaf);
-    return (__wt_cache_bytes_plus_overhead(cache, &dirty_inuse));
+    return (__wt_cache_bytes_plus_overhead(cache, dirty_inuse));
 }
 
 /*
@@ -236,7 +235,7 @@ __wt_btree_dirty_leaf_inuse(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(cache, &btree->bytes_dirty_leaf));
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_dirty_leaf)));
 }
 
 /*
@@ -252,7 +251,7 @@ __wt_btree_bytes_updates(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(cache, &btree->bytes_updates));
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_updates)));
 }
 
 /*

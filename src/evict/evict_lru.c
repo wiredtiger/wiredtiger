@@ -2846,7 +2846,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     /*
      * Apply the overhead percentage so our total bytes are comparable with the tracked value.
      */
-    total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, &total_bytes);
+    total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
     cache_bytes_updates = __wt_cache_bytes_updates(cache);
 
     bytes_inmem = __wt_atomic_load64(&cache->bytes_inmem);
