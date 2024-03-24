@@ -413,8 +413,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd
          */
         for (size = 0, upd = next; upd != NULL; upd = upd->next)
             size += WT_UPDATE_MEMSIZE(upd);
-        if (size != 0)
-            __wt_cache_page_inmem_decr(session, page, size);
+        __wt_cache_page_inmem_decr(session, page, size);
     }
 
     /*
