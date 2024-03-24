@@ -53,7 +53,7 @@ functions:
 
             # Utilize tcmalloc through preloading in the environment.
             #
-            if [[ ${ENABLE_TCMALLOC} -eq 1 ]]; then
+            if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
 
               # ASan is not designed to work with tcmalloc:
               # https://github.com/gperftools/gperftools/issues/810#issuecomment-230168100
@@ -297,7 +297,7 @@ functions:
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
           # Fetch the gperftools library if needed. This will also get tcmalloc.
-          if [[ ${ENABLE_TCMALLOC} -eq 1 ]] && [ ! -d "./automation-scripts" ]; then
+          if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]] && [ ! -d "./automation-scripts" ]; then
             is_cmake_build=true
             git clone git@github.com:wiredtiger/automation-scripts.git
             . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
@@ -5304,7 +5304,7 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
-    # FIXME-WT-12539
+    # FIXME-WT-12637
     #- name: model-test-long
     #  batchtime: 1440 # once a day
     - name: csuite-long-running
@@ -5322,10 +5322,10 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    # FIXME-WT-12646: Exclude backup corruption test from csuite and remove once ASAN memory leak is investigated
+    # Exclude this test for ASan builds, as it results in a false positives owing
+    # to deliberate killing of processes to invoke corruption.
     extra_args: -E "wt12015_backup_corruption"
   tasks:
-    # FIXME-WT-12646: Exclude backup corruption test and remove once ASAN memory leak is investigated
     - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
@@ -5671,7 +5671,7 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
-    # FIXME-WT-12539
+    # FIXME-WT-12637
     #- name: model-test-long
     #  batchtime: 1440 # once a day
 
