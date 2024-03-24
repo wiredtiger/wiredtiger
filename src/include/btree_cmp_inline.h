@@ -18,6 +18,8 @@
 #define WT_COMPARE_SHORT_MAXLEN 16
 
 #ifdef HAVE_X86INTRIN_H
+
+#define WT_VECTOR_MASK 0xFFFF
 /*
  * __lex_compare_gt_16 --
  *     Lexicographic comparison routine for data greater than 16 bytes. Returns: < 0 if user_item is
@@ -42,7 +44,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         u = _mm_loadu_si128((const __m128i *)(ustartp + i));
         t = _mm_loadu_si128((const __m128i *)(tstartp + i));
         res_eq = _mm_cmpeq_epi8(u, t);
-        if ((eq_bits = _mm_movemask_epi8(res_eq)) != 65535)
+        if ((eq_bits = _mm_movemask_epi8(res_eq)) != WT_VECTOR_MASK)
             goto final128;
     }
 
@@ -56,7 +58,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     res_eq = _mm_cmpeq_epi8(u, t);
     eq_bits = _mm_movemask_epi8(res_eq);
 
-    if (eq_bits == 65535)
+    if (eq_bits == WT_VECTOR_MASK)
         return (lencmp);
     else {
 final128:
@@ -320,7 +322,7 @@ __lex_compare_skip_gt_16(
         u = _mm_loadu_si128((const __m128i *)(ustartp + match));
         t = _mm_loadu_si128((const __m128i *)(tstartp + match));
         res_eq = _mm_cmpeq_epi8(u, t);
-        if ((eq_bits = _mm_movemask_epi8(res_eq)) != 65535)
+        if ((eq_bits = _mm_movemask_epi8(res_eq)) != WT_VECTOR_MASK)
             goto final128;
     }
 
@@ -334,7 +336,7 @@ __lex_compare_skip_gt_16(
     res_eq = _mm_cmpeq_epi8(u, t);
     eq_bits = _mm_movemask_epi8(res_eq);
 
-    if (eq_bits == 65535) {
+    if (eq_bits == WT_VECTOR_MASK) {
         *matchp = len;
         return (lencmp);
     } else {
