@@ -61,20 +61,9 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         return (lencmp);
     else {
 final128:
-        if ((uint32_t)__builtin_ctz(~(uint32_t)eq_bits) >= sizeof(uint64_t)) {
-            u64 = (uint64_t)_mm_extract_epi64(u, 1);
-            t64 = (uint64_t)_mm_extract_epi64(t, 1);
-        } else {
-            u64 = (uint64_t)_mm_extract_epi64(u, 0);
-            t64 = (uint64_t)_mm_extract_epi64(t, 0);
-        }
+        i += (size_t)__builtin_ctz(~(uint32_t)eq_bits);
 
-#ifndef WORDS_BIGENDIAN
-        u64 = __wt_bswap64(u64);
-        t64 = __wt_bswap64(t64);
-#endif
-
-        return (u64 < t64 ? -1 : 1);
+        return ((int)(ustartp[i] - tstartp[i]));
     }
 }
 #else
@@ -355,20 +344,8 @@ final128:
         final_match = (size_t)__builtin_ctz(~(uint32_t)eq_bits);
         match += final_match;
         *matchp = match;
-        if (final_match >= sizeof(uint64_t)) {
-            u64 = (uint64_t)_mm_extract_epi64(u, 1);
-            t64 = (uint64_t)_mm_extract_epi64(t, 1);
-        } else {
-            u64 = (uint64_t)_mm_extract_epi64(u, 0);
-            t64 = (uint64_t)_mm_extract_epi64(t, 0);
-        }
 
-#ifndef WORDS_BIGENDIAN
-        u64 = __wt_bswap64(u64);
-        t64 = __wt_bswap64(t64);
-#endif
-
-        return (u64 < t64 ? -1 : 1);
+        return ((int)(ustartp[match] - tstartp[match]));
     }
 }
 #else
