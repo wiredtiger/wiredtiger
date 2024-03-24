@@ -161,7 +161,7 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         ta = ta32;
         ub = ub32;
         tb = tb32;
-    } else if (len & sizeof(uint8_t)) {
+    } else if (len & sizeof(uint16_t)) {
         /* len >= 16 bits */
         uint16_t ta16, tb16, ua16, ub16;
         memcpy(&ua16, ustartp, sizeof(uint16_t));
