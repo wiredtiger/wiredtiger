@@ -5716,7 +5716,6 @@ buildvariants:
     - name: unit-test
     - name: format-smoke-test
     - name: fops
-      distros: ubuntu2004-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: spinlock-gcc-test
