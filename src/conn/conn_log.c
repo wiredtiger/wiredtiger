@@ -787,7 +787,7 @@ restart:
                  */
                 slot_last_offset = (uint32_t)__wt_atomic_loadiv64(&slot->slot_last_offset);
                 if (__wt_lsn_offset(&slot->slot_start_lsn) != slot_last_offset)
-                    __wt_atomic_add32(&slot->slot_start_lsn.l.offset, slot_last_offset);
+                    __wt_atomic_store32(&slot->slot_start_lsn.l.offset, slot_last_offset);
                 WT_ASSIGN_LSN(&log->write_start_lsn, &slot->slot_start_lsn);
                 WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);
                 __wt_cond_signal(session, log->log_write_cond);
