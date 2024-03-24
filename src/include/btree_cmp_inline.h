@@ -141,7 +141,7 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 
     uendp = ustartp + len;
     tendp = tstartp + len;
-    if (len & (sizeof(uint64_t) | sizeof(uint32_t))) {
+    if (len & (sizeof(__m128i) | sizeof(uint64_t))) {
         /*
          * len >= 64 bits. len is implicitly less than or equal to 128bits since the function
          * accepts 16 bytes or less.
