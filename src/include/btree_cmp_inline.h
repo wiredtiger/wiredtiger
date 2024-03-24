@@ -62,8 +62,10 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         return (lencmp);
     else {
 final128:
+        /* The matching bits corresponds to the trailing bits in the result. */
         i += (size_t)__builtin_ctz(~(uint32_t)eq_bits);
 
+        /* C zero-extends the bytes to 32 bit integers before the calculation. */
         return ((int)(ustartp[i] - tstartp[i]));
     }
 }
@@ -341,10 +343,12 @@ __lex_compare_skip_gt_16(
         return (lencmp);
     } else {
 final128:
+        /* The matching bits corresponds to the trailing bits in the result. */
         final_match = (size_t)__builtin_ctz(~(uint32_t)eq_bits);
         match += final_match;
         *matchp = match;
 
+        /* C zero-extends the bytes to 32 bit integers before the calculation. */
         return ((int)(ustartp[match] - tstartp[match]));
     }
 }
