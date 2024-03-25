@@ -251,7 +251,7 @@ typedef struct {
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
-    bool backup_incr; /* Incremental backup */
+    bool backup_incr;   /* Incremental backup */
 
     WT_RAND_STATE data_rnd;  /* Global RNG state for data operations */
     WT_RAND_STATE extra_rnd; /* Global RNG state for extra operations */
