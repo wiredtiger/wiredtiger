@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*******************************************
  * Global per-process structure.
  *******************************************/
@@ -297,6 +299,7 @@ struct __wt_name_flag {
     do {                                                     \
         F_SET((conn), WT_CONN_INCR_BACKUP);                  \
         FLD_SET((conn)->log_flags, WT_CONN_LOG_INCR_BACKUP); \
+        WT_STAT_CONN_SET(session, backup_incremental, 1);    \
     } while (0)
 
 /*
@@ -476,11 +479,17 @@ struct __wt_connection_impl {
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */
 
-    uint64_t ckpt_apply;      /* Checkpoint handles applied */
-    uint64_t ckpt_apply_time; /* Checkpoint applied handles gather time */
-    uint64_t ckpt_skip;       /* Checkpoint handles skipped */
-    uint64_t ckpt_skip_time;  /* Checkpoint skipped handles gather time */
-    uint64_t ckpt_usecs;      /* Checkpoint timer */
+    uint64_t ckpt_apply;           /* Checkpoint handles applied */
+    uint64_t ckpt_apply_time;      /* Checkpoint applied handles gather time */
+    uint64_t ckpt_drop;            /* Checkpoint handles drop */
+    uint64_t ckpt_drop_time;       /* Checkpoint handles drop time */
+    uint64_t ckpt_lock;            /* Checkpoint handles lock */
+    uint64_t ckpt_lock_time;       /* Checkpoint handles lock time */
+    uint64_t ckpt_meta_check;      /* Checkpoint handles metadata check */
+    uint64_t ckpt_meta_check_time; /* Checkpoint handles metadata check time */
+    uint64_t ckpt_skip;            /* Checkpoint handles skipped */
+    uint64_t ckpt_skip_time;       /* Checkpoint skipped handles gather time */
+    uint64_t ckpt_usecs;           /* Checkpoint timer */
 
     uint64_t ckpt_scrub_max; /* Checkpoint scrub time min/max */
     uint64_t ckpt_scrub_min;
@@ -564,6 +573,7 @@ struct __wt_connection_impl {
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
+#define WT_PREFETCH_THREAD_COUNT 8
     WT_SPINLOCK prefetch_lock;
     WT_THREAD_GROUP prefetch_threads;
     uint64_t prefetch_queue_count;
@@ -586,17 +596,17 @@ struct __wt_connection_impl {
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */
 
-    WT_SESSION_IMPL *tiered_session; /* Tiered thread session */
-    wt_thread_t tiered_tid;          /* Tiered thread */
-    bool tiered_tid_set;             /* Tiered thread set */
-    WT_CONDVAR *flush_cond;          /* Flush wait mutex */
-    WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
-    uint64_t tiered_interval;        /* Tiered work interval */
-    bool tiered_server_running;      /* Internal tiered server operating */
-    bool flush_ckpt_complete;        /* Checkpoint after flush completed */
-    uint64_t flush_most_recent;      /* Clock value of last flush_tier */
-    uint32_t flush_state;            /* State of last flush tier */
-    wt_timestamp_t flush_ts;         /* Timestamp of most recent flush_tier */
+    WT_SESSION_IMPL *tiered_session;    /* Tiered thread session */
+    wt_thread_t tiered_tid;             /* Tiered thread */
+    bool tiered_tid_set;                /* Tiered thread set */
+    WT_CONDVAR *flush_cond;             /* Flush wait mutex */
+    WT_CONDVAR *tiered_cond;            /* Tiered wait mutex */
+    uint64_t tiered_interval;           /* Tiered work interval */
+    bool tiered_server_running;         /* Internal tiered server operating */
+    wt_shared bool flush_ckpt_complete; /* Checkpoint after flush completed */
+    uint64_t flush_most_recent;         /* Clock value of last flush_tier */
+    uint32_t flush_state;               /* State of last flush tier */
+    wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
 
     WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunk cache metadata server thread session */
     wt_thread_t chunkcache_metadata_tid;          /* Chunk cache metadata thread */
@@ -702,12 +712,12 @@ struct __wt_connection_impl {
     wt_off_t log_extend_len;  /* file_extend log length */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DIRECT_IO_CHECKPOINT 0x1u /* Checkpoints */
-#define WT_DIRECT_IO_DATA 0x2u       /* Data files */
-#define WT_DIRECT_IO_LOG 0x4u        /* Log files */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t direct_io;              /* O_DIRECT, FILE_FLAG_NO_BUFFERING */
-    uint64_t write_through;          /* FILE_FLAG_WRITE_THROUGH */
+#define WT_DIRECT_IO_CHECKPOINT 0x1ull /* Checkpoints */
+#define WT_DIRECT_IO_DATA 0x2ull       /* Data files */
+#define WT_DIRECT_IO_LOG 0x4ull        /* Log files */
+                                       /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
+    uint64_t direct_io;                /* O_DIRECT, FILE_FLAG_NO_BUFFERING */
+    uint64_t write_through;            /* FILE_FLAG_WRITE_THROUGH */
 
     bool mmap;     /* use mmap when reading checkpoints */
     bool mmap_all; /* use mmap for all I/O on data files */
@@ -736,64 +746,65 @@ struct __wt_connection_impl {
     uint16_t debug_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DIAGNOSTIC_ALL 0x001u
-#define WT_DIAGNOSTIC_CHECKPOINT_VALIDATE 0x002u
-#define WT_DIAGNOSTIC_CURSOR_CHECK 0x004u
-#define WT_DIAGNOSTIC_DISK_VALIDATE 0x008u
-#define WT_DIAGNOSTIC_EVICTION_CHECK 0x010u
-#define WT_DIAGNOSTIC_HS_VALIDATE 0x020u
-#define WT_DIAGNOSTIC_KEY_OUT_OF_ORDER 0x040u
-#define WT_DIAGNOSTIC_LOG_VALIDATE 0x080u
-#define WT_DIAGNOSTIC_PREPARED 0x100u
-#define WT_DIAGNOSTIC_SLOW_OPERATION 0x200u
-#define WT_DIAGNOSTIC_TXN_VISIBILITY 0x400u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+#define WT_DIAGNOSTIC_ALL 0x001ull
+#define WT_DIAGNOSTIC_CHECKPOINT_VALIDATE 0x002ull
+#define WT_DIAGNOSTIC_CURSOR_CHECK 0x004ull
+#define WT_DIAGNOSTIC_DISK_VALIDATE 0x008ull
+#define WT_DIAGNOSTIC_EVICTION_CHECK 0x010ull
+#define WT_DIAGNOSTIC_HS_VALIDATE 0x020ull
+#define WT_DIAGNOSTIC_KEY_OUT_OF_ORDER 0x040ull
+#define WT_DIAGNOSTIC_LOG_VALIDATE 0x080ull
+#define WT_DIAGNOSTIC_PREPARED 0x100ull
+#define WT_DIAGNOSTIC_SLOW_OPERATION 0x200ull
+#define WT_DIAGNOSTIC_TXN_VISIBILITY 0x400ull
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     /* Categories of assertions that can be runtime enabled. */
-    uint16_t extra_diagnostics_flags;
+    uint64_t extra_diagnostics_flags;
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_JSON_OUTPUT_ERROR 0x1u
-#define WT_JSON_OUTPUT_MESSAGE 0x2u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
-    uint8_t json_output; /* Output event handler messages in JSON format. */
+#define WT_JSON_OUTPUT_ERROR 0x1ull
+#define WT_JSON_OUTPUT_MESSAGE 0x2ull
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
+    uint64_t json_output; /* Output event handler messages in JSON format. */
 
 /*
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE 0x0000001u
-#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x0000002u
-#define WT_TIMING_STRESS_BACKUP_RENAME 0x0000004u
-#define WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE 0x0000008u
-#define WT_TIMING_STRESS_CHECKPOINT_HANDLE 0x0000010u
-#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x0000020u
-#define WT_TIMING_STRESS_CHECKPOINT_STOP 0x0000040u
-#define WT_TIMING_STRESS_COMPACT_SLOW 0x0000080u
-#define WT_TIMING_STRESS_EVICT_REPOSITION 0x0000100u
-#define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x0000200u
-#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x0000400u
-#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x0000800u
-#define WT_TIMING_STRESS_HS_SEARCH 0x0001000u
-#define WT_TIMING_STRESS_HS_SWEEP 0x0002000u
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x0004000u
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x0008000u
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x0010000u
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x0020000u
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x0040000u
-#define WT_TIMING_STRESS_SPLIT_1 0x0080000u
-#define WT_TIMING_STRESS_SPLIT_2 0x0100000u
-#define WT_TIMING_STRESS_SPLIT_3 0x0200000u
-#define WT_TIMING_STRESS_SPLIT_4 0x0400000u
-#define WT_TIMING_STRESS_SPLIT_5 0x0800000u
-#define WT_TIMING_STRESS_SPLIT_6 0x1000000u
-#define WT_TIMING_STRESS_SPLIT_7 0x2000000u
-#define WT_TIMING_STRESS_SPLIT_8 0x4000000u
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x8000000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t timing_stress_flags;
+#define WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE 0x00000001ull
+#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x00000002ull
+#define WT_TIMING_STRESS_BACKUP_RENAME 0x00000004ull
+#define WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE 0x00000008ull
+#define WT_TIMING_STRESS_CHECKPOINT_HANDLE 0x00000010ull
+#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x00000020ull
+#define WT_TIMING_STRESS_CHECKPOINT_STOP 0x00000040ull
+#define WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW 0x00000080ull
+#define WT_TIMING_STRESS_COMPACT_SLOW 0x00000100ull
+#define WT_TIMING_STRESS_EVICT_REPOSITION 0x00000200ull
+#define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x00000400ull
+#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x00000800ull
+#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00001000ull
+#define WT_TIMING_STRESS_HS_SEARCH 0x00002000ull
+#define WT_TIMING_STRESS_HS_SWEEP 0x00004000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00008000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00010000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00020000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00040000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00080000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x00100000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x00200000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x00400000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x00800000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x01000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x02000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x04000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x08000000ull
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x10000000ull
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
+    uint64_t timing_stress_flags;
 
 #define WT_STDERR(s) (&S2C(s)->wt_stderr)
 #define WT_STDOUT(s) (&S2C(s)->wt_stdout)
@@ -848,9 +859,10 @@ struct __wt_connection_impl {
 #define WT_CONN_RECONFIGURING 0x01000000u
 #define WT_CONN_RECOVERING 0x02000000u
 #define WT_CONN_RECOVERY_COMPLETE 0x04000000u
-#define WT_CONN_SALVAGE 0x08000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x10000000u
-#define WT_CONN_WAS_BACKUP 0x20000000u
+#define WT_CONN_RTS_THREAD_RUN 0x08000000u
+#define WT_CONN_SALVAGE 0x10000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x20000000u
+#define WT_CONN_WAS_BACKUP 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 };

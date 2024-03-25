@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DRIVER_KV_WORKLOAD_GENERATOR_H
-#define MODEL_DRIVER_KV_WORKLOAD_GENERATOR_H
+#pragma once
 
 #include <atomic>
 #include <deque>
@@ -217,6 +216,12 @@ protected:
           });
 
         /*
+         * sequence_traversal::sequence_traversal --
+         *     Delete the copy constructor.
+         */
+        sequence_traversal(const sequence_traversal &) = delete;
+
+        /*
          * sequence_traversal::~sequence_traversal --
          *     Clean up after the traversal.
          */
@@ -225,6 +230,12 @@ protected:
             for (auto p : _per_sequence_state)
                 delete p.second;
         }
+
+        /*
+         * sequence_traversal::operator= --
+         *     Delete the assignment operator.
+         */
+        sequence_traversal &operator=(const sequence_traversal &) = delete;
 
         /*
          * sequence_traversal::has_more --
@@ -399,4 +410,3 @@ private:
 };
 
 } /* namespace model */
-#endif

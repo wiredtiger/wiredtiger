@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <sys/time.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -66,6 +67,58 @@ create_tmp_file(const char *dir, const char *prefix, const char *suffix)
     testutil_check(close(fd));
 
     return std::string(buf);
+}
+
+/*
+ * current_time --
+ *     Get the current time in seconds.
+ */
+double
+current_time()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+
+    return tv.tv_sec + tv.tv_usec / 1.0e6;
+}
+
+/*
+ * parse_uint64_range --
+ *     Parse the string into a range of numbers (two numbers separated by '-'). Throw an exception
+ *     on error.
+ */
+std::pair<uint64_t, uint64_t>
+parse_uint64_range(const char *str)
+{
+    char *end;
+    uint64_t first = parse_uint64(str, &end);
+
+    uint64_t second = first;
+    if (end[0] != '\0') {
+        if (end[0] != '-')
+            throw std::runtime_error("Not a range");
+        second = parse_uint64(end + 1);
+    }
+
+    if (first > second)
+        std::swap(first, second);
+    return std::make_pair(first, second);
+}
+
+/*
+ * trim --
+ *     Trim whitespace from a string.
+ */
+std::string
+trim(const std::string &str, const std::string &to_trim)
+{
+    size_t a = str.find_first_not_of(to_trim);
+    if (a == std::string::npos)
+        return "";
+    size_t b = str.find_last_not_of(to_trim);
+    if (b == std::string::npos || b < a)
+        b = str.length();
+    return str.substr(a, b - a + 1);
 }
 
 /*
@@ -127,14 +180,17 @@ verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::
 {
     /* Run the workload in the model. */
     model::kv_database database;
-    workload.run(database);
+    std::vector<int> ret_model = workload.run(database);
 
     /* When we load the workload from WiredTiger, that would be after running recovery. */
     database.restart();
 
     /* Run the workload in WiredTiger. */
     testutil_recreate_dir(home.c_str());
-    workload.run_in_wiredtiger(home.c_str(), env_config);
+    std::vector<int> ret_wt = workload.run_in_wiredtiger(home.c_str(), env_config);
+
+    /* Compare the return codes. */
+    testutil_assert(ret_model == ret_wt);
 
     /* Open the database that we just created. */
     WT_CONNECTION *conn;

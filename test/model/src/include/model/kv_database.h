@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_DATABASE_H
-#define MODEL_KV_DATABASE_H
+#pragma once
 
 #include <memory>
 #include <mutex>
@@ -288,4 +287,3 @@ private:
 };
 
 } /* namespace model */
-#endif

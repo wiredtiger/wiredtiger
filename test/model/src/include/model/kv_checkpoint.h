@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_CHECKPOINT_H
-#define MODEL_KV_CHECKPOINT_H
+#pragma once
 
 #include <memory>
 
@@ -49,7 +48,7 @@ public:
      */
     inline kv_checkpoint(
       const char *name, kv_transaction_snapshot_ptr snapshot, timestamp_t stable_timestamp) noexcept
-        : _name(name), _snapshot(snapshot), _stable_timestamp(stable_timestamp)
+        : _name(name), _snapshot(std::move(snapshot)), _stable_timestamp(stable_timestamp)
     {
     }
 
@@ -98,4 +97,3 @@ private:
 using kv_checkpoint_ptr = std::shared_ptr<kv_checkpoint>;
 
 } /* namespace model */
-#endif

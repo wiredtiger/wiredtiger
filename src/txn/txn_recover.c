@@ -177,12 +177,12 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Applying slot %" PRIu32
               " granularity %" PRIu64 " ID string %s",
-              lsnp->l.file, lsnp->l.offset, index, granularity, id_str);
+              lsnp->l.file, __wt_lsn_offset(lsnp), index, granularity, id_str);
             WT_ERR(__wt_backup_set_blkincr(session, index, granularity, id_str, strlen(id_str)));
         } else {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Clearing slot %" PRIu32, lsnp->l.file,
-              lsnp->l.offset, index);
+              __wt_lsn_offset(lsnp), index);
             /* This is the result of a force stop, clear the entry. */
             WT_CLEAR(*blk);
         }
@@ -194,7 +194,7 @@ done:
     return (0);
 err:
     __wt_err(session, ret, "backup id apply failed during recovery: at LSN %" PRIu32 "%" PRIu32,
-      lsnp->l.file, lsnp->l.offset);
+      lsnp->l.file, __wt_lsn_offset(lsnp));
     return (ret);
 }
 
@@ -222,7 +222,7 @@ __txn_system_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8
       ret != 0         ? "Error" :                                         \
         cursor == NULL ? "Skipping" :                                      \
                          "Applying",                                       \
-      optype, fileid, (lsnp)->l.file, (lsnp)->l.offset);                   \
+      optype, fileid, (lsnp)->l.file, __wt_lsn_offset(lsnp));              \
     WT_ERR(ret);                                                           \
     if (cursor == NULL)                                                    \
     break
@@ -441,7 +441,7 @@ err:
     __wt_err(session, ret,
       "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
       "/%" PRIu32,
-      optype, lsnp->l.file, lsnp->l.offset);
+      optype, lsnp->l.file, __wt_lsn_offset(lsnp));
     return (ret);
 }
 
@@ -569,7 +569,7 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
      */
     WT_RET(__wt_meta_read_checkpoint_oldest(r->session, NULL, &oldest_timestamp, NULL));
     conn->txn_global.oldest_timestamp = oldest_timestamp;
-    conn->txn_global.has_oldest_timestamp = oldest_timestamp != WT_TS_NONE;
+    __wt_atomic_storebool(&conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
@@ -731,7 +731,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 
     __wt_verbose(r->session, WT_VERB_RECOVERY,
       "Recovering %s with id %" PRIu32 " @ (%" PRIu32 ", %" PRIu32 ")", uri, fileid, lsn.l.file,
-      lsn.l.offset);
+      __wt_lsn_offset(&lsn));
 
     if ((!WT_IS_MAX_LSN(&lsn) && !WT_IS_INIT_LSN(&lsn)) &&
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
@@ -1056,7 +1056,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     r.metadata_only = false;
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
       "Main recovery loop: starting at %" PRIu32 "/%" PRIu32 " to %" PRIu32 "/%" PRIu32,
-      r.ckpt_lsn.l.file, r.ckpt_lsn.l.offset, r.max_rec_lsn.l.file, r.max_rec_lsn.l.offset);
+      r.ckpt_lsn.l.file, __wt_lsn_offset(&r.ckpt_lsn), r.max_rec_lsn.l.file,
+      __wt_lsn_offset(&r.max_rec_lsn));
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
     /*
      * Check if the database was shut down cleanly. If not return an error if the user does not want
@@ -1143,6 +1144,8 @@ done:
      * 2. The history store file was found in the metadata.
      */
     if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
+        const char *rts_cfg[] = {
+          WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
@@ -1157,7 +1160,7 @@ done:
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
         rts_executed = true;
-        WT_ERR(conn->rts->rollback_to_stable(session, NULL, true));
+        WT_ERR(conn->rts->rollback_to_stable(session, rts_cfg, true));
 
         /* Time since the rollback to stable has started. */
         __wt_timer_evaluate_ms(session, &rts_timer, &conn->recovery_timeline.rts_ms);

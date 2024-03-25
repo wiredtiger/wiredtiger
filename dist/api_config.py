@@ -2,6 +2,20 @@
 
 import os, re, sys, textwrap
 from dist import compare_srcfile, format_srcfile, ModifyFile
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast([
+            "../dist/api_data.py",
+            "../dist/dist.py",
+            "../dist/test_data.py",
+            "../src/config/config_def.c",
+            "../src/config/test_config.c",
+            "../src/include/conf.h"
+            "../src/include/conf_keys.h"
+            "../src/include/config.h"
+            "../src/include/wiredtiger.in",
+        ], prefix="../")]:
+    sys.exit(0)
 
 test_config = False
 
@@ -82,11 +96,11 @@ def typedesc(c):
         'category': 'a set of related configuration options defined as follows',
         'string'  : 'a string'}[ctype]
     if cmin and cmax:
-        desc += ' between \c ' + cmin + ' and \c ' + cmax
+        desc += ' between \\c ' + cmin + ' and \\c ' + cmax
     elif cmin:
-        desc += ' greater than or equal to \c ' + cmin
+        desc += ' greater than or equal to \\c ' + cmin
     elif cmax:
-        desc += ' no more than \c ' + cmax
+        desc += ' no more than \\c ' + cmax
     if choices:
         if ctype == 'list':
             desc += ', with values chosen from the following options: '

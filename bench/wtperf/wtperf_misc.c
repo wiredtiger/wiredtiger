@@ -112,44 +112,59 @@ lprintf(const WTPERF *wtperf, int err, uint32_t level, const char *fmt, ...)
  *     machine backup is performing on.
  */
 void
-backup_read(WTPERF *wtperf, const char *filename)
+backup_read(WTPERF *wtperf, WT_SESSION *session)
 {
-    char *buf;
-    int rfd;
-    size_t len;
-    ssize_t rdsize;
     struct stat st;
+    WT_CURSOR *backup_cursor;
+    WT_DECL_RET;
     uint32_t buf_size, size, total;
+    int rfd;
+    ssize_t rdsize;
+    char *buf;
+    const char *filename;
 
     buf = NULL;
-    rfd = -1;
 
-    /* Open the file handle. */
-    len = strlen(wtperf->home) + strlen(filename) + 10;
-    buf = dmalloc(len);
-    testutil_snprintf(buf, len, "%s/%s", wtperf->home, filename);
-    error_sys_check(rfd = open(buf, O_RDONLY, 0644));
-
-    /* Get the file's size. */
-    testutil_check(stat(buf, &st));
-    size = (uint32_t)st.st_size;
-    free(buf);
+    /*
+     * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
+     */
+    while ((ret = session->open_cursor(session, "backup:", NULL, NULL, &backup_cursor)) == EBUSY)
+        __wt_yield();
+    if (ret != 0)
+        goto err;
 
     buf = dmalloc(WT_BACKUP_COPY_SIZE);
-    total = 0;
-    buf_size = WT_MIN(size, WT_BACKUP_COPY_SIZE);
-    while (total < size) {
-        /* Use the read size since we may have read less than the granularity. */
-        error_sys_check(rdsize = read(rfd, buf, buf_size));
+    while ((ret = backup_cursor->next(backup_cursor)) == 0) {
+        testutil_check(backup_cursor->get_key(backup_cursor, &filename));
 
-        /* If we get EOF, we're done. */
-        if (rdsize == 0)
-            break;
-        total += (uint32_t)rdsize;
-        buf_size = WT_MIN(buf_size, size - total);
+        rfd = -1;
+        /* Open the file handle. */
+        testutil_snprintf(buf, WT_BACKUP_COPY_SIZE, "%s/%s", wtperf->home, filename);
+        error_sys_check(rfd = open(buf, O_RDONLY, 0644));
+        if (rfd < 0)
+            continue;
+
+        /* Get the file's size. */
+        testutil_check(stat(buf, &st));
+        size = (uint32_t)st.st_size;
+
+        total = 0;
+        buf_size = WT_MIN(size, WT_BACKUP_COPY_SIZE);
+        while (total < size) {
+            /* Use the read size since we may have read less than the granularity. */
+            error_sys_check(rdsize = read(rfd, buf, buf_size));
+
+            /* If we get EOF, we're done. */
+            if (rdsize == 0)
+                break;
+            total += (uint32_t)rdsize;
+            buf_size = WT_MIN(buf_size, size - total);
+        }
+
+        if (rfd != -1)
+            testutil_check(close(rfd));
     }
-
-    if (rfd != -1)
-        testutil_check(close(rfd));
+    testutil_check(backup_cursor->close(backup_cursor));
+err:
     free(buf);
 }

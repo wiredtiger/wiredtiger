@@ -75,7 +75,7 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
  *     Enforce restrictions on nesting checkpoint cursors. The only nested cursors we should get to
  *     from a checkpoint cursor are cursors for the corresponding history store checkpoint.
  */
-static inline int
+static WT_INLINE int
 __curfile_check_cbt_txn(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_TXN *txn;
@@ -647,7 +647,8 @@ err:
     /* The URI is owned by the btree handle. */
     cursor->internal_uri = NULL;
 
-    WT_ASSERT(session, session->dhandle == NULL || session->dhandle->session_inuse > 0);
+    WT_ASSERT(session,
+      session->dhandle == NULL || __wt_atomic_loadi32(&session->dhandle->session_inuse) > 0);
 
     /* Free any private transaction set up for a checkpoint cursor. */
     if (cbt->checkpoint_txn != NULL)

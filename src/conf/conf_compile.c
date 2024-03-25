@@ -393,6 +393,12 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
         WT_RET_MSG(session, ENOTSUP,
           "Error compiling, method '%s' does not support compiled configurations", centry->method);
 
+    /* Fast path: if there is no configuration, return with the default config for this API. */
+    if (config == NULL || *config == '\0') {
+        *confp = S2C(session)->conf_api_array[centry_index];
+        return (0);
+    }
+
     conf = NULL;
 
     /* Verify we have the needed size. */
@@ -418,10 +424,9 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     /* Save the config string from the API call, it can be helpful for debugging. */
     conf->api_config = config;
 
-    /* Add to it the user format if any. */
-    if (config != NULL)
-        WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
-          centry->checks_entries, centry->checks_jump, config, strlen(config), false, false));
+    /* Add the user config to it. */
+    WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
+      centry->checks_entries, centry->checks_jump, config, strlen(config), false, false));
 
     *confp = conf;
 
@@ -485,11 +490,14 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
     const WT_CONFIG_ENTRY *centry;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     size_t i, lastlen;
     char *cs;
     const char *cfgs[2] = {NULL, NULL};
 
+    conf = NULL;
     conn = S2C(session);
+
     WT_RET(__wt_config_gets(session, cfg, "compile_configuration_count", &cval));
     conn->conf_max = (uint32_t)cval.val;
 
@@ -521,17 +529,24 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
         centry = conn->config_entries[i];
         WT_ASSERT(session, centry->method_id == i);
         if (centry->compilable) {
-            WT_RET(__wt_calloc(session, centry->conf_total_size, 1, &conf));
+            WT_ERR(__wt_calloc(session, centry->conf_total_size, 1, &conf));
 
             cfgs[0] = centry->base;
-            WT_RET(__conf_compile_config_strings(session, centry, cfgs, 1, false, conf));
+            WT_ERR(__conf_compile_config_strings(session, centry, cfgs, 1, false, conf));
 
             /* Stash the default configuration string, it can be helpful for debugging. */
             conf->default_config = centry->base;
             conn->conf_api_array[i] = conf;
+            conf = NULL;
         }
     }
-    return (0);
+err:
+    /* Free any dangling conf pointers. Should only happen in error paths. */
+    if (conf != NULL) {
+        WT_ASSERT(session, ret != 0);
+        __wt_free(session, conf);
+    }
+    return (ret);
 }
 
 /*
@@ -563,7 +578,7 @@ __wt_conf_compile_discard(WT_SESSION_IMPL *session)
     if (conn->conf_api_array != NULL) {
         for (i = 0; i < WT_CONF_API_ELEMENTS; ++i)
             __conf_compile_free(session, conn->conf_api_array[i]);
-        __wt_free(session, conn->conf_array);
+        __wt_free(session, conn->conf_api_array);
     }
     if (conn->conf_array != NULL) {
         for (i = 0; i < conn->conf_size; ++i)
@@ -657,7 +672,7 @@ __conf_verbose_cat_config(WT_SESSION_IMPL *session, const char **cfg, WT_CONF *c
             continue;
         }
 
-        key_id = (ccheck->key_id << shift) | subkey_id;
+        key_id = ((uint64_t)ccheck->key_id << shift) | subkey_id;
         type = ccheck->compiled_type;
         if (ccheck->subconfigs != NULL) {
             WT_RET(__wt_buf_catfmt(session, buf, "("));

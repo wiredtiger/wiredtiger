@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LOGSCAN_FIRST 0x01u
 #define WT_LOGSCAN_FROM_CKP 0x02u
@@ -34,7 +36,7 @@ union __wt_lsn {
         uint32_t file;
         uint32_t offset;
 #else
-        uint32_t offset;
+        wt_shared uint32_t offset;
         uint32_t file;
 #endif
     } l;
@@ -53,8 +55,9 @@ union __wt_lsn {
  * least clang address sanitizer) does not do atomic 64-bit structure assignment so we need to
  * explicitly assign the 64-bit field. And WT_SET_LSN atomically sets the LSN given a file/offset.
  */
-#define WT_ASSIGN_LSN(dstl, srcl) (dstl)->file_offset = (srcl)->file_offset
-#define WT_SET_LSN(l, f, o) (l)->file_offset = (((uint64_t)(f) << 32) + (o))
+#define WT_ASSIGN_LSN(dstl, srcl) \
+    __wt_atomic_store64(&(dstl)->file_offset, __wt_atomic_load64(&(srcl)->file_offset))
+#define WT_SET_LSN(l, f, o) __wt_atomic_store64(&(l)->file_offset, (((uint64_t)(f) << 32) + (o)))
 
 #define WT_INIT_LSN(l) WT_SET_LSN((l), 1, 0)
 
@@ -65,7 +68,7 @@ union __wt_lsn {
 /*
  * Test for initial LSN. We only need to shift the 1 for comparison.
  */
-#define WT_IS_INIT_LSN(l) ((l)->file_offset == ((uint64_t)1 << 32))
+#define WT_IS_INIT_LSN(l) (__wt_atomic_load64(&(l)->file_offset) == ((uint64_t)1 << 32))
 /*
  * Original tested INT32_MAX. But if we read one from an older release we may see UINT32_MAX.
  */
@@ -74,7 +77,7 @@ union __wt_lsn {
 /*
  * Test for zero LSN.
  */
-#define WT_IS_ZERO_LSN(l) ((l)->file_offset == 0)
+#define WT_IS_ZERO_LSN(l) (__wt_atomic_load64(&(l)->file_offset) == 0)
 
 /*
  * Macro to print an LSN.
@@ -328,7 +331,7 @@ struct __wt_log_record {
  * __wt_log_record_byteswap --
  *     Handle big- and little-endian transformation of the log record header block.
  */
-static inline void
+static WT_INLINE void
 __wt_log_record_byteswap(WT_LOG_RECORD *record)
 {
 #ifdef WORDS_BIGENDIAN
@@ -379,7 +382,7 @@ struct __wt_log_desc {
  * __wt_log_desc_byteswap --
  *     Handle big- and little-endian transformation of the log file description block.
  */
-static inline void
+static WT_INLINE void
 __wt_log_desc_byteswap(WT_LOG_DESC *desc)
 {
 #ifdef WORDS_BIGENDIAN

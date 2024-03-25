@@ -525,10 +525,11 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          *
          * By saving the generation number before, if there is a race, the saved generation number
          * will not be equal to the latest one. We want both variables to be read in as early as
-         * possible in this loop, ordered reads encourage this.
+         * possible in this loop, acquire reads encourage this.
          */
-        WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
-        WT_ORDERED_READ(ckpt_running, S2C(session)->txn_global.checkpoint_running);
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        WT_ACQUIRE_BARRIER();
+        WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, S2C(session)->txn_global.checkpoint_running);
 
         if (!must_resolve)
             /* Copy the checkpoint name first because we may need it to get the first wall time. */
@@ -742,7 +743,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
          * evicted. These checks are not done with any locks in place, other than the data handle
          * reference, so we cannot peer past what is in the dhandle directly.
          */
-        if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
+        if (dhandle != session->dhandle && __wt_atomic_loadi32(&dhandle->session_inuse) == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
             (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time)) &&
           (!WT_DHANDLE_BTREE(dhandle) ||

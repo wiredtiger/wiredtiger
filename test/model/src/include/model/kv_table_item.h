@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_TABLE_ITEM_H
-#define MODEL_KV_TABLE_ITEM_H
+#pragma once
 
 #include <deque>
 #include <memory>
@@ -104,7 +103,7 @@ public:
     inline bool
     exists_opt(kv_checkpoint_ptr checkpoint) const
     {
-        return checkpoint ? exists(checkpoint) : exists();
+        return checkpoint ? exists(std::move(checkpoint)) : exists();
     }
 
     /*
@@ -233,4 +232,3 @@ private:
 };
 
 } /* namespace model */
-#endif

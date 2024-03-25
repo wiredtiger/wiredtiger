@@ -1,0 +1,23 @@
+# Suppress the listed TSan warnings. Load this file with 
+# export TSAN_OPTIONS="suppressions=path/to/wiredtiger/test/evergreen/tsan_warnings.supp"
+# before running tests with TSan
+
+# This function enables threads to set double values in a shared context, and catches all TSan warnings.
+race:__wt_set_shared_double
+
+# Stats are allowed to be fuzzy. Ignore races in TSan
+race:src/include/stat.h
+
+# FIXME-WT-12610 Fields like log->slot_state are composite variables and more complex than the usual storing 
+# and loading of ints. These fields will be investigated in a separate ticket. 
+race:src/log
+
+# FIXME-WT-12611 CONNECTION_API_CALL contains a data race that touches the session array, but the number of macro 
+# calls makes diagnosing this very hard. For now suppress the surrounding function and handle this in a separate ticket.
+race:__conn_open_session
+
+# __tiered_queue_peek_empty is intentionally unsafe to avoid taking the tiered lock when it's not needed.
+race:__tiered_queue_peek_empty
+
+# The ref track code is diagnostic only and allows for races
+race:__ref_track_state

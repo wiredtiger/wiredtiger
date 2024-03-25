@@ -84,7 +84,7 @@ __wt_debug_set_verbose(WT_SESSION_IMPL *session, const char *v)
  * __debug_hex_byte --
  *     Output a single byte in hex.
  */
-static inline int
+static WT_INLINE int
 __debug_hex_byte(WT_DBG *ds, uint8_t v)
 {
     return (ds->f(ds, "#%c%c", __wt_hex((v & 0xf0) >> 4), __wt_hex(v & 0x0f)));
@@ -677,6 +677,10 @@ __debug_cell_kv(
         break;
     }
 
+    /* Early exit for column store deleted cells. There's nothing further to print. */
+    if (unpack->raw == WT_CELL_DEL)
+        return (0);
+
     /* Overflow addresses. */
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
@@ -922,7 +926,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
           "%d %s\n",
           level * 3, " ", level, __debug_tree_shape_info(ref, buf, sizeof(buf))));
         WT_INTL_FOREACH_BEGIN (session, ref->page, walk) {
-            if (walk->state == WT_REF_MEM)
+            if (WT_REF_GET_STATE(walk) == WT_REF_MEM)
                 WT_RET(__debug_tree_shape_worker(ds, walk, level + 1));
         }
         WT_INTL_FOREACH_END;
@@ -1373,14 +1377,14 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page)
     session = ds->session;
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n", ref->ref_recno));
+        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n\t", ref->ref_recno));
         WT_RET(__debug_ref(ds, ref));
     }
     WT_INTL_FOREACH_END;
 
     if (F_ISSET(ds, WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            if (ref->state == WT_REF_MEM) {
+            if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
                 WT_RET(ds->f(ds, "\n"));
                 WT_RET(__debug_page(ds, ref));
             }
@@ -1463,7 +1467,7 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page)
 
     if (F_ISSET(ds, WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            if (ref->state == WT_REF_MEM) {
+            if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
                 WT_RET(ds->f(ds, "\n"));
                 WT_RET(__debug_page(ds, ref));
             }
@@ -1715,7 +1719,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     session = ds->session;
 
     WT_RET(ds->f(ds, "ref: %p", (void *)ref));
-    WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(ref->state)));
+    WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(WT_REF_GET_STATE(ref))));
     if (ref->flags != 0) {
         WT_RET(ds->f(ds, " | page_type: ["));
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
