@@ -3558,57 +3558,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
 
-static const char *const __stats_join_desc[] = {
-  "join: accesses to the main table",
-  "join: bloom filter false positives",
-  "join: checks that conditions of membership are satisfied",
-  "join: items inserted into a bloom filter",
-  "join: items iterated",
-};
-
-int
-__wt_stat_join_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
-{
-    WT_UNUSED(cst);
-    *p = __stats_join_desc[slot];
-    return (0);
-}
-
-void
-__wt_stat_join_init_single(WT_JOIN_STATS *stats)
-{
-    memset(stats, 0, sizeof(*stats));
-}
-
-void
-__wt_stat_join_clear_single(WT_JOIN_STATS *stats)
-{
-    stats->main_access = 0;
-    stats->bloom_false_positive = 0;
-    stats->membership_check = 0;
-    stats->bloom_insert = 0;
-    stats->iterated = 0;
-}
-
-void
-__wt_stat_join_clear_all(WT_JOIN_STATS **stats)
-{
-    u_int i;
-
-    for (i = 0; i < WT_COUNTER_SLOTS; ++i)
-        __wt_stat_join_clear_single(stats[i]);
-}
-
-void
-__wt_stat_join_aggregate(WT_JOIN_STATS **from, WT_JOIN_STATS *to)
-{
-    to->main_access += WT_STAT_READ(from, main_access);
-    to->bloom_false_positive += WT_STAT_READ(from, bloom_false_positive);
-    to->membership_check += WT_STAT_READ(from, membership_check);
-    to->bloom_insert += WT_STAT_READ(from, bloom_insert);
-    to->iterated += WT_STAT_READ(from, iterated);
-}
-
 static const char *const __stats_session_desc[] = {
   "session: bytes read into cache",
   "session: bytes written from cache",

@@ -626,7 +626,6 @@ curextract
 curfile
 curhs
 curindex
-curjoin
 curlog
 curmetadata
 cursoring
@@ -886,7 +885,6 @@ ispo
 isprint
 isrc
 isspace
-iter
 jjj
 js
 json

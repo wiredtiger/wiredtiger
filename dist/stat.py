@@ -17,7 +17,7 @@ if not [f for f in filter_if_fast([
     sys.exit(0)
 
 # Read the source files.
-from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
+from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, \
     session_stats
 
 ##########################################
@@ -35,7 +35,6 @@ def check_unique_description(sorted_list):
 check_unique_description(conn_stats)
 check_unique_description(dsrc_stats)
 check_unique_description(session_stats)
-check_unique_description(join_stats)
 check_unique_description(conn_dsrc_stats)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
@@ -73,7 +72,6 @@ for line in open('../src/include/stat.h', 'r'):
         skip = 1
         print_struct('connections', 'connection', 1000, sorted_conn_stats)
         print_struct('data sources', 'dsrc', 2000, sorted_dsrc_statistics)
-        print_struct('join cursors', 'join', 3000, join_stats)
         print_struct('session', 'session', 4000, session_stats)
 f.close()
 format_srcfile(tmp_file)
@@ -121,15 +119,6 @@ def print_defines():
  */
 ''')
     print_defines_one('DSRC', 2000, sorted_dsrc_statistics)
-    f.write('''
-/*!
- * @}
- * @name Statistics for join cursors
- * @anchor statistics_join
- * @{
- */
-''')
-    print_defines_one('JOIN', 3000, join_stats)
     f.write('''
 /*!
  * @}
@@ -291,7 +280,6 @@ f.write('#include "wt_internal.h"\n')
 
 print_func('dsrc', 'WT_DATA_HANDLE', sorted_dsrc_statistics)
 print_func('connection', 'WT_CONNECTION_IMPL', sorted_conn_stats)
-print_func('join', None, join_stats)
 print_func('session', None, session_stats)
 f.close()
 format_srcfile(tmp_file)

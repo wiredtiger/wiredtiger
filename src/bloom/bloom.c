@@ -323,7 +323,7 @@ __wt_bloom_get(WT_BLOOM *bloom, WT_ITEM *key) WT_GCC_FUNC_ATTRIBUTE((visibility(
  *     __wt_bloom_get for Bloom filters that are memory only.
  */
 int
-__wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key)
+__wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key) /* Not Used */
 {
     uint64_t h1, h2;
     uint32_t i;
@@ -342,7 +342,7 @@ __wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key)
  *     Modify the Bloom filter to contain the intersection of this filter with another.
  */
 int
-__wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other)
+__wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other) /* Not Used */
 {
     uint64_t i, nbytes;
 
