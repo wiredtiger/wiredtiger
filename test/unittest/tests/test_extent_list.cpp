@@ -9,8 +9,8 @@
 #include <memory>
 
 #include <catch2/catch.hpp>
-
 #include "wt_internal.h"
+#include "./wrappers/mock_session.h"
 
 struct ExtentWrapper {
     ExtentWrapper(WT_EXT *raw) : _raw(raw) {}
@@ -160,11 +160,15 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
     SECTION("empty list has empty final element")
     {
         std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
+        WT_EXTLIST el;
 
-        REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == nullptr);
+        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+            el.off[i] = head[i];
+
+        REQUIRE(__ut_block_off_srch_last(&el, &stack[0], true) == nullptr);
 
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-            REQUIRE(stack[i] == &head[i]);
+            REQUIRE(stack[i] == &el.off[i]);
         }
     }
 
@@ -172,28 +176,36 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
     {
         auto wrapper = ExtentListWrapper();
         auto &head = wrapper._raw_list;
+        WT_EXTLIST el;
 
         auto first = create_new_ext();
         head.push_back(first->_raw);
         for (int i = 1; i < WT_SKIP_MAXDEPTH; i++)
             head.push_back(nullptr);
 
-        REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == head[0]);
+        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+            el.off[i] = head[i];
+
+        REQUIRE(__ut_block_off_srch_last(&el, &stack[0], true) == el.off[0]);
     }
 
     SECTION("list with identical skip entries returns identical stack entries")
     {
         auto wrapper = ExtentListWrapper();
         auto &head = wrapper._raw_list;
+        WT_EXTLIST el;
 
         auto first = create_new_ext();
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
             head.push_back(first->_raw);
 
-        WT_IGNORE_RET(__ut_block_off_srch_last(&head[0], &stack[0]));
+        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+            el.off[i] = head[i];
+
+        WT_IGNORE_RET(__ut_block_off_srch_last(&el, &stack[0], true));
 
         for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-            REQUIRE(stack[i] == &head[i]->next[i]);
+            REQUIRE(stack[i] == &el.off[i]->next[i]);
         }
     }
 
@@ -201,16 +213,19 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
     {
         auto wrapper = ExtentListWrapper();
         auto &head = wrapper._raw_list;
+        WT_EXTLIST el;
 
         create_default_test_extent_list(wrapper);
+        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+            el.off[i] = head[i];
 
-        WT_IGNORE_RET(__ut_block_off_srch_last(&head[0], &stack[0]));
+        WT_IGNORE_RET(__ut_block_off_srch_last(&el, &stack[0], true));
 
-        REQUIRE(stack[0] == &head[2]->next[0]);
-        REQUIRE(stack[1] == &head[2]->next[1]);
-        REQUIRE(stack[2] == &head[2]->next[2]);
+        REQUIRE(stack[0] == &el.off[2]->next[0]);
+        REQUIRE(stack[1] == &el.off[2]->next[1]);
+        REQUIRE(stack[2] == &el.off[2]->next[2]);
         for (int i = 3; i < WT_SKIP_MAXDEPTH; i++) {
-            REQUIRE(stack[i] == &head[i]);
+            REQUIRE(stack[i] == &el.off[i]);
         }
     }
 
@@ -218,6 +233,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
     {
         auto wrapper = ExtentListWrapper();
         auto &head = wrapper._raw_list;
+        WT_EXTLIST el;
 
         auto first = create_new_ext();
         auto second = create_new_ext();
@@ -227,8 +243,59 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
         for (int i = 1; i < WT_SKIP_MAXDEPTH; i++)
             head.push_back(second->_raw);
 
-        REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == second->_raw);
+        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
+            el.off[i] = head[i];
+
+        REQUIRE(__ut_block_off_srch_last(&el, &stack[0], true) == second->_raw);
     }
+}
+
+TEST_CASE("Extent Lists: block_off_srch_last_for_mock_ession", "[extent_list]")
+{
+    std::shared_ptr<MockSession> mock_session;
+    WT_EXTLIST *alloc;
+    wt_off_t off, size;
+    WT_EXT *ext, extp, **astack[WT_SKIP_MAXDEPTH];
+    WT_BLOCK *block;
+    int i;
+    const char *name = "block_off_srch_last_for_mock_ession";
+
+    mock_session = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    block = mock_session->getWtBlock();
+    alloc = &block->live.avail;
+
+    REQUIRE(__wt_block_extlist_init(session, alloc, name, "test", false) == 0);
+
+#define TEST_EXT_SIZE 4096
+#define TEST_CYCLES 10
+    size = TEST_EXT_SIZE;
+    for (i = 0; i < TEST_CYCLES; i++) {
+        off = i * TEST_EXT_SIZE;
+        REQUIRE(__ut_block_off_insert(session, alloc, off, size) == 0);
+        ext = __ut_block_off_srch_last(alloc, &astack[0], false);
+        REQUIRE(ext != NULL);
+        REQUIRE(ext->off == off);
+        REQUIRE(ext->size == size);
+    }
+
+    for (i = TEST_CYCLES - 1; i >= 0; i--) {
+        off = i * TEST_EXT_SIZE;
+        ext = &extp;
+        REQUIRE(__ut_block_off_remove(session, block, alloc, off, &ext) == 0);
+        ext = __ut_block_off_srch_last(alloc, &astack[0], false);
+        if (i > 0) {
+            REQUIRE(ext != NULL);
+            off = (i - 1) * TEST_EXT_SIZE;
+            REQUIRE(ext->off == off);
+            REQUIRE(ext->size == size);
+
+        } else {
+            REQUIRE(ext == NULL);
+        }
+    }
+
+    __wt_block_extlist_free(session, alloc);
 }
 
 TEST_CASE("Extent Lists: block_off_srch", "[extent_list]")
