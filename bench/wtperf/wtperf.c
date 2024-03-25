@@ -698,7 +698,11 @@ op_err:
             goto err; /* can't happen */
         }
 
-        /* Update the index-like table. */
+        /*
+         * For now the index_like_table does not contain actual value from a main table. A truncate
+         * could imply a lot of deletions from an index but we don't want to do that here. Don't
+         * change the index_like_table on truncate.
+         */
         if (opts->index_like_table && (*op != WORKER_READ && *op != WORKER_TRUNCATE)) {
             if ((ret = delete_index_key(wtperf, index_cursor, index_del_buf, next_val)) != 0)
                 if (ret != WT_ROLLBACK)
@@ -711,6 +715,11 @@ op_err:
                     lprintf(wtperf, ret, 1, "Cursor index insert failed");
             }
             if (ret != 0) {
+                /*
+                 * For the index_like_table we're always using a transaction. But using ops_per_txn
+                 * supercedes. So if we get rollback only do it here if it isn't handled by the
+                 * ops_per_txn code elsewhere.
+                 */
                 if (ret == WT_ROLLBACK && ops_per_txn == 0) {
                     if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                         lprintf(wtperf, ret, 0, "Failed rollback_transaction");
@@ -768,8 +777,8 @@ op_err:
         }
 
         /*
-         * Commit the transaction if grouping operations together or tracking changes in our log
-         * table.
+         * Commit the transaction if grouping operations together or tracking changes in our log or
+         * index table.
          */
         if (use_txn || (ops_per_txn != 0 && ops++ % ops_per_txn == 0)) {
             if ((ret = session->commit_transaction(session, NULL)) != 0) {

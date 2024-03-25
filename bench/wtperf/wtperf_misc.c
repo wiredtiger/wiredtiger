@@ -59,7 +59,9 @@ delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_
 }
 
 /*
- * Set up an index key based on global values.
+ * Set up an index key based on global values. The populate inserted index values of the form
+ * INDEX_BASE:keyno. Then each workload thread is assigned an id and uses its id to modify the index
+ * keys. This spreads out the keys for each keyno but clusters the keys from each particular thread.
  */
 void
 generate_index_key(WTPERF *wtperf, u_int id_mult, char *key_buf, uint64_t keyno)
