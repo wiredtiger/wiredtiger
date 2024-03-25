@@ -26,7 +26,6 @@
  debug.table_logging=1
  debug.update_restore_evict=0
  disk.data_extend=0
- disk.direct_io=0
  disk.encryption=rotn-7
  disk.mmap=1
  disk.mmap_all=0
