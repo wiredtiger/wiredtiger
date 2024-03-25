@@ -51,11 +51,11 @@ class test_truncate24(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(uri)
 
-        # Truncate the data at timestamp 10 but commit at 30.
+        # Truncate the data at timestamp 10 but commit at 20.
         self.session.begin_transaction()
         self.session.timestamp_transaction("commit_timestamp=" + self.timestamp_str(10))
         self.session.truncate(uri, None, None, None)
-        # Reinstantiate the deleted data
+        # Reload the deleted pages to memory.
         for i in (1, 1000000):
             cursor.set_key(ds.key(i))
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
@@ -67,7 +67,7 @@ class test_truncate24(wttest.WiredTigerTestCase):
         self.assertGreater(fastdelete_pages, 0)
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
-        # Verify we don't see the data at timestamp 10
+        # Verify we don't see the data at timestamp 10.
         for i in (1, 1000000):
             cursor.set_key(ds.key(i))
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
