@@ -31,7 +31,7 @@ from wiredtiger import stat
 from wtbackup import backup_base
 
 # test_compact10.py
-# Verify compaction does not alter data by comparing backups before/after compaction.
+# Verify compaction does not alter data by comparing full backups before/after compaction.
 class test_compact10(backup_base):
 
     conn_config = 'cache_size=100MB,statistics=(all)'
@@ -51,6 +51,9 @@ class test_compact10(backup_base):
 
     def get_bg_compaction_running(self):
         return self.get_stat(stat.conn.background_compact_running)
+
+    def get_bg_compaction_success(self):
+        return self.get_stat(stat.conn.background_compact_success)
 
     def get_bytes_recovered(self):
         return self.get_stat(stat.conn.background_compact_bytes_recovered)
@@ -104,19 +107,16 @@ class test_compact10(backup_base):
             c[k] = ('%07d' % k) + '_' + 'abcd' * ((value_size // 4) - 2)
         c.close()
 
-    def turn_on_bg_compact(self, config):
-        self.session.compact(None, config)
-        compact_running = self.get_bg_compaction_running()
-        while not compact_running:
-            time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 1)
+    def turn_on_bg_compact(self, config = ''):
+        self.session.compact(None, f'background=true,{config}')
+        while not self.get_bg_compaction_running():
+            time.sleep(0.1)
 
     # This test:
     # - Creates a full backup before background compaction is enabled.
     # - Waits for background compaction to compact all the files and create a new full backup.
     # - Compares the two backups.
-    def test_compact10_full_backup(self):
+    def test_compact10(self):
         # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
@@ -129,15 +129,16 @@ class test_compact10(backup_base):
         os.mkdir(backup_1)
         self.take_full_backup(backup_1)
 
-        # Enable background compaction.
-        compact_config = f'background=true,free_space_target=1MB'
-        self.turn_on_bg_compact(compact_config)
+        # Enable background compaction. Only run compaction once to process each table and avoid
+        # overwriting stats.
+        self.turn_on_bg_compact('free_space_target=1MB,run_once=true')
 
-        # Wait for all tables to be compacted but the HS.
-        while self.get_files_compacted(uris) < self.num_tables:
+        # Wait for background compaction to process all the tables.
+        while self.get_bg_compaction_success() < self.num_tables:
             time.sleep(0.5)
 
-        assert self.get_files_compacted(uris) == self.num_tables
+        self.pr(f'Compaction has processed {self.get_bg_compaction_success()} tables.')
+        self.assertTrue(self.get_bytes_recovered() > 0)
 
         # Take a second full backup.
         os.mkdir(backup_2)
