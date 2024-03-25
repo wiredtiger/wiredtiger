@@ -159,14 +159,6 @@ main(int argc, char *argv[])
             (void)alarm(0);
             testutil_check(session2->commit_transaction(session2, NULL));
         }
-
-        /*
-         * Perform occasional checkpoints to remove any obsolete content before the page is
-         * subjected to forced eviction because of obsolete content.
-         */
-        if (j % 500 == 0)
-            session2->checkpoint(session, NULL);
-
         /*
          * Modify operations are done similar to append sequence. This has no bearing on the test
          * outcome.
