@@ -29,7 +29,7 @@ TEST_CASE("Test string matching macro: WT_STRING_MATCH", "[STRING_MATCH]")
     green_str = "green";
     greener_str = "greener";
     null_str = NULL;
-    something_str = "greener";
+    something_str = "something";
 
     /*
      * Thwart smart compilers: if they know this variable is null, they'll complain about its use
@@ -59,6 +59,7 @@ TEST_CASE("Test string matching macro: WT_STRING_MATCH", "[STRING_MATCH]")
              *   CHECK(WT_STRING_LIT_MATCH(green_str, green.str, green.len) == 1);
              */
 
+            /* Run all the same tests with the config equivalent macros. */
             CHECK(WT_CONFIG_LIT_MATCH("g", green) == 0);
             CHECK(WT_CONFIG_LIT_MATCH("greed", green) == 0);
             CHECK(WT_CONFIG_LIT_MATCH("green", green) == 1);
@@ -77,6 +78,10 @@ TEST_CASE("Test string matching macro: WT_STRING_MATCH", "[STRING_MATCH]")
         /* We run the test twice, once with the config string null terminated, one without. */
         green.str = "green";
         for (i = 0; i < 2; i++) {
+            /*
+             * The plain string match macros should still work with literal strings, even though we
+             * prefer to use the *_LIT_* macros with literals.
+             */
             CHECK(WT_STRING_MATCH("g", green.str, green.len) == 0);
             CHECK(WT_STRING_MATCH("greed", green.str, green.len) == 0);
             CHECK(WT_STRING_MATCH("green", green.str, green.len) == 1);
@@ -87,6 +92,10 @@ TEST_CASE("Test string matching macro: WT_STRING_MATCH", "[STRING_MATCH]")
             CHECK(WT_STRING_MATCH("something", empty.str, empty.len) == 0);
             CHECK(WT_STRING_MATCH("", null_str, 0) == 1);
 
+            /*
+             * The plain string match macros work with string variables, the *_LIT_* macros will
+             * not.
+             */
             CHECK(WT_STRING_MATCH(g_str, green.str, green.len) == 0);
             CHECK(WT_STRING_MATCH(greed_str, green.str, green.len) == 0);
             CHECK(WT_STRING_MATCH(green_str, green.str, green.len) == 1);
@@ -97,6 +106,7 @@ TEST_CASE("Test string matching macro: WT_STRING_MATCH", "[STRING_MATCH]")
             CHECK(WT_STRING_MATCH(something_str, empty.str, empty.len) == 0);
             CHECK(WT_STRING_MATCH(empty_str, null_str, 0) == 1);
 
+            /* Run all the same tests with the config equivalent macros. */
             CHECK(WT_CONFIG_MATCH("g", green) == 0);
             CHECK(WT_CONFIG_MATCH("greed", green) == 0);
             CHECK(WT_CONFIG_MATCH("green", green) == 1);
