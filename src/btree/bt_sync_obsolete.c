@@ -475,12 +475,21 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         WT_ERR(cursor->next(cursor));
 
     /* Loop through the eligible candidates. */
-    WT_ERR(cursor->get_key(cursor, &key));
-    /* Check we are still dealing with keys that have the right prefix. */
-    if (!WT_PREFIX_MATCH(key, WT_URI_FILE_PREFIX)) {
-        ret = WT_NOTFOUND;
-        goto err;
-    }
+    do {
+        WT_ERR(cursor->get_key(cursor, &key));
+
+        /* Check we are still dealing with keys that have the right prefix. */
+        if (!WT_PREFIX_MATCH(key, WT_URI_FILE_PREFIX)) {
+            ret = WT_NOTFOUND;
+            break;
+        }
+
+        /* Checkpoint cleanup cannot remove obsolete pages from tiered tables. */
+        if (!WT_SUFFIX_MATCH(key, ".wtobj"))
+            break;
+
+    } while ((ret = cursor->next(cursor)) == 0);
+    WT_ERR(ret);
 
     /* Save the selected uri. */
     WT_ERR(__wt_buf_set(session, uri, cursor->key.data, cursor->key.size));
@@ -504,10 +513,6 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
 
     while ((ret = __checkpoint_cleanup_get_uri(session, uri)) == 0) {
-        /* Ignore the metadata file. */
-        if (strcmp(uri->data, WT_METAFILE_URI) == 0)
-            continue;
-
         ret = __checkpoint_cleanup_walk_btree(session, uri);
         if (ret == ENOENT || ret == EBUSY) {
             __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
