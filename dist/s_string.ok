@@ -681,7 +681,6 @@ difftime
 dir
 directio
 dirlist
-disjunction
 disproportionally
 dlclose
 dlh
@@ -792,7 +791,6 @@ gb
 gcc
 gcp
 gdb
-ge
 getenv
 getlasterror
 getline
