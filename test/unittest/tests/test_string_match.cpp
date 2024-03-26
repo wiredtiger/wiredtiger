@@ -44,30 +44,30 @@ TEST_CASE("Test string matching macro: WT_STRING_MATCH", "[STRING_MATCH]")
 
         /* We run the test twice, once with the config string null terminated, one without. */
         for (i = 0; i < 2; i++) {
-            CHECK(WT_STRING_LIT_MATCH("g", green.str, green.len) == 0);
-            CHECK(WT_STRING_LIT_MATCH("greed", green.str, green.len) == 0);
-            CHECK(WT_STRING_LIT_MATCH("green", green.str, green.len) == 1);
-            CHECK(WT_STRING_LIT_MATCH("greener", green.str, green.len) == 0);
-            CHECK(WT_STRING_LIT_MATCH("", green.str, green.len) == 0);
+            CHECK(WT_STRING_LIT_MATCH("g", green.str, green.len) == false);
+            CHECK(WT_STRING_LIT_MATCH("greed", green.str, green.len) == false);
+            CHECK(WT_STRING_LIT_MATCH("green", green.str, green.len) == true);
+            CHECK(WT_STRING_LIT_MATCH("greener", green.str, green.len) == false);
+            CHECK(WT_STRING_LIT_MATCH("", green.str, green.len) == false);
 
-            CHECK(WT_STRING_LIT_MATCH("", empty.str, empty.len) == 1);
-            CHECK(WT_STRING_LIT_MATCH("something", empty.str, empty.len) == 0);
-            CHECK(WT_STRING_LIT_MATCH("", null_str, 0) == 1);
+            CHECK(WT_STRING_LIT_MATCH("", empty.str, empty.len) == true);
+            CHECK(WT_STRING_LIT_MATCH("something", empty.str, empty.len) == false);
+            CHECK(WT_STRING_LIT_MATCH("", null_str, 0) == true);
 
             /*
              * The following line will not compile, as it's a misuse of the macro.
-             *   CHECK(WT_STRING_LIT_MATCH(green_str, green.str, green.len) == 1);
+             *   CHECK(WT_STRING_LIT_MATCH(green_str, green.str, green.len) == true);
              */
 
             /* Run all the same tests with the config equivalent macros. */
-            CHECK(WT_CONFIG_LIT_MATCH("g", green) == 0);
-            CHECK(WT_CONFIG_LIT_MATCH("greed", green) == 0);
-            CHECK(WT_CONFIG_LIT_MATCH("green", green) == 1);
-            CHECK(WT_CONFIG_LIT_MATCH("greener", green) == 0);
-            CHECK(WT_CONFIG_LIT_MATCH("", green) == 0);
+            CHECK(WT_CONFIG_LIT_MATCH("g", green) == false);
+            CHECK(WT_CONFIG_LIT_MATCH("greed", green) == false);
+            CHECK(WT_CONFIG_LIT_MATCH("green", green) == true);
+            CHECK(WT_CONFIG_LIT_MATCH("greener", green) == false);
+            CHECK(WT_CONFIG_LIT_MATCH("", green) == false);
 
-            CHECK(WT_CONFIG_LIT_MATCH("", empty) == 1);
-            CHECK(WT_CONFIG_LIT_MATCH("something", empty) == 0);
+            CHECK(WT_CONFIG_LIT_MATCH("", empty) == true);
+            CHECK(WT_CONFIG_LIT_MATCH("something", empty) == false);
 
             green.str = "greenery";
         }
@@ -82,48 +82,48 @@ TEST_CASE("Test string matching macro: WT_STRING_MATCH", "[STRING_MATCH]")
              * The plain string match macros should still work with literal strings, even though we
              * prefer to use the *_LIT_* macros with literals.
              */
-            CHECK(WT_STRING_MATCH("g", green.str, green.len) == 0);
-            CHECK(WT_STRING_MATCH("greed", green.str, green.len) == 0);
-            CHECK(WT_STRING_MATCH("green", green.str, green.len) == 1);
-            CHECK(WT_STRING_MATCH("greener", green.str, green.len) == 0);
-            CHECK(WT_STRING_MATCH("", green.str, green.len) == 0);
+            CHECK(WT_STRING_MATCH("g", green.str, green.len) == false);
+            CHECK(WT_STRING_MATCH("greed", green.str, green.len) == false);
+            CHECK(WT_STRING_MATCH("green", green.str, green.len) == true);
+            CHECK(WT_STRING_MATCH("greener", green.str, green.len) == false);
+            CHECK(WT_STRING_MATCH("", green.str, green.len) == false);
 
-            CHECK(WT_STRING_MATCH("", empty.str, empty.len) == 1);
-            CHECK(WT_STRING_MATCH("something", empty.str, empty.len) == 0);
-            CHECK(WT_STRING_MATCH("", null_str, 0) == 1);
+            CHECK(WT_STRING_MATCH("", empty.str, empty.len) == true);
+            CHECK(WT_STRING_MATCH("something", empty.str, empty.len) == false);
+            CHECK(WT_STRING_MATCH("", null_str, 0) == true);
 
             /*
              * The plain string match macros work with string variables, the *_LIT_* macros will
              * not.
              */
-            CHECK(WT_STRING_MATCH(g_str, green.str, green.len) == 0);
-            CHECK(WT_STRING_MATCH(greed_str, green.str, green.len) == 0);
-            CHECK(WT_STRING_MATCH(green_str, green.str, green.len) == 1);
-            CHECK(WT_STRING_MATCH(greener_str, green.str, green.len) == 0);
-            CHECK(WT_STRING_MATCH(empty_str, green.str, green.len) == 0);
+            CHECK(WT_STRING_MATCH(g_str, green.str, green.len) == false);
+            CHECK(WT_STRING_MATCH(greed_str, green.str, green.len) == false);
+            CHECK(WT_STRING_MATCH(green_str, green.str, green.len) == true);
+            CHECK(WT_STRING_MATCH(greener_str, green.str, green.len) == false);
+            CHECK(WT_STRING_MATCH(empty_str, green.str, green.len) == false);
 
-            CHECK(WT_STRING_MATCH(empty_str, empty.str, empty.len) == 1);
-            CHECK(WT_STRING_MATCH(something_str, empty.str, empty.len) == 0);
-            CHECK(WT_STRING_MATCH(empty_str, null_str, 0) == 1);
+            CHECK(WT_STRING_MATCH(empty_str, empty.str, empty.len) == true);
+            CHECK(WT_STRING_MATCH(something_str, empty.str, empty.len) == false);
+            CHECK(WT_STRING_MATCH(empty_str, null_str, 0) == true);
 
             /* Run all the same tests with the config equivalent macros. */
-            CHECK(WT_CONFIG_MATCH("g", green) == 0);
-            CHECK(WT_CONFIG_MATCH("greed", green) == 0);
-            CHECK(WT_CONFIG_MATCH("green", green) == 1);
-            CHECK(WT_CONFIG_MATCH("greener", green) == 0);
-            CHECK(WT_CONFIG_MATCH("", green) == 0);
+            CHECK(WT_CONFIG_MATCH("g", green) == false);
+            CHECK(WT_CONFIG_MATCH("greed", green) == false);
+            CHECK(WT_CONFIG_MATCH("green", green) == true);
+            CHECK(WT_CONFIG_MATCH("greener", green) == false);
+            CHECK(WT_CONFIG_MATCH("", green) == false);
 
-            CHECK(WT_CONFIG_MATCH("", empty) == 1);
-            CHECK(WT_CONFIG_MATCH("something", empty) == 0);
+            CHECK(WT_CONFIG_MATCH("", empty) == true);
+            CHECK(WT_CONFIG_MATCH("something", empty) == false);
 
-            CHECK(WT_CONFIG_MATCH(g_str, green) == 0);
-            CHECK(WT_CONFIG_MATCH(greed_str, green) == 0);
-            CHECK(WT_CONFIG_MATCH(green_str, green) == 1);
-            CHECK(WT_CONFIG_MATCH(greener_str, green) == 0);
-            CHECK(WT_CONFIG_MATCH(empty_str, green) == 0);
+            CHECK(WT_CONFIG_MATCH(g_str, green) == false);
+            CHECK(WT_CONFIG_MATCH(greed_str, green) == false);
+            CHECK(WT_CONFIG_MATCH(green_str, green) == true);
+            CHECK(WT_CONFIG_MATCH(greener_str, green) == false);
+            CHECK(WT_CONFIG_MATCH(empty_str, green) == false);
 
-            CHECK(WT_CONFIG_MATCH(empty_str, empty) == 1);
-            CHECK(WT_CONFIG_MATCH(something_str, empty) == 0);
+            CHECK(WT_CONFIG_MATCH(empty_str, empty) == true);
+            CHECK(WT_CONFIG_MATCH(something_str, empty) == false);
 
             green.str = "greenery";
         }
