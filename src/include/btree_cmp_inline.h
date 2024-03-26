@@ -62,7 +62,7 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         return (lencmp);
     else {
 final128:
-        /* The matching bits corresponds to the trailing bits in the result. */
+        /* The initial matching bytes correspond to trailing 1 bits in eq_bits. */
         i += (size_t)__builtin_ctz(~(uint32_t)eq_bits);
 
         /* C zero-extends the bytes to 32 bit integers before the calculation. */
@@ -86,18 +86,20 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
         uint64_t a, b;
     } tdata, udata;
     uint64_t t64, u64;
-    size_t i, final_bytes;
+    const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
 
-    final_bytes = len - WT_VECTOR_SIZE;
+    uendp = ustartp + len;
+    tendp = tstartp + len;
 
     /*
      * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
      * compare.
      */
-    for (i = 0; i < final_bytes; i += WT_VECTOR_SIZE) {
-        memcpy(&udata, ustartp + i, WT_VECTOR_SIZE);
-        memcpy(&tdata, tstartp + i, WT_VECTOR_SIZE);
+    for (userp = ustartp, treep = tstartp; uendp - userp > WT_VECTOR_SIZE;
+         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+        memcpy(&udata, userp, WT_VECTOR_SIZE);
+        memcpy(&tdata, treep, WT_VECTOR_SIZE);
         if (udata.a != tdata.a || udata.b != tdata.b)
             goto final128;
     }
@@ -106,9 +108,8 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bounds.
      */
-    i = final_bytes;
-    memcpy(&udata, ustartp + i, WT_VECTOR_SIZE);
-    memcpy(&tdata, tstartp + i, WT_VECTOR_SIZE);
+    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
+    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
 
 final128:
     firsteq = udata.a == tdata.a;
@@ -343,7 +344,7 @@ __lex_compare_skip_gt_16(
         return (lencmp);
     } else {
 final128:
-        /* The matching bits corresponds to the trailing bits in the result. */
+        /* The initial matching bytes correspond to trailing 1 bits in eq_bits. */
         final_match = (size_t)__builtin_ctz(~(uint32_t)eq_bits);
         match += final_match;
         *matchp = match;
@@ -369,32 +370,37 @@ __lex_compare_skip_gt_16(
     struct {
         uint64_t a, b;
     } tdata, udata;
-    size_t match, final_bytes;
+    size_t match;
     uint64_t t64, u64;
     int leading_zero_bytes;
+    const uint8_t *tendp, *treep, *uendp, *userp;
     bool firsteq;
 
     match = *matchp;
-    final_bytes = len - WT_VECTOR_SIZE;
+    uendp = ustartp + len;
+    tendp = tstartp + len;
 
     /*
      * Compare 16 bytes at a time until we find a difference or run out of 16 byte chunks to
      * compare.
      */
-    for (; match < final_bytes; match += WT_VECTOR_SIZE) {
-        memcpy(&udata, ustartp + match, WT_VECTOR_SIZE);
-        memcpy(&tdata, tstartp + match, WT_VECTOR_SIZE);
-        if (udata.a != tdata.a || udata.b != tdata.b)
+    for (userp = ustartp + match, treep = tstartp + match; uendp - userp > WT_VECTOR_SIZE;
+         userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+        memcpy(&udata, userp, WT_VECTOR_SIZE);
+        memcpy(&tdata, treep, WT_VECTOR_SIZE);
+        if (udata.a != tdata.a || udata.b != tdata.b) {
+            match = (size_t)(userp - ustartp);
             goto final128;
+        }
     }
 
     /*
      * Rewind until there is exactly 16 bytes left. We know we started with at least 16, so we are
      * still in bound.
      */
-    match = final_bytes;
-    memcpy(&udata, ustartp + match, WT_VECTOR_SIZE);
-    memcpy(&tdata, tstartp + match, WT_VECTOR_SIZE);
+    match = len - WT_VECTOR_SIZE;
+    memcpy(&udata, uendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
+    memcpy(&tdata, tendp - WT_VECTOR_SIZE, WT_VECTOR_SIZE);
 
 final128:
     firsteq = udata.a == tdata.a;
