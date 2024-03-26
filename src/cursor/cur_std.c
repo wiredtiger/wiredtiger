@@ -947,10 +947,12 @@ return_false:
  * Flags cleared by this functions: WT_CURSTD_CACHEABLE.
  */
 static int
-__cursor_reuse_or_init(
-  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[], bool *readonlyp)
+__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
+  bool *readonlyp, WT_CURSOR **ownerp, WT_CURSOR **cdumpp)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR *cdump;
+    WT_CURSOR *owner;
 
     if (cfg != NULL) {
         /*
@@ -980,6 +982,38 @@ __cursor_reuse_or_init(
     if (*readonlyp) /* We do not cache read-only cursors. */
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
 
+    /*
+     * dump If an index cursor is opened with dump, then this function is called on the index files,
+     * with the dump config string, and with the index cursor as an owner. We don't want to create a
+     * dump cursor in that case, because we'll create the dump cursor on the index cursor itself.
+     */
+    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+    owner = ownerp ? *ownerp : NULL;
+    if (cval.len != 0 && owner == NULL) {
+        uint64_t dump_flag;
+        if (WT_STRING_MATCH("json", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_JSON;
+        else if (WT_STRING_MATCH("print", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_PRINT;
+        else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_PRETTY;
+        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY;
+        else
+            dump_flag = WT_CURSTD_DUMP_HEX;
+        F_SET(cursor, dump_flag);
+
+        /*
+         * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
+         * dump cursor.
+         */
+        WT_RET(__wt_curdump_create(cursor, owner, &cdump));
+        *ownerp = cdump;
+        F_CLR(cursor, WT_CURSTD_CACHEABLE);
+    } else
+        cdump = NULL;
+    *cdumpp = cdump;
+
     return (0);
 }
 
@@ -996,6 +1030,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
   WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR *cdump;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -1061,7 +1096,10 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
                 cbt = NULL;
             }
 
-            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly));
+            cdump = NULL;
+            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly, NULL, &cdump));
+            /* Since owner == NULL */
+            WT_ASSERT(session, cdump == NULL);
 
             if (cbt) {
                 if (have_config) {
@@ -1554,7 +1592,7 @@ __wt_cursor_init(
     else
         F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly));
+    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly, &owner, &cdump));
 
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
@@ -1563,35 +1601,6 @@ __wt_cursor_init(
         cursor->reserve = __wt_cursor_notsup;
         cursor->update = __wt_cursor_notsup;
     }
-
-    /*
-     * dump If an index cursor is opened with dump, then this function is called on the index files,
-     * with the dump config string, and with the index cursor as an owner. We don't want to create a
-     * dump cursor in that case, because we'll create the dump cursor on the index cursor itself.
-     */
-    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
-    if (cval.len != 0 && owner == NULL) {
-        uint64_t dump_flag;
-        if (WT_STRING_MATCH("json", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_JSON;
-        else if (WT_STRING_MATCH("print", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRINT;
-        else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRETTY;
-        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY;
-        else
-            dump_flag = WT_CURSTD_DUMP_HEX;
-        F_SET(cursor, dump_flag);
-        /*
-         * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
-         * dump cursor.
-         */
-        WT_RET(__wt_curdump_create(cursor, owner, &cdump));
-        owner = cdump;
-        F_CLR(cursor, WT_CURSTD_CACHEABLE);
-    } else
-        cdump = NULL;
 
     /*
      * WT_CURSOR.modify supported on 'S' and 'u' value formats, but may have been already
