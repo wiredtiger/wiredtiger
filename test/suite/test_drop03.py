@@ -77,6 +77,7 @@ class test_drop03(wttest.WiredTigerTestCase):
                         "was expecting drop call to fail with EBUSY")
         self.prout("Exists after first unsuccessful drop. confirm_nonempty().")
         confirm_nonempty(self, self.uri)
+
         # Verify values after drop with force=false
         self.prout("Verify values after drop with force=false.")
         self.verify_value(self.uri, self.session, 'key: aaa', 'value: aaa')
@@ -85,29 +86,18 @@ class test_drop03(wttest.WiredTigerTestCase):
         self.verify_value(self.uri, self.session, 'key: aad', 'value: aad')
         self.verify_value(self.uri, self.session, 'key: bbb', 'value: bbb')
 
-        # Drop call should fail with EBUSY with the force option.
-        self.prout("drop with force=true should fail.")
-        self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, "force=true")),
-                        "was expecting drop call to fail with EBUSY")
-        self.prout("Exists after second unsuccessful drop. confirm_nonempty().")
-        confirm_nonempty(self, self.uri)
-        # Verify values after drop with force=true
-        self.prout("Verify values after drop with force=true.")
-        self.verify_value(self.uri, self.session, 'key: aaa', 'value: aaa')
-        self.verify_value(self.uri, self.session, 'key: aab', 'value: aab')
-        self.verify_value(self.uri, self.session, 'key: aac', 'value: aac')
-        self.verify_value(self.uri, self.session, 'key: aad', 'value: aad')
-        self.verify_value(self.uri, self.session, 'key: bbb', 'value: bbb')
-        self.prout("Second values, After drop. commit_transaction()")
-        self.session.commit_transaction()
-        # Verify values after transaction commit
-        self.prout("Verify values after transaction commit.")
-        self.verify_value(self.uri, self.session, 'key: aaa', 'value: aaa')
-        self.verify_value(self.uri, self.session, 'key: aab', 'value: aab')
-        self.verify_value(self.uri, self.session, 'key: aac', 'value: aac')
-        self.verify_value(self.uri, self.session, 'key: aad', 'value: aad')
-        self.verify_value(self.uri, self.session, 'key: bbb', 'value: bbb')
-        self.session.close()
+        # Check that the transaction needs to be rolled back by failing to commit it.
+        self.prout("commit_transaction fails and rollsback.")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                                     lambda: self.session.commit_transaction(),
+                                     "/transaction requires rollback: Invalid argument/")
+        # Verify values after drop with force=false and transaction rollback.
+        self.prout("Verify values after drop force=false and transaction rollback.")
+        self.verify_value(self.uri, self.session, 'key: aaa', 'value: aaa1')
+        self.verify_value(self.uri, self.session, 'key: aab', 'value: aab1')
+        self.verify_value(self.uri, self.session, 'key: aac', 'value: aac1')
+        self.verify_value(self.uri, self.session, 'key: aad', 'value: aad1')
+        self.verify_value(self.uri, self.session, 'key: bbb', 'value: bbb1')
 
         # Drop call should succeed without the force option.
         self.prout("drop force=false without active transaction should succeed.")

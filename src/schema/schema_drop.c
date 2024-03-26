@@ -94,7 +94,7 @@ __drop_index(
  *     WT_SESSION::drop for a table.
  */
 static int
-__drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility)
+__drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_COLGROUP *colgroup;
     WT_DECL_RET;
@@ -126,6 +126,12 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool 
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
     WT_ERR(__wt_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
+
+    if (force && !table->is_simple) {
+        __wt_verbose_warning(session, WT_VERB_HANDLEOPS,
+                             "ENOTSUP: drop table with force=true is not supported for complex tables. uri=%s", uri);
+        WT_ERR(ENOTSUP);
+    }
 
     /* Drop the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++) {
@@ -349,7 +355,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
         ret = __wt_lsm_tree_drop(session, uri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "table:"))
-        ret = __drop_table(session, uri, cfg, check_visibility);
+        ret = __drop_table(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
         ret = __drop_tiered(session, uri, force, cfg, check_visibility);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
