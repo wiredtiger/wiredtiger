@@ -1614,11 +1614,6 @@ struct __wt_session {
      * the WT_CURSOR::next (WT_CURSOR::prev) method will iterate from the
      * beginning (end) of the table.
      *
-     * Example: truncate a backup cursor.  This operation removes all log files that
-     * have been returned by the backup cursor.  It can be used to remove log
-     * files after copying them during @ref backup_incremental.
-     * @snippet ex_backup.c Truncate a backup cursor
-     *
      * @param session the session handle
      * @param name the URI of the table or file to truncate, or \c "log:"
      * for a backup cursor

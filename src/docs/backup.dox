@@ -184,7 +184,7 @@ can only be one backup cursor of any type open at a time.
 
 An example of opening the backup data source to query incremental identifiers:
 
-@snippet ex_backup_block.c Query existing IDs
+@snippet ex_backup.c Query existing IDs
 
 @section backup_incremental Log-based Incremental backup
 

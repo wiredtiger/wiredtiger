@@ -331,16 +331,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt8659_reconstruct_database_from_logs
-    SOURCES wt8659_reconstruct_database_from_logs/main.c
-    DIR_NAME wt8659_reconstruct_database_from_logs
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8659_reconstruct_database_from_logs>/WT_HOME>
-    DEPENDS "WT_POSIX"
-    # This test takes over 20 minutes under ASan testing
-    LABEL "long_running"
-)
-
-define_c_test(
     TARGET test_wt8963_insert_stress
     SOURCES wt8963_insert_stress/main.c
     DIR_NAME wt8963_insert_stress
