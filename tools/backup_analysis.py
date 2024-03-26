@@ -173,10 +173,8 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
     # Initialize all of our per-file counters.
     bytes_gran = 0          # Number of bytes changed within a granularity block.
     gran_blocks = 0         # Number of granularity blocks changed.
-    num_cmp_blocks = min_size // cmp_size # Number of comparisons.
-    total_blocks = min_size // opts.granularity # Number of granularity sized blocks.
-    if min_size % opts.granularity != 0:
-        total_blocks += 1
+    num_cmp_blocks = min_size // cmp_size # Number of comparisons .
+    total_blocks = num_cmp_blocks
     offset = 0              # Current offset within the filel
     partial_cmp = min_size % cmp_size
     pct20_count = 0         # Number of granularity blocks that changed 20% or less.
@@ -223,6 +221,7 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
     if partial_cmp != 0:
         buf1 = fp1.read(partial_cmp)
         buf2 = fp2.read(partial_cmp)
+        total_blocks += 1
         # If they're different, gather information.
         if buf1 != buf2:
             total_bytes_diff += partial_cmp
