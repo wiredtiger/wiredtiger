@@ -335,8 +335,9 @@
 /*
  * Check if a literal string matches the length and content of the supplied bytes/len pair. The
  * bytes argument does not need to be null-terminated, and it may be null if the supplied length is
- * zero. Note this is different from the standard strncmp function, which with a supplied zero
- * length, will always be true.
+ * zero. Note this macro works differently than the standard strncmp function. When strncmp is given
+ * a zero length it returns true. When this macro is given a zero length it returns false, unless
+ * the literal string is also zero length.
  */
 #define WT_STRING_LIT_MATCH(str, bytes, len) \
     ((len) == strlen("" str "") && strncmp(str, bytes, len) == 0)
