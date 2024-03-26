@@ -219,7 +219,7 @@ test_restart_wt1(void)
     testutil_check(table->insert(txn1, key2, value2));
     txn1->commit(20);
 
-    /* Create an unnamed checkpoint, crash, and verify. */
+    /* Set the stable timestamp, restart, and verify. */
     database.set_stable_timestamp(15);
     database.restart();
     testutil_assert(database.stable_timestamp() == 15);
@@ -305,10 +305,10 @@ test_restart_wt2(void)
     testutil_check(table->insert(txn1, key2, value2));
     txn1->commit(20);
 
-    /* Create an unnamed checkpoint, crash, and verify. */
+    /* Create an unnamed checkpoint, restart, and verify. */
     database.set_stable_timestamp(15);
     database.create_checkpoint();
-    database.crash();
+    database.restart();
     testutil_assert(database.stable_timestamp() == 15);
     testutil_assert(table->get(key1) == value1);
     testutil_assert(table->get(key2) == model::NONE);
@@ -403,10 +403,10 @@ test_restart_wt3(void)
     testutil_check(table->insert(txn2, key5, value5));
     txn2->prepare(14);
 
-    /* Create an unnamed checkpoint, crash, and verify. */
+    /* Create an unnamed checkpoint, restart, and verify. */
     database.set_stable_timestamp(15);
     database.create_checkpoint();
-    database.crash();
+    database.restart();
     testutil_assert(database.stable_timestamp() == 15);
     testutil_assert(table->get(key1) == value1);
     testutil_assert(table->get(key2) == model::NONE);
@@ -510,7 +510,7 @@ test_crash_wt1(void)
     testutil_check(table->insert(txn1, key2, value2));
     txn1->commit(20);
 
-    /* Create an unnamed checkpoint, crash, and verify. */
+    /* Set the stable timestamp, crash, and verify. */
     database.set_stable_timestamp(15);
     database.crash();
     testutil_assert(database.stable_timestamp() == model::k_timestamp_none);
@@ -582,6 +582,7 @@ test_crash_wt2(void)
     /* Create an unnamed checkpoint, crash, and verify. */
     database.set_stable_timestamp(15);
     database.create_checkpoint();
+    database.set_stable_timestamp(25);
     database.crash();
     testutil_assert(database.stable_timestamp() == 15);
     testutil_assert(table->get(key1) == value1);
