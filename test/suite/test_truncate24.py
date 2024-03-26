@@ -68,9 +68,8 @@ class test_truncate24(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(uri)
         for i in range(1, 100000):
-            session2.begin_transaction()
-            cursor2.next()
-            session2.rollback_transaction()
+            self.assertEqual(cursor2.next(), 0)
+            self.assertEqual(cursor2.get_value(), i)
 
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
@@ -111,9 +110,8 @@ class test_truncate24(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(uri)
         for i in range(1, 100000):
-            session2.begin_transaction()
-            cursor2.next()
-            session2.rollback_transaction()
+            self.assertEqual(cursor2.next(), 0)
+            self.assertEqual(cursor2.get_value(), i)
 
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
