@@ -724,6 +724,10 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     /*
      * Cursor reset clears bounds on cursors when called externally, we need to clear the bounds
      * manually when we cache a cursor.
+     *
+     * Clears WT_CURSTD_BOUND_UPPER, WT_CURSTD_BOUND_LOWER
+     *
+     * Sometimes clears WT_CURSTD_BOUND_UPPER_INCLUSIVE, WT_CURSTD_BOUND_LOWER_INCLUSIVE
      */
     __wt_cursor_bound_reset(cursor);
 
@@ -936,22 +940,17 @@ return_false:
  * __cursor_reuse_or_init --
  *     Initialization shared between reuse of a cached cursor and initialization of a new cursor.
  *
- * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_DEBUG_RESET_EVICT,
- *     WT_CURSTD_OVERWRITE, WT_CURSTD_RAW.
+ * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_DEBUG_RESET_EVICT.
  *
- * Flags cleared by this functions: WT_CURSTD_CACHEABLE
+ * Flags set by this function: WT_CURSTD_RAW.
+ *
+ * Flags cleared by this functions: WT_CURSTD_CACHEABLE.
  */
 static int
-__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
-  uint64_t overwrite_flag, bool *readonlyp)
+__cursor_reuse_or_init(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[], bool *readonlyp)
 {
     WT_CONFIG_ITEM cval;
-    /* Default cleared all flags set by this func. */
-    F_CLR(
-      cursor, WT_CURSTD_APPEND | WT_CURSTD_DEBUG_RESET_EVICT | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
-
-    /* WT_CURSTD_OVERWRITE */
-    F_SET(cursor, overwrite_flag);
 
     if (cfg != NULL) {
         /*
@@ -961,12 +960,9 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
             WT_RET(__wt_config_gets_def(session, cfg, "append", 0, &cval));
             if (cval.val != 0)
                 F_SET(cursor, WT_CURSTD_APPEND);
+            else
+                F_CLR(cursor, WT_CURSTD_APPEND);
         }
-
-        /* WT_CURSTD_OVERWRITE */
-        WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
-        if (cval.val == 0)
-            F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
         /* WT_CURSTD_RAW */
         WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
@@ -991,7 +987,9 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
  * __wt_cursor_cache_get --
  *     Open a matching cursor from the cache.
  *
- * Flags set or cleared by this function: WT_CBT_READ_ONCE, plus __cursor_reuse_or_init().
+ * Flags set or cleared by this function: WT_CURSTD_OVERWRITE, plus __cursor_reuse_or_init().
+ *
+ * Flags cleared by this function: WT_CBT_READ_ONCE, WT_CURSTD_APPEND, WT_CURSTD_RAW.
  */
 int
 __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_value,
@@ -1051,8 +1049,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly));
-
+            F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+            F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
              */
@@ -1062,6 +1060,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
             } else {
                 cbt = NULL;
             }
+
+            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly));
 
             if (cbt) {
                 if (have_config) {
@@ -1523,9 +1523,12 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
  * __wt_cursor_init --
  *     Default cursor initialization.
  *
- * Flags set or cleared by this function: WT_CURSTD_CACHEABLE, WT_CURSTD_DUMP_HEX,
- *     WT_CURSTD_DUMP_JSON, WT_CURSTD_DUMP_JSON, WT_CURSTD_DUMP_PRETTY, WT_CURSTD_DUMP_PRINT,
- *     WT_CURSTD_OPEN, plus __cursor_reuse_or_init().
+ * Flags set or cleared by this function: WT_CURSTD_OVERWRITE, plus __cursor_reuse_or_init().
+ *
+ * Flags set by this function: WT_CURSTD_DUMP_HEX, WT_CURSTD_DUMP_JSON, WT_CURSTD_DUMP_JSON,
+ *     WT_CURSTD_DUMP_PRETTY, WT_CURSTD_DUMP_PRINT, WT_CURSTD_OPEN.
+ *
+ * Flags cleared by this function: WT_CURSTD_CACHEABLE.
  */
 int
 __wt_cursor_init(
@@ -1534,7 +1537,6 @@ __wt_cursor_init(
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cdump;
     WT_SESSION_IMPL *session;
-    uint64_t overwrite_flag;
     bool readonly;
 
     session = CUR2S(cursor);
@@ -1545,10 +1547,14 @@ __wt_cursor_init(
         WT_RET(__wt_strdup(session, uri, &cursor->internal_uri));
     }
 
+    /* WT_CURSTD_OVERWRITE */
     WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
-    overwrite_flag = cval.val ? WT_CURSTD_OVERWRITE : 0;
+    if (cval.val)
+        F_SET(cursor, WT_CURSTD_OVERWRITE);
+    else
+        F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, overwrite_flag, &readonly));
+    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly));
 
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
