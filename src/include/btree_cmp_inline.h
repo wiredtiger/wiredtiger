@@ -34,8 +34,6 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     int32_t eq_bits;
     size_t i, final_bytes;
 
-    WT_ASSERT(NULL, len > WT_VECTOR_SIZE);
-
     final_bytes = len - WT_VECTOR_SIZE;
 
     /*
@@ -91,8 +89,6 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     size_t i, final_bytes;
     bool firsteq;
 
-    WT_ASSERT(NULL, len > WT_VECTOR_SIZE);
-
     final_bytes = len - WT_VECTOR_SIZE;
 
     /*
@@ -142,8 +138,6 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
 {
     uint64_t ta, tb, ua, ub, u64, t64;
     const uint8_t *tendp, *uendp;
-
-    WT_ASSERT(NULL, len <= WT_VECTOR_SIZE);
 
     uendp = ustartp + len;
     tendp = tstartp + len;
@@ -319,8 +313,6 @@ __lex_compare_skip_gt_16(
     int32_t eq_bits;
     size_t match, final_bytes, final_match;
 
-    WT_ASSERT(NULL, len > WT_VECTOR_SIZE);
-
     match = *matchp;
     final_bytes = len - WT_VECTOR_SIZE;
 
@@ -381,8 +373,6 @@ __lex_compare_skip_gt_16(
     uint64_t t64, u64;
     int leading_zero_bytes;
     bool firsteq;
-
-    WT_ASSERT(NULL, len > WT_VECTOR_SIZE);
 
     match = *matchp;
     final_bytes = len - WT_VECTOR_SIZE;
