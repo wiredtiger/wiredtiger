@@ -51,7 +51,7 @@ delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_
     /* Delete any other index entries. */
     for (i = 1; i <= INDEX_MAX_MULTIPLIER; ++i) {
         index_val = i * INDEX_BASE;
-	create_index_key(key_buf, len, index_val, keyno);
+        create_index_key(key_buf, len, index_val, keyno);
         index_cursor->set_key(index_cursor, key_buf);
         ret = index_cursor->remove(index_cursor);
         if (ret == 0 || ret == WT_NOTFOUND)
