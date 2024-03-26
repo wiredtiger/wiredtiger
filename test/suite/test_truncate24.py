@@ -49,9 +49,9 @@ class test_truncate24(wttest.WiredTigerTestCase):
         ds.populate()
 
         cursor = self.session.open_cursor(uri)
-        for range i in (1, 1000000):
+        for i in range (1, 1000000):
             self.session.begin_transaction()
-            cursor.set_key(ds.key(i))
+            cursor[ds.key(i)] = i
             self.session.commit_transaction()
 
         # Reopen the connection to flush the cache so we can fast-truncate.
