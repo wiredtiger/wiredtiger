@@ -506,8 +506,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true in a
      * subset of the cases where is_unnamed_ckpt is true.
      */
-    must_resolve = WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len);
     is_unnamed_ckpt = cval.len >= strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
+    must_resolve = is_unnamed_ckpt && WT_CONFIG_LIT_MATCH(WT_CHECKPOINT, cval);
 
     /* This is the top of a retry loop. */
     do {
