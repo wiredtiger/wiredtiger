@@ -63,13 +63,13 @@ __lex_compare_gt_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     else {
 final128:
         /* The initial matching bytes correspond to trailing 1 bits in eq_bits. */
-    #ifndef _MSC_VER
+#ifndef _MSC_VER
         i += (size_t)__builtin_ctz(~(uint32_t)eq_bits);
-    #else
+#else
         unsigned long res;
         _BitScanForward(&res, ~(uint32_t)eq_bits);
         i += res;
-    #endif
+#endif
 
         /* C zero-extends the bytes to 32 bit integers before the calculation. */
         return ((int)(ustartp[i] - tstartp[i]));
@@ -351,13 +351,13 @@ __lex_compare_skip_gt_16(
     } else {
 final128:
         /* The initial matching bytes correspond to trailing 1 bits in eq_bits. */
-    #ifndef _MSC_VER
+#ifndef _MSC_VER
         final_match = (size_t)__builtin_ctz(~(uint32_t)eq_bits);
-    #else
+#else
         unsigned long res;
         _BitScanForward(&res, ~(uint32_t)eq_bits);
         final_match = res;
-    #endif
+#endif
         match += final_match;
         *matchp = match;
 
