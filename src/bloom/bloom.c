@@ -317,13 +317,14 @@ __wt_bloom_get(WT_BLOOM *bloom, WT_ITEM *key) WT_GCC_FUNC_ATTRIBUTE((visibility(
     return (__wt_bloom_hash_get(bloom, &bhash));
 }
 
+#if 0 /* Not Used */
 /*
  * __wt_bloom_inmem_get --
  *     Tests whether the given key is in the Bloom filter. This can be used in place of
  *     __wt_bloom_get for Bloom filters that are memory only.
  */
 int
-__wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key) /* Not Used */
+__wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key)
 {
     uint64_t h1, h2;
     uint32_t i;
@@ -342,7 +343,7 @@ __wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key) /* Not Used */
  *     Modify the Bloom filter to contain the intersection of this filter with another.
  */
 int
-__wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other) /* Not Used */
+__wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other)
 {
     uint64_t i, nbytes;
 
@@ -358,6 +359,7 @@ __wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other) /* Not Used */
         bloom->bitstring[i] &= other->bitstring[i];
     return (0);
 }
+#endif
 
 /*
  * __wt_bloom_close --
