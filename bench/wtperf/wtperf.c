@@ -404,9 +404,6 @@ worker(void *arg)
         lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s", wtperf->index_table_uri);
         goto err;
     }
-    if (opts->index_like_table)
-        lprintf(wtperf, 0, 0, "worker index multiplier %u: Opened index cursor %p to %s",
-          thread->index_mult, (void *)index_cursor, wtperf->index_table_uri);
 
     if (opts->log_like_table &&
       (ret = session->open_cursor(session, wtperf->log_table_uri, NULL, NULL, &log_table_cursor)) !=
@@ -482,7 +479,7 @@ worker(void *arg)
 
         generate_key(opts, key_buf, next_val);
         if (opts->index_like_table)
-            generate_index_key(wtperf, thread->index_mult, index_buf, next_val);
+            generate_index_key(thread, false, index_buf, next_val);
 
         if (workload->table_index == INT32_MAX)
             /*
@@ -1015,7 +1012,7 @@ populate_thread(void *arg)
         cursor = cursors[map_key_to_table(wtperf->opts, op)];
         generate_key(opts, key_buf, op);
         if (opts->index_like_table)
-            generate_index_key(wtperf, INDEX_POPULATE_MULT, index_buf, op);
+            generate_index_key(thread, true, index_buf, op);
         measure_latency =
           opts->sample_interval != 0 && trk->ops != 0 && (trk->ops % opts->sample_rate == 0);
         if (measure_latency)
@@ -1037,8 +1034,7 @@ populate_thread(void *arg)
             goto err;
         }
         if (opts->index_like_table) {
-            generate_index_key(wtperf, INDEX_POPULATE_MULT, key_buf, op);
-            index_cursor->set_key(index_cursor, key_buf);
+            index_cursor->set_key(index_cursor, index_buf);
             index_cursor->set_value(index_cursor, INDEX_VALUE);
             if ((ret = index_cursor->insert(index_cursor)) == WT_ROLLBACK) {
                 lprintf(wtperf, ret, 0, "index table insert retrying");
@@ -2832,7 +2828,6 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
          * Thread counter starts at zero and the populate threads reserve a value so start the index
          * multiplier after that. Keep track of the largest we generate.
          */
-        thread->index_mult = wtperf->index_max_multiplier = INDEX_POPULATE_MULT + i + 1;
 
         /*
          * We don't want the threads executing in lock-step, seed each one differently.

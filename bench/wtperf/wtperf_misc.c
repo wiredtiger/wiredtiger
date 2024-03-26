@@ -30,6 +30,13 @@
 
 #define WT_BACKUP_COPY_SIZE (128 * 1024)
 
+/* Common key snprintf function for both generating and deleting keys. */
+static void
+create_index_key(char *key_buf, size_t len, uint64_t index_val, uint64_t keyno)
+{
+    testutil_snprintf(key_buf, len, "%" PRIu64 ":%" PRIu64, index_val, keyno);
+}
+
 int
 delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_t keyno)
 {
@@ -42,14 +49,12 @@ delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_
     len = opts->key_sz + opts->value_sz_max;
 
     /* Delete any other index entries. */
-    for (i = 1; i <= wtperf->index_max_multiplier; ++i) {
+    for (i = 1; i <= INDEX_MAX_MULTIPLIER; ++i) {
         index_val = i * INDEX_BASE;
-        testutil_snprintf(key_buf, len, "%8" PRIu64 ":%11" PRIu64, index_val, keyno);
+	create_index_key(key_buf, len, index_val, keyno);
         index_cursor->set_key(index_cursor, key_buf);
         ret = index_cursor->remove(index_cursor);
-        if (ret == 0)
-            break;
-        if (ret == WT_NOTFOUND)
+        if (ret == 0 || ret == WT_NOTFOUND)
             continue;
         if (ret == WT_ROLLBACK)
             return (ret);
@@ -65,17 +70,25 @@ delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_
  * thread.
  */
 void
-generate_index_key(WTPERF *wtperf, u_int id_mult, char *key_buf, uint64_t keyno)
+generate_index_key(WTPERF_THREAD *thread, bool populate, char *key_buf, uint64_t keyno)
 {
     CONFIG_OPTS *opts;
-    uint64_t index_val;
+    WTPERF *wtperf;
+    uint64_t index_val, mult;
     size_t len;
 
+    wtperf = thread->wtperf;
     opts = wtperf->opts;
-    len = opts->key_sz + opts->value_sz_max;
+    if (populate)
+        mult = INDEX_POPULATE_MULT;
+    else
+        /* Multipliers go from 2 through the maximum.  */
+        mult = __wt_random(&thread->rnd) % (INDEX_MAX_MULTIPLIER - INDEX_POPULATE_MULT) +
+          INDEX_POPULATE_MULT + 1;
 
-    index_val = id_mult * INDEX_BASE;
-    testutil_snprintf(key_buf, len, "%" PRIu64 ":%" PRIu64, index_val, keyno);
+    len = opts->key_sz + opts->value_sz_max;
+    index_val = mult * INDEX_BASE;
+    create_index_key(key_buf, len, index_val, keyno);
 }
 
 /* Setup the logging output mechanism. */

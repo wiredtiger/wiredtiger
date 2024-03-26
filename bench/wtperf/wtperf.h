@@ -78,6 +78,7 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define MAX_MODIFY_NUM 16
 
 #define INDEX_BASE 10000
+#define INDEX_MAX_MULTIPLIER 50
 #define INDEX_POPULATE_MULT 1
 #define INDEX_VALUE "SMALL_VALUE"
 
@@ -275,7 +276,6 @@ struct __wtperf_thread {    /* Per-thread structure */
     WT_RAND_STATE rnd; /* Random number generation state */
 
     wt_thread_t handle; /* Handle */
-    u_int index_mult;
 
     char *index_buf, *index_del_buf; /* Index memory */
     char *key_buf, *value_buf;       /* Key/value memory */
@@ -311,7 +311,7 @@ void config_opt_usage(void);
 char *config_reopen(CONFIG_OPTS *);
 int config_sanity(WTPERF *);
 int delete_index_key(WTPERF *, WT_CURSOR *, char *, uint64_t);
-void generate_index_key(WTPERF *, u_int, char *, uint64_t);
+void generate_index_key(WTPERF_THREAD *, bool, char *, uint64_t);
 void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_print(WTPERF *);
