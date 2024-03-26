@@ -41,10 +41,18 @@ class test_truncate24(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(key_format_values)
+
+    @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
     def test_truncate24(self):
         uri = 'table:truncate24'
-        ds = SimpleDataSet(self, uri, 1000000, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
+
+        cursor = self.session.open_cursor(uri)
+        for range i in (1, 1000000):
+            self.session.begin_transaction()
+            cursor.set_key(ds.key(i))
+            self.session.commit_transaction()
 
         # Reopen the connection to flush the cache so we can fast-truncate.
         self.reopen_conn()
