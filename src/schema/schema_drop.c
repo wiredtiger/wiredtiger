@@ -51,7 +51,8 @@ __drop_file(
  *     WT_SESSION::drop for a colgroup.
  */
 static int
-__drop_colgroup(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_colgroup(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_COLGROUP *colgroup;
     WT_DECL_RET;
@@ -61,7 +62,7 @@ __drop_colgroup(WT_SESSION_IMPL *session, const char *uri, bool force, const cha
 
     /* If we can get the colgroup, detach it from the table. */
     if ((ret = __wt_schema_get_colgroup(session, uri, force, &table, &colgroup)) == 0) {
-        WT_TRET(__wt_schema_drop(session, colgroup->source, cfg, false));
+        WT_TRET(__wt_schema_drop(session, colgroup->source, cfg, check_visibility));
         if (ret == 0)
             table->cg_complete = false;
     }
@@ -94,7 +95,8 @@ __drop_index(
  *     WT_SESSION::drop for a table.
  */
 static int
-__drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
+__drop_table(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_COLGROUP *colgroup;
     WT_DECL_RET;
@@ -129,7 +131,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *
 
     if (force && !table->is_simple) {
         __wt_verbose_warning(session, WT_VERB_HANDLEOPS,
-                             "ENOTSUP: drop table with force=true is not supported for complex tables. uri=%s", uri);
+          "ENOTSUP: drop table with force=true is not supported for complex tables. uri=%s", uri);
         WT_ERR(ENOTSUP);
     }
 
@@ -347,7 +349,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     session->dhandle = NULL;
 
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
-        ret = __drop_colgroup(session, uri, force, cfg);
+        ret = __drop_colgroup(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "file:"))
         ret = __drop_file(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "index:"))
