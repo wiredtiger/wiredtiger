@@ -717,7 +717,7 @@ op_err:
             if (ret != 0) {
                 /*
                  * For the index_like_table we're always using a transaction. But using ops_per_txn
-                 * supercedes. So if we get rollback only do it here if it isn't handled by the
+                 * supersedes. So if we get rollback only do it here if it isn't handled by the
                  * ops_per_txn code elsewhere.
                  */
                 if (ret == WT_ROLLBACK && ops_per_txn == 0) {
