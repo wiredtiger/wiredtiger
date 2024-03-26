@@ -589,7 +589,7 @@ __extractor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_EXTRACTO
 
     *extractorp = NULL;
 
-    if (cname->len == 0 || WT_STRING_MATCH("none", cname->str, cname->len))
+    if (cname->len == 0 || WT_CONFIG_LIT_MATCH("none", *cname))
         return (0);
 
     conn = S2C(session);
