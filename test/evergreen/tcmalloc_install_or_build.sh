@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# Make a tcmalloc shared library avilable for preloading into the environment.
+# Make a tcmalloc shared library available for preloading into the environment.
 
 set -u
 
 if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 build-variant"
+    echo "Usage: $0 <build-variant>"
     exit 1
 fi
 
@@ -20,9 +20,8 @@ PATCHED_SRC_DIR="tcmalloc-${PATCHED_SRC}"
 
 # Sensitive variables retrieved through Evergreen so they won't be exposed
 # in source control.
-#
-# Export the AWS_* variables so that they are visible for the 'aws' cli.
 S3_URL=${s3_bucket_tcmalloc}
+# Export the AWS_* variables so that they are visible for the 'aws' cli.
 export AWS_ACCESS_KEY_ID=${s3_access_key}
 export AWS_SECRET_ACCESS_KEY=${s3_secret_key}
 
@@ -33,7 +32,7 @@ tcmalloc_so_dir=${install_dir}/${tcmalloc_dir}
 
 # Location in AWS S3 for prebuilt tcmalloc binaries.
 PREBUILT_TGZ="tcmalloc-${PATCHED_SRC}-${build_variant}.tgz"
-PREBUILT_URL="${s3_bucket_tcmalloc}/build/wt_prebuilt_tcmalloc/${PATCHED_SRC}/${PREBUILT_TGZ}"
+PREBUILT_URL="${S3_URL}/build/wt_prebuilt_tcmalloc/${PATCHED_SRC}/${PREBUILT_TGZ}"
 
 # Without the --quiet option 'aws s3 cp' will print out an error message if the file is
 # NOT present. This is an expected error case that is handled later in this script, but
