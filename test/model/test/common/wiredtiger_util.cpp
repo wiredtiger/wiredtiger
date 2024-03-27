@@ -86,13 +86,16 @@ wt_get_ext(WT_SESSION *session, const char *uri, const model::data_value &key,
         testutil_check(session->begin_transaction(session, nullptr));
     else {
         testutil_snprintf(cfg, sizeof(cfg), "read_timestamp=%" PRIx64, timestamp);
-        testutil_check(session->begin_transaction(session, cfg));
+        ret = session->begin_transaction(session, cfg);
+        if (ret == EINVAL)
+            return ret;
+        testutil_check(ret);
     }
     testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
     model::set_wt_cursor_key(cursor, key);
     ret = cursor->search(cursor);
-    if (ret != WT_NOTFOUND && ret != WT_ROLLBACK && ret != WT_PREPARE_CONFLICT)
+    if (ret != WT_NOTFOUND && ret != WT_PREPARE_CONFLICT && ret != WT_ROLLBACK)
         testutil_check(ret);
     if (ret == 0)
         out = model::get_wt_cursor_value(cursor);
@@ -420,6 +423,35 @@ wt_ckpt_create(WT_SESSION *session, const char *ckpt_name)
 
     std::string config = config_stream.str();
     testutil_check(session->checkpoint(session, config.c_str()));
+}
+
+/*
+ * wt_get_stable_timestamp --
+ *     Get the oldest timestamp in WiredTiger.
+ */
+model::timestamp_t
+wt_get_oldest_timestamp(WT_CONNECTION *conn)
+{
+    char buf[64];
+    testutil_check(conn->query_timestamp(conn, buf, "get=oldest_timestamp"));
+
+    std::istringstream ss(buf);
+    model::timestamp_t t;
+    ss >> std::hex >> t;
+    return t;
+}
+
+/*
+ * wt_set_oldest_timestamp --
+ *     Set the oldest timestamp in WiredTiger.
+ */
+void
+wt_set_oldest_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+{
+    char buf[64];
+
+    testutil_snprintf(buf, sizeof(buf), "oldest_timestamp=%" PRIx64, timestamp);
+    testutil_check(conn->set_timestamp(conn, buf));
 }
 
 /*

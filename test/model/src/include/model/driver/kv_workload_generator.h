@@ -73,6 +73,7 @@ struct kv_workload_generator_spec {
     float checkpoint;
     float crash;
     float restart;
+    float set_oldest_timestamp;
     float set_stable_timestamp;
 
     /* The probability of starting a prepared transaction. */
@@ -342,13 +343,13 @@ protected:
      *     time.
      */
     void assert_timestamps(
-      const kv_workload_sequence &sequence, const operation::any &op, timestamp_t &stable);
+      const kv_workload_sequence &sequence, const operation::any &op, timestamp_t &oldest, timestamp_t &stable);
 
     /*
      * kv_workload_generator::assign_timestamps --
      *     Assign timestamps to operations in a sequence.
      */
-    void assign_timestamps(kv_workload_sequence &sequence, timestamp_t first, timestamp_t last);
+    void assign_timestamps(kv_workload_sequence &sequence, timestamp_t first, timestamp_t last, timestamp_t &oldest, timestamp_t &stable);
 
     /*
      * kv_workload_generator::choose_table --
