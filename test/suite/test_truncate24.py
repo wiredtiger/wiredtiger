@@ -40,10 +40,15 @@ class test_truncate24(wttest.WiredTigerTestCase):
         ('var', dict(key_format='r', value_format='i')),
     ]
 
-    scenarios = make_scenarios(key_format_values)
+    set_ts = [
+        ('set_ts', dict(set_ts = True)),
+        ('not_set_ts', dict(set_ts = False)),
+    ]
+
+    scenarios = make_scenarios(key_format_values, set_ts)
 
     @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
-    def test_truncate_with_ts_set(self):
+    def test_truncate24(self):
         uri = 'table:truncate24'
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
@@ -59,9 +64,10 @@ class test_truncate24(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(uri)
 
-        # Truncate the data at timestamp 10 but commit at 20.
         self.session.begin_transaction()
-        self.session.timestamp_transaction("commit_timestamp=" + self.timestamp_str(10))
+        # Truncate the data at timestamp 10 if set.
+        if self.set_ts:
+            self.session.timestamp_transaction("commit_timestamp=" + self.timestamp_str(10))
         self.session.truncate(uri, None, None, None)
 
         # Reload the deleted pages to memory.
@@ -78,50 +84,12 @@ class test_truncate24(wttest.WiredTigerTestCase):
         fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
         self.assertGreater(fastdelete_pages, 0)
 
-        # Verify we don't see the data at timestamp 10.
+        # Verify the data.
         for i in range(1, 100000):
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
-            cursor.set_key(ds.key(i))
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-            self.session.rollback_transaction()
-
-    @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
-    def test_truncate_without_ts_set(self):
-        uri = 'table:truncate24'
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
-        ds.populate()
-
-        cursor = self.session.open_cursor(uri)
-        for i in range(1, 100000):
-            self.session.begin_transaction()
-            cursor[ds.key(i)] = i
-            self.session.commit_transaction()
-
-        # Reopen the connection to flush the cache so we can fast-truncate.
-        self.reopen_conn()
-
-        cursor = self.session.open_cursor(uri)
-
-        # Truncate the data at timestamp 20.
-        self.session.begin_transaction()
-        self.session.truncate(uri, None, None, None)
-
-        # Reload the deleted pages to memory.
-        session2 = self.conn.open_session()
-        cursor2 = session2.open_cursor(uri)
-        for i in range(1, 100000):
-            self.assertEqual(cursor2.next(), 0)
-            self.assertEqual(cursor2.get_value(), i)
-
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-
-        # Check stats to make sure we fast-deleted at least one page.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
-        self.assertGreater(fastdelete_pages, 0)
-
-        # Verify we see the data at timestamp 10.
-        for i in range(1, 100000):
-            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
-            self.assertEqual(cursor[ds.key(i)], i)
+            if self.set_ts:
+                cursor.set_key(ds.key(i))
+                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            else:
+                self.assertEqual(cursor[ds.key(i)], i)
             self.session.rollback_transaction()
