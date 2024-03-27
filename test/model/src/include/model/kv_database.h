@@ -66,8 +66,8 @@ public:
      * kv_database::create_checkpoint --
      *     Create a checkpoint from custom metadata. Throw an exception if the name is not unique.
      */
-    kv_checkpoint_ptr create_checkpoint(
-      const char *name, kv_transaction_snapshot_ptr snapshot, timestamp_t stable_timestamp);
+    kv_checkpoint_ptr create_checkpoint(const char *name, kv_transaction_snapshot_ptr snapshot,
+      timestamp_t oldest_timestamp, timestamp_t stable_timestamp);
 
     /*
      * kv_database::create_table --
@@ -261,8 +261,9 @@ protected:
      *     Create a checkpoint from custom metadata. Throw an exception if the name is not unique.
      *     Assume the relevant locks are held.
      */
-    kv_checkpoint_ptr create_checkpoint_nolock(
-      const char *name, kv_transaction_snapshot_ptr snapshot, timestamp_t stable_timestamp);
+    kv_checkpoint_ptr create_checkpoint_nolock(const char *name,
+      kv_transaction_snapshot_ptr snapshot, timestamp_t oldest_timestamp,
+      timestamp_t stable_timestamp);
 
     /*
      * kv_database::rollback_all_nolock --

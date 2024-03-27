@@ -729,6 +729,16 @@ test_model_oldest(void)
     /* Test moving the oldest timestamp backwards - this should fail silently. */
     database.set_oldest_timestamp(10);
     testutil_assert(database.oldest_timestamp() == 50);
+
+    /* The oldest timestamp should reset, because we don't have the stable timestamp. */
+    database.restart();
+    testutil_assert(database.oldest_timestamp() == 0);
+
+    /* Now try it with both the oldest and stable timestamps. */
+    database.set_oldest_timestamp(50);
+    database.set_stable_timestamp(55);
+    database.restart();
+    testutil_assert(database.oldest_timestamp() == 50);
 }
 
 /*
@@ -788,6 +798,26 @@ test_model_oldest_wt(void)
 
     /* Verify. */
     testutil_assert(table->verify_noexcept(conn));
+
+    /* Restart the database. */
+    database.restart();
+    testutil_check(session->close(session, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+    testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+
+    /* The oldest timestamp should reset, because we don't have the stable timestamp. */
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+
+    /* Now try it with both the oldest and stable timestamps. */
+    wt_model_set_oldest_timestamp_both(50);
+    wt_model_set_stable_timestamp_both(55);
+    database.restart();
+    testutil_check(session->close(session, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+    testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
 
     /* Clean up. */
     testutil_check(session->close(session, nullptr));

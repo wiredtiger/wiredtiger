@@ -342,14 +342,15 @@ protected:
      *     Assert that the timestamps are assigned correctly. Call this function one sequence at a
      *     time.
      */
-    void assert_timestamps(
-      const kv_workload_sequence &sequence, const operation::any &op, timestamp_t &oldest, timestamp_t &stable);
+    void assert_timestamps(const kv_workload_sequence &sequence, const operation::any &op,
+      timestamp_t &oldest, timestamp_t &stable);
 
     /*
      * kv_workload_generator::assign_timestamps --
      *     Assign timestamps to operations in a sequence.
      */
-    void assign_timestamps(kv_workload_sequence &sequence, timestamp_t first, timestamp_t last, timestamp_t &oldest, timestamp_t &stable);
+    void assign_timestamps(kv_workload_sequence &sequence, timestamp_t first, timestamp_t last,
+      timestamp_t &oldest, timestamp_t &stable);
 
     /*
      * kv_workload_generator::choose_table --
