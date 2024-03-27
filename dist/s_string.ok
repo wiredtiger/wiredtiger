@@ -245,6 +245,7 @@ MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
+McKenney
 Mellor
 Mitzenmacher
 MongoDB
@@ -324,6 +325,7 @@ RETRYABLE
 RHEL
 RLE
 RLEs
+RMW
 RNG
 RNGs
 RPC
@@ -1174,6 +1176,7 @@ reentrant
 refp
 regionp
 relocked
+reorderings
 repl
 repositioned
 repositions
