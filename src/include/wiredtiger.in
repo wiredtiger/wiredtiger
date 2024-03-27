@@ -2941,12 +2941,6 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a
  * string; default empty.}
  * @config{ ),,}
- * @config{buffer_alignment, in-memory alignment (in bytes) for buffers used for I/O. The default
- * value of -1 indicates a platform-specific alignment value should be used (4KB on Linux systems
- * when direct I/O is configured\, zero elsewhere). If the configured alignment is larger than
- * default or configured object page sizes\, file allocation and page sizes are silently increased
- * to the buffer alignment size.  Requires the \c posix_memalign API. See @ref
- * tuning_system_buffer_cache_direct_io., an integer between \c -1 and \c 1MB; default \c -1.}
  * @config{builtin_extension_config, A structure where the keys are the names of builtin extensions
  * and the values are passed to WT_CONNECTION::load_extension as the \c config parameter (for
  * example\, <code>builtin_extension_config={zlib={compression_level=3}}</code>)., a string; default
@@ -3084,15 +3078,6 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\, control all dirty page evictions
  * through forcing update restore eviction., a boolean flag; default \c false.}
  * @config{ ),,}
- * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c FILE_FLAG_NO_BUFFERING on Windows to
- * access files.  Options are given as a list\, such as <code>"direct_io=[data]"</code>. Configuring
- * \c direct_io requires care; see @ref tuning_system_buffer_cache_direct_io for important warnings.
- * Including \c "data" will cause WiredTiger data files\, including WiredTiger internal data files\,
- * to use direct I/O; including \c "log" will cause WiredTiger log files to use direct I/O;
- * including \c "checkpoint" will cause WiredTiger data files opened using a (read-only) checkpoint
- * cursor to use direct I/O. \c direct_io should be combined with \c write_through to get the
- * equivalent of \c O_DIRECT on Windows., a list\, with values chosen from the following options: \c
- * "checkpoint"\, \c "data"\, \c "log"; default empty.}
  * @config{encryption = (, configure an encryptor for system wide metadata and logs.  If a system
  * wide encryptor is set\, it is also used for encrypting data files and tables\, unless encryption
  * configuration is explicitly set for them when they are created with WT_SESSION::create., a set of
@@ -4697,8 +4682,6 @@ typedef enum {
 #define WT_FS_OPEN_ACCESS_SEQ   0x0
 /*! WT_FILE_SYSTEM::open_file flags: create if does not exist */
 #define WT_FS_OPEN_CREATE   0x0
-/*! WT_FILE_SYSTEM::open_file flags: direct I/O requested */
-#define WT_FS_OPEN_DIRECTIO 0x0
 /*! WT_FILE_SYSTEM::open_file flags: file creation must be durable */
 #define WT_FS_OPEN_DURABLE  0x0
 /*!
@@ -4715,15 +4698,14 @@ typedef enum {
 #define WT_FS_DURABLE       0x0
 #else
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_FS_OPEN_ACCESS_RAND  0x001u
-#define WT_FS_OPEN_ACCESS_SEQ   0x002u
-#define WT_FS_OPEN_CREATE   0x004u
-#define WT_FS_OPEN_DIRECTIO 0x008u
-#define WT_FS_OPEN_DURABLE  0x010u
-#define WT_FS_OPEN_EXCLUSIVE    0x020u
-#define WT_FS_OPEN_FIXED    0x040u   /* Path not home relative (internal) */
-#define WT_FS_OPEN_FORCE_MMAP 0x080u
-#define WT_FS_OPEN_READONLY 0x100u
+#define WT_FS_OPEN_ACCESS_RAND  0x01u
+#define WT_FS_OPEN_ACCESS_SEQ   0x02u
+#define WT_FS_OPEN_CREATE   0x04u
+#define WT_FS_OPEN_DURABLE  0x08u
+#define WT_FS_OPEN_EXCLUSIVE    0x10u
+#define WT_FS_OPEN_FIXED    0x20u   /* Path not home relative (internal) */
+#define WT_FS_OPEN_FORCE_MMAP 0x40u
+#define WT_FS_OPEN_READONLY 0x80u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -4822,7 +4804,7 @@ struct __wt_file_system {
      *    The file type is provided to allow optimization for different file
      *    access patterns.
      * @param flags flags indicating how to open the file, one or more of
-     *    ::WT_FS_OPEN_CREATE, ::WT_FS_OPEN_DIRECTIO, ::WT_FS_OPEN_DURABLE,
+     *    ::WT_FS_OPEN_CREATE, ::, ::WT_FS_OPEN_DURABLE,
      *    ::WT_FS_OPEN_EXCLUSIVE or ::WT_FS_OPEN_READONLY.
      * @param[out] file_handlep the handle to the newly opened file. File
      *    system implementations must allocate memory for the handle and

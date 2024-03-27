@@ -49,10 +49,7 @@ __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
      * need to grow anything.
      */
     if (size > buf->memsize) {
-        if (F_ISSET(buf, WT_ITEM_ALIGNED))
-            WT_RET(__wt_realloc_aligned(session, &buf->memsize, size, &buf->mem));
-        else
-            WT_RET(__wt_realloc_noclear(session, &buf->memsize, size, &buf->mem));
+        WT_RET(__wt_realloc_noclear(session, &buf->memsize, size, &buf->mem));
     }
 
     if (buf->data == NULL) {

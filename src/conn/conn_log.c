@@ -288,8 +288,6 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
     if (!reconfig) {
         WT_RET(__wt_config_gets(session, cfg, "log.file_max", &cval));
         conn->log_file_max = (wt_off_t)cval.val;
-        if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
-            conn->log_file_max = (wt_off_t)WT_ALIGN(conn->log_file_max, conn->buffer_alignment);
         /*
          * With the default log file extend configuration or if the log file extension size is
          * larger than the configured maximum log file size, set the log file extension size to the
@@ -986,10 +984,8 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
     WT_RET(__wt_spin_init(session, &log->log_sync_lock, "log sync"));
     WT_RET(__wt_spin_init(session, &log->log_writelsn_lock, "log write LSN"));
     WT_RET(__wt_rwlock_init(session, &log->log_remove_lock));
-    if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
-        log->allocsize = (uint32_t)WT_MAX(conn->buffer_alignment, WT_LOG_ALIGN);
-    else
-        log->allocsize = WT_LOG_ALIGN;
+
+    log->allocsize = WT_LOG_ALIGN;
     WT_INIT_LSN(&log->alloc_lsn);
     WT_INIT_LSN(&log->ckpt_lsn);
     WT_INIT_LSN(&log->first_lsn);
