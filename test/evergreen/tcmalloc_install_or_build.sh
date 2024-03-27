@@ -1,6 +1,9 @@
 #!/bin/bash
 #
 # Make a tcmalloc shared library avilable for preloading into the environment.
+
+set -u
+
 if [[ $# -ne 1 ]]; then
     echo "Usage: $0 build-variant"
     exit 1
@@ -32,30 +35,21 @@ tcmalloc_so_dir=${install_dir}/${tcmalloc_dir}
 PREBUILT_TGZ="tcmalloc-${PATCHED_SRC}-${build_variant}.tgz"
 PREBUILT_URL="${s3_bucket_tcmalloc}/build/wt_prebuilt_tcmalloc/${PATCHED_SRC}/${PREBUILT_TGZ}"
 
-# Exit script unless command returns one of the specified error codes.
-# Command error code will be returned if not exited.
-# Usage: die_unless "cmd args..." ret rets...
-exit_unless() {
-        $1
-        ret=$?
-        for ret_ok in "${@:2}"; do
-                [ ${ret_ok} -eq ${ret} ] && return $ret
-        done
-        echo "$1 failed with code $ret"
-        exit $ret
-}
-
 # Without the --quiet option 'aws s3 cp' will print out an error message if the file is
 # NOT present. This is an expected error case that is handled later in this script, but
 # emitting messages with "Error" in them, into the Evergreen log will cause confusion.
-exit_unless "aws s3 cp --quiet ${PREBUILT_URL} ${PREBUILT_TGZ}" 0 1
-if [[ $? -eq 0 ]]; then
-    set -e
+echo "Attempting to download prebuilt tcmalloc: ${PREBUILT_URL}"
+aws s3 cp --quiet ${PREBUILT_URL} ${PREBUILT_TGZ}
+aws_ret=$?
+if [[ $aws_ret -eq 0 ]]; then
     tar zxf $PREBUILT_TGZ
     exit $?
+elif [[ $aws_ret -ne 1 ]]; then
+    echo "ERROR aws s3 download failed with code ${aws_ret}"
+    exit $aws_ret
 fi
 
-# Download a prebuilt copy failed. Assume it is because it doesn't exist for this build
+# Downloading a prebuilt copy failed. Assume it is because it doesn't exist for this build
 # variant. Attempt to create a shared object for this build variant and upload it.
 # From this point onward: any and all errors are fatal, and will cause the build to FAIL.
 set -e
@@ -80,9 +74,10 @@ cc_shared_library(
 )
 EOF
 
-pushd $PATCHED_SRC_DIR > /dev/null
-bazel build libtcmalloc
-popd > /dev/null
+(set -e;
+ cd $PATCHED_SRC_DIR;
+ bazel build libtcmalloc;
+ cd -)
 
 # Package and upload. If the upload fails: fail the WT build, even though
 # there is an available binary. This is to ensure any problem becomes
@@ -92,6 +87,7 @@ mkdir $tcmalloc_so_dir
 cp ${PATCHED_SRC_DIR}/bazel-bin/libtcmalloc.so $tcmalloc_so_dir
 tar zcf $PREBUILT_TGZ $tcmalloc_dir
 aws s3 cp $PREBUILT_TGZ $PREBUILT_URL
+echo "Uploaded new prebuilt tcmalloc: ${PREBUILT_URL}"
 
 # Build and upload of tcmalloc was successful. Now use the locally
 # built copy of tcmalloc for the WT build.
