@@ -147,6 +147,8 @@ functions:
     params:
       shell: bash
       script: |
+        set -o errexit
+        set -o verbose
         if [ "$OS" != "Windows_NT" ] && ! [ -d "./automation-scripts" ]; then
           git clone git@github.com:wiredtiger/automation-scripts.git
         fi
