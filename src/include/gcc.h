@@ -43,8 +43,6 @@
  * same location simultaneously, the result must be one of the two values, not some combination of
  * both.
  *
- * # Multi copy atomicity #
- *
  * # No Aggregated Writes of Adjacent Memory Locations #
  * To reduce memory requirements, WiredTiger may use a 32-bit type on 64-bit machines, which is OK
  * if the compiler doesn't turn a 32-bit load/store into a 64-bit load/store, where the 64 bits
