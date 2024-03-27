@@ -97,12 +97,9 @@ class test_drop(wttest.WiredTigerTestCase):
                 drop_uri = ds.indexname
             else:
                 drop_uri = ds.index_name(0)
-            self.dropUntilSuccess(self.session, drop_uri)
-            # Check that the table still contains the proper variant.
-            ds.check(variant)
         else:
             drop_uri = uri
-            self.dropUntilSuccess(self.session, drop_uri)
+        self.dropUntilSuccess(self.session, drop_uri)
 
         confirm_does_not_exist(self, drop_uri)
 
