@@ -302,7 +302,7 @@ functions:
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
 
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
-            source test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
+            test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
           fi
 
           # Compiling with CMake.
