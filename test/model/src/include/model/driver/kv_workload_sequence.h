@@ -42,6 +42,7 @@ namespace model {
  */
 enum class kv_workload_sequence_type {
     none,
+    rollback_to_stable,
     set_stable_timestamp,
     transaction,
 };
