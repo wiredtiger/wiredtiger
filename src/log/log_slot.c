@@ -40,8 +40,8 @@ __log_slot_dump(WT_SESSION_IMPL *session)
         __wt_errx(session, "    Release LSN: %" PRIu32 "/%" PRIu32, slot->slot_release_lsn.l.file,
           __wt_lsn_offset(&slot->slot_release_lsn));
         __wt_errx(session, "    Offset: start: %" PRIuMAX " last:%" PRIuMAX,
-          (uintmax_t)slot->slot_start_offset,
-          (uintmax_t)__wt_atomic_loadiv64(&slot->slot_last_offset));
+          (uintmax_t)__wt_atomic_loadi64(&slot->slot_start_offset),
+          (uintmax_t)__wt_atomic_loadi64(&slot->slot_last_offset));
         __wt_errx(session, "    Unbuffered: %" PRId64 " error: %" PRId32, slot->slot_unbuffered,
           __wt_atomic_loadi32(&slot->slot_error));
     }
@@ -72,8 +72,8 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
     slot->slot_unbuffered = 0;
     WT_ASSIGN_LSN(&slot->slot_start_lsn, &log->alloc_lsn);
     WT_ASSIGN_LSN(&slot->slot_end_lsn, &slot->slot_start_lsn);
-    slot->slot_start_offset = __wt_lsn_offset(&log->alloc_lsn);
-    __wt_atomic_storeiv64(&slot->slot_last_offset, __wt_lsn_offset(&log->alloc_lsn));
+    __wt_atomic_storei64(&slot->slot_start_offset, __wt_lsn_offset(&log->alloc_lsn));
+    __wt_atomic_storei64(&slot->slot_last_offset, __wt_lsn_offset(&log->alloc_lsn));
     slot->slot_fh = log->log_fh;
     __wt_atomic_storei32(&slot->slot_error, 0);
     WT_DIAGNOSTIC_YIELD;
@@ -512,8 +512,8 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
             rel = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
             if (rel != 0)
                 /* Writes are not throttled. */
-                WT_RET(__wt_write(session, slot->slot_fh, slot->slot_start_offset, (size_t)rel,
-                  slot->slot_buf.mem));
+                WT_RET(__wt_write(session, slot->slot_fh,
+                  __wt_atomic_loadi64(&slot->slot_start_offset), (size_t)rel, slot->slot_buf.mem));
         }
         __wt_buf_free(session, &log->slot_pool[i].slot_buf);
     }
@@ -560,7 +560,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT
     }
     for (;;) {
         WT_COMPILER_BARRIER();
-        slot = log->active_slot;
+        slot = __wt_atomic_load_generic(&log->active_slot);
         old_state = __wt_atomic_loadiv64(&slot->slot_state);
         if (WT_LOG_SLOT_OPEN(old_state)) {
             /*
@@ -654,16 +654,16 @@ __wt_log_slot_release(WT_MYSLOT *myslot, int64_t size)
     int64_t my_size, rel_size;
 
     slot = myslot->slot;
-    my_start = slot->slot_start_offset + myslot->offset;
+    my_start = __wt_atomic_loadi64(&slot->slot_start_offset) + myslot->offset;
     /*
      * We maintain the last starting offset within this slot. This is used to know the offset of the
      * last record that was written rather than the beginning record of the slot.
      */
-    while ((cur_offset = __wt_atomic_loadiv64(&slot->slot_last_offset)) < my_start) {
+    while ((cur_offset = __wt_atomic_loadi64(&slot->slot_last_offset)) < my_start) {
         /*
          * Set our offset if we are larger.
          */
-        if (__wt_atomic_casiv64(&slot->slot_last_offset, cur_offset, my_start))
+        if (__wt_atomic_casi64(&slot->slot_last_offset, cur_offset, my_start))
             break;
         /*
          * If we raced another thread updating this, try again.
