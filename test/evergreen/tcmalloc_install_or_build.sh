@@ -83,7 +83,7 @@ EOF
 # there is an available binary. This is to ensure any problem becomes
 # quickly visible in Evergreen.
 rm -rf $tcmalloc_so_dir
-mkdir $tcmalloc_so_dir
+mkdir -p $tcmalloc_so_dir
 cp ${PATCHED_SRC_DIR}/bazel-bin/libtcmalloc.so $tcmalloc_so_dir
 tar zcf $PREBUILT_TGZ $tcmalloc_dir
 aws s3 cp $PREBUILT_TGZ $PREBUILT_URL
