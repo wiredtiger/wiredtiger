@@ -866,8 +866,7 @@ __wt_lsm_tree_drop(
 err:
     if (locked)
         __wt_lsm_tree_writeunlock(session, lsm_tree);
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, tret = __lsm_tree_discard(session, lsm_tree, check_visibility));
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __lsm_tree_discard(session, lsm_tree, false));
     WT_TRET(tret);
     return (ret);
 }
