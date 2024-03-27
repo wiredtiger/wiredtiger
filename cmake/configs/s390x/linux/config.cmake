@@ -7,8 +7,5 @@ set(WT_POSIX ON CACHE BOOL "")
 # builds.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE" CACHE STRING "" FORCE)
 
-# Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
-set(WT_BUFFER_ALIGNMENT_DEFAULT "4096" CACHE STRING "")
-
 # Allow assembler to detect '.sx' file extensions.
 list(APPEND CMAKE_ASM_SOURCE_FILE_EXTENSION "sx")
