@@ -563,26 +563,14 @@ config_backup_incr(void)
      * Choose a type of incremental backup, where the log remove setting can eliminate incremental
      * backup based on log files.
      */
-    switch (mmrand(&g.extra_rnd, 1, 10)) {
-    case 1: /* 30% full backup only */
+    switch (mmrand(&g.extra_rnd, 1, 5)) {
+    case 1: /* 40% full backup only */
     case 2:
-    case 3:
         config_off(NULL, "backup.incremental");
         break;
-    case 4: /* 30% log based incremental */
+    case 3: /* 60% block based incremental */
+    case 4:
     case 5:
-    case 6:
-        if (!GV(LOGGING_REMOVE) || !config_explicit(NULL, "logging.remove")) {
-            if (GV(LOGGING_REMOVE))
-                config_off(NULL, "logging.remove");
-            config_single(NULL, "backup.incremental=log", false);
-            break;
-        }
-    /* FALLTHROUGH */
-    case 7: /* 40% block based incremental */
-    case 8:
-    case 9:
-    case 10:
         config_single(NULL, "backup.incremental=block", false);
         config_backup_incr_granularity();
         break;

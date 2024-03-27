@@ -469,7 +469,7 @@ main(int argc, char *argv[])
 
     printf("Close and reopen the connection\n");
     /*
-     * Close and reopen the connection to illustrate the durability of id information.
+     * Close and reopen the connection to illustrate the durability of ID information.
      */
     error_check(wt_conn->close(wt_conn, NULL));
     error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
