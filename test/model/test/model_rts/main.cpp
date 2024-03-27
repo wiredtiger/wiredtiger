@@ -252,7 +252,7 @@ test_rts_crash_wt(void)
         wt_txn_insert(session1, uri, key1, value2);
         wt_txn_commit(session1, 20);
         wt_txn_begin(session1);
-        wt_txn_insert(session1, uri, key1, value2);
+        wt_txn_insert(session1, uri, key1, value3);
         wt_txn_commit(session1, 30);
 
         /* Set the stable timestamp, rollback to stable, and crash. */
@@ -270,7 +270,6 @@ test_rts_crash_wt(void)
     testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
     testutil_check(conn->open_session(conn, nullptr, nullptr, &session1));
     wt_model_assert(table, uri, key1);
-    wt_model_assert(table, uri, key2);
 
     /* Add some data with lower timestamp than would be possible before RTS. */
     wt_model_txn_begin_both(txn1, session1);
