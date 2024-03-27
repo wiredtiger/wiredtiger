@@ -273,7 +273,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_prefetch_create(session, cfg));
 
     /* Start the checkpoint cleanup thread. */
-    WT_RET(__wt_checkpoint_cleanup_create(session));
+    WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
 
     return (0);
 }

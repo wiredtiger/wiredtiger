@@ -36,4 +36,5 @@ struct __wt_checkpoint_cleanup {
     wt_thread_t tid;          /* checkpoint cleanup thread */
     int tid_set;              /* checkpoint cleanup thread set */
     WT_CONDVAR *cond;         /* checkpoint cleanup wait mutex */
+    uint64_t interval;        /* Checkpoint cleanup interval */
 };

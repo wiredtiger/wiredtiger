@@ -8,10 +8,7 @@
 
 #include "wt_internal.h"
 
-/* Checkpoint cleanup interval times. */
-#define WT_CHECKPOINT_CLEANUP_INTERVAL 5 * 60 /* 5 minutes */
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1  /* 1 second */
-
+#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1 /* 1 second */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -572,7 +569,7 @@ __checkpoint_cleanup(void *arg)
          * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that
          * typically involves many IO operations so skipping some should have little impact.
          */
-        if (!cv_signalled && (now - last < WT_CHECKPOINT_CLEANUP_INTERVAL))
+        if (!cv_signalled && (now - last < conn->cc_cleanup.interval))
             continue;
 
         WT_ERR(__checkpoint_cleanup_int(session));
@@ -591,8 +588,9 @@ err:
  *     Start the checkpoint cleanup thread.
  */
 int
-__wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session)
+__wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
 
@@ -603,6 +601,13 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session)
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
+
+    WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
+    if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
+        F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
+
+    WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
+    conn->cc_cleanup.interval = (uint64_t)cval.val;
 
     /*
      * Checkpoint cleanup does enough I/O it may be called upon to perform slow operations for the

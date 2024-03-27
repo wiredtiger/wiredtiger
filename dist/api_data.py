@@ -552,10 +552,17 @@ connection_runtime_config = [
             periodic checkpoints''',
             min='0', max='100000'),
         ]),
-    Config('checkpoint_cleanup', 'none', r'''
-        control how aggressively obsolete content is removed when creating checkpoints.
-        Default to none, which means no additional work is done to find obsolete content.
-        ''', choices=['none', 'reclaim_space']),
+    Config('checkpoint_cleanup', '', r'''
+        periodically checkpoint cleanup the database.''',
+        type='category', subconfig=[
+        Config('method', 'none', r'''
+            control how aggressively obsolete content is removed by reading the internal pages.
+            Default to none, which means no additional work is done to find obsolete content.
+            ''', choices=['none', 'reclaim_space']),
+        Config('wait', '300', r'''
+            seconds to wait between each checkpoint cleanup''',
+            min='60', max='100000'),
+        ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
