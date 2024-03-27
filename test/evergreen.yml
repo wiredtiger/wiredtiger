@@ -1645,7 +1645,7 @@ tasks:
       - func: "make check directory"
         vars:
           directory: examples/c
-          extra_args: -R "(ex_access|ex_col_store|ex_config_parse|ex_cursor|ex_event_handler|ex_extending|ex_extra_diagnostics|ex_extractor|ex_hello|ex_pack|ex_process|ex_schema|ex_smoke|ex_thread|ex_tiered|ex_verbose)" -j ${num_jobs}
+          extra_args: -E "(ex_all|ex_backup|ex_backup_block|ex_file_system)" -j ${num_jobs}
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
@@ -3726,6 +3726,21 @@ tasks:
             ${PREPARE_TEST_ENV}
             ./test_model.sh
 
+  - name: model-test-failure-workloads
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/evergreen"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ./run_model_workloads.sh
+
   - name: model-test-long
     tags: ["model_checking"]
     commands:
@@ -5304,6 +5319,8 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    - name: model-test-failure-workloads
+      batchtime: 1440 # 24 hours
     # FIXME-WT-12637
     #- name: model-test-long
     #  batchtime: 1440 # once a day
@@ -5339,7 +5356,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
-      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
+      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
       export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -5671,6 +5688,8 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
+    - name: model-test-failure-workloads
+      batchtime: 1440 # 24 hours
     # FIXME-WT-12637
     #- name: model-test-long
     #  batchtime: 1440 # once a day
