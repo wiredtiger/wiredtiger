@@ -137,10 +137,21 @@ functions:
           echo "build --workspace_status_command=./evergreen/engflow_workspace_status.sh" >> .bazelrc.evergreen_engflow_creds
         fi
   "get project":
-    command: git.get_project
+  - command: git.get_project
     type: setup
     params:
       directory: wiredtiger
+  - command: shell.exec
+    type: setup
+    params:
+      shell: bash
+      working_dir: wiredtiger
+      script: |
+        set -o errexit
+        set -o verbose
+        if [ "$OS" != "Windows_NT" ] && ! [ -d "./automation-scripts" ]; then
+          git clone git@github.com:wiredtiger/automation-scripts.git
+        fi
   "fetch artifacts": &fetch_artifacts
     command: s3.get
     type: setup
@@ -297,9 +308,8 @@ functions:
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
           # Fetch the gperftools library if needed. This will also get tcmalloc.
-          if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]] && [ ! -d "./automation-scripts" ]; then
+          if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
             is_cmake_build=true
-            git clone git@github.com:wiredtiger/automation-scripts.git
             . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
           fi
           # Compiling with CMake.
