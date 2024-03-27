@@ -46,7 +46,7 @@ exit_unless() {
 }
 
 # Without the --quiet option 'aws s3 cp' will print out an error message if the file is
-# NOT present. This is an expected error case that is handled later in this script, but 
+# NOT present. This is an expected error case that is handled later in this script, but
 # emitting messages with "Error" in them, into the Evergreen log will cause confusion.
 exit_unless "aws s3 cp --quiet ${PREBUILT_URL} ${PREBUILT_TGZ}" 0 1
 if [[ $? -eq 0 ]]; then
@@ -66,7 +66,7 @@ rm -rf ${PATCHED_SRC_DIR}
 tar zxf ${PATCHED_TGZ}
 
 # Create this Bazel BUILD file in the top of the source directory to build a
-# shared object, and then build. 
+# shared object, and then build.
 cat << EOF > ${PATCHED_SRC_DIR}/BUILD
 package(default_visibility = ["//visibility:private"])
 
@@ -84,7 +84,6 @@ pushd $PATCHED_SRC_DIR > /dev/null
 bazel build libtcmalloc
 popd > /dev/null
 
-
 # Package and upload. If the upload fails: fail the WT build, even though
 # there is an available binary. This is to ensure any problem becomes
 # quickly visible in Evergreen.
@@ -93,7 +92,6 @@ mkdir $tcmalloc_so_dir
 cp ${PATCHED_SRC_DIR}/bazel-bin/libtcmalloc.so $tcmalloc_so_dir
 tar zcf $PREBUILT_TGZ $tcmalloc_dir
 aws s3 cp $PREBUILT_TGZ $PREBUILT_URL
-
 
 # Build and upload of tcmalloc was successful. Now use the locally
 # built copy of tcmalloc for the WT build.
