@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /* Checkpoint cleanup interval times. */
-#define WT_CHECKPOINT_CLEANUP_INTERVAL 30 * 60 /* 30 minutes */
+#define WT_CHECKPOINT_CLEANUP_INTERVAL 5 * 60 /* 5 minutes */
 #define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1  /* 1 second */
 
 #define WT_URI_FILE_PREFIX "file:"
