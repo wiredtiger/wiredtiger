@@ -73,7 +73,7 @@ class test_drop(wttest.WiredTigerTestCase):
             ds.populate(False, 2)
             variant = 2
             # Fail to drop the table with EBUSY.
-            self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)),
+            self.assertTrue(self.raisesBusy(lambda: self.session.drop(uri, None)),
                             "was expecting drop call to fail with EBUSY")
             # Check that transaction A still contains variant 2.
             ds.check(2)
