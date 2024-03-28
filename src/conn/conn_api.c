@@ -2785,8 +2785,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
       __conn_get_storage_source, __conn_get_extension_api};
-    static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
-      {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};
+    static const WT_NAME_FLAG file_types[] = {
+      {"data", WT_DATA_FILE_TYPE}, {"log", WT_LOG_FILE_TYPE}, {NULL, 0}};
 
     WT_CONFIG_ITEM cval, keyid, secretkey, sval;
     WT_CONNECTION_IMPL *conn;
@@ -3009,21 +3009,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
     conn->session_scratch_max = (size_t)cval.val;
 
-    /*
-     * If buffer alignment is not configured, use zero unless direct I/O is also configured, in
-     * which case use the build-time default. The code to parse write through is also here because
-     * it is nearly identical to direct I/O.
-     */
-    WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
-    for (ft = file_types; ft->name != NULL; ft++) {
-        ret = __wt_config_subgets(session, &cval, ft->name, &sval);
-        if (ret == 0) {
-            if (sval.val)
-                FLD_SET(conn->direct_io, ft->flag);
-        } else
-            WT_ERR_NOTFOUND_OK(ret, false);
-    }
-
     WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
     for (ft = file_types; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
@@ -3033,18 +3018,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         } else
             WT_ERR_NOTFOUND_OK(ret, false);
     }
-
-    WT_ERR(__wt_config_gets(session, cfg, "buffer_alignment", &cval));
-    if (cval.val == -1) {
-        conn->buffer_alignment = 0;
-        if (conn->direct_io != 0)
-            conn->buffer_alignment = WT_BUFFER_ALIGNMENT_DEFAULT;
-    } else
-        conn->buffer_alignment = (size_t)cval.val;
-#ifndef HAVE_POSIX_MEMALIGN
-    if (conn->buffer_alignment != 0)
-        WT_ERR_MSG(session, EINVAL, "buffer_alignment requires posix_memalign");
-#endif
 
     WT_ERR(__wt_config_gets(session, cfg, "cache_cursors", &cval));
     if (cval.val)
@@ -3068,10 +3041,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
             switch (ft->flag) {
-            case WT_DIRECT_IO_DATA:
+            case WT_DATA_FILE_TYPE:
                 conn->data_extend_len = sval.val;
                 break;
-            case WT_DIRECT_IO_LOG:
+            case WT_LOG_FILE_TYPE:
                 /*
                  * When using "file_extend=(log=)", the val returned is 1. Unset the log extend
                  * length in that case to use the default.
@@ -3096,9 +3069,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->mmap = cval.val != 0;
     WT_ERR(__wt_config_gets(session, cfg, "mmap_all", &cval));
     conn->mmap_all = cval.val != 0;
-    if (conn->direct_io && conn->mmap_all)
-        WT_ERR_MSG(
-          session, EINVAL, "direct I/O configuration is incompatible with mmap_all configuration");
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
     conn->prefetch_available = cval.val != 0;

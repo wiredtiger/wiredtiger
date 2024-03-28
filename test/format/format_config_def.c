@@ -80,9 +80,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 20, 4096,
     V_TABLE_BTREE_VALUE_MIN},
 
-  {"buffer_alignment", "buffer alignment (off | on), on configures to 512", C_BOOL, 5, 0, 0,
-    V_GLOBAL_BUFFER_ALIGNMENT},
-
   {"cache", "cache size (MB)", 0x0, 1, 100, 100 * 1024, V_GLOBAL_CACHE},
 
   {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100,
@@ -158,9 +155,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
 
   {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0, V_GLOBAL_DISK_DATA_EXTEND},
-
-  {"disk.direct_io", "configure direct I/O for data objects", C_BOOL | C_IGNORE, 0, 0, 1,
-    V_GLOBAL_DISK_DIRECT_IO},
 
   {"disk.encryption", "encryption type (off | rotn-7)", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_DISK_ENCRYPTION},

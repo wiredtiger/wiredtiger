@@ -37,7 +37,6 @@ static void config_checksum(TABLE *);
 static void config_chunk_cache(void);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
-static void config_directio(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
 static const char *config_file_type(u_int);
@@ -321,11 +320,10 @@ config_table(TABLE *table, void *arg)
     table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
     /*
-     * Keep the number of rows and keys/values small for in-memory and direct I/O runs (overflow
-     * items aren't an issue for in-memory configurations and it helps prevents cache overflow, and
-     * direct I/O can be so slow the additional I/O for overflow items causes eviction to stall).
+     * Keep the number of rows and keys/values small for in-memory (overflow items aren't an issue
+     * for in-memory configurations and it helps prevents cache overflow).
      */
-    if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
+    if (GV(RUNS_IN_MEMORY)) {
         /*
          * Always limit the row count if it's greater than one million and in memory wasn't
          * explicitly set. Direct IO is always explicitly set, never limit the row count because the
@@ -520,7 +518,6 @@ config_run(void)
     config_backup_incr();                            /* Incremental backup */
     config_checkpoint();                             /* Checkpoints */
     config_compression(NULL, "logging.compression"); /* Logging compression */
-    config_directio();                               /* Direct I/O */
     config_encryption();                             /* Encryption */
     config_in_memory_reset();                        /* Reset in-memory as needed */
     config_backward_compatible();                    /* Reset backward compatibility as needed */
@@ -891,61 +888,6 @@ config_compression(TABLE *table, const char *conf_name)
 
     testutil_snprintf(confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr);
     config_single(table, confbuf, false);
-}
-
-/*
- * config_directio --
- *     Direct I/O configuration.
- */
-static void
-config_directio(void)
-{
-    /*
-     * We don't roll the dice and set direct I/O, it has to be set explicitly. If there are any
-     * incompatible configurations set explicitly, turn off direct I/O, otherwise turn off the
-     * incompatible configurations.
-     */
-    if (!GV(DISK_DIRECT_IO))
-        return;
-    testutil_assert(config_explicit(NULL, "disk.direct_io") == true);
-
-#undef DIO_CHECK
-#define DIO_CHECK(name, flag)                                                       \
-    if (GV(flag)) {                                                                 \
-        if (config_explicit(NULL, name)) {                                          \
-            WARN("%s not supported with direct I/O, turning off direct I/O", name); \
-            config_off(NULL, "disk.direct_io");                                     \
-            return;                                                                 \
-        }                                                                           \
-        config_off(NULL, name);                                                     \
-    }
-
-    /*
-     * Direct I/O may not work with backups, doing copies through the buffer cache after configuring
-     * direct I/O in Linux won't work. If direct I/O is configured, turn off backups.
-     */
-    DIO_CHECK("backup", BACKUP);
-
-    /* Direct I/O may not work with imports for the same reason as for backups. */
-    DIO_CHECK("import", IMPORT);
-
-    /*
-     * Direct I/O may not work with mmap. Theoretically, Linux ignores direct I/O configurations in
-     * the presence of shared cache configurations (including mmap), but we've seen file corruption
-     * and it doesn't make much sense (the library disallows the combination).
-     */
-    DIO_CHECK("disk.mmap_all", DISK_MMAP_ALL);
-
-    /*
-     * Turn off all external programs. Direct I/O is really, really slow on some machines and it can
-     * take hours for a job to run. External programs don't have timers running so it looks like
-     * format just hung, and the 15-minute timeout isn't effective. We could play games to handle
-     * child process termination, but it's not worth the effort.
-     */
-    DIO_CHECK("ops.salvage", OPS_SALVAGE);
-
-    /* Direct I/O needs buffer alignment to be set automatically. */
-    DIO_CHECK("buffer_alignment", BUFFER_ALIGNMENT);
 }
 
 /*

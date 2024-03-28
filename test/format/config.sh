@@ -127,8 +127,6 @@ CONFIG configuration_list[] = {
 
 {"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 20, 4096}
 
-{"buffer_alignment", "buffer alignment (off | on), on configures to 512", C_BOOL, 5, 0, 0}
-
 {"cache", "cache size (MB)", 0x0, 1, 100, 100 * 1024}
 
 {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100}
@@ -178,8 +176,6 @@ CONFIG configuration_list[] = {
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0}
-
-{"disk.direct_io", "configure direct I/O for data objects", C_BOOL | C_IGNORE, 0, 0, 1}
 
 {"disk.encryption", "encryption type (off | rotn-7)", C_IGNORE | C_STRING, 0, 0, 0}
 

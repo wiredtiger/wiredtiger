@@ -1153,14 +1153,9 @@ wiredtiger_open_common =\
         the list from the reconstructed metadata. The target list must include URIs of type
         \c table:''',
         type='list'),
-    Config('buffer_alignment', '-1', r'''
-        in-memory alignment (in bytes) for buffers used for I/O. The default value of -1
-        indicates a platform-specific alignment value should be used (4KB on Linux systems when
-        direct I/O is configured, zero elsewhere). If the configured alignment is larger than
-        default or configured object page sizes, file allocation and page sizes are silently
-        increased to the buffer alignment size. Requires the \c posix_memalign API. See @ref
-        tuning_system_buffer_cache_direct_io''',
-        min='-1', max='1MB'),
+    Config('buffer_alignment', '', r'''
+        this option is no longer supported, retained for backward compatibility.''',
+        min='-1', max='1MB', undoc=True),
     Config('builtin_extension_config', '', r'''
         A structure where the keys are the names of builtin extensions and the values are
         passed to WT_CONNECTION::load_extension as the \c config parameter (for example,
@@ -1177,15 +1172,8 @@ wiredtiger_open_common =\
         are compiled internally when the connection is opened.''',
         min='500'),
     Config('direct_io', '', r'''
-        Use \c O_DIRECT on POSIX systems, and \c FILE_FLAG_NO_BUFFERING on Windows to access files.
-        Options are given as a list, such as <code>"direct_io=[data]"</code>. Configuring \c
-        direct_io requires care; see @ref tuning_system_buffer_cache_direct_io for important
-        warnings. Including \c "data" will cause WiredTiger data files, including WiredTiger
-        internal data files, to use direct I/O; including \c "log" will cause WiredTiger log
-        files to use direct I/O; including \c "checkpoint" will cause WiredTiger data files
-        opened using a (read-only) checkpoint cursor to use direct I/O. \c direct_io should
-        be combined with \c write_through to get the equivalent of \c O_DIRECT on Windows''',
-        type='list', choices=['checkpoint', 'data', 'log']),
+         this option is no longer supported, retained for backward compatibility.''',
+        type='list', undoc=True),
     Config('encryption', '', r'''
         configure an encryptor for system wide metadata and logs. If a system wide encryptor is
         set, it is also used for encrypting data files and tables, unless encryption configuration

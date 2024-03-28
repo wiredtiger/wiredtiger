@@ -717,27 +717,6 @@ config_sanity(WTPERF *wtperf)
 
     opts = wtperf->opts;
 
-    /*
-     * When backup functionalities are enabled, wtperf needs to use copy functions to write backup
-     * files. Direct I/O is not compatible with programs interacting with OS system-level copy
-     * functions, thus direct I/O and read only cannot be enabled along with backup.
-     */
-    if (opts->backup_interval != 0)
-        if (strstr(opts->conn_config, "direct_io") || opts->readonly) {
-            fprintf(stderr, "direct_io and readonly cannot be used when backup is configured.\n");
-            return (EINVAL);
-        }
-
-    /*
-     * When tiered functionalities are enabled, wtperf expects to write to a bucket store. Direct
-     * I/O is not compatible with programs interacting with OS system-level copy functions.
-     */
-    if (opts->tiered_flush_interval != 0)
-        if (strstr(opts->conn_config, "direct_io")) {
-            fprintf(stderr, "direct_io cannot be used when tiered storage is configured.\n");
-            return (EINVAL);
-        }
-
     /* Various intervals should be less than the run-time. */
     if (opts->run_time > 0 &&
       ((opts->checkpoint_threads != 0 && opts->checkpoint_interval > opts->run_time) ||

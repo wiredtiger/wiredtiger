@@ -9,45 +9,21 @@
 #include "wt_internal.h"
 
 /*
- * __wt_direct_io_size_check --
- *     Return a size from the configuration, complaining if it's insufficient for direct I/O.
+ * __wt_allocation_size_check --
+ *     Return a size from the configuration.
  */
 int
-__wt_direct_io_size_check(
+__wt_allocation_size_check(
   WT_SESSION_IMPL *session, const char **cfg, const char *config_name, uint32_t *allocsizep)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
     uint32_t allocsize;
 
     *allocsizep = 0;
 
-    conn = S2C(session);
-
     WT_RET(__wt_config_gets(session, cfg, config_name, &cval));
     allocsize = (uint32_t)cval.val;
 
-    /*
-     * This function exists as a place to hang this comment: if direct I/O is configured, page sizes
-     * must be at least as large as any buffer alignment as well as a multiple of the alignment.
-     * Linux gets unhappy if you configure direct I/O and then don't do I/O in alignments and units
-     * of its happy place. Ideally, we'd fail if an application set an allocation size incompatible
-     * with the direct I/O size, while silently adjusting internal files using a default allocation
-     * size, but this function is too far down in the call stack to distinguish between the two. We
-     * document that setting a larger buffer alignment than the allocation size silently increases
-     * the allocation size: direct I/O isn't a heavily used feature, that should be sufficient.
-     */
-    if (conn->buffer_alignment != 0 &&
-      FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT | WT_DIRECT_IO_DATA)) {
-
-        if (allocsize < conn->buffer_alignment)
-            allocsize = (uint32_t)conn->buffer_alignment;
-        if (allocsize % conn->buffer_alignment != 0)
-            WT_RET_MSG(session, EINVAL,
-              "when direct I/O is configured for data files, the %s size must be at least as large "
-              "as the buffer alignment, as well as a multiple of the buffer alignment",
-              config_name);
-    }
     *allocsizep = allocsize;
     return (0);
 }
@@ -190,7 +166,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     }
 
     /* Sanity check the allocation size. */
-    WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
+    WT_ERR(__wt_allocation_size_check(session, filecfg, "allocation_size", &allocsize));
 
     /*
      * If we are importing an existing object rather than creating a new one, there are two possible
