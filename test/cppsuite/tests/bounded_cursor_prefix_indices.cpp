@@ -94,7 +94,7 @@ public:
         if (ret == 0) {
             testutil_check(cursor->get_key(cursor.get(), &key_tmp));
             ret_key = get_prefix_from_key(std::string(key_tmp));
-            testutil_assert(exact_prefix == 1);
+            testutil_assert(exact_prefix > 0);
             testutil_assert(prefix_key == ret_key);
             return false;
         }
