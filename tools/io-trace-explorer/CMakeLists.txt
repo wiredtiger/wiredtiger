@@ -35,7 +35,7 @@ endif()
 
 if (MSVC)
   set(GUI_OPTION WIN32)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4250")
+  add_cmake_flag(CMAKE_CXX_FLAGS /wd4250)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ENTRY:mainCRTStartup")
 elseif (APPLE)
   set(GUI_OPTION MACOSX_BUNDLE)
