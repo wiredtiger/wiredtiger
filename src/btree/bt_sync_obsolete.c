@@ -115,7 +115,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
     page_del = ref->page_del;
     if (page_del == NULL ||
       __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
-        WT_RET(__wt_page_parent_modify_set(session, ref, true));
+        WT_RET(__wt_page_parent_modify_set(session, ref, false));
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
         WT_STAT_CONN_DATA_INCR(session, checkpoint_cleanup_pages_removed);
@@ -170,7 +170,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
       "obsolete, stop time aggregate %s",
       (void *)ref, obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
 
-    if (obsolete && ((ret = __wt_page_parent_modify_set(session, ref, true)) == 0)) {
+    if (obsolete && ((ret = __wt_page_parent_modify_set(session, ref, false)) == 0)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete disk page parent dirty", (void *)ref);
         *ref_deleted = true;
@@ -442,6 +442,56 @@ err:
 }
 
 /*
+ * __checkpoint_cleanup_eligibility --
+ *     Function to check whether the specified URI is eligible for checkpoint cleanup.
+ */
+static bool
+__checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+    WT_CONFIG ckptconf;
+    WT_CONFIG_ITEM cval, value, key;
+    WT_DECL_RET;
+    wt_timestamp_t newest_stop_durable_ts;
+    bool logged;
+
+    newest_stop_durable_ts = WT_TS_NONE;
+    logged = false;
+
+    /* Checkpoint cleanup cannot remove obsolete pages from tiered tables. */
+    if (WT_SUFFIX_MATCH(uri, ".wtobj"))
+        return (false);
+
+    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED)) {
+        WT_RET(__wt_config_getones(session, config, "log.enabled", &cval));
+        if (cval.val)
+            logged = true;
+    }
+
+    WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
+    __wt_config_subinit(session, &ckptconf, &cval);
+    for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
+        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
+        if (ret == 0)
+            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
+        WT_RET_NOTFOUND_OK(ret);
+    }
+
+    /*
+     * The checkpoint cleanup eligibility is decided based on the following:
+     * 1. The file has a durable stop timestamp.
+     * 2. Logged table. The logged tables do not support timestamps, so we need
+     *    to check for obsolete pages in them.
+     * 3. History store table. This table contains the historical versions that
+     *    are needed to be removed regularly. This condition is required when
+     *    timestamps are not in use, otherwise, the first condition will be satisfied.
+     */
+    if (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0)
+        return (true);
+
+    return (false);
+}
+
+/*
  * __checkpoint_cleanup_get_uri --
  *     Given a URI, find the next one in the metadata.
  */
@@ -451,11 +501,11 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     int exact;
-    const char *key;
+    const char *key, *value;
 
     cursor = NULL;
     exact = 0;
-    key = NULL;
+    key = value = NULL;
 
     /* Use a metadata cursor to have access to the existing URIs. */
     WT_ERR(__wt_metadata_cursor(session, &cursor));
@@ -481,10 +531,10 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
             break;
         }
 
-        /* Checkpoint cleanup cannot remove obsolete pages from tiered tables. */
-        if (!WT_SUFFIX_MATCH(key, ".wtobj"))
+        WT_ERR(cursor->get_value(cursor, &value));
+        /* Check the given uri needs checkpoint cleanup. */
+        if (__checkpoint_cleanup_eligibility(session, key, value))
             break;
-
     } while ((ret = cursor->next(cursor)) == 0);
     WT_ERR(ret);
 
