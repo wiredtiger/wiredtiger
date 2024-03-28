@@ -272,7 +272,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
                 /*
                  * We have a new, initialized slot to use. Set it as the active slot.
                  */
-                __wt_atomic_store_generic(&log->active_slot, slot);
+                __wt_atomic_store_pointer(&log->active_slot, slot);
                 log->pool_index = pool_i;
                 __log_slot_dirty_max_check(session, slot);
                 return (0);
@@ -504,12 +504,9 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
      */
     for (i = 0; i < WT_SLOT_POOL; i++) {
         slot = &log->slot_pool[i];
-        /*
-         * The following two slot state loads occur during shutdown and therefore don't require
-         * atomics.
-         */
-        if (!FLD_LOG_SLOT_ISSET((uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
-            rel = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
+        if (!FLD_LOG_SLOT_ISSET(
+              (uint64_t)__wt_atomic_loadiv64(&slot->slot_state), WT_LOG_SLOT_RESERVED)) {
+            rel = WT_LOG_SLOT_RELEASED_BUFFERED(__wt_atomic_loadiv64(&slot->slot_state));
             if (rel != 0)
                 /* Writes are not throttled. */
                 WT_RET(__wt_write(session, slot->slot_fh,
@@ -560,7 +557,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT
     }
     for (;;) {
         WT_COMPILER_BARRIER();
-        slot = __wt_atomic_load_generic(&log->active_slot);
+        slot = __wt_atomic_load_pointer(&log->active_slot);
         old_state = __wt_atomic_loadiv64(&slot->slot_state);
         if (WT_LOG_SLOT_OPEN(old_state)) {
             /*

@@ -10,7 +10,7 @@ race:__wt_set_shared_double
 race:src/include/stat.h
 race:src/support/stat.c
 
-# FIXME-WT-12734 this function copies a 16 byte struct which needs further investigation.
+# FIXME-WT-12734 this function copies an 8 byte struct which needs further investigation.
 race:__log_wrlsn_server
 
 # FIXME-WT-12611 CONNECTION_API_CALL contains a data race that touches the session array, but the number of macro

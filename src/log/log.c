@@ -2483,7 +2483,7 @@ __wt_log_force_write(WT_SESSION_IMPL *session, bool retry, bool *did_work)
     WT_STAT_CONN_INCR(session, log_force_write);
     if (did_work != NULL)
         *did_work = true;
-    myslot.slot = __wt_atomic_load_generic(&log->active_slot);
+    myslot.slot = __wt_atomic_load_pointer(&log->active_slot);
     return (__wt_log_slot_switch(session, &myslot, retry, true, did_work));
 }
 

@@ -234,6 +234,20 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 #define __wt_atomic_load_generic(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
 #define __wt_atomic_store_generic(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
 
+/*
+ * Atomically load and store pointers, these provide better type safety than the generic atomic load
+ * and store macros.
+ */
+#define __wt_atomic_load_pointer(vp) \
+    _Generic(vp,                                         \
+  WT_LOGSLOT ** : __atomic_load_n(vp, __ATOMIC_RELAXED), \
+  WT_SESSION_IMPL ** : __atomic_load_n(vp, __ATOMIC_RELAXED))
+
+#define __wt_atomic_store_pointer(vp, v) \
+    _Generic(vp,                                             \
+  WT_LOGSLOT ** : __atomic_store_n(vp, v, __ATOMIC_RELAXED), \
+  WT_SESSION_IMPL ** : __atomic_store_n(vp, v, __ATOMIC_RELAXED))
+
 /* Compile read-write barrier */
 #define WT_COMPILER_BARRIER() __asm__ volatile("" ::: "memory")
 
