@@ -382,7 +382,10 @@ void
 debug_log_parser::metadata_checkpoint_apply(
   const std::string &name, std::shared_ptr<config_map> config)
 {
-    /* Get the stable timestamp. */
+    /* Get the oldest and stable timestamps. */
+    timestamp_t oldest_timestamp = config->contains("oldest_timestamp") ?
+      config->get_uint64_hex("oldest_timestamp") :
+      k_timestamp_none;
     timestamp_t stable_timestamp = config->contains("checkpoint_timestamp") ?
       config->get_uint64_hex("checkpoint_timestamp") :
       k_timestamp_none;
@@ -410,7 +413,8 @@ debug_log_parser::metadata_checkpoint_apply(
           write_gen, k_txn_max, k_txn_max, std::vector<uint64_t>());
 
     /* Create the checkpoint. */
-    _database.create_checkpoint(name.c_str(), std::move(snapshot), stable_timestamp);
+    _database.create_checkpoint(
+      name.c_str(), std::move(snapshot), oldest_timestamp, stable_timestamp);
 }
 
 /*
@@ -556,8 +560,16 @@ debug_log_parser::commit_transaction(kv_transaction_ptr txn)
         throw model_exception("The transaction is in an unexpected state");
 
     /* Commit the transaction if it has not yet been committed. */
-    if (txn_state != kv_transaction_state::committed)
-        txn->commit();
+    if (txn_state != kv_transaction_state::committed) {
+        /*
+         * Rollback an empty prepared transaction, because the debug log might not have recorded its
+         * commit and durable timestamps.
+         */
+        if (txn_state == kv_transaction_state::prepared && txn->empty())
+            txn->rollback();
+        else
+            txn->commit();
+    }
 
     /* Process the checkpoint metadata, if there are any associated with the transaction. */
     auto i = _txn_ckpt_metadata.find(txn->id());

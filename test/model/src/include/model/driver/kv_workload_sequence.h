@@ -42,6 +42,7 @@ namespace model {
  */
 enum class kv_workload_sequence_type {
     none,
+    set_oldest_timestamp,
     set_stable_timestamp,
     transaction,
 };
