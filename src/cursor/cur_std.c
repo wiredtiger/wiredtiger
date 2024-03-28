@@ -760,9 +760,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
     /* Document the flags cleared, and set by this function */
     WT_ASSERT(session, !WT_CURSOR_BOUNDS_SET(cursor)); /* __wt_cursor_bound_reset() */
-    WT_ASSERT(session,
-      F_MASK(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED) ==
-        (WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
+    WT_ASSERT(session, F_AREALLSET(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
 
     API_RET_STAT(session, ret, cursor_cache);
 }
@@ -866,18 +864,20 @@ __wt_cursor_get_hash(
 }
 
 /*
- * __any_cursor_must_be_readonly --
+ * __cursors_must_be_readonly --
  *     Determine whether connection and/or cfg[] requires that a cursor be read-only.
  */
 static int
-__any_cursor_must_be_readonly(WT_SESSION_IMPL *session, const char *cfg[], bool *readonlyp)
+__cursors_must_be_readonly(WT_SESSION_IMPL *session, const char *cfg[], bool *readonlyp)
 {
     WT_CONFIG_ITEM cval;
+    bool readonly;
+
     /*
      * checkpoint, readonly Checkpoint cursors are permanently read-only, avoid the extra work of
      * two configuration string checks.
      */
-    bool readonly = F_ISSET(S2C(session), WT_CONN_READONLY);
+    readonly = F_ISSET(S2C(session), WT_CONN_READONLY);
     if (!readonly && cfg != NULL) {
         WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
         readonly = cval.len != 0;
@@ -892,13 +892,14 @@ __any_cursor_must_be_readonly(WT_SESSION_IMPL *session, const char *cfg[], bool 
 }
 
 /*
- * __any_cursor_can_be_cached --
+ * __cursors_can_be_cached --
  *     Determine whether cfg[] allows that a cursor be cached.
  */
 static int
-__any_cursor_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
+__cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
 {
     WT_CONFIG_ITEM cval;
+
     /*
      * Any cursors that have special configuration cannot be cached. There are some exceptions for
      * configurations that only differ by a cursor flag, which we can patch up if we find a matching
@@ -947,10 +948,12 @@ return_false:
  * Flags cleared by this functions: WT_CURSTD_CACHEABLE.
  */
 static int
-__cursor_reuse_or_init(
-  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[], bool *readonlyp)
+__cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
+  bool *readonlyp, WT_CURSOR **ownerp, WT_CURSOR **cdumpp)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR *cdump;
+    WT_CURSOR *owner;
 
     if (cfg != NULL) {
         /*
@@ -974,11 +977,44 @@ __cursor_reuse_or_init(
     }
 
     /* Readonly? */
-    WT_RET(__any_cursor_must_be_readonly(session, cfg, readonlyp));
+    WT_RET(__cursors_must_be_readonly(session, cfg, readonlyp));
 
     /* WT_CURSTD_CACHEABLE */
     if (*readonlyp) /* We do not cache read-only cursors. */
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
+
+    /*
+     * If an index cursor is opened with the dump configuration option, then this function is called
+     * on the index files, with the dump config string, and with the index cursor as an owner. We
+     * don't want to create a dump cursor in that case, because we'll create the dump cursor on the
+     * index cursor itself.
+     */
+    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+    owner = ownerp ? *ownerp : NULL;
+    if (cval.len != 0 && owner == NULL) {
+        uint64_t dump_flag;
+        if (WT_STRING_MATCH("json", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_JSON;
+        else if (WT_STRING_MATCH("print", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_PRINT;
+        else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_PRETTY;
+        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY;
+        else
+            dump_flag = WT_CURSTD_DUMP_HEX;
+        F_SET(cursor, dump_flag);
+
+        /*
+         * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
+         * dump cursor.
+         */
+        WT_RET(__wt_curdump_create(cursor, owner, &cdump));
+        *ownerp = cdump;
+        F_CLR(cursor, WT_CURSTD_CACHEABLE);
+    } else
+        cdump = NULL;
+    *cdumpp = cdump;
 
     return (0);
 }
@@ -996,6 +1032,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
   WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
+    WT_CURSOR *cdump;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -1006,10 +1043,6 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
 
     /* cacheable */
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
-        return (WT_NOTFOUND);
-
-    WT_RET(__any_cursor_can_be_cached(session, cfg, &cacheable));
-    if (!cacheable)
         return (WT_NOTFOUND);
 
     /* If original config string is NULL or "", don't check it. */
@@ -1023,6 +1056,12 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     } else
         overwrite_flag = WT_CURSTD_OVERWRITE;
 
+    if (have_config) {
+        WT_RET(__cursors_can_be_cached(session, cfg, &cacheable));
+        if (!cacheable)
+            return (WT_NOTFOUND);
+    }
+
     if (to_dup != NULL)
         uri = to_dup->uri;
     /*
@@ -1032,12 +1071,9 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     bucket = hash_value & (S2C(session)->hash_size - 1);
     TAILQ_FOREACH (cursor, &session->cursor_cache[bucket], q) {
         /* Document some flags always set in the cache */
-        WT_ASSERT(session,
-          F_MASK(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED) ==
-            (WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
+        WT_ASSERT(session, F_AREALLSET(cursor, WT_CURSTD_CACHEABLE | WT_CURSTD_CACHED));
 
         if (cursor->uri_hash == hash_value && strcmp(cursor->uri, uri) == 0) {
-            /* cursor->reopen() */
             if ((ret = cursor->reopen(cursor, false)) != 0) {
                 F_CLR(cursor, WT_CURSTD_CACHEABLE);
                 session->dhandle = NULL;
@@ -1061,7 +1097,10 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
                 cbt = NULL;
             }
 
-            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly));
+            cdump = NULL;
+            WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly, NULL, &cdump));
+            /* Since owner == NULL */
+            WT_ASSERT(session, cdump == NULL);
 
             if (cbt) {
                 if (have_config) {
@@ -1554,7 +1593,7 @@ __wt_cursor_init(
     else
         F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly));
+    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly, &owner, &cdump));
 
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
@@ -1563,35 +1602,6 @@ __wt_cursor_init(
         cursor->reserve = __wt_cursor_notsup;
         cursor->update = __wt_cursor_notsup;
     }
-
-    /*
-     * dump If an index cursor is opened with dump, then this function is called on the index files,
-     * with the dump config string, and with the index cursor as an owner. We don't want to create a
-     * dump cursor in that case, because we'll create the dump cursor on the index cursor itself.
-     */
-    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
-    if (cval.len != 0 && owner == NULL) {
-        uint64_t dump_flag;
-        if (WT_STRING_MATCH("json", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_JSON;
-        else if (WT_STRING_MATCH("print", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRINT;
-        else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRETTY;
-        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY;
-        else
-            dump_flag = WT_CURSTD_DUMP_HEX;
-        F_SET(cursor, dump_flag);
-        /*
-         * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
-         * dump cursor.
-         */
-        WT_RET(__wt_curdump_create(cursor, owner, &cdump));
-        owner = cdump;
-        F_CLR(cursor, WT_CURSTD_CACHEABLE);
-    } else
-        cdump = NULL;
 
     /*
      * WT_CURSOR.modify supported on 'S' and 'u' value formats, but may have been already
