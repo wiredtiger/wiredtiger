@@ -63,8 +63,7 @@ functions:
                 exit 1
               fi
 
-              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_TOPDIR/TCMALLOC_LIB/lib"
-              export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+              export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/libtcmalloc.so
             fi
 
             # Create the common sanitizer options and export the specific sanitizer environment
