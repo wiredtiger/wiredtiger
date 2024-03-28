@@ -141,8 +141,8 @@ timestamp_manager::parse_config(const std::string &config,
  * Validate both oldest and stable timestamps.
  * 1) Validation fails if Illegal timestamp value is passed (if less than or equal to 0).
  *    This check is performed by the validate_hex_value function in this file.
- * 2) It is a no-op to set the oldest or stable timestamps behind the global
- *    values. Hence, ignore and continue validating.
+ * 2) It is invalid to set the oldest or stable timestamps behind the global
+ *    values.
  * 3) Validation fails if oldest is greater than the stable timestamp.
  */
 int
@@ -155,19 +155,19 @@ timestamp_manager::validate_oldest_and_stable_timestamp(
 
     connection_simulator *conn = &connection_simulator::get_connection();
 
-    /* If config has oldest timestamp */
-    if (has_oldest) {
-        /* It is a no-op to set the new oldest timestamps behind the current oldest timestamp. */
-        if (new_oldest_ts <= conn->get_oldest_ts())
-            has_oldest = false;
-    }
+    /* If config has oldest timestamp, check we are not setting it to an older value. */
+    if (has_oldest && new_oldest_ts < conn->get_oldest_ts())
+        WT_SIM_RET_MSG(EINVAL,
+          "'oldest timestamp' (" + std::to_string(new_oldest_ts) +
+            ") must not be older than the current 'oldest timestamp' (" +
+            std::to_string(conn->get_oldest_ts()) + ")");
 
-    /* If config has stable timestamp */
-    if (has_stable) {
-        /* It is a no-op to set the new stable timestamps behind the current stable timestamp. */
-        if (new_stable_ts <= conn->get_stable_ts())
-            has_stable = false;
-    }
+    /* If config has stable timestamp, check we are not setting it to an older value. */
+    if (has_stable && new_stable_ts <= conn->get_stable_ts())
+        WT_SIM_RET_MSG(EINVAL,
+          "'stable timestamp' (" + std::to_string(new_stable_ts) +
+            ") must not be older than the current 'stable timestamp' (" +
+            std::to_string(conn->get_stable_ts()) + ")");
 
     /* No need to validate timestamps if stable or/and oldest were behind the global values. */
     if (!has_oldest && !has_stable)

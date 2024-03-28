@@ -364,8 +364,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
         # Predict what we expect to happen to the timestamps.
         if expected == self.SUCCESS:
-            # If that passes, then independently, oldest and stable can advance, but if they
-            # are less than the current value, that is silently ignored.
+            # If that passes, then independently, oldest and stable can advance.
             if oldest >= self.oldest_ts:
                 self.oldest_ts = oldest
                 self.pr('updating oldest: ' + str(oldest))
@@ -455,7 +454,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 stable = maybe_ts((r & 0x2) != 0, iternum)
                 commit = maybe_ts((r & 0x4) != 0, iternum)
                 durable = maybe_ts((r & 0x8) != 0, iternum)
-                self.set_global_timestamps(oldest, stable, durable)
+                self.set_global_timestamps(max(oldest, self.oldest_ts), max(stable, self.stable_ts), durable)
 
         # Make sure the resulting rows are what we expect.
         cursor = self.session.open_cursor(self.uri)
