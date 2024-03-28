@@ -13,17 +13,17 @@
  *     Returns NULL if the string being searched for isn't found, or the string after the "=" sign
  *     in the config string.
  */
-static WT_INLINE char *
-__curstd_config_value_for(const char *config, const char *var, size_t len)
-{
-    char *cfg;
-    if ((cfg = strstr(config, var)) == NULL)
-        return (NULL);
-    return (cfg + len);
-}
+// static WT_INLINE char *
+// __curstd_config_value_for(const char *config, const char *var, size_t len)
+// {
+//     char *cfg;
+//     if ((cfg = strstr(config, var)) == NULL)
+//         return (NULL);
+//     return (cfg + len);
+// }
 
-#define CONFIG_VALUE_FOR(config, var, cfg) \
-    ((cfg) = __curstd_config_value_for((config), var "=", strlen(var "=")))
+// #define CONFIG_VALUE_FOR(config, var, cfg)
+//     ((cfg) = __curstd_config_value_for((config), var "=", strlen(var "=")))
 
 /*
  * __wt_cursor_noop --
@@ -1196,18 +1196,17 @@ err:
 int
 __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_CONF(WT_CURSOR, bound, conf);
     WT_DECL_RET;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     int exact;
-    char *cfg;
     bool inclusive, have_action;
 
-    cfg = NULL;
     cbt = (WT_CURSOR_BTREE *)cursor;
     exact = 0;
-
     /*
      * Our API defines "inclusive" as true by default, it also defines "set" as the default action.
      * This means we can't expect the user to have provided those configurations via the config
@@ -1223,6 +1222,8 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     have_action = false;
 
     CURSOR_API_CALL(cursor, session, ret, bound, NULL);
+    WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
+      WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
 
     if (CUR2BT(cursor)->type == BTREE_COL_FIX)
         WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with fixed column store");
@@ -1231,24 +1232,27 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         WT_ERR_MSG(session, EINVAL, "an empty config is not valid when setting or clearing bounds");
 
     /* Action is default to "set". */
-    if (CONFIG_VALUE_FOR(config, "action", cfg) != NULL)
+    ret = __wt_conf_gets(session, conf, action, &cval);
+    if (ret != WT_NOTFOUND)
         have_action = true;
 
-    if (!have_action || WT_PREFIX_MATCH(cfg, "set")) {
+    if (!have_action || WT_CONF_STRING_MATCH(set, cval)) {
         if (WT_CURSOR_IS_POSITIONED(cbt))
             WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
 
         /* The cursor must have a key set to place the lower or upper bound. */
         WT_ERR(__cursor_checkkey(cursor));
 
+        ret = __wt_conf_gets_def(session, conf, inclusive, true, &cval);
         /* Inclusive is true by default. */
-        if (CONFIG_VALUE_FOR(config, "inclusive", cfg) != NULL && !WT_PREFIX_MATCH(cfg, "true"))
+        if (ret != WT_NOTFOUND && cval.val == 0)
             inclusive = false;
 
-        if (CONFIG_VALUE_FOR(config, "bound", cfg) == NULL)
+        ret = __wt_conf_gets(session, conf, bound, &cval);
+        if (ret == WT_NOTFOUND)
             WT_ERR_MSG(session, EINVAL,
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
-        else if (WT_PREFIX_MATCH(cfg, "upper")) {
+        else if (WT_CONF_STRING_MATCH(upper, cval)) {
             /*
              * If the lower bounds are set, make sure that the upper bound is greater than the lower
              * bound.
@@ -1274,7 +1278,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
             else
                 F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
             WT_ERR(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
-        } else if (WT_PREFIX_MATCH(cfg, "lower")) {
+        } else if (WT_CONF_STRING_MATCH(lower, cval)) {
             /*
              * If the upper bounds are set, make sure that the lower bound is less than the upper
              * bound.
@@ -1303,7 +1307,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         } else
             WT_ERR_MSG(session, EINVAL,
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
-    } else if (have_action && WT_PREFIX_MATCH(cfg, "clear")) {
+    } else if (have_action && WT_CONF_STRING_MATCH(clear, cval)) {
         F_CLR(cursor, WT_CURSTD_BOUND_ALL);
         __wt_buf_free(session, &cursor->upper_bound);
         __wt_buf_free(session, &cursor->lower_bound);

@@ -1338,7 +1338,7 @@ cursor_bound_config = [
     Config('bound', '', r'''
         configures which bound is being operated on. It takes one of two values, "lower" or "upper".
         ''',
-        choices=['lower','upper']),
+        choices=['lower','upper'])
 ]
 
 cursor_runtime_config = [
@@ -1380,7 +1380,7 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_CURSOR.bound' : Method(cursor_bound_config),
+'WT_CURSOR.bound' : Method(cursor_bound_config, compilable=True),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('checkpoint', '', r'''
