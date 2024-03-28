@@ -13,7 +13,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"backup", "configure backups", C_BOOL, 20, 0, 0, V_GLOBAL_BACKUP},
 
-  {"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0,
+  {"backup.incremental", "backup type (off | block)", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_BACKUP_INCREMENTAL},
 
   {"backup.incr_granularity", "incremental backup block granularity (KB)", 0x0, 4, 16384, 16384,

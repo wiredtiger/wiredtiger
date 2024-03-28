@@ -81,7 +81,7 @@ CONFIG configuration_list[] = {
 
 {"backup", "configure backups", C_BOOL, 20, 0, 0}
 
-{"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0}
+{"backup.incremental", "backup type (off | block)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"backup.incr_granularity", "incremental backup block granularity (KB)", 0x0, 4, 16384, 16384}
 

@@ -30,7 +30,6 @@
 
 static void config_backup_incr(void);
 static void config_backup_incr_granularity(void);
-static void config_backup_incr_log_compatibility_check(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
@@ -45,7 +44,7 @@ static bool config_fix(TABLE *);
 static void config_in_memory(void);
 static void config_in_memory_reset(void);
 static void config_lsm_reset(TABLE *);
-static void config_map_backup_incr(const char *, u_int *);
+static void config_map_backup_incr(const char *, bool *);
 static void config_map_checkpoint(const char *, u_int *);
 static void config_map_file_type(const char *, u_int *);
 static void config_mirrors(void);
@@ -552,9 +551,7 @@ config_backup_incr(void)
      * file removal doesn't seem as useful as testing backup, let the backup configuration override.
      */
     if (config_explicit(NULL, "backup.incremental")) {
-        if (g.backup_incr_flag == INCREMENTAL_LOG)
-            config_backup_incr_log_compatibility_check();
-        if (g.backup_incr_flag == INCREMENTAL_BLOCK)
+        if (g.backup_incr)
             config_backup_incr_granularity();
         return;
     }
@@ -563,26 +560,14 @@ config_backup_incr(void)
      * Choose a type of incremental backup, where the log remove setting can eliminate incremental
      * backup based on log files.
      */
-    switch (mmrand(&g.extra_rnd, 1, 10)) {
-    case 1: /* 30% full backup only */
+    switch (mmrand(&g.extra_rnd, 1, 5)) {
+    case 1: /* 40% full backup only */
     case 2:
-    case 3:
         config_off(NULL, "backup.incremental");
         break;
-    case 4: /* 30% log based incremental */
+    case 3: /* 60% block based incremental */
+    case 4:
     case 5:
-    case 6:
-        if (!GV(LOGGING_REMOVE) || !config_explicit(NULL, "logging.remove")) {
-            if (GV(LOGGING_REMOVE))
-                config_off(NULL, "logging.remove");
-            config_single(NULL, "backup.incremental=log", false);
-            break;
-        }
-    /* FALLTHROUGH */
-    case 7: /* 40% block based incremental */
-    case 8:
-    case 9:
-    case 10:
         config_single(NULL, "backup.incremental=block", false);
         config_backup_incr_granularity();
         break;
@@ -1044,25 +1029,6 @@ config_in_memory_reset(void)
         config_off(NULL, "ops.salvage");
     if (!config_explicit(NULL, "ops.verify"))
         config_off(NULL, "ops.verify");
-}
-
-/*
- * config_backup_incr_log_compatibility_check --
- *     Backup incremental log compatibility check.
- */
-static void
-config_backup_incr_log_compatibility_check(void)
-{
-    /*
-     * Incremental backup using log files is incompatible with automatic log file removal. Disable
-     * logging removal if log incremental backup is set.
-     */
-    if (GV(LOGGING_REMOVE) && config_explicit(NULL, "logging.remove"))
-        WARN("%s",
-          "backup.incremental=log is incompatible with logging.remove, turning off "
-          "logging.remove");
-    if (GV(LOGGING_REMOVE))
-        config_off(NULL, "logging.remove");
 }
 
 /*
@@ -2039,7 +2005,7 @@ config_single(TABLE *table, const char *s, bool explicit)
             equalp = "off";
 
         if (strncmp(s, "backup.incremental", strlen("backup.incremental")) == 0)
-            config_map_backup_incr(equalp, &g.backup_incr_flag);
+            config_map_backup_incr(equalp, &g.backup_incr);
         else if (strncmp(s, "checkpoint", strlen("checkpoint")) == 0)
             config_map_checkpoint(equalp, &g.checkpoint_config);
         else if (strncmp(s, "runs.source", strlen("runs.source")) == 0 &&
@@ -2215,14 +2181,15 @@ config_map_file_type(const char *s, u_int *vp)
  *     Map a incremental backup configuration to a flag.
  */
 static void
-config_map_backup_incr(const char *s, u_int *vp)
+config_map_backup_incr(const char *s, bool *vp)
 {
     if (strcmp(s, "block") == 0)
-        *vp = INCREMENTAL_BLOCK;
-    else if (strcmp(s, "log") == 0)
-        *vp = INCREMENTAL_LOG;
+        *vp = true;
     else if (strcmp(s, "off") == 0)
-        *vp = INCREMENTAL_OFF;
+        *vp = false;
+    /* Compatibility for old configurations. */
+    else if (strcmp(s, "log") == 0)
+        *vp = false;
     else
         testutil_die(EINVAL, "illegal incremental backup configuration: %s", s);
 }

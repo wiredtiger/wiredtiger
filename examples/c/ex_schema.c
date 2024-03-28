@@ -52,8 +52,7 @@ main(int argc, char *argv[])
 {
     POP_RECORD *p;
     WT_CONNECTION *conn;
-    WT_CURSOR *country_cursor, *country_cursor2, *cursor, *join_cursor, *stat_cursor,
-      *subjoin_cursor, *year_cursor;
+    WT_CURSOR *cursor;
     WT_SESSION *session;
     const char *country;
     uint64_t recno, population;
@@ -200,93 +199,6 @@ main(int argc, char *argv[])
       "US 1900: country %s, year %" PRIu16 ", population %" PRIu64 "\n", country, year, population);
     /*! [Search in a composite index] */
     error_check(cursor->close(cursor));
-
-    /*! [Join cursors] */
-    /* Open cursors needed by the join. */
-    error_check(session->open_cursor(session, "join:table:poptable", NULL, NULL, &join_cursor));
-    error_check(
-      session->open_cursor(session, "index:poptable:country", NULL, NULL, &country_cursor));
-    error_check(
-      session->open_cursor(session, "index:poptable:immutable_year", NULL, NULL, &year_cursor));
-
-    /* select values WHERE country == "AU" AND year > 1900 */
-    country_cursor->set_key(country_cursor, "AU\0\0\0");
-    error_check(country_cursor->search(country_cursor));
-    error_check(session->join(session, join_cursor, country_cursor, "compare=eq,count=10"));
-    year_cursor->set_key(year_cursor, (uint16_t)1900);
-    error_check(year_cursor->search(year_cursor));
-    error_check(
-      session->join(session, join_cursor, year_cursor, "compare=gt,count=10,strategy=bloom"));
-
-    /* List the values that are joined */
-    while ((ret = join_cursor->next(join_cursor)) == 0) {
-        error_check(join_cursor->get_key(join_cursor, &recno));
-        error_check(join_cursor->get_value(join_cursor, &country, &year, &population));
-        printf("ID %" PRIu64, recno);
-        printf(
-          ": country %s, year %" PRIu16 ", population %" PRIu64 "\n", country, year, population);
-    }
-    scan_end_check(ret == WT_NOTFOUND);
-    /*! [Join cursors] */
-
-    /*! [Statistics cursor join cursor] */
-    error_check(session->open_cursor(session, "statistics:join", join_cursor, NULL, &stat_cursor));
-    /*! [Statistics cursor join cursor] */
-
-    error_check(stat_cursor->close(stat_cursor));
-    error_check(join_cursor->close(join_cursor));
-    error_check(year_cursor->close(year_cursor));
-    error_check(country_cursor->close(country_cursor));
-
-    /*! [Complex join cursors] */
-    /* Open cursors needed by the join. */
-    error_check(session->open_cursor(session, "join:table:poptable", NULL, NULL, &join_cursor));
-    error_check(session->open_cursor(session, "join:table:poptable", NULL, NULL, &subjoin_cursor));
-    error_check(
-      session->open_cursor(session, "index:poptable:country", NULL, NULL, &country_cursor));
-    error_check(
-      session->open_cursor(session, "index:poptable:country", NULL, NULL, &country_cursor2));
-    error_check(
-      session->open_cursor(session, "index:poptable:immutable_year", NULL, NULL, &year_cursor));
-
-    /*
-     * select values WHERE (country == "AU" OR country == "UK")
-     *                     AND year > 1900
-     *
-     * First, set up the join representing the country clause.
-     */
-    country_cursor->set_key(country_cursor, "AU\0\0\0");
-    error_check(country_cursor->search(country_cursor));
-    error_check(
-      session->join(session, subjoin_cursor, country_cursor, "operation=or,compare=eq,count=10"));
-    country_cursor2->set_key(country_cursor2, "UK\0\0\0");
-    error_check(country_cursor2->search(country_cursor2));
-    error_check(
-      session->join(session, subjoin_cursor, country_cursor2, "operation=or,compare=eq,count=10"));
-
-    /* Join that to the top join, and add the year clause */
-    error_check(session->join(session, join_cursor, subjoin_cursor, NULL));
-    year_cursor->set_key(year_cursor, (uint16_t)1900);
-    error_check(year_cursor->search(year_cursor));
-    error_check(
-      session->join(session, join_cursor, year_cursor, "compare=gt,count=10,strategy=bloom"));
-
-    /* List the values that are joined */
-    while ((ret = join_cursor->next(join_cursor)) == 0) {
-        error_check(join_cursor->get_key(join_cursor, &recno));
-        error_check(join_cursor->get_value(join_cursor, &country, &year, &population));
-        printf("ID %" PRIu64, recno);
-        printf(
-          ": country %s, year %" PRIu16 ", population %" PRIu64 "\n", country, year, population);
-    }
-    scan_end_check(ret == WT_NOTFOUND);
-    /*! [Complex join cursors] */
-
-    error_check(join_cursor->close(join_cursor));
-    error_check(subjoin_cursor->close(subjoin_cursor));
-    error_check(country_cursor->close(country_cursor));
-    error_check(country_cursor2->close(country_cursor2));
-    error_check(year_cursor->close(year_cursor));
 
     error_check(conn->close(conn, NULL));
 
