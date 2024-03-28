@@ -116,8 +116,11 @@ struct __wt_item {
 
     /*! Object flags (internal use). */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_ITEM_ALIGNED 0x1u
-#define WT_ITEM_INUSE   0x2u
+#define WT_ITEM_ALIGNED 0x01u
+#define WT_ITEM_INUSE   0x02u
+#define WT_ITEM_STACK_ALLOCATED 0x04u
+#define WT_ITEM_STACK_DECLARED   0x08u
+#define WT_ITEM_STACK_SCRATCH   0x10u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 #endif
