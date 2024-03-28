@@ -626,7 +626,6 @@ curextract
 curfile
 curhs
 curindex
-curjoin
 curlog
 curmetadata
 cursoring
@@ -682,7 +681,6 @@ difftime
 dir
 directio
 dirlist
-disjunction
 disproportionally
 dlclose
 dlh
@@ -793,7 +791,6 @@ gb
 gcc
 gcp
 gdb
-ge
 getenv
 getlasterror
 getline
@@ -886,7 +883,6 @@ ispo
 isprint
 isrc
 isspace
-iter
 jjj
 js
 json

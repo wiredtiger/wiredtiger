@@ -1473,39 +1473,6 @@ methods = {
         type='boolean', undoc=True),
 ]),
 
-'WT_SESSION.join' : Method([
-    Config('compare', '"eq"', r'''
-        modifies the set of items to be returned so that the index key satisfies the given
-        comparison relative to the key set in this cursor''',
-        choices=['eq', 'ge', 'gt', 'le', 'lt']),
-    Config('count', '0', r'''
-        set an approximate count of the elements that would be included in the join. This is
-        used in sizing the Bloom filter, and also influences evaluation order for cursors in
-        the join. When the count is equal for multiple Bloom filters in a composition of joins,
-        the Bloom filter may be shared''',
-        type='int'),
-    Config('bloom_bit_count', '16', r'''
-        the number of bits used per item for the Bloom filter''',
-        min='2', max='1000'),
-    Config('bloom_false_positives', 'false', r'''
-        return all values that pass the Bloom filter, without eliminating any false positives''',
-        type='boolean'),
-    Config('bloom_hash_count', '8', r'''
-        the number of hash values per item for the Bloom filter''',
-        min='2', max='100'),
-    Config('operation', '"and"', r'''
-        the operation applied between this and other joined cursors. When "operation=and"
-        is specified, all the conditions implied by joins must be satisfied for an entry to be
-        returned by the join cursor; when "operation=or" is specified, only one must be satisfied.
-        All cursors joined to a join cursor must have matching operations''',
-        choices=['and', 'or']),
-    Config('strategy', '', r'''
-        when set to \c bloom, a Bloom filter is created and populated for this index. This has an
-        up front cost but may reduce the number of accesses to the main table when iterating
-        the joined cursor. The \c bloom setting requires that \c count be set''',
-        choices=['bloom', 'default']),
-]),
-
 'WT_SESSION.log_flush' : Method([
     Config('sync', 'on', r'''
         forcibly flush the log and wait for it to achieve the synchronization level specified.

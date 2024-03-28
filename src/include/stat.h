@@ -1354,18 +1354,6 @@ struct __wt_dsrc_stats {
 };
 
 /*
- * Statistics entries for join cursors.
- */
-#define WT_JOIN_STATS_BASE 3000
-struct __wt_join_stats {
-    int64_t main_access;
-    int64_t bloom_false_positive;
-    int64_t membership_check;
-    int64_t bloom_insert;
-    int64_t iterated;
-};
-
-/*
  * Statistics entries for session.
  */
 #define WT_SESSION_STATS_BASE 4000

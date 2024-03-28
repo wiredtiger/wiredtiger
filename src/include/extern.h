@@ -279,10 +279,6 @@ extern int __wt_bloom_get(WT_BLOOM *bloom, WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIB
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bloom_inmem_get(WT_BLOOM *bloom, WT_ITEM *key)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bloom_open(WT_SESSION_IMPL *session, const char *uri, uint32_t factor, uint32_t k,
   WT_CURSOR *owner, WT_BLOOM **bloomp) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -624,13 +620,6 @@ extern int __wt_curhs_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cu
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
   const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, WT_INDEX *idx,
-  WT_CURSOR *ref_cursor, uint8_t flags, uint8_t range, uint64_t count, uint32_t bloom_bit_count,
-  uint32_t bloom_hash_count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curjoin_joined(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
-  const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
@@ -714,12 +703,12 @@ extern int __wt_curstat_colgroup_init(WT_SESSION_IMPL *session, const char *uri,
   WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_index_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *curjoin,
-  const char *cfg[], WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
+  WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
-  const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
+  WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_table_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curtable_get_key(WT_CURSOR *cursor, ...)
@@ -1596,8 +1585,6 @@ extern int __wt_stat_dsrc_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stat_dsrc_init(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_stat_join_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stat_session_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
@@ -2042,10 +2029,6 @@ extern void __wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats);
 extern void __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats);
 extern void __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle);
 extern void __wt_stat_dsrc_init_single(WT_DSRC_STATS *stats);
-extern void __wt_stat_join_aggregate(WT_JOIN_STATS **from, WT_JOIN_STATS *to);
-extern void __wt_stat_join_clear_all(WT_JOIN_STATS **stats);
-extern void __wt_stat_join_clear_single(WT_JOIN_STATS *stats);
-extern void __wt_stat_join_init_single(WT_JOIN_STATS *stats);
 extern void __wt_stat_session_clear_single(WT_SESSION_STATS *stats);
 extern void __wt_stat_session_init_single(WT_SESSION_STATS *stats);
 extern void __wt_thread_group_start_one(
