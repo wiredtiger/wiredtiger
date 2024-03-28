@@ -26,14 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_gc01 import test_gc_base
+from test_cc01 import test_cc_base
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_gc05.py
+# test_cc05.py
 # Verify a locked checkpoint is not removed during garbage collection.
 
-class test_gc05(test_gc_base):
+class test_cc05(test_cc_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
     format_values = [
@@ -48,8 +48,8 @@ class test_gc05(test_gc_base):
     ]
     scenarios = make_scenarios(format_values, named_values)
 
-    def test_gc(self):
-        uri = "table:gc05"
+    def test_cc(self):
+        uri = "table:cc05"
         create_params = 'value_format=S,key_format=i'
         self.session.create(uri, create_params)
 
@@ -84,7 +84,7 @@ class test_gc05(test_gc_base):
             self.session.checkpoint()
 
         # Check statistics.
-        self.check_gc_stats()
+        self.check_cc_stats()
 
         # Open a cursor to the checkpoint just performed.
         if self.named:
@@ -107,7 +107,7 @@ class test_gc05(test_gc_base):
 
         # Perform a checkpoint.
         self.session.checkpoint()
-        self.check_gc_stats()
+        self.check_cc_stats()
 
         # Verify the open checkpoint still exists and contains the expected values.
         for i in range(0, nrows):

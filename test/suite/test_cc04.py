@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_gc01 import test_gc_base
+from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
-# test_gc04.py
+# test_cc04.py
 # Test that checkpoint must not clean the pages that are not obsolete.
-class test_gc04(test_gc_base):
+class test_cc04(test_cc_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
     def get_stat(self, stat):
@@ -41,11 +41,11 @@ class test_gc04(test_gc_base):
         stat_cursor.close()
         return val
 
-    def test_gc(self):
+    def test_cc(self):
         nrows = 10000
 
         # Create a table.
-        uri = "table:gc04"
+        uri = "table:cc04"
         ds = SimpleDataSet(self, uri, 0, key_format="i", value_format="S")
         ds.populate()
 
@@ -60,6 +60,7 @@ class test_gc04(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
+        self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
@@ -68,6 +69,7 @@ class test_gc04(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
+        self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
@@ -76,6 +78,7 @@ class test_gc04(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
+        self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
@@ -85,6 +88,7 @@ class test_gc04(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
+        self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
@@ -93,6 +97,7 @@ class test_gc04(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
+        self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)

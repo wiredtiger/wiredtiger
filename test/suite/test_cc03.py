@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_gc01 import test_gc_base
+from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
-# test_gc03.py
+# test_cc03.py
 # Test that checkpoint cleans the obsolete history store pages that are in-memory.
-class test_gc03(test_gc_base):
+class test_cc03(test_cc_base):
     conn_config = 'cache_size=4GB,statistics=(all),statistics_log=(json,wait=0,on_close=true)'
 
     def get_stat(self, stat):
@@ -41,16 +41,16 @@ class test_gc03(test_gc_base):
         stat_cursor.close()
         return val
 
-    def test_gc(self):
+    def test_cc(self):
         nrows = 10000
 
         # Create a table.
-        uri = "table:gc03"
+        uri = "table:cc03"
         ds = SimpleDataSet(self, uri, 0, key_format="i", value_format="S")
         ds.populate()
 
         # Create an extra table.
-        uri_extra = "table:gc03_extra"
+        uri_extra = "table:cc03_extra"
         ds_extra = SimpleDataSet(self, uri_extra, 0, key_format="i", value_format="S")
         ds_extra.populate()
 
@@ -75,6 +75,7 @@ class test_gc03(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
+        self.wait_for_cc_to_run()
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
 
         # Pin oldest and stable to timestamp 100.
@@ -116,6 +117,7 @@ class test_gc03(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated and added for eviction.
         self.session.checkpoint()
+        self.wait_for_cc_to_run()
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
 
@@ -131,7 +133,7 @@ class test_gc03(test_gc_base):
 
         # Checkpoint to ensure that the normal table history store gets cleaned.
         self.session.checkpoint()
-        self.check_gc_stats()
+        self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 300)

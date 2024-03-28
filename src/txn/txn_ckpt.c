@@ -1653,6 +1653,9 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
     WT_ERR(ret);
 
+    /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
+    __wt_checkpoint_cleanup_trigger(session);
+
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
 err:
