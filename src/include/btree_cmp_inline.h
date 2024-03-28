@@ -146,13 +146,13 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     uint64_t ta, tb, ua, ub, u64, t64;
     const uint8_t *tendp, *uendp;
 
-    uendp = ustartp + len;
-    tendp = tstartp + len;
     if (len >= sizeof(uint64_t)) {
         /*
          * len >= 64 bits. len is implicitly less than or equal to 128bits since the function
          * accepts 16 bytes or less.
          */
+        uendp = ustartp + len;
+        tendp = tstartp + len;
         memcpy(&ua, ustartp, sizeof(uint64_t));
         memcpy(&ta, tstartp, sizeof(uint64_t));
         memcpy(&ub, uendp - sizeof(uint64_t), sizeof(uint64_t));
@@ -160,6 +160,8 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     } else if (len & sizeof(uint32_t)) {
         /* len >= 32 bits */
         uint32_t ta32, tb32, ua32, ub32;
+        uendp = ustartp + len;
+        tendp = tstartp + len;
         memcpy(&ua32, ustartp, sizeof(uint32_t));
         memcpy(&ta32, tstartp, sizeof(uint32_t));
         memcpy(&ub32, uendp - sizeof(uint32_t), sizeof(uint32_t));
@@ -171,6 +173,8 @@ __lex_compare_le_16(const uint8_t *ustartp, const uint8_t *tstartp, size_t len, 
     } else if (len & sizeof(uint16_t)) {
         /* len >= 16 bits */
         uint16_t ta16, tb16, ua16, ub16;
+        uendp = ustartp + len;
+        tendp = tstartp + len;
         memcpy(&ua16, ustartp, sizeof(uint16_t));
         memcpy(&ta16, tstartp, sizeof(uint16_t));
         memcpy(&ub16, uendp - sizeof(uint16_t), sizeof(uint16_t));
