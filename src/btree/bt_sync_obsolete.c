@@ -599,15 +599,12 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    /* Set first, the thread might run before we finish up. */
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
-
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
     if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
         F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
 
-    WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
-    conn->cc_cleanup.interval = (uint64_t)cval.val;
+    /* Set first, the thread might run before we finish up. */
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
 
     /*
      * Checkpoint cleanup does enough I/O it may be called upon to perform slow operations for the

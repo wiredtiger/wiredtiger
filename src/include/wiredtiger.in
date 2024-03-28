@@ -1970,12 +1970,6 @@ struct __wt_session {
      *
      * @param session the session handle
      * @configstart{WT_SESSION.checkpoint, see dist/api_data.py}
-     * @config{debug = (, configure debug specific behavior on a checkpoint.  Generally only used
-     * for internal testing purposes., a set of related configuration options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_cleanup, if true\, checkpoint cleanup thread is
-     * triggered to perform the checkpoint cleanup., a boolean flag; default \c false.}
-     * @config{
-     * ),,}
      * @config{drop, specify a list of checkpoints to drop.  The list may additionally contain one
      * of the following keys: \c "from=all" to drop all checkpoints\, \c "from=<checkpoint>" to drop
      * all checkpoints after and including the named checkpoint\, or \c "to=<checkpoint>" to drop
@@ -2211,8 +2205,6 @@ struct __wt_connection {
      * control how aggressively obsolete content is removed by reading the internal pages.  Default
      * to none\, which means no additional work is done to find obsolete content., a string\, chosen
      * from the following options: \c "none"\, \c "reclaim_space"; default \c none.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint cleanup., an
-     * integer between \c 60 and \c 100000; default \c 300.}
      * @config{ ),,}
      * @config{chunk_cache = (, chunk cache reconfiguration options., a set of related configuration
      * options defined as follows.}
@@ -2999,9 +2991,6 @@ struct __wt_connection {
  * aggressively obsolete content is removed by reading the internal pages.  Default to none\, which
  * means no additional work is done to find obsolete content., a string\, chosen from the following
  * options: \c "none"\, \c "reclaim_space"; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait,
- * seconds to wait between each checkpoint cleanup., an integer between \c 60 and \c 100000; default
- * \c 300.}
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
