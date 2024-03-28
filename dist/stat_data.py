@@ -1193,7 +1193,9 @@ join_stats = sorted(join_stats, key=attrgetter('desc'))
 ##########################################
 session_stats = [
     SessionStat('bytes_read', 'bytes read into cache'),
+    SessionStat('bytes_read_app_count', 'io operation count for bytes read into cache'),
     SessionStat('bytes_write', 'bytes written from cache'),
+    SessionStat('bytes_write_app_count', 'io operation count for bytes written from cache'),
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
