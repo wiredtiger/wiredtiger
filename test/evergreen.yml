@@ -303,7 +303,7 @@ functions:
 
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
             test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
-            export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/libtcmalloc.so
+            export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
           fi
 
           # Compiling with CMake.
