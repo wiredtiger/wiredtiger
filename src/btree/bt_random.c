@@ -365,13 +365,18 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_
 
     btree = S2BT(session);
     current = NULL;
-    retry = 100;
     /*
      * This function is called by eviction to find a random page in the cache. That case is
      * indicated by the WT_READ_CACHE flag. Ordinary lookups in a tree will read pages into cache as
      * needed.
      */
     eviction = LF_ISSET(WT_READ_CACHE);
+
+    if (eviction) {
+        WT_INTL_INDEX_GET(session, (&btree->root)->page, pindex);
+        retry = pindex->entries;
+    } else
+        retry = 100;
 
     if (0) {
 restart:
@@ -447,10 +452,13 @@ descend:
     }
 
     /*
-     * There is no point starting with the root page: the walk will exit immediately. In that case
-     * we aren't holding a hazard pointer so there is nothing to release.
+     * There is no point starting with the root page: continue attempting the process until we
+     * encounter a non-root page.
      */
-    if (!eviction || !__wt_ref_is_root(current))
+    if (eviction && __wt_ref_is_root(current)) {
+        if (--retry > 0)
+            goto restart;
+    } else
         *refp = current;
     return (0);
 }
