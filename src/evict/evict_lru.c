@@ -1782,7 +1782,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_REF *ref;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
-    uint32_t read_flags, remaining_slots, target_pages, walk_flags;
+    uint32_t remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, want_page;
 
@@ -1874,6 +1874,24 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         WT_STAT_DATA_INCR(session, cache_eviction_walk_saved_pos);
     }
 
+#define FIND_RANDOM_PAGE_IF_NONE()                                                    \
+    if (btree->evict_ref == NULL) {                                                   \
+        for (;;) {                                                                    \
+            WT_WITH_PAGE_INDEX(session,                                               \
+              ret = __wt_random_descent(session, &btree->evict_ref,                   \
+                WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT | \
+                  WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK,                           \
+                &session->rnd));                                                      \
+            if (ret != WT_RESTART)                                                    \
+                break;                                                                \
+            WT_STAT_CONN_INCR(session, cache_eviction_walk_restart);                  \
+            WT_STAT_DATA_INCR(session, cache_eviction_walk_restart);                  \
+        }                                                                             \
+        WT_RET_NOTFOUND_OK(ret);                                                      \
+    }
+
+    FIND_RANDOM_PAGE_IF_NONE();
+
     walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         walk_flags |= WT_READ_VISIBLE_ALL;
@@ -1893,20 +1911,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         FLD_SET(walk_flags, WT_READ_PREV);
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
-        read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
-          WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
-        if (btree->evict_ref == NULL) {
-            for (;;) {
-                /* Ensure internal pages indexes remain valid */
-                WT_WITH_PAGE_INDEX(session,
-                  ret = __wt_random_descent(session, &btree->evict_ref, read_flags, &session->rnd));
-                if (ret != WT_RESTART)
-                    break;
-                WT_STAT_CONN_INCR(session, cache_eviction_walk_restart);
-                WT_STAT_DATA_INCR(session, cache_eviction_walk_restart);
-            }
-            WT_RET_NOTFOUND_OK(ret);
-        }
+        FIND_RANDOM_PAGE_IF_NONE();
         break;
     }
 
