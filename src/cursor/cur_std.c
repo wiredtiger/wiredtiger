@@ -724,10 +724,6 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     /*
      * Cursor reset clears bounds on cursors when called externally, we need to clear the bounds
      * manually when we cache a cursor.
-     *
-     * Clears WT_CURSTD_BOUND_UPPER, WT_CURSTD_BOUND_LOWER
-     *
-     * Sometimes clears WT_CURSTD_BOUND_UPPER_INCLUSIVE, WT_CURSTD_BOUND_LOWER_INCLUSIVE
      */
     __wt_cursor_bound_reset(cursor);
 
@@ -768,8 +764,6 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 /*
  * __wt_cursor_reopen --
  *     Reopen this cursor from the cached state.
- *
- * Flags cleared by this function: WT_CURSTD_CACHED.
  */
 void
 __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
@@ -940,12 +934,6 @@ return_false:
 /*
  * __cursor_reuse_or_init --
  *     Initialization shared between reuse of a cached cursor and initialization of a new cursor.
- *
- * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_DEBUG_RESET_EVICT.
- *
- * Flags set by this function: WT_CURSTD_RAW.
- *
- * Flags cleared by this functions: WT_CURSTD_CACHEABLE.
  */
 static int
 __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[],
@@ -1022,10 +1010,6 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
 /*
  * __wt_cursor_cache_get --
  *     Open a matching cursor from the cache.
- *
- * Flags set or cleared by this function: WT_CURSTD_OVERWRITE, plus __cursor_reuse_or_init().
- *
- * Flags cleared by this function: WT_CBT_READ_ONCE, WT_CURSTD_APPEND, WT_CURSTD_RAW.
  */
 int
 __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_value,
@@ -1214,8 +1198,6 @@ err:
 /*
  * __cursor_config_debug --
  *     Set configuration options for debug category.
- *
- * Flags set or cleared by this function: WT_CURSTD_DEBUG_RESET_EVICT.
  */
 static int
 __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
@@ -1243,9 +1225,6 @@ __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
 /*
  * __wt_cursor_reconfigure --
  *     Set runtime-configurable settings.
- *
- * Flags set or cleared by this function: WT_CURSTD_APPEND, WT_CURSTD_DEBUG_RESET_EVICT,
- *     WT_CURSTD_OVERWRITE, plus cursor->reset()
  */
 int
 __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
@@ -1561,13 +1540,6 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
 /*
  * __wt_cursor_init --
  *     Default cursor initialization.
- *
- * Flags set or cleared by this function: WT_CURSTD_OVERWRITE, plus __cursor_reuse_or_init().
- *
- * Flags set by this function: WT_CURSTD_DUMP_HEX, WT_CURSTD_DUMP_JSON, WT_CURSTD_DUMP_JSON,
- *     WT_CURSTD_DUMP_PRETTY, WT_CURSTD_DUMP_PRINT, WT_CURSTD_OPEN.
- *
- * Flags cleared by this function: WT_CURSTD_CACHEABLE.
  */
 int
 __wt_cursor_init(
