@@ -9,44 +9,6 @@
 #pragma once
 
 /*
- * __wt_ref_is_root --
- *     Return if the page reference is for the root page.
- */
-static WT_INLINE bool
-__wt_ref_is_root(WT_REF *ref)
-{
-    return (ref->home == NULL);
-}
-
-/*
- * __wt_ref_cas_state_int --
- *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
- */
-static WT_INLINE bool
-__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_t new_state,
-  const char *func, int line)
-{
-    bool cas_result;
-
-    /* Parameters that are used in a macro for diagnostic builds */
-    WT_UNUSED(session);
-    WT_UNUSED(func);
-    WT_UNUSED(line);
-
-    cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
-
-#ifdef HAVE_REF_TRACK
-    /*
-     * The history update here has potential to race; if the state gets updated again after the CAS
-     * above but before the history has been updated.
-     */
-    if (cas_result)
-        WT_REF_SAVE_STATE(ref, new_state, func, line);
-#endif
-    return (cas_result);
-}
-
-/*
  * __wt_btree_disable_bulk --
  *     Disable bulk loads into a tree.
  */
@@ -152,7 +114,8 @@ __wt_page_evict_clean(WT_PAGE *page)
      * free these structures).
      */
     return (page->modify == NULL ||
-      (page->modify->page_state == WT_PAGE_CLEAN && page->modify->rec_result == 0));
+      (__wt_atomic_load32(&page->modify->page_state) == WT_PAGE_CLEAN &&
+        page->modify->rec_result == 0));
 }
 
 /*
@@ -167,7 +130,7 @@ __wt_page_is_modified(WT_PAGE *page)
      * and we're not blocking checkpoints (although we must block eviction as it might clear and
      * free these structures).
      */
-    return (page->modify != NULL && page->modify->page_state != WT_PAGE_CLEAN);
+    return (page->modify != NULL && __wt_atomic_load32(&page->modify->page_state) != WT_PAGE_CLEAN);
 }
 
 /*
@@ -214,7 +177,7 @@ __wt_btree_bytes_inuse(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(cache, btree->bytes_inmem));
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_inmem)));
 }
 
 /*
@@ -228,17 +191,17 @@ __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_PAGE *root_page;
     uint64_t bytes_inmem, bytes_root;
+    uint64_t evictable_bytes;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
     root_page = btree->root.page;
 
-    bytes_inmem = btree->bytes_inmem;
+    bytes_inmem = __wt_atomic_load64(&btree->bytes_inmem);
     bytes_root = root_page == NULL ? 0 : root_page->memory_footprint;
+    evictable_bytes = bytes_inmem - bytes_root;
 
-    return (bytes_inmem <= bytes_root ?
-        0 :
-        __wt_cache_bytes_plus_overhead(cache, bytes_inmem - bytes_root));
+    return (bytes_inmem <= bytes_root ? 0 : __wt_cache_bytes_plus_overhead(cache, evictable_bytes));
 }
 
 /*
@@ -250,12 +213,14 @@ __wt_btree_dirty_inuse(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
+    uint64_t dirty_inuse;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (
-      __wt_cache_bytes_plus_overhead(cache, btree->bytes_dirty_intl + btree->bytes_dirty_leaf));
+    dirty_inuse =
+      __wt_atomic_load64(&btree->bytes_dirty_intl) + __wt_atomic_load64(&btree->bytes_dirty_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, dirty_inuse));
 }
 
 /*
@@ -271,7 +236,7 @@ __wt_btree_dirty_leaf_inuse(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(cache, btree->bytes_dirty_leaf));
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_dirty_leaf)));
 }
 
 /*
@@ -287,7 +252,7 @@ __wt_btree_bytes_updates(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(cache, btree->bytes_updates));
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_updates)));
 }
 
 /*
@@ -723,7 +688,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
     last_running = 0;
-    if (page->modify->page_state == WT_PAGE_CLEAN)
+    if (__wt_atomic_load32(&page->modify->page_state) == WT_PAGE_CLEAN)
         last_running = __wt_atomic_loadv64(&S2C(session)->txn_global.last_running);
 
     /*
@@ -737,7 +702,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * The page state can only ever be incremented above dirty by the number of concurrently running
      * threads, so the counter will never approach the point where it would wrap.
      */
-    if (page->modify->page_state < WT_PAGE_DIRTY &&
+    if (__wt_atomic_load32(&page->modify->page_state) < WT_PAGE_DIRTY &&
       __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
         __wt_cache_dirty_incr(session, page);
         /*
@@ -831,7 +796,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
          * Since clearing of the page state is not going to be happening during reconciliation on a
          * separate thread, there's no release barrier needed here.
          */
-        page->modify->page_state = WT_PAGE_CLEAN;
+        __wt_atomic_store32(&page->modify->page_state, WT_PAGE_CLEAN);
         page->modify->flags = 0;
         __wt_cache_dirty_decr(session, page);
     }
@@ -2131,7 +2096,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
         return (true);
 
     first = pindex->index[0];
-    if (first->state != WT_REF_MEM) /* no child page, ignore */
+    if (WT_REF_GET_STATE(first) != WT_REF_MEM) /* no child page, ignore */
         return (false);
 
     /*

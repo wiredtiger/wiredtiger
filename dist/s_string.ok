@@ -9,7 +9,9 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
+ANDed
 APIs
+AREALLSET
 ARG
 ARGS
 ASAN
@@ -190,6 +192,7 @@ INTRINSICS
 INUSE
 INVL
 ISA
+ISSET
 ITEMs
 InitializeCriticalSectionAndSpinCount
 Instantiation
@@ -516,6 +519,7 @@ blk
 blkcache
 blkincr
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -741,9 +745,14 @@ fclose
 fcntl
 fd
 fdatasync
+fe
+feffff
 fextend
 ffc
 fff
+fffff
+ffffff
+ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -1078,6 +1087,7 @@ packv
 pageref
 pagesize
 param
+params
 pareto
 parserp
 patchp
@@ -1172,6 +1182,7 @@ risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
@@ -1245,6 +1256,7 @@ strdup
 strerror
 strftime
 strlen
+strncmp
 strncpy
 strndup
 strnlen
