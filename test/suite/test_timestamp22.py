@@ -342,13 +342,6 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
         expected = self.SUCCESS
 
-        # It is a no-op to provide oldest or stable behind the global values. If provided ahead, we
-        # will treat the values as if not provided at all.
-        if oldest <= self.oldest_ts:
-            oldest = -1
-        if stable <= self.stable_ts:
-            stable = -1
-
         if oldest >= 0 and stable < 0:
             expected = expected_newer(expected, self.stable_ts, oldest, self.oldest_ts)
         expected = expected_newer(expected, stable, oldest, self.oldest_ts)
