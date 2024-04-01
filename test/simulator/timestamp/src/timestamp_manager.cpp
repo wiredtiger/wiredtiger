@@ -169,10 +169,6 @@ timestamp_manager::validate_oldest_and_stable_timestamp(
             ") must not be older than the current 'stable timestamp' (" +
             std::to_string(conn->get_stable_ts()) + ")");
 
-    /* No need to validate timestamps if stable or/and oldest were behind the global values. */
-    if (!has_oldest && !has_stable)
-        return (0);
-
     /* No need to validate timestamps if there is no new and no current oldest timestamp. */
     if (!has_oldest && conn->get_oldest_ts() == 0)
         return (0);
