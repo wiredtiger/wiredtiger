@@ -182,15 +182,15 @@ timestamp_manager::validate_oldest_and_stable_timestamp(
         return (0);
 
     /*
-     * If the oldest timestamp was not passed in the config or was behind the current oldest
-     * timestamp, modify the new_oldest_ts to the current oldest timestamp.
+     * If the oldest timestamp was not passed in the config, modify the new_oldest_ts to the current
+     * oldest timestamp.
      */
     if ((!has_oldest && conn->get_oldest_ts() != 0))
         new_oldest_ts = conn->get_oldest_ts();
 
     /*
-     * If the stable timestamp was not passed in the config or was behind the current stable
-     * timestamp, modify the new_stable_ts to the current stable timestamp
+     * If the stable timestamp was not passed in the config, modify the new_stable_ts to the current
+     * stable timestamp
      */
     if ((!has_stable && conn->get_stable_ts() != 0))
         new_stable_ts = conn->get_stable_ts();

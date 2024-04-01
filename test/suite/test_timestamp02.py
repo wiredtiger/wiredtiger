@@ -146,7 +146,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
                 dict((k, 2) for k in orig_keys[i+1:]))
 
         # Perform validation on setting the oldest and the stable timestamps:
-        # - It is a success, but a no-op, to set them behind their existing values.
+        # - It is an error, to set them behind their existing values.
         # - Oldest timestamp can't be more than the stable. It is reported as an error if an attempt
         #   is made to set that way. If forcibly set in the wrong order, a stat should indicate it.
         # - If both the oldest and the stable are provided in the same call, the test to check if

@@ -370,7 +370,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     last_oldest_ts = txn_global->oldest_timestamp;
     last_stable_ts = txn_global->stable_timestamp;
 
-    /* It is an invalid call to set the oldest or stable timestamps behind the global values. */
+    /* It is an invalid call to set the oldest or stable timestamps behind the current values. */
     if (has_oldest && __wt_atomic_loadbool(&txn_global->has_oldest_timestamp) &&
       oldest_ts < last_oldest_ts) {
         __wt_readunlock(session, &txn_global->rwlock);
