@@ -507,6 +507,8 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
         if (win_fh->filehandle == INVALID_HANDLE_VALUE) {
             windows_error = __wt_getlasterror();
             ret = __wt_map_windows_error(windows_error);
+            __wt_err(session, ret, "%s: handle-open: CreateFileW: %s", name,
+              __wt_formatmessage(session, windows_error));
             WT_ERR(ret);
         }
     }

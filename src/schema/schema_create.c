@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_allocation_size_check --
+ * __wt_allocation_size_get --
  *     Return a size from the configuration.
  */
 int
-__wt_allocation_size_check(
+__wt_allocation_size_get(
   WT_SESSION_IMPL *session, const char **cfg, const char *config_name, uint32_t *allocsizep)
 {
     WT_CONFIG_ITEM cval;
@@ -166,7 +166,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     }
 
     /* Sanity check the allocation size. */
-    WT_ERR(__wt_allocation_size_check(session, filecfg, "allocation_size", &allocsize));
+    WT_ERR(__wt_allocation_size_get(session, filecfg, "allocation_size", &allocsize));
 
     /*
      * If we are importing an existing object rather than creating a new one, there are two possible

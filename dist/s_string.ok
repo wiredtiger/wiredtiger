@@ -82,6 +82,7 @@ Comparator
 Config
 Coverity
 CreateFileMappingW
+CreateFileW
 Crt
 Crummey
 CustomersPhone
