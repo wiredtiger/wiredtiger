@@ -75,7 +75,7 @@ EOF
 
 (set -e ;
  cd $PATCHED_SRC_DIR ;
- 
+
  # FIXME-WT-12775 N
  mkdir -p /data/tmp/bazel-working-directory/_main ;
  PATH=/opt/mongodbtoolchain/v4/bin:$PATH bazel build --sandbox_debug --sandbox_writable_path=/data/tmp/bazel-working-directory --sandbox_writable_path=/data/tmp/bazel-working-directory/_main --verbose_failures libtcmalloc ;
