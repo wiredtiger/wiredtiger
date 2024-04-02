@@ -9,23 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __curstd_config_value_for --
- *     Returns NULL if the string being searched for isn't found, or the string after the "=" sign
- *     in the config string.
- */
-// static WT_INLINE char *
-// __curstd_config_value_for(const char *config, const char *var, size_t len)
-// {
-//     char *cfg;
-//     if ((cfg = strstr(config, var)) == NULL)
-//         return (NULL);
-//     return (cfg + len);
-// }
-
-// #define CONFIG_VALUE_FOR(config, var, cfg)
-//     ((cfg) = __curstd_config_value_for((config), var "=", strlen(var "=")))
-
-/*
  * __wt_cursor_noop --
  *     Cursor noop.
  */
