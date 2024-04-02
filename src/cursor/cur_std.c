@@ -1275,15 +1275,17 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         } else
             WT_ERR_MSG(session, EINVAL,
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
-    } else if (WT_CONF_STRING_MATCH(clear, cval)) {
+    } else {
+        /*
+         * The config API errors out earlier if an invalid option is provided. We must be in the
+         * clear case if we're here.
+         */
         F_CLR(cursor, WT_CURSTD_BOUND_ALL);
         __wt_buf_free(session, &cursor->upper_bound);
         __wt_buf_free(session, &cursor->lower_bound);
         WT_CLEAR(cursor->upper_bound);
         WT_CLEAR(cursor->lower_bound);
-    } else
-        WT_ERR_MSG(session, EINVAL,
-          "an action of either \"clear\" or \"set\" should be specified when setting bounds");
+    }
 err:
     API_END_RET_STAT(session, ret, cursor_bound);
 }
