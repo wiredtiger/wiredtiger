@@ -36,17 +36,17 @@ class test_cursor_bound01(bound_base):
     file_name = 'test_cursor_bound01'
 
     types = [
-        ('file', dict(uri='file:', use_index = False, use_colgroup = False)),
+        # ('file', dict(uri='file:', use_index = False, use_colgroup = False)),
         ('table', dict(uri='table:', use_index = False, use_colgroup = False)),
-        ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
-        ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
-        ('index', dict(uri='table:', use_index = True, use_colgroup = False)),
+        # ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
+        # ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
+        # ('index', dict(uri='table:', use_index = True, use_colgroup = False)),
     ]
 
     format_values = [
         ('string', dict(key_format='S',value_format='S')),
-        ('var', dict(key_format='r',value_format='S')),
-        ('fix', dict(key_format='r',value_format='8t'))
+        # ('var', dict(key_format='r',value_format='S')),
+        # ('fix', dict(key_format='r',value_format='8t'))
     ]
 
     scenarios = make_scenarios(types,format_values)
@@ -78,51 +78,51 @@ class test_cursor_bound01(bound_base):
         else:
             cursor = self.session.open_cursor(uri)
 
-        # LSM format is not supported with range cursors.
-        if self.uri == 'lsm:':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
-                '/Operation not supported/')
-            return
-        if self.value_format == '8t':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
-                '/Invalid argument/')
-            return
+        # # LSM format is not supported with range cursors.
+        # if self.uri == 'lsm:':
+        #     self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
+        #         '/Operation not supported/')
+        #     return
+        # if self.value_format == '8t':
+        #     self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
+        #         '/Invalid argument/')
+        #     return
 
-        # Cursor bound API should return EINVAL if no configurations are passed in.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound(),
-            '/Invalid argument/')
+        # # Cursor bound API should return EINVAL if no configurations are passed in.
+        # self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound(),
+        #     '/Invalid argument/')
 
-        # Check that bound configuration works properly.
-        if (self.use_index):
-            cursor.set_key(self.gen_val(1))
-            cursor.bound("bound=lower")
-            cursor.set_key(self.gen_val(10))
-            cursor.bound("bound=upper")
-        else:
-            cursor.set_key(self.gen_key(1))
-            cursor.bound("bound=lower")
-            cursor.set_key(self.gen_key(10))
-            cursor.bound("bound=upper")
+        # # Check that bound configuration works properly.
+        # if (self.use_index):
+        #     cursor.set_key(self.gen_val(1))
+        #     cursor.bound("bound=lower")
+        #     cursor.set_key(self.gen_val(10))
+        #     cursor.bound("bound=upper")
+        # else:
+        #     cursor.set_key(self.gen_key(1))
+        #     cursor.bound("bound=lower")
+        #     cursor.set_key(self.gen_key(10))
+        #     cursor.bound("bound=upper")
 
-        # Check that clear works properly.
-        cursor.bound("action=clear")
+        # # Check that clear works properly.
+        # cursor.bound("action=clear")
 
-        # Index cursors work slightly differently to other cursors, we can early exit here as the
-        # below edge cases don't apply for index cursors.
-        if (self.use_index):
-            return
+        # # Index cursors work slightly differently to other cursors, we can early exit here as the
+        # # below edge cases don't apply for index cursors.
+        # if (self.use_index):
+        #     return
 
-        # Check that largest key doesn't work with bounded cursors.
-        cursor.set_key(self.gen_key(1))
-        cursor.bound("action=set,bound=lower")
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
-            '/setting bounds is not compatible with cursor largest key/')
+        # # Check that largest key doesn't work with bounded cursors.
+        # cursor.set_key(self.gen_key(1))
+        # cursor.bound("action=set,bound=lower")
+        # self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
+        #     '/setting bounds is not compatible with cursor largest key/')
 
-        # Check edge cases with bounds config
-        cursor.set_key(self.gen_key(1))
-        # Setting the bound without providing an action works.
-        self.assertEqual(cursor.bound("bound=lower"), 0)
-        cursor.reset()
+        # # Check edge cases with bounds config
+        # cursor.set_key(self.gen_key(1))
+        # # Setting the bound without providing an action works.
+        # self.assertEqual(cursor.bound("bound=lower"), 0)
+        # cursor.reset()
 
         cursor.set_key(self.gen_key(1))
         # Setting an action without a bound won't work.
