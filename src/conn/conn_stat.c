@@ -193,7 +193,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 #define WT_TIMESTAMP_JSON_DEFAULT "%Y-%m-%dT%H:%M:%S.000Z"
     WT_ERR(__wt_config_gets(session, cfg, "statistics_log.timestamp", &cval));
     if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON) &&
-      WT_STRING_MATCH(WT_TIMESTAMP_DEFAULT, cval.str, cval.len))
+      WT_CONFIG_LIT_MATCH(WT_TIMESTAMP_DEFAULT, cval))
         WT_ERR(__wt_strdup(session, WT_TIMESTAMP_JSON_DEFAULT, &conn->stat_format));
     else
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->stat_format));
@@ -332,7 +332,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
      * If we don't find an underlying object, silently ignore it, the object may exist only
      * intermittently.
      */
-    if ((ret = __wt_curstat_open(session, uri, NULL, cfg, &cursor)) != 0) {
+    if ((ret = __wt_curstat_open(session, uri, cfg, &cursor)) != 0) {
         if (ret == EBUSY || ret == ENOENT || ret == WT_NOTFOUND)
             ret = 0;
         goto err;

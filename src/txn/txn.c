@@ -748,10 +748,10 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
 
     ret = __wt_config_getones(session, config, "isolation", &cval);
     if (ret == 0 && cval.len != 0) {
-        session->isolation = txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
-                                                                    WT_ISO_SNAPSHOT :
-          WT_STRING_MATCH("read-uncommitted", cval.str, cval.len) ? WT_ISO_READ_UNCOMMITTED :
-                                                                    WT_ISO_READ_COMMITTED;
+        session->isolation = txn->isolation = WT_CONFIG_LIT_MATCH("snapshot", cval) ?
+                                                          WT_ISO_SNAPSHOT :
+          WT_CONFIG_LIT_MATCH("read-uncommitted", cval) ? WT_ISO_READ_UNCOMMITTED :
+                                                          WT_ISO_READ_COMMITTED;
     }
     WT_RET_NOTFOUND_OK(ret);
 
@@ -1814,7 +1814,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (F_ISSET(txn, WT_TXN_SYNC_SET))
                 WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
-            if (WT_STRING_MATCH("off", cval.str, cval.len))
+            if (WT_CONFIG_LIT_MATCH("off", cval))
                 txn->txn_logsync = 0;
             /*
              * We don't need to check for "on" here because that is the default to inherit from the
@@ -2835,7 +2835,7 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
-        txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
+        __wt_lsn_offset(&txn->ckpt_lsn), txn->full_ckpt ? "true" : "false",
         txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
     /*

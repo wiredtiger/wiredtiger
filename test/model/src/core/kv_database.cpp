@@ -76,6 +76,19 @@ kv_database::create_checkpoint(
   const char *name, kv_transaction_snapshot_ptr snapshot, timestamp_t stable_timestamp)
 {
     std::lock_guard lock_guard(_checkpoints_lock);
+    return create_checkpoint_nolock(name, std::move(snapshot), stable_timestamp);
+}
+
+/*
+ * kv_database::create_checkpoint --
+ *     Create a checkpoint from custom metadata. Throw an exception if the name is not unique.
+ *     Assume the relevant locks are held.
+ */
+kv_checkpoint_ptr
+kv_database::create_checkpoint_nolock(
+  const char *name, kv_transaction_snapshot_ptr snapshot, timestamp_t stable_timestamp)
+{
+    /* Requires the checkpoint lock. */
 
     /* Use the default checkpoint name, if it is not specified. */
     if (name == nullptr)
@@ -182,6 +195,9 @@ kv_database::clear_nolock()
 {
     /* Requires: tables lock, transactions lock. */
 
+    /* Reset the database's stable timestamp. */
+    _stable_timestamp = k_timestamp_none;
+
     /*
      * Roll back all active transactions. We cannot just clear the table of active transactions, as
      * that would result in a memory leak due to circular dependencies between updates and
@@ -244,8 +260,9 @@ kv_database::rollback_to_stable(timestamp_t timestamp, kv_transaction_snapshot_p
 {
     std::lock_guard lock_guard1(_tables_lock);
     std::lock_guard lock_guard2(_transactions_lock);
+    std::lock_guard lock_guard3(_checkpoints_lock);
 
-    rollback_to_stable_nolock(timestamp, snapshot);
+    rollback_to_stable_nolock(timestamp, std::move(snapshot));
 }
 
 /*
@@ -261,6 +278,9 @@ kv_database::rollback_to_stable_nolock(timestamp_t timestamp, kv_transaction_sna
 
     for (auto &p : _tables)
         p.second->rollback_to_stable(timestamp, snapshot);
+
+    /* Force a checkpoint. */
+    create_checkpoint_nolock(WT_CHECKPOINT, txn_snapshot(), _stable_timestamp);
 }
 
 /*
@@ -280,8 +300,11 @@ kv_database::start_nolock()
     /* Otherwise recover using rollback to stable using the checkpoint. */
     kv_checkpoint_ptr ckpt = i->second;
 
-    /* If the checkpoint does not have a stable timestamp, do not use it during RTS. */
+    /* Restore the database's stable timestamp. */
     timestamp_t t = ckpt->stable_timestamp();
+    _stable_timestamp = t;
+
+    /* If the checkpoint does not have a stable timestamp, do not use it during RTS. */
     if (t == k_timestamp_none)
         t = k_timestamp_latest;
 
