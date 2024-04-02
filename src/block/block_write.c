@@ -182,7 +182,7 @@ __wt_block_write_size(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t *sizep)
      */
     *sizep = (size_t)WT_ALIGN(*sizep + WT_BLOCK_HEADER_BYTE_SIZE, block->allocsize);
     if (*sizep > UINT32_MAX - 1024)
-        WT_RET_MSG(session, EINVAL, "requested block size too large");
+        WT_RET_MSG(session, EINVAL, "requested block size is too large");
     return (0);
 }
 
