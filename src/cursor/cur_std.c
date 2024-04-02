@@ -1229,11 +1229,15 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         if (cval.val == 0)
             inclusive = false;
 
-        ret = __wt_conf_gets(session, conf, bound, &cval);
-        if (ret == WT_NOTFOUND)
+        WT_ERR(__wt_conf_gets(session, conf, bound, &cval));
+        /*
+         * FIXME-WT-12777 The above call shouldn't actually return a bound, but it does. We check
+         * the len to work around the bug mentioned in the ticket.
+         */
+        if (cval.len == 0)
             WT_ERR_MSG(session, EINVAL,
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
-        else if (WT_CONF_STRING_MATCH(upper, cval)) {
+        if (WT_CONF_STRING_MATCH(upper, cval)) {
             /*
              * If the lower bounds are set, make sure that the upper bound is greater than the lower
              * bound.
