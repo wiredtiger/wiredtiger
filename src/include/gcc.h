@@ -235,8 +235,8 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 #define __wt_atomic_store_generic(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
 
 /*
- * Atomically load and store pointers, these provide better type safety than the generic atomic load
- * and store macros.
+ * These pointer specific macros behave identically to the generic ones above, but better
+ * communicate intent and should be preferred over generic.
  */
 #define __wt_atomic_load_pointer(vp) __wt_atomic_load_generic(vp)
 #define __wt_atomic_store_pointer(vp, v) __wt_atomic_store_generic(vp, v)
