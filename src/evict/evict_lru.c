@@ -1890,6 +1890,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         WT_RET_NOTFOUND_OK(ret);                                                      \
     }
 
+    /* If there's no current evict_ref, find a random page to start the walk from */
     FIND_RANDOM_PAGE_IF_NONE();
 
     walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
