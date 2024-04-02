@@ -44,17 +44,25 @@ public:
     }
 
     static void
-    set_bound_key_lower(scoped_cursor &cursor)
+    set_bound_key_lower(scoped_cursor &cursor, execution_timer &timer, const char *cfg)
     {
-        std::string lower_bound(1, ('9' + 1));
+        std::string lower_bound(1, ('0' - 1));
         cursor->set_key(cursor.get(), lower_bound.c_str());
+        timer.track([&cursor, cfg]() -> int {
+            testutil_check(cursor->bound(cursor.get(), cfg));
+            return 0;
+        });
     }
 
     static void
-    set_bound_key_upper(scoped_cursor &cursor)
+    set_bound_key_upper(scoped_cursor &cursor, execution_timer &timer, const char *cfg)
     {
         std::string upper_bound(1, ('9' + 1));
         cursor->set_key(cursor.get(), upper_bound.c_str());
+        timer.track([&cursor, cfg]() -> int {
+            testutil_check(cursor->bound(cursor.get(), cfg));
+            return 0;
+        });
     }
 
     void
@@ -75,15 +83,21 @@ public:
          */
 
         /* Initialize the different timers for each function. */
-        execution_timer bounded_next("bounded_next", test::_args.test_name);
-        execution_timer bounded_prev("bounded_prev", test::_args.test_name);
-        execution_timer set_bounds_timer("set_bounds normal ticks", test::_args.test_name);
+        execution_timer bounded_next("bounded_next_ticks", test::_args.test_name);
+        execution_timer bounded_prev("bounded_prev_ticks", test::_args.test_name);
+        execution_timer default_next("default_next_ticks", test::_args.test_name);
+        execution_timer default_prev("default_prev_ticks", test::_args.test_name);
+        execution_timer regular_config_timer(
+          "set_bounds non-compiled ticks", test::_args.test_name);
+        execution_timer compiled_config_timer("set_bounds compiled ticks", test::_args.test_name);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);
         collection &coll = tc->db.get_collection(0);
 
         /* Opening the cursors. */
+        scoped_cursor next_cursor = tc->session.open_scoped_cursor(coll.name);
+        scoped_cursor prev_cursor = tc->session.open_scoped_cursor(coll.name);
         scoped_cursor next_range_cursor = tc->session.open_scoped_cursor(coll.name);
         scoped_cursor prev_range_cursor = tc->session.open_scoped_cursor(coll.name);
 
@@ -91,35 +105,41 @@ public:
          * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range
          * cursor bounds outside of the key range for the purpose of this test.
          */
-
+        int i = 0;
         while (tc->running()) {
-            set_bound_key_upper(next_range_cursor);
-            set_bounds_timer.track([&next_range_cursor, compiled_ptr_lower]() -> void {
-                testutil_check(
-                  next_range_cursor->bound(next_range_cursor.get(), compiled_ptr_lower));
-                // testutil_check(next_range_cursor->bound(next_range_cursor.get(), "bound=lower"));
-            });
-            set_bound_key_lower(next_range_cursor);
-            set_bounds_timer.track([&next_range_cursor, compiled_ptr_upper]() -> void {
-                testutil_check(
-                  next_range_cursor->bound(next_range_cursor.get(), compiled_ptr_upper));
-                // testutil_check(next_range_cursor->bound(next_range_cursor.get(), "bound=upper"));
-            });
+            if (i % 2 == 0) {
+                set_bound_key_upper(next_range_cursor, compiled_config_timer, compiled_ptr_upper);
+                set_bound_key_lower(next_range_cursor, compiled_config_timer, compiled_ptr_lower);
+                set_bound_key_upper(prev_range_cursor, compiled_config_timer, compiled_ptr_upper);
+                set_bound_key_lower(prev_range_cursor, compiled_config_timer, compiled_ptr_lower);
+            } else {
+                set_bound_key_upper(next_range_cursor, regular_config_timer, "bound=upper");
+                set_bound_key_lower(next_range_cursor, regular_config_timer, "bound=lower");
+                set_bound_key_upper(prev_range_cursor, regular_config_timer, "bound=upper");
+                set_bound_key_lower(prev_range_cursor, regular_config_timer, "bound=lower");
+            }
+            ++i;
+            int ret_next = 0, ret_prev = 0;
+            while (ret_next != WT_NOTFOUND && ret_prev != WT_NOTFOUND && tc->running()) {
+                auto range_ret_next = bounded_next.track([&next_range_cursor]() -> int {
+                    return next_range_cursor->next(next_range_cursor.get());
+                });
+                auto ret_next = default_next.track(
+                  [&next_cursor]() -> int { return next_cursor->next(next_cursor.get()); });
 
-            set_bound_key_upper(prev_range_cursor);
-            set_bounds_timer.track([&prev_range_cursor, compiled_ptr_lower]() -> void {
-                testutil_check(
-                  prev_range_cursor->bound(prev_range_cursor.get(), compiled_ptr_lower));
+                auto range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
+                    return prev_range_cursor->prev(prev_range_cursor.get());
+                });
+                auto ret_prev = default_prev.track(
+                  [&prev_cursor]() -> int { return prev_cursor->prev(prev_cursor.get()); });
 
-                // testutil_check(prev_range_cursor->bound(prev_range_cursor.get(), "bound=lower"));
-            });
-            set_bound_key_lower(prev_range_cursor);
-            set_bounds_timer.track([&prev_range_cursor, compiled_ptr_upper]() -> void {
-                testutil_check(
-                  prev_range_cursor->bound(prev_range_cursor.get(), compiled_ptr_upper));
-
-                // testutil_check(prev_range_cursor->bound(prev_range_cursor.get(), "bound=upper"));
-            });
+                testutil_assert((ret_next == 0 || ret_next == WT_NOTFOUND) &&
+                  (ret_prev == 0 || ret_prev == WT_NOTFOUND));
+                testutil_assert((range_ret_prev == 0 || range_ret_prev == WT_NOTFOUND) &&
+                  (range_ret_next == 0 || range_ret_next == WT_NOTFOUND));
+            }
+            testutil_check(next_cursor->reset(next_cursor.get()));
+            testutil_check(prev_cursor->reset(prev_cursor.get()));
             testutil_check(next_range_cursor->reset(next_range_cursor.get()));
             testutil_check(prev_range_cursor->reset(prev_range_cursor.get()));
         }
