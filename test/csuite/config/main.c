@@ -497,10 +497,10 @@ main(int argc, char *argv[])
 
     /*
      * Make sure we've been able to successfully check the expected number of configuration
-     * compilations. When this tests fails, this number will need to change. What we get by having
-     * an exact number is protection against the WiredTiger verbose output changing or being reduced
-     * in the future. If that were to happen, we want to fail, since without verbose feedback, we
-     * aren't doing the checks that we need.
+     * compilations. When this tests other APIs, or other APIs are made to be compilable, this
+     * number will need to change. What we get by having an exact number is protection against the
+     * WiredTiger verbose output changing or being reduced in the future. If that were to happen, we
+     * want to fail, since without verbose feedback, we aren't doing the checks that we need.
      */
     printf(
       "checked %d successful configuration compilation outputs\n", event_handler.state.completed);
