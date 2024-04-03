@@ -73,16 +73,13 @@ cc_shared_library(
 )
 EOF
 
-(set -e ;
- cd $PATCHED_SRC_DIR ;
+(cd $PATCHED_SRC_DIR ;
 
  # FIXME-WT-12775 When DEVPROD upgrades to using Bazel 7+, and the corresponding
  # Evergreen sandboxing is fixed. The bazel invocation should be reviewed and
  # hopefully simplified.
  mkdir -p /data/tmp/bazel-working-directory/_main ;
- PATH=/opt/mongodbtoolchain/v4/bin:$PATH bazel build --sandbox_debug --sandbox_writable_path=/data/tmp/bazel-working-directory --sandbox_writable_path=/data/tmp/bazel-working-directory/_main --verbose_failures libtcmalloc ;
-
- cd -)
+ PATH=/opt/mongodbtoolchain/v4/bin:$PATH bazel build --sandbox_debug --sandbox_writable_path=/data/tmp/bazel-working-directory --sandbox_writable_path=/data/tmp/bazel-working-directory/_main --verbose_failures libtcmalloc )
 
 # Package and upload. If the upload fails: fail the WT build, even though
 # there is an available binary. This is to ensure any problem becomes
