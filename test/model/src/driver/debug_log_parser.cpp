@@ -559,12 +559,15 @@ debug_log_parser::commit_transaction(kv_transaction_ptr txn)
       txn_state != kv_transaction_state::prepared && txn_state != kv_transaction_state::committed)
         throw model_exception("The transaction is in an unexpected state");
 
-    /* Commit the transaction if it has not yet been committed. */
+    /*
+     * Commit the transaction if it has not yet been committed.
+     *
+     * However, empty prepared transactions require special handling: Because the debug log might
+     * not have recorded their commit and durable timestamps, we cannot commit them, so we abort
+     * them instead. This does not make any practical difference, because these transactions do not
+     * contain any writes and would not conflict with any other transactions.
+     */
     if (txn_state != kv_transaction_state::committed) {
-        /*
-         * Rollback an empty prepared transaction, because the debug log might not have recorded its
-         * commit and durable timestamps.
-         */
         if (txn_state == kv_transaction_state::prepared && txn->empty())
             txn->rollback();
         else

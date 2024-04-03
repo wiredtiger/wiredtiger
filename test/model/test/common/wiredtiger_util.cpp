@@ -426,60 +426,32 @@ wt_ckpt_create(WT_SESSION *session, const char *ckpt_name)
 }
 
 /*
- * wt_get_stable_timestamp --
- *     Get the oldest timestamp in WiredTiger.
+ * wt_get_timestamp --
+ *     Get the given timestamp in WiredTiger.
  */
 model::timestamp_t
-wt_get_oldest_timestamp(WT_CONNECTION *conn)
+wt_get_timestamp(WT_CONNECTION *conn, const char *kind)
 {
-    char buf[64];
-    testutil_check(conn->query_timestamp(conn, buf, "get=oldest_timestamp"));
+    char query[64], result[64];
+    testutil_snprintf(query, sizeof(query), "get=%s", kind);
+    testutil_check(conn->query_timestamp(conn, result, query));
 
-    std::istringstream ss(buf);
+    std::istringstream ss(result);
     model::timestamp_t t;
     ss >> std::hex >> t;
     return t;
 }
 
 /*
- * wt_set_oldest_timestamp --
- *     Set the oldest timestamp in WiredTiger.
+ * wt_set_timestamp --
+ *     Set the given timestamp in WiredTiger.
  */
 void
-wt_set_oldest_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+wt_set_timestamp(WT_CONNECTION *conn, const char *kind, model::timestamp_t timestamp)
 {
     char buf[64];
 
-    testutil_snprintf(buf, sizeof(buf), "oldest_timestamp=%" PRIx64, timestamp);
-    testutil_check(conn->set_timestamp(conn, buf));
-}
-
-/*
- * wt_get_stable_timestamp --
- *     Get the stable timestamp in WiredTiger.
- */
-model::timestamp_t
-wt_get_stable_timestamp(WT_CONNECTION *conn)
-{
-    char buf[64];
-    testutil_check(conn->query_timestamp(conn, buf, "get=stable_timestamp"));
-
-    std::istringstream ss(buf);
-    model::timestamp_t t;
-    ss >> std::hex >> t;
-    return t;
-}
-
-/*
- * wt_set_stable_timestamp --
- *     Set the stable timestamp in WiredTiger.
- */
-void
-wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
-{
-    char buf[64];
-
-    testutil_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, timestamp);
+    testutil_snprintf(buf, sizeof(buf), "%s=%" PRIx64, kind, timestamp);
     testutil_check(conn->set_timestamp(conn, buf));
 }
 

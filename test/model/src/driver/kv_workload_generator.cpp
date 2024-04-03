@@ -213,6 +213,12 @@ kv_workload_generator::assert_timestamps(const kv_workload_sequence &sequence,
                 << sequence.seq_no() << ")" << std::endl;
             throw model_exception(err.str());
         }
+        if (t < oldest && oldest != k_timestamp_none) {
+            std::ostringstream err;
+            err << "The stable timestamp must not be smaller than the oldest timestamp: " << t
+                << " < " << oldest << " (sequence " << sequence.seq_no() << ")" << std::endl;
+            throw model_exception(err.str());
+        }
         stable = t;
     }
 
@@ -491,22 +497,22 @@ kv_workload_generator::run()
         {
             probability_case(_spec.checkpoint)
             {
-                kv_workload_sequence_ptr p =
-                  std::make_shared<kv_workload_sequence>(_sequences.size());
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::checkpoint);
                 *p << operation::checkpoint();
                 _sequences.push_back(p);
             }
             probability_case(_spec.crash)
             {
-                kv_workload_sequence_ptr p =
-                  std::make_shared<kv_workload_sequence>(_sequences.size());
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::crash);
                 *p << operation::crash();
                 _sequences.push_back(p);
             }
             probability_case(_spec.restart)
             {
-                kv_workload_sequence_ptr p =
-                  std::make_shared<kv_workload_sequence>(_sequences.size());
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::restart);
                 *p << operation::restart();
                 _sequences.push_back(p);
             }
@@ -559,7 +565,8 @@ kv_workload_generator::run()
      * Fill in the timestamps. Break up the collection of sequences into blocks of transactions
      * (breaking them up by non-transactional sequences, such as the ones for "set stable
      * timestamp"), and traverse them in the dependency order, processing a block of independent
-     * sequences at a time.
+     * sequences at a time. Keep track of the oldest and stable timestamps to ensure that we assign
+     * them in the correct order.
      */
     const auto barrier_fn = [](kv_workload_sequence &seq) {
         return seq.type() != kv_workload_sequence_type::transaction;
@@ -568,11 +575,30 @@ kv_workload_generator::run()
     timestamp_t step = 1000;
     timestamp_t first = step + 1;
     timestamp_t last = first + step;
+
+    timestamp_t ckpt_oldest = k_timestamp_none;
+    timestamp_t ckpt_stable = k_timestamp_none;
     timestamp_t oldest = k_timestamp_none;
     timestamp_t stable = k_timestamp_none;
 
     for (sequence_traversal t(_sequences, barrier_fn); t.has_more(); t.complete_all()) {
-        for (sequence_state *s : t.runnable())
+        for (sequence_state *s : t.runnable()) {
+
+            /* Simulate how checkpoints, crashes, and restarts manipulate the timestamps. */
+            if (s->sequence->type() == kv_workload_sequence_type::checkpoint ||
+              s->sequence->type() == kv_workload_sequence_type::restart) {
+                ckpt_oldest = oldest;
+                ckpt_stable = stable;
+                if (ckpt_stable == k_timestamp_none)
+                    ckpt_oldest = k_timestamp_none;
+            }
+            if (s->sequence->type() == kv_workload_sequence_type::crash ||
+              s->sequence->type() == kv_workload_sequence_type::restart) {
+                oldest = ckpt_oldest;
+                stable = ckpt_stable;
+            }
+
+            /* Assign the timestamps. */
             if (s->sequence->type() == kv_workload_sequence_type::set_oldest_timestamp)
                 /* The oldest timestamp must lag behind the stable timestamp. */
                 assign_timestamps(*s->sequence, oldest,
@@ -582,6 +608,8 @@ kv_workload_generator::run()
                 assign_timestamps(*s->sequence, first - step, last - step, oldest, stable);
             else
                 assign_timestamps(*s->sequence, first, last, oldest, stable);
+        }
+
         first = last + 1;
         last = first + step - 1;
     }
@@ -591,6 +619,8 @@ kv_workload_generator::run()
      * traversing the sequences in dependency order, and at each step, choosing one runnable
      * operation at random.
      */
+    ckpt_oldest = k_timestamp_none;
+    ckpt_stable = k_timestamp_none;
     oldest = k_timestamp_none;
     stable = k_timestamp_none;
     for (sequence_traversal t(_sequences); t.has_more();) {
@@ -608,6 +638,18 @@ kv_workload_generator::run()
 
         /* Validate that we filled in the timestamps in the correct order. */
         assert_timestamps(*s->sequence, op, oldest, stable);
+        if (std::holds_alternative<operation::checkpoint>(op) ||
+          std::holds_alternative<operation::restart>(op)) {
+            ckpt_oldest = oldest;
+            ckpt_stable = stable;
+            if (ckpt_stable == k_timestamp_none)
+                ckpt_oldest = k_timestamp_none;
+        }
+        if (std::holds_alternative<operation::crash>(op) ||
+          std::holds_alternative<operation::restart>(op)) {
+            oldest = ckpt_oldest;
+            stable = ckpt_stable;
+        }
 
         /* If the operation resulted in a database crash or restart, stop all started sequences. */
         if (std::holds_alternative<operation::crash>(op) ||
