@@ -1874,6 +1874,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         WT_STAT_DATA_INCR(session, cache_eviction_walk_saved_pos);
     }
 
+    /* This is a macro because the same thing arranged as a function showed worse performance */
 #define FIND_RANDOM_PAGE_IF_NONE()                                                    \
     if (btree->evict_ref == NULL) {                                                   \
         for (;;) {                                                                    \
