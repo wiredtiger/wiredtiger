@@ -787,10 +787,10 @@ __log_file_header(WT_SESSION_IMPL *session, WT_FH *fh, WT_LSN *end_lsn, bool pre
      * Set up the log descriptor record. Use a scratch buffer to get correct alignment for direct
      * I/O.
      */
-    WT_ASSERT(session, sizeof(WT_LOG_DESC) < log->allocsize);
-    WT_RET(__wt_scr_alloc(session, log->allocsize, &buf));
-    memset(buf->mem, 0, log->allocsize);
-    buf->size = log->allocsize;
+    WT_ASSERT(session, sizeof(WT_LOG_DESC) < WT_LOG_ALIGN);
+    WT_RET(__wt_scr_alloc(session, WT_LOG_ALIGN, &buf));
+    memset(buf->mem, 0, WT_LOG_ALIGN);
+    buf->size = WT_LOG_ALIGN;
 
     logrec = (WT_LOG_RECORD *)buf->mem;
     desc = (WT_LOG_DESC *)logrec->record;
@@ -806,10 +806,10 @@ __log_file_header(WT_SESSION_IMPL *session, WT_FH *fh, WT_LSN *end_lsn, bool pre
      * The checksum is (potentially) returned in a big-endian format, swap it into place in a
      * separate step.
      */
-    logrec->len = log->allocsize;
+    logrec->len = WT_LOG_ALIGN;
     logrec->checksum = 0;
     __wt_log_record_byteswap(logrec);
-    logrec->checksum = __wt_checksum(logrec, log->allocsize);
+    logrec->checksum = __wt_checksum(logrec, WT_LOG_ALIGN);
 #ifdef WORDS_BIGENDIAN
     logrec->checksum = __wt_bswap32(logrec->checksum);
 #endif
@@ -828,7 +828,7 @@ __log_file_header(WT_SESSION_IMPL *session, WT_FH *fh, WT_LSN *end_lsn, bool pre
         tmp.slot_fh = fh;
     } else {
         WT_ASSERT(session, fh == NULL);
-        WT_ERR(__wt_log_acquire(session, log->allocsize, &tmp));
+        WT_ERR(__wt_log_acquire(session, WT_LOG_ALIGN, &tmp));
     }
     WT_ERR(__wt_log_fill(session, &myslot, true, buf, NULL));
     /*
@@ -886,7 +886,6 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_FH *fh;
-    WT_LOG *log;
     WT_LOG_DESC *desc;
     WT_LOG_RECORD *logrec;
     uint32_t allocsize, rectype;
@@ -895,15 +894,11 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
 
     conn = S2C(session);
     fh = NULL;
-    log = conn->log;
     need_salvage = false;
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     salvage_mode = (need_salvagep != NULL && F_ISSET(conn, WT_CONN_SALVAGE));
 
-    if (log == NULL) {
-        allocsize = WT_LOG_ALIGN;
-    } else
-        allocsize = log->allocsize;
+    allocsize = WT_LOG_ALIGN;
     if (lsnp != NULL)
         WT_ZERO_LSN(lsnp);
     WT_ERR(__wt_buf_grow(session, buf, allocsize));
@@ -1802,10 +1797,7 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size, wt_off_t 
      * file has a hole in it.
      */
     buf = zerobuf = NULL;
-    if (log == NULL || log->allocsize < WT_MEGABYTE)
-        bufsz = WT_MEGABYTE;
-    else
-        bufsz = log->allocsize;
+    bufsz = WT_MEGABYTE;
 
     if ((size_t)remainder < bufsz)
         bufsz = (size_t)remainder;
@@ -1818,7 +1810,7 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size, wt_off_t 
     for (off = offset; remainder > 0; remainder -= (wt_off_t)rdlen, off += (wt_off_t)rdlen) {
         rdlen = WT_MIN(bufsz, (size_t)remainder);
         WT_ERR(__log_fs_read(session, fh, off, rdlen, buf));
-        allocsize = (log == NULL ? WT_LOG_ALIGN : log->allocsize);
+        allocsize = WT_LOG_ALIGN;
         if (memcmp(buf, zerobuf, rdlen) != 0) {
             /*
              * Find where the next log record starts after the hole.
@@ -2086,7 +2078,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
      */
     lastlog = 0;
     if (log != NULL) {
-        allocsize = log->allocsize;
+        allocsize = WT_LOG_ALIGN;
         WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
         WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
         if (start_lsnp == NULL) {
@@ -2505,7 +2497,7 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
     if (!F_ISSET(log, WT_LOG_OPENED) || F_ISSET(conn, WT_CONN_READONLY))
         return (0);
     ip = record;
-    if ((compressor = conn->log_compressor) != NULL && record->size < log->allocsize) {
+    if ((compressor = conn->log_compressor) != NULL && record->size < WT_LOG_ALIGN) {
         WT_STAT_CONN_INCR(session, log_compress_small);
     } else if (compressor != NULL) {
         /* Skip the log header */
@@ -2543,7 +2535,7 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
          * output requires), it just means the uncompressed version is as good as it gets, and
          * that's what we use.
          */
-        if (compression_failed || result_len / log->allocsize >= record->size / log->allocsize)
+        if (compression_failed || result_len / WT_LOG_ALIGN >= record->size / WT_LOG_ALIGN)
             WT_STAT_CONN_INCR(session, log_compress_write_fails);
         else {
             WT_STAT_CONN_INCR(session, log_compress_writes);
@@ -2620,7 +2612,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
      * the full amount because it makes the reading code cleaner.
      */
     WT_STAT_CONN_INCRV(session, log_bytes_payload, record->size);
-    rdup_len = __wt_rduppo2((uint32_t)record->size, log->allocsize);
+    rdup_len = __wt_rduppo2((uint32_t)record->size, WT_LOG_ALIGN);
     WT_ERR(__wt_buf_grow(session, record, rdup_len));
     WT_ASSERT(session, record->data == record->mem);
     /*

@@ -150,7 +150,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
     new_version = __logmgr_get_log_version(conn->compat_version);
 
     if (new_version > 1)
-        first_record = WT_LOG_END_HEADER + log->allocsize;
+        first_record = WT_LOG_END_HEADER + WT_LOG_ALIGN;
     else
         first_record = WT_LOG_END_HEADER;
 
@@ -986,7 +986,6 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
     WT_RET(__wt_spin_init(session, &log->log_writelsn_lock, "log write LSN"));
     WT_RET(__wt_rwlock_init(session, &log->log_remove_lock));
 
-    log->allocsize = WT_LOG_ALIGN;
     WT_INIT_LSN(&log->alloc_lsn);
     WT_INIT_LSN(&log->ckpt_lsn);
     WT_INIT_LSN(&log->first_lsn);
