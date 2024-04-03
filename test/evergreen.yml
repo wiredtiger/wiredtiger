@@ -146,7 +146,6 @@ functions:
     type: setup
     params:
       shell: bash
-      working_dir: wiredtiger
       script: |
         set -o errexit
         set -o verbose
@@ -311,7 +310,7 @@ functions:
           # Fetch the gperftools library if needed. This will also get tcmalloc.
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
             is_cmake_build=true
-            . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
+            . ../automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
           fi
           # Compiling with CMake.
           echo "Find CMake"
