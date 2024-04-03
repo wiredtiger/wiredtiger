@@ -154,7 +154,7 @@ main(int argc, char *argv[])
              * Ignore this alarm for MSan builds due to the typical slowdown introduced by MSan.
              */
             if (!testutil_is_flag_set("TESTUTIL_MSAN"))
-                (void)alarm(25);
+                (void)alarm(15);
             testutil_check(c->modify(c, &modify_entry, 1));
             (void)alarm(0);
             testutil_check(session2->commit_transaction(session2, NULL));
