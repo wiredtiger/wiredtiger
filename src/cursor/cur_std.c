@@ -1280,6 +1280,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
          * The config API errors out earlier if an invalid option is provided. We must be in the
          * clear case if we're here.
          */
+        WT_ASSERT(session, (WT_CONF_STRING_MATCH(clear, cval)));
         F_CLR(cursor, WT_CURSTD_BOUND_ALL);
         __wt_buf_free(session, &cursor->upper_bound);
         __wt_buf_free(session, &cursor->lower_bound);
