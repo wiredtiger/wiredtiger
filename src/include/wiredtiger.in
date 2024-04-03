@@ -5648,10 +5648,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_NOT_EMPTY	1095
 /*! cache: eviction server evicting pages */
 #define	WT_STAT_CONN_CACHE_EVICTION_SERVER_EVICTING	1096
-/*! cache: eviction server skip parent internal page of last seen page. */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SKIP_PARENT_INTL_PAGE_OF_LAST_SEEN_PAGE	1097
 /*! cache: eviction server skips dirty pages during a running checkpoint */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SKIP_DIRTY_PAGES_DURING_CHECKPOINT	1098
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SKIP_DIRTY_PAGES_DURING_CHECKPOINT	1097
+/*! cache: eviction server skips internal pages as it has an active child. */
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SKIP_INTL_PAGE_WITH_ACTIVE_CHILD	1098
 /*! cache: eviction server skips metadata pages with history */
 #define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SKIP_METATDATA_WITH_HISTORY	1099
 /*!
