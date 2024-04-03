@@ -1153,6 +1153,9 @@ wiredtiger_open_common =\
         the list from the reconstructed metadata. The target list must include URIs of type
         \c table:''',
         type='list'),
+    Config('buffer_alignment', '', r'''
+        this option is no longer supported, retained for backward compatibility.''',
+        min='-1', max='1MB', undoc=True),
     Config('builtin_extension_config', '', r'''
         A structure where the keys are the names of builtin extensions and the values are
         passed to WT_CONNECTION::load_extension as the \c config parameter (for example,
@@ -1168,6 +1171,9 @@ wiredtiger_open_common =\
         the number of configuration strings that can be precompiled. Some configuration strings
         are compiled internally when the connection is opened.''',
         min='500'),
+    Config('direct_io', '', r'''
+        this option is no longer supported, retained for backward compatibility.''',
+        type='list', undoc=True),
     Config('encryption', '', r'''
         configure an encryptor for system wide metadata and logs. If a system wide encryptor is
         set, it is also used for encrypting data files and tables, unless encryption configuration
