@@ -717,6 +717,16 @@ config_sanity(WTPERF *wtperf)
 
     opts = wtperf->opts;
 
+    /*
+     * When backup functionalities are enabled, wtperf needs to use copy functions to write backup
+     * files. Therefore, read only cannot be enabled along with backup.
+     */
+    if (opts->backup_interval != 0)
+        if (opts->readonly) {
+            fprintf(stderr, "Readonly cannot be used when backup is configured.\n");
+            return (EINVAL);
+        }
+
     /* Various intervals should be less than the run-time. */
     if (opts->run_time > 0 &&
       ((opts->checkpoint_threads != 0 && opts->checkpoint_interval > opts->run_time) ||

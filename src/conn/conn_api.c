@@ -2786,7 +2786,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
       __conn_get_storage_source, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
-      {"data", WT_DATA_FILE_TYPE}, {"log", WT_LOG_FILE_TYPE}, {NULL, 0}};
+      {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
     WT_CONFIG_ITEM cval, keyid, secretkey, sval;
     WT_CONNECTION_IMPL *conn;
@@ -3041,10 +3041,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
             switch (ft->flag) {
-            case WT_DATA_FILE_TYPE:
+            case WT_FILE_TYPE_DATA:
                 conn->data_extend_len = sval.val;
                 break;
-            case WT_LOG_FILE_TYPE:
+            case WT_FILE_TYPE_LOG:
                 /*
                  * When using "file_extend=(log=)", the val returned is 1. Unset the log extend
                  * length in that case to use the default.

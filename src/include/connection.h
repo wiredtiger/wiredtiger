@@ -709,8 +709,8 @@ struct __wt_connection_impl {
     wt_off_t log_extend_len;  /* file_extend log length */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DATA_FILE_TYPE 0x1ull /* Data files */
-#define WT_LOG_FILE_TYPE 0x2ull  /* Log files */
+#define WT_FILE_TYPE_DATA 0x1ull /* Data files */
+#define WT_FILE_TYPE_LOG 0x2ull  /* Log files */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t write_through;      /* FILE_FLAG_WRITE_THROUGH */
 

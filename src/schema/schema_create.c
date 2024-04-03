@@ -9,26 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_allocation_size_get --
- *     Return a size from the configuration.
- */
-int
-__wt_allocation_size_get(
-  WT_SESSION_IMPL *session, const char **cfg, const char *config_name, uint32_t *allocsizep)
-{
-    WT_CONFIG_ITEM cval;
-    uint32_t allocsize;
-
-    *allocsizep = 0;
-
-    WT_RET(__wt_config_gets(session, cfg, config_name, &cval));
-    allocsize = (uint32_t)cval.val;
-
-    *allocsizep = allocsize;
-    return (0);
-}
-
-/*
  * __check_imported_ts --
  *     Check the aggregated timestamps for each checkpoint in a file that we've imported. By
  *     default, we're not allowed to import files with timestamps ahead of the oldest timestamp
@@ -165,8 +145,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             WT_IGNORE_RET(__wt_fs_remove(session, filename, true, false));
     }
 
-    /* Sanity check the allocation size. */
-    WT_ERR(__wt_allocation_size_get(session, filecfg, "allocation_size", &allocsize));
+    WT_ERR(__wt_config_gets(session, filecfg, "allocation_size", &cval));
+    allocsize = (uint32_t)cval.val;
 
     /*
      * If we are importing an existing object rather than creating a new one, there are two possible
