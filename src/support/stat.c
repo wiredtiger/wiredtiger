@@ -1454,6 +1454,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue empty when topping up",
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server evicting pages",
+  "cache: eviction server skip parent internal page of last seen page.",
   "cache: eviction server skips dirty pages during a running checkpoint",
   "cache: eviction server skips metadata pages with history",
   "cache: eviction server skips pages that are written with transactions greater than the last "
@@ -2202,6 +2203,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_queue_empty = 0;
     stats->cache_eviction_queue_not_empty = 0;
     stats->cache_eviction_server_evicting = 0;
+    stats->cache_eviction_server_skip_parent_intl_page_of_last_seen_page = 0;
     stats->cache_eviction_server_skip_dirty_pages_during_checkpoint = 0;
     stats->cache_eviction_server_skip_metatdata_with_history = 0;
     stats->cache_eviction_server_skip_pages_last_running = 0;
@@ -2913,6 +2915,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_queue_empty += WT_STAT_READ(from, cache_eviction_queue_empty);
     to->cache_eviction_queue_not_empty += WT_STAT_READ(from, cache_eviction_queue_not_empty);
     to->cache_eviction_server_evicting += WT_STAT_READ(from, cache_eviction_server_evicting);
+    to->cache_eviction_server_skip_parent_intl_page_of_last_seen_page +=
+      WT_STAT_READ(from, cache_eviction_server_skip_parent_intl_page_of_last_seen_page);
     to->cache_eviction_server_skip_dirty_pages_during_checkpoint +=
       WT_STAT_READ(from, cache_eviction_server_skip_dirty_pages_during_checkpoint);
     to->cache_eviction_server_skip_metatdata_with_history +=

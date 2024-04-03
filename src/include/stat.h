@@ -462,6 +462,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
     int64_t cache_eviction_server_evicting;
+    int64_t cache_eviction_server_skip_parent_intl_page_of_last_seen_page;
     int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
     int64_t cache_eviction_server_skip_metatdata_with_history;
     int64_t cache_eviction_server_skip_pages_last_running;
