@@ -1777,7 +1777,6 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size, wt_off_t 
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_LOG *log;
     WT_LOG_RECORD *logrec;
     wt_off_t off, remainder;
     size_t allocsize, buf_left, bufsz, rdlen;
@@ -1788,7 +1787,6 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size, wt_off_t 
     corrupt = *hole = false;
 
     conn = S2C(session);
-    log = conn->log;
     remainder = log_size - offset;
 
     /*
@@ -2077,8 +2075,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
      * logging is currently enabled or not.
      */
     lastlog = 0;
+    allocsize = WT_LOG_ALIGN;
     if (log != NULL) {
-        allocsize = WT_LOG_ALIGN;
         WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
         WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
         if (start_lsnp == NULL) {
@@ -2097,7 +2095,6 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
          * Set allocsize to the minimum alignment it could be. Larger records and larger allocation
          * boundaries should always be a multiple of this.
          */
-        allocsize = WT_LOG_ALIGN;
         firstlog = UINT32_MAX;
         WT_RET(__log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
         if (logcount == 0)
