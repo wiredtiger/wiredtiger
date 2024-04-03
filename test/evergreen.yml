@@ -3074,7 +3074,7 @@ tasks:
             #######################################################
             # Obtain the complexity metrics for the 'previous' code
             #######################################################
-            git worktree add -d wiredtiger_previous "${github_commit}"
+            git worktree add --detach wiredtiger_previous "${github_commit}"
             cd wiredtiger_previous
             if [ ${is_patch|false} = true ]; then
               # Checkout the point at which this patch/branch diverged from develop
