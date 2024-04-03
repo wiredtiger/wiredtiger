@@ -301,10 +301,12 @@ functions:
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
 
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
-            bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
+            # Run this script in its own process as it depends on managing
+            # shell options.
+            /bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
 
-            # Preload tcmalloc in the spawnhost environment: this will affect
-            # ALL binaries executed in the test enviroment.
+            # Preload tcmalloc in the Evergreen environment: this will affect
+            # ALL binaries.
             export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
           fi
 
