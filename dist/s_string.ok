@@ -9,7 +9,9 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
+ANDed
 APIs
+AREALLSET
 ARG
 ARGS
 ASAN
@@ -189,6 +191,7 @@ INTRINSICS
 INUSE
 INVL
 ISA
+ISSET
 ITEMs
 InitializeCriticalSectionAndSpinCount
 Instantiation
@@ -514,6 +517,7 @@ blk
 blkcache
 blkincr
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -624,7 +628,6 @@ curextract
 curfile
 curhs
 curindex
-curjoin
 curlog
 curmetadata
 cursoring
@@ -680,7 +683,6 @@ difftime
 dir
 directio
 dirlist
-disjunction
 disproportionally
 dlclose
 dlh
@@ -741,9 +743,14 @@ fclose
 fcntl
 fd
 fdatasync
+fe
+feffff
 fextend
 ffc
 fff
+fffff
+ffffff
+ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -791,7 +798,6 @@ gb
 gcc
 gcp
 gdb
-ge
 getenv
 getlasterror
 getline
@@ -884,7 +890,6 @@ ispo
 isprint
 isrc
 isspace
-iter
 jjj
 js
 json
@@ -1079,6 +1084,7 @@ packv
 pageref
 pagesize
 param
+params
 pareto
 parserp
 patchp
@@ -1173,6 +1179,7 @@ risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
@@ -1246,6 +1253,7 @@ strdup
 strerror
 strftime
 strlen
+strncmp
 strncpy
 strndup
 strnlen

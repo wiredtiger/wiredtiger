@@ -73,7 +73,6 @@ func_ok()
         -e '/int __wt_buf_fmt$/d' \
         -e '/int __wt_count_birthmarks$/d' \
         -e '/int __wt_conn_prefetch_clear_tree$/d' \
-        -e '/int __wt_curjoin_joined$/d' \
         -e '/int __wt_cursor_noop$/d' \
         -e '/int __wt_epoch$/d' \
         -e '/int __wt_errno$/d' \
@@ -89,7 +88,6 @@ func_ok()
         -e '/int __wt_spin_trylock$/d' \
         -e '/int __wt_stat_connection_desc$/d' \
         -e '/int __wt_stat_dsrc_desc$/d' \
-        -e '/int __wt_stat_join_desc$/d' \
         -e '/int __wt_stat_session_desc/d' \
         -e '/int __wt_txn_read_upd_list$/d' \
         -e '/int __wt_txn_rollback_required$/d' \

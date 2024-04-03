@@ -191,6 +191,9 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC(restart, float);
         UPDATE_SPEC(set_stable_timestamp, float);
 
+        UPDATE_SPEC(remove_existing, float);
+        UPDATE_SPEC(update_existing, float);
+
         UPDATE_SPEC(prepared_transaction, float);
         UPDATE_SPEC(nonprepared_transaction_rollback, float);
         UPDATE_SPEC(prepared_transaction_rollback_after_prepare, float);
@@ -303,7 +306,7 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
                 *seq.get() << op.operation;
                 op.seq_no = seq->seq_no();
                 sequences.push_back(seq);
-                txn_to_sequence[txn_id] = seq;
+                txn_to_sequence[txn_id] = std::move(seq);
             } else {
                 /* Existing transactions. */
                 auto itr = txn_to_sequence.find(txn_id);
@@ -325,7 +328,7 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
               std::make_shared<model::kv_workload_sequence>(sequences.size());
             *seq.get() << op.operation;
             op.seq_no = seq->seq_no();
-            sequences.push_back(seq);
+            sequences.push_back(std::move(seq));
 
             /* Operations that clear the transaction state. */
             if (std::holds_alternative<model::operation::crash>(op.operation) ||

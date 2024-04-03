@@ -43,6 +43,11 @@ class BackgroundCompactStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags)
 
+class BackupStat(Stat):
+    prefix = 'backup'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BackupStat.prefix, desc, flags)
+
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
@@ -92,10 +97,6 @@ class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
-class JoinStat(Stat):
-    prefix = 'join'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, JoinStat.prefix, desc, flags)
 class LockStat(Stat):
     prefix = 'lock'
     def __init__(self, name, desc, flags=''):
@@ -183,11 +184,6 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('backup_blocks', 'total modified incremental blocks'),
-    ConnStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
-    ConnStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
-    ConnStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),
-    ConnStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
@@ -221,6 +217,16 @@ conn_stats = [
     BackgroundCompactStat('background_compact_skipped', 'background compact skipped file as not meeting requirements for compaction', 'no_scale'),
     BackgroundCompactStat('background_compact_success', 'background compact successful calls', 'no_scale'),
     BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
+
+    ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks', 'total modified incremental blocks'),
+    BackupStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_granularity', 'backup granularity size'),
+    BackupStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),
+    BackupStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
 
     ##########################################
     # Block cache statistics
@@ -955,6 +961,12 @@ conn_dsrc_stats = [
     AutoCommitStat('autocommit_update_retry', 'retries for update operations'),
 
     ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks_compressed', 'total modified incremental blocks with compressed data'),
+    BackupStat('backup_blocks_uncompressed', 'total modified incremental blocks without compressed data'),
+
+    ##########################################
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
@@ -1158,19 +1170,6 @@ conn_dsrc_stats = [
 ]
 
 conn_dsrc_stats = sorted(conn_dsrc_stats, key=attrgetter('desc'))
-
-##########################################
-# Cursor Join statistics
-##########################################
-join_stats = [
-    JoinStat('bloom_false_positive', 'bloom filter false positives'),
-    JoinStat('bloom_insert', 'items inserted into a bloom filter'),
-    JoinStat('iterated', 'items iterated'),
-    JoinStat('main_access', 'accesses to the main table'),
-    JoinStat('membership_check', 'checks that conditions of membership are satisfied'),
-]
-
-join_stats = sorted(join_stats, key=attrgetter('desc'))
 
 ##########################################
 # Session statistics

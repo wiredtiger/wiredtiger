@@ -20,7 +20,7 @@ static void __evict_tune_workers(WT_SESSION_IMPL *session);
 static int __evict_walk(WT_SESSION_IMPL *, WT_EVICT_QUEUE *);
 static int __evict_walk_tree(WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, u_int *);
 
-#define WT_EVICT_HAS_WORKERS(s) (S2C(s)->evict_threads.current_threads > 1)
+#define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
 
 /*
  * __evict_lock_handle_list --
@@ -200,7 +200,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CACHE *cache;
 
-    WT_ASSERT(session, __wt_ref_is_root(ref) || ref->state == WT_REF_LOCKED);
+    WT_ASSERT(session, __wt_ref_is_root(ref) || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
     /* Fast path: if the page isn't in the queue, don't bother searching. */
     if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
@@ -637,7 +637,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * values could lead to surprising bugs in the future.
      */
     if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
-        __wt_atomic_store64(&cache->bytes_hs, hs_tree->bytes_inmem);
+        __wt_atomic_store64(&cache->bytes_hs, __wt_atomic_load64(&hs_tree->bytes_inmem));
         cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
     }
 
@@ -1033,6 +1033,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     uint64_t delta_msec, delta_pages;
     uint64_t eviction_progress, eviction_progress_rate, time_diff;
+    uint32_t current_threads;
     int32_t cur_threads, i, target_threads, thread_surplus;
 
     conn = S2C(session);
@@ -1066,8 +1067,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
         cache->evict_tune_progress_rate_max = 0;
 
         /* Reduce the number of eviction workers by one */
-        thread_surplus =
-          (int32_t)conn->evict_threads.current_threads - (int32_t)conn->evict_threads_min;
+        thread_surplus = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads) -
+          (int32_t)conn->evict_threads_min;
 
         if (thread_surplus > 0) {
             __wt_thread_group_stop_one(session, &conn->evict_threads);
@@ -1107,7 +1108,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      */
     if (eviction_progress_rate > cache->evict_tune_progress_rate_max) {
         cache->evict_tune_progress_rate_max = eviction_progress_rate;
-        cache->evict_tune_workers_best = conn->evict_threads.current_threads;
+        cache->evict_tune_workers_best = __wt_atomic_load32(&conn->evict_threads.current_threads);
     }
 
     /*
@@ -1118,19 +1119,20 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      * back to the best observed number of workers and settle into a stable state.
      */
     if (cache->evict_tune_num_points >= cache->evict_tune_datapts_needed) {
-        if (cache->evict_tune_workers_best == conn->evict_threads.current_threads &&
-          conn->evict_threads.current_threads < conn->evict_threads_max) {
+        current_threads = __wt_atomic_load32(&conn->evict_threads.current_threads);
+        if (cache->evict_tune_workers_best == current_threads &&
+          current_threads < conn->evict_threads_max) {
             /*
              * Keep adding workers. We will check again at the next check point.
              */
             cache->evict_tune_datapts_needed += WT_MIN(EVICT_TUNE_DATAPT_MIN,
-              (conn->evict_threads_max - conn->evict_threads.current_threads) / EVICT_TUNE_BATCH);
+              (conn->evict_threads_max - current_threads) / EVICT_TUNE_BATCH);
         } else {
             /*
              * We are past the inflection point. Choose the best number of eviction workers observed
              * and settle into a stable state.
              */
-            thread_surplus = (int32_t)conn->evict_threads.current_threads -
+            thread_surplus = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads) -
               (int32_t)cache->evict_tune_workers_best;
 
             for (i = 0; i < thread_surplus; i++) {
@@ -1151,7 +1153,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
         cache->evict_tune_datapts_needed = EVICT_TUNE_DATAPT_MIN;
 
     if (F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
-        cur_threads = (int32_t)conn->evict_threads.current_threads;
+        cur_threads = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads);
         target_threads = WT_MIN(cur_threads + EVICT_TUNE_BATCH, (int32_t)conn->evict_threads_max);
         /*
          * Start the new threads.
@@ -1466,7 +1468,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
      */
     total_candidates = (u_int)(F_ISSET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_UPDATES) ?
         __wt_cache_pages_inuse(cache) :
-        cache->pages_dirty_leaf);
+        __wt_atomic_load64(&cache->pages_dirty_leaf));
     max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
 
 retry:
@@ -2173,7 +2175,8 @@ fast:
             ref = NULL;
         } else {
             while (ref != NULL &&
-              (ref->state != WT_REF_MEM || __wt_readgen_evict_soon(&ref->page->read_gen)))
+              (WT_REF_GET_STATE(ref) != WT_REF_MEM ||
+                __wt_readgen_evict_soon(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
         btree->evict_ref = ref;
@@ -2321,7 +2324,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
          * Lock the page while holding the eviction mutex to prevent multiple attempts to evict it.
          * For pages that are already being evicted, this operation will fail and we will move on.
          */
-        if ((previous_state = evict->ref->state) != WT_REF_MEM ||
+        if ((previous_state = WT_REF_GET_STATE(evict->ref)) != WT_REF_MEM ||
           !WT_REF_CAS_STATE(session, evict->ref, previous_state, WT_REF_LOCKED)) {
             __evict_list_clear(session, evict);
             continue;
@@ -2373,7 +2376,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     WT_TRACK_OP_INIT(session);
 
     WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref, &previous_state));
-    WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
     cache = S2C(session)->cache;
     time_start = 0;

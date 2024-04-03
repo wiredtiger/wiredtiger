@@ -191,14 +191,6 @@ struct __wt_cursor_hs;
 typedef struct __wt_cursor_hs WT_CURSOR_HS;
 struct __wt_cursor_index;
 typedef struct __wt_cursor_index WT_CURSOR_INDEX;
-struct __wt_cursor_join;
-typedef struct __wt_cursor_join WT_CURSOR_JOIN;
-struct __wt_cursor_join_endpoint;
-typedef struct __wt_cursor_join_endpoint WT_CURSOR_JOIN_ENDPOINT;
-struct __wt_cursor_join_entry;
-typedef struct __wt_cursor_join_entry WT_CURSOR_JOIN_ENTRY;
-struct __wt_cursor_join_iter;
-typedef struct __wt_cursor_join_iter WT_CURSOR_JOIN_ITER;
 struct __wt_cursor_json;
 typedef struct __wt_cursor_json WT_CURSOR_JSON;
 struct __wt_cursor_log;
@@ -265,10 +257,6 @@ struct __wt_insert;
 typedef struct __wt_insert WT_INSERT;
 struct __wt_insert_head;
 typedef struct __wt_insert_head WT_INSERT_HEAD;
-struct __wt_join_stats;
-typedef struct __wt_join_stats WT_JOIN_STATS;
-struct __wt_join_stats_group;
-typedef struct __wt_join_stats_group WT_JOIN_STATS_GROUP;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
 struct __wt_log;
@@ -559,6 +547,7 @@ typedef uint64_t wt_timestamp_t;
 #include "misc_inline.h"    /* required by mutex_inline.h */
 
 #include "buf_inline.h"       /* required by cell_inline.h */
+#include "ref_inline.h"       /* required by btree_inline.h */
 #include "timestamp_inline.h" /* required by btree_inline.h */
 #include "cell_inline.h"      /* required by btree_inline.h */
 #include "mutex_inline.h"     /* required by btree_inline.h */

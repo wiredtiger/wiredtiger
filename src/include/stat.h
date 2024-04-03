@@ -388,6 +388,14 @@ struct __wt_connection_stats {
     int64_t background_compact_success;
     int64_t background_compact_timeout;
     int64_t background_compact_files_tracked;
+    int64_t backup_cursor_open;
+    int64_t backup_dup_open;
+    int64_t backup_granularity;
+    int64_t backup_incremental;
+    int64_t backup_start;
+    int64_t backup_blocks;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
     int64_t block_cache_blocks_evicted;
@@ -679,24 +687,19 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
-    int64_t backup_cursor_open;
-    int64_t backup_dup_open;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;
     int64_t buckets;
-    int64_t backup_incremental;
     int64_t memory_allocation;
     int64_t memory_free;
     int64_t memory_grow;
     int64_t no_session_sweep_5min;
     int64_t no_session_sweep_60min;
-    int64_t backup_start;
     int64_t cond_wait;
     int64_t rwlock_read;
     int64_t rwlock_write;
     int64_t fsync_io;
-    int64_t backup_blocks;
     int64_t read_io;
     int64_t write_io;
     int64_t cursor_tree_walk_del_page_skip;
@@ -1068,6 +1071,8 @@ struct __wt_dsrc_stats {
     int64_t bloom_size;
     int64_t autocommit_readonly_retry;
     int64_t autocommit_update_retry;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
@@ -1351,18 +1356,6 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_hs_removed;
     int64_t txn_rts_hs_removed_dryrun;
     int64_t txn_update_conflict;
-};
-
-/*
- * Statistics entries for join cursors.
- */
-#define WT_JOIN_STATS_BASE 3000
-struct __wt_join_stats {
-    int64_t main_access;
-    int64_t bloom_false_positive;
-    int64_t membership_check;
-    int64_t bloom_insert;
-    int64_t iterated;
 };
 
 /*
