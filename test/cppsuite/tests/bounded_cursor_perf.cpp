@@ -68,6 +68,10 @@ public:
     void
     read_operation(thread_worker *tc) override final
     {
+        /* This test will only work with one read thread. */
+        testutil_assert(tc->thread_count == 1);
+
+        /* Setup the compiled configuration strings. */
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
         const char *compiled_ptr_lower;
         const char *compiled_ptr_upper;
@@ -75,12 +79,6 @@ public:
           conn->compile_configuration(conn, "WT_CURSOR.bound", "bound=lower", &compiled_ptr_lower));
         testutil_check(
           conn->compile_configuration(conn, "WT_CURSOR.bound", "bound=upper", &compiled_ptr_upper));
-        /* This test will only work with one read thread. */
-        testutil_assert(tc->thread_count == 1);
-        /*
-         * Each read operation performs next() and prev() calls with both normal cursors and bounded
-         * cursors.
-         */
 
         /* Initialize the different timers for each function. */
         execution_timer bounded_next("bounded_next_ticks", test::_args.test_name);
@@ -95,53 +93,67 @@ public:
         testutil_assert(tc->collection_count == 1);
         collection &coll = tc->db.get_collection(0);
 
-        /* Opening the cursors. */
+        /* Open the cursors. */
         scoped_cursor next_cursor = tc->session.open_scoped_cursor(coll.name);
         scoped_cursor prev_cursor = tc->session.open_scoped_cursor(coll.name);
         scoped_cursor next_range_cursor = tc->session.open_scoped_cursor(coll.name);
         scoped_cursor prev_range_cursor = tc->session.open_scoped_cursor(coll.name);
 
         /*
-         * The keys in the collection are contiguous from 0 -> key_count -1. Applying the range
-         * cursor bounds outside of the key range for the purpose of this test.
+         * The keys in the collection are contiguous from 0 -> key_count -1. Apply the range cursor
+         * bounds outside of the key range for the purpose of this test.
          */
-        int i = 0;
+        bool set_bounds = true;
+        bool set_compiled = true;
         while (tc->running()) {
-            if (i % 2 == 0) {
-                set_bound_key_upper(next_range_cursor, compiled_config_timer, compiled_ptr_upper);
-                set_bound_key_lower(next_range_cursor, compiled_config_timer, compiled_ptr_lower);
-                set_bound_key_upper(prev_range_cursor, compiled_config_timer, compiled_ptr_upper);
-                set_bound_key_lower(prev_range_cursor, compiled_config_timer, compiled_ptr_lower);
-            } else {
-                set_bound_key_upper(next_range_cursor, regular_config_timer, "bound=upper");
-                set_bound_key_lower(next_range_cursor, regular_config_timer, "bound=lower");
-                set_bound_key_upper(prev_range_cursor, regular_config_timer, "bound=upper");
-                set_bound_key_lower(prev_range_cursor, regular_config_timer, "bound=lower");
+            if (set_bounds) {
+                /* Switch between setting pre-compiled strings and non-compiled. */
+                if (set_compiled) {
+                    set_bound_key_upper(
+                      next_range_cursor, compiled_config_timer, compiled_ptr_upper);
+                    set_bound_key_lower(
+                      next_range_cursor, compiled_config_timer, compiled_ptr_lower);
+                    set_bound_key_upper(
+                      prev_range_cursor, compiled_config_timer, compiled_ptr_upper);
+                    set_bound_key_lower(
+                      prev_range_cursor, compiled_config_timer, compiled_ptr_lower);
+                    set_compiled = false;
+                } else {
+                    set_bound_key_upper(next_range_cursor, regular_config_timer, "bound=upper");
+                    set_bound_key_lower(next_range_cursor, regular_config_timer, "bound=lower");
+                    set_bound_key_upper(prev_range_cursor, regular_config_timer, "bound=upper");
+                    set_bound_key_lower(prev_range_cursor, regular_config_timer, "bound=lower");
+                    set_compiled = true;
+                }
+                set_bounds = false;
             }
-            ++i;
-            int ret_next = 0, ret_prev = 0;
-            while (ret_next != WT_NOTFOUND && ret_prev != WT_NOTFOUND && tc->running()) {
-                auto range_ret_next = bounded_next.track([&next_range_cursor]() -> int {
-                    return next_range_cursor->next(next_range_cursor.get());
-                });
-                auto ret_next = default_next.track(
-                  [&next_cursor]() -> int { return next_cursor->next(next_cursor.get()); });
 
-                auto range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
-                    return prev_range_cursor->prev(prev_range_cursor.get());
-                });
-                auto ret_prev = default_prev.track(
-                  [&prev_cursor]() -> int { return prev_cursor->prev(prev_cursor.get()); });
+            /* Advance the cursors one position. */
+            auto range_ret_next = bounded_next.track([&next_range_cursor]() -> int {
+                return next_range_cursor->next(next_range_cursor.get());
+            });
+            auto ret_next = default_next.track(
+              [&next_cursor]() -> int { return next_cursor->next(next_cursor.get()); });
+            auto range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
+                return prev_range_cursor->prev(prev_range_cursor.get());
+            });
+            auto ret_prev = default_prev.track(
+              [&prev_cursor]() -> int { return prev_cursor->prev(prev_cursor.get()); });
 
-                testutil_assert((ret_next == 0 || ret_next == WT_NOTFOUND) &&
-                  (ret_prev == 0 || ret_prev == WT_NOTFOUND));
-                testutil_assert((range_ret_prev == 0 || range_ret_prev == WT_NOTFOUND) &&
-                  (range_ret_next == 0 || range_ret_next == WT_NOTFOUND));
+            /* They should all finish their traversal at the same time. Assert that they do. */
+            if (range_ret_next == WT_NOTFOUND || ret_next == WT_NOTFOUND ||
+              range_ret_prev == WT_NOTFOUND || ret_prev == WT_NOTFOUND) {
+                testutil_assert(range_ret_next == ret_next);
+                testutil_assert(ret_next == range_ret_prev);
+                testutil_assert(range_ret_prev == ret_prev);
+
+                /* Reset the cursors and indicate that bounds need applying. */
+                testutil_check(next_cursor->reset(next_cursor.get()));
+                testutil_check(prev_cursor->reset(prev_cursor.get()));
+                testutil_check(next_range_cursor->reset(next_range_cursor.get()));
+                testutil_check(prev_range_cursor->reset(prev_range_cursor.get()));
+                set_bounds = true;
             }
-            testutil_check(next_cursor->reset(next_cursor.get()));
-            testutil_check(prev_cursor->reset(prev_cursor.get()));
-            testutil_check(next_range_cursor->reset(next_range_cursor.get()));
-            testutil_check(prev_range_cursor->reset(prev_range_cursor.get()));
         }
     }
 };
