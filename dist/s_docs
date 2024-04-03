@@ -54,13 +54,13 @@ wtperf_config()
      echo '.'
      echo 'w'
      echo 'q') | ed $t2 1>/dev/null 2>/dev/null
-    if ! cmp -s ../src/docs/wtperf.dox $t2; then
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        echo '../src/docs/wtperf.dox changed. wtperf.dox needs to be committed.'
-        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        e=1
-        mv $t2 ../src/docs/wtperf.dox
-    fi
+     if ! cmp -s ../src/docs/wtperf.dox $t2; then
+         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+         echo '../src/docs/wtperf.dox changed. wtperf.dox needs to be committed.'
+         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+         e=1
+         mv $t2 ../src/docs/wtperf.dox
+     fi
 }
 
 glossarychk()
