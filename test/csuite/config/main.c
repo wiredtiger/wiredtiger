@@ -497,14 +497,14 @@ main(int argc, char *argv[])
 
     /*
      * Make sure we've been able to successfully check the expected number of configuration
-     * compilations. When this tests, this number will need to change. What we get by having an
-     * exact number is protection against the WiredTiger verbose output changing or being reduced in
-     * the future. If that were to happen, we want to fail, since without verbose feedback, we
+     * compilations. When this tests fails, this number will need to change. What we get by having
+     * an exact number is protection against the WiredTiger verbose output changing or being reduced
+     * in the future. If that were to happen, we want to fail, since without verbose feedback, we
      * aren't doing the checks that we need.
      */
     printf(
       "checked %d successful configuration compilation outputs\n", event_handler.state.completed);
-    testutil_assert(event_handler.state.completed == 44);
+    testutil_assert(event_handler.state.completed == 45);
 
     free_parse_state(&event_handler.state);
     testutil_cleanup(opts);
