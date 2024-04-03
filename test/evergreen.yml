@@ -3075,9 +3075,8 @@ tasks:
             #######################################################
             # Obtain the complexity metrics for the 'previous' code
             #######################################################
-            git clone https://github.com/wiredtiger/wiredtiger.git wiredtiger_previous
+            git worktree add -d wiredtiger_previous "${github_commit}"
             cd wiredtiger_previous
-            git checkout ${github_commit}
             if [ ${is_patch|false} = true ]; then
               # Checkout the point at which this patch/branch diverged from develop
               git checkout `python3 dist/common_functions.py last_commit_from_dev`
