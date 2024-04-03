@@ -235,7 +235,7 @@ struct __wt_myslot {
     uint32_t flags;
 };
 
-#define WT_LOG_END_HEADER log->allocsize
+#define WT_LOG_END_HEADER WT_LOG_ALIGN
 
 struct __wt_log {
     uint32_t allocsize;             /* Allocation alignment size */

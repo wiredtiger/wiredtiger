@@ -10,9 +10,6 @@ set(WT_POSIX ON CACHE BOOL "")
 # builds.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE" CACHE STRING "" FORCE)
 
-# Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
-set(WT_BUFFER_ALIGNMENT_DEFAULT "4096" CACHE STRING "")
-
 # ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC.
 # If the compilation check in rcpc_test passes also turn on the RCpc instructions.
 if(HAVE_RCPC)

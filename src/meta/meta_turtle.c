@@ -274,6 +274,7 @@ err:
 static int
 __metadata_load_bulk(WT_SESSION_IMPL *session)
 {
+    WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     uint32_t allocsize;
@@ -302,7 +303,9 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
          */
         WT_ERR(cursor->get_value(cursor, &value));
         filecfg[1] = value;
-        WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
+        WT_ERR(__wt_config_gets(session, filecfg, "allocation_size", &cval));
+        allocsize = (uint32_t)cval.val;
+
         WT_ERR(__wt_block_manager_create(session, key, allocsize));
     }
     WT_ERR_NOTFOUND_OK(ret, false);

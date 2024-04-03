@@ -92,7 +92,6 @@ Cygwin
 DAX
 DESC
 DHANDLE
-DIRECTIO
 DNE
 DONTNEED
 DS
@@ -232,7 +231,6 @@ LogSystemInterface
 MADV
 MALLOC
 MEM
-MEMALIGN
 MERCHANTABILITY
 MONGODB
 MOVEFILE
@@ -978,7 +976,6 @@ mb
 mbll
 mbss
 mem
-memalign
 membar
 memcmp
 memcpy
