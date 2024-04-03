@@ -210,7 +210,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
       (uintmax_t)(file_size / 10));
 
     /* Skip files that have failed to make progress on previous compact iterations. */
-    if (!estimate && block->compact_estimated && !*skipp) {
+    if (block->compact_estimated && !*skipp) {
         if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
             __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
               "%s: compaction failed to make progress, no new pages rewritten", block->name);
