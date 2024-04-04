@@ -3051,10 +3051,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (cval.val)
         F_SET(conn, WT_CONN_CACHE_CURSORS);
 
-    WT_ERR(__wt_config_gets(session, cfg, "checkpoint_cleanup", &cval));
-    if (WT_CONFIG_LIT_MATCH("reclaim_space", cval))
-        F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
-
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
     if (cval.val)
         F_SET(conn, WT_CONN_CKPT_SYNC);

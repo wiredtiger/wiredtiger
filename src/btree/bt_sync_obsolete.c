@@ -650,7 +650,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
-    if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("reclaim_space", cval))
         F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
 
     /* Set first, the thread might run before we finish up. */
