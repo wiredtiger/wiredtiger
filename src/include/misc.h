@@ -243,7 +243,7 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
 #define LF_ISSET(mask) FLD_ISSET(flags, mask)
 #define LF_MASK(mask) FLD_MASK(flags, mask)
 #define LF_SET(mask) FLD_SET(flags, mask)
-#define LF_AREALLSSET(mask) FLD_AREALLSET(flags, mask)
+#define LF_AREALLSET(mask) FLD_AREALLSET(flags, mask)
 
 /*
  * Insertion sort, for sorting small sets of values.
