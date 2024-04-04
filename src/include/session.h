@@ -83,8 +83,8 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 #define WT_SESSION_CURSOR_SWEEP_MAX 64
 
 /*
- * Default session ID, used during startup and in cases where a properly initialized session is
- * not available.
+ * Default session ID, used during startup and in cases where a properly initialized session is not
+ * available.
  */
 #define WT_SESSION_ID_DEFAULT 0x0
 
