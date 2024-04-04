@@ -1338,7 +1338,7 @@ cursor_bound_config = [
     Config('bound', '', r'''
         configures which bound is being operated on. It takes one of two values, "lower" or "upper".
         ''',
-        choices=['lower','upper'])
+        choices=['lower','upper']),
 ]
 
 cursor_runtime_config = [
