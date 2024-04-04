@@ -2825,6 +2825,7 @@ tasks:
   - name: configure-combinations
     commands:
       - func: "get project"
+      - func: "get automation-scripts"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -3288,6 +3289,7 @@ tasks:
   - name: long-test
     commands:
       - func: "get project"
+      - func: "get automation-scripts"
       - func: "configure wiredtiger"
       - func: "make wiredtiger"
 
