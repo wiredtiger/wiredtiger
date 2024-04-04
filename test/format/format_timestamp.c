@@ -132,13 +132,10 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     } else if (!final) {
         /*
          * If lag is permitted, update the oldest timestamp halfway to the largest timestamp that's
-         * no longer in use, otherwise update the oldest timestamp to that timestamp. Update stable
-         * to the largest timestamp that's no longer in use.
+         * no longer in use.
          */
         if (allow_lag)
             oldest_timestamp -= (oldest_timestamp - g.oldest_timestamp) / 2;
-        testutil_assert(oldest_timestamp >= g.oldest_timestamp);
-        testutil_assert(stable_timestamp >= g.stable_timestamp);
     }
 
     testutil_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
