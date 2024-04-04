@@ -36,8 +36,8 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
-    block->compact_prev_pages_rewritten = 0;
     block->compact_pct_tenths = 0;
+    block->compact_prev_pages_rewritten = 0;
     block->compact_prev_size = 0;
     block->compact_session_id = session->id;
 
