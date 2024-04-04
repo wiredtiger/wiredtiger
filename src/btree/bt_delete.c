@@ -167,6 +167,15 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         goto err;
     if (addr.ta.prepare)
         goto err;
+
+    /*
+     * When performing a truncate operation with no associated timestamp, limit fast-truncate to
+     * pages where all its data is globally visible.
+     */
+    if (!__wt_txn_visible_all(session, addr.ta.newest_txn, addr.ta.newest_start_durable_ts) &&
+      F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
+        goto err;
+
     /*
      * History store data are always visible. No need to check visibility. Other than history store,
      * use the max durable timestamp that is available in the page aggregation for the visibility
