@@ -30,17 +30,17 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# test_truncate24.py
+# test_truncate25.py
 # Ensure that any history store records are correctly removed when doing
 # a truncate operation with no timestamp.
 
 @wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
-class test_truncate24(wttest.WiredTigerTestCase):
-    uri = 'table:test_truncate24'
+class test_truncate25(wttest.WiredTigerTestCase):
+    uri = 'table:test_truncate25'
     conn_config = 'statistics=(all)'
     nrows = 10000
 
-    def test_truncate24(self):
+    def test_truncate25(self):
         ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S')
         ds.populate()
 
