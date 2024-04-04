@@ -43,6 +43,11 @@ class BackgroundCompactStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags)
 
+class BackupStat(Stat):
+    prefix = 'backup'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BackupStat.prefix, desc, flags)
+
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
@@ -183,15 +188,6 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('api_call_current', 'threads currently in the library application', 'no_clear,no_scale,size'),
-    ConnStat('api_call_current_int', 'threads currently in the library internal', 'no_clear,no_scale,size'),
-    ConnStat('api_call_current_cursor', 'threads currently in the library doing cursor operations application', 'no_clear,no_scale,size'),
-    ConnStat('api_call_current_cursor_int', 'threads currently in the library doing cursor operations internal', 'no_clear,no_scale,size'),
-    ConnStat('backup_blocks', 'total modified incremental blocks'),
-    ConnStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
-    ConnStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
-    ConnStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),
-    ConnStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
@@ -212,6 +208,14 @@ conn_stats = [
     ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
+    # API utilization statistics
+    ##########################################
+    ConnStat('api_call_current', 'threads currently in the library application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_int', 'threads currently in the library internal', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_cursor', 'threads currently in the library doing cursor operations application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_cursor_int', 'threads currently in the library doing cursor operations internal', 'no_clear,no_scale,size'),
+
+    ##########################################
     # Background compaction statistics
     ##########################################
     BackgroundCompactStat('background_compact_bytes_recovered', 'background compact recovered bytes', 'no_scale'),
@@ -225,6 +229,16 @@ conn_stats = [
     BackgroundCompactStat('background_compact_skipped', 'background compact skipped file as not meeting requirements for compaction', 'no_scale'),
     BackgroundCompactStat('background_compact_success', 'background compact successful calls', 'no_scale'),
     BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
+
+    ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks', 'total modified incremental blocks'),
+    BackupStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_granularity', 'backup granularity size'),
+    BackupStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),
+    BackupStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
 
     ##########################################
     # Block cache statistics
@@ -810,6 +824,7 @@ dsrc_stats = [
     BtreeStat('btree_column_rle', 'column-store variable-size RLE encoded values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_tws', 'column-store fixed-size time windows', 'no_scale,tree_walk'),
     BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
+    BtreeStat('btree_compact_bytes_rewritten_expected', 'btree expected number of compact bytes rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'btree compact pages rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten_expected', 'btree expected number of compact pages rewritten', 'no_clear,no_scale'),
@@ -956,6 +971,12 @@ conn_dsrc_stats = [
     ##########################################
     AutoCommitStat('autocommit_readonly_retry', 'retries for readonly operations'),
     AutoCommitStat('autocommit_update_retry', 'retries for update operations'),
+
+    ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks_compressed', 'total modified incremental blocks with compressed data'),
+    BackupStat('backup_blocks_uncompressed', 'total modified incremental blocks without compressed data'),
 
     ##########################################
     # Cache and eviction statistics

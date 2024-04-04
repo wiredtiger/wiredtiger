@@ -83,7 +83,7 @@ public:
     inline int
     run_operation(const operation::any &op)
     {
-        int ret;
+        int ret = WT_ERROR; /* So that Coverity does not complain. */
         std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
         return ret;
     }
@@ -144,7 +144,7 @@ protected:
     {
         kv_table_ptr table = _database.create_table(op.name);
         table->set_key_value_format(op.key_format, op.value_format);
-        add_table(op.table_id, table);
+        add_table(op.table_id, std::move(table));
         return 0;
     }
 

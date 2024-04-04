@@ -324,7 +324,7 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF
     txn = session->txn;
     page_del = ref->page_del;
 
-    WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = txn->commit_timestamp;
@@ -368,11 +368,20 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
     if (previous_state != WT_REF_DELETED) {
         WT_ASSERT(session, previous_state == WT_REF_MEM);
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        if ((updp = ref->page->modify->inst_updates) != NULL)
-            for (; *updp != NULL; ++updp) {
-                (*updp)->start_ts = txn->commit_timestamp;
-                (*updp)->durable_ts = txn->durable_timestamp;
+        if ((updp = ref->page->modify->inst_updates) != NULL) {
+            /*
+             * If we have already set the timestamp, no need to set the timestamp again. We have
+             * either set the timestamp on all the updates, or we have set the timestamp on none of
+             * the updates.
+             */
+            if (*updp != NULL && (*updp)->start_ts == WT_TS_NONE) {
+                do {
+                    (*updp)->start_ts = txn->commit_timestamp;
+                    (*updp)->durable_ts = txn->durable_timestamp;
+                    ++updp;
+                } while (*updp != NULL);
             }
+        }
     }
 
     __txn_op_delete_commit_apply_page_del_timestamp(session, ref);
@@ -1299,7 +1308,7 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
+        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }

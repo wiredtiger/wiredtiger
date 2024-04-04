@@ -65,10 +65,22 @@ protected:
         }
 
         /*
+         * session_context::session_context --
+         *     Delete the copy constructor.
+         */
+        session_context(const session_context &) = delete;
+
+        /*
          * session_context::~session_context --
          *     Destroy the context, alongside the corresponding resources.
          */
         ~session_context();
+
+        /*
+         * session_context::operator= --
+         *     Delete the assignment operator.
+         */
+        session_context &operator=(const session_context &) = delete;
 
         /*
          * session_context::session --
@@ -95,7 +107,7 @@ protected:
         static inline cursor_id_t
         cursor_id(table_id_t table_id, unsigned table_cur_id)
         {
-            if (table_cur_id < 0 || table_cur_id >= k_cursors_per_table)
+            if (table_cur_id >= k_cursors_per_table)
                 throw model_exception("Cursor ID out of range");
             return (cursor_id_t)(table_id * k_cursors_per_table + table_cur_id);
         }
@@ -162,10 +174,22 @@ public:
     }
 
     /*
+     * kv_workload_runner_wt::kv_workload_runner_wt --
+     *     Delete the copy constructor.
+     */
+    kv_workload_runner_wt(const kv_workload_runner_wt &) = delete;
+
+    /*
      * kv_workload_runner_wt::~kv_workload_runner_wt --
-     *     Clean up the workload
+     *     Clean up the workload.
      */
     ~kv_workload_runner_wt();
+
+    /*
+     * kv_workload_runner_wt::operator= --
+     *     Delete the assignment operator.
+     */
+    kv_workload_runner_wt &operator=(const kv_workload_runner_wt &) = delete;
 
     /*
      * kv_workload::run --
@@ -181,7 +205,7 @@ protected:
     inline int
     run_operation(const operation::any &op)
     {
-        int ret;
+        int ret = WT_ERROR; /* So that Coverity does not complain. */
         std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
         return ret;
     }
