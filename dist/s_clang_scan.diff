@@ -4,7 +4,6 @@ wiredtiger/src/btree/bt_sync_obsolete.c The left operand of '==' is a garbage va
 wiredtiger/src/history/hs_verify.c The left operand of '!=' is a garbage value [core.UndefinedBinaryOperatorResult]
 wiredtiger/src/include/intpack_inline.h Assigned value is garbage or undefined [core.uninitialized.Assign]
 wiredtiger/src/reconcile/rec_row.c Branch condition evaluates to a garbage value [core.uninitialized.Branch]
-wiredtiger/src/rollback_to_stable/rts_btree.c Value stored to 'ret' is never read [deadcode.DeadStores]
 wiredtiger/src/schema/schema_create.c Null pointer passed to 1st parameter expecting 'nonnull' [core.NonNullParamChecker]
 wiredtiger/src/support/generation.c Assigned value is garbage or undefined [core.uninitialized.Assign]
 wiredtiger/src/support/generation.c Assigned value is garbage or undefined [core.uninitialized.Assign]
