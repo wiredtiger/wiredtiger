@@ -183,7 +183,7 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
     conn = S2C(session);
     __wt_epoch(session, &start);
     now = start;
-    done = found = false;
+    done = false;
 
     while (!done) {
         found = false;

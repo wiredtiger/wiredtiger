@@ -25,7 +25,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
     dryrun = S2C(session)->rts->dryrun;
 
     stable_upd = tombstone = NULL;
-    txn_id_visible = false;
+
     if (stable_update_found != NULL)
         *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {

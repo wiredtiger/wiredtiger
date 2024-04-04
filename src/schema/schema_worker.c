@@ -87,7 +87,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
 
     table = NULL;
 
-    is_tiered = skip = false;
+    skip = false;
     if (name_func != NULL)
         WT_ERR(name_func(session, uri, &skip));
 

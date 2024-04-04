@@ -2812,7 +2812,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn = NULL;
     session = verify_session = NULL;
     merge_cfg = NULL;
-    config_base_set = try_salvage = verify_meta = false;
+    try_salvage = false;
 
     WT_RET(__wt_library_init());
 

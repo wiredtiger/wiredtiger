@@ -34,6 +34,9 @@
  * return values.
  */
 #define WT_UNUSED(var) (void)(var)
+
+/* Quiet clang static analyzer warnings about dead stores. */
+#define WT_DEAD_STORE(var) WT_UNUSED(var)
 #define WT_NOT_READ(v, val) \
     do {                    \
         (v) = (val);        \
