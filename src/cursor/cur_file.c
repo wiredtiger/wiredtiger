@@ -128,7 +128,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     tracked = false;
 
     CURSOR_API_CALL(a, session, ret, compare, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
 
     /*
@@ -165,7 +165,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
     tracked = false;
 
     CURSOR_API_CALL(a, session, ret, equals, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
 
     /*
@@ -202,7 +202,7 @@ __curfile_next(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
@@ -243,7 +243,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -279,7 +279,7 @@ __curfile_prev(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_API_CALL(cursor, session, ret, prev, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
@@ -319,7 +319,7 @@ __curfile_reset(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -361,7 +361,7 @@ __curfile_search(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_API_CALL(cursor, session, ret, search, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
@@ -406,7 +406,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     tracked = false;
 
     CURSOR_API_CALL(cursor, session, ret, search_near, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
@@ -451,7 +451,7 @@ __curfile_insert(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -500,7 +500,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert_check);
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -533,7 +533,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     cbt = (WT_CURSOR_BTREE *)cursor;
     tracked = false;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, modify);
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -575,7 +575,7 @@ __curfile_update(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, update);
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -624,7 +624,7 @@ __curfile_remove(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_REMOVE_API_CALL(cursor, session, ret, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -673,7 +673,7 @@ __curfile_reserve(WT_CURSOR *cursor)
     tracked = false;
 
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, reserve);
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -720,7 +720,7 @@ __curfile_close(WT_CURSOR *cursor)
     tracked = false;
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, CUR2BT(cbt));
-    __wt_api_track_cursor_start(session);
+    __wt_api_track_cursor_begin(session);
     tracked = true; /* Sometimes the api enter macros fail, which leads to skipping tracking */
     WT_ERR(__cursor_copy_release(cursor));
 err:

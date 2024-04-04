@@ -437,17 +437,17 @@ struct __wt_connection_impl {
     wt_shared uint32_t version_cursor_count; /* Atomic: open version cursor count */
     wt_shared uint64_t api_count_in;         /* Atomic: Number of threads currently in WiredTiger */
     wt_shared uint64_t
-      api_count_internal_in; /* Atomic: Number of internal threads currently in WiredTiger */
-    wt_shared uint64_t api_count_cursor_in; /* Atomic: Number of threads currently in WiredTiger
-                                                   cursor operations */
-    wt_shared uint64_t api_count_cursor_internal_in; /* Atomic: Number of threads currently in
+      api_count_int_in; /* Atomic: Number of internal threads currently in WiredTiger */
+    wt_shared uint64_t api_count_cursor_in;     /* Atomic: Number of threads currently in WiredTiger
+                                                       cursor operations */
+    wt_shared uint64_t api_count_cursor_int_in; /* Atomic: Number of threads currently in
                                                             WiredTiger cursor operations */
     wt_shared uint64_t api_count_out; /* Atomic: Number of threads currently in WiredTiger */
     wt_shared uint64_t
-      api_count_internal_out; /* Atomic: Number of internal threads currently in WiredTiger */
+      api_count_int_out; /* Atomic: Number of internal threads currently in WiredTiger */
     wt_shared uint64_t api_count_cursor_out; /* Atomic: Number of threads currently in WiredTiger
                                                    cursor operations */
-    wt_shared uint64_t api_count_cursor_internal_out; /* Atomic: Number of threads currently in
+    wt_shared uint64_t api_count_cursor_int_out; /* Atomic: Number of threads currently in
                                                             WiredTiger cursor operations */
 
     /*

@@ -6235,19 +6235,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! connection: pthread mutex shared lock write-lock calls */
 #define	WT_STAT_CONN_RWLOCK_WRITE			1329
 /*! connection: threads currently in the library application */
-#define	WT_STAT_CONN_API_CALL_COUNT			1330
+#define	WT_STAT_CONN_API_CALL_CURRENT			1330
 /*!
  * connection: threads currently in the library doing cursor operations
  * application
  */
-#define	WT_STAT_CONN_API_CALL_COUNT_CURSOR		1331
+#define	WT_STAT_CONN_API_CALL_CURRENT_CURSOR		1331
 /*!
  * connection: threads currently in the library doing cursor operations
  * internal
  */
-#define	WT_STAT_CONN_API_CALL_COUNT_CURSOR_INTERNAL	1332
+#define	WT_STAT_CONN_API_CALL_CURRENT_CURSOR_INT	1332
 /*! connection: threads currently in the library internal */
-#define	WT_STAT_CONN_API_CALL_COUNT_INTERNAL		1333
+#define	WT_STAT_CONN_API_CALL_CURRENT_INT		1333
 /*! connection: total fsync I/Os */
 #define	WT_STAT_CONN_FSYNC_IO				1334
 /*! connection: total modified incremental blocks */

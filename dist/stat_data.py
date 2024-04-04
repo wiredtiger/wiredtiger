@@ -183,10 +183,10 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('api_call_count', 'threads currently in the library application', 'no_clear,no_scale,size'),
-    ConnStat('api_call_count_internal', 'threads currently in the library internal', 'no_clear,no_scale,size'),
-    ConnStat('api_call_count_cursor', 'threads currently in the library doing cursor operations application', 'no_clear,no_scale,size'),
-    ConnStat('api_call_count_cursor_internal', 'threads currently in the library doing cursor operations internal', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current', 'threads currently in the library application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_int', 'threads currently in the library internal', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_cursor', 'threads currently in the library doing cursor operations application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_cursor_int', 'threads currently in the library doing cursor operations internal', 'no_clear,no_scale,size'),
     ConnStat('backup_blocks', 'total modified incremental blocks'),
     ConnStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
     ConnStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
