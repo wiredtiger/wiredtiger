@@ -36,6 +36,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
+    block->compact_prev_pages_rewritten = 0;
     block->compact_pct_tenths = 0;
     block->compact_prev_size = 0;
     block->compact_session_id = session->id;
@@ -209,7 +210,10 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
       block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
       (uintmax_t)(file_size / 10));
 
-    /* Skip files that have failed to make progress on previous compact iterations. */
+    /*
+     * Skip files that have failed to make progress on previous compact iterations. Use
+     * compact_estimated to avoid this check on the first pass.
+     */
     if (block->compact_estimated && !*skipp) {
         if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
             __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
