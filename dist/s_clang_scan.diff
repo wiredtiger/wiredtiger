@@ -7,5 +7,4 @@ wiredtiger/src/reconcile/rec_row.c Branch condition evaluates to a garbage value
 wiredtiger/src/schema/schema_create.c Null pointer passed to 1st parameter expecting 'nonnull' [core.NonNullParamChecker]
 wiredtiger/src/support/generation.c Assigned value is garbage or undefined [core.uninitialized.Assign]
 wiredtiger/src/support/generation.c Assigned value is garbage or undefined [core.uninitialized.Assign]
-wiredtiger/src/utilities/util_dump.c Although the value stored to 'search_near' is used in the enclosing expression, the value is never actually read from 'search_near' [deadcode.DeadStores]
 wiredtiger/src/utilities/util_dump.c Null pointer passed to 1st parameter expecting 'nonnull' [core.NonNullParamChecker]
