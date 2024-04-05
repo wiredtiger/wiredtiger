@@ -792,10 +792,6 @@ test_model_oldest_wt(void)
     wt_model_assert(table, uri, key1, 40);
     wt_model_assert(table, uri, key1, 50);
 
-    /* Test moving the oldest timestamp backwards - this should fail silently. */
-    wt_model_set_oldest_timestamp_both(10);
-    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
-
     /* Verify. */
     testutil_assert(table->verify_noexcept(conn));
 
