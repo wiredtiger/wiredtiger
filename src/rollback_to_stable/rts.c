@@ -44,14 +44,11 @@ __wt_rts_check(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_RTS_COOKIE cookie;
-    uint32_t session_cnt;
 
     WT_CLEAR(cookie);
     conn = S2C(session);
-    WT_READ_ONCE(session_cnt, conn->session_array.cnt);
 
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
 
     /*
      * Help the user comply with the requirement there be no concurrent user operations. It is okay
