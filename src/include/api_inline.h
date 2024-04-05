@@ -9,6 +9,12 @@
 #pragma once
 
 /*
+ * TODO: WT-12795 Ideally calls to these functions would be managed in the same way as other API
+ * tracking works, but they are special and different at the moment due to complexity in ordering
+ * related to the different work done during API entry.
+ */
+
+/*
  * __wt_api_track_cursor_begin --
  *     Start tracking a cursor API entry point for statistics.
  */
