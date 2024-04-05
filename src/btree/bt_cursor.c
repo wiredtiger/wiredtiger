@@ -901,31 +901,64 @@ __btcur_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *e
     session = CUR2S(cbt);
 
     /*
-     * We didn't find an exact match: try after the search key, then before. We have to loop here
-     * because at low isolation levels, new records could appear as we are stepping through the
-     * tree.
+     * The caller have indicated the desried direction of walking by setting the bounds. If we don't
+     * have the upper bound set, walk next first and then prev. Othwise, walk prev first and then
+     * next.
      */
-    while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
-        WT_RET(ret);
-        if (btree->type == BTREE_ROW)
-            WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
-        else
-            *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-        if (*exact >= 0)
-            return (ret);
-    }
+    if (!F_ISSET((cursor), WT_CURSTD_BOUND_UPPER)) {
+        /*
+         * We have to loop here because at low isolation levels, new records could appear as we are
+         * stepping through the tree.
+         */
+        while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
+            WT_RET(ret);
+            if (btree->type == BTREE_ROW)
+                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+            else
+                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+            if (*exact >= 0)
+                return (ret);
+        }
 
-    /*
-     * We walked to the end of the tree without finding a match. Walk backwards instead.
-     */
-    while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
-        WT_RET(ret);
-        if (btree->type == BTREE_ROW)
-            WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
-        else
-            *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-        if (*exact <= 0)
-            return (ret);
+        /*
+         * We walked to the end without finding a match. Walk backwards instead.
+         */
+        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
+            WT_RET(ret);
+            if (btree->type == BTREE_ROW)
+                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+            else
+                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+            if (*exact <= 0)
+                return (ret);
+        }
+    } else {
+        /*
+         * We have to loop here because at low isolation levels, new records could appear as we are
+         * stepping through the tree.
+         */
+        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
+            WT_RET(ret);
+            if (btree->type == BTREE_ROW)
+                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+            else
+                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+            if (*exact <= 0)
+                return (ret);
+        }
+
+        /*
+         * We walked to the start without finding a match. Walk backwards instead.
+         */
+        while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
+            WT_RET(ret);
+            if (btree->type == BTREE_ROW)
+                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+            else
+                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+            if (*exact >= 0)
+                return (ret);
+        }
     }
     return (ret);
 }
