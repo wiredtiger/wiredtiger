@@ -356,15 +356,11 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
 
     conn = S2C(session);
     cap = &conn->capacity;
-
-    capacity = steal_capacity = 0;
+    steal_capacity = 0;
     reservation = steal = NULL;
 
-    /*
-     * The assignment to capacity is a dead assignment but gcc complains it may be used
-     * uninitialized. Quiet clang static analyzer by casting to void.
-     */
-    WT_DEAD_STORE(capacity);
+    /* Quiet warnings from both gcc and clang about this variable. */
+    WT_NOT_READ(capacity, 0);
 
     switch (type) {
     case WT_THROTTLE_CHUNKCACHE:

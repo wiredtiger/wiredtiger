@@ -992,16 +992,8 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     conn = S2C(session);
 
     if (ts == 0) {
-        /*
-         * The assignment to name is a dead assignment we could add a default label here to protect
-         * against new options being added to this enum, but then the clang compiler complains that
-         * we have a default with all the options already enumerated.
-         *
-         * Turn off the clang static analyzer by casting to void.
-         */
-        name = "unknown";
-        WT_DEAD_STORE(name);
-
+        /* Quiet warnings from both gcc and clang about this variable. */
+        WT_NOT_READ(name, "unknown");
         switch (which) {
         case WT_TS_TXN_TYPE_COMMIT:
             name = "commit";
