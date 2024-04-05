@@ -905,7 +905,7 @@ __btcur_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *e
      * have the upper bound set, walk next first and then prev. Othwise, walk prev first and then
      * next.
      */
-    if (!F_ISSET((cursor), WT_CURSTD_BOUND_UPPER)) {
+    if (!F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
         /*
          * We have to loop here because at low isolation levels, new records could appear as we are
          * stepping through the tree.
