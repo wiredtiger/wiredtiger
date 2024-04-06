@@ -298,7 +298,6 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
             WT_PAUSE();
         }
     }
-
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
     /*
