@@ -261,7 +261,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
 
     /* Free obsolete updates if exist. */
     if (!delete_hs_upd_found && visible_all_upd != NULL && visible_all_upd->next != NULL)
-        __wt_update_obsolete_check(session, r->ref, visible_all_upd, true);
+        __wt_free_update_next_list(session, visible_all_upd);
     return (0);
 }
 

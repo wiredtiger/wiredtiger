@@ -1956,6 +1956,7 @@ extern void __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, 
 extern void __wt_free_ref_index(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages);
 extern void __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp);
+extern void __wt_free_update_next_list(WT_SESSION_IMPL *session, WT_UPDATE *upd);
 extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation);
 extern void __wt_gen_init(WT_SESSION_IMPL *session);
 extern void __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp);
@@ -2082,8 +2083,7 @@ extern void __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session);
 extern void __wt_txn_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_txn_truncate_end(WT_SESSION_IMPL *session);
 extern void __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force);
-extern void __wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, bool is_locked);
+extern void __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd);
 extern void __wt_update_vector_clear(WT_UPDATE_VECTOR *updates);
 extern void __wt_update_vector_free(WT_UPDATE_VECTOR *updates);
 extern void __wt_update_vector_init(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates);

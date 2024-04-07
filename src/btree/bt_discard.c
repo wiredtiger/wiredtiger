@@ -531,3 +531,17 @@ __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
     }
     *updp = NULL;
 }
+
+/*
+ * __wt_free_update_next_list --
+ *     Free the WT_UPDATE next linked list.
+ */
+void
+__wt_free_update_next_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+{
+    WT_UPDATE *next;
+
+    next = upd->next;
+    upd->next = NULL;
+    __wt_free_update_list(session, &next);
+}
