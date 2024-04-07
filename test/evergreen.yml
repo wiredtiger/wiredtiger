@@ -5440,7 +5440,7 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
     # builds) as -O1, making test binaries more difficult to debug.
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-    ENABLE_TCMALLOC: 1
+    ENABLE_TCMALLOC: 0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: clang-analyzer
@@ -5831,7 +5831,7 @@ buildvariants:
   - ubuntu2004-arm64-large
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: 1
+    ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
