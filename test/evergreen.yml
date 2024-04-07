@@ -313,7 +313,7 @@ functions:
 
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
             # Preclude use of tcmalloc with sanitizer builds.
-            if [[ ${CMAKE_BUILD_TYPE} =~ ^([AMT]|UB)san$ ]]; then
+            if [[ ${CMAKE_BUILD_TYPE} =~ ^([AMT]|UB)San$ ]]; then
               echo "tcmalloc incompatible with build variant: ${build_variant} and cmake build type ${CMAKE_BUILD_TYPE}"
               exit 1
             fi
