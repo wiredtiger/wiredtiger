@@ -312,6 +312,11 @@ functions:
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
 
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
+            # Preclude use of tcmalloc with sanitizer builds.
+            if [[ ${CMAKE_BUILD_TYPE,,} =~ ^([amt]|ub)san$ ]]; then
+              echo "tcmalloc incompatible with build variant: ${build_variant} and cmake build type ${CMAKE_BUILD_TYPE}"
+              exit 1
+            fi
             # Run this script in its own process as it depends on managing
             # shell options.
             /bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
