@@ -593,6 +593,7 @@ comparator
 comparators
 comparep
 compat
+compilable
 cond
 conditionalize
 conf
@@ -634,7 +635,6 @@ cursoring
 cursorp
 curstartrecno
 curstat
-curstd
 curtable
 curversion
 cust

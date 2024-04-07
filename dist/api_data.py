@@ -1367,7 +1367,7 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_CURSOR.bound' : Method(cursor_bound_config),
+'WT_CURSOR.bound' : Method(cursor_bound_config, compilable=True),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('checkpoint', '', r'''
