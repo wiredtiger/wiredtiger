@@ -34,11 +34,11 @@ __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
         FLD_CLR(txn_logsync, WT_LOG_SYNC_ENABLED);
 
     WT_RET(__wt_config_gets(session, cfg, "transaction_sync.method", &cval));
-    if (WT_STRING_MATCH("dsync", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("dsync", cval))
         FLD_SET(txn_logsync, WT_LOG_DSYNC | WT_LOG_FLUSH);
-    else if (WT_STRING_MATCH("fsync", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("fsync", cval))
         FLD_SET(txn_logsync, WT_LOG_FSYNC);
-    else if (WT_STRING_MATCH("none", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("none", cval))
         FLD_SET(txn_logsync, WT_LOG_FLUSH);
     WT_RELEASE_WRITE_WITH_BARRIER(conn->txn_logsync, txn_logsync);
     return (0);
@@ -324,7 +324,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
      */
     if (!reconfig) {
         WT_RET(__wt_config_gets_def(session, cfg, "log.recover", 0, &cval));
-        if (WT_STRING_MATCH("error", cval.str, cval.len))
+        if (WT_CONFIG_LIT_MATCH("error", cval))
             FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR);
     }
 
@@ -757,7 +757,7 @@ restart:
                  * If we get here we have a slot to coalesce and free.
                  */
                 __wt_atomic_storeiv64(
-                  &coalescing->slot_last_offset, __wt_atomic_loadiv64(&slot->slot_last_offset));
+                  &coalescing->slot_last_offset, __wt_atomic_loadi64(&slot->slot_last_offset));
                 WT_ASSIGN_LSN(&coalescing->slot_end_lsn, &slot->slot_end_lsn);
                 WT_STAT_CONN_INCR(session, log_slot_coalesced);
                 /*
@@ -785,7 +785,7 @@ restart:
                  * LSN refers to the beginning of a real record. The last offset in a slot is kept
                  * so that the checkpoint LSN is close to the end of the record.
                  */
-                slot_last_offset = (uint32_t)__wt_atomic_loadiv64(&slot->slot_last_offset);
+                slot_last_offset = (uint32_t)__wt_atomic_loadi64(&slot->slot_last_offset);
                 if (__wt_lsn_offset(&slot->slot_start_lsn) != slot_last_offset)
                     __wt_atomic_store32(&slot->slot_start_lsn.l.offset, slot_last_offset);
                 WT_ASSIGN_LSN(&log->write_start_lsn, &slot->slot_start_lsn);
