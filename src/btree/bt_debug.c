@@ -1729,6 +1729,15 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, "]"));
     }
 
+    if (ref->flags_atomic != 0) {
+        WT_RET(ds->f(ds, " | flags_atomic: ["));
+        if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_READING))
+            WT_RET(ds->f(ds, "%s", "reading"));
+        if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
+            WT_RET(ds->f(ds, "%s", ", prefetch"));
+        WT_RET(ds->f(ds, "]"));
+    }
+
     if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
         WT_RET(ds->f(ds, " | %s | addr: %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
           __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
