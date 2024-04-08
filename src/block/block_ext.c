@@ -32,7 +32,7 @@ static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, 
  * __block_off_srch_last --
  *     Return the last element in the list, along with a stack for appending.
  */
-static inline WT_EXT *
+static WT_INLINE WT_EXT *
 __block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
 {
     WT_EXT **extp, *last;
@@ -63,7 +63,7 @@ __block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
  *     Search a by-offset skiplist and get the penultimate WT_EXT (either the primary by-offset
  *     list, or the by-offset list referenced by a size entry), for the specified offset.
  */
-static inline void
+static WT_INLINE void
 __block_off_srch(
   WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off, WT_EXT **penultimate_extp)
 {
