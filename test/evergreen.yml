@@ -51,21 +51,6 @@ functions:
               export LD_LIBRARY_PATH=$WT_BUILDDIR
             fi
 
-            # Utilize tcmalloc through preloading in the environment.
-            #
-            if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
-
-              # ASan is not designed to work with tcmalloc:
-              # https://github.com/gperftools/gperftools/issues/810#issuecomment-230168100
-              #
-              if [[ "${CMAKE_BUILD_TYPE|}" =~ ASan ]]; then
-                echo "Do not enable tcmalloc for ASan builds."
-                exit 1
-              fi
-
-              export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/libtcmalloc.so
-            fi
-
             # Create the common sanitizer options and export the specific sanitizer environment
             # variables.
             COMMON_SAN_OPTIONS="abort_on_error=1:disable_coredump=0"
