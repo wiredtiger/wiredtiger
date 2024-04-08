@@ -3,9 +3,18 @@
 # Read the source files and output the statistics #defines plus the
 # initialize and refresh code.
 
-import re, string, sys, textwrap
+import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast([
+            "../dist/dist.py",
+            "../src/include/stat.h",
+            "../src/include/wiredtiger.in",
+            "../src/support/stat.c",
+        ], prefix="../")]:
+    sys.exit(0)
 
 # Read the source files.
 from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
@@ -50,7 +59,7 @@ def print_struct(title, name, base, stats):
     f.write('};\n\n')
 
 # Update the #defines in the stat.h file.
-tmp_file = '__tmp'
+tmp_file = '__tmp_stat' + str(os.getpid())
 f = open(tmp_file, 'w')
 skip = 0
 for line in open('../src/include/stat.h', 'r'):
@@ -96,7 +105,7 @@ def print_defines():
  * @name Connection statistics
  * @anchor statistics_keys
  * @anchor statistics_conn
- * Statistics are accessed through cursors with \c "statistics:" URIs.
+ * Statistics are accessed through cursors with \\c "statistics:" URIs.
  * Individual statistics can be queried through the cursor using the following
  * keys.  See @ref data_statistics for more information.
  * @{
@@ -133,7 +142,7 @@ def print_defines():
     f.write('/*! @} */\n')
 
 # Update the #defines in the wiredtiger.in file.
-tmp_file = '__tmp'
+tmp_file = '__tmp_stat' + str(os.getpid())
 f = open(tmp_file, 'w')
 skip = 0
 for line in open('../src/include/wiredtiger.in', 'r'):

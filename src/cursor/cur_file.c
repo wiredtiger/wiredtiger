@@ -38,7 +38,9 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
     do {                                                                                    \
         WT_TXN *__saved_txn;                                                                \
         uint64_t __saved_write_gen = (session)->checkpoint_write_gen;                       \
+        bool no_reconcile_set;                                                              \
                                                                                             \
+        no_reconcile_set = F_ISSET((session), WT_SESSION_NO_RECONCILE);                     \
         if ((cbt)->checkpoint_txn != NULL) {                                                \
             __saved_txn = (session)->txn;                                                   \
             if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                               \
@@ -47,6 +49,8 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
                 __saved_txn = NULL;                                                         \
             } else {                                                                        \
                 (session)->txn = (cbt)->checkpoint_txn;                                     \
+                /* Reconciliation is disabled when reading a checkpoint. */                 \
+                F_SET((session), WT_SESSION_NO_RECONCILE);                                  \
                 if ((cbt)->checkpoint_hs_dhandle != NULL) {                                 \
                     WT_ASSERT(session, (session)->hs_checkpoint == NULL);                   \
                     (session)->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;    \
@@ -59,6 +63,8 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
         op;                                                                                 \
         if (__saved_txn != NULL) {                                                          \
             (session)->txn = __saved_txn;                                                   \
+            if (!no_reconcile_set)                                                          \
+                F_CLR((session), WT_SESSION_NO_RECONCILE);                                  \
             (session)->hs_checkpoint = NULL;                                                \
             (session)->checkpoint_write_gen = __saved_write_gen;                            \
         }                                                                                   \
@@ -69,7 +75,7 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
  *     Enforce restrictions on nesting checkpoint cursors. The only nested cursors we should get to
  *     from a checkpoint cursor are cursors for the corresponding history store checkpoint.
  */
-static inline int
+static WT_INLINE int
 __curfile_check_cbt_txn(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_TXN *txn;
@@ -118,7 +124,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)a;
-    CURSOR_API_CALL(a, session, compare, CUR2BT(cbt));
+    CURSOR_API_CALL(a, session, ret, compare, CUR2BT(cbt));
 
     /*
      * Check both cursors are a btree type then call the underlying function, it can handle cursors
@@ -148,7 +154,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)a;
-    CURSOR_API_CALL(a, session, equals, CUR2BT(cbt));
+    CURSOR_API_CALL(a, session, ret, equals, CUR2BT(cbt));
 
     /*
      * Check both cursors are a btree type then call the underlying function, it can handle cursors
@@ -178,7 +184,7 @@ __curfile_next(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -212,7 +218,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
@@ -241,7 +247,7 @@ __curfile_prev(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, prev, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, ret, prev, CUR2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -309,7 +315,7 @@ __curfile_search(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, ret, search, CUR2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -347,7 +353,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_API_CALL(cursor, session, search_near, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, ret, search_near, CUR2BT(cbt));
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
@@ -385,7 +391,7 @@ __curfile_insert(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, insert);
+    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
     WT_ERR(__cursor_copy_release(cursor));
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
@@ -427,7 +433,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     tret = 0;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, insert_check);
+    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert_check);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -454,7 +460,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, modify);
+    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, modify);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -489,7 +495,7 @@ __curfile_update(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update);
+    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, update);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
@@ -532,7 +538,7 @@ __curfile_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_REMOVE_API_CALL(cursor, session, CUR2BT(cbt));
+    CURSOR_REMOVE_API_CALL(cursor, session, ret, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -574,7 +580,7 @@ __curfile_reserve(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, reserve);
+    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, reserve);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -641,7 +647,8 @@ err:
     /* The URI is owned by the btree handle. */
     cursor->internal_uri = NULL;
 
-    WT_ASSERT(session, session->dhandle == NULL || session->dhandle->session_inuse > 0);
+    WT_ASSERT(session,
+      session->dhandle == NULL || __wt_atomic_loadi32(&session->dhandle->session_inuse) > 0);
 
     /* Free any private transaction set up for a checkpoint cursor. */
     if (cbt->checkpoint_txn != NULL)
@@ -1082,6 +1089,9 @@ err:
         *cursorp = NULL;
     }
 
+    if (ret == 0 && bulk)
+        WT_STAT_CONN_INCR_ATOMIC(session, cursor_bulk_count);
+
     return (ret);
 }
 
@@ -1116,14 +1126,14 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
           (cval.type == WT_CONFIG_ITEM_NUM && (cval.val == 0 || cval.val == 1))) {
             bitmap = false;
             bulk = cval.val != 0;
-        } else if (WT_STRING_MATCH("bitmap", cval.str, cval.len))
+        } else if (WT_CONFIG_LIT_MATCH("bitmap", cval))
             bitmap = bulk = true;
         /*
          * Unordered bulk insert is a special case used internally by index creation on existing
          * tables. It doesn't enforce any special semantics at the file level. It primarily exists
          * to avoid some locking problems between LSM and index creation.
          */
-        else if (!WT_STRING_MATCH("unordered", cval.str, cval.len))
+        else if (!WT_CONFIG_LIT_MATCH("unordered", cval))
             WT_RET_MSG(session, EINVAL, "Value for 'bulk' must be a boolean or 'bitmap'");
 
         if (bulk) {

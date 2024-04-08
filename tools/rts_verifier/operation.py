@@ -50,7 +50,8 @@ class OpType(Enum):
     STABLE_UPDATE_FOUND = 41
     TREE_OBJECT_LOG = 42
     UPDATE_CHAIN_VERIFY = 43
-    SKIP_DEL = 44
+    WAIT_THREADS = 44
+    SKIP_DEL = 45
 
 class Operation:
     def __init__(self, line):
@@ -291,7 +292,7 @@ class Operation:
         self.type = OpType.HS_UPDATE_ABORT
         self.file = self.__extract_file(line)
 
-        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+        matches = re.search('start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) \| stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
         durable_start_start = int(matches.group(1))
         durable_start_end = int(matches.group(2))
@@ -318,7 +319,7 @@ class Operation:
         self.type = OpType.HS_UPDATE_VALID
         self.file = self.__extract_file(line)
 
-        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+        matches = re.search('start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) \| stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
         durable_start_start = int(matches.group(1))
         durable_start_end = int(matches.group(2))
@@ -369,7 +370,7 @@ class Operation:
         self.type = OpType.HS_GT_ONDISK
         self.file = self.__extract_file(line)
 
-        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+        matches = re.search('start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) \| stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
         durable_start_start = int(matches.group(1))
         durable_start_end = int(matches.group(2))
@@ -400,7 +401,7 @@ class Operation:
         self.type = OpType.HS_STOP_OBSOLETE
         self.file = self.__extract_file(line)
 
-        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+        matches = re.search('start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) \| stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
         durable_start_start = int(matches.group(1))
         durable_start_end = int(matches.group(2))
         self.durable_start = Timestamp(durable_start_start, durable_start_end)
@@ -480,7 +481,7 @@ class Operation:
         self.stop = self.__extract_simple_timestamp('stop_timestamp', line)
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
-        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+        matches = re.search('start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) \| stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
         start_start = int(matches.group(1))
         start_end = int(matches.group(2))
@@ -577,6 +578,9 @@ class Operation:
 
         matches = re.search('btree=(\d+)', line)
         self.btree_id = int(matches.group(1))
+
+    def __init_wait_threads(self, line):
+        self.type = OpType.WAIT_THREADS
 
     def __init_end(self, line):
         self.type = OpType.END

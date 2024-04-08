@@ -100,7 +100,7 @@ __block_off_srch(
  * __block_first_srch --
  *     Search the skiplist for the first available slot.
  */
-static inline bool
+static WT_INLINE bool
 __block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
 {
     WT_EXT *ext;
@@ -123,7 +123,7 @@ __block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
  * __block_size_srch --
  *     Search the by-size skiplist for the specified size.
  */
-static inline void
+static WT_INLINE void
 __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
 {
     WT_SIZE **szp;
@@ -146,7 +146,7 @@ __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
  * __block_off_srch_pair --
  *     Search a by-offset skiplist for before/after records of the specified offset.
  */
-static inline void
+static WT_INLINE void
 __block_off_srch_pair(WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **afterp)
 {
     WT_EXT **head, **extp;
@@ -478,7 +478,7 @@ __wt_block_off_remove_overlap(
  * __block_extend --
  *     Extend the file to allocate space.
  */
-static inline int
+static WT_INLINE int
 __block_extend(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t *offp, wt_off_t size)
 {

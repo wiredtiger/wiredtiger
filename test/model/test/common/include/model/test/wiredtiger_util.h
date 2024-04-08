@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_TEST_WIREDTIGER_UTIL_H
-#define MODEL_TEST_WIREDTIGER_UTIL_H
+#pragma once
 
 #include "model/data_value.h"
 #include "model/kv_database.h"
@@ -60,6 +59,13 @@ int wt_insert(WT_SESSION *session, const char *uri, const model::data_value &key
  */
 int wt_remove(WT_SESSION *session, const char *uri, const model::data_value &key,
   model::timestamp_t timestamp = 0);
+
+/*
+ * wt_truncate --
+ *     Truncate a key range in WiredTiger.
+ */
+int wt_truncate(WT_SESSION *session, const char *uri, const model::data_value &start,
+  const model::data_value &stop, model::timestamp_t timestamp = 0);
 
 /*
  * wt_update --
@@ -135,16 +141,56 @@ model::data_value wt_ckpt_get(WT_SESSION *session, const char *uri, const model:
 void wt_ckpt_create(WT_SESSION *session, const char *ckpt_name = nullptr);
 
 /*
+ * wt_get_timestamp --
+ *     Get the given timestamp in WiredTiger.
+ */
+model::timestamp_t wt_get_timestamp(WT_CONNECTION *conn, const char *kind);
+
+/*
+ * wt_set_timestamp --
+ *     Set the given timestamp in WiredTiger.
+ */
+void wt_set_timestamp(WT_CONNECTION *conn, const char *kind, model::timestamp_t timestamp);
+
+/*
+ * wt_get_stable_timestamp --
+ *     Get the oldest timestamp in WiredTiger.
+ */
+inline model::timestamp_t
+wt_get_oldest_timestamp(WT_CONNECTION *conn)
+{
+    return wt_get_timestamp(conn, "oldest_timestamp");
+}
+
+/*
+ * wt_set_oldest_timestamp --
+ *     Set the oldest timestamp in WiredTiger.
+ */
+inline void
+wt_set_oldest_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+{
+    wt_set_timestamp(conn, "oldest_timestamp", timestamp);
+}
+
+/*
  * wt_get_stable_timestamp --
  *     Get the stable timestamp in WiredTiger.
  */
-model::timestamp_t wt_get_stable_timestamp(WT_CONNECTION *conn);
+inline model::timestamp_t
+wt_get_stable_timestamp(WT_CONNECTION *conn)
+{
+    return wt_get_timestamp(conn, "stable_timestamp");
+}
 
 /*
  * wt_set_stable_timestamp --
  *     Set the stable timestamp in WiredTiger.
  */
-void wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp);
+inline void
+wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+{
+    wt_set_timestamp(conn, "stable_timestamp", timestamp);
+}
 
 /*
  * wt_print_debug_log --
@@ -191,6 +237,14 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
 #define wt_model_remove_both(table, uri, key, ...) \
     testutil_assert(                               \
       table->remove(key, ##__VA_ARGS__) == wt_remove(session, uri, key, ##__VA_ARGS__));
+
+/*
+ * wt_model_truncate_both --
+ *     Truncate in both from the model and from the database.
+ */
+#define wt_model_truncate_both(table, uri, start, ...) \
+    testutil_assert(                                   \
+      table->truncate(start, ##__VA_ARGS__) == wt_truncate(session, uri, start, ##__VA_ARGS__));
 
 /*
  * wt_model_update_both --
@@ -295,6 +349,16 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
     }
 
 /*
+ * wt_model_set_oldest_timestamp_both --
+ *     Set the oldest timestamp in both the model and the database.
+ */
+#define wt_model_set_oldest_timestamp_both(timestamp) \
+    {                                                 \
+        wt_set_oldest_timestamp(conn, timestamp);     \
+        database.set_oldest_timestamp(timestamp);     \
+    }
+
+/*
  * wt_model_set_stable_timestamp_both --
  *     Set the stable timestamp in both the model and the database.
  */
@@ -313,5 +377,3 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
         wt_rollback_to_stable(conn);       \
         database.rollback_to_stable();     \
     }
-
-#endif

@@ -27,6 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from helper import simulate_crash_restart
+from wiredtiger import stat
 from wtbackup import backup_base
 
 # test_backup18.py
@@ -35,6 +37,12 @@ class test_backup18(backup_base):
     conn_config= 'cache_size=1G,log=(enabled,file_max=100K)'
     pfx = 'test_backup'
     uri="table:test"
+
+    def get_stat(self, stat_name):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        value = stat_cursor[stat_name][2]
+        stat_cursor.close()
+        return value
 
     def id_check(self, expect):
         got = []
@@ -65,8 +73,12 @@ class test_backup18(backup_base):
             None, None), 0), msg)
 
         # Open up the backup cursor.
+        def_gran = 16 * 1024 * 1024
         config = 'incremental=(enabled,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
+        self.assertEqual(1, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(1, self.get_stat(stat.conn.backup_incremental))
+        self.assertEqual(def_gran, self.get_stat(stat.conn.backup_granularity))
 
         # Try to open the query cursor as a duplicate on the backup.
         msg = "/should be passed either/"
@@ -82,6 +94,8 @@ class test_backup18(backup_base):
             lambda:self.assertEquals(self.session.open_cursor('backup:query_id',
             None, None), 0), msg)
         bkup_c.close()
+        self.assertEqual(0, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(1, self.get_stat(stat.conn.backup_incremental))
 
         # Check a few basic cases.
         self.pr("Query IDs basic cases")
@@ -114,6 +128,24 @@ class test_backup18(backup_base):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor('backup:query_id',
             None, None), 0), msg)
+        self.assertEqual(0, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_incremental))
 
-if __name__ == '__main__':
-    wttest.run()
+        # Open up an incremental backup cursor again.
+        config = 'incremental=(enabled,this_id="ID1")'
+        bkup_c = self.session.open_cursor('backup:', None, config)
+        bkup_c.close()
+        expect = ["ID1"]
+        self.id_check(expect)
+
+        # Force stop, and then simulate a crash. On restart, the incremental should not be
+        # configured.
+        config = 'incremental=(force_stop=true)'
+        bkup_c = self.session.open_cursor('backup:', None, config)
+        bkup_c.close()
+        simulate_crash_restart(self, ".", "RESTART")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.open_cursor('backup:query_id',
+            None, None), 0), msg)
+        self.assertEqual(0, self.get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(0, self.get_stat(stat.conn.backup_incremental))

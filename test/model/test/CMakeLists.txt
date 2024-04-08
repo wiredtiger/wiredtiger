@@ -38,6 +38,11 @@ create_test_executable(test_model_transaction
     LIBS wiredtiger_model wiredtiger_model_test_common
     CXX
 )
+create_test_executable(test_model_workload
+    SOURCES model_workload/main.cpp
+    LIBS wiredtiger_model wiredtiger_model_test_common
+    CXX
+)
 
 # The test script.
 add_custom_command(

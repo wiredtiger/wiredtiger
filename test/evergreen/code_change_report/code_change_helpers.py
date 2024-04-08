@@ -26,35 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# [TEST_TAGS]
-# huffman_encoding
-# [END_TAGS]
 
-from suite_subprocess import suite_subprocess
-from wtscenario import make_scenarios
-import wiredtiger, wttest
-
-# test_huffman02.py
-#    Huffman key and value configurations test.
-class test_huffman02(wttest.WiredTigerTestCase, suite_subprocess):
-    huffval = [
-        ('bad', dict(valbad=1,huffval=',huffman_value=bad')),
-        ('english', dict(valbad=0,huffval=',huffman_value=english')),
-        ('none', dict(valbad=0,huffval=',huffman_value=english')),
-    ]
-    type = [
-        ('file', dict(uri='file:huff')),
-        ('table', dict(uri='table:huff')),
-    ]
-    scenarios = make_scenarios(type, huffval)
-
-    def test_huffman(self):
-        if self.valbad:
-            msg = '/Invalid argument/'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-                self.session.create(self.uri, self.huffval), msg)
-        else:
-            self.session.create(self.uri, self.huffval)
-
-if __name__ == '__main__':
-    wttest.run()
+# is_useful_line detects lines of code that have 'useful' code in them.
+# It is used to filter out displaying data, such as code coverage, for lines of code that don't do anything useful.
+# This is used because gcov, for example, sometimes coverage reports counts for lines that only contain '}'
+def is_useful_line(content: str) -> bool:
+    useful_line = content != '\n' and content.strip() != '{' and content.strip() != '}'
+    return useful_line

@@ -3,8 +3,17 @@
 # Output C #defines for errors into wiredtiger.in and the associated error
 # message code in strerror.c.
 
-import re, textwrap
+import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast([
+            "../src/conn/api_strerror.c",
+            "../src/docs/error-handling.dox",
+            "../src/include/wiredtiger.in",
+        ], prefix="../")]:
+    sys.exit(0)
+
 
 class Error:
     def __init__(self, name, value, desc, long_desc=None, **flags):
@@ -75,7 +84,7 @@ errors = [
 ]
 
 # Update the #defines in the wiredtiger.in file.
-tmp_file = '__tmp'
+tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 skip = 0
 for line in open('../src/include/wiredtiger.in', 'r'):
@@ -104,7 +113,7 @@ tfile.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
 # Output the wiredtiger_strerror and wiredtiger_sterror_r code.
-tmp_file = '__tmp'
+tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 tfile.write('''/* DO NOT EDIT: automatically built by dist/api_err.py. */
 
@@ -173,7 +182,7 @@ compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
 
 # Update the error documentation block.
 doc = '../src/docs/error-handling.dox'
-tmp_file = '__tmp'
+tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 skip = 0
 for line in open(doc, 'r'):
@@ -190,7 +199,7 @@ for line in open(doc, 'r'):
             if 'undoc' in err.flags:
                 continue
             tfile.write(
-                '@par \c ' + err.name.upper() + '\n' +
+                '@par \\c ' + err.name.upper() + '\n' +
                 " ".join(err.long_desc.split()) + '\n\n')
 tfile.close()
 format_srcfile(tmp_file)

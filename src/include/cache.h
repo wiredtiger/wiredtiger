@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Helper: in order to read without any calls to eviction, we have to ignore the cache size and
  * disable splits.
@@ -83,8 +85,8 @@ struct __wt_cache {
      * History store cache usage. TODO: The values for these variables are cached and potentially
      * outdated.
      */
-    uint64_t bytes_hs;       /* History store bytes inmem */
-    uint64_t bytes_hs_dirty; /* History store bytes inmem dirty */
+    wt_shared uint64_t bytes_hs; /* History store bytes inmem */
+    uint64_t bytes_hs_dirty;     /* History store bytes inmem dirty */
 
     wt_shared uint64_t pages_dirty_intl;
     wt_shared uint64_t pages_dirty_leaf;
@@ -120,16 +122,15 @@ struct __wt_cache {
      * Eviction threshold percentages use double type to allow for specifying percentages less than
      * one.
      */
-    double eviction_dirty_target;    /* Percent to allow dirty */
-    double eviction_dirty_trigger;   /* Percent to trigger dirty eviction */
-    double eviction_trigger;         /* Percent to trigger eviction */
-    double eviction_target;          /* Percent to end eviction */
-    double eviction_updates_target;  /* Percent to allow for updates */
-    double eviction_updates_trigger; /* Percent of updates to trigger eviction */
+    wt_shared double eviction_dirty_target;  /* Percent to allow dirty */
+    wt_shared double eviction_dirty_trigger; /* Percent to trigger dirty eviction */
+    double eviction_trigger;                 /* Percent to trigger eviction */
+    double eviction_target;                  /* Percent to end eviction */
+    double eviction_updates_target;          /* Percent to allow for updates */
+    double eviction_updates_trigger;         /* Percent of updates to trigger eviction */
 
-    double eviction_checkpoint_target; /* Percent to reduce dirty
-                                        to during checkpoint scrubs */
-    double eviction_scrub_target;      /* Current scrub target */
+    double eviction_checkpoint_target; /* Percent to reduce dirty to during checkpoint scrubs */
+    wt_shared double eviction_scrub_target; /* Current scrub target */
 
     u_int overhead_pct;              /* Cache percent adjustment */
     uint64_t cache_max_wait_us;      /* Maximum time an operation waits for space in cache */
@@ -178,8 +179,8 @@ struct __wt_cache {
 #define WT_EVICT_SCORE_MAX 100
     /*
      * Score of how aggressive eviction should be about selecting eviction candidates. If eviction
-     * is struggling to make progress, this score rises (up to a maximum of 100), at which point the
-     * cache is "stuck" and transactions will be rolled back.
+     * is struggling to make progress, this score rises (up to a maximum of WT_EVICT_SCORE_MAX), at
+     * which point the cache is "stuck" and transactions will be rolled back.
      */
     uint32_t evict_aggressive_score;
 

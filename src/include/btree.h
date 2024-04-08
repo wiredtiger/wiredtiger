@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Supported btree formats: the "current" version is the maximum supported major/minor versions.
  */
@@ -121,8 +123,6 @@ struct __wt_btree {
     uint32_t maxmempage_image;      /* In-memory page image max size */
     uint64_t splitmempage;          /* In-memory split trigger size */
 
-    void *huffman_value; /* Value huffman encoding */
-
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
     /*
@@ -177,9 +177,9 @@ struct __wt_btree {
     uint64_t rec_max_txn;    /* Maximum txn seen (clean trees) */
     wt_timestamp_t rec_max_timestamp;
 
-    wt_shared uint64_t checkpoint_gen; /* Checkpoint generation */
-    WT_SESSION_IMPL *sync_session;     /* Syncing session */
-    WT_BTREE_SYNC syncing;             /* Sync status */
+    wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
+    wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
+    wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -188,10 +188,12 @@ struct __wt_btree {
  * WT_SESSION_BTREE_SYNC_SAFE checks whether it is safe to perform an operation that would conflict
  * with a sync.
  */
-#define WT_BTREE_SYNCING(btree) ((btree)->syncing != WT_BTREE_SYNC_OFF)
-#define WT_SESSION_BTREE_SYNC(session) (S2BT(session)->sync_session == (session))
-#define WT_SESSION_BTREE_SYNC_SAFE(session, btree) \
-    ((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
+#define WT_BTREE_SYNCING(btree) (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
+#define WT_SESSION_BTREE_SYNC(session) \
+    (__wt_atomic_load_pointer(&S2BT(session)->sync_session) == (session))
+#define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                        \
+    (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
+      __wt_atomic_load_pointer(&(btree)->sync_session) == (session))
 
     wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
@@ -239,16 +241,17 @@ struct __wt_btree {
      * Eviction information is maintained in the btree handle, but owned by eviction, not the btree
      * code.
      */
-    WT_REF *evict_ref;                      /* Eviction thread's location */
-    uint64_t evict_priority;                /* Relative priority of cached pages */
-    uint32_t evict_walk_progress;           /* Eviction walk progress */
-    uint32_t evict_walk_target;             /* Eviction walk target */
-    u_int evict_walk_period;                /* Skip this many LRU walks */
-    u_int evict_walk_saved;                 /* Saved walk skips for checkpoints */
-    u_int evict_walk_skips;                 /* Number of walks skipped */
-    wt_shared int32_t evict_disabled;       /* Eviction disabled count */
-    bool evict_disabled_open;               /* Eviction disabled on open */
-    wt_shared volatile uint32_t evict_busy; /* Count of threads in eviction */
+    WT_REF *evict_ref;                         /* Eviction thread's location */
+    uint64_t evict_priority;                   /* Relative priority of cached pages */
+    uint32_t evict_walk_progress;              /* Eviction walk progress */
+    uint32_t evict_walk_target;                /* Eviction walk target */
+    u_int evict_walk_period;                   /* Skip this many LRU walks */
+    u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
+    u_int evict_walk_skips;                    /* Number of walks skipped */
+    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
+    bool evict_disabled_open;                  /* Eviction disabled on open */
+    wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
+    wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
     WT_EVICT_WALK_TYPE evict_start_type;
 
 /*

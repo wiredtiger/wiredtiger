@@ -56,7 +56,13 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         ('dryrun', dict(dryrun=True)),
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, dryrun_values)
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+
+    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, dryrun_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all),verbose=(rts:5)'
@@ -101,7 +107,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         if not self.in_memory:
             self.session.checkpoint()
 
-        self.conn.rollback_to_stable("dryrun={}".format("true" if self.dryrun else "false"))
+        self.conn.rollback_to_stable("dryrun={}".format("true" if self.dryrun else "false") + ',threads=' + str(self.threads))
         # Check that the new updates are only seen after the update timestamp.
         self.session.breakpoint()
         if self.dryrun:
@@ -132,6 +138,3 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             self.assertEqual(upd_aborted + keys_restored, nrows)
         self.assertGreaterEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
-
-if __name__ == '__main__':
-    wttest.run()

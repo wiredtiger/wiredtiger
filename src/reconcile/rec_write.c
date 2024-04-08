@@ -30,16 +30,12 @@ int
 __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
 {
     WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     bool no_reconcile_set, page_locked;
 
     btree = S2BT(session);
-    conn = S2C(session);
     page = ref->page;
-
-    session->reconcile_timeline.reconcile_start = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -107,31 +103,6 @@ err:
     if (!no_reconcile_set)
         F_CLR(session, WT_SESSION_NO_RECONCILE);
 
-    /*
-     * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
-     * (it's just a statistic).
-     */
-    session->reconcile_timeline.reconcile_finish = __wt_clock(session);
-    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.hs_wrapup_finish,
-          session->reconcile_timeline.hs_wrapup_start) > conn->rec_maximum_hs_wrapup_milliseconds)
-        conn->rec_maximum_hs_wrapup_milliseconds =
-          WT_CLOCKDIFF_MS(session->reconcile_timeline.hs_wrapup_finish,
-            session->reconcile_timeline.hs_wrapup_start);
-    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
-          session->reconcile_timeline.image_build_start) >
-      conn->rec_maximum_image_build_milliseconds)
-        conn->rec_maximum_image_build_milliseconds =
-          WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
-            session->reconcile_timeline.image_build_start);
-    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.reconcile_finish,
-          session->reconcile_timeline.reconcile_start) > conn->rec_maximum_milliseconds)
-        conn->rec_maximum_milliseconds =
-          WT_CLOCKDIFF_MS(session->reconcile_timeline.reconcile_finish,
-            session->reconcile_timeline.reconcile_start);
-    if (session->reconcile_timeline.total_reentry_hs_eviction_time >
-      conn->cache->reentry_hs_eviction_ms)
-        conn->cache->reentry_hs_eviction_ms =
-          session->reconcile_timeline.total_reentry_hs_eviction_time;
     return (ret);
 }
 
@@ -157,7 +128,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
     if (LF_ISSET(WT_REC_EVICT)) {
         mod->last_eviction_id = oldest_id;
         __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
-        mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
+        mod->last_evict_pass_gen = __wt_atomic_load64(&S2C(session)->cache->evict_pass_gen);
     }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -246,13 +217,19 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
   bool *page_lockedp)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
+    uint64_t rec_hs_wrapup, rec_img_build, rec, rec_start, rec_finish;
     void *addr;
 
     btree = S2BT(session);
+    conn = S2C(session);
     page = ref->page;
+
+    rec_start = __wt_clock(session);
+    WT_ASSERT(session, rec_start != 0);
 
     if (*page_lockedp)
         WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
@@ -260,8 +237,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
 
-    /* Initialize the reconciliation structure for each new run. */
+    /* Initialize the reconciliation structures for each new run. */
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
+    WT_CLEAR(session->reconcile_timeline);
+    session->reconcile_timeline.reconcile_start = rec_start;
+
     r = session->reconcile;
 
     /* Only update if we are in the first entry into eviction. */
@@ -312,9 +292,17 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      */
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
       F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->page) && r->multi_next == 1 &&
-      F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore)
-        ret = __wt_set_return(session, EBUSY);
+      F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore) {
+        /*
+         * If eviction didn't make any progress, let application threads know they should refresh
+         * the transaction's snapshot (and try to evict the latest content).
+         */
+        if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+            F_SET(session->txn, WT_TXN_REFRESH_SNAPSHOT);
 
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_progress);
+        ret = __wt_set_return(session, EBUSY);
+    }
     addr = ref->addr;
 
     /*
@@ -358,6 +346,36 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * again as part of that walk.
      */
     WT_ERR(__wt_page_parent_modify_set(session, ref, true));
+
+    /*
+     * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
+     * (it's just a statistic).
+     */
+    rec_finish = __wt_clock(session);
+    session->reconcile_timeline.reconcile_finish = rec_finish;
+
+    rec_hs_wrapup = WT_CLOCKDIFF_MS(
+      session->reconcile_timeline.hs_wrapup_finish, session->reconcile_timeline.hs_wrapup_start);
+    rec_img_build = WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
+      session->reconcile_timeline.image_build_start);
+    rec = WT_CLOCKDIFF_MS(rec_finish, rec_start);
+
+    /*
+     * Sanity check timings (WT_DAY is in seconds, and we have milliseconds). FIXME WT-12192
+     * rec_hs_wrapup and rec_img_build should also have an assertion here.
+     */
+    WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
+
+    if (rec_hs_wrapup > conn->rec_maximum_hs_wrapup_milliseconds)
+        conn->rec_maximum_hs_wrapup_milliseconds = rec_hs_wrapup;
+    if (rec_img_build > conn->rec_maximum_image_build_milliseconds)
+        conn->rec_maximum_image_build_milliseconds = rec_img_build;
+    if (rec > conn->rec_maximum_milliseconds)
+        conn->rec_maximum_milliseconds = rec;
+    if (session->reconcile_timeline.total_reentry_hs_eviction_time >
+      conn->cache->reentry_hs_eviction_ms)
+        conn->cache->reentry_hs_eviction_ms =
+          session->reconcile_timeline.total_reentry_hs_eviction_time;
 
 err:
     if (ret != 0)
@@ -577,7 +595,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->page = page;
 
     /*
-     * Save the transaction generations before reading the page. These are all ordered reads, but we
+     * Save the transaction generations before reading the page. These are all acquire reads, but we
      * only need one.
      */
     r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
@@ -594,11 +612,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /*
      * Update the page state to indicate that all currently installed updates will be included in
      * this reconciliation if it would mark the page clean.
-     *
-     * Add a write barrier to make it more likely that a thread adding an update will see this state
-     * change.
      */
-    page->modify->page_state = WT_PAGE_DIRTY_FIRST;
+    __wt_atomic_store32(&page->modify->page_state, WT_PAGE_DIRTY_FIRST);
     WT_FULL_BARRIER();
 
     /*
@@ -608,7 +623,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * transaction running when reconciliation starts is considered uncommitted.
      */
     txn_global = &S2C(session)->txn_global;
-    WT_ORDERED_READ(r->last_running, txn_global->last_running);
+    WT_ACQUIRE_READ_WITH_BARRIER(r->last_running, txn_global->last_running);
 
     /*
      * Cache the pinned timestamp and oldest id, these are used to when we clear obsolete timestamps
@@ -623,7 +638,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * checkpoints into account.
      */
     if (WT_IS_METADATA(session->dhandle)) {
-        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_txn_shared.id);
+        WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
     }
@@ -912,7 +927,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
  * __rec_leaf_page_max_slvg --
  *     Figure out the maximum leaf page size for a salvage reconciliation.
  */
-static inline uint32_t
+static WT_INLINE uint32_t
 __rec_leaf_page_max_slvg(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_BTREE *btree;
@@ -1927,8 +1942,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     }
 
     /* Set the fast-truncate proxy cell information flag. */
-    if ((page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT) &&
-      __wt_process.fast_truncate_2022)
+    if (page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     dsk->unused = 0;
@@ -1942,7 +1956,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
  * __rec_compression_adjust --
  *     Adjust the pre-compression page size based on compression results.
  */
-static inline void
+static WT_INLINE void
 __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compressed_size,
   bool last_block, uint64_t *adjustp)
 {
@@ -1965,7 +1979,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
      *	Writing a shared memory location without a lock and letting it
      * race, minor trickiness so we only read and write the value once.
      */
-    WT_ORDERED_READ(current, *adjustp);
+    WT_ACQUIRE_READ_WITH_BARRIER(current, *adjustp);
     WT_ASSERT_ALWAYS(session, current >= max, "Writing beyond the max page size");
 
     if (compressed_size > max) {
@@ -2009,7 +2023,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
         else
             return;
     }
-    *adjustp = new;
+    WT_WRITE_ONCE(*adjustp, new);
 }
 
 /*
@@ -2039,8 +2053,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
      * unless we're the checkpoint thread. Big pages take a lot of writes, avoid wasting work.
      */
-    if (!last_block && WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session))
+    if (!last_block && WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session)) {
+        WT_STAT_CONN_DATA_INCR(
+          session, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
         return (__wt_set_return(session, EBUSY));
+    }
 
     /* Make sure there's enough room for another write. */
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
@@ -2349,6 +2366,37 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 }
 
 /*
+ * __rec_page_modify_ta_safe_free --
+ *     Any thread that is reviewing the page modify time aggregate in a WT_REF, must also be holding
+ *     a split generation to ensure that the page index they are using remains valid. Use that same
+ *     split generation to ensure that the page modify time aggregate inside the WT_REF remains
+ *     valid while it is being reviewed.
+ */
+static void
+__rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
+{
+    WT_DECL_RET;
+    uint64_t split_gen;
+    void *p;
+
+    p = *(void **)ta;
+    if (p == NULL)
+        return;
+
+    do {
+        WT_READ_ONCE(p, *ta);
+        if (p == NULL)
+            break;
+    } while (!__wt_atomic_cas_ptr(ta, p, NULL));
+
+    split_gen = __wt_gen(session, WT_GEN_SPLIT);
+
+    if (__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, sizeof(WT_TIME_AGGREGATE)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during page modify ta free"));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
+}
+
+/*
  * __rec_write_wrapup --
  *     Finish the reconciliation.
  */
@@ -2358,9 +2406,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
-    WT_TIME_AGGREGATE ta;
+    WT_TIME_AGGREGATE stop_ta, *stop_tap, ta;
+    uint32_t i;
     uint8_t previous_ref_state;
 
     btree = S2BT(session);
@@ -2440,6 +2490,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
 
+    /*
+     * When the page is being reconciled as part of the checkpoint operation, the REF is not locked.
+     * Concurrent access to the page can be enabled by safe-releasing the time aggregate
+     * information.
+     */
+    __rec_page_modify_ta_safe_free(session, &mod->stop_ta);
+    WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
+
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
       r->multi_next);
 
@@ -2493,10 +2551,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             r->multi->addr.addr = NULL;
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(__rec_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
         mod->rec_result = WT_PM_REC_REPLACE;
@@ -2518,6 +2578,10 @@ split:
 
         r->multi = NULL;
         r->multi_next = 0;
+
+        /* Calculate the max stop time point by traversing all multi addresses. */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &multi->addr.ta);
         break;
     }
 
@@ -2547,7 +2611,7 @@ split:
             WT_REF_LOCK(session, ref, &previous_ref_state);
             WT_ASSERT(session, previous_ref_state == WT_REF_MEM);
         } else
-            WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+            WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
         /* Check the instantiated flag again in case it got cleared while we waited. */
         if (mod->instantiated) {
@@ -2557,6 +2621,12 @@ split:
 
         if (!F_ISSET(r, WT_REC_EVICT))
             WT_REF_UNLOCK(ref, previous_ref_state);
+    }
+
+    if (WT_TIME_AGGREGATE_HAS_STOP(&stop_ta)) {
+        WT_RET(__wt_calloc_one(session, &stop_tap));
+        WT_TIME_AGGREGATE_COPY(stop_tap, &stop_ta);
+        WT_RELEASE_WRITE_WITH_BARRIER(mod->stop_ta, stop_tap);
     }
 
     return (0);

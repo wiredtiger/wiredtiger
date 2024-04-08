@@ -30,6 +30,10 @@
 
 #include "wt_internal.h"
 
+#define BACKUP_BASE "backup."
+#define BACKUP_OLD "OLD." BACKUP_BASE
+#define CHECK_BASE "check."
+
 #ifdef _WIN32
 #define DIR_DELIM '\\'
 #define DIR_DELIM_STR "\\"
@@ -48,7 +52,8 @@
 /* Default file and subdirectory names to use for LazyFS in the tests. */
 #define LAZYFS_BASE_DIR "base"
 #define LAZYFS_CONFIG_FILE "lazyfs-config.toml"
-#define LAZYFS_CONTROL_FILE "lazyfs-control.fifo"
+#define LAZYFS_CONTROL_FILE_SUFFIX ".fifo"
+#define LAZYFS_CONTROL_FILE_TEMPLATE "lazyfs-control-XXXXXX" LAZYFS_CONTROL_FILE_SUFFIX
 #define LAZYFS_LOG_FILE "lazyfs.log"
 
 #ifdef _WIN32
@@ -331,6 +336,16 @@ typedef struct {
     } while (0)
 
 /*
+ * testutil_system --
+ *     A convenience macro for testutil_system_internal. Accepts line number as an argument.
+ */
+#define testutil_system(fmt, ...)                                                  \
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))                                  \
+    do {                                                                           \
+        testutil_system_internal(__PRETTY_FUNCTION__, __LINE__, fmt, __VA_ARGS__); \
+    } while (0)
+
+/*
  * testutil_verify --
  *     Verify a table
  */
@@ -509,10 +524,9 @@ void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
 bool testutil_is_dir_store(TEST_OPTS *);
-void testutil_backup_create_full(
-  WT_CONNECTION *, const char *, const char *, const char *, bool, uint32_t, int *);
-void testutil_backup_create_incremental(WT_CONNECTION *, const char *, const char *, const char *,
-  const char *, const char *, bool, int *, int *, int *);
+void testutil_backup_create_full(WT_CONNECTION *, const char *, int, bool, uint32_t, int *);
+void testutil_backup_create_incremental(
+  WT_CONNECTION *, const char *, int, int, bool, int *, int *, int *);
 void testutil_backup_force_stop(WT_SESSION *);
 void testutil_backup_force_stop_conn(WT_CONNECTION *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
@@ -526,6 +540,7 @@ void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
 void testutil_deduce_build_dir(TEST_OPTS *opts);
+void testutil_delete_old_backups(int);
 bool testutil_exists(const char *, const char *);
 int testutil_general_event_handler(
   WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
@@ -552,10 +567,12 @@ void testutil_sentinel(const char *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
+void testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
+void testutil_tiered_end(TEST_OPTS *);
 void testutil_tiered_flush_complete(TEST_OPTS *, WT_SESSION *, void *);
 void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint64_t, bool *);
 void testutil_tiered_storage_configuration(

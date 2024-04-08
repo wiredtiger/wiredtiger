@@ -69,6 +69,9 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 /* Keys. */
 const model::data_value key1("Key 1");
 const model::data_value key2("Key 2");
+const model::data_value key3("Key 3");
+const model::data_value key4("Key 4");
+const model::data_value key5("Key 5");
 const model::data_value keyX("Key X");
 
 /* Values. */
@@ -521,6 +524,310 @@ test_model_logged_wt(void)
 }
 
 /*
+ * test_model_truncate --
+ *     Test truncation.
+ */
+static void
+test_model_truncate(bool logging)
+{
+    model::kv_database database;
+
+    model::kv_table_config table_config;
+    table_config.log_enabled = logging;
+    model::kv_table_ptr table = database.create_table("table", table_config);
+
+    /* Populate the table. */
+    testutil_check(table->insert(key1, value1, 10));
+    testutil_check(table->insert(key2, value2, 20));
+    testutil_check(table->insert(key3, value3, 20));
+    testutil_check(table->insert(key4, value4, 30));
+    testutil_check(table->insert(key5, value5, 30));
+
+    /* Truncate. */
+    testutil_check(table->truncate(key2, key4, 30));
+    testutil_assert(table->get(key1) == value1);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == model::NONE);
+    testutil_assert(table->get(key4) == model::NONE);
+    testutil_assert(table->get(key5) == value5);
+
+    /* Add the keys back and try range truncates that involve the beginning and the end. */
+    testutil_check(table->insert(key2, value2, 40));
+    testutil_check(table->insert(key3, value3, 40));
+    testutil_check(table->insert(key4, value4, 40));
+
+    testutil_check(table->truncate(model::NONE, key2, 40));
+    testutil_check(table->truncate(key4, model::NONE, 40));
+    testutil_assert(table->get(key1) == model::NONE);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == value3);
+    testutil_assert(table->get(key4) == model::NONE);
+    testutil_assert(table->get(key5) == model::NONE);
+
+    /* Now try the full range truncate. */
+    testutil_check(table->insert(key2, value2, 50));
+    testutil_check(table->insert(key3, value3, 50));
+    testutil_check(table->insert(key4, value4, 50));
+
+    testutil_check(table->truncate(model::NONE, model::NONE, 50));
+    testutil_assert(table->get(key1) == model::NONE);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == model::NONE);
+    testutil_assert(table->get(key4) == model::NONE);
+    testutil_assert(table->get(key5) == model::NONE);
+
+    /* Start and stop keys don't actually need to exist. */
+    testutil_check(table->insert(key2, value2, 60));
+    testutil_check(table->insert(key3, value3, 60));
+    testutil_check(table->insert(key4, value4, 60));
+
+    testutil_check(table->truncate(key1, key2, 60));
+    testutil_check(table->truncate(key4, key5, 60));
+    testutil_assert(table->get(key1) == model::NONE);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == value3);
+    testutil_assert(table->get(key4) == model::NONE);
+    testutil_assert(table->get(key5) == model::NONE);
+}
+
+/*
+ * test_model_truncate_wt --
+ *     Test truncation - with WiredTiger.
+ */
+static void
+test_model_truncate_wt(bool logging)
+{
+    model::kv_database database;
+
+    model::kv_table_config table_config;
+    table_config.log_enabled = logging;
+    model::kv_table_ptr table = database.create_table("table", table_config);
+
+    /* Create the test's home directory and database. */
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    const char *uri = "table:table";
+
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "truncate";
+    if (logging)
+        test_home += "-logged";
+    testutil_recreate_dir(test_home.c_str());
+    testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+    std::string config = "key_format=S,value_format=S,log=(enabled=";
+    config += std::string(logging ? "true" : "false") + ")";
+    testutil_check(session->create(session, uri, config.c_str()));
+
+    /* Populate the table. */
+    wt_model_insert_both(table, uri, key1, value1, 10);
+    wt_model_insert_both(table, uri, key2, value2, 20);
+    wt_model_insert_both(table, uri, key3, value3, 20);
+    wt_model_insert_both(table, uri, key4, value4, 30);
+    wt_model_insert_both(table, uri, key5, value5, 30);
+
+    /* Truncate. */
+    wt_model_truncate_both(table, uri, key2, key4, 30);
+    wt_model_assert(table, uri, key1);
+    wt_model_assert(table, uri, key2);
+    wt_model_assert(table, uri, key3);
+    wt_model_assert(table, uri, key4);
+    wt_model_assert(table, uri, key5);
+
+    /* Add the keys back and try range truncates that involve the beginning and the end. */
+    wt_model_insert_both(table, uri, key2, value2, 40);
+    wt_model_insert_both(table, uri, key3, value3, 40);
+    wt_model_insert_both(table, uri, key4, value4, 40);
+
+    wt_model_truncate_both(table, uri, model::NONE, key2, 40);
+    wt_model_truncate_both(table, uri, key4, model::NONE, 40);
+    wt_model_assert(table, uri, key1);
+    wt_model_assert(table, uri, key2);
+    wt_model_assert(table, uri, key3);
+    wt_model_assert(table, uri, key4);
+    wt_model_assert(table, uri, key5);
+
+    /* Now try the full range truncate. */
+    wt_model_insert_both(table, uri, key2, value2, 50);
+    wt_model_insert_both(table, uri, key3, value3, 50);
+    wt_model_insert_both(table, uri, key4, value4, 50);
+
+    wt_model_truncate_both(table, uri, model::NONE, model::NONE, 50);
+    wt_model_assert(table, uri, key1);
+    wt_model_assert(table, uri, key2);
+    wt_model_assert(table, uri, key3);
+    wt_model_assert(table, uri, key4);
+    wt_model_assert(table, uri, key5);
+
+    /* Start and stop keys don't actually need to exist. */
+    wt_model_insert_both(table, uri, key2, value2, 60);
+    wt_model_insert_both(table, uri, key3, value3, 60);
+    wt_model_insert_both(table, uri, key4, value4, 60);
+
+    wt_model_truncate_both(table, uri, key1, key2, 60);
+    wt_model_truncate_both(table, uri, key4, key5, 60);
+    wt_model_assert(table, uri, key1);
+    wt_model_assert(table, uri, key2);
+    wt_model_assert(table, uri, key3);
+    wt_model_assert(table, uri, key4);
+    wt_model_assert(table, uri, key5);
+
+    /* Verify. */
+    testutil_assert(table->verify_noexcept(conn));
+
+    /* Now try to get the verification to fail. */
+    testutil_check(table->insert(key2, value1, 1000));
+    testutil_assert(!table->verify_noexcept(conn));
+
+    /* Clean up. */
+    testutil_check(session->close(session, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
+}
+
+/*
+ * test_model_oldest --
+ *     Test setting the oldest timestamp.
+ */
+static void
+test_model_oldest(void)
+{
+    model::kv_database database;
+    model::kv_table_ptr table = database.create_table("table");
+
+    /* Populate the table with data from a few different timestamps. */
+    testutil_check(table->insert(key1, value1, 10));
+    testutil_check(table->insert(key1, value2, 20));
+    testutil_check(table->insert(key1, value3, 30));
+    testutil_check(table->insert(key1, value4, 40));
+    testutil_check(table->insert(key1, value5, 50));
+
+    /* Set the oldest timestamp. */
+    database.set_oldest_timestamp(30);
+    testutil_assert(database.oldest_timestamp() == 30);
+
+    /* Verify the behavior. */
+    model::data_value v;
+    testutil_assert(table->get_ext(key1, v, 10) == EINVAL);
+    testutil_assert(table->get_ext(key1, v, 20) == EINVAL);
+    testutil_assert(table->get(key1, 30) == value3);
+    testutil_assert(table->get(key1, 40) == value4);
+    testutil_assert(table->get(key1, 50) == value5);
+
+    /* Set the oldest timestamp again. */
+    database.set_oldest_timestamp(50);
+    testutil_assert(database.oldest_timestamp() == 50);
+
+    /* Verify the behavior. */
+    testutil_assert(table->get_ext(key1, v, 10) == EINVAL);
+    testutil_assert(table->get_ext(key1, v, 20) == EINVAL);
+    testutil_assert(table->get_ext(key1, v, 30) == EINVAL);
+    testutil_assert(table->get_ext(key1, v, 40) == EINVAL);
+    testutil_assert(table->get(key1, 50) == value5);
+
+    /* Test moving the oldest timestamp backwards - this should fail silently. */
+    database.set_oldest_timestamp(10);
+    testutil_assert(database.oldest_timestamp() == 50);
+
+    /* The oldest timestamp should reset, because we don't have the stable timestamp. */
+    database.restart();
+    testutil_assert(database.oldest_timestamp() == 0);
+
+    /* Now try it with both the oldest and stable timestamps. */
+    database.set_oldest_timestamp(50);
+    database.set_stable_timestamp(55);
+    database.restart();
+    testutil_assert(database.oldest_timestamp() == 50);
+}
+
+/*
+ * test_model_oldest_wt --
+ *     Test setting the oldest timestamp - with WiredTiger.
+ */
+static void
+test_model_oldest_wt(void)
+{
+    model::kv_database database;
+    model::kv_table_ptr table = database.create_table("table");
+
+    /* Create the test's home directory and database. */
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    const char *uri = "table:table";
+
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "oldest";
+    testutil_recreate_dir(test_home.c_str());
+    testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+    testutil_check(
+      session->create(session, uri, "key_format=S,value_format=S,log=(enabled=false)"));
+
+    /* Populate the table with data from a few different timestamps. */
+    wt_model_insert_both(table, uri, key1, value1, 10);
+    wt_model_insert_both(table, uri, key1, value2, 20);
+    wt_model_insert_both(table, uri, key1, value3, 30);
+    wt_model_insert_both(table, uri, key1, value4, 40);
+    wt_model_insert_both(table, uri, key1, value5, 50);
+
+    /* Set the oldest timestamp. */
+    wt_model_set_oldest_timestamp_both(30);
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+
+    /* Verify the behavior. */
+    wt_model_assert(table, uri, key1, 10);
+    wt_model_assert(table, uri, key1, 20);
+    wt_model_assert(table, uri, key1, 30);
+    wt_model_assert(table, uri, key1, 40);
+    wt_model_assert(table, uri, key1, 50);
+
+    /* Set the oldest timestamp again. */
+    wt_model_set_oldest_timestamp_both(50);
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+
+    /* Verify the behavior. */
+    wt_model_assert(table, uri, key1, 10);
+    wt_model_assert(table, uri, key1, 20);
+    wt_model_assert(table, uri, key1, 30);
+    wt_model_assert(table, uri, key1, 40);
+    wt_model_assert(table, uri, key1, 50);
+
+    /* Test moving the oldest timestamp backwards - this should fail silently. */
+    wt_model_set_oldest_timestamp_both(10);
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+
+    /* Verify. */
+    testutil_assert(table->verify_noexcept(conn));
+
+    /* Restart the database. */
+    database.restart();
+    testutil_check(session->close(session, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+    testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+
+    /* The oldest timestamp should reset, because we don't have the stable timestamp. */
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+
+    /* Now try it with both the oldest and stable timestamps. */
+    wt_model_set_oldest_timestamp_both(50);
+    wt_model_set_stable_timestamp_both(55);
+    database.restart();
+    testutil_check(session->close(session, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+    testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+
+    /* Clean up. */
+    testutil_check(session->close(session, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+
+    /* Verify using the debug log. */
+    verify_using_debug_log(opts, test_home.c_str(), true);
+}
+
+/*
  * usage --
  *     Print usage help for the program.
  */
@@ -574,6 +881,12 @@ main(int argc, char *argv[])
         test_model_basic_wt();
         test_model_logged();
         test_model_logged_wt();
+        test_model_truncate(false);
+        test_model_truncate_wt(false);
+        test_model_truncate(true);
+        test_model_truncate_wt(true);
+        test_model_oldest();
+        test_model_oldest_wt();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;
         ret = EXIT_FAILURE;

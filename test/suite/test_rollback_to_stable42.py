@@ -50,6 +50,7 @@ def custom_validator(data):
         "rolling back tree",
         "tree rolled back",
         "finished rollback to stable",
+        "waiting for helper threads"
     ]
     needle = "skipped performing rollback to stable"
 
@@ -117,6 +118,3 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         # of these birds with one stone.
         with self.customStdoutPattern(custom_validator):
             simulate_crash_restart(self, ".", "RESTART")
-
-if __name__ == '__main__':
-    wttest.run()

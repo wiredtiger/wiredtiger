@@ -37,16 +37,16 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
      * contents change during traversal. We expect the calling code to handle this. See the slotted
      * sessions docs for further details. FIXME-WT-10946 Add link to docs once they're added.
      */
-    session_cnt = *(volatile uint32_t *)&(conn->session_array.cnt);
+    WT_READ_ONCE(session_cnt, conn->session_array.cnt);
 
     for (i = 0, array_session = WT_CONN_SESSIONS_GET(conn); i < session_cnt; i++, array_session++) {
         /*
-         * This ordered read is paired with a WT_PUBLISH from the session create logic, and
-         * guarantees that by the time this thread sees active == 1 all other fields in the session
-         * have been initialized properly. Any other ordering constraints, such as ensuring this
-         * loop occurs in-order, are not intentional.
+         * This acquire read is paired with a WT_RELEASE_WRITE_WITH_BARRIER from the session create
+         * logic, and guarantees that by the time this thread sees active == 1 all other fields in
+         * the session have been initialized properly. Any other ordering constraints, such as
+         * ensuring this loop occurs in-order, are not intentional.
          */
-        WT_ORDERED_READ(active, array_session->active);
+        WT_ACQUIRE_READ_WITH_BARRIER(active, array_session->active);
 
         /* Skip inactive sessions. */
         if (!active)

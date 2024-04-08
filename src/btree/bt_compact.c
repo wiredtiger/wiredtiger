@@ -173,23 +173,26 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_REF_LOCK(session, ref, &previous_state);
 
     /*
-     * Skip deleted pages but consider them progress (the on-disk block is discarded by the next
-     * checkpoint).
+     * Don't bother rewriting deleted pages but also don't skip. The on-disk block is discarded by
+     * the next checkpoint.
      */
-    if (previous_state == WT_REF_DELETED)
+    if (previous_state == WT_REF_DELETED && ref->page_del == NULL)
         *skipp = false;
 
     /*
-     * If it's on-disk, get a copy of the address and ask the block manager to rewrite the block if
+     * If it's on disk, get a copy of the address and ask the block manager to rewrite the block if
      * it's useful. This is safe because we're holding the WT_REF locked, so nobody can read the
-     * page giving eviction a chance to modify the address.
+     * page giving eviction a chance to modify the address. Note that a deleted ref that is not
+     * globally visible is still on disk.
      *
      * In this path, we are holding the WT_REF lock across two OS buffer cache I/Os (the read of the
      * original block and the write of the new block), plus whatever overhead that entails. It's not
      * ideal, we could release the lock, but then we'd have to deal with the block having been read
      * into memory while we were moving it.
      */
-    if (previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &copy)) {
+    if ((previous_state == WT_REF_DISK ||
+          (previous_state == WT_REF_DELETED && ref->page_del != NULL)) &&
+      __wt_ref_addr_copy(session, ref, &copy)) {
         bm = S2BT(session)->bm;
         addr_size = copy.size;
         WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
@@ -212,9 +215,8 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * application's worker threads: we could release the lock, but then we'd have to acquire a
      * hazard pointer to ensure eviction didn't select the page.
      */
-    if (previous_state == WT_REF_MEM) {
+    if (previous_state == WT_REF_MEM)
         WT_ERR(__compact_page_inmem(session, ref, skipp));
-    }
 
 err:
     WT_REF_UNLOCK(ref, previous_state);
@@ -314,10 +316,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     u_int i;
     bool first, skip;
 
-    uint64_t stats_pages_reviewed;           /* Pages reviewed */
-    uint64_t stats_pages_rewritten;          /* Pages rewritten */
-    uint64_t stats_pages_rewritten_expected; /* How much pages we expect to rewrite */
-    uint64_t stats_pages_skipped;            /* Pages skipped */
+    uint64_t stats_pages_reviewed; /* Pages reviewed */
 
     bm = S2BT(session)->bm;
     ref = NULL;
@@ -337,8 +336,7 @@ __wt_compact(WT_SESSION_IMPL *session)
          * Print the "skipping compaction" message only if this is the first time we are working on
          * this table.
          */
-        __wt_block_compact_get_progress_stats(session, bm, &stats_pages_reviewed,
-          &stats_pages_skipped, &stats_pages_rewritten, &stats_pages_rewritten_expected);
+        __wt_block_compact_get_progress_stats(session, bm, &stats_pages_reviewed);
         if (stats_pages_reviewed == 0)
             __wt_verbose_info(session, WT_VERB_COMPACT,
               "%s: there is no useful work to do - skipping compaction", bm->block->name);
@@ -349,15 +347,6 @@ __wt_compact(WT_SESSION_IMPL *session)
     /* Walk the tree reviewing pages to see if they should be re-written. */
     first = true;
     for (i = 0;;) {
-
-        /* Track progress. */
-        __wt_block_compact_get_progress_stats(session, bm, &stats_pages_reviewed,
-          &stats_pages_skipped, &stats_pages_rewritten, &stats_pages_rewritten_expected);
-        WT_STAT_DATA_SET(session, btree_compact_pages_reviewed, stats_pages_reviewed);
-        WT_STAT_DATA_SET(session, btree_compact_pages_skipped, stats_pages_skipped);
-        WT_STAT_DATA_SET(session, btree_compact_pages_rewritten, stats_pages_rewritten);
-        WT_STAT_DATA_SET(
-          session, btree_compact_pages_rewritten_expected, stats_pages_rewritten_expected);
 
         /*
          * Periodically check if compaction has been interrupted or if eviction is stuck, quit if
@@ -401,6 +390,9 @@ __wt_compact(WT_SESSION_IMPL *session)
             bm->block->compact_internal_pages_reviewed++;
             WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
         }
+
+        /* Track progress. */
+        __wt_block_compact_get_progress_stats(session, bm, &stats_pages_reviewed);
 
         WT_ERR(ret);
     }

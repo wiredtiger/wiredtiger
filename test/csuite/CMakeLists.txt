@@ -15,6 +15,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_config
+    SOURCES config/main.c
+    DIR_NAME config
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_config>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_incr_backup
     SOURCES incr_backup/main.c
     DIR_NAME incr_backup
@@ -38,16 +46,8 @@ define_c_test(
     DIR_NAME random_abort
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_random_abort>
+    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke_lazyfs.sh
     DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_random_abort_lazyfs
-    SOURCES random_abort/main.c
-    DIR_NAME random_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke_lazyfs.sh
-    ARGUMENTS $<TARGET_FILE:test_random_abort_lazyfs>
-    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
@@ -77,16 +77,8 @@ define_c_test(
     DIR_NAME schema_abort
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_schema_abort>
+    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke_lazyfs.sh
     DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_schema_abort_lazyfs
-    SOURCES schema_abort/main.c
-    DIR_NAME schema_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke_lazyfs.sh
-    ARGUMENTS $<TARGET_FILE:test_schema_abort_lazyfs>
-    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
@@ -102,6 +94,7 @@ define_c_test(
     DIR_NAME timestamp_abort
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
     ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
+    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke_lazyfs.sh
     DEPENDS "WT_POSIX"
     LABEL "long_running"
 )
@@ -114,15 +107,6 @@ define_c_test(
     ARGUMENTS -s -b $<TARGET_FILE:test_timestamp_abort>_stress
     DEPENDS "WT_POSIX"
     LABEL "long_running"
-)
-
-define_c_test(
-    TARGET test_timestamp_abort_lazyfs
-    SOURCES timestamp_abort/main.c
-    DIR_NAME timestamp_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke_lazyfs.sh
-    ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort_lazyfs>
-    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
@@ -366,6 +350,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt9199_checkpoint_txn_commit_race
+    SOURCES wt9199_checkpoint_txn_commit_race/main.c
+    DIR_NAME wt9199_checkpoint_txn_commit_race
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt9199_checkpoint_txn_commit_race>/WT_HOME>
+    DEPENDS "WT_POSIX"
+    LABEL "long_running"
+)
+
+define_c_test(
     TARGET test_wt8057_compact_stress
     SOURCES wt8057_compact_stress/main.c
     DIR_NAME wt8057_compact_stress
@@ -414,6 +407,14 @@ define_c_test(
     TARGET test_wt10897_compact_quick_interrupt
     SOURCES wt10897_compact_quick_interrupt/main.c
     DIR_NAME wt10897_compact_quick_interrupt
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt11126_compile_config
+    SOURCES wt11126_compile_config/main.c
+    DIR_NAME wt11126_compile_config
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )

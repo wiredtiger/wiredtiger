@@ -46,10 +46,6 @@ target_link_libraries(
         aws-sdk::core
 )
 
-if(ENABLE_TCMALLOC)
-    target_link_libraries(wiredtiger_s3_store PRIVATE wt::tcmalloc)
-endif()
-
 # Add the unit tests, need Catch2 which is resolved with HAVE_UNITTEST.
 if(HAVE_UNITTEST)
     add_subdirectory(test)

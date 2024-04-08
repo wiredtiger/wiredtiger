@@ -412,18 +412,6 @@ The \c read command exits non-zero if a specified record is not found.
 The \c read command has no command-specific options.
 
 <hr>
-@section util_rename wt rename
-Rename a table.
-
-The \c rename command renames the specified table.
-
-@subsection util_rename_synopsis Synopsis
-`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] rename uri new-uri`
-
-@subsection util_rename_options Options
-The \c rename command has no command-specific options.
-
-<hr>
 @section util_salvage wt salvage
 Recover data from a corrupted table.
 
@@ -513,6 +501,10 @@ Continue to the next page after encountering error during verification.
 \c -d [config]
 This option allows you to specify values which you want to be displayed
 when verification is run. See the WT_SESSION::verify configuration options.
+
+\c -k
+Display only the \c key data when dumping with configuration \c dump_blocks
+or \c dump_page.
 
 \c -S
 This option enables strict mode and treats any verification problem as an error.

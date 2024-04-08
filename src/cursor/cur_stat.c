@@ -48,7 +48,7 @@ __curstat_get_key(WT_CURSOR *cursor, ...)
     va_list ap;
 
     cst = (WT_CURSOR_STAT *)cursor;
-    CURSOR_API_CALL(cursor, session, get_key, NULL);
+    CURSOR_API_CALL(cursor, session, ret, get_key, NULL);
 
     WT_ERR(__cursor_needkey(cursor));
 
@@ -89,12 +89,14 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
     va_list ap;
 
     cst = (WT_CURSOR_STAT *)cursor;
-    CURSOR_API_CALL(cursor, session, get_value, NULL);
+    CURSOR_API_CALL(cursor, session, ret, get_value, NULL);
 
     WT_ERR(__cursor_needvalue(cursor));
 
     WT_ERR(cst->stats_desc(cst, WT_STAT_KEY_OFFSET(cst), &desc));
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
+        /* The printed value is currently null. Create it now, it's needed for the packed result. */
+        WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
         WT_ERR(__wt_struct_size(session, &size, cursor->value_format, desc, cst->pv.data, cst->v));
         WT_ERR(__wt_buf_initsize(session, &cursor->value, size));
         WT_ERR(__wt_struct_pack(
@@ -113,8 +115,11 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
         va_start(ap, cursor);
         if ((p = va_arg(ap, const char **)) != NULL)
             *p = desc;
-        if ((p = va_arg(ap, const char **)) != NULL)
+        if ((p = va_arg(ap, const char **)) != NULL) {
+            /* Create the printed value only when needed. */
+            WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
             *p = cst->pv.data;
+        }
         if ((v = va_arg(ap, uint64_t *)) != NULL)
             *v = cst->v;
         va_end(ap);
@@ -137,7 +142,7 @@ __curstat_set_keyv(WT_CURSOR *cursor, va_list ap)
     WT_SESSION_IMPL *session;
 
     cst = (WT_CURSOR_STAT *)cursor;
-    CURSOR_API_CALL(cursor, session, set_key, NULL);
+    CURSOR_API_CALL(cursor, session, ret, set_key, NULL);
     F_CLR(cursor, WT_CURSTD_KEY_SET);
 
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
@@ -189,7 +194,7 @@ __curstat_next(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cst = (WT_CURSOR_STAT *)cursor;
-    CURSOR_API_CALL(cursor, session, next, NULL);
+    CURSOR_API_CALL(cursor, session, ret, next, NULL);
 
     /* Initialize on demand. */
     if (cst->notinitialized) {
@@ -211,7 +216,6 @@ __curstat_next(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
-    WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     if (0) {
@@ -233,7 +237,7 @@ __curstat_prev(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cst = (WT_CURSOR_STAT *)cursor;
-    CURSOR_API_CALL(cursor, session, prev, NULL);
+    CURSOR_API_CALL(cursor, session, ret, prev, NULL);
 
     /* Initialize on demand. */
     if (cst->notinitialized) {
@@ -255,7 +259,6 @@ __curstat_prev(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
-    WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     if (0) {
@@ -302,7 +305,7 @@ __curstat_search(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cst = (WT_CURSOR_STAT *)cursor;
-    CURSOR_API_CALL(cursor, session, search, NULL);
+    CURSOR_API_CALL(cursor, session, ret, search, NULL);
 
     WT_ERR(__cursor_needkey(cursor));
     F_CLR(cursor, WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_SET);
@@ -317,7 +320,6 @@ __curstat_search(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
-    WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
 err:

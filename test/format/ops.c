@@ -318,7 +318,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
              */
             thread_ops = -1;
             ops_seconds = 0;
-            g.stop_timestamp = (GV(RUNS_OPS) * run_current) / run_total;
+            g.stop_timestamp = (GV(RUNS_OPS) * (uint64_t)run_current) / run_total;
         } else
             thread_ops = GV(RUNS_OPS) / GV(RUNS_THREADS);
     }
@@ -595,7 +595,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.
      */
-    WT_PUBLISH(tinfo->commit_ts, ts);
+    WT_RELEASE_WRITE_WITH_BARRIER(tinfo->commit_ts, ts);
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);
@@ -1149,7 +1149,7 @@ rollback_retry:
          */
         max_rows = TV(RUNS_ROWS);
         if (table->type != ROW && !table->mirror)
-            WT_ORDERED_READ(max_rows, table->rows_current);
+            WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
         tinfo->keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
         if (TV(OPS_PARETO)) {
             tinfo->keyno = testutil_pareto(tinfo->keyno, (u_int)max_rows, TV(OPS_PARETO_SKEW));
@@ -1535,7 +1535,7 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
 
     /* Set up the default key buffer. */
     key_gen_init(&key);
-    WT_ORDERED_READ(max_rows, table->rows_current);
+    WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
 
     /*
      * Generate a random lower key and apply to the lower bound or upper bound depending on the
@@ -1636,7 +1636,7 @@ wts_read_scan(TABLE *table, void *args)
     wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */
-    WT_ORDERED_READ(max_rows, table->rows_current);
+    WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
     for (keyno = 0; keyno < max_rows;) {
         if (++keyno > 50)
             keyno += mmrand(rnd, 1, WT_THOUSAND);
@@ -2076,7 +2076,7 @@ col_insert_resolve(TABLE *table, void *arg)
      * Process the existing records and advance the last row count until we can't go further.
      */
     do {
-        WT_ORDERED_READ(max_rows, table->rows_current);
+        WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
         for (i = 0, p = cip->insert_list; i < WT_ELEMENTS(cip->insert_list); ++i, ++p) {
             /*
              * A thread may have allocated a record number that is now less than or equal to the
