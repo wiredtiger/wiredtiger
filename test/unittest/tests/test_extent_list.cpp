@@ -250,7 +250,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
     }
 }
 
-TEST_CASE("Extent Lists: block_off_srch_last_for_mock_ession", "[extent_list]")
+TEST_CASE("Extent Lists: block_off_srch_last_for_mock_session", "[extent_list]")
 {
     std::shared_ptr<MockSession> mock_session;
     WT_EXTLIST *alloc;
@@ -258,7 +258,7 @@ TEST_CASE("Extent Lists: block_off_srch_last_for_mock_ession", "[extent_list]")
     WT_EXT *ext, extp, **astack[WT_SKIP_MAXDEPTH];
     WT_BLOCK *block;
     int i;
-    const char *name = "block_off_srch_last_for_mock_ession";
+    const char *name = "block_off_srch_last_for_mock_session";
 
     mock_session = MockSession::buildTestMockSession();
     WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
