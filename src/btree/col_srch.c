@@ -78,11 +78,9 @@ __wt_col_search(
      * record exists in the tree.
      */
     bool greater_recno_exists_flcs;
-    bool is_flcs;
 
     session = CUR2S(cbt);
     btree = S2BT(session);
-    is_flcs = btree->type == BTREE_COL_FIX;
     current = NULL;
     greater_recno_exists_flcs = false;
 
@@ -142,7 +140,8 @@ restart:
         base = pindex->entries;
         descent = pindex->index[base - 1];
 
-        if (is_flcs && !greater_recno_exists_flcs && descent->ref_recno > recno)
+        if (btree->type == BTREE_COL_FIX && !greater_recno_exists_flcs &&
+          descent->ref_recno > recno)
             greater_recno_exists_flcs = true;
 
         /* Fast path appends. */
@@ -339,12 +338,15 @@ past_end:
             cbt->compare = 0;
         else if (recno < cbt->recno)
             cbt->compare = 1;
-        else {
+        /*
+         * Special case for FLCS: the searched-for record number is greater then the record the
+         * cursor is positioned on but there is a row larger than the searched-for key. This means
+         * we are looking for an implicit record.
+         */
+        else if (greater_recno_exists_flcs)
+            cbt->compare = 1;
+        else
             cbt->compare = -1;
-            /* Special case for FLCS: indicate there is a row larger than the searched-for key. */
-            if (greater_recno_exists_flcs)
-                cbt->compare = 1;
-        }
     }
     return (0);
 }
