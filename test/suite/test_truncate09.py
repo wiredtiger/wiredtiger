@@ -34,7 +34,6 @@ from helper import simulate_crash_restart
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
-@wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
 class test_truncate09(wttest.WiredTigerTestCase):
     # We don't test FLCS, missing records return as 0 values.
     format_values = [
@@ -108,9 +107,9 @@ class test_truncate09(wttest.WiredTigerTestCase):
         cursor.set_key(simple_key(cursor, 30000))
         self.assertNotEqual(cursor.search(), 0)
 
-        # Search for a key in the truncated range which is not stabilised, hence should find it.
+        # Search for a key in the truncated range which is not stabilised, hence should not find it.
         cursor.set_key(simple_key(cursor, 60000))
-        self.assertEqual(cursor.search(), 0)
+        self.assertNotEqual(cursor.search(), 0)
 
         # Search for a removed key which is not stabilised, hence should find it.
         cursor.set_key(simple_key(cursor, 75000))

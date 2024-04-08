@@ -173,7 +173,8 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * pages where all its data is globally visible.
      */
     if (F_ISSET(session->txn, WT_TXN_TS_NOT_SET) &&
-      !__wt_txn_visible_all(session, addr.ta.newest_txn, addr.ta.newest_start_durable_ts))
+      !__wt_txn_visible_all(session, addr.ta.newest_txn,
+        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
         goto err;
 
     /*

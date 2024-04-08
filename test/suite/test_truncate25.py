@@ -34,7 +34,6 @@ from wtdataset import SimpleDataSet
 # Ensure that any history store records are correctly removed when doing
 # a truncate operation with no timestamp.
 
-@wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
 class test_truncate25(wttest.WiredTigerTestCase):
     uri = 'table:test_truncate25'
     conn_config = 'statistics=(all)'
