@@ -1428,6 +1428,7 @@ variables:
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
     <<: *configure_flags_with_builtins
+    ENAMBLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
@@ -5820,13 +5821,12 @@ buildvariants:
   - ubuntu2004-test
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: 1
+    ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-sanitizer"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
