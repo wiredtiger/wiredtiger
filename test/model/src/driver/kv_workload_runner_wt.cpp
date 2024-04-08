@@ -353,7 +353,7 @@ kv_workload_runner_wt::do_operation(const operation::create_table &op)
     std::string uri = std::string("table:") + op.name;
     ret = session->create(session, uri.c_str(), config_str.c_str());
     if (ret == 0)
-        add_table_uri(op.table_id, uri);
+        add_table_uri(op.table_id, std::move(uri));
     return ret;
 }
 
@@ -458,6 +458,21 @@ kv_workload_runner_wt::do_operation(const operation::set_commit_timestamp &op)
     session_context_ptr session = txn_session(op.txn_id);
 
     return session->session()->timestamp_transaction(session->session(), config_str.c_str());
+}
+
+/*
+ * kv_workload_runner_wt::do_operation --
+ *     Execute the given workload operation in WiredTiger.
+ */
+int
+kv_workload_runner_wt::do_operation(const operation::set_oldest_timestamp &op)
+{
+    std::ostringstream config;
+    config << "oldest_timestamp=" << std::hex << op.oldest_timestamp;
+    std::string config_str = config.str();
+
+    std::shared_lock lock(_connection_lock);
+    return _connection->set_timestamp(_connection, config_str.c_str());
 }
 
 /*

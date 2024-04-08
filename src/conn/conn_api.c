@@ -71,12 +71,12 @@ __collator_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_COLLATOR 
 
     *collatorp = NULL;
 
-    if (cname->len == 0 || WT_STRING_MATCH("none", cname->str, cname->len))
+    if (cname->len == 0 || WT_CONFIG_LIT_MATCH("none", *cname))
         return (0);
 
     conn = S2C(session);
     TAILQ_FOREACH (ncoll, &conn->collqh, q)
-        if (WT_STRING_MATCH(ncoll->name, cname->str, cname->len)) {
+        if (WT_CONFIG_MATCH(ncoll->name, *cname)) {
             *collatorp = ncoll->collator;
             return (0);
         }
@@ -190,12 +190,12 @@ __compressor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRESS
 
     *compressorp = NULL;
 
-    if (cval->len == 0 || WT_STRING_MATCH("none", cval->str, cval->len))
+    if (cval->len == 0 || WT_CONFIG_LIT_MATCH("none", *cval))
         return (0);
 
     conn = S2C(session);
     TAILQ_FOREACH (ncomp, &conn->compqh, q)
-        if (WT_STRING_MATCH(ncomp->name, cval->str, cval->len)) {
+        if (WT_CONFIG_MATCH(ncomp->name, *cval)) {
             *compressorp = ncomp->compressor;
             return (0);
         }
@@ -358,12 +358,12 @@ __encryptor_confchk(
     if (nencryptorp != NULL)
         *nencryptorp = NULL;
 
-    if (cval->len == 0 || WT_STRING_MATCH("none", cval->str, cval->len))
+    if (cval->len == 0 || WT_CONFIG_LIT_MATCH("none", *cval))
         return (0);
 
     conn = S2C(session);
     TAILQ_FOREACH (nenc, &conn->encryptqh, q)
-        if (WT_STRING_MATCH(nenc->name, cval->str, cval->len)) {
+        if (WT_CONFIG_MATCH(nenc->name, *cval)) {
             if (nencryptorp != NULL)
                 *nencryptorp = nenc;
             return (0);
@@ -410,7 +410,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     hash = __wt_hash_city64(keyid->str, keyid->len);
     bucket = hash & (conn->hash_size - 1);
     TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], q)
-        if (WT_STRING_MATCH(kenc->keyid, keyid->str, keyid->len))
+        if (WT_CONFIG_MATCH(kenc->keyid, *keyid))
             goto out;
 
     WT_ERR(__wt_calloc_one(session, &kenc));
@@ -589,12 +589,12 @@ __extractor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_EXTRACTO
 
     *extractorp = NULL;
 
-    if (cname->len == 0 || WT_STRING_MATCH("none", cname->str, cname->len))
+    if (cname->len == 0 || WT_CONFIG_LIT_MATCH("none", *cname))
         return (0);
 
     conn = S2C(session);
     TAILQ_FOREACH (nextractor, &conn->extractorqh, q)
-        if (WT_STRING_MATCH(nextractor->name, cname->str, cname->len)) {
+        if (WT_CONFIG_MATCH(nextractor->name, *cname)) {
             *extractorp = nextractor->extractor;
             return (0);
         }
@@ -1188,8 +1188,8 @@ err:
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
      * of cache.
      */
-    conn->cache->eviction_dirty_trigger = 1.0;
-    conn->cache->eviction_dirty_target = 0.1;
+    __wt_set_shared_double(&conn->cache->eviction_dirty_trigger, 1.0);
+    __wt_set_shared_double(&conn->cache->eviction_dirty_target, 0.1);
 
     if (conn->default_session->event_handler->handle_general != NULL &&
       F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
@@ -3051,7 +3051,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         F_SET(conn, WT_CONN_CACHE_CURSORS);
 
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_cleanup", &cval));
-    if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("reclaim_space", cval))
         F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
 
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));

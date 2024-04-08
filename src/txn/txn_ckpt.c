@@ -203,7 +203,7 @@ __checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len, boo
         WT_RET_MSG(session, EINVAL, "the checkpoint name \"%s\" is reserved", WT_CHECKPOINT);
 
     /* The name "all" is also special. */
-    if (!allow_all && WT_STRING_MATCH("all", name, len))
+    if (!allow_all && WT_STRING_LIT_MATCH("all", name, len))
         WT_RET_MSG(session, EINVAL, "the checkpoint name \"all\" is reserved");
 
     return (0);
@@ -528,6 +528,17 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_set_scrub_target --
+ *     Set the scrub target for the checkpoint.
+ */
+static WT_INLINE void
+__checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
+{
+    __wt_set_shared_double(&S2C(session)->cache->eviction_scrub_target, target);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)target);
+}
+
+/*
  * __checkpoint_wait_reduce_dirty_cache --
  *     Try to reduce the amount of dirty data in cache so there is less work do during the critical
  *     section of the checkpoint.
@@ -566,8 +577,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
     max_write = __wt_cache_dirty_leaf_inuse(cache);
 
     /* Set the dirty trigger to the target value. */
-    cache->eviction_scrub_target = cache->eviction_checkpoint_target;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)cache->eviction_scrub_target);
+    __checkpoint_set_scrub_target(session, cache->eviction_checkpoint_target);
 
     /* Wait while the dirty level is going down. */
     for (;;) {
@@ -746,8 +756,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     uint64_t original_snap_min;
-    const char *txn_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool flush, flush_force, use_timestamp;
 
@@ -756,7 +764,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    API_CONF(session, WT_SESSION, begin_transaction, txn_cfg, txn_conf);
+    API_CONF(session, WT_SESSION, begin_transaction, "isolation=snapshot", txn_conf);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
@@ -1242,8 +1250,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Unblock updates -- we can figure out that any updates to clean pages after this point are too
      * new to be written in the checkpoint.
      */
-    cache->eviction_scrub_target = 0.0;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
+    __checkpoint_set_scrub_target(session, 0.0);
 
     /* Tell logging that we have started a database checkpoint. */
     if (full && logging) {
@@ -1480,8 +1487,7 @@ err:
     if (tracking)
         WT_TRET(__wt_meta_track_off(session, false, failed));
 
-    cache->eviction_scrub_target = 0.0;
-    WT_STAT_CONN_SET(session, checkpoint_scrub_target, 0);
+    __checkpoint_set_scrub_target(session, 0.0);
 
     if (F_ISSET(txn, WT_TXN_RUNNING)) {
         /*
@@ -1737,7 +1743,7 @@ __drop_from(
     /*
      * There's a special case -- if the name is "all", then we delete all of the checkpoints.
      */
-    if (WT_STRING_MATCH("all", name, len)) {
+    if (WT_STRING_LIT_MATCH("all", name, len)) {
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /* Remember the names of named checkpoints we're dropping. */
             if (drop_list != NULL && !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT))
@@ -2046,9 +2052,9 @@ __checkpoint_lock_dirty_tree(
 
                 if (v.len == 0)
                     WT_ERR(__drop(session, drop_list, ckptbase, k.str, k.len));
-                else if (WT_STRING_MATCH("from", k.str, k.len))
+                else if (WT_CONFIG_LIT_MATCH("from", k))
                     WT_ERR(__drop_from(session, drop_list, ckptbase, v.str, v.len));
-                else if (WT_STRING_MATCH("to", k.str, k.len))
+                else if (WT_CONFIG_LIT_MATCH("to", k))
                     WT_ERR(__drop_to(session, drop_list, ckptbase, v.str, v.len));
                 else
                     WT_ERR_MSG(session, EINVAL, "unexpected value for checkpoint key: %.*s",

@@ -107,9 +107,9 @@ class test_truncate09(wttest.WiredTigerTestCase):
         cursor.set_key(simple_key(cursor, 30000))
         self.assertNotEqual(cursor.search(), 0)
 
-        # Search for a key in the truncated range which is not stabilised, hence should not find it.
+        # Search for a key in the truncated range which is not stabilised, hence should find it.
         cursor.set_key(simple_key(cursor, 60000))
-        self.assertNotEqual(cursor.search(), 0)
+        self.assertEqual(cursor.search(), 0)
 
         # Search for a removed key which is not stabilised, hence should find it.
         cursor.set_key(simple_key(cursor, 75000))

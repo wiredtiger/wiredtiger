@@ -9,7 +9,9 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
+ANDed
 APIs
+AREALLSET
 ARG
 ARGS
 ASAN
@@ -190,6 +192,7 @@ INTRINSICS
 INUSE
 INVL
 ISA
+ISSET
 ITEMs
 InitializeCriticalSectionAndSpinCount
 Instantiation
@@ -516,6 +519,7 @@ blk
 blkcache
 blkincr
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -591,6 +595,7 @@ comparator
 comparators
 comparep
 compat
+compilable
 cond
 conditionalize
 conf
@@ -633,7 +638,6 @@ cursoring
 cursorp
 curstartrecno
 curstat
-curstd
 curtable
 curversion
 cust
@@ -743,9 +747,14 @@ fclose
 fcntl
 fd
 fdatasync
+fe
+feffff
 fextend
 ffc
 fff
+fffff
+ffffff
+ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -845,6 +854,7 @@ ifdef's
 iiSii
 iiiS
 iiii
+iiu
 ikey
 im
 img
@@ -1083,6 +1093,7 @@ packv
 pageref
 pagesize
 param
+params
 pareto
 parserp
 patchp
@@ -1177,6 +1188,7 @@ risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
@@ -1188,6 +1200,7 @@ runone
 runtime
 rw
 rwlock
+sH
 sHQ
 sXXXXXX
 sanitizer
@@ -1250,6 +1263,7 @@ strdup
 strerror
 strftime
 strlen
+strncmp
 strncpy
 strndup
 strnlen
@@ -1285,6 +1299,7 @@ sz
 t's
 tIf
 tV
+tablename
 td
 teardown
 tempdir
