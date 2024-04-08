@@ -27,71 +27,117 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-from wtdataset import SimpleDataSet
 
 # test_truncate23.py
-# Ensure that any history store records are correctly removed when doing
-# a truncate operation with no timestamp.
+# Test that we properly handle truncate with and without prepared transactions.
 class test_truncate23(wttest.WiredTigerTestCase):
-    uri = 'table:test_truncate23'
+    uri_prefix = 'table:test_truncate23_'
     conn_config = 'statistics=(all)'
-    nrows = 10000
+    scenario_num = 0
+
+    def in_range(self, truncate_start, truncate_stop, key):
+        '''
+        Check whether the key is in the truncation range.
+        '''
+        if truncate_start is None and truncate_stop is None:
+            return True
+        elif truncate_start is None:
+            return key <= truncate_stop
+        elif truncate_stop is None:
+            return key >= truncate_start
+        else:
+            return key >= truncate_start and key <= truncate_stop
+
+    def scenario(self, prepared, truncate_start, truncate_stop, *args):
+        '''
+        Run through a test scenario, which populates a table with the args and truncates the given
+        range. If the prepared argument is true, keys outside of the truncation range are populated
+        in a prepared transaction that does not commit until after the truncate.
+        '''
+        self.scenario_num += 1
+        uri = self.uri_prefix + str(self.scenario_num)
+        self.session.create(uri, 'key_format=Q,value_format=Q,log=(enabled=false)')
+
+        # Populate the truncation range with data that must be committed.
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(uri)
+        for key in args:
+            if self.in_range(truncate_start, truncate_stop, key):
+                cursor.set_key(key)
+                cursor.set_value(key)
+                cursor.insert()
+        cursor.close()
+        self.session.commit_transaction('commit_timestamp=10')
+
+        # Populate data outside of the truncation range.
+        session2 = self.conn.open_session()
+        session2.begin_transaction()
+        cursor = session2.open_cursor(uri)
+        for key in args:
+            if not self.in_range(truncate_start, truncate_stop, key):
+                cursor.set_key(key)
+                cursor.set_value(key)
+                cursor.insert()
+        cursor.close()
+        if prepared:
+            session2.prepare_transaction('prepare_timestamp=20')
+        else:
+            session2.commit_transaction('commit_timestamp=20')
+
+        # Truncate the range.
+        self.session.begin_transaction()
+        cursor_start = None
+        cursor_stop = None
+        if truncate_start is not None:
+            cursor_start = self.session.open_cursor(uri)
+            cursor_start.set_key(truncate_start)
+        if truncate_stop is not None:
+            cursor_stop = self.session.open_cursor(uri)
+            cursor_stop.set_key(truncate_stop)
+        truncate_uri = uri if truncate_start is None and truncate_stop is None else None
+        self.session.truncate(truncate_uri, cursor_start, cursor_stop, None)
+        if cursor_start is not None:
+            cursor_start.close()
+        if cursor_stop is not None:
+            cursor_stop.close()
+        self.session.commit_transaction('commit_timestamp=30')
+
+        # Clean up the extra session.
+        if prepared:
+            session2.commit_transaction('commit_timestamp=40,durable_timestamp=41')
+        session2.close()
+
+        # Gather the list of keys in the table.
+        cursor = self.session.open_cursor(uri)
+        have = []
+        while cursor.next() == 0:
+            have.append(cursor.get_key())
+
+        # Compare to what we expect.
+        expect = sorted(filter(lambda k: not self.in_range(truncate_start, truncate_stop, k), args))
+        self.assertEqual(have, expect)
 
     def test_truncate23(self):
-        ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S')
-        ds.populate()
+        '''
+        Test boundary conditions for truncate with and without prepared transactions.
+        '''
+        # First test this without the prepared transactions to ensure that everything works.
+        for prepared in [False, True]:
 
-        # Insert a large amount of data.
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(1, self.nrows):
-            cursor[ds.key(i)] = str(30)
-        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(30)}')
+            # The start and stop keys exist (if not None).
+            self.scenario(prepared, 1000, 2000, 500, 1000, 1500, 2000, 2500)
+            self.scenario(prepared, None, 2000, 500, 1000, 1500, 2000, 2500)
+            self.scenario(prepared, 1000, None, 500, 1000, 1500, 2000, 2500)
+            self.scenario(prepared, None, None, 500, 1000, 1500, 2000, 2500)
 
-        # Insert some more data at a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[ds.key(i)] = str(50)
-        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(50)}')
+            # The start and stop keys don't exist.
+            self.scenario(prepared, 1000, 2000, 500, 999, 1500, 2001, 2500)
+            self.scenario(prepared, None, 2000, 500, 999, 1500, 2001, 2500)
+            self.scenario(prepared, 1000, None, 500, 999, 1500, 2001, 2500)
+            self.scenario(prepared, None, None, 500, 999, 1500, 2001, 2500)
 
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(50)}')
-
-        self.session.checkpoint()
-        self.reopen_conn()
-
-        # Do a truncate operation with no timestamp on some portion of the key range.
-        self.session.begin_transaction('no_timestamp=true')
-
-        c1 = ds.open_cursor(self.uri, None)
-        c1.set_key(ds.key(5000))
-        c2 = ds.open_cursor(self.uri, None)
-        c2.set_key(ds.key(8000))
-        self.session.truncate(None, c1, c2, None)
-
-        self.session.commit_transaction()
-
-        # Ensure that fast-truncate did not happen since the data is not globally visible.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
-        self.assertEqual(fastdelete_pages, 0)
-
-        # Re-insert some data at a later timestamp.
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(1, self.nrows):
-            cursor[ds.key(i)] = str(60)
-        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(60)}')
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(60)}')
-        self.session.checkpoint()
-
-        self.reopen_conn()
-
-        # Attempt to read the value of the key at timestamp 30. It should no longer
-        # exist in the history store.
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(5000, 8000):
-            cursor.set_key(ds.key(i))
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        self.session.rollback_transaction()
+            # Empty transaction range.
+            self.scenario(prepared, 1000, 2000, 500, 999, 2001, 2500)
+            self.scenario(prepared, None, 2000, 500, 999, 2001, 2500)
+            self.scenario(prepared, 1000, None, 500, 999, 2001, 2500)
+            self.scenario(prepared, None, None, 500, 999, 2001, 2500)

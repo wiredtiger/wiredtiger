@@ -62,7 +62,7 @@ kv_table::contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return false;
-    return item->contains_any(ckpt, value);
+    return item->contains_any(std::move(ckpt), value);
 }
 
 /*
@@ -73,10 +73,14 @@ kv_table::contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data
 data_value
 kv_table::get(const data_value &key, timestamp_t timestamp) const
 {
+    timestamp_t t = fix_timestamp(timestamp);
+    if (t < _database.oldest_timestamp())
+        throw wiredtiger_exception(EINVAL);
+
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(fix_timestamp(timestamp));
+    return item->get(t);
 }
 
 /*
@@ -87,10 +91,14 @@ kv_table::get(const data_value &key, timestamp_t timestamp) const
 data_value
 kv_table::get(kv_checkpoint_ptr ckpt, const data_value &key, timestamp_t timestamp) const
 {
+    timestamp_t t = fix_timestamp(timestamp);
+    if (t < _database.oldest_timestamp())
+        throw wiredtiger_exception(EINVAL);
+
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(ckpt, fix_timestamp(timestamp));
+    return item->get(std::move(ckpt), t);
 }
 
 /*
@@ -104,7 +112,7 @@ kv_table::get(kv_transaction_ptr txn, const data_value &key) const
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return timestamped() ? item->get(txn) : item->get_latest(txn);
+    return timestamped() ? item->get(std::move(txn)) : item->get_latest(std::move(txn));
 }
 
 /*
@@ -132,7 +140,7 @@ kv_table::get_ext(
   kv_checkpoint_ptr ckpt, const data_value &key, data_value &out, timestamp_t timestamp) const
 {
     try {
-        out = get(ckpt, key, fix_timestamp(timestamp));
+        out = get(std::move(ckpt), key, fix_timestamp(timestamp));
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -148,7 +156,7 @@ int
 kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out) const
 {
     try {
-        out = get(txn, key);
+        out = get(std::move(txn), key);
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -165,7 +173,7 @@ kv_table::insert(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
     return with_transaction(
-      [&](auto txn) { return insert(txn, key, value, overwrite); }, timestamp);
+      [&](auto txn) { return insert(std::move(txn), key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -179,7 +187,7 @@ kv_table::insert(
     std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(value, txn));
     try {
         item(key).add_update(update, false, !overwrite);
-        txn->add_update(*this, key, update);
+        txn->add_update(*this, key, std::move(update));
         return 0;
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -193,7 +201,7 @@ kv_table::insert(
 int
 kv_table::remove(const data_value &key, timestamp_t timestamp)
 {
-    return with_transaction([&](auto txn) { return remove(txn, key); }, timestamp);
+    return with_transaction([&](auto txn) { return remove(std::move(txn), key); }, timestamp);
 }
 
 /*
@@ -210,7 +218,7 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
     std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(NONE, txn));
     try {
         item->add_update(update, true, false);
-        txn->add_update(*this, key, update);
+        txn->add_update(*this, key, std::move(update));
         return 0;
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -224,7 +232,8 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
 int
 kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t timestamp)
 {
-    return with_transaction([&](auto txn) { return truncate(txn, start, stop); }, timestamp);
+    return with_transaction(
+      [&](auto txn) { return truncate(std::move(txn), start, stop); }, timestamp);
 }
 
 /*
@@ -246,7 +255,7 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
             std::shared_ptr<kv_update> update =
               fix_timestamps(std::make_shared<kv_update>(NONE, txn));
             i->second.add_update(update, false, false);
-            txn->add_update(*this, i->first, update);
+            txn->add_update(*this, i->first, std::move(update));
         }
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -264,7 +273,7 @@ kv_table::update(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
     return with_transaction(
-      [&](auto txn) { return update(txn, key, value, overwrite); }, timestamp);
+      [&](auto txn) { return update(std::move(txn), key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -278,7 +287,7 @@ kv_table::update(
     std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(value, txn));
     try {
         item(key).add_update(update, !overwrite, false);
-        txn->add_update(*this, key, update);
+        txn->add_update(*this, key, std::move(update));
         return 0;
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -358,7 +367,7 @@ kv_table::with_transaction(std::function<int(kv_transaction_ptr)> fn, timestamp_
     kv_transaction_ptr txn = _database.begin_transaction();
     kv_transaction_guard txn_guard(txn, commit_timestamp);
 
-    return fn(txn);
+    return fn(std::move(txn));
 }
 
 } /* namespace model */

@@ -144,7 +144,7 @@ protected:
     {
         kv_table_ptr table = _database.create_table(op.name);
         table->set_key_value_format(op.key_format, op.value_format);
-        add_table(op.table_id, table);
+        add_table(op.table_id, std::move(table));
         return 0;
     }
 
@@ -222,6 +222,17 @@ protected:
     do_operation(const operation::set_commit_timestamp &op)
     {
         transaction(op.txn_id)->set_commit_timestamp(op.commit_timestamp);
+        return 0;
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
+    do_operation(const operation::set_oldest_timestamp &op)
+    {
+        _database.set_oldest_timestamp(op.oldest_timestamp);
         return 0;
     }
 

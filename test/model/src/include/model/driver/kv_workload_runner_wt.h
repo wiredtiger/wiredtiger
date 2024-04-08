@@ -65,10 +65,22 @@ protected:
         }
 
         /*
+         * session_context::session_context --
+         *     Delete the copy constructor.
+         */
+        session_context(const session_context &) = delete;
+
+        /*
          * session_context::~session_context --
          *     Destroy the context, alongside the corresponding resources.
          */
         ~session_context();
+
+        /*
+         * session_context::operator= --
+         *     Delete the assignment operator.
+         */
+        session_context &operator=(const session_context &) = delete;
 
         /*
          * session_context::session --
@@ -162,10 +174,22 @@ public:
     }
 
     /*
+     * kv_workload_runner_wt::kv_workload_runner_wt --
+     *     Delete the copy constructor.
+     */
+    kv_workload_runner_wt(const kv_workload_runner_wt &) = delete;
+
+    /*
      * kv_workload_runner_wt::~kv_workload_runner_wt --
-     *     Clean up the workload
+     *     Clean up the workload.
      */
     ~kv_workload_runner_wt();
+
+    /*
+     * kv_workload_runner_wt::operator= --
+     *     Delete the assignment operator.
+     */
+    kv_workload_runner_wt &operator=(const kv_workload_runner_wt &) = delete;
 
     /*
      * kv_workload::run --
@@ -279,6 +303,12 @@ protected:
      *     Execute the given workload operation in WiredTiger.
      */
     int do_operation(const operation::set_commit_timestamp &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::set_oldest_timestamp &op);
 
     /*
      * kv_workload_runner_wt::do_operation --
