@@ -100,7 +100,8 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
 
 /*
  * __wt_txn_op_set_key --
- *     Set the latest transaction operation with the given key.
+ *     Copy the given key onto the most recent transaction operation. This function early exits if
+ *     the transaction cannot prepare.
  */
 static WT_INLINE int
 __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
