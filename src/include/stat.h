@@ -49,7 +49,8 @@
  * Default hash table size; use a prime number of buckets rather than assuming a good hash
  * (Reference Sedgewick, Algorithms in C, "Hash Functions").
  */
-#define WT_COUNTER_SLOTS 23
+#define WT_STAT_CONN_COUNTER_SLOTS 197
+#define WT_STAT_DSRC_COUNTER_SLOTS 23
 
 /*
  * WT_STATS_SLOT_ID is the thread's slot ID for the array of structures.
@@ -66,7 +67,7 @@
  * Our solution is to use the session ID; there is normally a session per thread and the session ID
  * is a small, monotonically increasing number.
  */
-#define WT_STATS_SLOT_ID(session) (((session)->id) % WT_COUNTER_SLOTS)
+#define WT_STATS_SLOT_ID(session) (((session)->id) % WT_STAT_CONN_COUNTER_SLOTS)
 
 /*
  * Statistic structures are arrays of int64_t's. We have functions to read/write those structures
@@ -100,7 +101,7 @@ __wt_stats_aggregate(void *stats_arg, int slot)
     int i;
 
     stats = (int64_t **)stats_arg;
-    for (aggr_v = 0, i = 0; i < WT_COUNTER_SLOTS; i++)
+    for (aggr_v = 0, i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; i++)
         aggr_v += stats[i][slot];
 
     /*
@@ -131,7 +132,7 @@ __wt_stats_clear(void *stats_arg, int slot)
     int i;
 
     stats = (int64_t **)stats_arg;
-    for (i = 0; i < WT_COUNTER_SLOTS; i++)
+    for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; i++)
         stats[i][slot] = 0;
 }
 

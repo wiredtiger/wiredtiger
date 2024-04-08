@@ -193,10 +193,10 @@ __wt_stat_''' + name + '''_init(
 {
 \tint i;
 
-\tWT_RET(__wt_calloc(session, (size_t)WT_COUNTER_SLOTS,
+\tWT_RET(__wt_calloc(session, (size_t)WT_STAT_DSRC_COUNTER_SLOTS,
 \t    sizeof(*handle->stat_array), &handle->stat_array));
 
-\tfor (i = 0; i < WT_COUNTER_SLOTS; ++i) {
+\tfor (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i) {
 \t\thandle->stats[i] = &handle->stat_array[i];
 \t\t__wt_stat_''' + name + '''_init_single(handle->stats[i]);
 \t}
@@ -231,7 +231,7 @@ __wt_stat_''' + name + '_clear_all(WT_' + name.upper() + '''_STATS **stats)
 {
 \tu_int i;
 
-\tfor (i = 0; i < WT_COUNTER_SLOTS; ++i)
+\tfor (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; ++i)
 \t\t__wt_stat_''' + name + '''_clear_single(stats[i]);
 }
 ''')

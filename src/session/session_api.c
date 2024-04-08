@@ -2655,7 +2655,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session_ret->stat_bucket = WT_STATS_SLOT_ID(session_ret);
 
     /* Safety check to make sure we're doing the right thing. */
-    WT_ASSERT(session, session_ret->stat_bucket == session_ret->id % WT_COUNTER_SLOTS);
+    WT_ASSERT(session, session_ret->stat_bucket == session_ret->id % WT_STAT_CONN_COUNTER_SLOTS);
 
     /* Allocate the buffer for operation tracking */
     if (F_ISSET(conn, WT_CONN_OPTRACK)) {
