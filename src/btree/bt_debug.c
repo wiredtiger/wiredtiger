@@ -1726,8 +1726,6 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
             WT_RET(ds->f(ds, "%s", "internal"));
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_RET(ds->f(ds, "%s", "leaf"));
-        if (F_ISSET(ref, WT_REF_FLAG_READING))
-            WT_RET(ds->f(ds, ", %s", "reading"));
         WT_RET(ds->f(ds, "]"));
     }
 

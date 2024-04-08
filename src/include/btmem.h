@@ -1077,10 +1077,14 @@ struct __wt_ref {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
-#define WT_REF_FLAG_PREFETCH 0x4u /* Page is on the pre-fetch queue */
-#define WT_REF_FLAG_READING 0x8u  /* Page is being read in */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_REF_FLAG_PREFETCH 0x1u   /* Page is on the pre-fetch queue */
+#define WT_REF_FLAG_READING 0x2u    /* Page is being read in */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    wt_shared uint8_t flags_atomic; /* Atomic flags, use F_*_ATOMIC_8 */
 
 #define WT_REF_DISK 0    /* Page is on disk */
 #define WT_REF_DELETED 1 /* Page is on disk, but deleted */
@@ -1253,9 +1257,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 
