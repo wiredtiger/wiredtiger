@@ -1439,6 +1439,9 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     start_slot = slot = queue->evict_entries;
     max_entries = WT_MIN(slot + WT_EVICT_WALK_INCR, cache->evict_slots);
 
+    printf("max_entries = %d, slot = %d, WT_EVICT_WALK_INCR = %d, cache->evict_slots = %d\n",
+           max_entries, slot, WT_EVICT_WALK_INCR, cache->evict_slots);
+
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
      * put all of them on one queue.
@@ -1447,6 +1450,10 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
         __wt_cache_pages_inuse(cache) :
         cache->pages_dirty_leaf);
     max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
+
+    printf("Reset max_entries to %d, total_candidates = %d, __wt_cache_pages_inuse(cache) = %lu\n",
+           max_entries, total_candidates, (long)__wt_cache_pages_inuse(cache));
+    printf("pages_inmem = %llu, pages_evicted = %llu\n", cache->pages_inmem, cache->pages_evicted);
 
 retry:
     loop_count = 0;
@@ -1686,6 +1693,8 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         cache_inuse = __wt_cache_bytes_inuse(cache);
         bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
         target_pages_clean = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+        printf("In F_ISSET(cache, WT_CACHE_EVICT_CLEAN). target_pages_clean = %d\n",
+               target_pages_clean);
     }
 
     if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY)) {
@@ -1693,6 +1702,8 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
         bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
         target_pages_dirty = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+        printf("In F_ISSET(cache, WT_CACHE_EVICT_DIRTY). target_pages_dirty = %d\n",
+               target_pages_dirty);
     }
 
     if (F_ISSET(cache, WT_CACHE_EVICT_UPDATES)) {
@@ -1700,11 +1711,14 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         cache_inuse = __wt_cache_bytes_updates(cache);
         bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
         target_pages_updates = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+        printf("In F_ISSET(cache, WT_CACHE_EVICT_UPDATES). target_pages_updates = %d\n",
+               target_pages_updates);
     }
 
     target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
     target_pages = WT_MAX(target_pages, target_pages_updates);
 
+    printf("Target pages 1 = %d\n", target_pages);
     /*
      * Walk trees with a small fraction of the cache in case there are so many trees that none of
      * them use enough of the cache to be allocated slots. Only skip a tree if it has no bytes of
@@ -1730,6 +1744,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         target_pages *= 10;
 
+    printf("Target pages 2 = %d\n", target_pages);
     return (target_pages);
 }
 
@@ -1777,8 +1792,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
 
-    __wt_verbose(session, WT_VERB_CACHE_TRACE, "rem slots: %d, target pages: %d, slot number %d\n",
-      remaining_slots, target_pages, *slotp);
+
+    printf("evict walk target = %d, evict_walk_progress = %d, rem slots: %d, target pages: %d, slot number %d, max_entries = %d\n",
+           btree->evict_walk_target, btree->evict_walk_progress,
+           remaining_slots, target_pages, *slotp, max_entries);
 
     /*
      * Reduce the number of pages to be selected from btrees other than the history store (HS) if
@@ -2077,7 +2094,7 @@ fast:
         WT_ASSERT(session, evict->ref == NULL);
         if (!__evict_push_candidate(session, queue, evict, ref))
             continue;
-        __wt_page_trace(session, ref, "added to evict queue", NULL);
+        __wt_page_trace(session, ref, "evict-add", NULL);
         ++evict;
         ++pages_queued;
         ++btree->evict_walk_progress;
