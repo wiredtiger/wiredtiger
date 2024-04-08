@@ -28,18 +28,25 @@
 
 import wiredtiger, wttest
 
-# test_truncate25.py
-# Ensure that any history store records are correctly removed when doing
-# a truncate operation with no timestamp.
-
-class test_truncate25(wttest.WiredTigerTestCase):
-    uri = 'table:test_truncate25'
+# test_truncate23.py
+# Test that we properly handle truncate with and without prepared transactions.
+class test_truncate23(wttest.WiredTigerTestCase):
+    uri_prefix = 'table:test_truncate23_'
     conn_config = 'statistics=(all)'
     scenario_num = 0
 
-    def test_truncate25(self):
-        ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S')
-        ds.populate()
+    def in_range(self, truncate_start, truncate_stop, key):
+        '''
+        Check whether the key is in the truncation range.
+        '''
+        if truncate_start is None and truncate_stop is None:
+            return True
+        elif truncate_start is None:
+            return key <= truncate_stop
+        elif truncate_stop is None:
+            return key >= truncate_start
+        else:
+            return key >= truncate_start and key <= truncate_stop
 
     def scenario(self, prepared, truncate_start, truncate_stop, *args):
         '''
