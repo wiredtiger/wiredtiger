@@ -493,6 +493,12 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     uint64_t prev_last_running, prev_metadata_pinned, prev_oldest_id;
     bool strict, wait;
 
+    /*
+     * When not in strict mode we want to avoid scanning too frequently. Set a minimum transaction
+     * ID age threshold before we perform another scan.
+     */
+    const uint64_t non_strict_min_threshold = 100;
+
     conn = S2C(session);
     txn_global = &conn->txn_global;
     strict = LF_ISSET(WT_TXN_OLDEST_STRICT);
@@ -507,13 +513,12 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     if (strict)
         __wt_txn_update_pinned_timestamp(session, false);
 
-        /*
-         * For pure read-only workloads, or if the update isn't forced and the oldest ID isn't too
-         * far behind, avoid scanning.
-         */
-#define OLDEST_STRICT_THRESHOLD 100
+    /*
+     * For pure read-only workloads, or if the update isn't forced and the oldest ID isn't too far
+     * behind, avoid scanning.
+     */
     if ((prev_oldest_id == current_id && prev_metadata_pinned == current_id) ||
-      (!strict && WT_TXNID_LT(current_id, prev_oldest_id + OLDEST_STRICT_THRESHOLD)))
+      (!strict && WT_TXNID_LT(current_id, prev_oldest_id + non_strict_min_threshold)))
         return (0);
 
     /* First do a read-only scan. */
@@ -528,9 +533,9 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
      * If the state hasn't changed (or hasn't moved far enough for non-forced updates), give up.
      */
     if ((oldest_id == prev_oldest_id ||
-          (!strict && WT_TXNID_LT(oldest_id, prev_oldest_id + OLDEST_STRICT_THRESHOLD))) &&
+          (!strict && WT_TXNID_LT(oldest_id, prev_oldest_id + non_strict_min_threshold))) &&
       ((last_running == prev_last_running) ||
-        (!strict && WT_TXNID_LT(last_running, prev_last_running + OLDEST_STRICT_THRESHOLD))) &&
+        (!strict && WT_TXNID_LT(last_running, prev_last_running + non_strict_min_threshold))) &&
       metadata_pinned == prev_metadata_pinned)
         return (0);
 
@@ -2791,7 +2796,7 @@ __wt_verbose_dump_txn_one(
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint32_t i;
-    char buf[512], snapshot_buf[512], snapshot_buf_tmp[32];
+    char buf[512 + 2560], snapshot_buf[2560], snapshot_buf_tmp[32];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
@@ -2820,9 +2825,9 @@ __wt_verbose_dump_txn_one(
         else
             WT_RET(__wt_snprintf(
               snapshot_buf_tmp, sizeof(snapshot_buf_tmp), ", %lu", txn->snapshot_data.snapshot[i]));
-        strcat(snapshot_buf, snapshot_buf_tmp);
+        WT_RET(__wt_strcat(snapshot_buf, sizeof(snapshot_buf), snapshot_buf_tmp));
     }
-    strcat(snapshot_buf, "]");
+    WT_RET(__wt_strcat(snapshot_buf, sizeof(snapshot_buf), "]"));
 
     /*
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
