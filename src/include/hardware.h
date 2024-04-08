@@ -169,7 +169,7 @@
 /*
  * Atomic versions of the flag set/clear macros.
  */
-#define FLD_ISSET_ATOMIC_8(field, mask) (__wt_atomic_load8(&(field)) & (uint16_t)(mask))
+#define FLD_ISSET_ATOMIC_8(field, mask) (__wt_atomic_load8(&(field)) & (uint8_t)(mask))
 
 #define FLD_ISSET_ATOMIC_16(field, mask) (__wt_atomic_load16(&(field)) & (uint16_t)(mask))
 
