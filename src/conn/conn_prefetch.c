@@ -100,11 +100,11 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * that behavior.
          */
         (void)__wt_atomic_addv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
-        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
-        __wt_spin_unlock(session, &conn->prefetch_lock);
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
+        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
+        __wt_spin_unlock(session, &conn->prefetch_lock);
 
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
