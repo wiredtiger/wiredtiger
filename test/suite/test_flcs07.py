@@ -57,7 +57,7 @@ class test_flcs07(wttest.WiredTigerTestCase):
             if self.get_cache_inmem_split() > 0:
                 inmem_split = True
                 break
-        
+
         assert inmem_split, "At least one in-memory split is expected"
 
         # Look for every single record smaller than the last one inserted.
