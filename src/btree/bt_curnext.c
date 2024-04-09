@@ -733,6 +733,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_PAGE_WALK_SKIP_STATS walk_skip_stats;
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
@@ -742,6 +743,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     prefix_key_out_of_bounds = false;
     session = CUR2S(cbt);
     total_skipped = 0;
+    walk_skip_stats.total_del_pages_skipped = 0;
+    walk_skip_stats.total_inmem_del_pages_skipped = 0;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
@@ -858,8 +861,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
          */
         if (session->txn->isolation == WT_ISO_SNAPSHOT &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE))
-            WT_ERR(
-              __wt_tree_walk_custom_skip(session, &cbt->ref, __wt_btcur_skip_page, NULL, flags));
+            WT_ERR(__wt_tree_walk_custom_skip(
+              session, &cbt->ref, __wt_btcur_skip_page, &walk_skip_stats, flags));
         else
             WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
@@ -872,6 +875,12 @@ err:
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_ge_100);
 
     WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_total, total_skipped);
+    if (walk_skip_stats.total_del_pages_skipped != 0)
+        WT_STAT_CONN_DATA_INCRV(
+          session, cursor_tree_walk_del_page_skip, walk_skip_stats.total_del_pages_skipped);
+    if (walk_skip_stats.total_inmem_del_pages_skipped != 0)
+        WT_STAT_CONN_DATA_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
+          walk_skip_stats.total_inmem_del_pages_skipped);
 
     switch (ret) {
     case 0:
