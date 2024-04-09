@@ -1590,7 +1590,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     uint32_t orig_flags;
-    bool flush, flush_sync;
+    bool checkpoint_cleanup, flush, flush_sync;
 
     /*
      * Reset open cursors. Do this explicitly, even though it will happen implicitly in the call to
@@ -1619,6 +1619,9 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      */
     orig_flags = F_MASK(session, WT_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
+    checkpoint_cleanup = cval.val;
 
     /*
      * If this checkpoint includes a flush_tier then this call also must wait for any earlier
@@ -1652,7 +1655,8 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     WT_ERR(ret);
 
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
-    __wt_checkpoint_cleanup_trigger(session);
+    if (checkpoint_cleanup)
+        __wt_checkpoint_cleanup_trigger(session);
 
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));

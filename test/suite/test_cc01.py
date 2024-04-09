@@ -126,7 +126,7 @@ class test_cc01(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(100))
 
         # Checkpoint to ensure that the history store is cleaned.
-        self.session.checkpoint()
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
@@ -159,7 +159,7 @@ class test_cc01(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(200))
 
         # Checkpoint to ensure that the history store is cleaned.
-        self.session.checkpoint()
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
@@ -192,7 +192,7 @@ class test_cc01(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(300))
 
         # Checkpoint to ensure that the history store is cleaned.
-        self.session.checkpoint()
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.

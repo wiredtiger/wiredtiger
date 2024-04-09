@@ -130,9 +130,9 @@ class test_compact12(wttest.WiredTigerTestCase):
 
         # Perform two checkpoints and also trigger checkpoint cleanup to remove
         # the obsolete content.
-        self.session.checkpoint()
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.session.checkpoint()
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
 
         self.assertGreater(self.get_fast_truncated_pages(), 0)
