@@ -1889,9 +1889,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             goto rand_next;
         break;
     case WT_EVICT_WALK_PREV:
-        FLD_SET(walk_flags, WT_READ_PREV);
         if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
             goto rand_prev;
+        FLD_SET(walk_flags, WT_READ_PREV);
         break;
     case WT_EVICT_WALK_RAND_PREV:
 rand_prev:
