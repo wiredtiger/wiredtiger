@@ -739,6 +739,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     bool key_out_of_bounds, newpage, need_walk, repositioned, restart;
 #ifdef HAVE_DIAGNOSTIC
     bool inclusive_set;
+    WT_NOT_READ(inclusive_set, false);
 #endif
 
     cursor = &cbt->iface;

@@ -184,6 +184,7 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
     __wt_epoch(session, &start);
     now = start;
     done = false;
+    WT_NOT_READ(found, false);
 
     while (!done) {
         found = false;

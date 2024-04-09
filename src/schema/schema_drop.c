@@ -186,6 +186,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     bool exist, got_dhandle, remove_files, remove_shared;
 
     conn = S2C(session);
+    WT_NOT_READ(got_dhandle, false);
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;

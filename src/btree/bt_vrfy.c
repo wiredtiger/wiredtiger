@@ -205,6 +205,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     ckptbase = NULL;
     name = session->dhandle->name;
     bm_start = quit = false;
+    WT_NOT_READ(skip_hs, false);
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;

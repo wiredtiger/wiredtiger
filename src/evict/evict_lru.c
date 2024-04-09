@@ -2826,6 +2826,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     cache = conn->cache;
     total_bytes = total_dirty_bytes = total_updates_bytes = 0;
     pct = 0.0; /* [-Werror=uninitialized] */
+    WT_NOT_READ(cache_bytes_updates, 0);
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "cache dump"));

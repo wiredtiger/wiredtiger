@@ -212,6 +212,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
     conn = S2C(session);
     filename = metadata_conf = tablename = NULL;
     exist = false;
+    WT_NOT_READ(file_len, 0);
 
     WT_CLEAR(meta_state);
     meta_state.backuphash = backuphash;
