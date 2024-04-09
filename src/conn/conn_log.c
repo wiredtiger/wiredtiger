@@ -495,6 +495,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
     log = conn->log;
     reccount = 0;
     recfiles = NULL;
+    i = 0;
 
     /*
      * Allocate up to the maximum number, accounting for any existing files that may not have been
@@ -526,8 +527,10 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      */
     for (i = reccount; i < (u_int)conn->log_prealloc; i++) {
         WT_ERR(__wt_log_allocfile(session, ++log->prep_fileid, WT_LOG_PREPNAME));
-        WT_STAT_CONN_INCR(session, log_prealloc_files);
     }
+
+    if (i > reccount)
+        WT_STAT_CONN_INCRV(session, log_prealloc_files, i - reccount);
     /*
      * Reset the missed count now. If we missed during pre-allocating the log files, it means the
      * allocation is not keeping up, not that we didn't allocate enough. So we don't just want to
@@ -535,9 +538,12 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      */
     log->prep_missed = 0;
 
-    if (0)
+    if (0) {
 err:
+        if (i > reccount)
+            WT_STAT_CONN_INCRV(session, log_prealloc_files, i - reccount);
         __wt_err(session, ret, "log pre-alloc server error");
+    }
     WT_TRET(__wt_fs_directory_list_free(session, &recfiles, reccount));
     return (ret);
 }
