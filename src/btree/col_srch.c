@@ -337,8 +337,8 @@ past_end:
         else if (recno < cbt->recno)
             cbt->compare = 1;
         /*
-         * Special case for FLCS: the requested record number is greater than the record the
-         * cursor is positioned on but a greater record number exists.
+         * Special case for FLCS: the requested record number is greater than the record the cursor
+         * is positioned on but a greater record number exists.
          */
         else if (greater_recno_exists_flcs)
             cbt->compare = 1;
