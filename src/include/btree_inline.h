@@ -2084,12 +2084,15 @@ __wt_btcur_skip_page(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
     uint8_t previous_state;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
 
     *skipp = false; /* Default to reading */
+
+    walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
 
     /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
     if (S2BT(session)->type == BTREE_COL_FIX)
@@ -2120,8 +2123,10 @@ __wt_btcur_skip_page(
       __wt_ref_addr_copy(session, ref, &addr) && addr.ta.newest_stop_txn != WT_TXN_MAX &&
       addr.ta.newest_stop_ts != WT_TS_MAX &&
       __wt_txn_snap_min_visible(
-        session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts, addr.ta.newest_stop_durable_ts))
+        session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts, addr.ta.newest_stop_durable_ts)) {
         *skipp = true;
+        walk_skip_stats->total_del_pages_skipped++;
+    }
 
     WT_REF_UNLOCK(ref, previous_state);
 
