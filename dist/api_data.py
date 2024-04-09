@@ -1384,7 +1384,7 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_CURSOR.bound' : Method(cursor_bound_config),
+'WT_CURSOR.bound' : Method(cursor_bound_config, compilable=True),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('checkpoint', '', r'''
@@ -2008,13 +2008,11 @@ methods = {
         type='boolean', undoc=True),
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified timestamp. Values must
-        be monotonically increasing; any attempt to set the value to older than the current
-        is silently ignored. The value must not be newer than the current stable timestamp.
+        be monotonically increasing. The value must not be newer than the current stable timestamp.
         See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified timestamp in tables
-        configured with \c "log=(enabled=false)". Values must be monotonically increasing;
-        any attempt to set the value to older than the current is silently ignored. The value
+        configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
 ]),
 

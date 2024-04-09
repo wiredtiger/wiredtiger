@@ -307,7 +307,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /*
-             * If the page was pulled into cache by our read, try to evict it now.
+             * When the timing stress is enabled, perform the leaf page eviction by the checkpoint.
              *
              * For eviction to have a chance, we first need to move the walk point to the next page
              * checkpoint will visit. We want to avoid this code being too special purpose, so try
@@ -315,9 +315,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              *
              * Regardless of whether eviction succeeds or fails, the walk continues from the
              * previous location. We remember whether we tried eviction, and don't try again. Even
-             * if eviction fails (the page may stay in cache clean but with history that cannot be
-             * discarded), that is not wasted effort because checkpoint doesn't need to write the
-             * page again.
+             * if eviction fails (the page may stay in cache clean), that is not a wasted effort
+             * because checkpoint doesn't need to write the page again.
              *
              * Once the transaction has given up it's snapshot it is no longer safe to reconcile
              * pages. That happens prior to the final metadata checkpoint.
