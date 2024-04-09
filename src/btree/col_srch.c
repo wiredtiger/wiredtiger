@@ -73,10 +73,7 @@ __wt_col_search(
     uint64_t recno;
     uint32_t base, indx, limit, read_flags;
     int depth;
-    /*
-     * In FLCS, when looking for an implicit record, we want to return it as long as a greater
-     * record exists in the tree.
-     */
+    /* Whenever there is a greater record in the tree, FLCS should return the requested record. */
     bool greater_recno_exists_flcs;
 
     session = CUR2S(cbt);
@@ -339,9 +336,8 @@ past_end:
         else if (recno < cbt->recno)
             cbt->compare = 1;
         /*
-         * Special case for FLCS: the searched-for record number is greater then the record the
-         * cursor is positioned on but there is a row larger than the searched-for key. This means
-         * we are looking for an implicit record.
+         * Special case for FLCS: the requested record number is greater than the record the
+         * cursor is positioned on but a greater record number exists.
          */
         else if (greater_recno_exists_flcs)
             cbt->compare = 1;
