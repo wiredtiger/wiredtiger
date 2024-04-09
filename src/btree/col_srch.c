@@ -137,6 +137,7 @@ restart:
         base = pindex->entries;
         descent = pindex->index[base - 1];
 
+        /* For FLCS, save if we have encountered a record number greater than the requested one. */
         if (btree->type == BTREE_COL_FIX && !greater_recno_exists_flcs &&
           descent->ref_recno > recno)
             greater_recno_exists_flcs = true;
