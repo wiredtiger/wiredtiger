@@ -2813,6 +2813,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     session = verify_session = NULL;
     merge_cfg = NULL;
     try_salvage = false;
+    WT_NOT_READ(config_base_set, false);
+    WT_NOT_READ(verify_meta, false);
 
     WT_RET(__wt_library_init());
 
