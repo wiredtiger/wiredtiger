@@ -2795,10 +2795,13 @@ __wt_verbose_dump_txn_one(
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
-    uint32_t i;
-    char buf[512 + 2560], snapshot_buf[2560], snapshot_buf_tmp[32];
+    uint32_t i, buf_len;
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
+    char snapshot_buf_tmp[32];
+    WT_DECL_ITEM(buf);
+    WT_DECL_ITEM(snapshot_buf);
+    WT_DECL_RET;
 
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
@@ -2816,25 +2819,27 @@ __wt_verbose_dump_txn_one(
         break;
     }
 
-    memset(snapshot_buf, 0, sizeof(snapshot_buf));
-    strcat(snapshot_buf, "[");
+    WT_ERR(__wt_scr_alloc(session, 2048, &snapshot_buf));
+    WT_ERR(__wt_buf_fmt(session, snapshot_buf, "%s", "["));
     for (i = 0; i < txn->snapshot_data.snapshot_count; i++) {
         if (i == 0)
-            WT_RET(__wt_snprintf(
+            WT_ERR(__wt_snprintf(
               snapshot_buf_tmp, sizeof(snapshot_buf_tmp), "%lu", txn->snapshot_data.snapshot[i]));
         else
-            WT_RET(__wt_snprintf(
+            WT_ERR(__wt_snprintf(
               snapshot_buf_tmp, sizeof(snapshot_buf_tmp), ", %lu", txn->snapshot_data.snapshot[i]));
-        WT_RET(__wt_strcat(snapshot_buf, sizeof(snapshot_buf), snapshot_buf_tmp));
+        WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", snapshot_buf_tmp));
     }
-    WT_RET(__wt_strcat(snapshot_buf, sizeof(snapshot_buf), "]"));
+    WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
 
+    buf_len = snapshot_buf->size + 512;
+    WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
     /*
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
      * error message.
      */
-    WT_RET(
-      __wt_snprintf(buf, sizeof(buf),
+    WT_ERR(
+      __wt_snprintf((char *)buf->data, buf_len,
         "transaction id: %" PRIu64 ", mod count: %u"
         ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
         ", snapshot: %s"
@@ -2849,7 +2854,7 @@ __wt_verbose_dump_txn_one(
         ", rollback reason: %s"
         ", flags: 0x%08" PRIx32 ", isolation: %s",
         txn->id, txn->mod_count, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
-        txn->snapshot_data.snapshot_count, snapshot_buf,
+        txn->snapshot_data.snapshot_count, (char *)snapshot_buf->data,
         __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
         __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
         __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
@@ -2863,10 +2868,15 @@ __wt_verbose_dump_txn_one(
      * Log a message and return an error if error code and an optional error string has been passed.
      */
     if (0 != error_code) {
-        WT_RET_MSG(session, error_code, "%s, %s", buf, error_string != NULL ? error_string : "");
+        WT_ERR_MSG(session, error_code, "%s, %s", (char *)buf->data,
+          error_string != NULL ? error_string : "");
     } else {
-        WT_RET(__wt_msg(session, "%s", buf));
+        WT_ERR(__wt_msg(session, "%s", (char *)buf->data));
     }
+
+err:
+    __wt_scr_free(session, &snapshot_buf);
+    __wt_scr_free(session, &buf);
 
     return (0);
 }
