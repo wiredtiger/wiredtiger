@@ -782,7 +782,7 @@ __block_ext_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *ael, 
      * and:
      *
      *		BBBBBBBBBBBBBBBBBB
-     * #7 AAAAAAAAAAAAA				same as #3
+     * #7  AAAAAAAAAAAAA			same as #3
      * #9	AAAAA				A is a prefix of B
      */
     a = *ap;
