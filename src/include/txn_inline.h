@@ -115,8 +115,13 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree->dhandle) ||
-      WT_IS_METADATA(op->btree->dhandle) || F_ISSET(txn, WT_TXN_AUTOCOMMIT))
+    /*
+     * We save the key for resolving the prepared updates. However, if we have already set the
+     * commit timestamp, the transaction cannot be prepared. Therefore, no need to save the key.
+     */
+    if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || WT_SESSION_IS_CHECKPOINT(session) ||
+      WT_IS_HS(op->btree->dhandle) || WT_IS_METADATA(op->btree->dhandle) ||
+      F_ISSET(txn, WT_TXN_AUTOCOMMIT))
         return (0);
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
