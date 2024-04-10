@@ -2,7 +2,7 @@
 
 . `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
 cd_top
-setup_trap 'rm -rf $t_out $t_out_filtered $t_build'
+setup_trap 'rm -rf $t_out $t_out_filtered $t_build $t_diff_filtered'
 
 t_out=__wt.$$.out
 t_out_filtered=__wt.$$.out_filtered
