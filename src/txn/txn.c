@@ -2102,9 +2102,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");
 
-    if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-        WT_RET_MSG(
-          session, EINVAL, "commit timestamp must not be set before transaction is prepared");
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT));
 
     /*
      * We are about to release the snapshot: copy values into any positioned cursors so they don't
