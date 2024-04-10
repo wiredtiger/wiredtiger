@@ -34,6 +34,9 @@ $scan $args cmake -G Ninja ../. > /dev/null
 $scan $args ninja wt > ../$t_out 2>&1
 cd ..
 
+# Strip comments from the diff file.
+sed -i '/^#/d' dist/s_clang_scan.diff
+
 # Compare the set of errors/warnings and exit success when they're expected.
 # clang_scan outputs errors/warnings with a leading file path followed by a
 # colon, followed by the string "error:" or "warning:".
