@@ -105,8 +105,6 @@ main(int argc, char *argv[])
             buffer[byte] ^= mask;
             mask <<= 1;
         }
-        if (byte % 4096 == 0)
-            printf ("Tested %" WT_SIZET_FMT " bytes\n", byte);
     }
     printf("No checksum match\n");
     return (1);
