@@ -97,7 +97,6 @@ DNE
 DONTNEED
 DS
 DUPLICATEV
-DeadStores
 Decrypt
 DeleteFileW
 Deterministically
@@ -657,7 +656,6 @@ dbar
 dbs
 dcalloc
 ddd
-deadcode
 decile
 deciles
 decl
