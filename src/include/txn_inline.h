@@ -116,9 +116,6 @@ __txn_op_need_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key, WT_TXN_OP *o
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         return (false);
 
-    if (WT_SESSION_IS_CHECKPOINT(session))
-        return (false);
-
     if (WT_IS_HS(op->btree->dhandle))
         return (false);
 
@@ -148,10 +145,6 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    /*
-     * We save the key for resolving the prepared updates. However, if we have already set the
-     * commit timestamp, the transaction cannot be prepared. Therefore, no need to save the key.
-     */
     if (!__txn_op_need_set_key(session, key, op))
         return (0);
 
