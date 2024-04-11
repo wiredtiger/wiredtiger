@@ -1293,13 +1293,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (commit)
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "commit resolving prepared transaction with txnid: %" PRIu64
-          " and timestamp: %s to commit and durable timestamps: %s,%s",
+          " and timestamp: %s to commit and durable timestamps: %s, %s",
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]),
           __wt_timestamp_to_string(txn->durable_timestamp, ts_string[2]));
     else
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
-          "rollback resolving prepared transaction with txnid: %" PRIu64 " and timestamp:%s",
+          "rollback resolving prepared transaction with txnid: %" PRIu64 " and timestamp: %s",
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]));
 
     /*

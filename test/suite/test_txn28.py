@@ -30,7 +30,7 @@ import wiredtiger, wttest, time
 from wtdataset import SimpleDataSet
 
 # test_txn28.py
-#   Test that checking the snapshot array is correctly outputted
+#   Test that checking the snapshot array is correctly outputted.
 class test_txn28(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=1MB'
 
@@ -46,7 +46,7 @@ class test_txn28(wttest.WiredTigerTestCase):
         else:
             return None
 
-    # Get the content in the first square bracket
+    # Get the content in the first square bracket.
     def count_numbers_in_string(self, s):
         return len(re.findall(r'\d+', s))
     
@@ -62,16 +62,15 @@ class test_txn28(wttest.WiredTigerTestCase):
         session1.begin_transaction()
         cursor1[ds.key(5)] = "aaa"
 
-        # The second session
+        # The second session.
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(uri)
         session2.begin_transaction()
         cursor2.set_key(ds.key(6))
         cursor2.set_value("bbb")
-        self.conn.debug_info('sessions')
+
         max_snapshot_list_item_count = 0         
-        
-        # Get the "transaction state dump" info, get content of " snapshot count: " and "snapshot: [xxx]"
+        # Get the "transaction state dump" info, get content of " snapshot count: " and "snapshot: [xxx]".
         with self.expectedStdoutPattern('transaction state dump'):
             txn_debug_info=self.conn.debug_info('txn')
             snapshot_lines = self.get_lines_containing_substring(txn_debug_info, " snapshot count: ")
