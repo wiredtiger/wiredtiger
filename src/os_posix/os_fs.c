@@ -591,7 +591,7 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
             __wt_remap_resize_file(file_handle, wt_session);
         else {
             __wt_release_without_remap(file_handle);
-            WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
+            WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate ret %d", file_handle->name, ret);
         }
     }
     return (0);
