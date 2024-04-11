@@ -464,10 +464,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 #if !defined(HAVE_DIAGNOSTIC)
         /* Need verbose check only if not in diagnostic build */
         if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
-            __wt_epoch(session, &cache->stuck_time);
-#else
-        __wt_epoch(session, &cache->stuck_time);
 #endif
+            __wt_epoch(session, &cache->stuck_time);
         return (0);
     }
 
