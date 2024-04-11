@@ -2288,6 +2288,27 @@ __wt_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 }
 
 /*
+ * __wt_strategy_config --
+ *     Set strategy configuration.
+ */
+int
+__wt_strategy_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+
+    return (0);
+}
+
+/*
  * __wt_verbose_config --
  *     Set verbose configuration.
  */
@@ -3150,6 +3171,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * is set up.
      */
     WT_ERR(__wt_debug_mode_config(session, cfg));
+
+    /* Parse the strategy configuration. */
+    WT_ERR(__wt_strategy_config(session, cfg));
 
     /*
      * Load the extensions after initialization completes; extensions expect everything else to be

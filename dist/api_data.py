@@ -814,6 +814,15 @@ connection_runtime_config = [
         using the \c statistics_log configuration. See @ref statistics for more information''',
         type='list',
         choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
+    Config('strategy', '', r'''
+        control the settings of various optimizations when they are negatively impacting in the
+        production cluster''',
+        type='category', subconfig=[
+        Config('obsolete_check_optimization', 'true', r'''
+               if true, the obsolete check optimization is enabled to improve the performance of
+               update operations.''',
+               type='boolean'),
+        ]),
     Config('timing_stress_for_test', '', r'''
         enable code that interrupts the usual timing of operations with a goal of uncovering
         race conditions and unexpected blocking. This option is intended for use with internal

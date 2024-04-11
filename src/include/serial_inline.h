@@ -300,15 +300,19 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 
     /*
      * Look for obsolete updates when any of the following conditions are satisfied:
-     * 1. If the page size exceeds 50% of the largest split page size that btree is
-     *    permitted to allow. The reason for selecting the 50% page size limit is that,
-     *    before the page reaches 100% of the split size, it may either go through the
-     *    reconciliation process or repeat this flow a few times to eliminate any
-     *    obsolete updates and prevent needless page splits.
+     * 1. If the obsolete check optimization is disabled.
      *
-     * 2. Randomly look for obsolete updates.
+     * 2. If the page size exceeds 50% of the largest split page size that btree is
+     *    permitted to allow. The reason for selecting the 50% page size limit is to
+     *    reduce the number of obsolete call by half and also not impacting the cache
+     *    size by holding all those unnecessary obsolete updates. The alternative of
+     *    removing obsolete updates as part of the reconciliation process can support
+     *    the optimizations to prevent needless page splits.
+     *
+     * 3. Randomly look for obsolete updates.
      */
-    if ((page->memory_footprint > (S2BT(session)->splitmempage / 2)) ||
+    if (!FLD_ISSET(S2C(session)->strategy_flags, WT_CONN_STRATEGY_OBSOLETE_CHECK) ||
+      (page->memory_footprint > (S2BT(session)->splitmempage / 2)) ||
       (__wt_random(&session->rnd) % 16 == 0))
         __wt_update_obsolete_check(session, cbt->ref, upd->next);
 

@@ -2459,6 +2459,13 @@ struct __wt_connection {
      * log records; setting this value above 0 configures statistics logging., an integer between \c
      * 0 and \c 100000; default \c 0.}
      * @config{ ),,}
+     * @config{strategy = (, control the settings of various optimizations when they are negatively
+     * impacting in the production cluster., a set of related configuration options defined as
+     * follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_check_optimization, if true\, the obsolete
+     * check optimization is enabled to improve the performance of update operations., a boolean
+     * flag; default \c true.}
+     * @config{ ),,}
      * @config{tiered_storage = (, enable tiered storage.  Enabling tiered storage may use one
      * session from the configured session_max., a set of related configuration options defined as
      * follows.}
@@ -3358,6 +3365,12 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each write of the log records;
  * setting this value above 0 configures statistics logging., an integer between \c 0 and \c 100000;
  * default \c 0.}
+ * @config{ ),,}
+ * @config{strategy = (, control the settings of various optimizations when they are negatively
+ * impacting in the production cluster., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_check_optimization, if true\, the obsolete check
+ * optimization is enabled to improve the performance of update operations., a boolean flag; default
+ * \c true.}
  * @config{ ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined as follows.}
