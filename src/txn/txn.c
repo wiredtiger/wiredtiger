@@ -2793,15 +2793,15 @@ int
 __wt_verbose_dump_txn_one(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, int error_code, const char *error_string)
 {
-    WT_TXN *txn;
-    WT_TXN_SHARED *txn_shared;
-    uint32_t i, buf_len;
-    char ts_string[6][WT_TS_INT_STRING_SIZE];
-    const char *iso_tag;
-    char snapshot_buf_tmp[32];
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(snapshot_buf);
     WT_DECL_RET;
+    WT_TXN *txn;
+    WT_TXN_SHARED *txn_shared;
+    uint32_t i, buf_len;
+    char snapshot_buf_tmp[32];
+    char ts_string[6][WT_TS_INT_STRING_SIZE];
+    const char *iso_tag;
 
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
