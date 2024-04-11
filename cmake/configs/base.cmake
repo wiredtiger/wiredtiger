@@ -9,7 +9,6 @@ set(default_enable_snappy OFF)
 set(default_enable_zlib OFF)
 set(default_enable_zstd OFF)
 set(default_enable_iaa OFF)
-set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
@@ -136,6 +135,18 @@ config_bool(
 config_bool(
     HAVE_UNITTEST_ASSERTS
     "Enable C++ Catch2 based WiredTiger unit tests. Special configuration for testing assertions"
+    DEFAULT OFF
+)
+
+config_bool(
+    CODE_COVERAGE_MEASUREMENT
+    "Enable alternative code that is specifically used when measuring code coverage"
+    DEFAULT OFF
+)
+
+config_bool(
+    INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+    "Switch from macros to inline functions where available"
     DEFAULT OFF
 )
 
@@ -289,16 +300,6 @@ config_bool(
     # Specifically throw a fatal error if a user tries to enable the libsodium encryptor without
     # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find sodium library"
-)
-
-config_bool(
-    ENABLE_TCMALLOC
-    "Use TCMalloc as the backend allocator"
-    DEFAULT ${default_enable_tcmalloc}
-    DEPENDS "HAVE_LIBTCMALLOC"
-    # Specifically throw a fatal error if a user tries to enable the tcmalloc allocator without
-    # actually having the library available (as opposed to silently defaulting to OFF).
-    DEPENDS_ERROR ON "Failed to find tcmalloc library"
 )
 
 config_bool(

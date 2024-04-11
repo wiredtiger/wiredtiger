@@ -26,9 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_VERIFY_H
-#define MODEL_VERIFY_H
+#pragma once
 
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -85,7 +85,7 @@ public:
     {
         if (_iterator != _data.begin())
             throw model_exception("The cursor is not at the beginning");
-        _ckpt = ckpt;
+        _ckpt = std::move(ckpt);
     }
 
     /*
@@ -104,6 +104,7 @@ public:
 private:
     std::map<data_value, kv_table_item> &_data;
     std::map<data_value, kv_table_item>::iterator _iterator;
+    std::optional<std::map<data_value, kv_table_item>::iterator> _prev;
     kv_checkpoint_ptr _ckpt;
 };
 
@@ -137,7 +138,7 @@ public:
       WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr)) noexcept
     {
         try {
-            verify(connection, ckpt);
+            verify(connection, std::move(ckpt));
         } catch (...) {
             return false;
         }
@@ -150,4 +151,3 @@ private:
 };
 
 } /* namespace model */
-#endif

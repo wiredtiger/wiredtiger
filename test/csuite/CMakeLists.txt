@@ -15,6 +15,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_config
+    SOURCES config/main.c
+    DIR_NAME config
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_config>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_incr_backup
     SOURCES incr_backup/main.c
     DIR_NAME incr_backup
@@ -342,6 +350,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt9199_checkpoint_txn_commit_race
+    SOURCES wt9199_checkpoint_txn_commit_race/main.c
+    DIR_NAME wt9199_checkpoint_txn_commit_race
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt9199_checkpoint_txn_commit_race>/WT_HOME>
+    DEPENDS "WT_POSIX"
+    LABEL "long_running"
+)
+
+define_c_test(
     TARGET test_wt8057_compact_stress
     SOURCES wt8057_compact_stress/main.c
     DIR_NAME wt8057_compact_stress
@@ -390,6 +407,14 @@ define_c_test(
     TARGET test_wt10897_compact_quick_interrupt
     SOURCES wt10897_compact_quick_interrupt/main.c
     DIR_NAME wt10897_compact_quick_interrupt
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt11126_compile_config
+    SOURCES wt11126_compile_config/main.c
+    DIR_NAME wt11126_compile_config
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )

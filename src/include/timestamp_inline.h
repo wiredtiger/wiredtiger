@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /* Initialize the fields in a time window to their defaults. */
 #define WT_TIME_WINDOW_INIT(tw)              \
     do {                                     \
@@ -231,3 +233,7 @@
         (out_ta)->newest_stop_ts = WT_MAX((out_ta)->newest_stop_ts, (in_ta)->newest_stop_ts);    \
         (out_ta)->newest_stop_txn = WT_MAX((out_ta)->newest_stop_txn, (in_ta)->newest_stop_txn); \
     } while (0)
+
+/* Check if the stop time aggregate is set. */
+#define WT_TIME_AGGREGATE_HAS_STOP(ta) \
+    ((ta)->newest_stop_txn != WT_TXN_MAX || (ta)->newest_stop_ts != WT_TS_MAX)

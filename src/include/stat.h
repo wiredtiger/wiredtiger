@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Statistics counters:
  *
@@ -91,7 +93,7 @@
 /*
  * Sum the values from all structures in the array.
  */
-static inline int64_t
+static WT_INLINE int64_t
 __wt_stats_aggregate(void *stats_arg, int slot)
 {
     int64_t **stats, aggr_v;
@@ -122,7 +124,7 @@ __wt_stats_aggregate(void *stats_arg, int slot)
 /*
  * Clear the values in all structures in the array.
  */
-static inline void
+static WT_INLINE void
 __wt_stats_clear(void *stats_arg, int slot)
 {
     int64_t **stats;
@@ -273,46 +275,48 @@ __wt_stats_clear(void *stats_arg, int slot)
  * ranges, represented by various statistics, depend upon whether the passed value is in
  * milliseconds or microseconds.
  */
-#define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                                                  \
-    static inline void __wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
-    {                                                                                             \
-        WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs);                                   \
-        if (msecs < 10)                                                                           \
-            WT_STAT_CONN_INCR(session, stat##_lt10);                                              \
-        else if (msecs < 50)                                                                      \
-            WT_STAT_CONN_INCR(session, stat##_lt50);                                              \
-        else if (msecs < 100)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt100);                                             \
-        else if (msecs < 250)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt250);                                             \
-        else if (msecs < 500)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt500);                                             \
-        else if (msecs < WT_THOUSAND)                                                             \
-            WT_STAT_CONN_INCR(session, stat##_lt1000);                                            \
-        else                                                                                      \
-            WT_STAT_CONN_INCR(session, stat##_gt1000);                                            \
+#define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat)                \
+    static WT_INLINE void __wt_stat_msecs_hist_incr_##name(     \
+      WT_SESSION_IMPL *session, uint64_t msecs)                 \
+    {                                                           \
+        WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
+        if (msecs < 10)                                         \
+            WT_STAT_CONN_INCR(session, stat##_lt10);            \
+        else if (msecs < 50)                                    \
+            WT_STAT_CONN_INCR(session, stat##_lt50);            \
+        else if (msecs < 100)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt100);           \
+        else if (msecs < 250)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt250);           \
+        else if (msecs < 500)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt500);           \
+        else if (msecs < WT_THOUSAND)                           \
+            WT_STAT_CONN_INCR(session, stat##_lt1000);          \
+        else                                                    \
+            WT_STAT_CONN_INCR(session, stat##_gt1000);          \
     }
 
-#define WT_STAT_USECS_HIST_INCR_FUNC(name, stat)                                                  \
-    static inline void __wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
-    {                                                                                             \
-        WT_STAT_CONN_INCRV(session, stat##_total_usecs, usecs);                                   \
-        if (usecs < 100)                                                                          \
-            WT_STAT_CONN_INCR(session, stat##_lt100);                                             \
-        else if (usecs < 250)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt250);                                             \
-        else if (usecs < 500)                                                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt500);                                             \
-        else if (usecs < WT_THOUSAND)                                                             \
-            WT_STAT_CONN_INCR(session, stat##_lt1000);                                            \
-        else if (usecs < 10 * WT_THOUSAND)                                                        \
-            WT_STAT_CONN_INCR(session, stat##_lt10000);                                           \
-        else                                                                                      \
-            WT_STAT_CONN_INCR(session, stat##_gt10000);                                           \
+#define WT_STAT_USECS_HIST_INCR_FUNC(name, stat)                \
+    static WT_INLINE void __wt_stat_usecs_hist_incr_##name(     \
+      WT_SESSION_IMPL *session, uint64_t usecs)                 \
+    {                                                           \
+        WT_STAT_CONN_INCRV(session, stat##_total_usecs, usecs); \
+        if (usecs < 100)                                        \
+            WT_STAT_CONN_INCR(session, stat##_lt100);           \
+        else if (usecs < 250)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt250);           \
+        else if (usecs < 500)                                   \
+            WT_STAT_CONN_INCR(session, stat##_lt500);           \
+        else if (usecs < WT_THOUSAND)                           \
+            WT_STAT_CONN_INCR(session, stat##_lt1000);          \
+        else if (usecs < 10 * WT_THOUSAND)                      \
+            WT_STAT_CONN_INCR(session, stat##_lt10000);         \
+        else                                                    \
+            WT_STAT_CONN_INCR(session, stat##_gt10000);         \
     }
 
 #define WT_STAT_COMPR_RATIO_READ_HIST_INCR_FUNC(ratio)                \
-    static inline void __wt_stat_compr_ratio_read_hist_incr(          \
+    static WT_INLINE void __wt_stat_compr_ratio_read_hist_incr(       \
       WT_SESSION_IMPL *session, uint64_t ratio)                       \
     {                                                                 \
         if (ratio < 2)                                                \
@@ -332,7 +336,7 @@ __wt_stats_clear(void *stats_arg, int slot)
     }
 
 #define WT_STAT_COMPR_RATIO_WRITE_HIST_INCR_FUNC(ratio)                \
-    static inline void __wt_stat_compr_ratio_write_hist_incr(          \
+    static WT_INLINE void __wt_stat_compr_ratio_write_hist_incr(       \
       WT_SESSION_IMPL *session, uint64_t ratio)                        \
     {                                                                  \
         if (ratio < 2)                                                 \
@@ -384,10 +388,16 @@ struct __wt_connection_stats {
     int64_t background_compact_success;
     int64_t background_compact_timeout;
     int64_t background_compact_files_tracked;
+    int64_t backup_cursor_open;
+    int64_t backup_dup_open;
+    int64_t backup_granularity;
+    int64_t backup_incremental;
+    int64_t backup_start;
+    int64_t backup_blocks;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
-    int64_t block_prefetch_skipped_internal_page;
-    int64_t block_prefetch_skipped_no_flag_set;
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
@@ -400,19 +410,6 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
-    int64_t block_prefetch_failed_start;
-    int64_t block_prefetch_skipped_same_ref;
-    int64_t block_prefetch_disk_one;
-    int64_t block_prefetch_skipped_no_valid_dhandle;
-    int64_t block_prefetch_skipped;
-    int64_t block_prefetch_skipped_disk_read_count;
-    int64_t block_prefetch_skipped_internal_session;
-    int64_t block_prefetch_skipped_special_handle;
-    int64_t block_prefetch_pages_fail;
-    int64_t block_prefetch_page_not_queued;
-    int64_t block_prefetch_pages_queued;
-    int64_t block_prefetch_pages_read;
-    int64_t block_prefetch_attempts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_blocks;
@@ -465,6 +462,17 @@ struct __wt_connection_stats {
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
     int64_t cache_eviction_server_evicting;
+    int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t cache_eviction_server_skip_intl_page_with_active_child;
+    int64_t cache_eviction_server_skip_metatdata_with_history;
+    int64_t cache_eviction_server_skip_pages_last_running;
+    int64_t cache_eviction_server_skip_pages_retry;
+    int64_t cache_eviction_server_skip_unwanted_pages;
+    int64_t cache_eviction_server_skip_trees_too_many_active_walks;
+    int64_t cache_eviction_server_skip_checkpointing_trees;
+    int64_t cache_eviction_server_skip_trees_stick_in_cache;
+    int64_t cache_eviction_server_skip_trees_eviction_disabled;
+    int64_t cache_eviction_server_skip_trees_not_useful_before;
     int64_t cache_eviction_server_slept;
     int64_t cache_eviction_slow;
     int64_t cache_eviction_walk_leaf_notfound;
@@ -563,6 +571,7 @@ struct __wt_connection_stats {
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
+    int64_t cache_read_checkpoint;
     int64_t cache_eviction_clear_ordinary;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
@@ -579,9 +588,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
-    int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
-    int64_t cache_eviction_server_skip_pages_last_running;
-    int64_t cache_eviction_server_skip_pages_retry;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_reentry_hs_eviction_milliseconds;
@@ -614,10 +620,16 @@ struct __wt_connection_stats {
     int64_t checkpoint_generation;
     int64_t checkpoint_time_max;
     int64_t checkpoint_time_min;
+    int64_t checkpoint_handle_drop_duration;
     int64_t checkpoint_handle_duration;
-    int64_t checkpoint_handle_duration_apply;
-    int64_t checkpoint_handle_duration_skip;
+    int64_t checkpoint_handle_apply_duration;
+    int64_t checkpoint_handle_skip_duration;
+    int64_t checkpoint_handle_meta_check_duration;
+    int64_t checkpoint_handle_lock_duration;
     int64_t checkpoint_handle_applied;
+    int64_t checkpoint_handle_dropped;
+    int64_t checkpoint_handle_meta_checked;
+    int64_t checkpoint_handle_locked;
     int64_t checkpoint_handle_skipped;
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
@@ -691,12 +703,16 @@ struct __wt_connection_stats {
     int64_t fsync_io;
     int64_t read_io;
     int64_t write_io;
+    int64_t cursor_tree_walk_del_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_tree_walk_inmem_del_page_skip;
+    int64_t cursor_tree_walk_ondisk_del_page_skip;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
     int64_t cursor_reposition;
+    int64_t cursor_bulk_count;
     int64_t cursor_cached_count;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;
@@ -780,17 +796,9 @@ struct __wt_connection_stats {
     int64_t lock_dhandle_wait_internal;
     int64_t lock_dhandle_read_count;
     int64_t lock_dhandle_write_count;
-    int64_t lock_durable_timestamp_wait_application;
-    int64_t lock_durable_timestamp_wait_internal;
-    int64_t lock_durable_timestamp_read_count;
-    int64_t lock_durable_timestamp_write_count;
     int64_t lock_metadata_count;
     int64_t lock_metadata_wait_application;
     int64_t lock_metadata_wait_internal;
-    int64_t lock_read_timestamp_wait_application;
-    int64_t lock_read_timestamp_wait_internal;
-    int64_t lock_read_timestamp_read_count;
-    int64_t lock_read_timestamp_write_count;
     int64_t lock_schema_count;
     int64_t lock_schema_wait_application;
     int64_t lock_schema_wait_internal;
@@ -878,6 +886,20 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
     int64_t perf_hist_opwrite_latency_total_usecs;
+    int64_t prefetch_skipped_internal_page;
+    int64_t prefetch_skipped_no_flag_set;
+    int64_t prefetch_failed_start;
+    int64_t prefetch_skipped_same_ref;
+    int64_t prefetch_disk_one;
+    int64_t prefetch_skipped_no_valid_dhandle;
+    int64_t prefetch_skipped;
+    int64_t prefetch_skipped_disk_read_count;
+    int64_t prefetch_skipped_internal_session;
+    int64_t prefetch_skipped_special_handle;
+    int64_t prefetch_pages_fail;
+    int64_t prefetch_pages_queued;
+    int64_t prefetch_pages_read;
+    int64_t prefetch_attempts;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
@@ -886,6 +908,7 @@ struct __wt_connection_stats {
     int64_t rec_maximum_milliseconds;
     int64_t rec_maximum_image_build_milliseconds;
     int64_t rec_maximum_hs_wrapup_milliseconds;
+    int64_t rec_overflow_value;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_with_prepare;
@@ -927,9 +950,11 @@ struct __wt_connection_stats {
     int64_t session_table_alter_success;
     int64_t session_table_alter_trigger_checkpoint;
     int64_t session_table_alter_skip;
+    int64_t session_table_compact_conflicting_checkpoint;
     int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
+    int64_t session_table_compact_passes;
     int64_t session_table_compact_running;
     int64_t session_table_compact_skipped;
     int64_t session_table_compact_success;
@@ -940,8 +965,6 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_rename_fail;
-    int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
@@ -955,6 +978,7 @@ struct __wt_connection_stats {
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
+    int64_t application_evict_snapshot_refreshed;
     int64_t application_evict_time;
     int64_t application_cache_time;
     int64_t txn_release_blocked;
@@ -1007,6 +1031,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
+    int64_t txn_set_ts_force;
+    int64_t txn_set_ts_out_of_order;
     int64_t txn_set_ts_oldest;
     int64_t txn_set_ts_oldest_upd;
     int64_t txn_set_ts_stable;
@@ -1046,6 +1072,8 @@ struct __wt_dsrc_stats {
     int64_t bloom_size;
     int64_t autocommit_readonly_retry;
     int64_t autocommit_update_retry;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
@@ -1061,6 +1089,7 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_reviewed;
     int64_t btree_compact_pages_rewritten;
     int64_t btree_compact_pages_skipped;
+    int64_t btree_compact_bytes_rewritten_expected;
     int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_compact_skipped;
     int64_t btree_column_fix;
@@ -1141,6 +1170,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
+    int64_t cache_read_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
     int64_t cache_eviction_pages_seen;
@@ -1201,9 +1231,12 @@ struct __wt_dsrc_stats {
     int64_t compress_write_ratio_hist_16;
     int64_t compress_write_ratio_hist_32;
     int64_t compress_write_ratio_hist_64;
+    int64_t cursor_tree_walk_del_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_tree_walk_inmem_del_page_skip;
+    int64_t cursor_tree_walk_ondisk_del_page_skip;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
     int64_t cursor_reposition;

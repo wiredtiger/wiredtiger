@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /* clang-format off */
 #define WT_VERBOSE_CATEGORY_STR_INIT \
     { \
@@ -21,6 +23,7 @@
     "WT_VERB_CHUNKCACHE", \
     "WT_VERB_COMPACT", \
     "WT_VERB_COMPACT_PROGRESS", \
+    "WT_VERB_CONFIGURATION", \
     "WT_VERB_DEFAULT", \
     "WT_VERB_ERROR_RETURNS", \
     "WT_VERB_EVICT", \

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-t=__wt.$$
-trap 'rm -f $t' 0 1 2 3 13 15
-
-cd ..
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
+check_fast_mode_flag
 
 # Parse a C file, discarding functions that don't return an int, and formatting
 # the remaining functions as a single line.
@@ -82,6 +82,7 @@ func_ok()
         -e '/int __wt_lsm_manager_pop_entry$/d' \
         -e '/int __wt_once$/d' \
         -e '/int __wt_posix_directory_list_free$/d' \
+        -e '/int __wt_rts_thread_stop$/d' \
         -e '/int __wt_session_breakpoint$/d' \
         -e '/int __wt_set_return_func$/d' \
         -e '/int __wt_spin_init$/d' \
@@ -168,14 +169,39 @@ func_ok()
         -e '/int zstd_pre_size$/d' \
         -e '/int zstd_terminate$/d' \
         -e '/int __wt_curhs_search_near_after$/d' \
-        -e '/int __wt_curhs_search_near_before$/d'
+        -e '/int __wt_curhs_search_near_before$/d' \
+        -e '/int __wt_logrec_read$/d' \
+        -e '/int __wt_logop_read$/d' \
+        -e '/int __wt_logop_unpack$/d' \
+        -e '/int __wt_struct_unpack_col_modify$/d' \
+        -e '/int __wt_struct_unpack_col_put$/d' \
+        -e '/int __wt_struct_unpack_col_remove$/d' \
+        -e '/int __wt_struct_unpack_col_truncate$/d' \
+        -e '/int __wt_struct_unpack_row_modify$/d' \
+        -e '/int __wt_struct_unpack_row_put$/d' \
+        -e '/int __wt_struct_unpack_row_remove$/d' \
+        -e '/int __wt_struct_unpack_row_truncate$/d' \
+        -e '/int __wt_struct_pack_checkpoint_start$/d' \
+        -e '/int __wt_struct_unpack_checkpoint_start$/d' \
+        -e '/int __wt_struct_unpack_prev_lsn$/d' \
+        -e '/int __wt_struct_unpack_backup_id$/d' \
+        -e '/int __wt_struct_unpack_txn_timestamp$/d' \
+        ;
 }
 
-for f in `find bench ext src test -name '*.c' -o -name '*_inline.h'`; do
-    if expr "$f" : '.*/windows_shim.c' > /dev/null; then
-        continue
-    fi
+SUBDIRS="bench ext src test"
 
+# Parallel execution: if it's the main onvocation of the script, collect the file names
+# to process and run them in subprocesses.
+is_main_run && {
+    find $SUBDIRS -name '*.c' -o -name '*_inline.h' | egrep -Ev '/windows_shim\.c$' |
+    do_in_parallel
+    exit $?
+}
+
+# A list of files provided: process them one by one.
+
+for f in "$@"; do
     # Complain about functions which return an "int" but which don't return
     # except at the end of the function.
     #

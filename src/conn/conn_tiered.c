@@ -195,6 +195,7 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
   const char *obj_uri, uint32_t op)
 {
     WT_CONFIG_ITEM pfx;
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
     WT_STORAGE_SOURCE *storage_source;
@@ -203,14 +204,17 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
     const char *cfg[2], *local_name, *obj_name, *sp_obj_name;
 
     WT_ASSERT(session, (op == WT_TIERED_WORK_FLUSH || op == WT_TIERED_WORK_FLUSH_FINISH));
+    dhandle = (WT_DATA_HANDLE *)tiered;
     tmp = NULL;
     /*
-     * It is possible that the tiered object was closed before the work unit was processed. The work
-     * unit holds a reference on the dhandle but if the bucket storage is gone there is nothing to
-     * do.
+     * The work unit holds a reference on the dhandle so that the structure is valid to look at, but
+     * the dhandle could have been dropped. If it is, there is nothing to do.
      */
-    if (tiered->bstorage == NULL) {
-        __wt_verbose(session, WT_VERB_TIERED, "DO_OP: tiered %p NULL bstorage.", (void *)tiered);
+    WT_ASSERT(session, tiered->bstorage != NULL);
+    if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
+        __wt_verbose(session, WT_VERB_TIERED,
+          "DO_OP: DH %s flags 0x%" PRIx32 " not open or dropped tiered %p.", dhandle->name,
+          dhandle->flags, (void *)tiered);
         return (0);
     }
     storage_source = tiered->bstorage->storage_source;
@@ -362,7 +366,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     /* There is nothing to do until the checkpoint after the flush completes. */
-    if (!conn->flush_ckpt_complete)
+    if (!__wt_atomic_loadbool(&conn->flush_ckpt_complete))
         return (0);
     entry = NULL;
     for (;;) {
@@ -378,8 +382,9 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
          * checkpoint is not running, we can process the items with the read generation count. If
          * the checkpoint starts after checking, it would push flush units of a higher count.
          */
-        WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
-        WT_ORDERED_READ(ckpt_running, conn->txn_global.checkpoint_running);
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        WT_ACQUIRE_BARRIER();
+        WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
         __wt_tiered_get_flush(session, (ckpt_running ? ckpt_gen : ckpt_gen + 1), &entry);
         if (entry == NULL)
             break;

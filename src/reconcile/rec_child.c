@@ -123,7 +123,7 @@ __rec_child_deleted(
      * evict prepared truncates, the page apparently being clean might lead to truncations being
      * lost in hard-to-debug ways.
      */
-    WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+    WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, page_del->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
           "In progress prepares should never be seen in eviction");
@@ -143,24 +143,23 @@ __rec_child_deleted(
      * cells to the page. Copy out the current fast-truncate information for that function.
      */
     if (!visible_all) {
-        if (!__wt_process.fast_truncate_2022) {
-            /*
-             * Internal pages with deletes that aren't globally visible cannot be evicted if we
-             * don't write the page_del information, we don't have sufficient information to restore
-             * the page's information if subsequently read (we wouldn't know which transactions
-             * should see the original page and which should see the deleted page).
-             */
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
+        /*
+         * Internal pages with deletes that aren't globally visible cannot be evicted if we don't
+         * write the page_del information, we don't have sufficient information to restore the
+         * page's information if subsequently read (we wouldn't know which transactions should see
+         * the original page and which should see the deleted page).
+         */
+        if (F_ISSET(r, WT_REC_EVICT))
+            return (__wt_set_return(session, EBUSY));
 
-            /*
-             * It is wrong to leave the page clean after checkpoint if we cannot write the deleted
-             * pages to disk in eviction. If we do so, the next eviction will discard the page
-             * without reconcile it again and we lose the time point information of the non-obsolete
-             * deleted pages.
-             */
-            r->leave_dirty = true;
-        }
+        /*
+         * It is wrong to leave the page clean after checkpoint if we cannot write the deleted pages
+         * to disk in eviction. If we do so, the next eviction will discard the page without
+         * reconcile it again and we lose the time point information of the non-obsolete deleted
+         * pages.
+         */
+        r->leave_dirty = true;
+
         cmsp->del = *page_del;
         cmsp->state = WT_CHILD_PROXY;
         page_del->selected_for_write = true;
@@ -213,7 +212,7 @@ __wt_rec_child_modify(
      * use, there are other page states that must be considered.
      */
     for (;; __wt_yield()) {
-        switch (r->tested_ref_state = ref->state) {
+        switch (r->tested_ref_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
             WT_ASSERT(session, ref->addr != NULL);

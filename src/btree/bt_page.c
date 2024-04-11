@@ -63,7 +63,7 @@ __wt_page_alloc(
     WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    page->read_gen = WT_READGEN_NOTSET;
+    __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 
     switch (type) {
     case WT_PAGE_COL_FIX:
@@ -114,7 +114,7 @@ err:
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size);
     (void)__wt_atomic_add64(&cache->pages_inmem, 1);
-    page->cache_create_gen = cache->evict_pass_gen;
+    page->cache_create_gen = __wt_atomic_load64(&cache->evict_pass_gen);
 
     *pagep = page;
     return (0);
@@ -857,9 +857,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 
         switch (unpack.type) {
         case WT_CELL_KEY:
-            /*
-             * Note: we don't Huffman encode internal page keys, there's no decoding work to do.
-             */
             __wt_ref_key_onpage_set(page, ref, &unpack);
             break;
         case WT_CELL_KEY_OVFL:
@@ -975,7 +972,6 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
 static int
 __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_ROW *rip;
@@ -984,7 +980,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
     uint8_t smallest_prefix;
     bool prepare;
 
-    btree = S2BT(session);
     last_slot = 0;
     prepare = false;
 
@@ -1079,8 +1074,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
              * will be comprised of data that is globally visible, and so the reader thread which
              * attempts to read the page into cache can skip the visible all check.
              */
-            if (!btree->huffman_value &&
-              !(WT_READING_CHECKPOINT(session) && F_ISSET(session, WT_SESSION_PREFETCH)) &&
+            if (!(WT_READING_CHECKPOINT(session) && F_ISSET(session, WT_SESSION_PREFETCH_THREAD)) &&
               (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
                 (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
                   __wt_txn_tw_start_visible_all(session, &unpack.tw))))

@@ -5,6 +5,9 @@
  *
  * See the file LICENSE for redistribution information.
  */
+
+#pragma once
+
 #define WT_COMPAT_MSG_PREFIX "Version incompatibility detected: "
 
 #define WT_DEBUG_POINT ((void *)(uintptr_t)0xdeadbeef)
@@ -97,6 +100,37 @@
     } while (0)
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
+
+#ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+/* Set "ret" if not already set. */
+static WT_INLINE void
+__wt_tret(int *pret, int a)
+{
+    int __ret;
+    WT_DECL_RET;
+
+    ret = *pret;
+    if ((__ret = (a)) != 0 &&
+      (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND ||
+        ret == WT_RESTART))
+        *pret = __ret;
+}
+#define WT_TRET(a) __wt_tret(&ret, a)
+
+static WT_INLINE void
+__wt_tret_error_ok(int *pret, int a, int e)
+{
+    int __ret;
+    WT_DECL_RET;
+
+    ret = *pret;
+    if ((__ret = (a)) != 0 && __ret != (e) &&
+      (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND ||
+        ret == WT_RESTART))
+        *pret = __ret;
+}
+#define WT_TRET_ERROR_OK(a, e) __wt_tret_error_ok(&ret, a, e)
+#else
 /* Set "ret" if not already set. */
 #define WT_TRET(a)                                                                           \
     do {                                                                                     \
@@ -114,6 +148,8 @@
             ret == WT_RESTART))                                                              \
             ret = __ret;                                                                     \
     } while (0)
+#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
+
 #define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
@@ -130,11 +166,11 @@
  * information to improve performance at runtime. This is not supported for MSVC compilers.
  */
 #if !defined(_MSC_VER)
-#define LIKELY(x) __builtin_expect(!!(x), 1)
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#define WT_LIKELY(x) __builtin_expect(!!(x), 1)
+#define WT_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
-#define LIKELY(x) (x)
-#define UNLIKELY(x) (x)
+#define WT_LIKELY(x) (x)
+#define WT_UNLIKELY(x) (x)
 #endif
 
 #define WT_ERR_MSG_BUF_LEN 1024
@@ -191,7 +227,7 @@
  */
 #define EXTRA_DIAGNOSTICS_ENABLED(session, category) \
     ((session != NULL) &&                            \
-      UNLIKELY(FLD_ISSET(S2C(session)->extra_diagnostics_flags, category | WT_DIAGNOSTIC_ALL)))
+      WT_UNLIKELY(FLD_ISSET(S2C(session)->extra_diagnostics_flags, category | WT_DIAGNOSTIC_ALL)))
 
 /*
  * WT_ASSERT --
@@ -201,7 +237,7 @@
 #ifdef HAVE_DIAGNOSTIC
 #define WT_ASSERT(session, exp)                                       \
     do {                                                              \
-        if (UNLIKELY(!(exp)))                                         \
+        if (WT_UNLIKELY(!(exp)))                                      \
             TRIGGER_ABORT(session, exp, "Expression returned false"); \
     } while (0)
 #else
@@ -212,11 +248,11 @@
  * WT_ASSERT_OPTIONAL --
  *  Assert an expression if the relevant assertion category is enabled.
  */
-#define WT_ASSERT_OPTIONAL(session, category, exp, ...)             \
-    do {                                                            \
-        if (UNLIKELY(EXTRA_DIAGNOSTICS_ENABLED(session, category))) \
-            if (UNLIKELY(!(exp)))                                   \
-                TRIGGER_ABORT(session, exp, __VA_ARGS__);           \
+#define WT_ASSERT_OPTIONAL(session, category, exp, ...)                \
+    do {                                                               \
+        if (WT_UNLIKELY(EXTRA_DIAGNOSTICS_ENABLED(session, category))) \
+            if (WT_UNLIKELY(!(exp)))                                   \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);              \
     } while (0)
 
 /*
@@ -225,7 +261,7 @@
  */
 #define WT_ASSERT_ALWAYS(session, exp, ...)           \
     do {                                              \
-        if (UNLIKELY(!(exp)))                         \
+        if (WT_UNLIKELY(!(exp)))                      \
             TRIGGER_ABORT(session, exp, __VA_ARGS__); \
     } while (0)
 
@@ -236,7 +272,7 @@
  */
 #define WT_ERR_ASSERT(session, category, exp, v, ...)         \
     do {                                                      \
-        if (UNLIKELY(!(exp))) {                               \
+        if (WT_UNLIKELY(!(exp))) {                            \
             if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
             else                                              \
@@ -251,7 +287,7 @@
  */
 #define WT_RET_ASSERT(session, category, exp, v, ...)         \
     do {                                                      \
-        if (UNLIKELY(!(exp))) {                               \
+        if (WT_UNLIKELY(!(exp))) {                            \
             if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
             else                                              \
@@ -266,7 +302,7 @@
  */
 #define WT_RET_PANIC_ASSERT(session, category, exp, v, ...)   \
     do {                                                      \
-        if (UNLIKELY(!(exp))) {                               \
+        if (WT_UNLIKELY(!(exp))) {                            \
             if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
             else                                              \

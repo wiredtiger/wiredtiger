@@ -19,7 +19,7 @@ __curindex_get_value(WT_CURSOR *cursor, ...)
     WT_SESSION_IMPL *session;
     va_list ap;
 
-    JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, get_value, NULL);
 
     va_start(ap, cursor);
     ret = __wt_curindex_get_valuev(cursor, ap);
@@ -41,7 +41,7 @@ __curindex_set_valuev(WT_CURSOR *cursor, va_list ap)
 
     WT_UNUSED(ap);
 
-    JOINABLE_CURSOR_API_CALL(cursor, session, set_value, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, set_value, NULL);
     WT_ERR_MSG(session, ENOTSUP, "WT_CURSOR.set_value not supported for index cursors");
 
 err:
@@ -76,7 +76,7 @@ __curindex_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     WT_SESSION_IMPL *session;
 
     cindex = (WT_CURSOR_INDEX *)a;
-    JOINABLE_CURSOR_API_CALL(a, session, compare, NULL);
+    JOINABLE_CURSOR_API_CALL(a, session, ret, compare, NULL);
 
     /* Check both cursors are "index:" type. */
     if (!WT_PREFIX_MATCH(a->uri, "index:") || strcmp(a->uri, b->uri) != 0)
@@ -147,7 +147,7 @@ __curindex_next(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
-    JOINABLE_CURSOR_API_CALL(cursor, session, next, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, next, NULL);
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     if ((ret = cindex->child->next(cindex->child)) == 0)
@@ -169,7 +169,7 @@ __curindex_prev(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
-    JOINABLE_CURSOR_API_CALL(cursor, session, prev, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, prev, NULL);
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     if ((ret = cindex->child->prev(cindex->child)) == 0)
@@ -230,7 +230,7 @@ __curindex_search(WT_CURSOR *cursor)
 
     cindex = (WT_CURSOR_INDEX *)cursor;
     child = cindex->child;
-    JOINABLE_CURSOR_API_CALL(cursor, session, search, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, search, NULL);
 
     /*
      * We are searching using the application-specified key, which (usually) doesn't contain the
@@ -299,7 +299,7 @@ __curindex_search_near(WT_CURSOR *cursor, int *exact)
 
     cindex = (WT_CURSOR_INDEX *)cursor;
     child = cindex->child;
-    JOINABLE_CURSOR_API_CALL(cursor, session, search_near, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, search_near, NULL);
 
     /*
      * We are searching using the application-specified key, which (usually) doesn't contain the
@@ -359,7 +359,7 @@ err:
  *     Increment the given buffer by one bit, return true if we incremented the buffer or not. If
  *     all of the values inside the buffer are UINT8_MAX value we do not increment the buffer.
  */
-static inline bool
+static WT_INLINE bool
 __increment_bound_array(WT_ITEM *user_item)
 {
     size_t usz, i;
@@ -409,7 +409,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     WT_CLEAR(saved_bounds);
     inclusive = false;
 
-    JOINABLE_CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
+    JOINABLE_CURSOR_API_CALL_CONF(cursor, session, ret, bound, config, cfg, NULL);
 
     /* Save the current state of the bounds in case we fail to apply the new state. */
     WT_ERR(__wt_cursor_bounds_save(session, child, &saved_bounds));
@@ -417,7 +417,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
 
     /* When setting bounds, we need to check that the key is set. */
-    if (WT_STRING_MATCH("set", cval.str, cval.len)) {
+    if (WT_CONFIG_LIT_MATCH("set", cval)) {
         WT_ERR(__cursor_checkkey(cursor));
 
         /* Point the public cursor to the key in the child. */
@@ -440,7 +440,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
      *  1. If the set bound is lower and it is not inclusive.
      *  2. If the set bound is upper and it is inclusive.
      */
-    if (WT_STRING_MATCH("lower", cval.str, cval.len) && !inclusive) {
+    if (WT_CONFIG_LIT_MATCH("lower", cval) && !inclusive) {
         /*
          * In the case that we can't increment the lower bound, it means we have reached the max
          * possible key for the lower bound. This is a very tricky case since there isn't a trivial
@@ -456,7 +456,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
         }
     }
 
-    if (WT_STRING_MATCH("upper", cval.str, cval.len) && inclusive) {
+    if (WT_CONFIG_LIT_MATCH("upper", cval) && inclusive) {
         /*
          * In the case that we can't increment the upper bound, it means we have reached the max
          * possible key for the upper bound. In that case we can just clear upper bound.
