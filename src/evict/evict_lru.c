@@ -423,6 +423,15 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         return (0);
 
     if (!__wt_cache_stuck(session)) {
+#ifdef HAVE_DIAGNOSTIC
+        /* If eviction is not stuck, should restore the origin verbose level */
+        if (cache->adjust_evict_server_verbose == true) {
+            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT);
+            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICTSERVER);
+            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK);
+            cache->adjust_evict_server_verbose = false;
+        }
+#endif
         /*
          * Try to get the handle list lock: if we give up, that indicates a session is waiting for
          * us to clear walks. Do that as part of a normal pass (without the handle list lock) to
@@ -457,13 +466,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
             __wt_epoch(session, &cache->stuck_time);
 #else
-        /* If eviction is not stuck, should restore the origin verbose level */
-        if (cache->adjust_evict_server_verbose == true) {
-            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT);
-            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICTSERVER);
-            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK);
-            cache->adjust_evict_server_verbose = false;
-        }
         __wt_epoch(session, &cache->stuck_time);
 #endif
         return (0);
