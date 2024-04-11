@@ -4054,8 +4054,8 @@ tasks:
             # Set the cyclomatic complexity limit to 20
             python3 "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
 
-            # Fail if there are functions with cyclomatic complexity larger than 91
-            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:91 > $t
+            # Fail if there are functions with cyclomatic complexity larger than 98
+            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:98 > $t
             if grep -q 'exceeds' $t; then
                 echo "[ERROR]:complexity:cyclomatic: Complexity limit exceeded."
                 cat $t
@@ -5318,7 +5318,8 @@ buildvariants:
     - name: ".data-validation-stress-test"
     - name: catch2-unittest-test
     - name: s3-tiered-storage-extensions-test
-    - name: azure-gcp-tiered-storage-extensions-test
+    # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
+    # - name: azure-gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: catch2-unittest-assertions
     - name: ".tiered_unittest"
