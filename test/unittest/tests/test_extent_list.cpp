@@ -253,8 +253,8 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
 TEST_CASE("Extent Lists: block_off_srch_last_for_mock_session", "[extent_list]")
 {
     WT_BLOCK *block;
-    WT_EXTLIST *alloc;
     WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext, extp;
+    WT_EXTLIST *alloc;
     wt_off_t off, size;
     const char *name = "block_off_srch_last_for_mock_session";
     int i;
