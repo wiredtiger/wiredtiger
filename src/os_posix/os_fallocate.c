@@ -20,28 +20,30 @@
  */
 #if defined(HAVE_FALLOCATE) || (defined(__linux__) && defined(SYS_fallocate)) || \
   defined(HAVE_POSIX_FALLOCATE)
-#define WT_CALL_FUNCTION(op)                                         \
-    do {                                                             \
-        WT_DECL_RET;                                                 \
-        WT_FILE_HANDLE_POSIX *pfh;                                   \
-        bool remap;                                                  \
-                                                                     \
-        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                   \
-                                                                     \
-        remap = (offset != pfh->mmap_size);                          \
-        if (remap)                                                   \
-            __wt_prepare_remap_resize_file(file_handle, wt_session); \
-                                                                     \
-        WT_SYSCALL_RETRY(op, ret);                                   \
-        if (remap) {                                                 \
-            if (ret == 0)                                            \
-                __wt_remap_resize_file(file_handle, wt_session);     \
-            else {                                                   \
-                __wt_release_without_remap(file_handle);             \
-                WT_RET(ret);                                         \
-            }                                                        \
-        }                                                            \
-        return (0);                                                  \
+#define WT_CALL_FUNCTION(op)                                                   \
+    do {                                                                       \
+        WT_DECL_RET;                                                           \
+        WT_FILE_HANDLE_POSIX *pfh;                                             \
+        bool release, remap;                                                   \
+                                                                               \
+        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                             \
+                                                                               \
+        release = false;                                                       \
+        remap = (offset != pfh->mmap_size);                                    \
+        if (remap)                                                             \
+            __wt_prepare_remap_resize_file(file_handle, wt_session, &release); \
+                                                                               \
+        WT_SYSCALL_RETRY(op, ret);                                             \
+        if (remap) {                                                           \
+            if (ret == 0 && release)                                           \
+                __wt_remap_resize_file(file_handle, wt_session);               \
+            else {                                                             \
+                if (release)                                                   \
+                    __wt_release_without_remap(file_handle);                   \
+                WT_RET(ret);                                                   \
+            }                                                                  \
+        }                                                                      \
+        return (0);                                                            \
     } while (0)
 #endif
 
