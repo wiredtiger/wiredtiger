@@ -35,8 +35,7 @@ static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, 
 static WT_INLINE WT_EXT *
 __block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
 {
-    WT_EXT **extp, *last;
-    WT_EXT **head;
+    WT_EXT **extp, **head, *last;
     int i;
 
     if (need_traverse == false && el != NULL)
