@@ -409,7 +409,10 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
         } else
             *va_arg(ap, uint64_t *) = cursor->recno;
     } else {
-        /* Fast path some common cases. */
+        /*
+         * Fast path some common cases. The case we care most about being fast is "u", check that
+         * first.
+         */
         fmt = cursor->key_format;
         if (WT_STREQ(fmt, "u") || LF_ISSET(WT_CURSOR_RAW_OK)) {
             key = va_arg(ap, WT_ITEM *);
@@ -463,7 +466,10 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
         buf->data = &cursor->recno;
         sz = sizeof(cursor->recno);
     } else {
-        /* Fast path some common cases and special case WT_ITEMs. */
+        /*
+         * Fast path some common cases and special case WT_ITEMs. The case we care most about being
+         * fast is "u", check that first.
+         */
         fmt = cursor->key_format;
         if (WT_STREQ(fmt, "u") || LF_ISSET(WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON)) {
             item = va_arg(ap, WT_ITEM *);
@@ -547,7 +553,9 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
     if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CURSOR_COPY))
         WT_ERR(__wt_buf_grow(session, &cursor->value, cursor->value.size));
 
-    /* Fast path some common cases. */
+    /*
+     * Fast path some common cases. The case we care most about being fast is "u", check that first.
+     */
     fmt = cursor->value_format;
     if (WT_STREQ(fmt, "u") || F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
         value = va_arg(ap, WT_ITEM *);
@@ -641,7 +649,9 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
 
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
-    /* Fast path some common cases. */
+    /*
+     * Fast path some common cases. The case we care most about being fast is "u", check that first.
+     */
     if (WT_STREQ(fmt, "u") || F_ISSET(cursor, WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON)) {
         item = va_arg(ap, WT_ITEM *);
         sz = item->size;
