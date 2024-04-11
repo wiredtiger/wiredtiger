@@ -112,12 +112,15 @@ __txn_op_need_set_key(WT_TXN *txn, WT_TXN_OP *op)
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         return (false);
 
+    /* History store writes cannot be prepared. */
     if (WT_IS_HS(op->btree->dhandle))
         return (false);
 
+    /* Metadata writes cannot be prepared. */
     if (WT_IS_METADATA(op->btree->dhandle))
         return (false);
 
+    /* Auto transactions cannot be prepared. */
     if (F_ISSET(txn, WT_TXN_AUTOCOMMIT))
         return (false);
 
