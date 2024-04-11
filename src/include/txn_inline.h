@@ -103,7 +103,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
  *     Check if we need to copy the key to the most recent transaction operation.
  */
 static WT_INLINE bool
-__txn_op_need_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key, WT_TXN_OP *op)
+__txn_op_need_set_key(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_TXN *txn;
 
@@ -145,7 +145,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    if (!__txn_op_need_set_key(session, key, op))
+    if (!__txn_op_need_set_key(session, op))
         return (0);
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
