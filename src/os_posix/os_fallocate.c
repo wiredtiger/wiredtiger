@@ -34,12 +34,11 @@
             __wt_prepare_remap_resize_file(file_handle, wt_session, &release); \
                                                                                \
         WT_SYSCALL_RETRY(op, ret);                                             \
-        if (remap) {                                                           \
-            if (ret == 0 && release)                                           \
+        if (remap && release) {                                                \
+            if (ret == 0)                                                      \
                 __wt_remap_resize_file(file_handle, wt_session);               \
             else {                                                             \
-                if (release)                                                   \
-                    __wt_release_without_remap(file_handle);                   \
+                __wt_release_without_remap(file_handle);                       \
                 WT_RET(ret);                                                   \
             }                                                                  \
         }                                                                      \

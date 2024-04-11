@@ -571,7 +571,7 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    bool remap, release;
+    bool release, remap;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -586,12 +586,11 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
         __wt_prepare_remap_resize_file(file_handle, wt_session, &release);
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
-    if (remap) {
-        if (ret == 0 && release)
+    if (remap && release) {
+        if (ret == 0)
             __wt_remap_resize_file(file_handle, wt_session);
         else {
-            if (release)
-                __wt_release_without_remap(file_handle);
+            __wt_release_without_remap(file_handle);
             WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
         }
     }
