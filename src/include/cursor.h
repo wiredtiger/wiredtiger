@@ -269,6 +269,11 @@ struct __wt_cursor_btree {
       WT_CBT_VAR_ONPAGE_MATCH)
 
     uint32_t flags;
+
+    WT_REF *last_insert;
+    bool appended;
+    uint64_t last_recno;
+    int insert_compare;
 };
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */

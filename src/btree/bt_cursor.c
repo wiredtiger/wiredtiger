@@ -864,8 +864,12 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * failure. It sets up a callback for that purpose, and we pay a cache miss per search to make
      * that work.
      */
-    if (session->format_private != NULL)
+    if (session->format_private != NULL) {
+        /* Verbose line only present to make sure fields not optimised out. */
+        __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "format private: ref=%p appended=%s recno=%" PRIu64,
+          cbt->last_insert, cbt->appended ? "true" : "false", cbt->last_recno);
         session->format_private(cursor, ret, session->format_private_arg);
+    }
 
 #ifdef HAVE_DIAGNOSTIC
     if (ret == 0)
@@ -1276,6 +1280,10 @@ done:
         if (append_key)
             F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
+    cbt->last_insert = cbt->ref;
+    cbt->last_recno = cbt->iface.recno;
+    cbt->appended = append_key;
+    cbt->insert_compare = cbt->compare;
     WT_TRET(__cursor_reset(cbt));
     if (ret != 0 && ret != WT_DUPLICATE_KEY)
         __cursor_state_restore(cursor, &state);
