@@ -312,6 +312,8 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     }
 
+    /* Mark the page clean after Re-Instantiating prepared updates*/
+    __wt_page_modify_clear(session, page);
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
