@@ -268,6 +268,10 @@ main(int argc, char *argv[])
             func = util_verify;
             if (disable_prefetch)
                 conn_config = "prefetch=(available=false,default=false)";
+            else {
+                conn_config = "prefetch=(available=true,default=false)";
+                session_config = "prefetch=(enabled=true)";
+            }
         }
         break;
     case 'w':
