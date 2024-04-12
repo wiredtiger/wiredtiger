@@ -1375,12 +1375,12 @@ struct __wt_session_stats {
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
     int64_t txn_bytes_dirty;
-    int64_t bytes_read_app_count;
-    int64_t bytes_write_app_count;
     int64_t read_time;
     int64_t write_time;
     int64_t lock_schema_wait;
     int64_t cache_time;
+    int64_t read_io;
+    int64_t write_io;
 };
 
 /* Statistics section: END */
