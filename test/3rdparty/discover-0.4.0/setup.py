@@ -8,7 +8,7 @@
 # http://www.voidspace.org.uk/python/license.shtml
 
 import sys
-from distutils.core import setup
+from setuptools import setup
 from discover import __version__ as VERSION
 
 
@@ -54,20 +54,14 @@ params = dict(
     keywords=KEYWORDS
 )
 
-
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
-else:
-    params.update(dict(
-        entry_points = {
-            'console_scripts': [
-                'discover = discover:main',
-                ],
-            },
-    ))
-    params['test_suite'] = 'discover.collector'
+params.update(dict(
+    entry_points = {
+        'console_scripts': [
+            'discover = discover:main',
+            ],
+        },
+))
+params['test_suite'] = 'discover.collector'
 
 setup(**params)
 
