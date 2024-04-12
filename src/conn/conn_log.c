@@ -495,7 +495,6 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
     log = conn->log;
     reccount = 0;
     recfiles = NULL;
-    i = 0;
 
     /*
      * Allocate up to the maximum number, accounting for any existing files that may not have been
@@ -537,10 +536,10 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      */
     log->prep_missed = 0;
 
-    if (0) 
+    if (0)
 err:
         __wt_err(session, ret, "log pre-alloc server error");
-    
+
     WT_TRET(__wt_fs_directory_list_free(session, &recfiles, reccount));
     return (ret);
 }
