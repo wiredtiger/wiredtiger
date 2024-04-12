@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_TEST_SUBPROCESS_H
-#define MODEL_TEST_SUBPROCESS_H
+#pragma once
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -74,10 +73,22 @@ public:
     subprocess_helper();
 
     /*
+     * subprocess_helper::subprocess_helper --
+     *     Delete the copy constructor.
+     */
+    subprocess_helper(const subprocess_helper &) = delete;
+
+    /*
      * subprocess_helper::~subprocess_helper --
      *     Clean up.
      */
     ~subprocess_helper();
+
+    /*
+     * subprocess_helper::operator= --
+     *     Delete the assignment operator.
+     */
+    subprocess_helper &operator=(const subprocess_helper &) = delete;
 
     /*
      * subprocess_helper::abort_if_child --
@@ -123,5 +134,3 @@ private:
 
     struct sigaction _previous_sigaction;
 };
-
-#endif

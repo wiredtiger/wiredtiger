@@ -24,7 +24,7 @@ __wt_config_check(
      * Callers don't check, it's a fast call without a configuration or check array.
      */
     return (config == NULL || entry->checks == NULL ||
-          (entry->compilable && __wt_conf_is_compiled(S2C(session), config)) ?
+          (entry->compilable && session != NULL && __wt_conf_is_compiled(S2C(session), config)) ?
         0 :
         __config_check(
           session, entry->checks, entry->checks_entries, entry->checks_jump, config, config_len));
@@ -56,7 +56,7 @@ __config_check_compare(const void *keyvoid, const void *checkvoid)
  * __config_check_search --
  *     Search a set of checks for a matching name.
  */
-static inline int
+static WT_INLINE int
 __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int entries,
   const WT_CONFIG_ITEM *item, const uint8_t *check_jump, const WT_CONFIG_CHECK **resultp)
 {
@@ -69,7 +69,7 @@ __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u
      */
     if (entries == 0) {
         for (indx = 0; checks[indx].name != NULL; indx++)
-            if (WT_STRING_MATCH(checks[indx].name, item->str, item->len)) {
+            if (WT_CONFIG_MATCH(checks[indx].name, *item)) {
                 *resultp = &checks[indx];
                 return (0);
             }
@@ -126,7 +126,7 @@ __wt_config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
 
     found = false;
     for (choice = choices; *choice != NULL; ++choice)
-        if (WT_STRING_MATCH(*choice, item->str, item->len)) {
+        if (WT_CONFIG_MATCH(*choice, *item)) {
             found = true;
             break;
         }

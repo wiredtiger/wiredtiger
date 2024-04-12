@@ -302,10 +302,9 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         the file format''',
         choices=['btree']),
     Config('huffman_key', 'none', r'''
-        This option is no longer supported, retained for backward compatibility'''),
+        This option is no longer supported, retained for backward compatibility''', undoc=True),
     Config('huffman_value', 'none', r'''
-        configure Huffman encoding for values. Permitted values are \c "none", \c "english",
-        \c "utf8<file>" or \c "utf16<file>". See @ref huffman for more information'''),
+        This option is no longer supported, retained for backward compatibility''', undoc=True),
     Config('ignore_in_memory_cache_size', 'false', r'''
         allow update and insert operations to proceed even if the cache is already at
         capacity. Only valid in conjunction with in-memory databases. Should be used with caution -
@@ -822,8 +821,8 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
-        'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'compact_slow',
-        'evict_reposition', 'failpoint_eviction_split',
+        'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
+        'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prefix_compare',
         'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
@@ -1381,7 +1380,7 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_CURSOR.bound' : Method(cursor_bound_config),
+'WT_CURSOR.bound' : Method(cursor_bound_config, compilable=True),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('checkpoint', '', r'''
@@ -1401,6 +1400,7 @@ methods = {
     Config('background', '', r'''
         enable/disabled the background compaction server.''',
         type='boolean'),
+    Config('dryrun', 'false', r'''run only the estimation phase of compact''', type='boolean'),
     Config('exclude', '', r'''
         list of table objects to be excluded from background compaction. The list is immutable and
         only applied when the background compaction gets enabled. The list is not saved between the
@@ -1668,7 +1668,6 @@ methods = {
 ]),
 
 'WT_SESSION.reset_snapshot' : Method([]),
-'WT_SESSION.rename' : Method([]),
 'WT_SESSION.reset' : Method([]),
 'WT_SESSION.salvage' : Method([
     Config('force', 'false', r'''
@@ -2005,13 +2004,11 @@ methods = {
         type='boolean', undoc=True),
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified timestamp. Values must
-        be monotonically increasing; any attempt to set the value to older than the current
-        is silently ignored. The value must not be newer than the current stable timestamp.
+        be monotonically increasing. The value must not be newer than the current stable timestamp.
         See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified timestamp in tables
-        configured with \c "log=(enabled=false)". Values must be monotonically increasing;
-        any attempt to set the value to older than the current is silently ignored. The value
+        configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
 ]),
 
@@ -2019,6 +2016,10 @@ methods = {
     Config('dryrun', 'false', r'''
         perform the checks associated with RTS, but don't modify any data.''',
         type='boolean'),
+    Config('threads', '4', r'''
+        maximum number of threads WiredTiger will start to help RTS. Each
+        RTS worker thread uses a session from the configured session_max''',
+        min=0, max=10),
 ]),
 
 'WT_SESSION.reconfigure' : Method(session_config),

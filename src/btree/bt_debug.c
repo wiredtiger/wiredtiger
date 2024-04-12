@@ -84,7 +84,7 @@ __wt_debug_set_verbose(WT_SESSION_IMPL *session, const char *v)
  * __debug_hex_byte --
  *     Output a single byte in hex.
  */
-static inline int
+static WT_INLINE int
 __debug_hex_byte(WT_DBG *ds, uint8_t v)
 {
     return (ds->f(ds, "#%c%c", __wt_hex((v & 0xf0) >> 4), __wt_hex(v & 0x0f)));
@@ -687,6 +687,10 @@ __debug_cell_kv(
     }
     WT_RET(ds->f(ds, "\n"));
 
+    /* Early exit for column store deleted cells. There's nothing further to print. */
+    if (unpack->raw == WT_CELL_DEL)
+        return (0);
+
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
@@ -922,7 +926,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
           "%d %s\n",
           level * 3, " ", level, __debug_tree_shape_info(ref, buf, sizeof(buf))));
         WT_INTL_FOREACH_BEGIN (session, ref->page, walk) {
-            if (walk->state == WT_REF_MEM)
+            if (WT_REF_GET_STATE(walk) == WT_REF_MEM)
                 WT_RET(__debug_tree_shape_worker(ds, walk, level + 1));
         }
         WT_INTL_FOREACH_END;
@@ -1284,7 +1288,7 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     if (split_gen != 0)
         WT_RET(ds->f(ds, " | split_gen: %" PRIu64, split_gen));
     if (mod != NULL)
-        WT_RET(ds->f(ds, " | page_state: %" PRIu32, mod->page_state));
+        WT_RET(ds->f(ds, " | page_state: %" PRIu32, __wt_atomic_load32(&mod->page_state)));
     WT_RET(ds->f(ds, " | page_mem_size: %" WT_SIZET_FMT, page->memory_footprint));
     return (ds->f(ds, "\n"));
 }
@@ -1373,14 +1377,14 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page)
     session = ds->session;
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n", ref->ref_recno));
+        WT_RET(ds->f(ds, "\trecno: {%" PRIu64 "}\n\t", ref->ref_recno));
         WT_RET(__debug_ref(ds, ref));
     }
     WT_INTL_FOREACH_END;
 
     if (F_ISSET(ds, WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            if (ref->state == WT_REF_MEM) {
+            if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
                 WT_RET(ds->f(ds, "\n"));
                 WT_RET(__debug_page(ds, ref));
             }
@@ -1463,7 +1467,7 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page)
 
     if (F_ISSET(ds, WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            if (ref->state == WT_REF_MEM) {
+            if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
                 WT_RET(ds->f(ds, "\n"));
                 WT_RET(__debug_page(ds, ref));
             }
@@ -1715,15 +1719,22 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     session = ds->session;
 
     WT_RET(ds->f(ds, "ref: %p", (void *)ref));
-    WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(ref->state)));
+    WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(WT_REF_GET_STATE(ref))));
     if (ref->flags != 0) {
         WT_RET(ds->f(ds, " | page_type: ["));
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             WT_RET(ds->f(ds, "%s", "internal"));
-        if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+        else
             WT_RET(ds->f(ds, "%s", "leaf"));
-        if (F_ISSET(ref, WT_REF_FLAG_READING))
-            WT_RET(ds->f(ds, ", %s", "reading"));
+        WT_RET(ds->f(ds, "]"));
+    }
+
+    if (ref->flags_atomic != 0) {
+        WT_RET(ds->f(ds, " | flags_atomic: [ "));
+        if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_READING))
+            WT_RET(ds->f(ds, "%s", "reading "));
+        if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
+            WT_RET(ds->f(ds, "%s", "prefetch "));
         WT_RET(ds->f(ds, "]"));
     }
 

@@ -20,7 +20,7 @@ def generate_string_conversion(docstring, name, define_regex, srcfile, out):
     out.write(' * __wt_{}_str --\n'.format(name))
     out.write(' *     {}\n'.format(docstring))
     out.write(' */\n')
-    out.write('static inline const char *\n')
+    out.write('static WT_INLINE const char *\n')
     out.write('__wt_{}_str(uint8_t val)\n'.format(name))
     out.write('{\n')
     out.write('    switch (val) {\n')
@@ -48,6 +48,7 @@ if __name__ == '__main__':
     tmp = '__tmp_type_to_str' + str(os.getpid())
 
     with open(tmp, 'w') as tfile:
+        tfile.write("#pragma once\n\n")
         generate_string_conversion('Convert a prepare state to its string representation.',
                                    'prepare_state',
                                    r'^#define\s+(WT_PREPARE_[A-Z0-9_]+)\s+[0-9]+',

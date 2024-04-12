@@ -75,7 +75,7 @@ WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
  *     Enforce restrictions on nesting checkpoint cursors. The only nested cursors we should get to
  *     from a checkpoint cursor are cursors for the corresponding history store checkpoint.
  */
-static inline int
+static WT_INLINE int
 __curfile_check_cbt_txn(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_TXN *txn;
@@ -647,7 +647,8 @@ err:
     /* The URI is owned by the btree handle. */
     cursor->internal_uri = NULL;
 
-    WT_ASSERT(session, session->dhandle == NULL || session->dhandle->session_inuse > 0);
+    WT_ASSERT(session,
+      session->dhandle == NULL || __wt_atomic_loadi32(&session->dhandle->session_inuse) > 0);
 
     /* Free any private transaction set up for a checkpoint cursor. */
     if (cbt->checkpoint_txn != NULL)
@@ -1125,14 +1126,14 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
           (cval.type == WT_CONFIG_ITEM_NUM && (cval.val == 0 || cval.val == 1))) {
             bitmap = false;
             bulk = cval.val != 0;
-        } else if (WT_STRING_MATCH("bitmap", cval.str, cval.len))
+        } else if (WT_CONFIG_LIT_MATCH("bitmap", cval))
             bitmap = bulk = true;
         /*
          * Unordered bulk insert is a special case used internally by index creation on existing
          * tables. It doesn't enforce any special semantics at the file level. It primarily exists
          * to avoid some locking problems between LSM and index creation.
          */
-        else if (!WT_STRING_MATCH("unordered", cval.str, cval.len))
+        else if (!WT_CONFIG_LIT_MATCH("unordered", cval))
             WT_RET_MSG(session, EINVAL, "Value for 'bulk' must be a boolean or 'bitmap'");
 
         if (bulk) {

@@ -31,7 +31,7 @@
  * __cursor_skip_prev --
  *     Move back one position in a skip list stack (aka "finger").
  */
-static inline int
+static WT_INLINE int
 __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 {
     WT_INSERT *current, *ins, *next_ins;
@@ -87,9 +87,9 @@ restart:
              * code. Here we don't need to worry about CPU reordering as we are reading a thread
              * local value.
              *
-             * Place a read barrier to avoid this issue.
+             * Place an acquire barrier to avoid this issue.
              */
-            WT_ORDERED_READ(ins, cbt->ins_head->head[i]);
+            WT_ACQUIRE_READ_WITH_BARRIER(ins, cbt->ins_head->head[i]);
             if (ins != NULL && ins != current)
                 break;
         }
@@ -113,9 +113,9 @@ restart:
          * insert B into both level 0 and level 1. If B is visible on level 1 to this thread, it
          * must also be visible on level 0. Otherwise, we would record an inconsistent stack.
          *
-         * Place a read barrier to avoid this issue.
+         * Place an acquire barrier to avoid this issue.
          */
-        WT_ORDERED_READ(next_ins, ins->next[i]);
+        WT_ACQUIRE_READ_WITH_BARRIER(next_ins, ins->next[i]);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
         else { /* Drop down a level */
@@ -137,7 +137,7 @@ restart:
  * __cursor_fix_append_prev --
  *     Return the previous fixed-length entry on the append list.
  */
-static inline int
+static WT_INLINE int
 __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
@@ -235,7 +235,7 @@ restart_read:
  * __cursor_fix_prev --
  *     Move to the previous, fixed-length column-store item.
  */
-static inline int
+static WT_INLINE int
 __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_PAGE *page;
@@ -313,7 +313,7 @@ restart_read:
  * __cursor_var_append_prev --
  *     Return the previous variable-length entry on the append list.
  */
-static inline int
+static WT_INLINE int
 __cursor_var_append_prev(
   WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
@@ -375,7 +375,7 @@ restart_read:
  * __cursor_var_prev --
  *     Move to the previous, variable-length column-store item.
  */
-static inline int
+static WT_INLINE int
 __cursor_var_prev(
   WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
@@ -561,7 +561,7 @@ restart_read:
  * __cursor_row_prev --
  *     Move to the previous row-store item.
  */
-static inline int
+static WT_INLINE int
 __cursor_row_prev(
   WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
@@ -732,19 +732,22 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_PAGE_WALK_SKIP_STATS walk_skip_stats;
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
     bool key_out_of_bounds, newpage, need_walk, repositioned, restart;
 #ifdef HAVE_DIAGNOSTIC
     bool inclusive_set;
-
-    inclusive_set = false;
+    WT_NOT_READ(inclusive_set, false);
 #endif
+
     cursor = &cbt->iface;
     key_out_of_bounds = need_walk = newpage = repositioned = false;
     session = CUR2S(cbt);
     total_skipped = 0;
+    walk_skip_stats.total_del_pages_skipped = 0;
+    walk_skip_stats.total_inmem_del_pages_skipped = 0;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
@@ -882,8 +885,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         if (!F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY) &&
           session->txn->isolation == WT_ISO_SNAPSHOT &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE))
-            WT_ERR(
-              __wt_tree_walk_custom_skip(session, &cbt->ref, __wt_btcur_skip_page, NULL, flags));
+            WT_ERR(__wt_tree_walk_custom_skip(
+              session, &cbt->ref, __wt_btcur_skip_page, &walk_skip_stats, flags));
         else
             WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
@@ -899,6 +902,12 @@ err:
     }
 
     WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_total, total_skipped);
+    if (walk_skip_stats.total_del_pages_skipped != 0)
+        WT_STAT_CONN_DATA_INCRV(
+          session, cursor_tree_walk_del_page_skip, walk_skip_stats.total_del_pages_skipped);
+    if (walk_skip_stats.total_inmem_del_pages_skipped != 0)
+        WT_STAT_CONN_DATA_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
+          walk_skip_stats.total_inmem_del_pages_skipped);
 
     switch (ret) {
     case 0:

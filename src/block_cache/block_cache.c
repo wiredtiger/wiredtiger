@@ -12,7 +12,7 @@
  * __blkcache_verbose --
  *     Block cache verbose logging.
  */
-static inline void
+static WT_INLINE void
 __blkcache_verbose(WT_SESSION_IMPL *session, WT_VERBOSE_LEVEL level, const char *tag, uint64_t hash,
   const uint8_t *addr, size_t addr_size)
 {
@@ -128,7 +128,7 @@ __blkcache_print_reference_hist(WT_SESSION_IMPL *session, const char *header, ui
  *     Estimate the overhead of using the cache. The overhead comes from block insertions and
  *     removals, which produce writes. Writes disproportionally slow down the reads on Optane NVRAM.
  */
-static inline bool
+static WT_INLINE bool
 __blkcache_high_overhead(WT_SESSION_IMPL *session)
 {
     WT_BLKCACHE *blkcache;
@@ -763,10 +763,9 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
           WT_BLKCACHE_HASHSIZE_MIN, WT_BLKCACHE_HASHSIZE_MAX);
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.type", &cval));
-    if (WT_STRING_MATCH("dram", cval.str, cval.len) || WT_STRING_MATCH("DRAM", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("dram", cval) || WT_CONFIG_LIT_MATCH("DRAM", cval))
         cache_type = WT_BLKCACHE_DRAM;
-    else if (WT_STRING_MATCH("nvram", cval.str, cval.len) ||
-      WT_STRING_MATCH("NVRAM", cval.str, cval.len)) {
+    else if (WT_CONFIG_LIT_MATCH("nvram", cval) || WT_CONFIG_LIT_MATCH("NVRAM", cval)) {
 #ifdef ENABLE_MEMKIND
         cache_type = WT_BLKCACHE_NVRAM;
         WT_RET(__wt_config_gets(session, cfg, "block_cache.nvram_path", &cval));

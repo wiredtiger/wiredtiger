@@ -37,12 +37,14 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t pinned_timestamp, rollback_timestamp;
+    uint32_t threads;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool dryrun;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
     dryrun = conn->rts->dryrun;
+    threads = conn->rts->threads_num;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
@@ -65,7 +67,8 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     WT_ASSERT_ALWAYS(session,
-      (txn_global->has_pinned_timestamp || !txn_global->has_oldest_timestamp),
+      (txn_global->has_pinned_timestamp ||
+        !__wt_atomic_loadbool(&txn_global->has_oldest_timestamp)),
       "Database has no pinned timestamp but an oldest timestamp. Pinned timestamp is required to "
       "find out the global visibility/obsolete of an update.");
 
@@ -74,13 +77,14 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * though the stable timestamp isn't supposed to be updated while rolling back, accessing it
      * without a lock would violate protocol.
      */
-    WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
-    WT_ORDERED_READ(pinned_timestamp, txn_global->pinned_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(rollback_timestamp, txn_global->stable_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, txn_global->pinned_timestamp);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_INIT
-      "start rollback to stable with stable_timestamp=%s and oldest_timestamp=%s",
+      "start rollback to stable with stable_timestamp=%s and oldest_timestamp=%s using %u worker "
+      "threads",
       __wt_timestamp_to_string(rollback_timestamp, ts_string[0]),
-      __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]));
+      __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]), threads);
 
     if (F_ISSET(conn, WT_CONN_RECOVERING))
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
@@ -145,8 +149,8 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
       session, WT_VERB_RECOVERY_RTS(session), "starting rollback to stable on uri %s", uri);
 
     /* Read the stable timestamp once, when we first start up. */
-    WT_ORDERED_READ(rollback_timestamp, conn->txn_global.stable_timestamp);
-    WT_ORDERED_READ(pinned_timestamp, conn->txn_global.pinned_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(rollback_timestamp, conn->txn_global.stable_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, conn->txn_global.pinned_timestamp);
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
@@ -183,6 +187,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
     WT_DECL_RET;
     WT_TIMER timer;
     uint64_t time_diff_ms;
+    uint32_t threads;
     bool dryrun;
 
     /*
@@ -190,10 +195,15 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
      * don't get default values installed in the config string.
      */
     dryrun = false;
+    threads = 0;
     if (cfg != NULL) {
         ret = __wt_config_gets(session, cfg, "dryrun", &cval);
         if (ret == 0)
             dryrun = cval.val != 0;
+        WT_RET_NOTFOUND_OK(ret);
+        ret = __wt_config_gets(session, cfg, "threads", &cval);
+        if (ret == 0)
+            threads = (uint32_t)cval.val;
         WT_RET_NOTFOUND_OK(ret);
     }
 
@@ -207,6 +217,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
       __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session));
 
     S2C(session)->rts->dryrun = dryrun;
+    S2C(session)->rts->threads_num = threads;
 
     __wt_timer_start(session, &timer);
 
@@ -222,6 +233,10 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     __rollback_to_stable_finalize(S2C(session)->rts);
+
+    /* Reset the RTS configuration to default. */
+    S2C(session)->rts->dryrun = false;
+    S2C(session)->rts->threads_num = 0;
 
     WT_TRET(__wt_session_close_internal(session));
 

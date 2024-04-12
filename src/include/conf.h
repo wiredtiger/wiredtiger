@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Sample usage:
  *  __wt_conf_gets(session, conf, statistics, &cval);
@@ -141,7 +143,7 @@ WT_CONF_API_DECLARE(WT_CONNECTION, load_extension, 1, 4);
 WT_CONF_API_DECLARE(WT_CONNECTION, open_session, 3, 9);
 WT_CONF_API_DECLARE(WT_CONNECTION, query_timestamp, 1, 1);
 WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 16, 94);
-WT_CONF_API_DECLARE(WT_CONNECTION, rollback_to_stable, 1, 1);
+WT_CONF_API_DECLARE(WT_CONNECTION, rollback_to_stable, 1, 2);
 WT_CONF_API_DECLARE(WT_CONNECTION, set_timestamp, 1, 4);
 WT_CONF_API_DECLARE(WT_CURSOR, bound, 1, 3);
 WT_CONF_API_DECLARE(WT_CURSOR, reconfigure, 1, 3);
@@ -149,7 +151,7 @@ WT_CONF_API_DECLARE(WT_SESSION, alter, 3, 16);
 WT_CONF_API_DECLARE(WT_SESSION, begin_transaction, 2, 11);
 WT_CONF_API_DECLARE(WT_SESSION, checkpoint, 2, 10);
 WT_CONF_API_DECLARE(WT_SESSION, commit_transaction, 1, 4);
-WT_CONF_API_DECLARE(WT_SESSION, compact, 1, 5);
+WT_CONF_API_DECLARE(WT_SESSION, compact, 1, 6);
 WT_CONF_API_DECLARE(WT_SESSION, create, 8, 83);
 WT_CONF_API_DECLARE(WT_SESSION, drop, 1, 5);
 WT_CONF_API_DECLARE(WT_SESSION, join, 1, 7);
@@ -176,7 +178,7 @@ WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 20, 158);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 20, 152);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 20, 151);
 
-#define WT_CONF_API_ELEMENTS 57
+#define WT_CONF_API_ELEMENTS 56
 
 /*
  * Per-API configuration structure declarations: END

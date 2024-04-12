@@ -366,7 +366,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     /* There is nothing to do until the checkpoint after the flush completes. */
-    if (!conn->flush_ckpt_complete)
+    if (!__wt_atomic_loadbool(&conn->flush_ckpt_complete))
         return (0);
     entry = NULL;
     for (;;) {
@@ -382,8 +382,9 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
          * checkpoint is not running, we can process the items with the read generation count. If
          * the checkpoint starts after checking, it would push flush units of a higher count.
          */
-        WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
-        WT_ORDERED_READ(ckpt_running, conn->txn_global.checkpoint_running);
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        WT_ACQUIRE_BARRIER();
+        WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
         __wt_tiered_get_flush(session, (ckpt_running ? ckpt_gen : ckpt_gen + 1), &entry);
         if (entry == NULL)
             break;

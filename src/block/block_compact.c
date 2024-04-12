@@ -19,7 +19,9 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
 
     if (block->compact_session_id != WT_SESSION_ID_INVALID)
-        return (EBUSY);
+        WT_RET_MSG(session, EBUSY,
+          "Compaction already happening on data handle %s by session %" PRIu32, block->name,
+          session->id);
 
     /* Switch to first-fit allocation. */
     __wt_block_configure_first_fit(block, true);
@@ -27,6 +29,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     /* Reset the compaction state information. */
     block->compact_bytes_reviewed = 0;
     block->compact_bytes_rewritten = 0;
+    block->compact_bytes_rewritten_expected = 0;
     block->compact_estimated = false;
     block->compact_internal_pages_reviewed = 0;
     block->compact_pages_reviewed = 0;
@@ -34,6 +37,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
     block->compact_pct_tenths = 0;
+    block->compact_prev_pages_rewritten = 0;
     block->compact_prev_size = 0;
     block->compact_session_id = session->id;
 
@@ -75,25 +79,29 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
  *     Collect compact progress stats.
  */
 void
-__wt_block_compact_get_progress_stats(WT_SESSION_IMPL *session, WT_BM *bm,
-  uint64_t *pages_reviewedp, uint64_t *pages_skippedp, uint64_t *pages_rewrittenp,
-  uint64_t *pages_rewritten_expectedp)
+__wt_block_compact_get_progress_stats(
+  WT_SESSION_IMPL *session, WT_BM *bm, uint64_t *pages_reviewedp)
 {
     WT_BLOCK *block;
 
     WT_UNUSED(session);
     block = bm->block;
     *pages_reviewedp = block->compact_pages_reviewed;
-    *pages_skippedp = block->compact_pages_skipped;
-    *pages_rewrittenp = block->compact_pages_rewritten;
-    *pages_rewritten_expectedp = block->compact_pages_rewritten_expected;
+
+    WT_STAT_DATA_SET(
+      session, btree_compact_bytes_rewritten_expected, block->compact_bytes_rewritten_expected);
+    WT_STAT_DATA_SET(session, btree_compact_pages_reviewed, block->compact_pages_reviewed);
+    WT_STAT_DATA_SET(session, btree_compact_pages_rewritten, block->compact_pages_rewritten);
+    WT_STAT_DATA_SET(
+      session, btree_compact_pages_rewritten_expected, block->compact_pages_rewritten_expected);
+    WT_STAT_DATA_SET(session, btree_compact_pages_skipped, block->compact_pages_skipped);
 }
 
 /*
  * __block_compact_trim_extent --
  *     Trim the extent to the given range mask, specified via start and end offsets.
  */
-static inline void
+static WT_INLINE void
 __block_compact_trim_extent(WT_SESSION_IMPL *session, wt_off_t mask_start, wt_off_t mask_end,
   wt_off_t *ext_startp, wt_off_t *ext_sizep)
 {
@@ -198,9 +206,26 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     __wt_verbose_level(session, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s require 10%% or %" PRIuMAX "MB (%" PRIuMAX
-      ") in the first 90%% of the file to perform compaction, compaction %s",
+      ") in the first 90%% of the file to perform compaction",
       block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
-      (uintmax_t)(file_size / 10), *skipp ? "skipped" : "proceeding");
+      (uintmax_t)(file_size / 10));
+
+    /*
+     * Skip files that have failed to make progress on previous compact iterations. Use
+     * compact_estimated to avoid this check on the first pass.
+     */
+    if (block->compact_estimated && !*skipp) {
+        if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
+            __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+              "%s: compaction failed to make progress, no new pages rewritten", block->name);
+            *skipp = true;
+        } else
+            block->compact_prev_pages_rewritten = block->compact_pages_rewritten;
+    }
+
+    __wt_verbose_level(session, WT_VERB_COMPACT,
+      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1), "%s:%s compaction %s", block->name,
+      estimate ? " estimating --" : "", *skipp ? "skipped" : "proceeding");
 }
 
 /*
@@ -212,6 +237,7 @@ static void
 __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_EXT *ext;
+    WT_VERBOSE_LEVEL verbose_level;
     wt_off_t avg_block_size, avg_internal_block_size, depth1_subtree_size, leaves_per_internal_page;
     wt_off_t compact_start_off, extra_space, file_size, last, off, rewrite_size, size, write_off;
     uint64_t n, pages_to_move, pages_to_move_orig, total_pages_to_move;
@@ -222,6 +248,12 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     WT_ASSERT(session, block->compact_pct_tenths > 0);
     /* We should estimate the work only once. */
     WT_ASSERT(session, !block->compact_estimated);
+
+    /* Output the estimation logs as info if we're in dryrun mode. */
+    if (session->compact->dryrun)
+        verbose_level = WT_VERBOSE_INFO;
+    else
+        verbose_level = WT_VERBOSE_DEBUG_2;
 
     /*
      * Get the average block size that we encountered so far during compaction. Note that we are not
@@ -249,11 +281,12 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
      */
     depth1_subtree_size = avg_block_size * leaves_per_internal_page + avg_internal_block_size;
 
-    __wt_verbose_debug2(session, WT_VERB_COMPACT,
+    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " blocks)", block->name,
       avg_block_size, block->compact_pages_reviewed);
-    __wt_verbose_debug2(session, WT_VERB_COMPACT, "%s: reviewed %" PRIu64 " internal pages so far",
-      block->name, block->compact_internal_pages_reviewed);
+    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
+      "%s: reviewed %" PRIu64 " internal pages so far", block->name,
+      block->compact_internal_pages_reviewed);
 
     /*
      * We would like to estimate how much data will be moved during compaction, so that we can
@@ -283,7 +316,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         compact_start_off = file_size - compact_pct_tenths * file_size / 10;
         if (write_off >= compact_start_off)
             break;
-        __wt_verbose_debug2(session, WT_VERB_COMPACT,
+        __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: file size: %" PRId64 " MB (%" PRId64
           "B), compact offset: %" PRId64 ", will move blocks from the last %d%% of the file",
           block->name, iteration, file_size / WT_MEGABYTE, file_size, compact_start_off,
@@ -369,7 +402,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (pages_to_move > 0)
                 extra_space += size - rewrite_size;
         }
-        __wt_verbose_debug2(session, WT_VERB_COMPACT,
+        __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: will rewrite %" PRIu64 " pages, next write offset: %" PRId64
           ", extra space: %" PRId64,
           block->name, iteration, pages_to_move_orig - pages_to_move, write_off, extra_space);
@@ -393,7 +426,10 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     block->compact_estimated = true;
     block->compact_pages_rewritten_expected = block->compact_pages_rewritten + total_pages_to_move;
-    __wt_verbose_debug1(session, WT_VERB_COMPACT,
+    block->compact_bytes_rewritten_expected =
+      block->compact_pages_rewritten_expected * (uint64_t)avg_block_size;
+
+    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
       " total, target %" PRIu64 "MB (%" PRIu64 "B)",
       block->name, total_pages_to_move,
@@ -424,29 +460,24 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block)
     if (time_diff_msg > WT_PROGRESS_MSG_PERIOD) {
         session->compact->last_progress = cur_time;
 
+        __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
+          "Compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, rewritten %" PRIu64
+          " pages (%" PRIu64 "MB)",
+          block->name, time_diff_start, block->compact_pages_reviewed,
+          block->compact_pages_rewritten, block->compact_bytes_rewritten / WT_MEGABYTE);
         /*
          * If we don't have the estimate at this point, it means that we haven't reviewed even
          * enough pages. This should almost never happen.
          */
-        if (block->compact_pages_rewritten_expected == 0) {
-            __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
-              "compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64
-              " pages, rewritten %" PRIu64 " pages (%" PRIu64 "MB)",
-              block->name, time_diff_start, block->compact_pages_reviewed,
-              block->compact_pages_rewritten, block->compact_bytes_rewritten / WT_MEGABYTE);
-            __wt_verbose_debug1(session, WT_VERB_COMPACT,
-              "%s: still collecting information for estimating the progress", block->name);
-        } else {
+        if (block->compact_pages_rewritten_expected == 0)
+            __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS, "%s",
+              "Still collecting information for estimating the progress.");
+        else {
             progress = WT_MIN(
               (int)(100 * block->compact_pages_rewritten / block->compact_pages_rewritten_expected),
               100);
             __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
-              "compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64
-              " pages, rewritten %" PRIu64 " pages (%" PRIu64
-              "MB). Approx. %d%% of the estimated work done.%s",
-              block->name, time_diff_start, block->compact_pages_reviewed,
-              block->compact_pages_rewritten, block->compact_bytes_rewritten / WT_MEGABYTE,
-              progress,
+              "Approx. %d%% of the estimated work done.%s", progress,
               progress == 100 ? " More work has been discovered since the estimation." : "");
         }
     }
@@ -531,7 +562,7 @@ __compact_page_skip(
      */
     __wt_spin_lock(session, &block->live_lock);
     limit = block->size - ((block->size / 10) * block->compact_pct_tenths);
-    if (offset > limit) {
+    if (offset > limit && !session->compact->dryrun) {
         el = &block->live.avail;
         WT_EXT_FOREACH (ext, el->off) {
             if (ext->off >= limit)
@@ -557,8 +588,8 @@ __compact_page_skip(
      */
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
         __block_compact_estimate_remaining_work(session, block);
-        /* If no potential work has been found, exit compaction. */
-        if (block->compact_pages_rewritten_expected == 0)
+        /* If no potential work has been found, or we're in dry run mode, exit compaction. */
+        if (block->compact_pages_rewritten_expected == 0 || session->compact->dryrun)
             ret = ECANCELED;
     }
 
