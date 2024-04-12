@@ -2256,7 +2256,7 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_btcur_cache --
- *     Discard buffers when caching a cursor.
+ *     Discard buffers after caching a cursor.
  */
 void
 __wt_btcur_cache(WT_CURSOR_BTREE *cbt)

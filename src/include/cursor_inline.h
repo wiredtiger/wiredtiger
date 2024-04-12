@@ -441,6 +441,29 @@ __wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 }
 
 /*
+ * __wt_cursor_free_cached_memory --
+ *     If a cached cursor is still holding memory, free it now.
+ */
+static WT_INLINE void
+__wt_cursor_free_cached_memory(WT_CURSOR *cursor)
+{
+    WT_SESSION_IMPL *session;
+
+    if (F_ISSET(cursor, WT_CURSTD_CACHED_WITH_MEM)) {
+        session = CUR2S(cursor);
+
+        /* Don't keep buffers allocated for cached cursors. */
+        __wt_buf_free(session, &cursor->key);
+        __wt_buf_free(session, &cursor->value);
+
+        /* Discard the underlying WT_CURSOR_BTREE buffers. */
+        __wt_btcur_cache((WT_CURSOR_BTREE *)cursor);
+
+        F_CLR(cursor, WT_CURSTD_CACHED_WITH_MEM);
+    }
+}
+
+/*
  * __cursor_row_slot_key_return --
  *     Return a row-store leaf page slot's key.
  */
