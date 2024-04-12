@@ -785,6 +785,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     total_skipped = 0;
     walk_skip_stats.total_del_pages_skipped = 0;
     walk_skip_stats.total_inmem_del_pages_skipped = 0;
+    WT_NOT_READ(time_start, 0);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
