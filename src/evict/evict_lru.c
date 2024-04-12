@@ -1885,14 +1885,22 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
+        /* Each time when evict_ref is null, alternate between linear and random walk */
+        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
+            goto rand_next;
         break;
     case WT_EVICT_WALK_PREV:
+        /* Each time when evict_ref is null, alternate between linear and random walk */
+        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
+            goto rand_prev;
         FLD_SET(walk_flags, WT_READ_PREV);
         break;
     case WT_EVICT_WALK_RAND_PREV:
+rand_prev:
         FLD_SET(walk_flags, WT_READ_PREV);
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
+rand_next:
         read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
           WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
         if (btree->evict_ref == NULL) {
@@ -2087,8 +2095,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          */
         if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
           F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            if (page == last_parent)
+            if (page == last_parent) {
+                WT_STAT_CONN_INCR(session, cache_eviction_server_skip_intl_page_with_active_child);
                 continue;
+            }
             if (btree->evict_walk_period == 0 && !__wt_cache_aggressive(session))
                 continue;
         }
@@ -2829,8 +2839,9 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     cache = conn->cache;
-    total_bytes = total_dirty_bytes = total_updates_bytes = cache_bytes_updates = 0;
+    total_bytes = total_dirty_bytes = total_updates_bytes = 0;
     pct = 0.0; /* [-Werror=uninitialized] */
+    WT_NOT_READ(cache_bytes_updates, 0);
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "cache dump"));

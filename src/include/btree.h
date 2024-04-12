@@ -84,8 +84,8 @@ typedef enum {
 } WT_BTREE_CHECKSUM;
 
 typedef enum { /* Start position for eviction walk */
-    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_PREV,
+    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_RAND_NEXT,
     WT_EVICT_WALK_RAND_PREV
 } WT_EVICT_WALK_TYPE;
@@ -190,10 +190,10 @@ struct __wt_btree {
  */
 #define WT_BTREE_SYNCING(btree) (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
 #define WT_SESSION_BTREE_SYNC(session) \
-    (__wt_atomic_load_generic(&S2BT(session)->sync_session) == (session))
+    (__wt_atomic_load_pointer(&S2BT(session)->sync_session) == (session))
 #define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                        \
     (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
-      __wt_atomic_load_generic(&(btree)->sync_session) == (session))
+      __wt_atomic_load_pointer(&(btree)->sync_session) == (session))
 
     wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
@@ -242,6 +242,7 @@ struct __wt_btree {
      * code.
      */
     WT_REF *evict_ref;                         /* Eviction thread's location */
+    uint32_t linear_walk_restarts;             /* next/prev walk restarts */
     uint64_t evict_priority;                   /* Relative priority of cached pages */
     uint32_t evict_walk_progress;              /* Eviction walk progress */
     uint32_t evict_walk_target;                /* Eviction walk target */
