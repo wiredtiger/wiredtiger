@@ -40,10 +40,10 @@ private:
 
     std::shared_ptr<MockConnection> _mockConnection;
 
+    WT_BLOCK *_block;
+    
     // This class is implemented such that it owns, and is responsible for freeing, this pointer
     WT_SESSION_IMPL *_sessionImpl;
-
-    WT_BLOCK *_block;
 };
 
 #endif // WT_MOCK_SESSION_H
