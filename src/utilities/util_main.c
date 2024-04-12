@@ -84,7 +84,8 @@ main(int argc, char *argv[])
     size_t len;
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
-    const char *conn_config, *cmd_config, *p1, *p2, *p3, *readonly_config, *rec_config, *salvage_config;
+    const char *conn_config, *cmd_config, *p1, *p2, *p3, *readonly_config, *rec_config,
+      *salvage_config, *session_config;
     bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
 
     conn = NULL;
@@ -106,7 +107,7 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    conn_config = cmd_config = readonly_config = salvage_config = secretkey = NULL;
+    conn_config = cmd_config = readonly_config = salvage_config = session_config = secretkey = NULL;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
@@ -336,7 +337,7 @@ open:
     if (func == NULL && meta_verify)
         goto done;
 
-    if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
+    if ((ret = conn->open_session(conn, NULL, session_config, &session)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
