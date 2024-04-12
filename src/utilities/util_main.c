@@ -84,7 +84,7 @@ main(int argc, char *argv[])
     size_t len;
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
-    const char *conn_config, *cmd_config, *p1, *p2, *p3, *readonly_config, *rec_config,
+    const char *cmd_config, *conn_config, *p1, *p2, *p3, *readonly_config, *rec_config,
       *salvage_config, *session_config;
     bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
 
@@ -107,7 +107,7 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    conn_config = cmd_config = readonly_config = salvage_config = session_config = secretkey = NULL;
+    cmd_config = conn_config = readonly_config = salvage_config = session_config = secretkey = NULL;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
