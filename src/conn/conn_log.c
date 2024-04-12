@@ -539,7 +539,6 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
     if (0)
 err:
         __wt_err(session, ret, "log pre-alloc server error");
-
     WT_TRET(__wt_fs_directory_list_free(session, &recfiles, reccount));
     return (ret);
 }
