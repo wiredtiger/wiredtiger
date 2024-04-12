@@ -1906,6 +1906,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
                 WT_STAT_DATA_INCR(session, cache_eviction_walk_restart);
             }
             WT_RET_NOTFOUND_OK(ret);
+
+            if (btree->evict_ref == NULL) {
+                WT_STAT_CONN_INCR(session, cache_eviction_walk_random_returns_null_position);
+                WT_STAT_DATA_INCR(session, cache_eviction_walk_random_returns_null_position);
+            }
         }
         break;
     }

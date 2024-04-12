@@ -641,6 +641,9 @@ connection_runtime_config = [
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
                 min=1, max=20),
+            Config('random_retries', '0', r'''
+                number of times eviction retires to find an in-memory entry in the root page.''',
+                min=1, max=1000),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
