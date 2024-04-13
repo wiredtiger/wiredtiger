@@ -407,6 +407,10 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t time_diff_ms;
+#ifdef HAVE_DIAGNOSTIC
+    static bool evict_server_verbose_changed;
+    static WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
+#endif
 
     /* Assume there has been no progress. */
     *did_work = false;
@@ -425,11 +429,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     if (!__wt_cache_stuck(session)) {
 #ifdef HAVE_DIAGNOSTIC
         /* If eviction is not stuck, should restore the origin verbose level */
-        if (cache->adjust_evict_server_verbose == true) {
-            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT);
-            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICTSERVER);
-            WT_VERBOSE_RESTORE(session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK);
-            cache->adjust_evict_server_verbose = false;
+        if (evict_server_verbose_changed == true) {
+            WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICT);
+            WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICTSERVER);
+            WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICT_STUCK);
+            evict_server_verbose_changed = false;
         }
 #endif
         /*
@@ -497,12 +501,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         if (cache->cache_stuck_timeout_ms < 20 ||
           (time_diff_ms > cache->cache_stuck_timeout_ms - 20)) {
             WT_VERBOSE_SET_AND_SAVE(
-              session, cache->verbose_orig_level, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+              session, verbose_orig_level, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
             WT_VERBOSE_SET_AND_SAVE(
-              session, cache->verbose_orig_level, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+              session, verbose_orig_level, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
             WT_VERBOSE_SET_AND_SAVE(
-              session, cache->verbose_orig_level, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-            cache->adjust_evict_server_verbose = true;
+              session, verbose_orig_level, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
+            evict_server_verbose_changed = true;
         }
 #endif
 
