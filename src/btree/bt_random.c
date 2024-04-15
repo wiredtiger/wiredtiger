@@ -459,8 +459,10 @@ descend:
      * encounter a non-root page.
      */
     if (eviction && __wt_ref_is_root(current)) {
-        if (--retry > 0)
+        if (--retry > 0) {
+            WT_STAT_CONN_INCR(session, cache_eviction_walk_random_retries);
             goto restart;
+        }
     } else
         *refp = current;
     return (0);
