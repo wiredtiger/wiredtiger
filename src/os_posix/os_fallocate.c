@@ -20,23 +20,23 @@
  */
 #if defined(HAVE_FALLOCATE) || (defined(__linux__) && defined(SYS_fallocate)) || \
   defined(HAVE_POSIX_FALLOCATE)
-#define WT_CALL_FUNCTION(op)                                             \
-    do {                                                                 \
-        WT_DECL_RET;                                                     \
-        bool remap;                                                      \
-                                                                         \
-        __wt_prepare_remap_resize_file(file_handle, wt_session, &remap); \
-                                                                         \
-        WT_SYSCALL_RETRY(op, ret);                                       \
-        if (remap) {                                                     \
-            if (ret == 0)                                                \
-                __wt_remap_resize_file(file_handle, wt_session);         \
-            else {                                                       \
-                __wt_release_without_remap(file_handle);                 \
-                WT_RET(ret);                                             \
-            }                                                            \
-        }                                                                \
-        return (0);                                                      \
+#define WT_CALL_FUNCTION(op)                                                     \
+    do {                                                                         \
+        WT_DECL_RET;                                                             \
+        bool remap;                                                              \
+                                                                                 \
+        __wt_prepare_remap_resize_file(file_handle, wt_session, offset, &remap); \
+                                                                                 \
+        WT_SYSCALL_RETRY(op, ret);                                               \
+        if (remap) {                                                             \
+            if (ret == 0)                                                        \
+                __wt_remap_resize_file(file_handle, wt_session);                 \
+            else {                                                               \
+                __wt_release_without_remap(file_handle);                         \
+                WT_RET(ret);                                                     \
+            }                                                                    \
+        }                                                                        \
+        return (0);                                                              \
     } while (0)
 #endif
 
