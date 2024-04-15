@@ -261,8 +261,8 @@ static const uint8_t confchk_wiredtiger_open_debug_mode_subconfigs_jump[WT_CONFI
     15, 15, 15};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_eviction_subconfigs[] = {
-  {"random_retries", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 218,
-    1, 1000, NULL},
+  {"random_retries", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 218,
+    INT64_MIN, INT64_MAX, NULL},
   {"threads_max", "int", NULL, "min=1,max=20", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 216, 1,
     20, NULL},
   {"threads_min", "int", NULL, "min=1,max=20", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 217, 1,
@@ -3694,7 +3694,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "realloc_exact=false,realloc_malloc=false,rollback_error=0,"
     "slow_checkpoint=false,stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
-    "error_prefix=,eviction=(random_retries=0,threads_max=8,"
+    "error_prefix=,eviction=(random_retries=true,threads_max=8,"
     "threads_min=1),eviction_checkpoint_target=1,"
     "eviction_dirty_target=5,eviction_dirty_trigger=20,"
     "eviction_target=80,eviction_trigger=95,eviction_updates_target=0"
@@ -4007,7 +4007,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,encryption=(keyid=,name=,secretkey=),error_prefix=,"
-    "eviction=(random_retries=0,threads_max=8,threads_min=1),"
+    "eviction=(random_retries=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"
@@ -4057,7 +4057,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,encryption=(keyid=,name=,secretkey=),error_prefix=,"
-    "eviction=(random_retries=0,threads_max=8,threads_min=1),"
+    "eviction=(random_retries=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"
@@ -4108,7 +4108,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,encryption=(keyid=,name=,secretkey=),error_prefix=,"
-    "eviction=(random_retries=0,threads_max=8,threads_min=1),"
+    "eviction=(random_retries=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"
@@ -4157,7 +4157,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,encryption=(keyid=,name=,secretkey=),error_prefix=,"
-    "eviction=(random_retries=0,threads_max=8,threads_min=1),"
+    "eviction=(random_retries=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"

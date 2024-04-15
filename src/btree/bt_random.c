@@ -365,6 +365,7 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_
 
     btree = S2BT(session);
     current = NULL;
+    retry = 0;
     /*
      * This function is called by eviction to find a random page in the cache. That case is
      * indicated by the WT_READ_CACHE flag. Ordinary lookups in a tree will read pages into cache as
@@ -373,8 +374,7 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_
     eviction = LF_ISSET(WT_READ_CACHE);
 
     if (eviction) {
-        retry = S2C(session)->evict_random_retries;
-        if (retry == 0) {
+        if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_RANDOM_RETRY)) {
             WT_INTL_INDEX_GET(session, (&btree->root)->page, pindex);
             retry = pindex->entries;
         }
