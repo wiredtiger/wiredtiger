@@ -26,14 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest, time, os, re
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet
+import os, re
 
 # test_txn28.py
 #   Test that checking the snapshot array is correctly outputted.
 class test_txn28(wttest.WiredTigerTestCase):
     # Get the number after a substring in the string
-    def get_numbers_after_substring(self, text, sub_str):
+    def get_number_after_substring(self, text, sub_str):
         pattern = rf'{re.escape(sub_str)}\s*(\d+)'
         match = re.search(pattern, text)
         if match:
@@ -91,7 +92,7 @@ class test_txn28(wttest.WiredTigerTestCase):
             for line in file:
                 snapshot_count_str = ", snapshot count: "
                 if snapshot_count_str in line:
-                    snapshot_count = int(self.get_numbers_after_substring(line, snapshot_count_str))
+                    snapshot_count = int(self.get_number_after_substring(line, snapshot_count_str))
                     sub1 = ", snapshot: ["
                     sub2 = "], commit_timestamp:"
                     snapshot_list_item_count = self.count_integers_between_substrings(line, sub1, sub2)

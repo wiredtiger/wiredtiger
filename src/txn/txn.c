@@ -2832,7 +2832,7 @@ __wt_verbose_dump_txn_one(
     }
     WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
 
-    buf_len = snapshot_buf->size + 512;
+    buf_len = (uint32_t)snapshot_buf->size + 512;
     WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
     /*
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
@@ -2878,7 +2878,7 @@ err:
     __wt_scr_free(session, &snapshot_buf);
     __wt_scr_free(session, &buf);
 
-    return (0);
+    return (ret);
 }
 
 /*
