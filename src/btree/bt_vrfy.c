@@ -119,7 +119,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
  *     Debugging: optionally dump specific blocks from the file.
  */
 static int
-__verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp)
+__verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp, WT_VSTUFF *vs)
 {
     WT_CONFIG list;
     WT_CONFIG_ITEM cval, k, v;
@@ -143,7 +143,8 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
 #if !defined(HAVE_DIAGNOSTIC)
         WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
 #else
-        WT_TRET(__wt_debug_offset_blind(session, (wt_off_t)offset, NULL));
+        WT_TRET(__wt_debug_offset_blind(
+          session, (wt_off_t)offset, NULL, vs->dump_all_data, vs->dump_key_data));
 #endif
     }
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -220,7 +221,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__verify_config(session, cfg, vs));
 
     /* Optionally dump specific block offsets. */
-    WT_ERR(__verify_config_offsets(session, cfg, &quit));
+    WT_ERR(__verify_config_offsets(session, cfg, &quit, vs));
     if (quit)
         goto done;
 
