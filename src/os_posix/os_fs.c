@@ -571,18 +571,25 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
+    wt_off_t orig_mmap_size;
     bool remap;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+    orig_mmap_size = pfh->mmap_size;
     __wt_verbose_debug2(session, WT_VERB_FILEOPS,
       "%s, file-truncate: size=%" PRId64 ", mapped size=%" PRId64, file_handle->name, len,
-      pfh->mmap_size);
+      orig_mmap_size);
 
-    remap = (len != pfh->mmap_size);
+    /*
+     * Save original mmap size in case we're racing other threads. Then send that boolean into the
+     * prepare function to know whether we were successful in preparing and need to actually do the
+     * remap, again in case we raced another thread doing the same thing.
+     */
+    remap = (orig_mmap_size != 0 && len != orig_mmap_size);
     if (remap)
-        __wt_prepare_remap_resize_file(file_handle, wt_session);
+        __wt_prepare_remap_resize_file(file_handle, wt_session, &remap);
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
     if (remap) {
@@ -647,7 +654,7 @@ __posix_file_write_mmap(
     static int remap_opportunities;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    bool mmap_success;
+    bool mmap_success, remap;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -698,7 +705,9 @@ use_syscall:
     if (pfh->mmap_buf != NULL && !pfh->mmap_resizing && pfh->mmap_size < offset + (wt_off_t)len)
         /* If we are actively extending the file, don't remap it on every write. */
         if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
-            __wt_prepare_remap_resize_file(file_handle, wt_session);
+            remap = false;
+            __wt_prepare_remap_resize_file(file_handle, wt_session, &remap);
+            WT_ASSERT(session, remap == true);
             __wt_remap_resize_file(file_handle, wt_session);
             WT_STAT_CONN_INCRV(session, block_remap_file_write, 1);
         }
@@ -1067,7 +1076,7 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  *     file when it changes size.
  */
 void
-__wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool *remap)
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
@@ -1079,6 +1088,8 @@ __wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_sessi
     sleep_usec = 10;
     yield_count = 0;
 
+    /* Reset the remapping until we know we own the region. */
+    *remap = false;
     if (pfh->mmap_buf == NULL)
         return;
 
@@ -1093,6 +1104,7 @@ wait:
     if (__wt_atomic_casv32(&pfh->mmap_resizing, 0, 1) == false)
         goto wait;
 
+    *remap = true;
     /*
      * Wait for any sessions using the region for I/O to finish. Now that we have set the resizing
      * flag, new sessions will not use the region, defaulting to system calls instead.
