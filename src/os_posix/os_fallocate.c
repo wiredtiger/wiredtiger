@@ -23,7 +23,10 @@
 #define WT_CALL_FUNCTION(op)                                                     \
     do {                                                                         \
         WT_DECL_RET;                                                             \
+        WT_FILE_HANDLE_POSIX *pfh;                                               \
         bool remap;                                                              \
+                                                                                 \
+        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                               \
                                                                                  \
         __wt_prepare_remap_resize_file(file_handle, wt_session, offset, &remap); \
                                                                                  \
