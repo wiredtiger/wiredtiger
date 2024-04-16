@@ -35,8 +35,8 @@
 from __future__ import print_function
 import os, os.path, re, shutil, sys
 from setuptools import setup, Distribution, Extension
-import distutils.sysconfig
-import distutils.ccompiler
+# import distutils.sysconfig
+# import distutils.ccompiler
 import subprocess
 from subprocess import call
 import setuptools.command.install
