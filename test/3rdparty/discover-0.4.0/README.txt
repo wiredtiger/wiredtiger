@@ -92,6 +92,11 @@ http://code.google.com/p/unittest-ext/source/browse/trunk/discover.py
 CHANGELOG
 =========
 
+2024/04/16 0.4.0
+----------------
+* Replaced the use of distutils with setuptools in setup.py as distutils
+  is deprecated and removed in Python 3.12.
+
 
 2010/06/11 0.4.0
 ----------------
