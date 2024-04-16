@@ -309,7 +309,7 @@ static const uint8_t
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_heuristic_controls_subconfigs[] = {
-  {"obsolete_check_optimization", "boolean", NULL, NULL, NULL, 0, NULL,
+  {"obsolete_check_aggressive", "boolean", NULL, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_BOOLEAN, 232, INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -3731,7 +3731,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "extra_diagnostics=[],file_manager=(close_handle_minimum=250,"
     "close_idle_time=30,close_scan_interval=10),"
     "generation_drain_timeout_ms=240000,"
-    "heuristic_controls=(obsolete_check_optimization=true),"
+    "heuristic_controls=(obsolete_check_aggressive=true),"
     "history_store=(file_max=0),io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],log=(archive=true,os_cache_dirty_pct=0,"
     "prealloc=true,remove=true,zero_fill=false),"
@@ -4046,7 +4046,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_check_optimization=true),"
+    "heuristic_controls=(obsolete_check_aggressive=true),"
     "history_store=(file_max=0),in_memory=false,"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
@@ -4097,7 +4097,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_check_optimization=true),"
+    "heuristic_controls=(obsolete_check_aggressive=true),"
     "history_store=(file_max=0),in_memory=false,"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
@@ -4149,7 +4149,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_check_optimization=true),"
+    "heuristic_controls=(obsolete_check_aggressive=true),"
     "history_store=(file_max=0),io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
@@ -4199,7 +4199,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_check_optimization=true),"
+    "heuristic_controls=(obsolete_check_aggressive=true),"
     "history_store=(file_max=0),io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
     "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"

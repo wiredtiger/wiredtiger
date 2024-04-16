@@ -226,7 +226,7 @@
 #define WT_CONF_ID_no_timestamp 156ULL
 #define WT_CONF_ID_nvram_path 183ULL
 #define WT_CONF_ID_object_target_size 53ULL
-#define WT_CONF_ID_obsolete_check_optimization 232ULL
+#define WT_CONF_ID_obsolete_check_aggressive 232ULL
 #define WT_CONF_ID_old_chunks 84ULL
 #define WT_CONF_ID_oldest 88ULL
 #define WT_CONF_ID_oldest_timestamp 268ULL
@@ -426,7 +426,7 @@ static const struct {
         uint64_t dhandle_buckets;
     } Hash;
     struct {
-        uint64_t obsolete_check_optimization;
+        uint64_t obsolete_check_aggressive;
     } Heuristic_controls;
     struct {
         uint64_t file_max;
@@ -792,7 +792,7 @@ static const struct {
     WT_CONF_ID_Hash | (WT_CONF_ID_dhandle_buckets << 16),
   },
   {
-    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_obsolete_check_optimization << 16),
+    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_obsolete_check_aggressive << 16),
   },
   {
     WT_CONF_ID_History_store | (WT_CONF_ID_file_max << 16),

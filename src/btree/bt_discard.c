@@ -533,15 +533,17 @@ __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
 }
 
 /*
- * __wt_free_update_next_list --
- *     Free the WT_UPDATE next linked list.
+ * __wt_free_obsolete_updates --
+ *     Following a globally visible update, free any obsolete updates in the update chain. After a
+ *     globally visible update, no reader finds any updates. It is the responsibility of the caller
+ *     to lock the page before freeing the updates.
  */
 void
-__wt_free_update_next_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_UPDATE *visible_all_upd)
 {
     WT_UPDATE *next;
 
-    next = upd->next;
-    upd->next = NULL;
+    next = visible_all_upd->next;
+    visible_all_upd->next = NULL;
     __wt_free_update_list(session, &next);
 }

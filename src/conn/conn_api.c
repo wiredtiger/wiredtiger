@@ -2299,7 +2299,7 @@ __wt_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_check_optimization", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_check_aggressive", &cval));
     if (cval.val)
         FLD_SET(conn->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK);
     else

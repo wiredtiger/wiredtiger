@@ -515,7 +515,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 /* Free obsolete updates if exist. */
                 if (FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
                   !F_ISSET(r, WT_REC_EVICT) && upd->next != NULL)
-                    __wt_free_update_next_list(session, upd);
+                    __wt_free_obsolete_updates(session, upd);
                 break;
             }
 
