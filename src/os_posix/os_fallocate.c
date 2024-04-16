@@ -40,7 +40,7 @@
                 WT_RET(ret);                                                        \
             }                                                                       \
         }                                                                           \
-        return (0);                                                                 \
+        return (ret);                                                               \
     } while (0)
 #endif
 
