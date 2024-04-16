@@ -677,7 +677,6 @@ older=false
 newer=false
 wt_standalone=false
 patch_version=false
-upgrade_to_latest=false
 
 # Map branch names to Github branches, tags, or commit hashes
 # First define the standard values for each build branch
@@ -726,15 +725,11 @@ patch_version_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongod
 # upgrade/downgrade test.
 test_checkpoint_release_branches=(develop mongodb-8.0 mongodb-7.0 mongodb-6.0)
 
-# This array is used to configure the release branches we'd like to run upgrade to latest test.
-upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0)
-
 declare -A scopes
 scopes[import]="import files from previous versions"
 scopes[newer]="newer stable release branches"
 scopes[older]="older stable release branches"
 scopes[patch_version]="patch versions of the same release branch"
-scopes[upgrade_to_latest]="upgrade/downgrade databases to the latest versions of the codebase"
 scopes[wt_standalone]="WiredTiger standalone releases"
 scopes[two_versions]="any two given versions"
 
@@ -786,7 +781,6 @@ usage()
     echo -e "\t-n\trun compatibility tests for ${scopes[newer]}"
     echo -e "\t-o\trun compatibility tests for ${scopes[older]}"
     echo -e "\t-p\trun compatibility tests for ${scopes[patch_version]}"
-    echo -e "\t-u\trun compatibility tests for ${scopes[upgrade_to_latest]}"
     echo -e "\t-w\trun compatibility tests for ${scopes[wt_standalone]}"
     echo -e "\t-v <v1> <v2>\trun compatibility tests for ${scopes[two_versions]}"
     exit 1
@@ -820,12 +814,6 @@ case $1 in
     patch_version=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Performing compatibility tests for ${scopes[patch_version]}"
-;;
-"-u")
-    upgrade_to_latest=true
-    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-    echo "Performing compatibility tests for ${scopes[upgrade_to_latest]}"
-    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
 "-w")
     wt_standalone=true
@@ -869,23 +857,6 @@ if [ "$import" = true ]; then
 
         older=${import_release_branches[$i+1]}
         import_compatibility_test $older $newer
-    done
-fi
-
-if [ "$upgrade_to_latest" = true ]; then
-    test_root=$(pwd)
-    test_data_root="$test_root/mongo-tests"
-    test_data="$test_root/mongo-tests/WT-8395"
-
-    for b in ${upgrade_to_latest_upgrade_downgrade_release_branches[@]}; do
-        # prepare test data and test upgrade to the branch b.
-        (prepare_test_data_wt_8395) && \
-        (build_branch $b) && \
-        (test_upgrade_to_branch $b $test_data)
-
-        # cleanup.
-        cd $test_root
-        rm -rf $test_data_root
     done
 fi
 

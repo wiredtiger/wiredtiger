@@ -101,7 +101,6 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compatibility-test-suite
-    - name: compatibility-test-upgrade-to-latest
 
 - name: compatibility-tests
   display_name: Compatibility tests

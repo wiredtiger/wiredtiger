@@ -2651,13 +2651,6 @@ tasks:
         vars:
           compat_test_args: -o
 
-  - name: compatibility-test-upgrade-to-latest
-    commands:
-      - func: "get project"
-      - func: "compatibility test"
-        vars:
-          compat_test_args: -u
-
   - name: compatibility-test-for-patch-releases
     commands:
       - func: "get project"
