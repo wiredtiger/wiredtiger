@@ -539,11 +539,22 @@ __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
  *     to lock the page before freeing the updates.
  */
 void
-__wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_UPDATE *visible_all_upd)
+__wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *visible_all_upd)
 {
-    WT_UPDATE *next;
+    WT_UPDATE *next, *upd;
+    size_t size;
+
+    size = 0;
 
     next = visible_all_upd->next;
     visible_all_upd->next = NULL;
-    __wt_free_update_list(session, &next);
+
+    for (upd = next; upd != NULL; upd = next) {
+        next = upd->next;
+        size += WT_UPDATE_MEMSIZE(upd);
+        __wt_free(session, upd);
+    }
+
+    WT_ASSERT(session, size != 0);
+    __wt_cache_page_inmem_decr(session, page, size);
 }
