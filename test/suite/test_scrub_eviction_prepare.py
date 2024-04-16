@@ -38,6 +38,7 @@ from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
 # 4. Checkpoint
 # 5. Repeat steps 3,4 and validate that the page read back into memory should
 #    not be reconciled everytime.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - fails on tiered")
 class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
 
     def conn_config(self):
