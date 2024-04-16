@@ -252,15 +252,3 @@
     char __padding[WT_CACHE_LINE_ALIGNMENT]; \
     }                                        \
     ;
-
-/*
- * WT_MEMORY_PREFETCH --
- *
- * Prefetch the memory address. This is to reduce the cache miss when there is a random memory
- * access.
- */
-#if defined(__GNUC__) || defined(__clang__)
-#define WT_MEMORY_PREFETCH(addr) __builtin_prefetch(addr)
-#else
-#define WT_MEMORY_PREFETCH(addr)
-#endif
