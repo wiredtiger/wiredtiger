@@ -7158,7 +7158,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_BTREE_COMPACT_BYTES_REWRITTEN_EXPECTED	2031
 /*! btree: btree expected number of compact pages rewritten */
 #define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN_EXPECTED	2032
-/*! btree: btree number of pages caused to be reconciled during checkpoint */
+/*! btree: btree number of pages reconciled during checkpoint */
 #define	WT_STAT_DSRC_BTREE_CHECKPOINT_PAGES_RECONCILED	2033
 /*! btree: btree skipped by compaction as process would not reduce size */
 #define	WT_STAT_DSRC_BTREE_COMPACT_SKIPPED		2034
