@@ -4302,7 +4302,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: parallel-pop-btree-long.wtperf
-  
+
   - name: perf-test-short-key-btree
     tags: ["btree-perf"]
     depends_on:
