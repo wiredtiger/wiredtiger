@@ -248,7 +248,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
-    wt_timestamp_t prev_upd_ts;
+    wt_timestamp_t obsolete_timestamp, prev_upd_ts;
+    uint64_t txn;
 
     /* Clear references to memory we now own and must free on error. */
     upd = *updp;
@@ -298,6 +299,27 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (upd->next == NULL || exclusive)
         return (0);
 
+    if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
+        obsolete_timestamp = page->modify->obsolete_check_timestamp;
+        if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
+            /* Try to move the oldest ID forward and re-check. */
+            ret = __wt_txn_update_oldest(session, 0);
+            /*
+             * We cannot proceed if we fail here as we have inserted the updates to the update
+             * chain. Panic instead. Currently, we don't ever return any error from
+             * __wt_txn_visible_all. We can catch it if we start to do so in the future and properly
+             * handle it.
+             */
+            if (ret != 0)
+                WT_RET_PANIC(session, ret, "fail to update oldest after serializing the updates");
+
+            if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
+                return (0);
+        }
+
+        page->modify->obsolete_check_txn = WT_TXN_NONE;
+    }
+
     /*
      * Look for obsolete updates when any of the following conditions are satisfied:
      * 1. If the obsolete check optimization is disabled.
@@ -311,10 +333,10 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      *
      * 3. Randomly look for obsolete updates.
      */
-    if (!FLD_ISSET(S2C(session)->strategy_flags, WT_CONN_STRATEGY_OBSOLETE_CHECK) ||
+    if (!FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) ||
       (page->memory_footprint > (S2BT(session)->splitmempage / 2)) ||
       (__wt_random(&session->rnd) % 16 == 0))
-        __wt_update_obsolete_check(session, cbt->ref, upd->next);
+        __wt_update_obsolete_check(session, cbt, upd->next);
 
     return (0);
 }

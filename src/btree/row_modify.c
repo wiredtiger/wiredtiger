@@ -337,15 +337,17 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
  *     Check for obsolete updates and force evict the page if the update list is too long.
  */
 void
-__wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd)
+__wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_PAGE *page;
+    WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
     u_int count;
 
     next = NULL;
-    page = ref->page;
+    page = cbt->ref->page;
+    txn_global = &S2C(session)->txn_global;
 
     WT_ASSERT(session, page->modify != NULL);
 
@@ -411,6 +413,8 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd
          */
         for (size = 0, upd = next; upd != NULL; upd = upd->next)
             size += WT_UPDATE_MEMSIZE(upd);
+
+        WT_ASSERT(session, size != 0);
         __wt_cache_page_inmem_decr(session, page, size);
     }
 
@@ -422,11 +426,22 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd
      */
     if (count > WT_THOUSAND) {
         WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
-        __wt_page_evict_soon(session, ref);
+        __wt_page_evict_soon(session, cbt->ref);
     }
 
     if (next != NULL)
         __wt_free_update_list(session, &next);
+    else if (!FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK)) {
+        /*
+         * If the list is long, don't retry checks on this page until the transaction state has
+         * moved forwards.
+         */
+        if (count > 20) {
+            page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
+            if (txn_global->has_pinned_timestamp)
+                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
+        }
+    }
 
     WT_PAGE_UNLOCK(session, page);
 }

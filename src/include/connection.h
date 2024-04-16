@@ -745,9 +745,9 @@ struct __wt_connection_impl {
     uint16_t debug_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_STRATEGY_OBSOLETE_CHECK 0x1u
+#define WT_CONN_HEURISTIC_OBSOLETE_CHECK 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t strategy_flags;
+    uint16_t heuristic_controls;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001ull

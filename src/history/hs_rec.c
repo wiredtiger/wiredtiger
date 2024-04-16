@@ -513,7 +513,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              */
             if (__wt_txn_upd_visible_all(session, upd) && WT_UPDATE_DATA_VALUE(upd)) {
                 /* Free obsolete updates if exist. */
-                if (FLD_ISSET(S2C(session)->strategy_flags, WT_CONN_STRATEGY_OBSOLETE_CHECK) &&
+                if (FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
                   !F_ISSET(r, WT_REC_EVICT) && upd->next != NULL)
                     __wt_free_update_next_list(session, upd);
                 break;
