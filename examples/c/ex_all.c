@@ -538,6 +538,8 @@ static void
 cursor_statistics(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
+    uint64_t stat_value;
+    int ret, stat_key;
 
     /*! [Statistics cursor database] */
     error_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
@@ -565,6 +567,18 @@ cursor_statistics(WT_SESSION *session)
     /*! [Statistics cursor session] */
     error_check(session->open_cursor(session, "statistics:session", NULL, NULL, &cursor));
     /*! [Statistics cursor session] */
+
+    /*! [Statistics cursor ignore column] */
+    error_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        error_check(cursor->get_key(cursor, &stat_key));
+
+        /* Ignore the first two columns, only retrieve the statistics value. */
+        error_check(cursor->get_value(cursor, NULL, NULL, &stat_value));
+    }
+    scan_end_check(ret == WT_NOTFOUND);
+    error_check(cursor->close(cursor));
+    /*! [Statistics cursor ignore column] */
 }
 
 static void
@@ -707,12 +721,6 @@ session_ops(WT_SESSION *session)
         /*! [Compact a table] */
         error_check(session->compact(session, "table:mytable", NULL));
         /*! [Compact a table] */
-
-        error_check(
-          session->create(session, "table:old", "key_format=r,value_format=S,cache_resident=true"));
-        /*! [Rename a table] */
-        error_check(session->rename(session, "table:old", "table:new", NULL));
-        /*! [Rename a table] */
 
         /*! [Salvage a table] */
         error_check(session->salvage(session, "table:mytable", NULL));
@@ -1041,12 +1049,8 @@ connection_ops(WT_CONNECTION *conn)
     /*! [Reconfigure a connection] */
 
     /*! [Get the database home directory] */
-    printf("The database home is: %s\n", conn->get_home(conn));
+    printf("The database home is %s\n", conn->get_home(conn));
     /*! [Get the database home directory] */
-
-    /*! [Get the configuration string] */
-    printf("The configuration is: %s\n", conn->get_configuration(conn));
-    /*! [Get the configuration string] */
 
     /*! [Check if the database is newly created] */
     if (conn->is_new(conn)) {

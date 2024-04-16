@@ -377,12 +377,16 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     const char *checkpoint, *hs_checkpoint;
     bool ckpt_running, is_hs, is_unnamed_ckpt, is_reserved_name, must_resolve;
 
-    ckpt_gen = ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time =
-      0;
+    ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time = 0;
+    WT_NOT_READ(ckpt_gen, 0);
     ds_order = hs_order = 0;
     checkpoint = NULL;
     hs_checkpoint = NULL;
-    ckpt_running = is_hs = is_unnamed_ckpt = is_reserved_name = must_resolve = false;
+    WT_NOT_READ(ckpt_running, false);
+    WT_NOT_READ(is_hs, false);
+    WT_NOT_READ(is_unnamed_ckpt, false);
+    WT_NOT_READ(is_reserved_name, false);
+    WT_NOT_READ(must_resolve, false);
 
     /* These should only be set together. Asking for only one doesn't make sense. */
     WT_ASSERT(session, (hs_dhandlep == NULL) == (ckpt_snapshot == NULL));
@@ -506,7 +510,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true in a
      * subset of the cases where is_unnamed_ckpt is true.
      */
-    must_resolve = WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len);
+    must_resolve = WT_CONFIG_LIT_MATCH(WT_CHECKPOINT, cval);
     is_unnamed_ckpt = cval.len >= strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
 
     /* This is the top of a retry loop. */
@@ -525,10 +529,11 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          *
          * By saving the generation number before, if there is a race, the saved generation number
          * will not be equal to the latest one. We want both variables to be read in as early as
-         * possible in this loop, ordered reads encourage this.
+         * possible in this loop, acquire reads encourage this.
          */
-        WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
-        WT_ORDERED_READ(ckpt_running, S2C(session)->txn_global.checkpoint_running);
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        WT_ACQUIRE_BARRIER();
+        WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, S2C(session)->txn_global.checkpoint_running);
 
         if (!must_resolve)
             /* Copy the checkpoint name first because we may need it to get the first wall time. */
@@ -742,7 +747,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
          * evicted. These checks are not done with any locks in place, other than the data handle
          * reference, so we cannot peer past what is in the dhandle directly.
          */
-        if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
+        if (dhandle != session->dhandle && __wt_atomic_loadi32(&dhandle->session_inuse) == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
             (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time)) &&
           (!WT_DHANDLE_BTREE(dhandle) ||

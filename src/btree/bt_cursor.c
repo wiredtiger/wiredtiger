@@ -93,7 +93,7 @@ __btcur_bounds_search_near_reposition(
  * __cursor_state_save --
  *     Save the cursor's external state.
  */
-static inline void
+static WT_INLINE void
 __cursor_state_save(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 {
     WT_ITEM_SET(state->key, cursor->key);
@@ -106,7 +106,7 @@ __cursor_state_save(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
  * __cursor_state_restore --
  *     Restore the cursor's external state.
  */
-static inline void
+static WT_INLINE void
 __cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 {
     if (F_ISSET(state, WT_CURSTD_KEY_EXT))
@@ -122,7 +122,7 @@ __cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
  * __cursor_page_pinned --
  *     Return if we have a page pinned.
  */
-static inline bool
+static WT_INLINE bool
 __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 {
     WT_CURSOR *cursor;
@@ -169,7 +169,8 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
      * whether we correctly resolved the transaction becomes hard. It is easier to skip this check
      * in that instance.
      */
-    if (cbt->ref->page->read_gen == WT_READGEN_OLDEST && !F_ISSET(session->txn, WT_TXN_PREPARE))
+    if (__wt_atomic_load64(&cbt->ref->page->read_gen) == WT_READGEN_OLDEST &&
+      !F_ISSET(session->txn, WT_TXN_PREPARE))
         return (false);
 
     return (true);
@@ -179,7 +180,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
  * __cursor_size_chk --
  *     Return if an inserted item is too large.
  */
-static inline int
+static WT_INLINE int
 __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 {
     WT_BM *bm;
@@ -224,7 +225,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
  * __cursor_fix_implicit --
  *     Return if search went past the end of the tree.
  */
-static inline bool
+static WT_INLINE bool
 __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 {
     /*
@@ -528,7 +529,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
  * __cursor_col_search --
  *     Column-store search from a cursor.
  */
-static inline int
+static WT_INLINE int
 __cursor_col_search(WT_CURSOR_BTREE *cbt, WT_REF *leaf, bool *leaf_foundp)
 {
     WT_DECL_RET;
@@ -553,7 +554,7 @@ __cursor_col_search(WT_CURSOR_BTREE *cbt, WT_REF *leaf, bool *leaf_foundp)
  * __cursor_row_search --
  *     Row-store search from a cursor.
  */
-static inline int
+static WT_INLINE int
 __cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf, bool *leaf_foundp)
 {
     WT_DECL_RET;
@@ -578,7 +579,7 @@ __cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf, bool *leaf_
  * __cursor_col_modify --
  *     Column-store modify from a cursor.
  */
-static inline int
+static WT_INLINE int
 __cursor_col_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
     return (__wt_col_modify(cbt, cbt->iface.recno, value, NULL, modify_type, false, false));
@@ -588,7 +589,7 @@ __cursor_col_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_typ
  * __cursor_row_modify --
  *     Row-store modify from a cursor.
  */
-static inline int
+static WT_INLINE int
 __cursor_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
     return (__wt_row_modify(cbt, &cbt->iface.key, value, NULL, modify_type, false, false));
@@ -705,7 +706,7 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
  * __cursor_reposition_timing_stress --
  *     Optionally reposition the cursor 10% of times
  */
-static inline bool
+static WT_INLINE bool
 __cursor_reposition_timing_stress(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
@@ -933,7 +934,7 @@ __btcur_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *e
  * __btcur_search_near_row_pinned_page --
  *     Search a row store pinned page before searching from the root in search near.
  */
-static inline int
+static WT_INLINE int
 __btcur_search_near_row_pinned_page(WT_CURSOR_BTREE *cbt, bool *validp)
 {
     WT_SESSION_IMPL *session;
@@ -1969,7 +1970,7 @@ __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
  * __cursor_equals --
  *     Return if two cursors reference the same row.
  */
-static inline bool
+static WT_INLINE bool
 __cursor_equals(WT_CURSOR_BTREE *a, WT_CURSOR_BTREE *b)
 {
     switch (CUR2BT(a)->type) {
@@ -2174,26 +2175,6 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
-
-    /*
-     * Allow performing truncate operation without a timestamp on non logged tables for non
-     * standalone builds (MongoDB). MongoDB does perform truncate operation only on a table that
-     * does not have historical versions to avoid the problem. Remove this standalone build specific
-     * code when MongoDB switches to perform truncate operation with timestamps.
-     */
-#ifdef WT_STANDALONE_BUILD
-    /*
-     * All historical versions must be removed when a key is updated with no timestamp, but that
-     * isn't possible in fast truncate operations. Disallow fast truncate in transactions configured
-     * to commit without a timestamp (excluding logged tables as timestamps cannot be relevant to
-     * them).
-     */
-    if (!F_ISSET(btree, WT_BTREE_LOGGED) && F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
-        WT_RET_MSG(session, EINVAL,
-          "truncate operations may not yet be included in transactions that can commit without a "
-          "timestamp. If your use case encounters this error, please reach out to the WiredTiger "
-          "team");
-#endif
 
     WT_RET(__wt_txn_autocommit_check(session));
 

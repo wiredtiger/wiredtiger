@@ -17,7 +17,6 @@ set(sources
     util_misc.c
     util_printlog.c
     util_read.c
-    util_rename.c
     util_salvage.c
     util_stat.c
     util_truncate.c
@@ -33,10 +32,6 @@ target_include_directories(wt
     PRIVATE ${CMAKE_SOURCE_DIR}/src/include  ${CMAKE_BINARY_DIR}/config
 )
 target_link_libraries(wt wt::wiredtiger)
-
-if(ENABLE_TCMALLOC)
-    target_link_libraries(wt wt::wiredtiger wt::tcmalloc)
-endif()
 
 if(ENABLE_ANTITHESIS)
     target_link_libraries(wt wt::voidstar)

@@ -87,7 +87,7 @@ __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
  * __block_extend --
  *     Extend the file.
  */
-static inline int
+static WT_INLINE int
 __block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_FH *fh, wt_off_t offset,
   size_t align_size, bool *release_lockp)
 {
@@ -181,7 +181,9 @@ __wt_block_write_size(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t *sizep)
      * interested in debugging corner cases anyway.
      */
     *sizep = (size_t)WT_ALIGN(*sizep + WT_BLOCK_HEADER_BYTE_SIZE, block->allocsize);
-    return (*sizep > UINT32_MAX - 1024 ? EINVAL : 0);
+    if (*sizep > UINT32_MAX - 1024)
+        WT_RET_MSG(session, EINVAL, "requested block size is too large");
+    return (0);
 }
 
 /*

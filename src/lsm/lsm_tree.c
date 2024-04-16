@@ -347,7 +347,7 @@ __wt_lsm_tree_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive, 
     if (!F_ISSET(S2C(session), WT_CONN_READONLY)) {
         /* LSM doesn't yet support the 'r' format. */
         WT_ERR(__wt_config_gets(session, cfg, "key_format", &cval));
-        if (WT_STRING_MATCH("r", cval.str, cval.len))
+        if (WT_CONFIG_LIT_MATCH("r", cval))
             WT_ERR_MSG(session, EINVAL, "LSM trees do not support a key format of 'r'");
 
         WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
@@ -865,75 +865,6 @@ __wt_lsm_tree_drop(WT_SESSION_IMPL *session, const char *name, const char *cfg[]
 err:
     if (locked)
         __wt_lsm_tree_writeunlock(session, lsm_tree);
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __lsm_tree_discard(session, lsm_tree, false));
-    WT_TRET(tret);
-    return (ret);
-}
-
-/*
- * __wt_lsm_tree_rename --
- *     Rename an LSM tree.
- */
-int
-__wt_lsm_tree_rename(
-  WT_SESSION_IMPL *session, const char *olduri, const char *newuri, const char *cfg[])
-{
-    WT_DECL_RET;
-    WT_LSM_CHUNK *chunk;
-    WT_LSM_TREE *lsm_tree;
-    u_int i;
-    int tret;
-    const char *old;
-    bool locked;
-
-    old = NULL;
-    WT_NOT_READ(locked, false);
-
-    /* Get the LSM tree. */
-    WT_RET(__wt_lsm_tree_get(session, olduri, true, &lsm_tree));
-
-    /* Prevent any new opens. */
-    __wt_lsm_tree_writelock(session, lsm_tree);
-    locked = true;
-
-    /* Set the new name. */
-    WT_ERR(__lsm_tree_set_name(session, lsm_tree, newuri));
-
-    /* Rename the chunks. */
-    for (i = 0; i < lsm_tree->nchunks; i++) {
-        chunk = lsm_tree->chunk[i];
-        old = chunk->uri;
-        chunk->uri = NULL;
-
-        WT_ERR(
-          __wt_lsm_tree_chunk_name(session, lsm_tree, chunk->id, chunk->generation, &chunk->uri));
-        WT_ERR(__wt_schema_rename(session, old, chunk->uri, cfg));
-        __wt_free(session, old);
-
-        if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM)) {
-            old = chunk->bloom_uri;
-            chunk->bloom_uri = NULL;
-            WT_ERR(__wt_lsm_tree_bloom_name(session, lsm_tree, chunk->id, &chunk->bloom_uri));
-            F_SET(chunk, WT_LSM_CHUNK_BLOOM);
-            WT_ERR(__wt_schema_rename(session, old, chunk->uri, cfg));
-            __wt_free(session, old);
-        }
-    }
-
-    WT_ERR(__wt_lsm_meta_write(session, lsm_tree, NULL));
-    locked = false;
-    __wt_lsm_tree_writeunlock(session, lsm_tree);
-    WT_ERR(__wt_metadata_remove(session, olduri));
-
-err:
-    if (locked)
-        __wt_lsm_tree_writeunlock(session, lsm_tree);
-    __wt_free(session, old);
-
-    /*
-     * Discard this LSM tree structure. The first operation on the renamed tree will create a new
-     * one.
-     */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __lsm_tree_discard(session, lsm_tree, false));
     WT_TRET(tret);
     return (ret);
