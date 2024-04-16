@@ -720,14 +720,14 @@ compatible_upgrade_downgrade_release_branches=(mongodb-4.4 mongodb-4.2)
 
 # This array is used to configure the release branches we'd like to run patch version
 # upgrade/downgrade test.
-patch_version_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
+patch_version_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0)
 
 # This array is used to configure the release branches we'd like to run test checkpoint
 # upgrade/downgrade test.
-test_checkpoint_release_branches=(develop mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
+test_checkpoint_release_branches=(develop mongodb-8.0 mongodb-7.0 mongodb-6.0)
 
 # This array is used to configure the release branches we'd like to run upgrade to latest test.
-upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
+upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0)
 
 declare -A scopes
 scopes[import]="import files from previous versions"
