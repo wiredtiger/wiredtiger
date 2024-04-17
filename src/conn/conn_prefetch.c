@@ -96,6 +96,19 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         --conn->prefetch_queue_count;
 
         /*
+         * If the cache is already full, don't attempt to pre-fetch the current ref as we may hang
+         * while waiting until space in the cache clears up. Repeat this process until either
+         * eviction has evicted eligible pages (allowing pre-fetch to read into the cache), or we
+         * iterate through and remove all the refs from the pre-fetch queue and pre-fetch becomes a
+         * no-op.
+         */
+        ret = __wt_cache_eviction_check(session, false, false, NULL);
+        if (ret == 0) {
+            __wt_free(session, pe);
+            continue;
+        }
+
+        /*
          * We increment this while in the prefetch lock as the thread reading from the queue expects
          * that behavior.
          */
@@ -146,6 +159,9 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     pe->ref = ref;
     pe->first_home = ref->home;
     pe->dhandle = session->dhandle;
+
+    /* If the cache is already full, don't add anymore new refs to the queue.*/
+    WT_ERR(__wt_cache_eviction_check(session, false, false, NULL));
 
     __wt_spin_lock(session, &conn->prefetch_lock);
     /* Don't queue pages for trees that have eviction disabled. */
