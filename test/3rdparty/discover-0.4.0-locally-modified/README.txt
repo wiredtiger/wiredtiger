@@ -1,3 +1,14 @@
+WiredTiger Team Changes
+=======================
+
+2024/04/16 0.4.0
+----------------
+* Replaced the use of distutils with setuptools in setup.py as distutils
+  is deprecated and removed in Python 3.12.
+
+discover-0.4.0
+==============
+
 This is the test discovery mechanism and ``load_tests`` protocol for unittest
 backported from Python 2.7 to work with Python 2.4 or more recent (including 
 Python 3).
@@ -87,16 +98,6 @@ requests should be posted): http://code.google.com/p/unittest-ext/
 
 The latest development version of discover.py can be found at:
 http://code.google.com/p/unittest-ext/source/browse/trunk/discover.py
-
-
-WiredTiger Team Changes
-=======================
-
-2024/04/16 0.4.0
-----------------
-* Replaced the use of distutils with setuptools in setup.py as distutils
-  is deprecated and removed in Python 3.12.
-
 
 CHANGELOG
 =========
