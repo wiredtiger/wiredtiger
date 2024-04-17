@@ -103,7 +103,7 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * no-op.
          */
         ret = __wt_cache_eviction_check(session, false, false, NULL);
-        if (ret == 0) {
+        if (ret != 0) {
             __wt_free(session, pe);
             continue;
         }
