@@ -229,11 +229,10 @@ struct __wt_cache {
 #define WT_CACHE_EVICT_DIRTY 0x004u        /* Evict dirty pages */
 #define WT_CACHE_EVICT_DIRTY_HARD 0x008u   /* Dirty % blocking app threads */
 #define WT_CACHE_EVICT_NOKEEP 0x010u       /* Don't add read pages to cache */
-#define WT_CACHE_EVICT_RANDOM_RETRY 0x020u /* Retry until in-memory page is located in root. */
-#define WT_CACHE_EVICT_SCRUB 0x040u        /* Scrub dirty pages */
-#define WT_CACHE_EVICT_UPDATES 0x080u      /* Evict pages with updates */
-#define WT_CACHE_EVICT_UPDATES_HARD 0x100u /* Update % blocking app threads */
-#define WT_CACHE_EVICT_URGENT 0x200u       /* Pages are in the urgent queue */
+#define WT_CACHE_EVICT_SCRUB 0x020u        /* Scrub dirty pages */
+#define WT_CACHE_EVICT_UPDATES 0x040u      /* Evict pages with updates */
+#define WT_CACHE_EVICT_UPDATES_HARD 0x080u /* Update % blocking app threads */
+#define WT_CACHE_EVICT_URGENT 0x100u       /* Pages are in the urgent queue */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 #define WT_CACHE_EVICT_ALL (WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES)
 #define WT_CACHE_EVICT_HARD \

@@ -152,8 +152,7 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     conn->evict_threads_min = evict_threads_min;
 
     WT_RET(__wt_config_gets(session, cfg, "eviction.random_retries", &cval));
-    if (cval.val != 0)
-        F_SET(cache, WT_CACHE_EVICT_RANDOM_RETRY);
+    conn->evict_random_retries = cval.val != 0;
 
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
