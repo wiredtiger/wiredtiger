@@ -14,6 +14,15 @@
  * related to the different work done during API entry.
  */
 
+/* Some macros to assist with a clean flow when using cursor API tracking */
+#define WT_DECL_CUR_TRACK bool _tracked = false
+#define WT_CUR_TRACK_BEGIN(session)       \
+    __wt_api_track_cursor_begin(session); \
+    _tracked = true
+#define WT_CUR_TRACK_END(session) \
+    if (_tracked)                 \
+    __wt_api_track_cursor_end(session)
+
 /*
  * __wt_api_track_cursor_begin --
  *     Start tracking a cursor API entry point for statistics.
