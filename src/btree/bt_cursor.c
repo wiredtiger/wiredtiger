@@ -1110,6 +1110,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_REF *next_walk;
     WT_SESSION_IMPL *session;
     size_t insert_bytes;
     uint64_t yield_count, sleep_usecs;
@@ -1216,6 +1217,16 @@ retry:
         cbt->compare = 1;
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
+
+        /* Diagnostics. */
+        next_walk = NULL;
+        WT_ERR(__wt_tree_walk(session, &next_walk, WT_READ_PREV | WT_READ_VISIBLE_ALL | WT_READ_SEE_DELETED));
+        if (next_walk != NULL) {
+            if (next_walk->page->type == WT_PAGE_COL_VAR)
+                WT_ASSERT(session, cbt->iface.recno <= __col_var_last_recno(next_walk));
+            WT_ERR(__wt_page_release(session, next_walk, 0));
+        }
+
         cursor->recno = cbt->recno;
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));

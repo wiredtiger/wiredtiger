@@ -68,6 +68,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     btree = S2BT(session);
     dhandle = session->dhandle;
 
+    __wt_verbose_info(session, WT_VERB_TEMPORARY, "btree_open: %s", dhandle->name);
+
     /*
      * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
      * across a re-open. Clear all flags other than the operation flags (which are set by the
@@ -883,6 +885,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     page = next_walk->page;
     btree->last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
                                                         __col_fix_last_recno(next_walk);
+    __wt_verbose_info(session, WT_VERB_TEMPORARY, "btree_get_last_recno: bumped to %" PRIu64, btree->last_recno);
 
     return (__wt_page_release(session, next_walk, 0));
 }
