@@ -756,8 +756,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     uint64_t original_snap_min;
-    const char *txn_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool flush, flush_force, use_timestamp;
 
@@ -766,7 +764,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    API_CONF(session, WT_SESSION, begin_transaction, txn_cfg, txn_conf);
+    API_CONF(session, WT_SESSION, begin_transaction, "isolation=snapshot", txn_conf);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
@@ -865,7 +863,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             /* A checkpoint should never proceed when timestamps are out of order. */
             if (__wt_atomic_loadbool(&txn_global->has_oldest_timestamp) &&
               txn_global->oldest_timestamp > txn_global->stable_timestamp) {
-                __wt_readunlock(session, &txn_global->rwlock);
+                __wt_writeunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
                   "oldest timestamp %s must not be later than stable timestamp %s when taking a "
                   "checkpoint",

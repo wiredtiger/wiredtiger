@@ -97,7 +97,6 @@ DNE
 DONTNEED
 DS
 DUPLICATEV
-DeadStores
 Decrypt
 DeleteFileW
 Deterministically
@@ -595,6 +594,7 @@ comparator
 comparators
 comparep
 compat
+compilable
 cond
 conditionalize
 conf
@@ -637,7 +637,6 @@ cursoring
 cursorp
 curstartrecno
 curstat
-curstd
 curtable
 curversion
 cust
@@ -656,7 +655,6 @@ dbar
 dbs
 dcalloc
 ddd
-deadcode
 decile
 deciles
 decl

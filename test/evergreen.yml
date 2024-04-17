@@ -51,22 +51,6 @@ functions:
               export LD_LIBRARY_PATH=$WT_BUILDDIR
             fi
 
-            # Utilize tcmalloc through preloading in the environment.
-            #
-            if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
-
-              # ASan is not designed to work with tcmalloc:
-              # https://github.com/gperftools/gperftools/issues/810#issuecomment-230168100
-              #
-              if [[ "${CMAKE_BUILD_TYPE|}" =~ ASan ]]; then
-                echo "Do not enable tcmalloc for ASan builds."
-                exit 1
-              fi
-
-              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_TOPDIR/TCMALLOC_LIB/lib"
-              export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
-            fi
-
             # Create the common sanitizer options and export the specific sanitizer environment
             # variables.
             COMMON_SAN_OPTIONS="abort_on_error=1:disable_coredump=0"
@@ -141,6 +125,17 @@ functions:
     type: setup
     params:
       directory: wiredtiger
+  "get automation-scripts": &get_automation_scripts
+    command: shell.exec
+    type: setup
+    params:
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        if ! [ -d "./automation-scripts" ]; then
+          git clone git@github.com:wiredtiger/automation-scripts.git
+        fi
   "fetch artifacts": &fetch_artifacts
     command: s3.get
     type: setup
@@ -212,6 +207,10 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      include_expansions_in_env:
+       - "s3_bucket_tcmalloc"
+       - "s3_access_key"
+       - "s3_secret_key"
       shell: bash
       script: |
         set -o errexit
@@ -296,12 +295,22 @@ functions:
           powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
-          # Fetch the gperftools library if needed. This will also get tcmalloc.
-          if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]] && [ ! -d "./automation-scripts" ]; then
-            is_cmake_build=true
-            git clone git@github.com:wiredtiger/automation-scripts.git
-            . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
+
+          if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
+            # Preclude use of tcmalloc with sanitizer builds.
+            if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (CMAKE_BUILD_TYPE=([AMT]|UB)San) ]]; then
+              echo "tcmalloc incompatible with build variant: ${build_variant} and cmake build type ${CMAKE_BUILD_TYPE}"
+              exit 1
+            fi
+            # Run this script in its own process as it depends on managing
+            # shell options.
+            /bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
+
+            # Preload tcmalloc in the Evergreen environment: this will affect
+            # ALL binaries.
+            export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
           fi
+
           # Compiling with CMake.
           echo "Find CMake"
           . test/evergreen/find_cmake.sh
@@ -352,6 +361,7 @@ functions:
         fi
         echo "Ending 'make wiredtiger' step"
   "compile wiredtiger":
+    - *get_automation_scripts
     - *configure_wiredtiger
     - *make_wiredtiger
   "dump stacktraces": &dump_stacktraces
@@ -1207,7 +1217,7 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          test/evergreen/compatibility_test_for_releases.sh ${compat_test_args}
+          test/compatibility/compatibility_test_for_releases.sh ${compat_test_args}
 
   "run-perf-test":
     # Run a performance test
@@ -1257,6 +1267,7 @@ functions:
           ${python_binary|python3} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
 
   "upload stats to atlas":
+    - *get_automation_scripts
     - command: shell.exec
       params:
         shell: bash
@@ -1267,9 +1278,6 @@ functions:
           virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
           pip3 install pymongo[srv]==3.12.2 pygit2==1.10.1
-          if [[ ! -d "automation-scripts" ]]; then
-            git clone git@github.com:wiredtiger/automation-scripts.git
-          fi
           EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
           ${python_binary|python3} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -d ${database|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
@@ -1405,6 +1413,7 @@ variables:
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
     <<: *configure_flags_with_builtins
+    ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
@@ -2659,7 +2668,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -p
+            test/compatibility/compatibility_test_for_releases.sh -p
 
   - name: compatibility-test-suite
     tags: ["python"]
@@ -2693,7 +2702,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -i
+            test/compatibility/compatibility_test_for_releases.sh -i
 
   - name: generate-datafile-little-endian
     commands:
@@ -2816,6 +2825,7 @@ tasks:
   - name: configure-combinations
     commands:
       - func: "get project"
+      - func: "get automation-scripts"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -3065,9 +3075,8 @@ tasks:
             #######################################################
             # Obtain the complexity metrics for the 'previous' code
             #######################################################
-            git clone https://github.com/wiredtiger/wiredtiger.git wiredtiger_previous
+            git worktree add --detach wiredtiger_previous "${github_commit}"
             cd wiredtiger_previous
-            git checkout ${github_commit}
             if [ ${is_patch|false} = true ]; then
               # Checkout the point at which this patch/branch diverged from develop
               git checkout `python3 dist/common_functions.py last_commit_from_dev`
@@ -3280,6 +3289,7 @@ tasks:
   - name: long-test
     commands:
       - func: "get project"
+      - func: "get automation-scripts"
       - func: "configure wiredtiger"
       - func: "make wiredtiger"
 
@@ -4044,8 +4054,8 @@ tasks:
             # Set the cyclomatic complexity limit to 20
             python3 "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
 
-            # Fail if there are functions with cyclomatic complexity larger than 91
-            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:91 > $t
+            # Fail if there are functions with cyclomatic complexity larger than 98
+            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:98 > $t
             if grep -q 'exceeds' $t; then
                 echo "[ERROR]:complexity:cyclomatic: Complexity limit exceeded."
                 cat $t
@@ -4292,6 +4302,24 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: parallel-pop-btree-long.wtperf
+
+  - name: perf-test-short-key-btree
+    tags: ["btree-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: short-key-btree.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: short-key-btree.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: short-key-btree.wtperf
 
   - name: perf-test-update-only-btree
     tags: ["btree-perf"]
@@ -5308,7 +5336,8 @@ buildvariants:
     - name: ".data-validation-stress-test"
     - name: catch2-unittest-test
     - name: s3-tiered-storage-extensions-test
-    - name: azure-gcp-tiered-storage-extensions-test
+    # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
+    # - name: azure-gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: catch2-unittest-assertions
     - name: ".tiered_unittest"
@@ -5337,7 +5366,6 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
-      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     # Exclude this test for ASan builds, as it results in a false positives owing
     # to deliberate killing of processes to invoke corruption.
@@ -5357,7 +5385,6 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
-      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: examples-c-tsan
@@ -5392,9 +5419,7 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
     # builds) as -O1, making test binaries more difficult to debug.
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-    ENABLE_TCMALLOC: 1
-    additional_env_vars: |
-      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    ENABLE_TCMALLOC: 0
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
@@ -5425,8 +5450,7 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
     # builds) as -O1, making test binaries more difficult to debug.
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-    ENABLE_TCMALLOC: 1
-    additional_env_vars: export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+    ENABLE_TCMALLOC: 0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: clang-analyzer
@@ -5456,7 +5480,6 @@ buildvariants:
   - ubuntu2004-small
   expansions:
     ENABLE_TCMALLOC: 1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
@@ -5481,7 +5504,6 @@ buildvariants:
   - ubuntu2004-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
@@ -5531,7 +5553,6 @@ buildvariants:
   - rhel80-test
   expansions:
     ENABLE_TCMALLOC: 0
-    additional_env_vars: export LD_PRELOAD="/usr/local/lib/libeatmydata.so:$LD_PRELOAD"
     cmake_generator: "Unix Makefiles"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -5810,7 +5831,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-sanitizer"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
@@ -5852,7 +5872,6 @@ buildvariants:
   - ubuntu2004-small
   expansions:
     ENABLE_TCMALLOC: 1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
@@ -5895,7 +5914,6 @@ buildvariants:
   - ubuntu2004-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"

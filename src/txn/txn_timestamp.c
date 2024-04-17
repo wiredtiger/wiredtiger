@@ -370,13 +370,23 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     last_oldest_ts = txn_global->oldest_timestamp;
     last_stable_ts = txn_global->stable_timestamp;
 
-    /* It is a no-op to set the oldest or stable timestamps behind the global values. */
+    /* It is an invalid call to set the oldest or stable timestamps behind the current values. */
     if (has_oldest && __wt_atomic_loadbool(&txn_global->has_oldest_timestamp) &&
-      oldest_ts <= last_oldest_ts)
-        has_oldest = false;
+      oldest_ts < last_oldest_ts) {
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: oldest timestamp %s must not be older than current oldest timestamp %s",
+          __wt_timestamp_to_string(oldest_ts, ts_string[0]),
+          __wt_timestamp_to_string(last_oldest_ts, ts_string[1]));
+    }
 
-    if (has_stable && txn_global->has_stable_timestamp && stable_ts <= last_stable_ts)
-        has_stable = false;
+    if (has_stable && txn_global->has_stable_timestamp && stable_ts < last_stable_ts) {
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: stable timestamp %s must not be older than current stable timestamp %s",
+          __wt_timestamp_to_string(stable_ts, ts_string[0]),
+          __wt_timestamp_to_string(last_stable_ts, ts_string[1]));
+    }
 
     /*
      * First do error checking on the timestamp values. The oldest timestamp must always be less
@@ -992,7 +1002,8 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     conn = S2C(session);
 
     if (ts == 0) {
-        name = "unknown";
+        /* Quiet warnings from both gcc and clang about this variable. */
+        WT_NOT_READ(name, "unknown");
         switch (which) {
         case WT_TS_TXN_TYPE_COMMIT:
             name = "commit";
