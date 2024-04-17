@@ -89,14 +89,17 @@ The latest development version of discover.py can be found at:
 http://code.google.com/p/unittest-ext/source/browse/trunk/discover.py
 
 
-CHANGELOG
-=========
+WiredTiger Team Changes
+=======================
 
 2024/04/16 0.4.0
 ----------------
 * Replaced the use of distutils with setuptools in setup.py as distutils
   is deprecated and removed in Python 3.12.
 
+
+CHANGELOG
+=========
 
 2010/06/11 0.4.0
 ----------------
