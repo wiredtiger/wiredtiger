@@ -1,8 +1,6 @@
 WiredTiger Team Changes
 =======================
 
-2024/04/16 0.4.0
-----------------
 * Replace the use of distutils with setuptools in setup.py as distutils
   is deprecated and removed in Python 3.12.
 
