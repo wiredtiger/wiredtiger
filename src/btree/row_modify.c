@@ -411,17 +411,13 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
         __wt_page_evict_soon(session, cbt->ref);
     }
 
-    if (next == NULL &&
-      !FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK)) {
+    if (next == NULL) {
         /*
          * If the list is long, don't retry checks on this page until the transaction state has
          * moved forwards.
          */
-        if (count > 20) {
+        if (count > 20)
             page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
-            if (txn_global->has_pinned_timestamp)
-                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
-        }
     }
 
     WT_PAGE_UNLOCK(session, page);

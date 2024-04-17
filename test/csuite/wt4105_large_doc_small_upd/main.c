@@ -32,7 +32,7 @@
 static const char *const uri = "table:large";
 
 #define DATASIZE (1024 * 1024)
-#define MODIFY_COUNT (1000)
+#define MODIFY_COUNT (1024)
 #define NUM_DOCS 2
 
 static void on_alarm(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
