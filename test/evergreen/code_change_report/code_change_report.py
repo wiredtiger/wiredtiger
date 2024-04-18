@@ -474,35 +474,72 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
 
     return report
 
-def build_pr_comment(code_change_info: dict) -> str:
+def build_pr_comment(code_change_info: dict) -> str | None:
+    # Do nothing if the PR has no relevant changes.
+    if int(code_change_info['summary_info']['num_lines']) == 0:
+        return None
+    
+    message = ""
+
+    # Code Coverage
     summary_info = code_change_info['summary_info']
     num_lines = int(summary_info['num_lines'])
     num_lines_covered = int(summary_info['num_lines_covered'])
+    pct_lines_covered = num_lines_covered / num_lines * 100
     num_branches = int(summary_info['num_branches'])
     num_branches_covered = int(summary_info['num_branches_covered'])
-
-    branch_coverage_string = ""
-    line_coverage_string = ""
-
-    branch_coverage_string = (
-        coverage_string(num_branches_covered, num_branches)
-        if num_branches > 0 else
-        "No change"
-    )
-
-    line_coverage_string = (
-        coverage_string(num_lines_covered, num_lines)
+    pct_branches_covered = num_branches_covered / num_branches * 100
+    lines_covered = (
+        f"{round(pct_lines_covered)}% ({num_lines_covered}/{num_lines})"
         if num_lines > 0 else
-        "No change"
+        "N/A"
+    )
+    branches_covered = (
+        f"{round(pct_branches_covered)}% ({num_branches_covered}/{num_branches})"
+        if num_branches > 0 else
+        "N/A"
     )
 
-    return textwrap.dedent(f"""
-        Yay, testing! 🥳
-        | Summary Metric for Added or Changed Code | Value |
+    if pct_branches_covered >= 80:
+        coverage_note = "Woohoo, the code changed in this PR is pretty well tested! 🥳"
+    elif pct_branches_covered >= 50 and pct_lines_covered >= 80:
+        coverage_note = "Test coverage is ok, please try and improve it if that's feasible."
+    else:
+        coverage_note = "Test coverage is too low, this change probably shouldn't be merged as-is."
+
+    message += textwrap.dedent(f"""
+        {coverage_note}
+
+        | Diff coverage | |
         |------------------------------------------|-------|
-        | Branch coverage                          | {branch_coverage_string} |
-        | Line coverage                            | {line_coverage_string} |
+        | Line coverage                            | {lines_covered} |
+        | Branch coverage                          | {branches_covered} |
     """)
+
+    # Complexity
+    changed_functions = code_change_info["changed_functions"]
+    if changed_functions:
+        message += "\n\n"
+
+        complexity_warnings = [
+            f"In `{filename}` the complexity of `{method}` has increased to {info['complexity']}."
+            for filename, methods in changed_functions.items()
+            for method, info in methods.items()
+            if info['complexity'] > info['prev_complexity'] and info['complexity'] > 30
+        ]
+        highest_complexity_touched = max(
+            method['complexity']
+            for methods in changed_functions.values()
+            for method in methods.values()
+        )
+
+        if highest_complexity_touched > 50:
+            message += "⚠️ This code touches methods that have an extremely high complexity score\n"
+    
+        for warning in complexity_warnings:
+            message += f"- {warning}\n"
+    
+    return message
 
 def post_pr_comment(fq_repo, pr_id, token, body):
     url = f"https://api.github.com/repos/{fq_repo}/issues/{pr_id}/comments"
