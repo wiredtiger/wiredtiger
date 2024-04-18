@@ -483,6 +483,8 @@ def post_pr_comment(fq_repo, pr_id, token, body):
     }
     existing = None
     resp = requests.get(url, headers=headers, params={"sort": "created_at", "direction": "asc"})
+    print(resp.content)
+    resp.raise_for_status()
     for comment in resp.json():
         if magic_string in comment["body"]:
             existing = comment["id"]
@@ -497,6 +499,9 @@ def post_pr_comment(fq_repo, pr_id, token, body):
     else:
         resp = requests.post(url, data, headers=headers)
 
+    print(resp.content)
+    resp.raise_for_status()
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--code_change_info', required=True, help='Path to the code change info file')
@@ -508,6 +513,7 @@ def main():
     args = parser.parse_args()
 
     verbose = args.verbose
+    leave_pr_comment = args.github_pr_number and args.github_token
 
     if verbose:
         print('Code Coverage Report')
@@ -515,12 +521,12 @@ def main():
         print('Configuration:')
         print('  Code change info file:  {}'.format(args.code_change_info))
         print('  Html output file:  {}'.format(args.html_output))
+        print('  Leave PR Comment: {}'.format(leave_pr_comment))
 
     code_change_info = read_code_change_info(code_change_info_path=args.code_change_info)
     html_report_as_text = generate_html_report_as_text(code_change_info=code_change_info, verbose=verbose)
 
-    if (args.github_pr_number and args.github_token):
-        print('leaving pr comment')
+    if (leave_pr_comment):
         post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, "test comment")
 
     with open(args.html_output, "w") as output_file:
