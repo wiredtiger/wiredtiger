@@ -749,8 +749,6 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
     WT_STAT_DATA_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
-
-    API_RET_STAT(session, ret, cursor_cache);
 }
 
 /*
