@@ -30,6 +30,7 @@
 import argparse
 import json
 import html
+import requests
 from code_change_helpers import is_useful_line
 
 
@@ -473,11 +474,35 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     return report
 
 
+def post_pr_comment(fq_repo, pr_id, token, body):
+    url = f"https://api.github.com/repos/{fq_repo}/issues/{pr_id}/comments"
+    magic_string = "<!-- STICKY_COMMENT:CODE_QUALITY -->"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    existing = None
+    for comment in requests.get(url, params={"sort": "created_at", "direction": "asc"}).json():
+        if magic_string in comment["body"]:
+            existing = comment["id"]
+            break
+    
+    data = {
+        "body": f"{body}\n\n{magic_string}"
+    }
+
+    if existing:
+        resp = requests.patch(f"{url}/{existing}", data)
+    else:
+        resp = requests.post(url, data)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--code_change_info', required=True, help='Path to the code change info file')
     parser.add_argument('-o', '--html_output', required=True, help='Path of the html file to write output to')
-    parser.add_argument('-g', '--github_check', help='Path of the json file for github check details')
+    parser.add_argument('--github_repo', default='wiredtiger/wiredtiger', help='The github repo for this change')
+    parser.add_argument('--github_pr_number', help='A github PR id for this change')
+    parser.add_argument('--github_token', help='An API token for github for leaving pr comments')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
@@ -493,16 +518,9 @@ def main():
     code_change_info = read_code_change_info(code_change_info_path=args.code_change_info)
     html_report_as_text = generate_html_report_as_text(code_change_info=code_change_info, verbose=verbose)
 
-    if (args.github_check):
-        with open(args.github_check, "w") as output_file:
-            status = {
-                "title": "Code Quality",
-                "summary": "Some detailed _info_ about the report",
-                "text": "some other text",
-                "annotations": [],
-            }
-            print(f"Wrote github status {json.dumps(status)}")
-            output_file.writelines(json.dumps(status))
+    if (args.github_pr_number and args.github_token):
+        print('leaving pr comment')
+        post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, "test comment")
 
     with open(args.html_output, "w") as output_file:
         output_file.writelines(html_report_as_text)
