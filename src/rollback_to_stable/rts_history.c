@@ -47,7 +47,7 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
      * timestamp.
      */
     hs_cursor->set_key(hs_cursor, 4, btree_id, key, WT_TS_MAX, UINT64_MAX);
-    ret = __wt_curhs_search_near_before(session, hs_cursor);
+    ret = __wt_curhs_search_near_before(hs_cursor);
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         /* Retrieve the time window from the history cursor. */
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
@@ -118,7 +118,7 @@ __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
     F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
 
     hs_cursor_start->set_key(hs_cursor_start, 1, btree_id);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_start), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(hs_cursor_start), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
@@ -133,7 +133,7 @@ __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
     F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
 
     hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(hs_cursor_stop), true);
 
 #ifdef HAVE_DIAGNOSTIC
     /* If we get not found, we are at the largest btree id in the history store. */

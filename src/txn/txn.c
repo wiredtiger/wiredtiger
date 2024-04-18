@@ -1469,7 +1469,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * sessions modifying the same key and checkpoint moving the new updates to the history
          * store.
          */
-        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
+        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(hs_cursor), true);
 
         /* We should only get not found if the prepared update is on disk. */
         WT_ASSERT(session, ret != WT_NOTFOUND || resolve_case == RESOLVE_PREPARE_ON_DISK);

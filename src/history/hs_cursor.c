@@ -123,7 +123,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     read_timestamp = read_timestamp == WT_TS_NONE ? WT_TS_MAX : read_timestamp;
 
     hs_cursor->set_key(hs_cursor, 4, btree_id, key, read_timestamp, UINT64_MAX);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(hs_cursor), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;

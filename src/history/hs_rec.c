@@ -130,7 +130,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * one can lead to wrong order.
      */
     cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, UINT64_MAX);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, cursor), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(cursor), true);
 
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
@@ -193,7 +193,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
             counter = hs_counter + 1;
     } else {
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
-        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
+        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(cursor), true);
     }
 
     /*
@@ -785,7 +785,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
      * search routine as we do not skip globally visible tombstones during the search.
      */
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(hs_cursor), true);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND) {
         ret = 0;
@@ -1101,7 +1101,7 @@ __hs_delete_record(
         goto done;
 
     r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(r->hs_cursor), true);
     /* It's possible the value in the history store becomes obsolete concurrently. */
     if (ret == WT_NOTFOUND) {
         /*

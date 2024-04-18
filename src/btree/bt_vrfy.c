@@ -948,7 +948,7 @@ __verify_key_hs(
      * and iterate backwards until we reach a different key or btree.
      */
     hs_cursor->set_key(hs_cursor, 4, hs_btree_id, tmp1, WT_TS_MAX, UINT64_MAX);
-    ret = __wt_curhs_search_near_before(session, hs_cursor);
+    ret = __wt_curhs_search_near_before(hs_cursor);
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));

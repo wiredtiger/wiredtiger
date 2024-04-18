@@ -526,7 +526,7 @@ __debug_hs_key(WT_DBG *ds)
      * and iterate backwards until we reach a different key or btree.
      */
     ds->hs_cursor->set_key(ds->hs_cursor, 4, hs_btree_id, ds->key, WT_TS_MAX, WT_TXN_MAX);
-    ret = __wt_curhs_search_near_before(session, ds->hs_cursor);
+    ret = __wt_curhs_search_near_before(ds->hs_cursor);
 
     for (; ret == 0; ret = ds->hs_cursor->prev(ds->hs_cursor))
         WT_RET(__debug_hs_cursor(ds, ds->hs_cursor));

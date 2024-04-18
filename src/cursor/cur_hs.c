@@ -14,7 +14,7 @@ static int __curhs_file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __curhs_file_cursor_search_near(WT_SESSION_IMPL *, WT_CURSOR *, int *);
 static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
 static int __curhs_next_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
-static int __curhs_search_near_helper(WT_SESSION_IMPL *, WT_CURSOR *, bool);
+
 /*
  * __curhs_file_cursor_open --
  *     Open a new history store table cursor, internal function.
@@ -625,14 +625,19 @@ err:
  *     Set the cursor position at the requested position or before it.
  */
 int
-__wt_curhs_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__wt_curhs_search_near_before(WT_CURSOR *cursor)
 {
-    /*
-     * If the btree id is set alone, it is not possible to position the cursor at a place that is
-     * smaller than set search key, therefore assert that the key must be set to use this function.
-     */
-    WT_ASSERT(session, F_ISSET((WT_CURSOR_HS *)cursor, WT_HS_CUR_KEY_SET));
-    return (__curhs_search_near_helper(session, cursor, true));
+    WT_DECL_RET;
+
+    WT_ERR(cursor->bound(cursor, "bound=upper,inclusive=true"));
+    WT_ERR(cursor->prev(cursor));
+
+    if (0) {
+err:
+        WT_TRET(cursor->reset(cursor));
+    }
+
+    return (ret);
 }
 
 /*
@@ -640,61 +645,18 @@ __wt_curhs_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
  *     Set the cursor position at the requested position or after it.
  */
 int
-__wt_curhs_search_near_after(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__wt_curhs_search_near_after(WT_CURSOR *cursor)
 {
-    return (__curhs_search_near_helper(session, cursor, false));
-}
-
-/*
- * __curhs_search_near_helper --
- *     Helper function to set the cursor position based on search criteria.
- */
-static int
-__curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool before)
-{
-    WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
-    int cmp;
 
-    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
-    WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
-    WT_ERR(cursor->search_near(cursor, &cmp));
-    if (before) {
-        /*
-         * If we want to land on a key that is smaller or equal to the specified key, keep walking
-         * backwards as there may be content inserted concurrently.
-         */
-        if (cmp > 0) {
-            while ((ret = cursor->prev(cursor)) == 0) {
-                WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
-                WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
-                WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-                /*
-                 * Exit if we have found a key that is smaller than or equal to the specified key.
-                 */
-                if (cmp <= 0)
-                    break;
-            }
-        }
-    } else {
-        /*
-         * If we want to land on a key that is larger or equal to the specified key, keep walking
-         * forwards as there may be content inserted concurrently.
-         */
-        if (cmp < 0) {
-            while ((ret = cursor->next(cursor)) == 0) {
-                WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
-                WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
-                WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-                /* Exit if we have found a key that is larger than or equal to the specified key. */
-                if (cmp >= 0)
-                    break;
-            }
-        }
+    WT_ERR(cursor->bound(cursor, "bound=lower,inclusive=true"));
+    WT_ERR(cursor->next(cursor));
+
+    if (0) {
+err:
+        WT_TRET(cursor->reset(cursor));
     }
 
-err:
-    __wt_scr_free(session, &srch_key);
     return (ret);
 }
 
@@ -1105,6 +1067,27 @@ err:
 }
 
 /*
+ * __curhs_bound --
+ *     WT_CURSOR->bound implementation for the history store cursor type.
+ */
+static int
+__curhs_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    CURSOR_API_CALL(cursor, session, ret, bound, NULL);
+
+    WT_ERR(file_cursor->bound(file_cursor, config));
+err:
+    API_END_RET_STAT(session, ret, cursor_bound);
+}
+
+/*
  * __curhs_update --
  *     WT_CURSOR->update method for the history store cursor type.
  */
@@ -1250,7 +1233,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __wt_cursor_notsup,                             /* reserve */
       __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
-      __wt_cursor_config_notsup,                      /* bound */
+      __curhs_bound,                                  /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */

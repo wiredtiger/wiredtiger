@@ -115,7 +115,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(hs_cursor), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto err;
