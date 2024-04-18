@@ -1804,6 +1804,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     start = queue->evict_queue + *slotp;
     remaining_slots = max_entries - *slotp;
+
+    /*
+     * For this handle, calculate the number of target pages to evict. If the number of target pages
+     * is zero, then simply set the dhandle target and progress to zero and return early from this
+     * function.
+     *
+     * If the progress has not met the previous target, continue using the previous target.
+     */
     if ((target_pages = __evict_walk_target(session)) == 0 ||
       btree->evict_walk_progress >= btree->evict_walk_target) {
         btree->evict_walk_target = target_pages;
