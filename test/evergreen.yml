@@ -3031,6 +3031,8 @@ tasks:
       - command: shell.exec
         vars:
           dependent_task: coverage-report
+        create_check_run:
+          path_to_outputs: "wiredtiger/coverage_report/github_check.json"
         params:
           working_dir: "wiredtiger"
           shell: bash
@@ -3103,7 +3105,10 @@ tasks:
             cat coverage_report/code_change_info.json
 
             # Generate the Code Change Report
-            ${python_binary|python3} test/evergreen/code_change_report/code_change_report.py -v -c coverage_report/code_change_info.json -o coverage_report/code_change_report.html
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_report.py -v \
+              -c coverage_report/code_change_info.json \
+              -o coverage_report/code_change_report.html \
+              -g coverage_report/github_check.json
       - func: "code coverage publish report"
 
   - name: s3-tiered-storage-extensions-test

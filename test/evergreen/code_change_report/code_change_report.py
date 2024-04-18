@@ -477,6 +477,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--code_change_info', required=True, help='Path to the code change info file')
     parser.add_argument('-o', '--html_output', required=True, help='Path of the html file to write output to')
+    parser.add_argument('-g', '--github_check', help='Path of the json file for github check details')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
@@ -491,6 +492,13 @@ def main():
 
     code_change_info = read_code_change_info(code_change_info_path=args.code_change_info)
     html_report_as_text = generate_html_report_as_text(code_change_info=code_change_info, verbose=verbose)
+
+    if (args.github_check):
+        with open(args.github_check, "w") as output_file:
+            status = {
+                "title": "Code Quality",
+            }
+            output_file.writelines(json.dumps(status))
 
     with open(args.html_output, "w") as output_file:
         output_file.writelines(html_report_as_text)
