@@ -31,6 +31,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
   {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
   {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
+  {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
@@ -166,7 +167,6 @@ __global_once(void)
 
     /* Run-time configuration. */
 #ifdef WT_STANDALONE_BUILD
-    __wt_process.fast_truncate_2022 = true;
     __wt_process.tiered_shared_2023 = true;
 #endif
 }

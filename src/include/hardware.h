@@ -32,21 +32,21 @@
  */
 #ifdef HAVE_RCPC
 #ifndef TSAN_BUILD
-#define WT_RELEASE_WRITE(v, val)                                    \
-    do {                                                            \
-        if (0) {                                                    \
-            static_assert(sizeof((v)) == sizeof((val)));            \
-            (v) = (val);                                            \
-        }                                                           \
-        if (sizeof((v)) == 1) {                                     \
-            __asm__ volatile("stlrb %w1, %0" : "=Q"(v) : "r"(val)); \
-        } else if (sizeof((v)) == 2) {                              \
-            __asm__ volatile("stlrh %w1, %0" : "=Q"(v) : "r"(val)); \
-        } else if (sizeof((v)) == 4) {                              \
-            __asm__ volatile("stlr %w1, %0" : "=Q"(v) : "r"(val));  \
-        } else if (sizeof((v)) == 8) {                              \
-            __asm__ volatile("stlr %x1, %0" : "=Q"(v) : "r"(val));  \
-        }                                                           \
+#define WT_RELEASE_WRITE(v, val)                                                                   \
+    do {                                                                                           \
+        if (0) {                                                                                   \
+            static_assert(sizeof((v)) == sizeof((val)), "sizes of provided variables must match"); \
+            (v) = (val);                                                                           \
+        }                                                                                          \
+        if (sizeof((v)) == 1) {                                                                    \
+            __asm__ volatile("stlrb %w1, %0" : "=Q"(v) : "r"(val));                                \
+        } else if (sizeof((v)) == 2) {                                                             \
+            __asm__ volatile("stlrh %w1, %0" : "=Q"(v) : "r"(val));                                \
+        } else if (sizeof((v)) == 4) {                                                             \
+            __asm__ volatile("stlr %w1, %0" : "=Q"(v) : "r"(val));                                 \
+        } else if (sizeof((v)) == 8) {                                                             \
+            __asm__ volatile("stlr %x1, %0" : "=Q"(v) : "r"(val));                                 \
+        }                                                                                          \
     } while (0)
 #else
 #define WT_RELEASE_WRITE(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE);
@@ -89,7 +89,7 @@
  * will be updated to use _Generic on all platforms.
  */
 #if defined(__GNUC__) || defined(__clang__)
-#define WT_READ_ONCE(v, val) (v) = (*(volatile __typeof__(val) *)&(val))
+#define WT_READ_ONCE(v, val) (v) = __wt_atomic_load_generic((volatile __typeof__(val) *)&(val))
 #else
 #define WT_READ_ONCE(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
 #endif
@@ -106,7 +106,7 @@
  * will be updated to use _Generic on all platforms.
  */
 #if defined(__GNUC__) || defined(__clang__)
-#define WT_WRITE_ONCE(v, val) ((*(volatile __typeof__(v) *)&(v)) = (val))
+#define WT_WRITE_ONCE(v, val) __wt_atomic_store_generic((volatile __typeof__(v) *)&(v), (val))
 #else
 #define WT_WRITE_ONCE(v, val) WT_RELEASE_WRITE_WITH_BARRIER(v, val)
 #endif
@@ -134,21 +134,21 @@
  */
 #ifdef HAVE_RCPC
 #ifndef TSAN_BUILD
-#define WT_ACQUIRE_READ(v, val)                                      \
-    do {                                                             \
-        if (0) {                                                     \
-            static_assert(sizeof((v)) == sizeof((val)));             \
-            (v) = (val);                                             \
-        }                                                            \
-        if (sizeof((val)) == 1) {                                    \
-            __asm__ volatile("ldaprb %w0, %1" : "=r"(v) : "Q"(val)); \
-        } else if (sizeof((val)) == 2) {                             \
-            __asm__ volatile("ldaprh %w0, %1" : "=r"(v) : "Q"(val)); \
-        } else if (sizeof((val)) == 4) {                             \
-            __asm__ volatile("ldapr %w0, %1" : "=r"(v) : "Q"(val));  \
-        } else if (sizeof((val)) == 8) {                             \
-            __asm__ volatile("ldapr %x0, %1" : "=r"(v) : "Q"(val));  \
-        }                                                            \
+#define WT_ACQUIRE_READ(v, val)                                                                    \
+    do {                                                                                           \
+        if (0) {                                                                                   \
+            static_assert(sizeof((v)) == sizeof((val)), "sizes of provided variables must match"); \
+            (v) = (val);                                                                           \
+        }                                                                                          \
+        if (sizeof((val)) == 1) {                                                                  \
+            __asm__ volatile("ldaprb %w0, %1" : "=r"(v) : "Q"(val));                               \
+        } else if (sizeof((val)) == 2) {                                                           \
+            __asm__ volatile("ldaprh %w0, %1" : "=r"(v) : "Q"(val));                               \
+        } else if (sizeof((val)) == 4) {                                                           \
+            __asm__ volatile("ldapr %w0, %1" : "=r"(v) : "Q"(val));                                \
+        } else if (sizeof((val)) == 8) {                                                           \
+            __asm__ volatile("ldapr %x0, %1" : "=r"(v) : "Q"(val));                                \
+        }                                                                                          \
     } while (0)
 #else
 #define WT_ACQUIRE_READ(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE);
@@ -169,7 +169,19 @@
 /*
  * Atomic versions of the flag set/clear macros.
  */
-#define FLD_ISSET_ATOMIC_16(field, mask) ((field) & (uint16_t)(mask))
+#define FLD_ISSET_ATOMIC_8(field, mask) (__wt_atomic_load8(&(field)) & (uint8_t)(mask))
+
+#define FLD_ISSET_ATOMIC_16(field, mask) (__wt_atomic_load16(&(field)) & (uint16_t)(mask))
+
+#define FLD_SET_ATOMIC_8(field, mask)                                            \
+    do {                                                                         \
+        uint8_t __orig;                                                          \
+        if (FLD_ISSET_ATOMIC_8((field), (mask)))                                 \
+            break;                                                               \
+        do {                                                                     \
+            __orig = __wt_atomic_load8(&(field));                                \
+        } while (!__wt_atomic_cas8(&(field), __orig, __orig | (uint8_t)(mask))); \
+    } while (0)
 
 #define FLD_SET_ATOMIC_16(field, mask)                                             \
     do {                                                                           \
@@ -177,8 +189,18 @@
         if (FLD_ISSET_ATOMIC_16((field), (mask)))                                  \
             break;                                                                 \
         do {                                                                       \
-            __orig = (field);                                                      \
+            __orig = __wt_atomic_load16(&(field));                                 \
         } while (!__wt_atomic_cas16(&(field), __orig, __orig | (uint16_t)(mask))); \
+    } while (0)
+
+#define FLD_CLR_ATOMIC_8(field, mask)                                               \
+    do {                                                                            \
+        uint8_t __orig;                                                             \
+        if (!FLD_ISSET_ATOMIC_8((field), (mask)))                                   \
+            break;                                                                  \
+        do {                                                                        \
+            __orig = __wt_atomic_load8(&(field));                                   \
+        } while (!__wt_atomic_cas8(&(field), __orig, __orig & (uint8_t)(~(mask)))); \
     } while (0)
 
 #define FLD_CLR_ATOMIC_16(field, mask)                                                \
@@ -187,12 +209,15 @@
         if (!FLD_ISSET_ATOMIC_16((field), (mask)))                                    \
             break;                                                                    \
         do {                                                                          \
-            __orig = (field);                                                         \
+            __orig = __wt_atomic_load16(&(field));                                    \
         } while (!__wt_atomic_cas16(&(field), __orig, __orig & (uint16_t)(~(mask)))); \
     } while (0)
 
+#define F_ISSET_ATOMIC_8(p, mask) FLD_ISSET_ATOMIC_8((p)->flags_atomic, mask)
 #define F_ISSET_ATOMIC_16(p, mask) FLD_ISSET_ATOMIC_16((p)->flags_atomic, mask)
+#define F_CLR_ATOMIC_8(p, mask) FLD_CLR_ATOMIC_8((p)->flags_atomic, mask)
 #define F_CLR_ATOMIC_16(p, mask) FLD_CLR_ATOMIC_16((p)->flags_atomic, mask)
+#define F_SET_ATOMIC_8(p, mask) FLD_SET_ATOMIC_8((p)->flags_atomic, mask)
 #define F_SET_ATOMIC_16(p, mask) FLD_SET_ATOMIC_16((p)->flags_atomic, mask)
 
 /*

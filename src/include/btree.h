@@ -84,8 +84,8 @@ typedef enum {
 } WT_BTREE_CHECKSUM;
 
 typedef enum { /* Start position for eviction walk */
-    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_PREV,
+    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_RAND_NEXT,
     WT_EVICT_WALK_RAND_PREV
 } WT_EVICT_WALK_TYPE;
@@ -177,9 +177,9 @@ struct __wt_btree {
     uint64_t rec_max_txn;    /* Maximum txn seen (clean trees) */
     wt_timestamp_t rec_max_timestamp;
 
-    wt_shared uint64_t checkpoint_gen; /* Checkpoint generation */
-    WT_SESSION_IMPL *sync_session;     /* Syncing session */
-    WT_BTREE_SYNC syncing;             /* Sync status */
+    wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
+    wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
+    wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -188,10 +188,12 @@ struct __wt_btree {
  * WT_SESSION_BTREE_SYNC_SAFE checks whether it is safe to perform an operation that would conflict
  * with a sync.
  */
-#define WT_BTREE_SYNCING(btree) ((btree)->syncing != WT_BTREE_SYNC_OFF)
-#define WT_SESSION_BTREE_SYNC(session) (S2BT(session)->sync_session == (session))
-#define WT_SESSION_BTREE_SYNC_SAFE(session, btree) \
-    ((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
+#define WT_BTREE_SYNCING(btree) (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
+#define WT_SESSION_BTREE_SYNC(session) \
+    (__wt_atomic_load_pointer(&S2BT(session)->sync_session) == (session))
+#define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                        \
+    (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
+      __wt_atomic_load_pointer(&(btree)->sync_session) == (session))
 
     wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
@@ -240,6 +242,7 @@ struct __wt_btree {
      * code.
      */
     WT_REF *evict_ref;                         /* Eviction thread's location */
+    uint32_t linear_walk_restarts;             /* next/prev walk restarts */
     uint64_t evict_priority;                   /* Relative priority of cached pages */
     uint32_t evict_walk_progress;              /* Eviction walk progress */
     uint32_t evict_walk_target;                /* Eviction walk target */

@@ -204,13 +204,42 @@ __wt_atomic_storebool(bool *vp, bool v)
 }
 
 /*
+ * __wt_atomic_loadvbool --
+ *     Atomically read a volatile boolean.
+ */
+static inline bool
+__wt_atomic_loadvbool(volatile bool *vp)
+{
+    return (__atomic_load_n(vp, __ATOMIC_RELAXED));
+}
+
+/*
+ * __wt_atomic_storevbool --
+ *     Atomically set a volatile boolean.
+ */
+static inline void
+__wt_atomic_storevbool(volatile bool *vp, bool v)
+{
+    __atomic_store_n(vp, v, __ATOMIC_RELAXED);
+}
+
+/*
  * Generic atomic functions that accept any type. The typed macros above should be preferred since
  * they provide better type checking.
  */
+#define __wt_atomic_load_enum(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
+#define __wt_atomic_store_enum(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_and_generic(vp, v) __atomic_and_fetch(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_or_generic(vp, v) __atomic_or_fetch(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_load_generic(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
 #define __wt_atomic_store_generic(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
+
+/*
+ * These pointer specific macros behave identically to the generic ones above, but better
+ * communicate intent and should be preferred over generic.
+ */
+#define __wt_atomic_load_pointer(vp) __wt_atomic_load_generic(vp)
+#define __wt_atomic_store_pointer(vp, v) __wt_atomic_store_generic(vp, v)
 
 /* Compile read-write barrier */
 #define WT_COMPILER_BARRIER() __asm__ volatile("" ::: "memory")

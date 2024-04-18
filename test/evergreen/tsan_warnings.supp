@@ -1,14 +1,27 @@
-# Suppress the listed TSan warnings. Load this file with 
-# export TSAN_OPTIONS="suppressions=path/to/wiredtiger/test/evergreen/tsan_warnings.supp"
-# before running tests with TSan
+# Suppress the listed TSan warnings. Load this file with
+# export TSAN_OPTIONS="suppressions=path/to/wiredtiger/test/evergreen/tsan_warnings.supp:history_size=7"
+# before running tests with TSan. history_size isn't required but it reduces the chance that TSan reports
+# an error that is missing information and the message "failed to restore the stack"
 
-# FIXME-WT-12512 TSan is raising warnings about mutexes that are non-intuitive. These will be investigated separately.
-mutex:src
-
-# FIXME-WT-12514 Some of our shared variables are floats or doubles which can't be accessed using atomic instrinsics.
-race:__wt_eviction_dirty_target
-race:__wt_eviction_dirty_needed
-race:__evict_update_work
+# This function enables threads to set double values in a shared context, and catches all TSan warnings.
+race:__wt_set_shared_double
 
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
+race:src/support/stat.c
+
+# FIXME-WT-12734 this function copies an 8 byte struct which needs further investigation.
+race:__log_wrlsn_server
+
+# FIXME-WT-12611 CONNECTION_API_CALL contains a data race that touches the session array, but the number of macro
+# calls makes diagnosing this very hard. For now suppress the surrounding function and handle this in a separate ticket.
+race:__conn_open_session
+
+# __tiered_queue_peek_empty is intentionally unsafe to avoid taking the tiered lock when it's not needed.
+race:__tiered_queue_peek_empty
+
+# The ref track code is diagnostic only and allows for races
+race:__ref_track_state
+
+# __wt_configure_method intentionally allows for races between threads to avoid the overhead of taking a lock on each API call.  
+race:__wt_configure_method

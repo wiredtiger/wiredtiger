@@ -763,8 +763,6 @@ struct __wt_page {
 #define WT_READGEN_NOTSET 0
 #define WT_READGEN_OLDEST 1
 #define WT_READGEN_WONT_NEED 2
-#define WT_READGEN_EVICT_SOON(readgen) \
-    ((readgen) != WT_READGEN_NOTSET && (readgen) < WT_READGEN_START_VALUE)
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
@@ -1068,7 +1066,7 @@ struct __wt_ref {
     wt_shared WT_PAGE *volatile home;        /* Reference page */
     wt_shared volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t unused[2]; /* Padding: before the flags field so flags can be easily expanded. */
+    uint8_t unused; /* Padding: before the flags field so flags can be easily expanded. */
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -1079,17 +1077,33 @@ struct __wt_ref {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
-#define WT_REF_FLAG_PREFETCH 0x4u /* Page is on the pre-fetch queue */
-#define WT_REF_FLAG_READING 0x8u  /* Page is being read in */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
-#define WT_REF_DISK 0                 /* Page is on disk */
-#define WT_REF_DELETED 1              /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2               /* Page locked for exclusive access */
-#define WT_REF_MEM 3                  /* Page is in cache and valid */
-#define WT_REF_SPLIT 4                /* Parent page split (WT_REF dead) */
-    wt_shared volatile uint8_t state; /* Page state */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_REF_FLAG_PREFETCH 0x1u   /* Page is on the pre-fetch queue */
+#define WT_REF_FLAG_READING 0x2u    /* Page is being read in */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    wt_shared uint8_t flags_atomic; /* Atomic flags, use F_*_ATOMIC_8 */
+
+#define WT_REF_DISK 0    /* Page is on disk */
+#define WT_REF_DELETED 1 /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2  /* Page locked for exclusive access */
+#define WT_REF_MEM 3     /* Page is in cache and valid */
+#define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
+
+    /*
+     * Ref state: Obscure the field name as this field shouldn't be accessed directly. The public
+     * interface is made up of five functions:
+     *  - WT_REF_GET_STATE
+     *  - WT_REF_SET_STATE
+     *  - WT_REF_CAS_STATE
+     *  - WT_REF_LOCK
+     *  - WT_REF_UNLOCK
+     *
+     * For more details on these functions see ref_inline.h.
+     */
+    wt_shared volatile uint8_t __state;
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
@@ -1226,63 +1240,28 @@ struct __wt_ref {
     wt_shared WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
 #ifdef HAVE_REF_TRACK
+#define WT_REF_SAVE_STATE_MAX 3
+    /* Capture history of ref state changes. */
+    WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
+    uint64_t histoff;
+#endif
+};
+
+#ifdef HAVE_REF_TRACK
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures, but we want to retain ref
  * state history. Don't overwrite these fields.
  */
 #define WT_REF_CLEAR_SIZE (offsetof(WT_REF, hist))
-#define WT_REF_SAVE_STATE_MAX 3
-    /* Capture history of ref state changes. */
-    WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
-    uint64_t histoff;
-#define WT_REF_SAVE_STATE(ref, s, f, l)                                   \
-    do {                                                                  \
-        (ref)->hist[(ref)->histoff].session = session;                    \
-        (ref)->hist[(ref)->histoff].name = session->name;                 \
-        __wt_seconds32(session, &(ref)->hist[(ref)->histoff].time_sec);   \
-        (ref)->hist[(ref)->histoff].func = (f);                           \
-        (ref)->hist[(ref)->histoff].line = (uint16_t)(l);                 \
-        (ref)->hist[(ref)->histoff].state = (uint16_t)(s);                \
-        (ref)->histoff = ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist); \
-    } while (0)
-#define WT_REF_SET_STATE(ref, s)                                  \
-    do {                                                          \
-        WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s);           \
-    } while (0)
-#else
-#define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
-#define WT_REF_SET_STATE(ref, s) WT_RELEASE_WRITE_WITH_BARRIER((ref)->state, s)
-#endif
-};
-
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#ifdef HAVE_REF_TRACK
 #define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
 #define WT_REF_SIZE 48
+#define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
-
-/* A macro wrapper allowing us to remember the callers code location */
-#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
-    __wt_ref_cas_state_int(session, ref, old_state, new_state, __PRETTY_FUNCTION__, __LINE__)
-
-#define WT_REF_LOCK(session, ref, previous_statep)                             \
-    do {                                                                       \
-        uint8_t __previous_state;                                              \
-        for (;; __wt_yield()) {                                                \
-            __previous_state = (ref)->state;                                   \
-            if (__previous_state != WT_REF_LOCKED &&                           \
-              WT_REF_CAS_STATE(session, ref, __previous_state, WT_REF_LOCKED)) \
-                break;                                                         \
-        }                                                                      \
-        *(previous_statep) = __previous_state;                                 \
-    } while (0)
-
-#define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
 
 /*
  * WT_ROW --

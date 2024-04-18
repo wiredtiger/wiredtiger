@@ -185,6 +185,10 @@ parse(const char *str)
         CHECK_NUM_ARGS(2);
         return set_commit_timestamp(parse_uint64(args[0]), parse_uint64(args[1]));
     }
+    if (name == "set_oldest_timestamp") {
+        CHECK_NUM_ARGS(1);
+        return set_oldest_timestamp(parse_uint64(args[0]));
+    }
     if (name == "set_stable_timestamp") {
         CHECK_NUM_ARGS(1);
         return set_stable_timestamp(parse_uint64(args[0]));
@@ -206,25 +210,25 @@ parse(const char *str)
 
 /*
  * kv_workload::run --
- *     Run the workload in the model.
+ *     Run the workload in the model. Return the return codes of the workload operations.
  */
-void
+std::vector<int>
 kv_workload::run(kv_database &database) const
 {
     kv_workload_runner runner{database};
-    runner.run(*this);
+    return runner.run(*this);
 }
 
 /*
  * kv_workload::run_in_wiredtiger --
- *     Run the workload in WiredTiger.
+ *     Run the workload in WiredTiger. Return the return codes of the workload operations.
  */
-void
+std::vector<int>
 kv_workload::run_in_wiredtiger(
   const char *home, const char *connection_config, const char *table_config) const
 {
     kv_workload_runner_wt runner{home, connection_config, table_config};
-    runner.run(*this);
+    return runner.run(*this);
 }
 
 } /* namespace model */

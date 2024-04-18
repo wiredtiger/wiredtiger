@@ -63,7 +63,7 @@ __wt_page_alloc(
     WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    page->read_gen = WT_READGEN_NOTSET;
+    __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 
     switch (type) {
     case WT_PAGE_COL_FIX:
@@ -312,6 +312,11 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     }
 
+    /*
+     * The data is written to the disk so we can mark the page clean after re-instantiating prepared
+     * updates to avoid reconciling the page every time.
+     */
+    __wt_page_modify_clear(session, page);
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
