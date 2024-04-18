@@ -487,7 +487,7 @@ def post_pr_comment(fq_repo, pr_id, token, body):
     resp.raise_for_status()
     for comment in resp.json():
         if magic_string in comment["body"]:
-            existing = comment["id"]
+            existing = comment
             break
     
     data = {
@@ -495,9 +495,9 @@ def post_pr_comment(fq_repo, pr_id, token, body):
     }
 
     if existing:
-        resp = requests.patch(f"{url}/{existing}", data, headers=headers)
+        resp = requests.patch(existing["url"], json=data, headers=headers)
     else:
-        resp = requests.post(url, data, headers=headers)
+        resp = requests.post(url, json=data, headers=headers)
 
     print(resp.content)
     resp.raise_for_status()
@@ -527,7 +527,7 @@ def main():
     html_report_as_text = generate_html_report_as_text(code_change_info=code_change_info, verbose=verbose)
 
     if (leave_pr_comment):
-        post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, "test comment")
+        post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, "test comment 2")
 
     with open(args.html_output, "w") as output_file:
         output_file.writelines(html_report_as_text)

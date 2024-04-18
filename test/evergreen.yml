@@ -3066,7 +3066,6 @@ tasks:
               pr_args+="--github_repo ${github_org}/${github_repo} "
               pr_args+="--github_pr_number ${github_pr_number} "
               pr_args+="--github_token ${github_app_token} "
-              echo ${github_app_token} | base64
             fi
 
             ######################################################
