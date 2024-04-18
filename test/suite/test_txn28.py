@@ -33,7 +33,7 @@ import os, re
 # test_txn28.py
 #   Test that checking the snapshot array is correctly outputted.
 class test_txn28(wttest.WiredTigerTestCase):
-    # Get the number after a substring in the string
+    # Get the number after a substring in the string.
     def get_number_after_substring(self, text, sub_str):
         pattern = rf'{re.escape(sub_str)}\s*(\d+)'
         match = re.search(pattern, text)
@@ -42,21 +42,21 @@ class test_txn28(wttest.WiredTigerTestCase):
         else:
             return None
 
-    # Get the number of digits between two strings
+    # Get the number of digits between two strings.
     def count_integers_between_substrings(self, text, sub1, sub2):
-        # Regular expression matching integers
+        # Regular expression matching integers.
         pattern = re.compile(r'\d+')
-        # Find the position of the substring
+        # Find the position of the substring.
         start_index = text.find(sub1)
         end_index = text.find(sub2, start_index + len(sub1))
-        # If the substring does not exist, return -1
+        # If the substring does not exist, return -1.
         if start_index == -1 or end_index == -1:
             return -1
-        # Extract text between substrings
+        # Extract text between substrings.
         substring = text[start_index + len(sub1):end_index]
-        # Use regular expressions to match integers and calculate quantities
+        # Use regular expressions to match integers and calculate quantities.
         return len(pattern.findall(substring))
-    
+
     def test_snapshot_array_dump(self):
         uri = "table:txn28"
         # Create a basic table.
@@ -81,9 +81,9 @@ class test_txn28(wttest.WiredTigerTestCase):
         session3.begin_transaction()
         cursor3[ds.key(7)] = "ccc"
 
-        # Get the stdout.txt file directory
+        # Get the stdout.txt file directory.
         stdout_path = os.path.join(os.getcwd(), 'stdout.txt')
-        max_snapshot_list_item_count = 0         
+        max_snapshot_list_item_count = 0
         # Get the "transaction state dump" info, get content of " snapshot count: " and "snapshot: [xxx]"'s digital num.
         with self.expectedStdoutPattern('transaction state dump'):
             self.conn.debug_info('txn')
