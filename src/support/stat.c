@@ -36,6 +36,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree compact pages skipped",
   "btree: btree expected number of compact bytes rewritten",
   "btree: btree expected number of compact pages rewritten",
+  "btree: btree number of pages reconciled during checkpoint",
   "btree: btree skipped by compaction as process would not reduce size",
   "btree: column-store fixed-size leaf pages",
   "btree: column-store fixed-size time windows",
@@ -395,6 +396,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_skipped */
     /* not clearing btree_compact_bytes_rewritten_expected */
     /* not clearing btree_compact_pages_rewritten_expected */
+    /* not clearing btree_checkpoint_pages_reconciled */
     /* not clearing btree_compact_skipped */
     stats->btree_column_fix = 0;
     stats->btree_column_tws = 0;
@@ -713,6 +715,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
     to->btree_compact_bytes_rewritten_expected += from->btree_compact_bytes_rewritten_expected;
     to->btree_compact_pages_rewritten_expected += from->btree_compact_pages_rewritten_expected;
+    to->btree_checkpoint_pages_reconciled += from->btree_checkpoint_pages_reconciled;
     to->btree_compact_skipped += from->btree_compact_skipped;
     to->btree_column_fix += from->btree_column_fix;
     to->btree_column_tws += from->btree_column_tws;
@@ -1043,6 +1046,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_READ(from, btree_compact_bytes_rewritten_expected);
     to->btree_compact_pages_rewritten_expected +=
       WT_STAT_READ(from, btree_compact_pages_rewritten_expected);
+    to->btree_checkpoint_pages_reconciled += WT_STAT_READ(from, btree_checkpoint_pages_reconciled);
     to->btree_compact_skipped += WT_STAT_READ(from, btree_compact_skipped);
     to->btree_column_fix += WT_STAT_READ(from, btree_column_fix);
     to->btree_column_tws += WT_STAT_READ(from, btree_column_tws);
@@ -1420,6 +1424,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "cache: application thread time evicting (usecs)",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1988,8 +1993,8 @@ static const char *const __stats_connection_desc[] = {
   "thread-state: active filesystem fsync calls",
   "thread-state: active filesystem read calls",
   "thread-state: active filesystem write calls",
+  "thread-yield: application thread operations waiting for cache",
   "thread-yield: application thread snapshot refreshed for eviction",
-  "thread-yield: application thread time evicting (usecs)",
   "thread-yield: application thread time waiting for cache (usecs)",
   "thread-yield: connection close blocked waiting for transaction state stabilization",
   "thread-yield: connection close yielded for lsm manager shutdown",
@@ -2175,6 +2180,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_map_read = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->cache_eviction_app_time = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -2721,8 +2727,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing thread_fsync_active */
     /* not clearing thread_read_active */
     /* not clearing thread_write_active */
+    stats->application_cache_ops = 0;
     stats->application_evict_snapshot_refreshed = 0;
-    stats->application_evict_time = 0;
     stats->application_cache_time = 0;
     stats->txn_release_blocked = 0;
     stats->conn_close_blocked_lsm = 0;
@@ -2881,6 +2887,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
+    to->cache_eviction_app_time += WT_STAT_READ(from, cache_eviction_app_time);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);
@@ -3504,9 +3511,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
     to->thread_read_active += WT_STAT_READ(from, thread_read_active);
     to->thread_write_active += WT_STAT_READ(from, thread_write_active);
+    to->application_cache_ops += WT_STAT_READ(from, application_cache_ops);
     to->application_evict_snapshot_refreshed +=
       WT_STAT_READ(from, application_evict_snapshot_refreshed);
-    to->application_evict_time += WT_STAT_READ(from, application_evict_time);
     to->application_cache_time += WT_STAT_READ(from, application_cache_time);
     to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
     to->conn_close_blocked_lsm += WT_STAT_READ(from, conn_close_blocked_lsm);
