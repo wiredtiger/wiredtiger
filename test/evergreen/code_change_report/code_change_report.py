@@ -510,7 +510,7 @@ def build_pr_comment(code_change_info: dict) -> str | None:
     message += textwrap.dedent(f"""
         {coverage_note}
 
-        | Diff coverage | |
+        | Metric (for added/changed code) | Coverage |
         |------------------------------------------|-------|
         | Line coverage                            | {lines_covered} |
         | Branch coverage                          | {branches_covered} |
@@ -518,24 +518,25 @@ def build_pr_comment(code_change_info: dict) -> str | None:
 
     # Complexity
     changed_functions = code_change_info["changed_functions"]
+    threshold_to_warn = 30
     if changed_functions:
         message += "\n\n"
 
-        complexity_warnings = [
-            f"In `{filename}` the complexity of `{method}` has increased to {info['complexity']}."
-            for filename, methods in changed_functions.items()
-            for method, info in methods.items()
-            if info['complexity'] > info['prev_complexity'] and info['complexity'] > 30
-        ]
         highest_complexity_touched = max(
             method['complexity']
             for methods in changed_functions.values()
             for method in methods.values()
         )
 
-        if highest_complexity_touched > 50:
-            message += "⚠️ This code touches methods that have an extremely high complexity score\n"
+        if highest_complexity_touched > threshold_to_warn:
+            message += "⚠️ This PR touches methods that have an extremely high complexity score!\n"
     
+        complexity_warnings = [
+            f"In `{filename}` the complexity of `{method}` has increased by {info['complexity'] - info['prev_complexity']} to {info['complexity']}."
+            for filename, methods in changed_functions.items()
+            for method, info in methods.items()
+            if info['complexity'] > info['prev_complexity'] and info['complexity'] > threshold_to_warn
+        ]
         for warning in complexity_warnings:
             message += f"- {warning}\n"
     
