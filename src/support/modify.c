@@ -444,8 +444,6 @@ err:
 /*
  * __wt_modify_reconstruct_from_upd_list --
  *     Takes an in-memory modify and populates an update value with the reconstructed full value.
- *
- * The reconciliation parameter should be set to true when called from reconciliation.
  */
 int
 __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
@@ -472,7 +470,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * with an update list that does not contain enough information to reconstruct the full value.
      * It is impossible to distinguish if an aborted modify or update happened prior to the call of
      * the function, or if it is being done in parallel. In this case, we will return back to the
-     * user with a retry error.
+     * user with a rollback error.
      */
     if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
         WT_RET_MSG(session, WT_ROLLBACK,
