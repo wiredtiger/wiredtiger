@@ -3063,9 +3063,9 @@ tasks:
             pr_args=""
             if [ ! -z "${github_pr_number}" ]; then
               echo "Detected Github PR ${github_pr_number}"
-              pr_args+="--github_repo ${github_org}/${github_repo}"
-              pr_args+="--github_pr_number ${github_pr_number}"
-              pr_args+="--github_token ${github_app_token}"
+              pr_args+="--github_repo ${github_org}/${github_repo} "
+              pr_args+="--github_pr_number ${github_pr_number} "
+              pr_args+="--github_token ${github_app_token} "
             fi
 
             ######################################################
