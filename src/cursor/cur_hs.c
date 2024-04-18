@@ -627,17 +627,10 @@ err:
 int
 __wt_curhs_search_near_before(WT_CURSOR *cursor)
 {
-    WT_DECL_RET;
+    WT_RET(cursor->bound(cursor, "bound=upper,inclusive=true"));
+    WT_RET(cursor->prev(cursor));
 
-    WT_ERR(cursor->bound(cursor, "bound=upper,inclusive=true"));
-    WT_ERR(cursor->prev(cursor));
-
-    if (0) {
-err:
-        WT_TRET(cursor->reset(cursor));
-    }
-
-    return (ret);
+    return (0);
 }
 
 /*
@@ -647,17 +640,10 @@ err:
 int
 __wt_curhs_search_near_after(WT_CURSOR *cursor)
 {
-    WT_DECL_RET;
+    WT_RET(cursor->bound(cursor, "bound=lower,inclusive=true"));
+    WT_RET(cursor->next(cursor));
 
-    WT_ERR(cursor->bound(cursor, "bound=lower,inclusive=true"));
-    WT_ERR(cursor->next(cursor));
-
-    if (0) {
-err:
-        WT_TRET(cursor->reset(cursor));
-    }
-
-    return (ret);
+    return (0);
 }
 
 /*
