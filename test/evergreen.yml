@@ -3044,7 +3044,7 @@ tasks:
             ${PREPARE_PATH}
             virtualenv -p ${python_binary|python3} venv
             source venv/bin/activate
-            pip3 install pygit2==1.10.1
+            pip3 install pygit2==1.10.1 requests
 
             EXTRA_CODE_CHANGE_PARAMETERS=''
 
