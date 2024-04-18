@@ -72,14 +72,14 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     database: WTCodeStatisticsDB
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
-  create_check_run:
-    path_to_outputs: "wiredtiger/coverage_report/github_check.json"
   tasks:
     - name: coverage-report
       distros: ubuntu2004-arm64-large
     - name: coverage-report-catch2
     - name: cyclomatic-complexity
     - name: code-change-report
+      create_check_run:
+        path_to_outputs: "wiredtiger/coverage_report/github_check.json"
 
 - name: compatibility-tests-less-frequent
   display_name: Compatibility tests (less frequent)
