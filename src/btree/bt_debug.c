@@ -521,6 +521,7 @@ __debug_hs_key(WT_DBG *ds)
     btree = S2BT(session);
     hs_btree_id = btree->id;
 
+    WT_TRET(ds->hs_cursor->reset(ds->hs_cursor));
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree.

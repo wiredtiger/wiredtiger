@@ -124,6 +124,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      */
     F_SET(cursor, WT_CURSTD_HS_READ_ALL);
 
+    WT_ERR(cursor->reset(cursor));
     /*
      * Adjust counter if there exists an update in the history store with same btree id, key and
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
@@ -192,6 +193,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         else
             counter = hs_counter + 1;
     } else {
+        WT_ERR(cursor->reset(cursor));
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(cursor), true);
     }
@@ -779,6 +781,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
 
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
+    WT_ERR(hs_cursor->reset(hs_cursor));
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, WT_TS_NONE);
     /*
      * Setting the flag WT_CURSTD_HS_READ_ALL before searching the history store optimizes the
@@ -1100,6 +1103,7 @@ __hs_delete_record(
     if (tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone))
         goto done;
 
+    WT_ERR(r->hs_cursor->reset(r->hs_cursor));
     r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(r->hs_cursor), true);
     /* It's possible the value in the history store becomes obsolete concurrently. */

@@ -1067,8 +1067,7 @@ __curhs_bound(WT_CURSOR *cursor, const char *config)
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     CURSOR_API_CALL(cursor, session, ret, bound, NULL);
-    
-    __wt_cursor_bound_reset(file_cursor);
+
     WT_ERR(file_cursor->bound(file_cursor, config));
 err:
     API_END_RET_STAT(session, ret, cursor_bound);

@@ -283,7 +283,7 @@ __curfile_reset(WT_CURSOR *cursor)
      * guarding the call to cursor bound reset with the API_USER_ENTRY macro. Doing so prevents
      * internal API calls from resetting cursor bounds unintentionally, e.g. cursor->remove.
      */
-    if (API_USER_ENTRY(session))
+    if (WT_IS_HS(session->dhandle) || API_USER_ENTRY(session))
         __wt_cursor_bound_reset(cursor);
 
     /* Reset maintains no position, key or value. */
