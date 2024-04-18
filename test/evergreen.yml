@@ -3108,7 +3108,7 @@ tasks:
               -o coverage_report/code_change_report.html \
               -g coverage_report/github_check.json
 
-            if [[ -z "${github_pr_number}" ]]; then
+            if [[ ! -z "${github_pr_number}" ]]; then
               echo "This is github pr ${github_pr_number}"
               curl -L \
                 -H "Accept: application/vnd.github+json" \
