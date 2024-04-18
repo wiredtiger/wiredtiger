@@ -482,7 +482,8 @@ def post_pr_comment(fq_repo, pr_id, token, body):
         "Accept": "application/vnd.github.v3+json"
     }
     existing = None
-    for comment in requests.get(url, params={"sort": "created_at", "direction": "asc"}).json():
+    resp = requests.get(url, headers=headers, params={"sort": "created_at", "direction": "asc"})
+    for comment in resp.json():
         if magic_string in comment["body"]:
             existing = comment["id"]
             break
@@ -492,9 +493,9 @@ def post_pr_comment(fq_repo, pr_id, token, body):
     }
 
     if existing:
-        resp = requests.patch(f"{url}/{existing}", data)
+        resp = requests.patch(f"{url}/{existing}", data, headers=headers)
     else:
-        resp = requests.post(url, data)
+        resp = requests.post(url, data, headers=headers)
 
 def main():
     parser = argparse.ArgumentParser()
