@@ -497,7 +497,11 @@ def main():
         with open(args.github_check, "w") as output_file:
             status = {
                 "title": "Code Quality",
+                "summary": "Some detailed _info_ about the report",
+                "text": "some other text",
+                "annotations": [],
             }
+            print(f"Wrote github status {json.dumps(status)}")
             output_file.writelines(json.dumps(status))
 
     with open(args.html_output, "w") as output_file:
