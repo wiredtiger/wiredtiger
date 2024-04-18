@@ -1700,6 +1700,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     uint64_t btree_inuse, bytes_per_slot, cache_inuse;
     uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates;
+    bool want_tree;
 
     cache = S2C(session)->cache;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
@@ -1744,12 +1745,14 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      * interest.
      */
     if (target_pages == 0) {
-        btree_inuse = F_ISSET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_UPDATES) ?
-          __wt_btree_bytes_evictable(session) :
-          __wt_btree_dirty_leaf_inuse(session);
+        want_tree = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && __wt_btree_bytes_evictable(session)) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && __wt_btree_dirty_leaf_inuse(session)) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && __wt_btree_bytes_updates(session));
 
-        if (btree_inuse == 0)
+        if (!want_tree) {
+            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_tree);
             return (0);
+        }
     }
 
     /*
@@ -1801,11 +1804,16 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     start = queue->evict_queue + *slotp;
     remaining_slots = max_entries - *slotp;
-    if (btree->evict_walk_progress >= btree->evict_walk_target) {
-        btree->evict_walk_target = __evict_walk_target(session);
+    if ((target_pages = __evict_walk_target(session)) == 0 ||
+      btree->evict_walk_progress >= btree->evict_walk_target) {
+        btree->evict_walk_target = target_pages;
         btree->evict_walk_progress = 0;
     }
     target_pages = btree->evict_walk_target - btree->evict_walk_progress;
+
+    /* If we don't want any pages from this tree, move on. */
+    if (target_pages == 0)
+        return (0);
 
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
@@ -1823,10 +1831,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_target_page_reduced);
         }
     }
-
-    /* If we don't want any pages from this tree, move on. */
-    if (target_pages == 0)
-        return (0);
 
     /*
      * These statistics generate a histogram of the number of pages targeted for eviction each
