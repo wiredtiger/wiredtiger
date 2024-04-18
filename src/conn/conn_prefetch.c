@@ -156,7 +156,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
 
     /* If the cache is already full, don't add anymore new refs to the queue.*/
-    if (__wt_cache_eviction_check(session, false, false, NULL))
+    if (__wt_eviction_needed(session, false, false, NULL))
         return (EBUSY);
 
     WT_RET(__wt_calloc_one(session, &pe));
