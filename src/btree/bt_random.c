@@ -377,7 +377,7 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_
     if (eviction) {
         if (S2C(session)->evict_random_retries) {
             WT_INTL_INDEX_GET(session, (&btree->root)->page, pindex);
-            retry = (int)pindex->entries;
+            retry = WT_MIN((int)pindex->entries, 10000);
         }
     } else
         retry = 100;
