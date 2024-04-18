@@ -28,8 +28,7 @@
 
 import wiredtiger, wttest
 from helper import confirm_does_not_exist
-from wtdataset import SimpleDataSet, ComplexDataSet
-from wtdataset import SimpleIndexDataSet
+from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
 # test_drop.py
@@ -50,10 +49,8 @@ class test_drop(wttest.WiredTigerTestCase):
         uri = self.uri + self.name
         ds = dataset(self, uri, 10, config=self.extra_config)
         # Set first values to variant 1.
-        self.session.begin_transaction()
         ds.populate()
         variant = 1
-        self.session.commit_transaction(),
 
         # Open cursors should cause failure.
         if with_cursor and not with_transaction:
