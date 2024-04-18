@@ -31,6 +31,7 @@ import argparse
 import json
 import html
 import requests
+import textwrap
 from code_change_helpers import is_useful_line
 
 
@@ -473,7 +474,35 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
 
     return report
 
-def build_pr_comment()
+def build_pr_comment(code_change_info: dict) -> str:
+    summary_info = code_change_info['summary_info']
+    num_lines = int(summary_info['num_lines'])
+    num_lines_covered = int(summary_info['num_lines_covered'])
+    num_branches = int(summary_info['num_branches'])
+    num_branches_covered = int(summary_info['num_branches_covered'])
+
+    branch_coverage_string = ""
+    line_coverage_string = ""
+
+    branch_coverage_string = (
+        coverage_string(num_branches_covered, num_branches)
+        if num_branches > 0 else
+        "No change"
+    )
+
+    line_coverage_string = (
+        coverage_string(num_lines_covered, num_lines)
+        if num_lines > 0 else
+        "No change"
+    )
+
+    return textwrap.dedent(f"""
+        Yay, testing! 🥳
+        | Summary Metric for Added or Changed Code | Value |
+        |------------------------------------------|-------|
+        | Branch coverage                          | {branch_coverage_string} |
+        | Line coverage                            | {line_coverage_string} |
+    """)
 
 def post_pr_comment(fq_repo, pr_id, token, body):
     url = f"https://api.github.com/repos/{fq_repo}/issues/{pr_id}/comments"
@@ -529,7 +558,8 @@ def main():
     html_report_as_text = generate_html_report_as_text(code_change_info=code_change_info, verbose=verbose)
 
     if (leave_pr_comment):
-        post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, "test comment 3")
+        comment = build_pr_comment(code_change_info=code_change_info)
+        post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, comment)
 
     with open(args.html_output, "w") as output_file:
         output_file.writelines(html_report_as_text)
