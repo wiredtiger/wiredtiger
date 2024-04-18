@@ -25,22 +25,34 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-
-# Common configuration for compatibility tests.
-
-# The branches we use for the testing. We support special branch name 'this' that refers to the
-# current branch. This is useful when debugging a compatibility issue on the current branch, but it
-# should not be enabled when testing on Evergreen.
-BRANCHES = ['develop', 'mongodb-7.1', 'mongodb-7.0', 'mongodb-6.3']
-
-# Example use of the 'this' branch (useful for debugging):
-# BRANCHES = ['this', 'mongodb-7.0']
-
-# The default directory to which the test will check out other branches, relative to the project's
-# top-level directory.
 #
-# We should reuse the same directory across multiple tests, so that we can check out and build each
-# branch only once. And we'd like this directory to be relative to the project's top-level directory
-# (as opposed to the current directory), because it simplifies the code, as we change the working
-# directory many times during the test run.
-BRANCHES_DIR = 'COMPATIBILITY_TEST'
+
+from runner import *
+from wiredtiger import *
+from workgen import *
+
+context = Context()
+conn = context.wiredtiger_open("create,cache_size=500MB")
+s = conn.open_session()
+tname = "file:test.wt"
+s.create(tname, 'key_format=u,value_format=u')
+table = Table(tname)
+table.options.key_size = 20
+table.options.value_size = 200
+
+op = Operation(Operation.OP_INSERT, table)
+thread = Thread(op * 500000)
+pop_workload = Workload(context, thread)
+print('populate:')
+ret = pop_workload.run(conn)
+assert ret == 0, ret
+
+op = Operation(Operation.OP_UPDATE, table)
+op._config = 'reopen'
+t = Thread(op)
+workload = Workload(context, t * 8)
+workload.options.run_time = 120
+workload.options.report_interval = 5
+print('update workload:')
+ret = workload.run(conn)
+assert ret == 0, ret
