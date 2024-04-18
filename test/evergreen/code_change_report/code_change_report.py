@@ -481,15 +481,18 @@ def post_pr_comment(fq_repo, pr_id, token, body):
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
+
+    # First lets see if an existing comment exists
+    # We can cheat here and assume it will be one of the earlier comments, so no need to paginate
     existing = None
     resp = requests.get(url, headers=headers, params={"sort": "created_at", "direction": "asc"})
-    print(resp.content)
     resp.raise_for_status()
     for comment in resp.json():
         if magic_string in comment["body"]:
             existing = comment
             break
     
+    # Now create/update the comment with the new contents
     data = {
         "body": f"{body}\n\n{magic_string}"
     }
@@ -498,8 +501,6 @@ def post_pr_comment(fq_repo, pr_id, token, body):
         resp = requests.patch(existing["url"], json=data, headers=headers)
     else:
         resp = requests.post(url, json=data, headers=headers)
-
-    print(resp.content)
     resp.raise_for_status()
 
 def main():
