@@ -557,12 +557,12 @@ def main():
     code_change_info = read_code_change_info(code_change_info_path=args.code_change_info)
     html_report_as_text = generate_html_report_as_text(code_change_info=code_change_info, verbose=verbose)
 
-    if (leave_pr_comment):
-        comment = build_pr_comment(code_change_info=code_change_info)
-        post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, comment)
-
     with open(args.html_output, "w") as output_file:
         output_file.writelines(html_report_as_text)
+
+    if leave_pr_comment:
+        comment = build_pr_comment(code_change_info=code_change_info)
+        post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, comment)
 
 
 if __name__ == '__main__':
