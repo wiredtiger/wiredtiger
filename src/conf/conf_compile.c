@@ -393,6 +393,12 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
         WT_RET_MSG(session, ENOTSUP,
           "Error compiling, method '%s' does not support compiled configurations", centry->method);
 
+    /* Fast path: if there is no configuration, return with the default config for this API. */
+    if (config == NULL || *config == '\0') {
+        *confp = S2C(session)->conf_api_array[centry_index];
+        return (0);
+    }
+
     conf = NULL;
 
     /* Verify we have the needed size. */
@@ -418,10 +424,9 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     /* Save the config string from the API call, it can be helpful for debugging. */
     conf->api_config = config;
 
-    /* Add to it the user format if any. */
-    if (config != NULL)
-        WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
-          centry->checks_entries, centry->checks_jump, config, strlen(config), false, false));
+    /* Add the user config to it. */
+    WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
+      centry->checks_entries, centry->checks_jump, config, strlen(config), false, false));
 
     *confp = conf;
 
@@ -693,11 +698,10 @@ __conf_verbose_cat_config(WT_SESSION_IMPL *session, const char **cfg, WT_CONF *c
                      * and fast compare to true/false constants must also work.
                      */
                     if (value.val == 0) {
-                        WT_ASSERT(session, WT_STRING_MATCH("false", value.str, value.len));
+                        WT_ASSERT(session, WT_CONFIG_LIT_MATCH("false", value));
                         WT_ASSERT(session, WT_CONF_STRING_MATCH(false, value));
                     } else {
-                        WT_ASSERT(
-                          session, value.val == 1 && WT_STRING_MATCH("true", value.str, value.len));
+                        WT_ASSERT(session, value.val == 1 && WT_CONFIG_LIT_MATCH("true", value));
                         WT_ASSERT(session, WT_CONF_STRING_MATCH(true, value));
                     }
                 }

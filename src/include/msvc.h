@@ -5,6 +5,9 @@
  *
  * See the file LICENSE for redistribution information.
  */
+
+#pragma once
+
 #include <intrin.h>
 
 #ifndef _M_AMD64
@@ -89,7 +92,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 
 /*
  * __wt_atomic_loadbool --
- *     Atomically read a boolean.
+ *     Read a boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics for
+ *     booleans per the comment above.
  */
 static inline bool
 __wt_atomic_loadbool(bool *vp)
@@ -99,7 +103,8 @@ __wt_atomic_loadbool(bool *vp)
 
 /*
  * __wt_atomic_storebool --
- *     Atomically set a boolean.
+ *     Set a boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics for
+ *     booleans per the comment above.
  */
 static inline void
 __wt_atomic_storebool(bool *vp, bool v)
@@ -107,6 +112,39 @@ __wt_atomic_storebool(bool *vp, bool v)
     *(vp) = (v);
 }
 
+/*
+ * __wt_atomic_loadvbool --
+ *     Read a volatile boolean. These reads are non-atomic due to MSVC lacking Interlocked
+ *     intrinsics for booleans per the comment above.
+ */
+static inline bool
+__wt_atomic_loadvbool(volatile bool *vp)
+{
+    return (*(vp));
+}
+
+/*
+ * __wt_atomic_storevbool --
+ *     Set a volatile boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
+ *     for booleans per the comment above.
+ */
+static inline void
+__wt_atomic_storevbool(volatile bool *vp, bool v)
+{
+    *(vp) = (v);
+}
+
+/*
+ * Generic atomic functions that accept any type. The typed macros above should be preferred since
+ * they provide better type checking.
+ */
+#define __wt_atomic_load_enum(vp) (*(vp))
+#define __wt_atomic_store_enum(vp, v) (*(vp) = (v))
+#define __wt_atomic_load_generic(vp) (*(vp))
+#define __wt_atomic_store_generic(vp, v) (*(vp) = (v))
+
+#define __wt_atomic_load_pointer(vp) (*(vp))
+#define __wt_atomic_store_pointer(vp, v) (*(vp) = (v))
 /*
  * __wt_atomic_cas_ptr --
  *     Pointer compare and swap.

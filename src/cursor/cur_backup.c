@@ -71,6 +71,7 @@ __wt_backup_set_blkincr(
     /* Free any id already set. */
     __wt_free(session, blkincr->id_str);
     blkincr->granularity = conn->incr_granularity = granularity;
+    WT_STAT_CONN_SET(session, backup_granularity, granularity);
     WT_RET(__wt_strndup(session, id, id_len, &blkincr->id_str));
     WT_CONN_SET_INCR_BACKUP(conn);
     F_SET(blkincr, WT_BLKINCR_VALID);
@@ -96,6 +97,7 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
         F_CLR(blkincr, WT_BLKINCR_VALID);
     }
     conn->incr_granularity = 0;
+    WT_STAT_CONN_SET(session, backup_incremental, 0);
     F_CLR(conn, WT_CONN_INCR_BACKUP);
 }
 
@@ -289,11 +291,13 @@ err:
         WT_ASSERT(session, F_ISSET(session, WT_SESSION_BACKUP_CURSOR));
         F_CLR(session, WT_SESSION_BACKUP_DUP);
         F_CLR(cb, WT_CURBACKUP_DUP);
+        WT_STAT_CONN_SET(session, backup_dup_open, 0);
     } else if (F_ISSET(cb, WT_CURBACKUP_LOCKER))
         WT_TRET(__backup_stop(session, cb));
 
     __wt_cursor_close(cursor);
     session->bkp_cursor = NULL;
+    WT_STAT_CONN_SET(session, backup_cursor_open, 0);
 
     API_END_RET(session, ret);
 }
@@ -333,6 +337,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_CURSOR *cursor;
     WT_CURSOR_BACKUP *cb, *othercb;
     WT_DECL_RET;
+    size_t uri_len;
 
     WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_BACKUP);
 
@@ -342,6 +347,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     cursor->session = (WT_SESSION *)session;
     cursor->key_format = "S";  /* Return the file names as the key. */
     cursor->value_format = ""; /* No value, for now. */
+    uri_len = strlen(uri);
 
     session->bkp_cursor = cb;
     othercb = (WT_CURSOR_BACKUP *)other;
@@ -352,13 +358,13 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", cfg[1]);
 
     /* Special backup cursor to query incremental IDs. */
-    if (WT_STRING_MATCH("backup:query_id", uri, strlen(uri))) {
+    if (WT_STRING_LIT_MATCH("backup:query_id", uri, uri_len)) {
         /* Top level cursor code does not allow a URI and cursor. We don't need to check here. */
         WT_ASSERT(session, othercb == NULL);
         if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
-            WT_RET_MSG(session, EINVAL, "Incremental backup is not configured");
+            WT_ERR_MSG(session, EINVAL, "Incremental backup is not configured");
         F_SET(cb, WT_CURBACKUP_QUERYID);
-    } else if (WT_STRING_MATCH("backup:export", uri, strlen(uri)))
+    } else if (WT_STRING_LIT_MATCH("backup:export", uri, uri_len))
         /* Special backup cursor for export operation. */
         F_SET(cb, WT_CURBACKUP_EXPORT);
 
@@ -367,12 +373,13 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
      * use on the connection and it isn't an export cursor.
      */
     if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)) && !F_ISSET(cb, WT_CURBACKUP_EXPORT))
-        return (ENOTSUP);
+        WT_ERR(ENOTSUP);
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
      * view when creating a copy.
      */
+    WT_STAT_CONN_SET(session, backup_start, 1);
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
     WT_ERR(ret);
@@ -380,11 +387,13 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         __wt_cursor_init(cursor, uri, NULL, cfg, cursorp) :
         __wt_curbackup_open_incr(session, uri, other, cursor, cfg, cursorp));
 
+    WT_STAT_CONN_SET(session, backup_cursor_open, 1);
     if (0) {
 err:
         WT_TRET(__curbackup_close(cursor));
         *cursorp = NULL;
     }
+    WT_STAT_CONN_SET(session, backup_start, 0);
 
     return (ret);
 }
@@ -471,7 +480,7 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
         /* If it isn't valid, skip it. */
         if (!F_ISSET(blk, WT_BLKINCR_VALID))
             continue;
-        if (WT_STRING_MATCH(blk->id_str, cval->str, cval->len)) {
+        if (WT_CONFIG_MATCH(blk->id_str, *cval)) {
             if (F_ISSET(blk, WT_BLKINCR_INUSE))
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
@@ -833,6 +842,7 @@ __backup_start(
     if (is_dup) {
         F_SET(cb, WT_CURBACKUP_DUP);
         F_SET(session, WT_SESSION_BACKUP_DUP);
+        WT_STAT_CONN_SET(session, backup_dup_open, 1);
         goto done;
     }
     if (!target_list) {

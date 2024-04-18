@@ -160,17 +160,6 @@ wiredtiger_config_validate(
 }
 
 /*
- * wiredtiger_test_config_validate --
- *     Validate a test configuration string.
- */
-int
-wiredtiger_test_config_validate(
-  WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const char *name, const char *config)
-{
-    return (__config_validate(wt_session, event_handler, name, config, __wt_test_config_match));
-}
-
-/*
  * __conn_foc_add --
  *     Add a new entry into the connection's free-on-close list.
  */
@@ -231,15 +220,15 @@ __config_add_checks(WT_SESSION_IMPL *session, WT_CONFIG_ENTRY *entry, WT_CONFIG_
         /* Setup an iterator for the check string. */
         __wt_config_init(session, &cparser, cp->checks);
         while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
-            if (WT_STRING_MATCH("min", ck.str, ck.len)) {
+            if (WT_CONFIG_LIT_MATCH("min", ck)) {
                 cp->min_value = strtoll(cv.str, &endnum, 10);
                 if (endnum != &cv.str[cv.len])
                     WT_RET_MSG(session, EINVAL, "min value invalid for key '%s'", cp->name);
-            } else if (WT_STRING_MATCH("max", ck.str, ck.len)) {
+            } else if (WT_CONFIG_LIT_MATCH("max", ck)) {
                 cp->max_value = strtoll(cv.str, &endnum, 10);
                 if (endnum != &cv.str[cv.len])
                     WT_RET_MSG(session, EINVAL, "max value invalid for key '%s'", cp->name);
-            } else if (WT_STRING_MATCH("choices", ck.str, ck.len)) {
+            } else if (WT_CONFIG_LIT_MATCH("choices", ck)) {
                 if (cv.len == 0)
                     WT_RET_MSG(session, EINVAL, "Key '%s' requires a value", cp->name);
                 if (cv.type == WT_CONFIG_ITEM_STRUCT) {
@@ -322,7 +311,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         WT_RET_MSG(session, EINVAL, "no configuration type specified");
 
     /* Determine the compiled type. */
-    compiled_type = 0;
+    WT_NOT_READ(compiled_type, 0);
     if (strcmp(type, "boolean") == 0)
         compiled_type = WT_CONFIG_COMPILED_TYPE_BOOLEAN;
     else if (strcmp(type, "int") == 0)

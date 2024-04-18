@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Statistics counters:
  *
@@ -386,10 +388,16 @@ struct __wt_connection_stats {
     int64_t background_compact_success;
     int64_t background_compact_timeout;
     int64_t background_compact_files_tracked;
+    int64_t backup_cursor_open;
+    int64_t backup_dup_open;
+    int64_t backup_granularity;
+    int64_t backup_incremental;
+    int64_t backup_start;
+    int64_t backup_blocks;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
-    int64_t block_prefetch_skipped_internal_page;
-    int64_t block_prefetch_skipped_no_flag_set;
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
@@ -402,18 +410,6 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
-    int64_t block_prefetch_failed_start;
-    int64_t block_prefetch_skipped_same_ref;
-    int64_t block_prefetch_disk_one;
-    int64_t block_prefetch_skipped_no_valid_dhandle;
-    int64_t block_prefetch_skipped;
-    int64_t block_prefetch_skipped_disk_read_count;
-    int64_t block_prefetch_skipped_internal_session;
-    int64_t block_prefetch_skipped_special_handle;
-    int64_t block_prefetch_pages_fail;
-    int64_t block_prefetch_pages_queued;
-    int64_t block_prefetch_pages_read;
-    int64_t block_prefetch_attempts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_blocks;
@@ -467,6 +463,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_queue_not_empty;
     int64_t cache_eviction_server_evicting;
     int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t cache_eviction_server_skip_intl_page_with_active_child;
     int64_t cache_eviction_server_skip_metatdata_with_history;
     int64_t cache_eviction_server_skip_pages_last_running;
     int64_t cache_eviction_server_skip_pages_retry;
@@ -574,6 +571,7 @@ struct __wt_connection_stats {
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
+    int64_t cache_read_checkpoint;
     int64_t cache_eviction_clear_ordinary;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
@@ -615,6 +613,7 @@ struct __wt_connection_stats {
     int64_t capacity_time_log;
     int64_t capacity_time_read;
     int64_t capacity_time_chunkcache;
+    int64_t checkpoint_cleanup_success;
     int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_skipped;
     int64_t checkpoint_fsync_post;
@@ -705,9 +704,12 @@ struct __wt_connection_stats {
     int64_t fsync_io;
     int64_t read_io;
     int64_t write_io;
+    int64_t cursor_tree_walk_del_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_tree_walk_inmem_del_page_skip;
+    int64_t cursor_tree_walk_ondisk_del_page_skip;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
     int64_t cursor_reposition;
@@ -885,6 +887,20 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
     int64_t perf_hist_opwrite_latency_total_usecs;
+    int64_t prefetch_skipped_internal_page;
+    int64_t prefetch_skipped_no_flag_set;
+    int64_t prefetch_failed_start;
+    int64_t prefetch_skipped_same_ref;
+    int64_t prefetch_disk_one;
+    int64_t prefetch_skipped_no_valid_dhandle;
+    int64_t prefetch_skipped;
+    int64_t prefetch_skipped_disk_read_count;
+    int64_t prefetch_skipped_internal_session;
+    int64_t prefetch_skipped_special_handle;
+    int64_t prefetch_pages_fail;
+    int64_t prefetch_pages_queued;
+    int64_t prefetch_pages_read;
+    int64_t prefetch_attempts;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
@@ -950,8 +966,6 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_rename_fail;
-    int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
@@ -1059,6 +1073,8 @@ struct __wt_dsrc_stats {
     int64_t bloom_size;
     int64_t autocommit_readonly_retry;
     int64_t autocommit_update_retry;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
@@ -1074,6 +1090,7 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_reviewed;
     int64_t btree_compact_pages_rewritten;
     int64_t btree_compact_pages_skipped;
+    int64_t btree_compact_bytes_rewritten_expected;
     int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_compact_skipped;
     int64_t btree_column_fix;
@@ -1154,6 +1171,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
+    int64_t cache_read_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
     int64_t cache_eviction_pages_seen;
@@ -1214,9 +1232,12 @@ struct __wt_dsrc_stats {
     int64_t compress_write_ratio_hist_16;
     int64_t compress_write_ratio_hist_32;
     int64_t compress_write_ratio_hist_64;
+    int64_t cursor_tree_walk_del_page_skip;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_tree_walk_inmem_del_page_skip;
+    int64_t cursor_tree_walk_ondisk_del_page_skip;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_reposition_failed;
     int64_t cursor_reposition;

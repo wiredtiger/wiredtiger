@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
 
 #define WT_CHECKPOINT_STATE_INACTIVE 0
@@ -28,3 +30,11 @@
 #define WT_CHECKPOINT_STATE_ESTABLISH 17
 #define WT_CHECKPOINT_STATE_START_TXN 18
 #define WT_CHECKPOINT_STATE_CKPT_TREE 19
+
+struct __wt_checkpoint_cleanup {
+    WT_SESSION_IMPL *session; /* checkpoint cleanup session */
+    wt_thread_t tid;          /* checkpoint cleanup thread */
+    int tid_set;              /* checkpoint cleanup thread set */
+    WT_CONDVAR *cond;         /* checkpoint cleanup wait mutex */
+    uint64_t interval;        /* Checkpoint cleanup interval */
+};

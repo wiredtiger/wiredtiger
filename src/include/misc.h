@@ -96,7 +96,6 @@
 #define WT_BLOCK_FITS(p, len, begin, maxlen)             \
     ((const uint8_t *)(p) >= (const uint8_t *)(begin) && \
       ((const uint8_t *)(p) + (len) <= (const uint8_t *)(begin) + (maxlen)))
-#define WT_PTR_IN_RANGE(p, begin, maxlen) WT_BLOCK_FITS((p), 1, (begin), (maxlen))
 
 /*
  * Align an unsigned value of any type to a specified power-of-2, including the offset result of a
@@ -202,6 +201,14 @@
  * Flags can be different unsigned bit values -- we cast to keep the compiler quiet (the hex
  * constant might be a negative integer), and to ensure the hex constant is the correct size before
  * applying the bitwise not operator.
+ *
+ * Summary of flag tests:
+ *
+ * Is any flag set? - F*_ISSET()
+ *
+ * Are none of the flags set? - !F*_ISSET()
+ *
+ * Are all of the flags set? - F*_AREALLSET()
  */
 #ifdef TSAN_BUILD
 /*
@@ -219,16 +226,24 @@
 #define FLD_ISSET(field, mask) (FLD_MASK(field, mask) != 0)
 #define FLD_SET(field, mask) ((void)((field) |= (mask)))
 #endif
+/* Named like a macro for consistency. An inline function to evaluate mask only once. */
+static inline bool
+FLD_AREALLSET(uint64_t field, uint64_t mask)
+{
+    return (FLD_MASK(field, mask) == mask);
+}
 
 #define F_CLR(p, mask) FLD_CLR((p)->flags, mask)
 #define F_ISSET(p, mask) FLD_ISSET((p)->flags, mask)
 #define F_MASK(p, mask) FLD_MASK((p)->flags, mask)
 #define F_SET(p, mask) FLD_SET((p)->flags, mask)
+#define F_AREALLSET(p, mask) FLD_AREALLSET((uint64_t)((p)->flags), (uint64_t)(mask))
 
 #define LF_CLR(mask) FLD_CLR(flags, mask)
 #define LF_ISSET(mask) FLD_ISSET(flags, mask)
 #define LF_MASK(mask) FLD_MASK(flags, mask)
 #define LF_SET(mask) FLD_SET(flags, mask)
+#define LF_AREALLSET(mask) FLD_AREALLSET(flags, mask)
 
 /*
  * Insertion sort, for sorting small sets of values.
@@ -334,18 +349,33 @@
 #define WT_STREQ(s, cs) (sizeof(cs) == 2 ? (s)[0] == (cs)[0] && (s)[1] == '\0' : strcmp(s, cs) == 0)
 
 /*
- * Check if a non-empty string matches a byte sequence of len bytes. The macro expects both strings
- * to be of non-zero length in order to be a match. The bytes argument does not need to be
- * null-terminated. Similar to other string related functions, this is not expected to work on NULL
- * values.
+ * Check if a literal string matches the length and content of the supplied bytes/len pair. The
+ * bytes argument does not need to be null-terminated, and it may be null if the supplied length is
+ * zero. Note this macro works differently than the standard strncmp function. When strncmp is given
+ * a zero length it returns true. When this macro is given a zero length it returns false, unless
+ * the literal string is also zero length.
+ */
+#define WT_STRING_LIT_MATCH(str, bytes, len) \
+    ((len) == strlen("" str "") && strncmp(str, bytes, len) == 0)
+
+/*
+ * Identical to WT_STRING_LIT_MATCH, except that this works with non-literal strings. It is slightly
+ * slower, so WT_STRING_LIT_MATCH is always preferred for literal strings.
  */
 #define WT_STRING_MATCH(str, bytes, len) __wt_string_match(str, bytes, len)
 
 static WT_INLINE bool
 __wt_string_match(const char *str, const char *bytes, size_t len)
 {
-    return (len == 0 || (strncmp(str, bytes, len) == 0 && str[len] == '\0'));
+    return (strncmp(str, bytes, len) == 0 && str[len] == '\0');
 }
+
+/*
+ * CONFIG versions of the WT_STRING_LIT_MATCH and WT_STRING_MATCH macros. These are convenient when
+ * matching WT_CONFIG_ITEMs.
+ */
+#define WT_CONFIG_LIT_MATCH(s, cval) WT_STRING_LIT_MATCH(s, (cval).str, (cval).len)
+#define WT_CONFIG_MATCH(s, cval) WT_STRING_MATCH(s, (cval).str, (cval).len)
 
 /*
  * Macro that produces a string literal that isn't wrapped in quotes, to avoid tripping up spell

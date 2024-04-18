@@ -83,26 +83,6 @@ current_time()
 }
 
 /*
- * parse_uint64 --
- *     Parse the string into a number. Throw an exception on error.
- */
-uint64_t
-parse_uint64(const char *str, char **end)
-{
-    if (str == nullptr || str[0] == '\0')
-        throw std::runtime_error("Cannot parse a number");
-
-    char *p = nullptr;
-    uint64_t r = (uint64_t)strtoull(str, &p, 0 /* automatically detect "0x" for hex numbers */);
-    if (end != nullptr)
-        *end = p;
-    if (str == p || (end == nullptr && p[0] != '\0'))
-        throw std::runtime_error("Cannot parse a number");
-
-    return r;
-}
-
-/*
  * parse_uint64_range --
  *     Parse the string into a range of numbers (two numbers separated by '-'). Throw an exception
  *     on error.
@@ -162,6 +142,10 @@ verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing)
     for (auto &t : tables)
         testutil_assert(db_from_debug_log.table(t.c_str())->verify_noexcept(conn));
 
+    /* Verify database timestamps. */
+    testutil_assert(db_from_debug_log.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+    testutil_assert(db_from_debug_log.stable_timestamp() == wt_get_stable_timestamp(conn));
+
     /*
      * Print the debug log to JSON. Note that the debug log has not changed from above, because each
      * database can be opened by only one WiredTiger instance at a time.
@@ -174,6 +158,10 @@ verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing)
     model::debug_log_parser::from_json(db_from_debug_log_json, tmp_json.c_str());
     for (auto &t : tables)
         testutil_assert(db_from_debug_log_json.table(t.c_str())->verify_noexcept(conn));
+
+    /* Verify again database timestamps. */
+    testutil_assert(db_from_debug_log_json.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+    testutil_assert(db_from_debug_log_json.stable_timestamp() == wt_get_stable_timestamp(conn));
 
     /* Now try to get the verification to fail, just to make sure it's working. */
     if (test_failing)
@@ -200,14 +188,17 @@ verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::
 {
     /* Run the workload in the model. */
     model::kv_database database;
-    workload.run(database);
+    std::vector<int> ret_model = workload.run(database);
 
     /* When we load the workload from WiredTiger, that would be after running recovery. */
     database.restart();
 
     /* Run the workload in WiredTiger. */
     testutil_recreate_dir(home.c_str());
-    workload.run_in_wiredtiger(home.c_str(), env_config);
+    std::vector<int> ret_wt = workload.run_in_wiredtiger(home.c_str(), env_config);
+
+    /* Compare the return codes. */
+    testutil_assert(ret_model == ret_wt);
 
     /* Open the database that we just created. */
     WT_CONNECTION *conn;

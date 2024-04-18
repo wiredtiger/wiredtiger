@@ -43,6 +43,11 @@ class BackgroundCompactStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags)
 
+class BackupStat(Stat):
+    prefix = 'backup'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BackupStat.prefix, desc, flags)
+
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
@@ -116,6 +121,10 @@ class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, PerfHistStat.prefix, desc, flags)
+class PrefetchStat(Stat):
+    prefix = 'prefetch'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, PrefetchStat.prefix, desc, flags)
 class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
@@ -214,6 +223,16 @@ conn_stats = [
     BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
 
     ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks', 'total modified incremental blocks'),
+    BackupStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_granularity', 'backup granularity size'),
+    BackupStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),
+    BackupStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
+
+    ##########################################
     # Block cache statistics
     ##########################################
     BlockCacheStat('block_cache_blocks', 'total blocks'),
@@ -238,21 +257,6 @@ conn_stats = [
     BlockCacheStat('block_cache_lookups', 'lookups'),
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
-
-    BlockCacheStat('block_prefetch_attempts', 'pre-fetch triggered by page read'),
-    BlockCacheStat('block_prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
-    BlockCacheStat('block_prefetch_pages_queued', 'pre-fetch pages queued'),
-    BlockCacheStat('block_prefetch_failed_start', 'number of times pre-fetch failed to start'),
-    BlockCacheStat('block_prefetch_pages_read', 'pre-fetch pages read in background'),
-    BlockCacheStat('block_prefetch_skipped', 'pre-fetch not triggered by page read'),
-    BlockCacheStat('block_prefetch_skipped_disk_read_count', 'pre-fetch not triggered due to disk read count'),
-    BlockCacheStat('block_prefetch_skipped_internal_page', 'could not perform pre-fetch on internal page'),
-    BlockCacheStat('block_prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
-    BlockCacheStat('block_prefetch_skipped_no_flag_set', 'could not perform pre-fetch on ref without the pre-fetch flag set'),
-    BlockCacheStat('block_prefetch_skipped_no_valid_dhandle', 'pre-fetch not triggered as there is no valid dhandle'),
-    BlockCacheStat('block_prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
-    BlockCacheStat('block_prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
-    BlockCacheStat('block_prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
 
     ##########################################
     # Block manager statistics
@@ -330,6 +334,7 @@ conn_stats = [
     CacheStat('cache_eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
     CacheStat('cache_eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     CacheStat('cache_eviction_server_skip_pages_last_running', 'eviction server skips pages that are written with transactions greater than the last running'),
+    CacheStat('cache_eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child.'),
     CacheStat('cache_eviction_server_skip_metatdata_with_history', 'eviction server skips metadata pages with history'),
     CacheStat('cache_eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     CacheStat('cache_eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
@@ -390,6 +395,7 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
+    CheckpointStat('checkpoint_cleanup_success', 'checkpoint cleanup successful calls'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_generation', 'generation', 'no_clear,no_scale'),
@@ -635,6 +641,24 @@ conn_stats = [
     PerfHistStat('perf_hist_opwrite_latency_total_usecs', 'operation write latency histogram total (usecs)'),
 
     ##########################################
+    # Prefetch statistics
+    ##########################################
+    PrefetchStat('prefetch_attempts', 'pre-fetch triggered by page read'),
+    PrefetchStat('prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
+    PrefetchStat('prefetch_pages_queued', 'pre-fetch pages queued'),
+    PrefetchStat('prefetch_failed_start', 'number of times pre-fetch failed to start'),
+    PrefetchStat('prefetch_pages_read', 'pre-fetch pages read in background'),
+    PrefetchStat('prefetch_skipped', 'pre-fetch not triggered by page read'),
+    PrefetchStat('prefetch_skipped_disk_read_count', 'pre-fetch not triggered due to disk read count'),
+    PrefetchStat('prefetch_skipped_internal_page', 'could not perform pre-fetch on internal page'),
+    PrefetchStat('prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
+    PrefetchStat('prefetch_skipped_no_flag_set', 'could not perform pre-fetch on ref without the pre-fetch flag set'),
+    PrefetchStat('prefetch_skipped_no_valid_dhandle', 'pre-fetch not triggered as there is no valid dhandle'),
+    PrefetchStat('prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
+    PrefetchStat('prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
+    PrefetchStat('prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
+
+    ##########################################
     # Reconciliation statistics
     ##########################################
     RecStat('rec_maximum_hs_wrapup_milliseconds', 'maximum milliseconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
@@ -673,8 +697,6 @@ conn_stats = [
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rename_fail', 'table rename failed calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rename_success', 'table rename successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_success', 'table salvage successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
@@ -796,6 +818,7 @@ dsrc_stats = [
     BtreeStat('btree_column_rle', 'column-store variable-size RLE encoded values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_tws', 'column-store fixed-size time windows', 'no_scale,tree_walk'),
     BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
+    BtreeStat('btree_compact_bytes_rewritten_expected', 'btree expected number of compact bytes rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'btree compact pages rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten_expected', 'btree expected number of compact pages rewritten', 'no_clear,no_scale'),
@@ -944,6 +967,12 @@ conn_dsrc_stats = [
     AutoCommitStat('autocommit_update_retry', 'retries for update operations'),
 
     ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks_compressed', 'total modified incremental blocks with compressed data'),
+    BackupStat('backup_blocks_uncompressed', 'total modified incremental blocks without compressed data'),
+
+    ##########################################
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
@@ -1010,6 +1039,7 @@ conn_dsrc_stats = [
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
+    CacheStat('cache_read_checkpoint', 'pages read into cache by checkpoint'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
@@ -1053,6 +1083,9 @@ conn_dsrc_stats = [
     CursorStat('cursor_reposition_failed', 'Total number of times cursor fails to temporarily release pinned page to encourage eviction of hot or large page'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
+    CursorStat('cursor_tree_walk_del_page_skip', 'Total number of deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
 
     ##########################################
     # Cursor API error statistics

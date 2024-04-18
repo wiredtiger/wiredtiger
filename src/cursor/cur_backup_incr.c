@@ -48,6 +48,9 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         F_SET(cb, WT_CURBACKUP_CKPT_FAKE);
     __wt_meta_checkpoint_free(session, &ckpt);
 
+    WT_ERR(__wt_config_getones(session, config, "block_compressor", &v));
+    if (v.len)
+        F_SET(cb, WT_CURBACKUP_COMPRESSED);
     WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
     if (v.len)
         F_SET(cb, WT_CURBACKUP_HAS_CB_INFO);
@@ -56,7 +59,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         /*
          * First see if we have information for this source identifier.
          */
-        if (WT_STRING_MATCH(cb->incr_src->id_str, k.str, k.len) == 0)
+        if (WT_CONFIG_MATCH(cb->incr_src->id_str, k) == 0)
             continue;
 
         /*
@@ -201,15 +204,31 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         while (cb->bit_offset < cb->nbits)
             if (__bit_test(cb->bitstring.mem, cb->bit_offset)) {
                 found = true;
+                WT_STAT_CONN_INCR(session, backup_blocks);
+                if (F_ISSET(cb, WT_CURBACKUP_COMPRESSED))
+                    WT_WITH_DHANDLE(session, btree->dhandle,
+                      WT_STAT_CONN_DATA_INCR(session, backup_blocks_compressed));
+                else
+                    WT_WITH_DHANDLE(session, btree->dhandle,
+                      WT_STAT_CONN_DATA_INCR(session, backup_blocks_uncompressed));
                 /*
                  * Care must be taken to leave the bit_offset field set to the next offset bit so
                  * that the next call is set to the correct offset.
                  */
                 start_bitoff = cb->bit_offset++;
                 if (F_ISSET(cb, WT_CURBACKUP_CONSOLIDATE)) {
-                    while (
-                      cb->bit_offset < cb->nbits && __bit_test(cb->bitstring.mem, cb->bit_offset++))
+                    while (cb->bit_offset < cb->nbits &&
+                      __bit_test(cb->bitstring.mem, cb->bit_offset++)) {
                         total_len += cb->granularity;
+                        /* Count all the blocks even if we return them consolidated. */
+                        WT_STAT_CONN_INCR(session, backup_blocks);
+                        if (F_ISSET(cb, WT_CURBACKUP_COMPRESSED))
+                            WT_WITH_DHANDLE(session, btree->dhandle,
+                              WT_STAT_CONN_DATA_INCR(session, backup_blocks_compressed));
+                        else
+                            WT_WITH_DHANDLE(session, btree->dhandle,
+                              WT_STAT_CONN_DATA_INCR(session, backup_blocks_uncompressed));
+                    }
                 }
                 break;
             } else

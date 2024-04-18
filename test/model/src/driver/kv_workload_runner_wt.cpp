@@ -98,16 +98,16 @@ kv_workload_runner_wt::~kv_workload_runner_wt()
 
 /*
  * kv_workload_runner_wt::run --
- *     Run the workload in WiredTiger.
+ *     Run the workload in WiredTiger. Return the return codes of the workload operations.
  */
-void
+std::vector<int>
 kv_workload_runner_wt::run(const kv_workload &workload)
 {
     /*
      * Initialize the shared memory state, that we will share between the controller (parent)
      * process, and the process that will actually run the workload.
      */
-    shared_memory shm_state(sizeof(shared_state));
+    shared_memory shm_state(sizeof(shared_state) + workload.size() * sizeof(int));
     _state = (shared_state *)shm_state.data();
 
     /* Clean up the pointer at the end, just before the actual shared memory gets cleaned up. */
@@ -144,12 +144,13 @@ kv_workload_runner_wt::run(const kv_workload &workload)
 
                 /* Run (or resume) the workload. */
                 for (; p < workload.size(); p++) {
-                    const operation::any &op = workload[p];
-                    if (std::holds_alternative<operation::crash>(op)) {
+                    const kv_workload_operation &op = workload[p];
+                    if (std::holds_alternative<operation::crash>(op.operation)) {
                         _state->expect_crash = true;
                         _state->crash_index = p;
                     }
-                    run_operation(op);
+                    _state->num_operations = p + 1;
+                    _state->return_codes[p] = run_operation(op.operation);
                 }
 
                 wiredtiger_close();
@@ -185,7 +186,7 @@ kv_workload_runner_wt::run(const kv_workload &workload)
         if (_state->exception)
             /* The child process died due to an exception. */
             throw model_exception("Workload was terminated due to an exception at operation " +
-              std::to_string(_state->failed_operation) + ": " + _state->exception_message);
+              std::to_string(_state->failed_operation + 1) + ": " + _state->exception_message);
 
         if (WIFEXITED(pid_status))
             /* The child process exited with an error code. */
@@ -200,6 +201,13 @@ kv_workload_runner_wt::run(const kv_workload &workload)
         /* Otherwise the workload failed in some other way. */
         throw model_exception("The workload process terminated in an unexpected way.");
     }
+
+    /* Extract the return codes. */
+    std::vector<int> v;
+    for (size_t i = 0; i < _state->num_operations; i++)
+        v.push_back(_state->return_codes[i]);
+
+    return v;
 }
 
 /*
@@ -345,7 +353,7 @@ kv_workload_runner_wt::do_operation(const operation::create_table &op)
     std::string uri = std::string("table:") + op.name;
     ret = session->create(session, uri.c_str(), config_str.c_str());
     if (ret == 0)
-        add_table_uri(op.table_id, uri);
+        add_table_uri(op.table_id, std::move(uri));
     return ret;
 }
 
@@ -450,6 +458,21 @@ kv_workload_runner_wt::do_operation(const operation::set_commit_timestamp &op)
     session_context_ptr session = txn_session(op.txn_id);
 
     return session->session()->timestamp_transaction(session->session(), config_str.c_str());
+}
+
+/*
+ * kv_workload_runner_wt::do_operation --
+ *     Execute the given workload operation in WiredTiger.
+ */
+int
+kv_workload_runner_wt::do_operation(const operation::set_oldest_timestamp &op)
+{
+    std::ostringstream config;
+    config << "oldest_timestamp=" << std::hex << op.oldest_timestamp;
+    std::string config_str = config.str();
+
+    std::shared_lock lock(_connection_lock);
+    return _connection->set_timestamp(_connection, config_str.c_str());
 }
 
 /*
