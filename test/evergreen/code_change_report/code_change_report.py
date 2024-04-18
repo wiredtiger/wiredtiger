@@ -559,6 +559,12 @@ def post_pr_comment(fq_repo, pr_id, token, body):
             existing = comment
             break
     
+    if body is None:
+        if existing:
+            resp = requests.delete(existing["url"], headers=headers)
+            resp.raise_for_status()
+        return
+    
     # Now create/update the comment with the new contents
     data = {
         "body": f"{body}\n\n{magic_string}"
