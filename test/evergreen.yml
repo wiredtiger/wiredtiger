@@ -3031,8 +3031,6 @@ tasks:
       - command: shell.exec
         vars:
           dependent_task: coverage-report
-        create_check_run:
-          path_to_outputs: "wiredtiger/coverage_report/github_check.json"
         params:
           working_dir: "wiredtiger"
           shell: bash
