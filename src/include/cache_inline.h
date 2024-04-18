@@ -86,11 +86,12 @@ static WT_INLINE bool
 __wt_cache_stuck(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
+    uint32_t tmp_evict_aggressive_score;
 
     cache = S2C(session)->cache;
-    WT_ASSERT(session, __wt_atomic_load32(&cache->evict_aggressive_score) <= WT_EVICT_SCORE_MAX);
-    return (__wt_atomic_load32(&cache->evict_aggressive_score) == WT_EVICT_SCORE_MAX &&
-      F_ISSET(cache, WT_CACHE_EVICT_HARD));
+    tmp_evict_aggressive_score = __wt_atomic_load32(&cache->evict_aggressive_score);
+    WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
+    return (tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(cache, WT_CACHE_EVICT_HARD));
 }
 
 /*
