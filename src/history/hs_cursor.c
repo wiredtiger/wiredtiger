@@ -129,8 +129,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         goto done;
     }
 
-    WT_ERR(hs_cursor->bound(hs_cursor, "action=clear"));
-
     /* Allocate buffer for the history store value. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(hs_cursor->get_value(
