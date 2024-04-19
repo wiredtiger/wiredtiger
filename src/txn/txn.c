@@ -491,20 +491,19 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     WT_DECL_RET;
     WT_SESSION_IMPL *oldest_session;
     WT_TXN_GLOBAL *txn_global;
-    uint64_t current_id, last_running, metadata_pinned, oldest_id;
+    uint64_t current_id, last_running, metadata_pinned, non_strict_min_threshold, oldest_id;
     uint64_t prev_last_running, prev_metadata_pinned, prev_oldest_id;
     bool strict, wait;
-
-    /*
-     * When not in strict mode we want to avoid scanning too frequently. Set a minimum transaction
-     * ID age threshold before we perform another scan.
-     */
-    const uint64_t non_strict_min_threshold = 100;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
     strict = LF_ISSET(WT_TXN_OLDEST_STRICT);
     wait = LF_ISSET(WT_TXN_OLDEST_WAIT);
+    /*
+     * When not in strict mode we want to avoid scanning too frequently. Set a minimum transaction
+     * ID age threshold before we perform another scan.
+     */
+    non_strict_min_threshold = 100;
 
     current_id = last_running = metadata_pinned = __wt_atomic_loadv64(&txn_global->current);
     prev_last_running = __wt_atomic_loadv64(&txn_global->last_running);
