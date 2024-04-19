@@ -1703,6 +1703,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     bool want_tree;
 
     cache = S2C(session)->cache;
+    btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
 /*
@@ -1746,9 +1747,9 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      * interest.
      */
     if (target_pages == 0) {
-        want_tree = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && btree_clean_inuse) ||
-          (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && btree_dirty_inuse) ||
-          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && btree_updates_inuse);
+        want_tree = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && (btree_clean_inuse > 0)) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && (btree_dirty_inuse > 0)) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && (btree_updates_inuse > 0));
 
         if (!want_tree) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_tree);
@@ -1809,13 +1810,12 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     /*
      * For this handle, calculate the number of target pages to evict. If the number of target pages
      * is zero, then simply return early from this function.
+     *
+     * If the progress has not met the previous target, continue using the previous target.
      */
     target_pages = __evict_walk_target(session);
-    if (target_pages == 0)
-        return (0);
 
-    /* If the progress has not met the previous target, continue using the previous target. */
-    if (btree->evict_walk_progress >= btree->evict_walk_target) {
+    if ((target_pages == 0) || btree->evict_walk_progress >= btree->evict_walk_target) {
         btree->evict_walk_target = target_pages;
         btree->evict_walk_progress = 0;
     }
@@ -1837,6 +1837,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_target_page_reduced);
         }
     }
+
+    /* If we don't want any pages from this tree, move on. */
+    if (target_pages == 0)
+        return (0);
 
     /*
      * These statistics generate a histogram of the number of pages targeted for eviction each
