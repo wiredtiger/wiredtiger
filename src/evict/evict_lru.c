@@ -2428,7 +2428,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        WT_STAT_CONN_INCRV(session, application_evict_time, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_INCRV(
+          session, cache_eviction_app_time, WT_CLOCKDIFF_US(time_stop, time_start));
     }
     WT_TRACK_OP_END(session);
     return (ret);
@@ -2566,6 +2567,7 @@ err:
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_STAT_CONN_INCR(session, application_cache_ops);
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
