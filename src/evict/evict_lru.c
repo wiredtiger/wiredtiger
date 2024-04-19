@@ -69,32 +69,45 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     page = ref->page;
 
     /* Any page set to the oldest generation should be discarded. */
-    if (WT_READGEN_EVICT_SOON(page->read_gen))
+    if (WT_READGEN_EVICT_SOON(page->read_gen)) {
+        printf("evict score WT_READGEN_EVICT_SOON --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
+    }
 
     /* Any page from a dead tree is a great choice. */
-    if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD))
+    if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD)) {
+        printf("evict score DHANDLE_DEAD --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
+    }
 
     /* Any empty page (leaf or internal), is a good choice. */
-    if (__wt_page_is_empty(page))
+    if (__wt_page_is_empty(page)) {
+        printf("evict score page_is_empty --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
+    }
 
     /* Any large page in memory is likewise a good choice. */
-    if (page->memory_footprint > btree->splitmempage)
+    if (page->memory_footprint > btree->splitmempage) {
+        printf("evict score memory_footprint --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
+    }
 
     /*
      * The base read-generation is skewed by the eviction priority. Internal pages are also
      * adjusted, we prefer to evict leaf pages.
      */
     if (page->modify != NULL && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) &&
-      !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN))
+        !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN)) {
         read_gen = page->modify->update_txn;
-    else
+        printf("evict score page->modify->update_txn %llu\n", read_gen);
+    }
+    else {
         read_gen = page->read_gen;
+        printf("evict score page->read_gen %llu\n", read_gen);
+    }
 
     read_gen += btree->evict_priority;
+    printf("btree->evict_priority = %llu, read_gen = %llu\n", btree->evict_priority, read_gen);
 
 #define WT_EVICT_INTL_SKEW WT_THOUSAND
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
