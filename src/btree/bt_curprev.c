@@ -572,6 +572,7 @@ __cursor_row_prev(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
+    bool key_out_of_bounds;
 
     key = &cbt->iface.key;
     page = cbt->ref->page;
@@ -630,6 +631,13 @@ restart_read_insert:
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
 
+            if (WT_IS_HS(session->dhandle)) {
+                WT_RET(__wt_compare_bounds(
+                  session, &cbt->iface, key, WT_RECNO_OOB, true, &key_out_of_bounds));
+                if (key_out_of_bounds)
+                    continue;
+            }
+
             if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
                 return (0);
 
@@ -686,6 +694,13 @@ restart_read_page:
          * if the on-disk data is not visible.
          */
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
+
+        if (WT_IS_HS(session->dhandle)) {
+            WT_RET(__wt_compare_bounds(
+              session, &cbt->iface, &cbt->iface.key, WT_RECNO_OOB, true, &key_out_of_bounds));
+            if (key_out_of_bounds)
+                continue;
+        }
 
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);

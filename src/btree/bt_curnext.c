@@ -396,6 +396,7 @@ __cursor_row_next(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
+    bool key_out_of_bounds;
 
     key = &cbt->iface.key;
     page = cbt->ref->page;
@@ -449,6 +450,13 @@ restart_read_insert:
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
 
+            if (WT_IS_HS(session->dhandle)) {
+                WT_RET(__wt_compare_bounds(
+                  session, &cbt->iface, key, WT_RECNO_OOB, false, &key_out_of_bounds));
+                if (key_out_of_bounds)
+                    continue;
+            }
+
             /*
              * If an upper bound has been set ensure that the key is within the range, otherwise
              * early exit.
@@ -500,6 +508,13 @@ restart_read_page:
          * value from the history store if the on-disk data is not visible.
          */
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
+
+        if (WT_IS_HS(session->dhandle)) {
+            WT_RET(__wt_compare_bounds(
+              session, &cbt->iface, &cbt->iface.key, WT_RECNO_OOB, false, &key_out_of_bounds));
+            if (key_out_of_bounds)
+                continue;
+        }
 
         /*
          * If an upper bound has been set ensure that the key is within the range, otherwise early
