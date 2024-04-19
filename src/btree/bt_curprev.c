@@ -631,7 +631,7 @@ restart_read_insert:
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
 
-            if (WT_IS_HS(session->dhandle)) {
+            if (WT_IS_HS(session->dhandle) && F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
                 WT_RET(__wt_compare_bounds(
                   session, &cbt->iface, key, WT_RECNO_OOB, true, &key_out_of_bounds));
                 if (key_out_of_bounds)
@@ -695,7 +695,7 @@ restart_read_page:
          */
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
 
-        if (WT_IS_HS(session->dhandle)) {
+        if (WT_IS_HS(session->dhandle) && F_ISSET(&cbt->iface, WT_CURSTD_BOUND_UPPER)) {
             WT_RET(__wt_compare_bounds(
               session, &cbt->iface, &cbt->iface.key, WT_RECNO_OOB, true, &key_out_of_bounds));
             if (key_out_of_bounds)
