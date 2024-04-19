@@ -134,7 +134,6 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(cursor), true);
 
     if (ret == 0) {
-        WT_ERR(cursor->bound(cursor, "action=clear"));
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_HS_VALIDATE)) {
