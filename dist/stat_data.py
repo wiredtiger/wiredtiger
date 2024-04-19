@@ -208,6 +208,14 @@ conn_stats = [
     ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
+    # API utilization statistics
+    ##########################################
+    ConnStat('api_call_current', 'threads currently in the library application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_int', 'threads currently in the library internal', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_cursor', 'threads currently in the library doing cursor operations application', 'no_clear,no_scale,size'),
+    ConnStat('api_call_current_cursor_int', 'threads currently in the library doing cursor operations internal', 'no_clear,no_scale,size'),
+
+    ##########################################
     # Background compaction statistics
     ##########################################
     BackgroundCompactStat('background_compact_bytes_recovered', 'background compact recovered bytes', 'no_scale'),
@@ -291,6 +299,7 @@ conn_stats = [
     CacheStat('cache_eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
     CacheStat('cache_eviction_app', 'pages evicted by application threads'),
     CacheStat('cache_eviction_app_dirty', 'modified pages evicted by application threads'),
+    CacheStat('cache_eviction_app_time', 'application thread time evicting (usecs)'),
     CacheStat('cache_eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     CacheStat('cache_eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
@@ -341,6 +350,7 @@ conn_stats = [
     CacheStat('cache_eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     CacheStat('cache_eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     CacheStat('cache_eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
+    CacheStat('cache_eviction_server_skip_unwanted_tree', 'eviction server skips tree that we do not want to evict'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
     CacheStat('cache_eviction_stable_state_workers', 'eviction worker thread stable number', 'no_clear'),
@@ -770,8 +780,8 @@ conn_stats = [
     ##########################################
     # Yield statistics
     ##########################################
+    YieldStat('application_cache_ops', 'application thread operations waiting for cache'),
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
-    YieldStat('application_evict_time', 'application thread time evicting (usecs)'),
     YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
@@ -811,6 +821,7 @@ dsrc_stats = [
     # Btree statistics
     ##########################################
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
+    BtreeStat('btree_checkpoint_pages_reconciled', 'btree number of pages reconciled during checkpoint', 'no_clear,no_scale'),
     BtreeStat('btree_clean_checkpoint_timer', 'btree clean tree checkpoint expiration time', 'no_clear,no_scale'),
     BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale,tree_walk'),
