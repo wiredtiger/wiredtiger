@@ -692,8 +692,7 @@ __curfile_cache(WT_CURSOR *cursor)
     WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
     WT_TRET(__wt_session_release_dhandle(session));
 
-    API_END_STAT(session, ret, cursor_cache);
-    return (ret);
+    API_RET_STAT(session, ret, cursor_cache);
 }
 
 /*
