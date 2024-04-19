@@ -433,6 +433,7 @@ struct __wt_connection_stats {
     int64_t block_byte_map_read;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t cache_eviction_app_time;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -468,6 +469,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_server_skip_pages_last_running;
     int64_t cache_eviction_server_skip_pages_retry;
     int64_t cache_eviction_server_skip_unwanted_pages;
+    int64_t cache_eviction_server_skip_unwanted_tree;
     int64_t cache_eviction_server_skip_trees_too_many_active_walks;
     int64_t cache_eviction_server_skip_checkpointing_trees;
     int64_t cache_eviction_server_skip_trees_stick_in_cache;
@@ -701,6 +703,10 @@ struct __wt_connection_stats {
     int64_t cond_wait;
     int64_t rwlock_read;
     int64_t rwlock_write;
+    int64_t api_call_current;
+    int64_t api_call_current_cursor;
+    int64_t api_call_current_cursor_int;
+    int64_t api_call_current_int;
     int64_t fsync_io;
     int64_t read_io;
     int64_t write_io;
@@ -979,8 +985,8 @@ struct __wt_connection_stats {
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
+    int64_t application_cache_ops;
     int64_t application_evict_snapshot_refreshed;
-    int64_t application_evict_time;
     int64_t application_cache_time;
     int64_t txn_release_blocked;
     int64_t conn_close_blocked_lsm;
@@ -1092,6 +1098,7 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_skipped;
     int64_t btree_compact_bytes_rewritten_expected;
     int64_t btree_compact_pages_rewritten_expected;
+    int64_t btree_checkpoint_pages_reconciled;
     int64_t btree_compact_skipped;
     int64_t btree_column_fix;
     int64_t btree_column_tws;
