@@ -711,9 +711,16 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     __wt_cursor_bound_reset(cursor);
 
     /*
-     * Don't free cursor buffers immediately, they will be freed by the session cursor sweep.
+     * Check to see if the top level key/value buffers in the cursor are allocated. If so, we want
+     * to keep them around, they may be useful for the next use of this cursor. They will be freed
+     * by the session cursor sweep. If they are not allocated, free all the buffers in the cursor.
      */
-    F_SET(cursor, WT_CURSTD_CACHED_WITH_MEM);
+    if (__wt_cursor_has_cached_memory(cursor))
+        F_SET(cursor, WT_CURSTD_CACHED_WITH_MEM);
+    else {
+        __wt_cursor_free_cached_memory(cursor);
+        F_CLR(cursor, WT_CURSTD_CACHED_WITH_MEM);
+    }
 
     /*
      * Acquire a reference while decrementing the in-use counter. After this point, the dhandle may

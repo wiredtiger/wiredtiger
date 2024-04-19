@@ -464,6 +464,16 @@ __wt_cursor_free_cached_memory(WT_CURSOR *cursor)
 }
 
 /*
+ * __wt_cursor_free_cached_memory --
+ *     If a cached cursor is still holding memory, free it now.
+ */
+static WT_INLINE bool
+__wt_cursor_has_cached_memory(WT_CURSOR *cursor)
+{
+    return (cursor->key.mem != NULL || cursor->value.mem != NULL);
+}
+
+/*
  * __cursor_row_slot_key_return --
  *     Return a row-store leaf page slot's key.
  */
