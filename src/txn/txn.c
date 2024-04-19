@@ -499,6 +499,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     txn_global = &conn->txn_global;
     strict = LF_ISSET(WT_TXN_OLDEST_STRICT);
     wait = LF_ISSET(WT_TXN_OLDEST_WAIT);
+    
     /*
      * When not in strict mode we want to avoid scanning too frequently. Set a minimum transaction
      * ID age threshold before we perform another scan.
