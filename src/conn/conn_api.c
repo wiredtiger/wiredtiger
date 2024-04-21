@@ -2773,6 +2773,26 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conf_compile_hs_cursor_config --
+ *     Compile the history store cursor bound configurations.
+ */
+static int
+__conf_compile_hs_cursor_config(WT_CONNECTION_IMPL *conn)
+{
+    WT_CONNECTION *connection;
+
+    connection = &conn->iface;
+    WT_RET(connection->compile_configuration(connection, "WT_CURSOR.bound",
+      "bound=lower,inclusive=true", &conn->hs_compiled_conf.compiled_lower_bound_conf));
+    WT_RET(connection->compile_configuration(connection, "WT_CURSOR.bound",
+      "bound=upper,inclusive=true", &conn->hs_compiled_conf.compiled_upper_bound_conf));
+    WT_RET(connection->compile_configuration(connection, "WT_CURSOR.bound", "action=clear",
+      &conn->hs_compiled_conf.compiled_clear_bound_conf));
+
+    return (0);
+}
+
+/*
  * wiredtiger_open --
  *     Main library entry point: open a new connection to a WiredTiger database.
  */
@@ -3115,6 +3135,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     }
 
     WT_ERR(__wt_conf_compile_init(session, cfg));
+    WT_ERR(__conf_compile_hs_cursor_config(conn));
     WT_ERR(__wt_conn_statistics_config(session, cfg));
     WT_ERR(__wt_lsm_manager_config(session, cfg));
     WT_ERR(__wt_sweep_config(session, cfg));

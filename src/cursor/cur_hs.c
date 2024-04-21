@@ -627,9 +627,15 @@ err:
 int
 __wt_curhs_search_near_before(WT_CURSOR *cursor)
 {
-    WT_RET(cursor->bound(cursor, "bound=upper,inclusive=true"));
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(cursor);
+    conn = S2C(session);
+
+    WT_RET(cursor->bound(cursor, conn->hs_compiled_conf.compiled_lower_bound_conf));
     WT_RET(cursor->prev(cursor));
-    WT_RET(cursor->bound(cursor, "action=clear"));
+    WT_RET(cursor->bound(cursor, conn->hs_compiled_conf.compiled_clear_bound_conf));
 
     return (0);
 }
@@ -641,9 +647,15 @@ __wt_curhs_search_near_before(WT_CURSOR *cursor)
 int
 __wt_curhs_search_near_after(WT_CURSOR *cursor)
 {
-    WT_RET(cursor->bound(cursor, "bound=lower,inclusive=true"));
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(cursor);
+    conn = S2C(session);
+
+    WT_RET(cursor->bound(cursor, conn->hs_compiled_conf.compiled_upper_bound_conf));
     WT_RET(cursor->next(cursor));
-    WT_RET(cursor->bound(cursor, "action=clear"));
+    WT_RET(cursor->bound(cursor, conn->hs_compiled_conf.compiled_clear_bound_conf));
 
     return (0);
 }

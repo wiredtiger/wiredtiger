@@ -697,6 +697,13 @@ struct __wt_connection_impl {
     uint32_t conf_size;       /* In use size of user compiled configuration array */
     uint32_t conf_max;        /* Allocated size of user compiled configuration array */
 
+    /* Compiled history store cursor configurations */
+    struct {
+        const char *compiled_lower_bound_conf;
+        const char *compiled_upper_bound_conf;
+        const char *compiled_clear_bound_conf;
+    } hs_compiled_conf;
+
     /* If non-zero, all buffers used for I/O will be aligned to this. */
     size_t buffer_alignment;
 
