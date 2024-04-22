@@ -464,8 +464,8 @@ __wt_cursor_free_cached_memory(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_cursor_free_cached_memory --
- *     If a cached cursor is still holding memory, free it now.
+ * __wt_cursor_has_cached_memory --
+ *     Return true if a cursor is holding memory in either key or value.
  */
 static WT_INLINE bool
 __wt_cursor_has_cached_memory(WT_CURSOR *cursor)
