@@ -332,6 +332,8 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&a, 0, &v));
         WT_RET(__wt_vunpack_uint(&a, 0, &alen)); /* Length */
+        if(rle && alen > WT_CELL_SHORT_MAX)
+            alen -= WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 
@@ -361,6 +363,8 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&b, 0, &v));
         WT_RET(__wt_vunpack_uint(&b, 0, &blen)); /* Length */
+        if(rle && blen > WT_CELL_SHORT_MAX)
+            blen -= WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 

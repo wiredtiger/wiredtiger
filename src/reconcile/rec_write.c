@@ -696,6 +696,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     if (btree->dictionary != 0 && btree->dictionary > r->dictionary_slots)
         WT_ERR(
           __wt_rec_dictionary_init(session, r, btree->dictionary < 100 ? 100 : btree->dictionary));
+    // printf("1: Calling __wt_rec_dictionary_reset\n");
     __wt_rec_dictionary_reset(r);
 
     /*
@@ -1461,9 +1462,12 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
      * We should never split during salvage, and we're about to drop core because there's no parent
      * page.
      */
-    if (r->salvage != NULL)
+    if (r->salvage != NULL) {
+        // printf("Should have failed!\n");
+        // if(btree->type != BTREE_COL_VAR)
         WT_RET_PANIC(session, WT_PANIC, "%s page too large, attempted split during salvage",
-          __wt_page_type_string(r->page->type));
+            __wt_page_type_string(r->page->type));
+    }
 
     /*
      * We can get here if the first key/value pair won't fit. Grow the buffer to contain the current
@@ -1485,6 +1489,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
         goto done;
 
     /* All page boundaries reset the dictionary. */
+    // printf("2: Calling __wt_rec_dictionary_reset\n");
     __wt_rec_dictionary_reset(r);
 
     /* Set the entries, timestamps and size for the just finished chunk. */
@@ -1584,11 +1589,17 @@ done:
 int
 __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 {
+    // printf("Inside __wt_rec_split_crossing_bnd\n");
     /*
      * If crossing the minimum split size boundary, store the boundary details at the current
      * location in the buffer. If we are crossing the split boundary at the same time, possible when
      * the next record is large enough, just split at this point.
      */
+    // printf("WT_CROSSING_MIN_BND(r, next_len) %d\n", WT_CROSSING_MIN_BND(r, next_len));
+    // printf("WT_CROSSING_SPLIT_BND(r, next_len) %d\n", WT_CROSSING_SPLIT_BND(r, next_len));
+    // printf("__wt_rec_need_split(r, 0) %d\n", __wt_rec_need_split(r, 0));
+    // printf("r->entries %u\n", r->entries);
+    // printf("r->cur_ptr->min_offset %lu\n", r->cur_ptr->min_offset);
     if (WT_CROSSING_MIN_BND(r, next_len) && !WT_CROSSING_SPLIT_BND(r, next_len) &&
       !__wt_rec_need_split(r, 0)) {
         /*
@@ -1596,6 +1607,7 @@ __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t ne
          * record without setting a boundary here. We will get the opportunity to setup a boundary
          * before writing out the next record.
          */
+        // printf("inside!\n");
         if (r->entries == 0)
             return (0);
 
@@ -1610,6 +1622,7 @@ __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t ne
         r->cur_ptr->min_offset = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 
         /* All page boundaries reset the dictionary. */
+        // printf("3: Calling __wt_rec_dictionary_reset\n");
         __wt_rec_dictionary_reset(r);
 
         return (0);

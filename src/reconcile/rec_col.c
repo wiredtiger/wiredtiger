@@ -1110,7 +1110,7 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, uint32_t entries,
  */
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
-  WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool *ovfl_usedp)
+  WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool *ovfl_usedp, bool dictionary)
 {
     WT_BTREE *btree;
     WT_REC_KV *val;
@@ -1166,12 +1166,15 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     } else
         WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
 
+    // if(r->salvage != NULL)
+    //     printf("Value data %.*s\n", (int)value->size, (char*)value->data);
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
         WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
 
     /* Copy the value onto the page. */
-    if (!deleted && ovfl_usedp == NULL && btree->dictionary)
+    // printf("Recno: %llu\n", r->recno);
+    if (dictionary && !deleted && ovfl_usedp == NULL && btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
@@ -1195,6 +1198,7 @@ __wt_rec_col_var(
         WT_ITEM *value; /* Value */
         WT_TIME_WINDOW tw;
         bool deleted; /* If deleted */
+        bool dictionary; /* If using dictionary */
     } last;
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -1210,7 +1214,7 @@ __wt_rec_col_var(
     WT_UPDATE_SELECT upd_select;
     uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
     uint32_t i, size;
-    bool deleted, orig_deleted, orig_stale, ovfl_used, update_no_copy, wrote_real_values;
+    bool deleted, dictionary, orig_deleted, orig_stale, ovfl_used, update_no_copy, wrote_real_values;
     const void *data;
 
     btree = S2BT(session);
@@ -1222,6 +1226,8 @@ __wt_rec_col_var(
     size = 0;
     orig_stale = false;
     wrote_real_values = false;
+    dictionary = false;
+    update_no_copy = true;
     data = NULL;
 
     cbt = &r->update_modify_cbt;
@@ -1259,7 +1265,7 @@ __wt_rec_col_var(
             salvage->take += salvage->missing;
         } else
             WT_ERR(__rec_col_var_helper(
-              session, r, NULL, NULL, &clear_tw, salvage->missing, true, NULL));
+              session, r, NULL, NULL, &clear_tw, salvage->missing, true, NULL, false));
     }
 
     /*
@@ -1280,6 +1286,7 @@ __wt_rec_col_var(
         __wt_cell_unpack_kv(session, page->dsk, cell, vpack);
         nrepeat = __wt_cell_rle(vpack);
         ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
+        dictionary = false;
 
         /*
          * If the original value is "deleted", there's no value to compare, we're done.
@@ -1354,6 +1361,14 @@ record_loop:
 
                 /* Clear the on-disk cell time window if it is obsolete. */
                 __wt_rec_time_window_clear_obsolete(session, NULL, vpack, r);
+                if (vpack->raw == WT_CELL_VALUE_COPY) {
+                    // printf("1: Setting dictionary to true\n");
+                    dictionary = true;
+                }
+                else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
+                    // printf("2: Setting dictionary to true\n");
+                    dictionary = true;
+                }
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
@@ -1369,14 +1384,15 @@ record_loop:
                      */
                     if (rle != 0) {
                         WT_ERR(__rec_col_var_helper(
-                          session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                          session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL, last.dictionary));
                         rle = 0;
                     }
 
                     last.value->data = vpack->data;
                     last.value->size = vpack->size;
+                    last.dictionary = dictionary;
                     WT_ERR(__rec_col_var_helper(
-                      session, r, salvage, last.value, twp, repeat_count, false, &ovfl_used));
+                      session, r, salvage, last.value, twp, repeat_count, false, &ovfl_used, last.dictionary));
 
                     wrote_real_values = true;
 
@@ -1418,10 +1434,12 @@ record_loop:
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
+                    dictionary = true;
                     break;
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
+                    dictionary = true;
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     deleted = true;
@@ -1463,7 +1481,7 @@ compare:
                 if (!last.deleted)
                     wrote_real_values = true;
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL, last.dictionary));
             }
 
             /*
@@ -1490,6 +1508,7 @@ compare:
             WT_TIME_WINDOW_COPY(&last.tw, twp);
             last.deleted = deleted;
             rle = repeat_count;
+            last.dictionary = dictionary;
         }
 
         /*
@@ -1603,7 +1622,7 @@ compare:
                 if (!last.deleted)
                     wrote_real_values = true;
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL, last.dictionary));
             }
 
             /*
@@ -1649,7 +1668,7 @@ next:
         if (!last.deleted)
             wrote_real_values = true;
         WT_ERR(
-          __rec_col_var_helper(session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+          __rec_col_var_helper(session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL, last.dictionary));
     }
 
     /*

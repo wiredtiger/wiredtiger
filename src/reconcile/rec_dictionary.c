@@ -135,6 +135,7 @@ __wt_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 void
 __wt_rec_dictionary_reset(WT_RECONCILE *r)
 {
+    // printf("inside __wt_rec_dictionary_reset\n");
     if (r->dictionary_slots) {
         r->dictionary_next = 0;
         memset(r->dictionary_head, 0, sizeof(r->dictionary_head));
@@ -176,8 +177,10 @@ __wt_rec_dictionary_lookup(
      * some other value: if we find working sets where that's not the case, it shouldn't be too
      * difficult to maintain a pointer which is the next dictionary slot to re-use.
      */
-    if (r->dictionary_next >= r->dictionary_slots)
+    if (r->dictionary_next >= r->dictionary_slots) {
+        // printf("out of slots!\n");
         return (0);
+    }
 
     /*
      * Set the hash value, we'll add this entry into the dictionary when we write it into the page's
