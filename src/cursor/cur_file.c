@@ -162,7 +162,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
     ret = __wt_btcur_equals((WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, equalp);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_equals);
 }
 
 /*
@@ -691,7 +691,8 @@ __curfile_cache(WT_CURSOR *cursor)
 
     WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
     WT_TRET(__wt_session_release_dhandle(session));
-    return (ret);
+
+    API_RET_STAT(session, ret, cursor_cache);
 }
 
 /*
