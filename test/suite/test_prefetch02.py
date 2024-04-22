@@ -44,8 +44,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
 
     format_values = [
         ('col_var', dict(key_format='r', value_format='i')),
-        #FIXME-WT-12276: Re-enable FLCS scenario once prefetch bug has been identified and fixed.
-        # ('col_fix', dict(key_format='r', value_format='8t')),
+        ('col_fix', dict(key_format='r', value_format='8t')),
         ('row_int', dict(key_format='i', value_format='i')),
     ]
 
@@ -73,13 +72,13 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         return val
 
     def get_prefetch_activity_stats(self, session_name):
-        pages_queued = self.get_stat(wiredtiger.stat.conn.block_prefetch_pages_queued, session_name)
-        prefetch_attempts = self.get_stat(wiredtiger.stat.conn.block_prefetch_attempts, session_name)
-        prefetch_pages_read = self.get_stat(wiredtiger.stat.conn.block_prefetch_pages_read, session_name)
+        pages_queued = self.get_stat(wiredtiger.stat.conn.prefetch_pages_queued, session_name)
+        prefetch_attempts = self.get_stat(wiredtiger.stat.conn.prefetch_attempts, session_name)
+        prefetch_pages_read = self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session_name)
         return pages_queued, prefetch_attempts, prefetch_pages_read
 
     def get_prefetch_skipped_stat(self, session_name):
-        prefetch_skips = self.get_stat(wiredtiger.stat.conn.block_prefetch_skipped, session_name)
+        prefetch_skips = self.get_stat(wiredtiger.stat.conn.prefetch_skipped, session_name)
         return prefetch_skips
 
     # Checks for pre-fetching activity by asserting that relevant statistics have increased.

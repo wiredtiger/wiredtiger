@@ -77,7 +77,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     __wt_txn_stats_update(session);
 
     WT_STAT_SET(session, stats, file_open, conn->open_file_count);
-    WT_STAT_SET(session, stats, cursor_open_count, conn->open_cursor_count);
+    WT_STAT_SET(session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
     WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
     WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
     WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
@@ -193,7 +193,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 #define WT_TIMESTAMP_JSON_DEFAULT "%Y-%m-%dT%H:%M:%S.000Z"
     WT_ERR(__wt_config_gets(session, cfg, "statistics_log.timestamp", &cval));
     if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON) &&
-      WT_STRING_MATCH(WT_TIMESTAMP_DEFAULT, cval.str, cval.len))
+      WT_CONFIG_LIT_MATCH(WT_TIMESTAMP_DEFAULT, cval))
         WT_ERR(__wt_strdup(session, WT_TIMESTAMP_JSON_DEFAULT, &conn->stat_format));
     else
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->stat_format));

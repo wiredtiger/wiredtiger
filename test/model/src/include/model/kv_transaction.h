@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_TRANSACTION_H
-#define MODEL_KV_TRANSACTION_H
+#pragma once
 
 #include <atomic>
 #include <list>
@@ -89,6 +88,16 @@ public:
     }
 
     /*
+     * kv_transaction::empty --
+     *     Check if there are no updates.
+     */
+    inline bool
+    empty() const noexcept
+    {
+        return _updates.empty();
+    }
+
+    /*
      * kv_transaction::id --
      *     Get the transaction's ID.
      */
@@ -105,6 +114,7 @@ public:
     inline timestamp_t
     commit_timestamp() const noexcept
     {
+        std::lock_guard lock_guard(_lock); /* So that Coverity does not complain. */
         return _commit_timestamp;
     }
 
@@ -115,6 +125,7 @@ public:
     inline timestamp_t
     durable_timestamp() const noexcept
     {
+        std::lock_guard lock_guard(_lock); /* So that Coverity does not complain. */
         return _durable_timestamp;
     }
 
@@ -125,6 +136,7 @@ public:
     inline timestamp_t
     prepare_timestamp() const noexcept
     {
+        std::lock_guard lock_guard(_lock); /* So that Coverity does not complain. */
         return _prepare_timestamp;
     }
 
@@ -297,4 +309,3 @@ private:
 using kv_transaction_ptr = std::shared_ptr<kv_transaction>;
 
 } /* namespace model */
-#endif

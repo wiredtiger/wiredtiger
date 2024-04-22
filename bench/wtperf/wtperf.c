@@ -28,6 +28,8 @@
 
 #include "wtperf.h"
 
+#define BACKUP_RETAIN 4
+
 /* Default values. */
 #define DEFAULT_HOME "WT_TEST"
 #define DEFAULT_MONITOR_DIR "WT_TEST"
@@ -336,7 +338,7 @@ worker(void *arg)
     WTPERF *wtperf;
     WTPERF_THREAD *thread;
     WT_CONNECTION *conn;
-    WT_CURSOR **cursors, *cursor, *log_table_cursor, *tmp_cursor;
+    WT_CURSOR **cursors, *cursor, *index_cursor, *log_table_cursor, *tmp_cursor;
     WT_ITEM newv, oldv;
     WT_MODIFY entries[MAX_MODIFY_NUM];
     WT_SESSION *session;
@@ -346,8 +348,9 @@ worker(void *arg)
     uint32_t rand_val, total_table_count;
     uint8_t *op, *op_end;
     int measure_latency, nmodify, ret, truncated;
-    char *key_buf, *value, *value_buf;
+    char *index_buf, *index_del_buf, *key_buf, *value, *value_buf;
     char buf[512];
+    bool use_txn;
 
     thread = (WTPERF_THREAD *)arg;
     workload = thread->workload;
@@ -355,7 +358,7 @@ worker(void *arg)
     opts = wtperf->opts;
     conn = wtperf->conn;
     cursors = NULL;
-    cursor = log_table_cursor = NULL; /* -Wconditional-initialized */
+    cursor = index_cursor = log_table_cursor = NULL; /* -Wconditional-initialized */
     ops = 0;
     ops_per_txn = workload->ops_per_txn;
     session = NULL;
@@ -400,6 +403,13 @@ worker(void *arg)
             }
         }
     }
+    if (opts->index_like_table &&
+      (ret = session->open_cursor(session, wtperf->index_table_uri, NULL, NULL, &index_cursor)) !=
+        0) {
+        lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s", wtperf->index_table_uri);
+        goto err;
+    }
+
     if (opts->log_like_table &&
       (ret = session->open_cursor(session, wtperf->log_table_uri, NULL, NULL, &log_table_cursor)) !=
         0) {
@@ -415,14 +425,16 @@ worker(void *arg)
     if (workload->truncate != 0)
         setup_truncate(wtperf, thread, session);
 
+    index_buf = thread->index_buf;
+    index_del_buf = thread->index_del_buf;
     key_buf = thread->key_buf;
     value_buf = thread->value_buf;
 
     op = workload->ops;
     op_end = op + sizeof(workload->ops);
+    use_txn = ops_per_txn != 0 || opts->index_like_table || opts->log_like_table;
 
-    if ((ops_per_txn != 0 || opts->log_like_table) &&
-      (ret = session->begin_transaction(session, NULL)) != 0) {
+    if (use_txn && (ret = session->begin_transaction(session, NULL)) != 0) {
         lprintf(wtperf, ret, 0, "First transaction begin failed");
         goto err;
     }
@@ -471,6 +483,8 @@ worker(void *arg)
         }
 
         generate_key(opts, key_buf, next_val);
+        if (opts->index_like_table)
+            generate_index_key(thread, false, index_buf, next_val);
 
         if (workload->table_index == INT32_MAX)
             /*
@@ -662,15 +676,13 @@ worker(void *arg)
                 break;
 
 op_err:
-            if (ret == WT_ROLLBACK && (ops_per_txn != 0 || opts->log_like_table)) {
+            if (ret == WT_ROLLBACK && use_txn) {
                 /*
                  * If we are running with explicit transactions configured and we hit a WT_ROLLBACK,
                  * then we should rollback the current transaction and attempt to continue. This
                  * does break the guarantee of insertion order in cases of ordered inserts, as we
                  * aren't retrying here.
                  */
-                lprintf(wtperf, ret, 1, "%s for: %s, range: %" PRIu64, op_name(op), key_buf,
-                  wtperf_value_range(wtperf));
                 if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                     lprintf(wtperf, ret, 0, "Failed rollback_transaction");
                     goto err;
@@ -686,6 +698,42 @@ op_err:
             goto err;
         default:
             goto err; /* can't happen */
+        }
+
+        /*
+         * For now the index_like_table does not contain actual value from a main table. A truncate
+         * could imply a lot of deletions from an index but we don't want to do that here. Don't
+         * change the index_like_table on truncate.
+         */
+        if (opts->index_like_table && (*op != WORKER_READ && *op != WORKER_TRUNCATE)) {
+            if ((ret = delete_index_key(wtperf, index_cursor, index_del_buf, next_val)) != 0)
+                if (ret != WT_ROLLBACK)
+                    lprintf(wtperf, ret, 1, "Cursor index delete failed");
+            if (ret == 0) {
+                index_cursor->set_key(index_cursor, index_buf);
+                index_cursor->set_value(index_cursor, INDEX_VALUE);
+                ret = index_cursor->insert(index_cursor);
+                if (ret != 0 && ret != WT_ROLLBACK)
+                    lprintf(wtperf, ret, 1, "Cursor index insert failed");
+            }
+            if (ret != 0) {
+                /*
+                 * For the index_like_table we're always using a transaction. But using ops_per_txn
+                 * supersedes. So if we get rollback only do it here if it isn't handled by the
+                 * ops_per_txn code elsewhere.
+                 */
+                if (ret == WT_ROLLBACK && ops_per_txn == 0) {
+                    if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                        lprintf(wtperf, ret, 0, "Failed rollback_transaction");
+                        goto err;
+                    }
+                    if ((ret = session->begin_transaction(session, NULL)) != 0) {
+                        lprintf(wtperf, ret, 0, "Worker begin transaction failed");
+                        goto err;
+                    }
+                } else
+                    goto err;
+            }
         }
 
         /* Update the log-like table. */
@@ -731,11 +779,10 @@ op_err:
         }
 
         /*
-         * Commit the transaction if grouping operations together or tracking changes in our log
-         * table.
+         * Commit the transaction if grouping operations together or tracking changes in our log or
+         * index table.
          */
-        if ((opts->log_like_table && ops_per_txn == 0) ||
-          (ops_per_txn != 0 && ops++ % ops_per_txn == 0)) {
+        if (use_txn || (ops_per_txn != 0 && ops++ % ops_per_txn == 0)) {
             if ((ret = session->commit_transaction(session, NULL)) != 0) {
                 lprintf(wtperf, ret, 0, "Worker transaction commit failed");
                 goto err;
@@ -898,13 +945,13 @@ populate_thread(void *arg)
     WTPERF *wtperf;
     WTPERF_THREAD *thread;
     WT_CONNECTION *conn;
-    WT_CURSOR **cursors, *cursor;
+    WT_CURSOR **cursors, *cursor, *index_cursor;
     WT_SESSION *session;
     size_t i;
     uint64_t op, start, stop, usecs;
     uint32_t opcount, total_table_count;
     int intxn, measure_latency, ret, stress_checkpoint_due;
-    char *value_buf, *key_buf;
+    char *index_buf, *key_buf, *value_buf;
     const char *cursor_config;
 
     thread = (WTPERF_THREAD *)arg;
@@ -913,11 +960,13 @@ populate_thread(void *arg)
     conn = wtperf->conn;
     session = NULL;
     cursors = NULL;
+    index_cursor = NULL;
     ret = stress_checkpoint_due = 0;
     start = 0;
     trk = &thread->insert;
     total_table_count = opts->table_count + opts->scan_table_count;
 
+    index_buf = thread->index_buf;
     key_buf = thread->key_buf;
     value_buf = thread->value_buf;
 
@@ -940,6 +989,14 @@ populate_thread(void *arg)
             goto err;
         }
     }
+    if (opts->index_like_table) {
+        if ((ret = session->open_cursor(
+               session, wtperf->index_table_uri, NULL, NULL, &index_cursor)) != 0) {
+            lprintf(
+              wtperf, ret, 0, "populate: WT_SESSION.open_cursor: %s", wtperf->index_table_uri);
+            goto err;
+        }
+    }
 
     /* Populate the databases. */
     for (intxn = 0, opcount = 0;;) {
@@ -959,6 +1016,8 @@ populate_thread(void *arg)
          */
         cursor = cursors[map_key_to_table(wtperf->opts, op)];
         generate_key(opts, key_buf, op);
+        if (opts->index_like_table)
+            generate_index_key(thread, true, index_buf, op);
         measure_latency =
           opts->sample_interval != 0 && trk->ops != 0 && (trk->ops % opts->sample_rate == 0);
         if (measure_latency)
@@ -978,6 +1037,22 @@ populate_thread(void *arg)
         } else if (ret != 0) {
             lprintf(wtperf, ret, 0, "Failed inserting");
             goto err;
+        }
+        if (opts->index_like_table) {
+            index_cursor->set_key(index_cursor, index_buf);
+            index_cursor->set_value(index_cursor, INDEX_VALUE);
+            if ((ret = index_cursor->insert(index_cursor)) == WT_ROLLBACK) {
+                lprintf(wtperf, ret, 0, "index table insert retrying");
+                if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                    lprintf(wtperf, ret, 0, "Failed rollback_transaction");
+                    goto err;
+                }
+                intxn = 0;
+                continue;
+            } else if (ret != 0) {
+                lprintf(wtperf, ret, 0, "Failed index inserting");
+                goto err;
+            }
         }
         /*
          * Gather statistics. We measure the latency of inserting a single key. If there are
@@ -1245,10 +1320,8 @@ backup_worker(void *arg)
     WTPERF *wtperf;
     WTPERF_THREAD *thread;
     WT_CONNECTION *conn;
-    WT_CURSOR *backup_cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    const char *key;
     uint32_t i;
 
     thread = (WTPERF_THREAD *)arg;
@@ -1275,27 +1348,16 @@ backup_worker(void *arg)
 
         wtperf->backup = true;
 
-        /*
-         * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-         */
-        while (
-          (ret = session->open_cursor(session, "backup:", NULL, NULL, &backup_cursor)) == EBUSY)
-            __wt_yield();
-        if (ret != 0)
-            goto err;
-
-        while ((ret = backup_cursor->next(backup_cursor)) == 0) {
-            testutil_check(backup_cursor->get_key(backup_cursor, &key));
-            backup_read(wtperf, key);
+        /* Take the kind of backup configured. */
+        if (opts->backup_complete == 0)
+            backup_read(wtperf, session);
+        else {
+            testutil_backup_create_full(
+              conn, wtperf->home, (int)thread->backup.ops, false, 1024, NULL);
+            testutil_delete_old_backups(BACKUP_RETAIN);
         }
-
-        if (ret != WT_NOTFOUND) {
-            testutil_check(backup_cursor->close(backup_cursor));
-            goto err;
-        }
-
-        testutil_check(backup_cursor->close(backup_cursor));
         wtperf->backup = false;
+        ++wtperf->backup_ops;
         ++thread->backup.ops;
     }
 
@@ -1598,6 +1660,7 @@ execute_populate(WTPERF *wtperf)
     /* Start cycling idle tables if configured. */
     start_idle_table_cycle(wtperf, &idle_table_cycle_thread);
 
+    wtperf->index_max_multiplier = 1;
     wtperf->insert_key = 0;
 
     wtperf->popthreads = dcalloc(opts->populate_threads, sizeof(WTPERF_THREAD));
@@ -1974,6 +2037,10 @@ create_uris(WTPERF *wtperf)
             testutil_snprintf(wtperf->uris[i], len, "table:%s%05" PRIu32, opts->table_name, i);
     }
 
+    /* Create the index-like-table URI. */
+    len = strlen("table:") + strlen(opts->table_name) + strlen("_index_table") + 1;
+    wtperf->index_table_uri = dmalloc(len);
+    testutil_snprintf(wtperf->index_table_uri, len, "table:%s_index_table", opts->table_name);
     /* Create the log-like-table URI. */
     len = strlen("table:") + strlen(opts->table_name) + strlen("_log_table") + 1;
     wtperf->log_table_uri = dmalloc(len);
@@ -2004,6 +2071,13 @@ create_tables(WTPERF *wtperf)
             return (ret);
         }
     }
+    if (opts->index_like_table &&
+      (ret = session->create(session, wtperf->index_table_uri, "key_format=S,value_format=S")) !=
+        0) {
+        lprintf(wtperf, ret, 0, "Error creating index table %s", buf);
+        return (ret);
+    }
+
     if (opts->log_like_table &&
       (ret = session->create(session, wtperf->log_table_uri, "key_format=Q,value_format=S")) != 0) {
         lprintf(wtperf, ret, 0, "Error creating log table %s", buf);
@@ -2107,6 +2181,7 @@ wtperf_free(WTPERF *wtperf)
     free(wtperf->monitor_dir);
     free(wtperf->partial_config);
     free(wtperf->reopen_config);
+    free(wtperf->index_table_uri);
     free(wtperf->log_table_uri);
 
     if (wtperf->uris != NULL) {
@@ -2226,6 +2301,9 @@ create_tiered_bucket(WTPERF *wtperf)
     char buf[1024];
     size_t home_len, bucket_len;
 
+    /* If tiered storage is not set, there is nothing to do. */
+    if (wtperf->tiered_ext == NULL)
+        return (0);
     opts = wtperf->opts;
     home_len = strlen(wtperf->home);
     bucket_len = strlen(opts->tiered_bucket);
@@ -2772,6 +2850,12 @@ main(int argc, char *argv[])
     /* If creating, remove and re-create the home and tiered bucket directories. */
     if (opts->create != 0) {
         testutil_recreate_dir(wtperf->home);
+        /* If running backups move down a directory level. */
+        if (opts->backup_interval != 0 && opts->backup_complete != 0) {
+            if (chdir(wtperf->home) != 0)
+                testutil_die(errno, "backup chdir: %s", wtperf->home);
+            testutil_recreate_dir(wtperf->home);
+        }
         testutil_check(create_tiered_bucket(wtperf));
     }
 
@@ -2821,6 +2905,10 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
     for (i = 0, thread = base; i < num; ++i, ++thread) {
         thread->wtperf = wtperf;
         thread->workload = workp;
+        /*
+         * Thread counter starts at zero and the populate threads reserve a value so start the index
+         * multiplier after that. Keep track of the largest we generate.
+         */
 
         /*
          * We don't want the threads executing in lock-step, seed each one differently.
@@ -2832,6 +2920,8 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
          * threads needing them and threads that don't, it's not enough memory to bother. These
          * buffers hold strings: trailing NUL is included in the size.
          */
+        thread->index_buf = dcalloc(opts->key_sz + opts->value_sz_max, 1);
+        thread->index_del_buf = dcalloc(opts->key_sz + opts->value_sz_max, 1);
         thread->key_buf = dcalloc(opts->key_sz, 1);
         thread->value_buf = dcalloc(opts->value_sz_max, 1);
 
@@ -2870,6 +2960,10 @@ stop_threads(u_int num, WTPERF_THREAD *threads)
     for (i = 0; i < num; ++i, ++threads) {
         testutil_check(__wt_thread_join(NULL, &threads->handle));
 
+        free(threads->index_buf);
+        free(threads->index_del_buf);
+        threads->index_buf = NULL;
+        threads->index_del_buf = NULL;
         free(threads->key_buf);
         threads->key_buf = NULL;
         free(threads->value_buf);

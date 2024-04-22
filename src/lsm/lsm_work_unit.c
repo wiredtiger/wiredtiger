@@ -452,7 +452,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, WT_LS
     release_dhandle = false;
     WT_ERR(__wt_session_release_dhandle(session));
 
-    WT_PUBLISH(chunk->flushing, 0);
+    WT_RELEASE_WRITE_WITH_BARRIER(chunk->flushing, 0);
     flush_set = false;
 
     /* Make sure we aren't pinning a transaction ID. */
@@ -468,7 +468,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, WT_LS
 
 err:
     if (flush_set)
-        WT_PUBLISH(chunk->flushing, 0);
+        WT_RELEASE_WRITE_WITH_BARRIER(chunk->flushing, 0);
     if (release_dhandle)
         WT_TRET(__wt_session_release_dhandle(session));
 
@@ -636,7 +636,7 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
      * Take the schema lock for the drop operation. Since __wt_schema_drop results in the hot backup
      * lock being taken when it updates the metadata (which would be too late to prevent our drop).
      */
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, uri, drop_cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, uri, drop_cfg, false));
 
     if (ret == 0)
         ret = __wt_fs_remove(session, uri + strlen("file:"), false, false);

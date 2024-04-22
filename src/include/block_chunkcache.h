@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /* WiredTiger's chunk cache. Locally caches chunks of remote objects. */
 
 #define WT_CC_KEY_FORMAT WT_UNCHECKED_STRING(SLq)
@@ -57,7 +59,7 @@ struct __wt_chunkcache_chunk {
     uint8_t *chunk_memory;
     wt_off_t chunk_offset;
     size_t chunk_size;
-    wt_shared volatile uint32_t valid; /* Availability to read data from the chunk marked. */
+    wt_shared volatile bool valid; /* Availability to read data from the chunk marked. */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CHUNK_FROM_METADATA 0x1u

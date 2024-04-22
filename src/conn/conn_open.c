@@ -41,10 +41,10 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     conn->default_session = session;
 
     /*
-     * Publish: there must be a barrier to ensure the connection structure fields are set before
-     * other threads read from the pointer.
+     * Release write: there must be a barrier to ensure the connection structure fields are set
+     * before other threads read from the pointer.
      */
-    WT_WRITE_BARRIER();
+    WT_RELEASE_BARRIER();
 
     /* Create the cache. */
     WT_RET(__wt_cache_create(session, cfg));
@@ -200,6 +200,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
         WT_TRET(__wt_dlclose(session, dlh));
     }
 
+    /* Destroy any precompiled configuration. */
+    __wt_conf_compile_discard(session);
+
     /* Destroy the handle. */
     __wt_connection_destroy(conn);
 
@@ -268,6 +271,9 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start pre-fetch utilities. */
     WT_RET(__wt_prefetch_create(session, cfg));
+
+    /* Start the checkpoint cleanup thread. */
+    WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
 
     return (0);
 }

@@ -39,6 +39,7 @@ extern "C" {
 }
 
 #include "model/driver/kv_workload.h"
+#include "model/driver/kv_workload_generator.h"
 #include "model/test/util.h"
 #include "model/test/wiredtiger_util.h"
 #include "model/kv_database.h"
@@ -246,6 +247,126 @@ test_workload_restart(void)
 }
 
 /*
+ * test_workload_crash --
+ *     Test the workload executor with database crash.
+ */
+static void
+test_workload_crash(void)
+{
+    model::kv_workload workload;
+    workload << model::operation::create_table(k_table1_id, "table1", "S", "S")
+             << model::operation::begin_transaction(1) << model::operation::begin_transaction(2)
+             << model::operation::insert(k_table1_id, 1, key1, value1)
+             << model::operation::insert(k_table1_id, 2, key2, value2)
+             << model::operation::prepare_transaction(1, 10)
+             << model::operation::prepare_transaction(2, 15)
+             << model::operation::commit_transaction(1, 20, 21)
+             << model::operation::commit_transaction(2, 25, 26)
+             << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
+             << model::operation::remove(k_table1_id, 1, key1) << model::operation::checkpoint()
+             << model::operation::crash() << model::operation::begin_transaction(1)
+             << model::operation::insert(k_table1_id, 1, key3, value3)
+             << model::operation::prepare_transaction(1, 23)
+             << model::operation::commit_transaction(1, 24, 25)
+             << model::operation::set_stable_timestamp(25);
+
+    /* Run the workload in the model. */
+    model::kv_database database;
+    workload.run(database);
+
+    /* Verify the contents of the model. */
+    model::kv_table_ptr table = database.table("table1");
+    testutil_assert(table->get(key1) == value1);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == value3);
+
+    /* Run the workload in WiredTiger and verify. */
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "crash";
+    verify_workload(workload, opts, test_home, ENV_CONFIG);
+    verify_using_debug_log(opts, test_home.c_str()); /* May as well test this. */
+}
+
+/*
+ * test_workload_generator --
+ *     Test the workload generator.
+ */
+static void
+test_workload_generator(void)
+{
+    std::shared_ptr<model::kv_workload> workload = model::kv_workload_generator::generate();
+
+    /* Run the workload in the model and in WiredTiger, then verify. */
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
+    verify_workload(*workload, opts, test_home, ENV_CONFIG);
+}
+
+/*
+ * test_workload_parse --
+ *     Test the workload parser.
+ */
+static void
+test_workload_parse(void)
+{
+    model::kv_workload workload;
+
+    /* The workload parser currently supports only unsigned numbers for keys and values. */
+    workload << model::operation::create_table(k_table1_id, "table1", "Q", "Q")
+             << model::operation::begin_transaction(1) << model::operation::begin_transaction(2)
+             << model::operation::insert(
+                  k_table1_id, 1, model::data_value((uint64_t)1), model::data_value((uint64_t)1))
+             << model::operation::insert(
+                  k_table1_id, 2, model::data_value((uint64_t)2), model::data_value((uint64_t)2))
+             << model::operation::prepare_transaction(1, 10)
+             << model::operation::prepare_transaction(2, 15)
+             << model::operation::commit_transaction(1, 20, 21)
+             << model::operation::rollback_transaction(2)
+             << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
+             << model::operation::remove(k_table1_id, 1, model::data_value((uint64_t)1))
+             << model::operation::checkpoint() << model::operation::crash()
+             << model::operation::begin_transaction(1)
+             << model::operation::insert(
+                  k_table1_id, 1, model::data_value((uint64_t)3), model::data_value((uint64_t)3))
+             << model::operation::truncate(
+                  k_table1_id, 2, model::data_value((uint64_t)1), model::data_value((uint64_t)2))
+             << model::operation::prepare_transaction(1, 23)
+             << model::operation::commit_transaction(1, 24, 25)
+             << model::operation::set_stable_timestamp(25) << model::operation::rollback_to_stable()
+             << model::operation::restart();
+
+    /* Convert to string, parse, and compare each operation. */
+    for (size_t i = 0; i < workload.size(); i++) {
+        std::stringstream ss;
+        ss << workload[i].operation;
+        model::operation::any op = model::operation::parse(ss.str());
+        testutil_assert(workload[i].operation == op);
+    }
+
+    /* Additional tests for different allowed parsing behaviors. */
+    testutil_assert(model::operation::parse("create_table(1, table1, Q, Q)") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "Q")));
+    testutil_assert(model::operation::parse("create_table(1, \"table1\", \"Q\", \"Q\")") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "Q")));
+    testutil_assert(model::operation::parse("create_table   (   0x1,table1, \"Q\",  Q      )  ") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "Q")));
+    testutil_assert(model::operation::parse("create_table(1, \"table\\\" \\\\\", \"Q\", \"\")") ==
+      model::operation::any(model::operation::create_table(1, "table\" \\", "Q", "")));
+    testutil_assert(model::operation::parse("create_table\t\n(0x1 ,\"table\" \"1\", \"Q\", S )") ==
+      model::operation::any(model::operation::create_table(1, "table1", "Q", "S")));
+
+    /* Test optional arguments. */
+    testutil_assert(model::operation::parse("checkpoint()") ==
+      model::operation::any(model::operation::checkpoint()));
+    testutil_assert(model::operation::parse("checkpoint(\"test\")") ==
+      model::operation::any(model::operation::checkpoint("test")));
+    testutil_assert(model::operation::parse("commit_transaction(1)") ==
+      model::operation::any(model::operation::commit_transaction(1)));
+    testutil_assert(model::operation::parse("commit_transaction(1, 2)") ==
+      model::operation::any(model::operation::commit_transaction(1, 2)));
+    testutil_assert(model::operation::parse("commit_transaction(1, 2, 3)") ==
+      model::operation::any(model::operation::commit_transaction(1, 2, 3)));
+}
+
+/*
  * usage --
  *     Print usage help for the program.
  */
@@ -298,6 +419,9 @@ main(int argc, char *argv[])
         test_workload_txn();
         test_workload_prepared();
         test_workload_restart();
+        test_workload_crash();
+        test_workload_generator();
+        test_workload_parse();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;
         ret = EXIT_FAILURE;

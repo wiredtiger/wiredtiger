@@ -26,12 +26,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DRIVER_KV_WORKLOAD_RUNNER_WT_H
-#define MODEL_DRIVER_KV_WORKLOAD_RUNNER_WT_H
+#pragma once
 
 #include <memory>
 #include <shared_mutex>
 #include <unordered_map>
+#include <vector>
 #include "model/driver/kv_workload.h"
 #include "model/core.h"
 #include "wiredtiger.h"
@@ -65,10 +65,22 @@ protected:
         }
 
         /*
+         * session_context::session_context --
+         *     Delete the copy constructor.
+         */
+        session_context(const session_context &) = delete;
+
+        /*
          * session_context::~session_context --
          *     Destroy the context, alongside the corresponding resources.
          */
         ~session_context();
+
+        /*
+         * session_context::operator= --
+         *     Delete the assignment operator.
+         */
+        session_context &operator=(const session_context &) = delete;
 
         /*
          * session_context::session --
@@ -95,7 +107,7 @@ protected:
         static inline cursor_id_t
         cursor_id(table_id_t table_id, unsigned table_cur_id)
         {
-            if (table_cur_id < 0 || table_cur_id >= k_cursors_per_table)
+            if (table_cur_id >= k_cursors_per_table)
                 throw model_exception("Cursor ID out of range");
             return (cursor_id_t)(table_id * k_cursors_per_table + table_cur_id);
         }
@@ -114,41 +126,88 @@ protected:
      */
     using session_context_ptr = std::shared_ptr<session_context>;
 
+    /*
+     * shared_state --
+     *     The shared state of the child executor process, which is shared with the parent. Because
+     *     of the way this struct is used, only C types are allowed.
+     */
+    struct shared_state {
+
+        /*
+         * shared_state::table_state --
+         *     Shared table state.
+         */
+        struct table_state {
+            table_id_t id;
+            char uri[256];
+        };
+
+        /* Crash handling. */
+        size_t crash_index; /* The crash operation that resulted, well, in the crash. */
+        bool expect_crash;  /* True when the child process is expected to crash. */
+
+        /* Execution failure handling. */
+        bool exception;              /* If there was an exception. */
+        size_t failed_operation;     /* The operation that caused an exception. */
+        char exception_message[256]; /* The exception message. */
+
+        /* The map of table IDs to URIs, needed to resume the workload from a crash. */
+        size_t num_tables;
+        table_state tables[256]; /* The table states; protected by the same lock as the URI map. */
+
+        /* Return codes. */
+        size_t num_operations; /* The number of executed operations. */
+        int return_codes[];    /* Must be last, as the size is variable. */
+    };
+
 public:
     /*
      * kv_workload_runner_wt::kv_workload_runner_wt --
      *     Create a new workload
      */
-    inline kv_workload_runner_wt(const char *home, const char *connection_config)
-        : _connection(nullptr), _connection_config(connection_config), _home(home)
+    inline kv_workload_runner_wt(
+      const char *home, const char *connection_config, const char *table_config)
+        : _connection(nullptr),
+          _connection_config(connection_config == nullptr ? "" : connection_config), _home(home),
+          _state(nullptr), _table_config(table_config == nullptr ? "" : table_config)
     {
     }
 
     /*
+     * kv_workload_runner_wt::kv_workload_runner_wt --
+     *     Delete the copy constructor.
+     */
+    kv_workload_runner_wt(const kv_workload_runner_wt &) = delete;
+
+    /*
      * kv_workload_runner_wt::~kv_workload_runner_wt --
-     *     Clean up the workload
+     *     Clean up the workload.
      */
     ~kv_workload_runner_wt();
 
     /*
+     * kv_workload_runner_wt::operator= --
+     *     Delete the assignment operator.
+     */
+    kv_workload_runner_wt &operator=(const kv_workload_runner_wt &) = delete;
+
+    /*
+     * kv_workload::run --
+     *     Run the workload in WiredTiger. Return the return codes of the workload operations.
+     */
+    std::vector<int> run(const kv_workload &workload);
+
+protected:
+    /*
      * kv_workload_runner::run_operation --
      *     Run the given operation.
      */
-    inline void
+    inline int
     run_operation(const operation::any &op)
     {
-        std::visit(
-          [this](auto &&x) {
-              int ret = do_operation(x);
-              /*
-               * In the future, we would like to be able to test operations that can fail, at which
-               * point we would record and compare return codes. But we're not there yet, so just
-               * fail on error.
-               */
-              if (ret != 0)
-                  throw wiredtiger_exception(ret);
-          },
-          op);
+        int ret = WT_ERROR; /* So that Coverity does not complain. */
+        std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
+        return ret;
     }
 
     /*
@@ -173,7 +232,6 @@ public:
         wiredtiger_close_nolock();
     }
 
-protected:
     /*
      * kv_workload_runner_wt::do_operation --
      *     Execute the given workload operation in WiredTiger.
@@ -191,6 +249,12 @@ protected:
      *     Execute the given workload operation in WiredTiger.
      */
     int do_operation(const operation::commit_transaction &op);
+
+    /*
+     * kv_workload_runner_wt::crash --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::crash &op);
 
     /*
      * kv_workload_runner_wt::do_operation --
@@ -244,6 +308,12 @@ protected:
      * kv_workload_runner_wt::do_operation --
      *     Execute the given workload operation in WiredTiger.
      */
+    int do_operation(const operation::set_oldest_timestamp &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
     int do_operation(const operation::set_stable_timestamp &op);
 
     /*
@@ -268,15 +338,7 @@ protected:
      * kv_workload_runner_wt::add_table_uri --
      *     Add a table URI.
      */
-    inline void
-    add_table_uri(table_id_t id, std::string uri)
-    {
-        std::unique_lock lock(_table_uris_lock);
-        auto i = _table_uris.find(id);
-        if (i != _table_uris.end())
-            throw model_exception("A table with the given ID already exists");
-        _table_uris.insert_or_assign(i, id, uri);
-    }
+    void add_table_uri(table_id_t id, std::string uri, bool recovery = false);
 
     /*
      * kv_workload_runner_wt::table_uri --
@@ -332,6 +394,9 @@ protected:
 private:
     std::string _connection_config;
     std::string _home;
+    std::string _table_config;
+
+    shared_state *_state; /* The shared state between the executor and the parent process. */
 
     mutable std::shared_mutex _connection_lock; /* Should be held for all operations. */
     WT_CONNECTION *_connection;
@@ -344,4 +409,3 @@ private:
 };
 
 } /* namespace model */
-#endif
