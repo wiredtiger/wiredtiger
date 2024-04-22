@@ -504,7 +504,7 @@ main(int argc, char *argv[])
      */
     printf(
       "checked %d successful configuration compilation outputs\n", event_handler.state.completed);
-    testutil_assert(event_handler.state.completed == 45);
+    testutil_assert(event_handler.state.completed == 48);
 
     free_parse_state(&event_handler.state);
     testutil_cleanup(opts);
