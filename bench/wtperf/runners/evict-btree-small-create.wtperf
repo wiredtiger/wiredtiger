@@ -3,7 +3,7 @@ conn_config="cache_size=5M,eviction=(threads_max=1)"
 table_config="type=file"
 icount=100000
 report_interval=5
-run_time=120
+run_time=10
 populate_threads=1
 threads=((count=16,reads=1))
 # Add throughput/latency monitoring

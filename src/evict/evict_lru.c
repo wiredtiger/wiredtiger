@@ -104,6 +104,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     else {
         read_gen = page->read_gen;
         printf("evict score page->read_gen %llu\n", read_gen);
+        printf("btree->splitmempage =  %llu\n", btree->splitmempage);
     }
 
     read_gen += btree->evict_priority;
@@ -2283,6 +2284,24 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     candidates = queue->evict_candidates;
     if (is_server && queue != urgent_queue && candidates > 1)
         candidates /= 2;
+
+#if 1
+    printf("EVICT QUEUE: %p\n", (void*)queue);
+    printf("=========================================\n");
+    for (int i = 0; i <  (int)cache->evict_slots; i++) {
+        WT_EVICT_ENTRY *e = &queue->evict_queue[i];
+        //char print_buffer[16];
+        //snprintf((char *)print_buffer, 16, "evict-queue:%d", i);
+        if (e != NULL && e->ref != NULL) {
+            printf("*** %d ***", i);
+            //   __wt_page_trace(session, e->ref, (char *)print_buffer, NULL);
+            __wt_page_trace(session, e->ref, "evict-queue", NULL);
+        }
+        else
+            printf("*** %d: NULL queue entry ***\n", i);
+    }
+    printf("=========================================\n");
+#endif
 
     /* Get the next page queued for eviction. */
     for (evict = queue->evict_current;

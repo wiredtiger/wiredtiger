@@ -356,7 +356,6 @@ restart:
         while ((prev && slot == 0) || (!prev && slot == pindex->entries - 1)) {
             /* Ascend to the parent. */
             __ref_ascend(session, &ref, &pindex, &slot);
-            printf("Parent: ref=%p, ref->page=%p: ascending to parent, slot = %d\n", (void*)ref, (void*)ref->page, slot);
 
             /*
              * If at the root and returning internal pages, return the root page, otherwise we're
@@ -396,7 +395,6 @@ restart:
                 couple = NULL;
                 *refp = ref;
                 WT_ASSERT(session, ref != ref_orig);
-                printf("Returning internal page: ref=%p, ref->page=%p\n", (void*)ref, (void*)ref->page);
                 goto done;
             }
 
@@ -408,14 +406,11 @@ restart:
         else
             ++slot;
 
-        printf("Adjusted slot to %d for page: ref=%p, ref->page=%p.\n", slot, (void*)ref, (void*)ref->page);
-
         if (walkcntp != NULL)
             ++*walkcntp;
 
         for (;;) {
 descend:
-            printf("Descend\n");
             /*
              * Get a reference, setting the reference hint if it's wrong (used when we continue the
              * walk). We don't always update the hints when splitting, it's expected for them to be
@@ -424,7 +419,6 @@ descend:
             ref = pindex->index[slot];
             if (ref->pindex_hint != slot)
                 ref->pindex_hint = slot;
-            printf("Descended to page: ref=%p, ref->page=%p\n", (void*)ref, (void*)ref->page);
             /*
              * If we see any child states other than deleted, the page isn't empty.
              */
@@ -472,7 +466,6 @@ descend:
                 if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                     *refp = ref;
                     WT_ASSERT(session, ref != ref_orig);
-                    printf("Returning LEAF page ref=%p, ref->page=%p\n", (void*)ref, (void*)ref->page);
                     goto done;
                 }
 
@@ -480,7 +473,6 @@ descend:
                 couple = ref;
 
                 /* Configure traversal of any internal page. */
-                printf("This was an internal. page ref=%p, ref->page=%p. EMPTY=true.\n", (void*)ref, (void*)ref->page);
                 empty_internal = true;
                 if (prev) {
                     if (__split_prev_race(session, ref, &pindex))
@@ -502,7 +494,6 @@ descend:
             if (ret == WT_NOTFOUND) {
                 WT_STAT_CONN_INCR(session, cache_eviction_walk_leaf_notfound);
                 WT_NOT_READ(ret, 0);
-                printf("ret == WT_NOTFOUND. Go back up\n");
                 break;
             }
 
