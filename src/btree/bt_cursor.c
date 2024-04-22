@@ -2255,11 +2255,11 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_cache --
- *     Discard buffers after caching a cursor.
+ * __wt_btcur_free_cached_memory --
+ *     Discard internal buffers held by this cursor.
  */
 void
-__wt_btcur_cache(WT_CURSOR_BTREE *cbt)
+__wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt)
 {
     WT_SESSION_IMPL *session;
 
@@ -2292,10 +2292,8 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     if (!lowlevel)
         ret = __cursor_reset(cbt);
 
-    __wt_buf_free(session, &cbt->_row_key);
-    __wt_buf_free(session, &cbt->_tmp);
-    __wt_buf_free(session, &cbt->_modify_update.buf);
-    __wt_buf_free(session, &cbt->_upd_value.buf);
+    __wt_btcur_free_cached_memory(cbt);
+
 #ifdef HAVE_DIAGNOSTIC
     __wt_buf_free(session, &cbt->_lastkey);
 #endif

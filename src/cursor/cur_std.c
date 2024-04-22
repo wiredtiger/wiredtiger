@@ -717,10 +717,8 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
      */
     if (__wt_cursor_has_cached_memory(cursor))
         F_SET(cursor, WT_CURSTD_CACHED_WITH_MEM);
-    else {
+    else
         __wt_cursor_free_cached_memory(cursor);
-        F_CLR(cursor, WT_CURSTD_CACHED_WITH_MEM);
-    }
 
     /*
      * Acquire a reference while decrementing the in-use counter. After this point, the dhandle may
