@@ -239,6 +239,26 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_eviction_clean_pressure --
+ *     Return if an application thread should do eviction due to the total volume of data in cache.
+ */
+static WT_INLINE bool
+__wt_eviction_clean_pressure(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    double pct_full;
+
+    cache = S2C(session)->cache;
+    pct_full = 0;
+
+    if (__wt_eviction_clean_needed(session, &pct_full))
+        return (true);
+    if (pct_full > cache->eviction_target && pct_full >= 0.95 * cache->eviction_trigger)
+        return (true);
+    return (false);
+}
+
+/*
  * __wt_eviction_clean_needed --
  *     Return if an application thread should do eviction due to the total volume of data in cache.
  */

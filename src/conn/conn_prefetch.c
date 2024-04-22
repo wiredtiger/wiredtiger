@@ -96,13 +96,13 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         --conn->prefetch_queue_count;
 
         /*
-         * If the cache is already full, don't attempt to pre-fetch the current ref as we may hang
-         * while waiting until space in the cache clears up. Repeat this process until either
-         * eviction has evicted eligible pages (allowing pre-fetch to read into the cache), or we
-         * iterate through and remove all the refs from the pre-fetch queue and pre-fetch becomes a
-         * no-op.
+         * If the cache is getting close to its eviction clean trigger, don't attempt to pre-fetch
+         * the current ref as we may hang if the cache becomes full and we need to wait until space
+         * in the cache clears up. Repeat this process until either eviction has evicted enough
+         * eligible pages (allowing pre-fetch to read into the cache), or we iterate through and
+         * remove all the refs from the pre-fetch queue and pre-fetch becomes a no-op.
          */
-        if (__wt_eviction_needed(session, false, false, NULL)) {
+        if (__wt_eviction_clean_pressure(session)) {
             __wt_spin_unlock(session, &conn->prefetch_lock);
             __wt_free(session, pe);
             continue;
@@ -155,8 +155,12 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 
     conn = S2C(session);
 
-    /* If the cache is already full, don't add anymore new refs to the queue.*/
-    if (__wt_eviction_needed(session, false, false, NULL))
+    /*
+     * Pre-fetch shouldn't wait until the cache is already full before it stops adding new refs to
+     * the queue. It should take a more conservative approach and stop as soon as it detects that we
+     * are close to hitting the eviction clean trigger.
+     */
+    if (__wt_eviction_clean_pressure(session))
         return (EBUSY);
 
     WT_RET(__wt_calloc_one(session, &pe));
