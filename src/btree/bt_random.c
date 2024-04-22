@@ -346,6 +346,38 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __random_root_inmem_ref --
+ *     Return a random in-mem ref from a root page by applying reservoir sampling.
+ */
+static int
+__random_root_inmem_ref(
+  WT_SESSION_IMPL *session, WT_REF *current, WT_REF **refp, WT_RAND_STATE *rnd)
+{
+    WT_REF *ref, *ref_inmem;
+    uint64_t cnt;
+
+    cnt = 0;
+    ref_inmem = NULL;
+
+    WT_ASSERT(session, __wt_ref_is_root(current));
+
+    WT_INTL_FOREACH_BEGIN (session, current->page, ref)
+        if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
+            cnt++;
+            if ((__wt_random(rnd) % cnt) == 0)
+                ref_inmem = ref;
+        }
+    WT_INTL_FOREACH_END;
+
+    if (cnt == 0)
+        return (0);
+
+    *refp = ref_inmem;
+
+    return (0);
+}
+
+/*
  * __wt_random_descent --
  *     Find a random page in a tree for either sampling or eviction.
  */
@@ -360,27 +392,20 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_
     uint32_t i, entries;
     uint8_t descent_state;
     int retry;
-    bool eviction;
+    bool eviction, search_inmem_page;
 
     *refp = NULL;
 
     btree = S2BT(session);
     current = NULL;
-    retry = 0;
+    retry = 100;
+    search_inmem_page = false;
     /*
      * This function is called by eviction to find a random page in the cache. That case is
      * indicated by the WT_READ_CACHE flag. Ordinary lookups in a tree will read pages into cache as
      * needed.
      */
     eviction = LF_ISSET(WT_READ_CACHE);
-
-    if (eviction) {
-        if (S2C(session)->evict_random_retries) {
-            WT_INTL_INDEX_GET(session, (&btree->root)->page, pindex);
-            retry = WT_MIN((int)pindex->entries, 10000);
-        }
-    } else
-        retry = 100;
 
     if (0) {
 restart:
@@ -403,6 +428,8 @@ restart:
         /* Eviction just wants any random child. */
         if (eviction) {
             descent = pindex->index[__wt_random(rnd) % entries];
+            if (search_inmem_page && __wt_ref_is_root(current))
+                WT_RET(__random_root_inmem_ref(session, current, &descent, rnd));
             goto descend;
         }
 
@@ -460,8 +487,10 @@ descend:
      * encounter a non-root page.
      */
     if (eviction && __wt_ref_is_root(current)) {
-        if (--retry > 0) {
-            WT_STAT_CONN_INCR(session, cache_eviction_walk_random_retries);
+        if (--retry > 0)
+            goto restart;
+        else if (!search_inmem_page) {
+            search_inmem_page = true;
             goto restart;
         }
     } else
