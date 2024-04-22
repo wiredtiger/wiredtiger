@@ -1424,6 +1424,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "cache: application thread time evicting (usecs)",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1465,6 +1466,7 @@ static const char *const __stats_connection_desc[] = {
   "running",
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
+  "cache: eviction server skips tree that we do not want to evict",
   "cache: eviction server skips trees because there are too many active walks",
   "cache: eviction server skips trees that are being checkpointed",
   "cache: eviction server skips trees that are configured to stick in cache",
@@ -1622,6 +1624,7 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
   "capacity: time waiting for chunk cache IO bandwidth (usecs)",
+  "checkpoint: checkpoint cleanup successful calls",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "checkpoint: checkpoints skipped because database was clean",
   "checkpoint: fsync calls after allocating the transaction ID",
@@ -1991,8 +1994,8 @@ static const char *const __stats_connection_desc[] = {
   "thread-state: active filesystem fsync calls",
   "thread-state: active filesystem read calls",
   "thread-state: active filesystem write calls",
+  "thread-yield: application thread operations waiting for cache",
   "thread-yield: application thread snapshot refreshed for eviction",
-  "thread-yield: application thread time evicting (usecs)",
   "thread-yield: application thread time waiting for cache (usecs)",
   "thread-yield: connection close blocked waiting for transaction state stabilization",
   "thread-yield: connection close yielded for lsm manager shutdown",
@@ -2178,6 +2181,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_map_read = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->cache_eviction_app_time = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -2213,6 +2217,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_server_skip_pages_last_running = 0;
     stats->cache_eviction_server_skip_pages_retry = 0;
     stats->cache_eviction_server_skip_unwanted_pages = 0;
+    stats->cache_eviction_server_skip_unwanted_tree = 0;
     stats->cache_eviction_server_skip_trees_too_many_active_walks = 0;
     stats->cache_eviction_server_skip_checkpointing_trees = 0;
     stats->cache_eviction_server_skip_trees_stick_in_cache = 0;
@@ -2358,6 +2363,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
     stats->capacity_time_chunkcache = 0;
+    stats->checkpoint_cleanup_success = 0;
     stats->checkpoint_snapshot_acquired = 0;
     stats->checkpoint_skipped = 0;
     stats->checkpoint_fsync_post = 0;
@@ -2723,8 +2729,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing thread_fsync_active */
     /* not clearing thread_read_active */
     /* not clearing thread_write_active */
+    stats->application_cache_ops = 0;
     stats->application_evict_snapshot_refreshed = 0;
-    stats->application_evict_time = 0;
     stats->application_cache_time = 0;
     stats->txn_release_blocked = 0;
     stats->conn_close_blocked_lsm = 0;
@@ -2883,6 +2889,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
+    to->cache_eviction_app_time += WT_STAT_READ(from, cache_eviction_app_time);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);
@@ -2931,6 +2938,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_server_skip_pages_retry);
     to->cache_eviction_server_skip_unwanted_pages +=
       WT_STAT_READ(from, cache_eviction_server_skip_unwanted_pages);
+    to->cache_eviction_server_skip_unwanted_tree +=
+      WT_STAT_READ(from, cache_eviction_server_skip_unwanted_tree);
     to->cache_eviction_server_skip_trees_too_many_active_walks +=
       WT_STAT_READ(from, cache_eviction_server_skip_trees_too_many_active_walks);
     to->cache_eviction_server_skip_checkpointing_trees +=
@@ -3113,6 +3122,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
     to->capacity_time_chunkcache += WT_STAT_READ(from, capacity_time_chunkcache);
+    to->checkpoint_cleanup_success += WT_STAT_READ(from, checkpoint_cleanup_success);
     to->checkpoint_snapshot_acquired += WT_STAT_READ(from, checkpoint_snapshot_acquired);
     to->checkpoint_skipped += WT_STAT_READ(from, checkpoint_skipped);
     to->checkpoint_fsync_post += WT_STAT_READ(from, checkpoint_fsync_post);
@@ -3505,9 +3515,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
     to->thread_read_active += WT_STAT_READ(from, thread_read_active);
     to->thread_write_active += WT_STAT_READ(from, thread_write_active);
+    to->application_cache_ops += WT_STAT_READ(from, application_cache_ops);
     to->application_evict_snapshot_refreshed +=
       WT_STAT_READ(from, application_evict_snapshot_refreshed);
-    to->application_evict_time += WT_STAT_READ(from, application_evict_time);
     to->application_cache_time += WT_STAT_READ(from, application_cache_time);
     to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
     to->conn_close_blocked_lsm += WT_STAT_READ(from, conn_close_blocked_lsm);
