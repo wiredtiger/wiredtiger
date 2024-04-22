@@ -1163,7 +1163,11 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          */
         if (upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-            __wt_upd_value_assign(cbt->upd_value, upd);
+            cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
+            cbt->upd_value->tw.stop_ts = upd->start_ts;
+            cbt->upd_value->tw.stop_txn = upd->txnid;
+            cbt->upd_value->tw.prepare =
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
             continue;
         }
 
