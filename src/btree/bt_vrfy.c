@@ -119,7 +119,12 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
  *     Debugging: optionally dump specific blocks from the file.
  */
 static int
-__verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp, WT_VSTUFF *vs)
+__verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
+#ifdef HAVE_DIAGNOSTIC
+     ,WT_VSTUFF *vs)
+#else
+     )
+#endif
 {
     WT_CONFIG list;
     WT_CONFIG_ITEM cval, k, v;
@@ -221,7 +226,11 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__verify_config(session, cfg, vs));
 
     /* Optionally dump specific block offsets. */
+#ifdef HAVE_DIAGNOSTIC
     WT_ERR(__verify_config_offsets(session, cfg, &quit, vs));
+#else
+    WT_ERR(__verify_config_offsets(session, cfg, &quit));
+#endif
     if (quit)
         goto done;
 
