@@ -1424,13 +1424,14 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x04u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x08u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x10u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x20u         /* Update restored from history store. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x40u        /* Update needs to be deleted from history store */
+#define WT_UPDATE_DRYRUN_WOULD_ABORT 0x01u       /* Would be aborted, if not for dry run. */
+#define WT_UPDATE_DS 0x02u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x08u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x10u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x20u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x40u         /* Update restored from history store. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x80u        /* Update needs to be deleted from history store */
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
