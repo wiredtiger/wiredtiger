@@ -126,6 +126,10 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     if (cache->eviction_updates_target < DBL_EPSILON)
         cache->eviction_updates_target = cache->eviction_dirty_target / 2;
 
+    /* Don't allow the updates target to be larger than the eviction target. */
+    if (cache->eviction_updates_target > cache->eviction_target)
+        cache->eviction_updates_target = cache->eviction_target;
+
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
     cache->eviction_updates_trigger = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
@@ -332,7 +336,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
       session, stats, cache_pages_dirty, cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
     WT_STAT_SET(session, stats, cache_eviction_state, __wt_atomic_load32(&cache->flags));
-    WT_STAT_SET(session, stats, cache_eviction_aggressive_set, cache->evict_aggressive_score);
+    WT_STAT_SET(session, stats, cache_eviction_aggressive_set,
+      __wt_atomic_load32(&cache->evict_aggressive_score));
     WT_STAT_SET(session, stats, cache_eviction_empty_score, cache->evict_empty_score);
 
     WT_STAT_SET(session, stats, cache_eviction_active_workers,
