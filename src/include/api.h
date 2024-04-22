@@ -63,8 +63,8 @@
 #define WT_API_COUNTER_REALIZE(s, counter, output)                                      \
     {                                                                                   \
         uint64_t _api_count_in, _api_count_out;                                         \
-        WT_ACQUIRE_READ(_api_count_out, S2C(s)->counter##_out);                            \
-        WT_ACQUIRE_READ(_api_count_in, S2C(s)->counter##_in);                              \
+        WT_ACQUIRE_READ(_api_count_out, S2C(s)->counter##_out);                         \
+        WT_ACQUIRE_READ(_api_count_in, S2C(s)->counter##_in);                           \
         if (!WT_SESSION_IS_DEFAULT(s))                                                  \
             WT_ASSERT(session, _api_count_in >= _api_count_out);                        \
         (output) = _api_count_out > _api_count_in ? 0 : _api_count_in - _api_count_out; \
@@ -76,8 +76,8 @@
         /* The global connection session is shared so the count can be off temporarily */ \
         if (!WT_SESSION_IS_DEFAULT(s)) {                                                  \
             uint64_t _api_count_in, _api_count_out;                                       \
-            WT_ACQUIRE_READ(_api_count_out, S2C(s)->counter##_out);                          \
-            WT_ACQUIRE_READ(_api_count_in, S2C(s)->counter##_in);                            \
+            WT_ACQUIRE_READ(_api_count_out, S2C(s)->counter##_out);                       \
+            WT_ACQUIRE_READ(_api_count_in, S2C(s)->counter##_in);                         \
             WT_ASSERT(session, _api_count_in >= _api_count_out);                          \
         }                                                                                 \
     }
