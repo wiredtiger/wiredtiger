@@ -94,25 +94,25 @@
     ++(s)->api_call_counter;                                                                 \
     (s)->dhandle = (dh);                                                                     \
     (s)->name = (s)->lastop = #struct_name "." #func_name;                                   \
-    if ((s)->api_call_counter == 1 && !WT_SESSION_IS_DEFAULT(s)) {                           \
+    if (__tracked && (s)->api_call_counter == 1 && !WT_SESSION_IS_DEFAULT(s)) {              \
         if (F_ISSET(session, WT_SESSION_INTERNAL))                                           \
             (void)__wt_atomic_add64(&S2C(s)->api_count_int_in, 1);                           \
         else                                                                                 \
             (void)__wt_atomic_add64(&S2C(s)->api_count_in, 1);                               \
     }
 
-#define API_SESSION_POP(s)                                          \
-    if ((s)->api_call_counter == 1 && !WT_SESSION_IS_DEFAULT(s)) {  \
-        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_int_out, 1); \
-            WT_API_COUNTER_CHECK((s), api_count_int);               \
-        } else {                                                    \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);     \
-            WT_API_COUNTER_CHECK((s), api_count);                   \
-        }                                                           \
-    }                                                               \
-    (s)->dhandle = __olddh;                                         \
-    (s)->name = __oldname;                                          \
+#define API_SESSION_POP(s)                                                      \
+    if (__tracked && (s)->api_call_counter == 1 && !WT_SESSION_IS_DEFAULT(s)) { \
+        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                            \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_int_out, 1);             \
+            WT_API_COUNTER_CHECK((s), api_count_int);                           \
+        } else {                                                                \
+            (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);                 \
+            WT_API_COUNTER_CHECK((s), api_count);                               \
+        }                                                                       \
+    }                                                                           \
+    (s)->dhandle = __olddh;                                                     \
+    (s)->name = __oldname;                                                      \
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
@@ -133,14 +133,19 @@
         (s)->cache_wait_us = 0;                                         \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
+#define API_CALL_NOCONF_NOT_TRACKED(s, struct_name, func_name, dh) \
+    do {                                                           \
+        bool __set_err = true, __tracked = false;                  \
+    API_SESSION_INIT(s, struct_name, func_name, dh)
+
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
     do {                                               \
-        bool __set_err = true;                         \
+        bool __set_err = true, __tracked = false;      \
     API_SESSION_INIT(s, struct_name, func_name, dh)
 
 #define API_CALL(s, struct_name, func_name, dh, config, cfg)                                \
     do {                                                                                    \
-        bool __set_err = true;                                                              \
+        bool __set_err = true, __tracked = false;                                           \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
         if ((config) != NULL)                                                               \
@@ -313,6 +318,14 @@
 #define SESSION_TXN_API_CALL(s, ret, func_name, config, cfg)   \
     TXN_API_CALL(s, WT_SESSION, func_name, NULL, config, cfg); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)
+
+#define CURSOR_API_CALL_NOT_TRACKED(cur, s, ret, func_name, bt)                      \
+    (s) = CUR2S(cur);                                                                \
+    API_CALL_NOCONF_NOT_TRACKED(                                                     \
+      s, WT_CURSOR, func_name, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
+    SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                         \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                                              \
+    WT_ERR(__wt_cursor_cached(cur))
 
 #define CURSOR_API_CALL(cur, s, ret, func_name, bt)                                                \
     (s) = CUR2S(cur);                                                                              \

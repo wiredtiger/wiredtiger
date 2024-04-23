@@ -390,7 +390,12 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
     size_t size;
     const char *fmt;
 
-    CURSOR_API_CALL(cursor, session, ret, get_key, NULL);
+    /*
+     * The get_key interface is extremely light weight - introducing atomic operations to track api
+     * usage more than doubles it's cost in common cases. For example, adding tracking here reduces
+     * bulk load performance by over ten percent.
+     */
+    CURSOR_API_CALL_NOT_TRACKED(cursor, session, ret, get_key, NULL);
     if (!F_ISSET(cursor, WT_CURSTD_KEY_SET))
         WT_ERR(__wt_cursor_kv_not_set(cursor, true));
 
@@ -445,7 +450,7 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
     buf = &cursor->key;
     tmp.mem = NULL;
 
-    CURSOR_API_CALL(cursor, session, ret, set_key, NULL);
+    CURSOR_API_CALL_NOT_TRACKED(cursor, session, ret, set_key, NULL);
     WT_ERR(__cursor_copy_release(cursor));
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET) && WT_DATA_IN_ITEM(buf)) {
         tmp = *buf;
