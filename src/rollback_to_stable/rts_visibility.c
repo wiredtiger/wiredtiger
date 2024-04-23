@@ -18,7 +18,7 @@ __wt_rts_visibility_has_stable_update(WT_UPDATE *upd)
 {
     while (upd != NULL &&
       (upd->type == WT_UPDATE_INVALID || upd->txnid == WT_TXN_ABORTED ||
-        F_ISSET(upd, WT_UPDATE_DRYRUN_WOULD_ABORT)))
+        F_ISSET(upd, WT_UPDATE_RTS_DRYRUN_ABORT)))
         upd = upd->next;
     return (upd != NULL);
 }
