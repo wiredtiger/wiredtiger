@@ -2403,7 +2403,7 @@ start_run(WTPERF *wtperf)
 {
     CONFIG_OPTS *opts;
     wt_thread_t monitor_thread;
-    uint64_t total_ops, sample_average_latency, sample_max_latency, sample_min_latency;
+    uint64_t sample_average_latency, sample_max_latency, sample_min_latency, total_ops;
 
     int monitor_created, ret, t_ret;
 
