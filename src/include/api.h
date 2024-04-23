@@ -140,12 +140,12 @@
 
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
     do {                                               \
-        bool __set_err = true, __tracked = false;      \
+        bool __set_err = true, __tracked = true;       \
     API_SESSION_INIT(s, struct_name, func_name, dh)
 
 #define API_CALL(s, struct_name, func_name, dh, config, cfg)                                \
     do {                                                                                    \
-        bool __set_err = true, __tracked = false;                                           \
+        bool __set_err = true, __tracked = true;                                            \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
         if ((config) != NULL)                                                               \
