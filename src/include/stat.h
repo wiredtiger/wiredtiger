@@ -433,6 +433,7 @@ struct __wt_connection_stats {
     int64_t block_byte_map_read;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t block_byte_write_unused;
     int64_t cache_eviction_app_time;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
@@ -1078,6 +1079,8 @@ struct __wt_dsrc_stats {
     int64_t backup_blocks_compressed;
     int64_t backup_blocks_uncompressed;
     int64_t block_extension;
+    int64_t block_total_padding_size;
+    int64_t block_total_write_size;
     int64_t block_alloc;
     int64_t block_free;
     int64_t block_checkpoint_size;

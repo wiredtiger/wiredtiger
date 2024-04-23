@@ -270,6 +270,7 @@ conn_stats = [
     BlockStat('block_byte_write_compact', 'bytes written by compaction', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
+    BlockStat('block_byte_write_unused', 'unused bytes written for padding', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
@@ -808,6 +809,8 @@ dsrc_stats = [
     BlockStat('block_minor', 'minor version number', 'max_aggregate,no_scale'),
     BlockStat('block_reuse_bytes', 'file bytes available for reuse', 'no_scale,size'),
     BlockStat('block_size', 'file size in bytes', 'no_scale,size'),
+    BlockStat('block_total_padding_size', 'block total padding size', 'no_scale,size'),
+    BlockStat('block_total_write_size', 'block total write size', 'no_scale,size'),
 
     ##########################################
     # Btree statistics

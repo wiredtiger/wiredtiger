@@ -20,6 +20,8 @@ static const char *const __stats_dsrc_desc[] = {
   "backup: total modified incremental blocks with compressed data",
   "backup: total modified incremental blocks without compressed data",
   "block-manager: allocations requiring file extension",
+  "block-manager: block total padding size",
+  "block-manager: block total write size",
   "block-manager: blocks allocated",
   "block-manager: blocks freed",
   "block-manager: checkpoint size",
@@ -380,6 +382,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->backup_blocks_compressed = 0;
     stats->backup_blocks_uncompressed = 0;
     stats->block_extension = 0;
+    stats->block_total_padding_size = 0;
+    stats->block_total_write_size = 0;
     stats->block_alloc = 0;
     stats->block_free = 0;
     stats->block_checkpoint_size = 0;
@@ -695,6 +699,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->backup_blocks_compressed += from->backup_blocks_compressed;
     to->backup_blocks_uncompressed += from->backup_blocks_uncompressed;
     to->block_extension += from->block_extension;
+    to->block_total_padding_size += from->block_total_padding_size;
+    to->block_total_write_size += from->block_total_write_size;
     to->block_alloc += from->block_alloc;
     to->block_free += from->block_free;
     to->block_checkpoint_size += from->block_checkpoint_size;
@@ -1024,6 +1030,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->backup_blocks_compressed += WT_STAT_READ(from, backup_blocks_compressed);
     to->backup_blocks_uncompressed += WT_STAT_READ(from, backup_blocks_uncompressed);
     to->block_extension += WT_STAT_READ(from, block_extension);
+    to->block_total_padding_size += WT_STAT_READ(from, block_total_padding_size);
+    to->block_total_write_size += WT_STAT_READ(from, block_total_write_size);
     to->block_alloc += WT_STAT_READ(from, block_alloc);
     to->block_free += WT_STAT_READ(from, block_free);
     to->block_checkpoint_size += WT_STAT_READ(from, block_checkpoint_size);
@@ -1424,6 +1432,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "block-manager: unused bytes written for padding",
   "cache: application thread time evicting (usecs)",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
@@ -2181,6 +2190,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_map_read = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->block_byte_write_unused = 0;
     stats->cache_eviction_app_time = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
@@ -2889,6 +2899,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
+    to->block_byte_write_unused += WT_STAT_READ(from, block_byte_write_unused);
     to->cache_eviction_app_time += WT_STAT_READ(from, cache_eviction_app_time);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);

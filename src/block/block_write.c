@@ -220,7 +220,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     WT_DECL_RET;
     WT_FH *fh;
     wt_off_t offset;
-    size_t align_size;
+    size_t align_size, unused_padding_size;
     uint32_t checksum;
     uint8_t *file_sizep;
     bool local_locked;
@@ -251,6 +251,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
      * the eventual write.
      */
     align_size = WT_ALIGN(buf->size, block->allocsize);
+    unused_padding_size = align_size - buf->size;
     if (align_size > buf->memsize) {
         WT_ASSERT(session, align_size <= buf->memsize);
         WT_RET_MSG(session, EINVAL, "buffer size check: write buffer incorrectly allocated");
@@ -288,7 +289,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
         WT_RET(__wt_vpack_uint(&file_sizep, 0, (uint64_t)block->size));
 
     /* Zero out any unused bytes at the end of the buffer. */
-    memset((uint8_t *)buf->mem + buf->size, 0, align_size - buf->size);
+    memset((uint8_t *)buf->mem + buf->size, 0, unused_padding_size);
 
     /*
      * Clear the block header to ensure all of it is initialized, even the unused fields.
@@ -357,14 +358,17 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     /* Optionally discard blocks from the buffer cache. */
     WT_RET(__wt_block_discard(session, block, align_size));
 
+    WT_STAT_DATA_INCRV(session, block_total_write_size, align_size);
+    WT_STAT_DATA_INCRV(session, block_total_padding_size, unused_padding_size);
     WT_STAT_CONN_INCR(session, block_write);
     WT_STAT_CONN_INCRV(session, block_byte_write, align_size);
+    WT_STAT_CONN_INCRV(session, block_byte_write_unused, unused_padding_size);
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, align_size);
 
     __wt_verbose_debug2(session, WT_VERB_WRITE,
-      "off %" PRIuMAX ", size %" PRIuMAX ", checksum %#" PRIx32, (uintmax_t)offset,
-      (uintmax_t)align_size, checksum);
+      "off %" PRIuMAX ", size %" PRIuMAX ", unused padding size %" PRIuMAX ", checksum %#" PRIx32,
+      (uintmax_t)offset, (uintmax_t)align_size, (uintmax_t)unused_padding_size, checksum);
 
     *offsetp = offset;
     *sizep = WT_STORE_SIZE(align_size);
