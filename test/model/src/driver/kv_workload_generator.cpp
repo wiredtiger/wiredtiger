@@ -46,7 +46,11 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     max_sequences = 1000;
     max_concurrent_transactions = 3;
 
+    max_recno = 10'000;
     max_value_uint64 = 1'000'000;
+
+    column_fix = 0.1;
+    column_var = 0.1;
 
     finish_transaction = 0.08;
     insert = 0.75;
@@ -392,8 +396,25 @@ kv_workload_generator::create_table()
     std::string name = "table" + std::to_string(id);
     std::string key_format = "Q";
     std::string value_format = "Q";
+    kv_table_type type = kv_table_type::row;
 
-    table_context_ptr table = std::make_shared<table_context>(id, name, key_format, value_format);
+    probability_switch(_random.next_float())
+    {
+        probability_case(_spec.column_fix)
+        {
+            key_format = "r";
+            value_format = "8t";
+            type = kv_table_type::column_fix;
+        }
+        probability_case(_spec.column_var)
+        {
+            key_format = "r";
+            type = kv_table_type::column;
+        }
+    }
+
+    table_context_ptr table =
+      std::make_shared<table_context>(id, name, key_format, value_format, type);
     _tables_list.push_back(table);
     _tables[id] = table;
 
@@ -471,6 +492,15 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.truncate)
             {
                 table_context_ptr table = choose_table(txn_ptr);
+
+                /*
+                 * Don't use truncate on FLCS tables, because a truncate on an FLCS table can
+                 * conflict with operations outside of the truncation range's key range. The
+                 * workload generator is not yet smart enough to account for that.
+                 */
+                if (table->type() == kv_table_type::column_fix)
+                    break;
+
                 data_value start = generate_key(table);
                 data_value stop = generate_key(table);
                 if (start > stop)
@@ -751,12 +781,28 @@ kv_workload_generator::generate_key(table_context_ptr table, op_category op)
 data_value
 kv_workload_generator::random_data_value(const std::string &format)
 {
-    if (format.length() != 1)
-        throw model_exception("The model does not currently support structs or types with sizes");
+    if (format.empty())
+        throw model_exception("The format cannot be an empty string");
 
-    switch (format[0]) {
+    const char *f = format.c_str();
+
+    /* Get the length. */
+    unsigned length = 0;
+    if (isdigit(f[0]))
+        length = (u_int)parse_uint64(f, &f);
+
+    if (strlen(f) != 1)
+        throw model_exception("The model does not currently support structs");
+
+    switch (f[0]) {
     case 'Q':
         return data_value(_random.next_uint64(_spec.max_value_uint64));
+    case 'r':
+        return data_value(_random.next_uint64(1, _spec.max_recno));
+    case 't':
+        if (length == 0)
+            length = 1;
+        return data_value(_random.next_uint64(1 << (length - 1)));
     default:
         throw model_exception("Unsupported type.");
     };

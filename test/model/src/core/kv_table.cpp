@@ -27,6 +27,7 @@
  */
 
 #include <algorithm>
+#include <cstring>
 #include <iostream>
 
 #include "model/kv_database.h"
@@ -36,6 +37,24 @@
 #include "wiredtiger.h"
 
 namespace model {
+
+/*
+ * kv_table::type_by_key_value_format --
+ *     Infer the table type from the key and value formats.
+ */
+kv_table_type
+kv_table::type_by_key_value_format(const std::string &key_format, const std::string &value_format)
+{
+    if (key_format == "r") {
+        /* Skip leading digits for the value format. */
+        const char *f = value_format.c_str();
+        if (isdigit(f[0]))
+            (void)parse_uint64(f, &f);
+        return strcmp(f, "t") == 0 ? kv_table_type::column_fix : kv_table_type::column;
+    }
+
+    return kv_table_type::row;
+}
 
 /*
  * kv_table::contains_any --
@@ -80,7 +99,7 @@ kv_table::get(const data_value &key, timestamp_t timestamp) const
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(t);
+    return fix_get(item->get(t));
 }
 
 /*
@@ -98,7 +117,7 @@ kv_table::get(kv_checkpoint_ptr ckpt, const data_value &key, timestamp_t timesta
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(std::move(ckpt), t);
+    return fix_get(item->get(std::move(ckpt), t));
 }
 
 /*
@@ -112,7 +131,7 @@ kv_table::get(kv_transaction_ptr txn, const data_value &key) const
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return timestamped() ? item->get(std::move(txn)) : item->get_latest(std::move(txn));
+    return fix_get(timestamped() ? item->get(std::move(txn)) : item->get_latest(std::move(txn)));
 }
 
 /*
@@ -215,7 +234,8 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
     if (item == nullptr)
         return WT_NOTFOUND;
 
-    std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(NONE, txn));
+    std::shared_ptr<kv_update> update = fix_timestamps(
+      std::make_shared<kv_update>(_config.type == kv_table_type::column_fix ? ZERO : NONE, txn));
     try {
         item->add_update(update, true, false);
         txn->add_update(*this, key, std::move(update));
@@ -252,8 +272,8 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
 
     try {
         for (auto i = start_iter; i != stop_iter; i++) {
-            std::shared_ptr<kv_update> update =
-              fix_timestamps(std::make_shared<kv_update>(NONE, txn));
+            std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(
+              _config.type == kv_table_type::column_fix ? ZERO : NONE, txn));
             i->second.add_update(update, false, false);
             txn->add_update(*this, i->first, std::move(update));
         }
@@ -354,6 +374,34 @@ kv_table_verify_cursor
 kv_table::verify_cursor()
 {
     return std::move(kv_table_verify_cursor(_data));
+}
+
+/*
+ * kv_table::fill_missing_column_fix_recnos --
+ *     Fill in missing recnos for FLCS to ensure that key rages are contiguous.
+ */
+void
+kv_table::fill_missing_column_fix_recnos_nolock(const data_value &key)
+{
+    if (_config.type != kv_table_type::column_fix)
+        return;
+
+    if (!std::holds_alternative<uint64_t>(key))
+        throw model_exception("The key is not compatible with a column store: Not a recno.");
+    uint64_t recno = std::get<uint64_t>(key);
+
+    if (_data.empty()) {
+        for (uint64_t i = 1; i <= recno; i++)
+            _data[data_value(i)].add_update(
+              std::make_shared<kv_update>(ZERO, k_timestamp_none), false, false);
+    } else {
+        if (!std::holds_alternative<uint64_t>(_data.begin()->first))
+            throw model_exception("Invalid keys in a column store: Not a recno.");
+        uint64_t last = std::get<uint64_t>(_data.rbegin()->first);
+        for (uint64_t i = last + 1; i <= recno; i++)
+            _data[data_value(i)].add_update(
+              std::make_shared<kv_update>(ZERO, k_timestamp_none), false, false);
+    }
 }
 
 /*
