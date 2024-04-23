@@ -2780,7 +2780,7 @@ main(int argc, char *argv[])
     } else if (opts->backup_interval != 0 && opts->backup_complete != 0) {
         if (chdir(wtperf->home) != 0)
             testutil_die(errno, "backup chdir: %s", wtperf->home);
-        testutil_last_backup_id((int *)&wtperf->backup_ops, NULL);
+        testutil_last_backup_id((int *)&wtperf->backup_ops);
         /* Increment the id for the next backup number. */
         ++wtperf->backup_ops;
     }

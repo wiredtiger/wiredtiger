@@ -280,21 +280,19 @@ __int_comparator(const void *a, const void *b)
  *     on directory naming.
  */
 void
-testutil_last_backup_id(int *last_full, int *last_incr)
+testutil_last_backup_id(int *last_id)
 {
 #ifdef _WIN32
-    WT_UNUSED(last_full);
-    WT_UNUSED(last_incr);
+    WT_UNUSED(last_id);
+    testutil_assert(0);
 #else
     struct dirent *dir;
     DIR *d;
     size_t len;
     int i;
 
-    if (last_full != NULL)
-        *last_full = 0;
-    if (last_incr != NULL)
-        *last_incr = 0;
+    testutil_assert(last_id != NULL);
+    *last_id = 0;
     len = strlen(BACKUP_BASE);
     testutil_assert_errno((d = opendir(".")) != NULL);
     while ((dir = readdir(d)) != NULL) {
@@ -304,12 +302,7 @@ testutil_last_backup_id(int *last_full, int *last_incr)
             if (!testutil_exists(dir->d_name, "done"))
                 continue;
             i = atoi(dir->d_name + len);
-
-            /* Check if this is a full backup. */
-            if (testutil_exists(dir->d_name, "full") && last_full != NULL)
-                *last_full = WT_MAX(*last_full, i);
-            else if (last_incr != NULL)
-                *last_incr = WT_MAX(*last_incr, i);
+            *last_id = WT_MAX(*last_id, i);
         }
     }
     testutil_check(closedir(d));
