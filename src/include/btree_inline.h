@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -396,11 +396,11 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
     /*
      * We don't have exclusive access and there are ways of decrementing the
      * page's dirty byte count by a too-large value. For example:
-     *	T1: __wt_cache_page_inmem_incr(page, size)
-     *		page is clean, don't increment dirty byte count
-     *	T2: mark page dirty
-     *	T1: __wt_cache_page_inmem_decr(page, size)
-     *		page is dirty, decrement dirty byte count
+     *  T1: __wt_cache_page_inmem_incr(page, size)
+     *      page is clean, don't increment dirty byte count
+     *  T2: mark page dirty
+     *  T1: __wt_cache_page_inmem_decr(page, size)
+     *      page is dirty, decrement dirty byte count
      * and, of course, the reverse where the page is dirty at the increment
      * and clean at the decrement.
      *
@@ -923,9 +923,9 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
  * In this specific case, we use bit 0x01 to mark an on-page key, else
  * it's a WT_IKEY reference.  The bit pattern for internal row-store
  * on-page keys is:
- *	32 bits		key length
- *	31 bits		page offset of the key's bytes,
- *	 1 bits		flags
+ *  32 bits     key length
+ *  31 bits     page offset of the key's bytes,
+ *   1 bits     flags
  */
 #define WT_IK_FLAG 0x01
 #define WT_IK_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 32)
@@ -985,8 +985,8 @@ __wt_ref_key_clear(WT_REF *ref)
     /*
      * The key union has 2 8B fields; this is equivalent to:
      *
-     *	ref->ref_recno = WT_RECNO_OOB;
-     *	ref->ref_ikey = NULL;
+     *  ref->ref_recno = WT_RECNO_OOB;
+     *  ref->ref_ikey = NULL;
      */
     ref->ref_recno = 0;
 }
@@ -1030,8 +1030,8 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      * key, 0x03 to mark an on-page key/value pair, otherwise it's a WT_IKEY reference. The bit
      * pattern for on-page cells is:
      *
-     *  29 bits		offset of the key's cell (512MB)
-     *   2 bits		0x01 flag
+     *  29 bits     offset of the key's cell (512MB)
+     *   2 bits     0x01 flag
      *
      * The on-page cell is our fallback: if a key or value won't fit into our encoding (unlikely,
      * but possible), we fall back to using a cell reference, which obviously has enough room for
@@ -1039,23 +1039,23 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      *
      * The next encoding is for on-page keys:
      *
-     *  19 bits		key's length (512KB)
-     *   6 bits		offset of the key's bytes from the key's cell (32B)
-     *   8 bits		key's prefix length (256B, the maximum possible value)
-     *  29 bits		offset of the key's cell (512MB)
-     *   2 bits		0x02 flag
+     *  19 bits     key's length (512KB)
+     *   6 bits     offset of the key's bytes from the key's cell (32B)
+     *   8 bits     key's prefix length (256B, the maximum possible value)
+     *  29 bits     offset of the key's cell (512MB)
+     *   2 bits     0x02 flag
      *
      * But, while that allows us to skip decoding simple key cells, we also want to skip decoding
      * value cells in the case where the value cell is also simple/short. We use bit 0x03 to mark
      * an encoded on-page key and value pair. The encoding for on-page key/value pairs is:
      *
-     *  13 bits		value's length (8KB)
-     *   6 bits		offset of the value's bytes from the end of the key's cell (32B)
-     *  12 bits		key's length (4KB)
-     *   6 bits		offset of the key's bytes from the key's cell (32B)
-     *   8 bits		key's prefix length (256B, the maximum possible value)
-     *  17 bits		offset of the key's cell (128KB)
-     *   2 bits		0x03 flag
+     *  13 bits     value's length (8KB)
+     *   6 bits     offset of the value's bytes from the end of the key's cell (32B)
+     *  12 bits     key's length (4KB)
+     *   6 bits     offset of the key's bytes from the key's cell (32B)
+     *   8 bits     key's prefix length (256B, the maximum possible value)
+     *  17 bits     offset of the key's cell (128KB)
+     *   2 bits     0x03 flag
      *
      * A reason for the complexity here is we need to be able to find the key and value cells from
      * the encoded form: for that reason we store an offset to the key cell plus a second offset to
@@ -1505,7 +1505,7 @@ __wt_row_leaf_value_cell(
 
 /*
  * WT_ADDR_COPY --
- *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
+ *  We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
  * copy of the WT_REF address information.
  */
 struct __wt_addr_copy {
@@ -1564,6 +1564,8 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
         return (true);
     }
 
+    if (session->dhandle == NULL)
+        printf("HERE\n");
     /* If on-page, the pointer references a cell. */
     __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, unpack);
     WT_TIME_AGGREGATE_COPY(&copy->ta, &unpack->ta);
@@ -2125,19 +2127,19 @@ __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *sa
      * namespaces a-f, g-h and i-j; the first child page splits. The parent
      * starts out with the following page-index:
      *
-     *	| ... | a | g | i | ... |
+     *  | ... | a | g | i | ... |
      *
      * which changes to this:
      *
-     *	| ... | a | c | e | g | i | ... |
+     *  | ... | a | c | e | g | i | ... |
      *
      * The child starts out with the following page-index:
      *
-     *	| a | b | c | d | e | f |
+     *  | a | b | c | d | e | f |
      *
      * which changes to this:
      *
-     *	| a | b |
+     *  | a | b |
      *
      * The thread searches the original parent page index for the key "cat",
      * it couples to the "a" child page; if it uses the replacement child

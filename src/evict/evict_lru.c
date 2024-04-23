@@ -2260,6 +2260,24 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
 
     __wt_spin_unlock(session, &cache->evict_queue_lock);
 
+#if 1
+     __wt_spin_lock(session, &cache->evict_queue_lock);
+    printf("EVICT QUEUE: %p\n", (void*)queue);
+    printf("=========================================\n");
+    for (int i = 0; i <  (int)cache->evict_slots; i++) {
+        WT_EVICT_ENTRY *e = &queue->evict_queue[i];
+        if (e != NULL && e->ref != NULL) {
+            printf("*** %d *** ", i);
+            printf("%p ", (void*)e->ref->page);
+            __wt_page_trace(session, e->ref, "evict-queue", NULL);
+        }
+        else
+            printf("*** %d: NULL queue entry ***\n", i);
+    }
+    printf("=========================================\n");
+    __wt_spin_unlock(session, &cache->evict_queue_lock);
+#endif
+
     /*
      * We got the queue lock, which should be fast, and chose a queue. Now we want to get the lock
      * on the individual queue.
@@ -2284,24 +2302,6 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     candidates = queue->evict_candidates;
     if (is_server && queue != urgent_queue && candidates > 1)
         candidates /= 2;
-
-#if 1
-    printf("EVICT QUEUE: %p\n", (void*)queue);
-    printf("=========================================\n");
-    for (int i = 0; i <  (int)cache->evict_slots; i++) {
-        WT_EVICT_ENTRY *e = &queue->evict_queue[i];
-        //char print_buffer[16];
-        //snprintf((char *)print_buffer, 16, "evict-queue:%d", i);
-        if (e != NULL && e->ref != NULL) {
-            printf("*** %d ***", i);
-            //   __wt_page_trace(session, e->ref, (char *)print_buffer, NULL);
-            __wt_page_trace(session, e->ref, "evict-queue", NULL);
-        }
-        else
-            printf("*** %d: NULL queue entry ***\n", i);
-    }
-    printf("=========================================\n");
-#endif
 
     /* Get the next page queued for eviction. */
     for (evict = queue->evict_current;

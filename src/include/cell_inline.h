@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -1125,6 +1125,8 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
 {
     uint64_t write_gen;
 
+    write_gen = 0;
+
     /*
      * If the page came from a previous run, reset the transaction ids to "none" and timestamps to 0
      * as appropriate. Transaction ids shouldn't persist between runs so these are always set to
@@ -1156,8 +1158,10 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
          */
         write_gen = session->checkpoint_write_gen;
         WT_ASSERT(session, write_gen >= S2BT(session)->base_write_gen);
-    } else
+    } else if (session->dhandle != NULL)
         write_gen = S2BT(session)->base_write_gen;
+    else
+        write_gen = dsk->write_gen;
 
     WT_ASSERT(session, dsk->write_gen != 0);
     if (dsk->write_gen > write_gen)
@@ -1322,7 +1326,7 @@ __wt_page_cell_data_ref_kv(
 
 /*
  * WT_CELL_FOREACH --
- *	Walk the cells on a page.
+ *  Walk the cells on a page.
  */
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \

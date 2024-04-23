@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -71,6 +71,7 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
         *offsetp = 0;
         *sizep = *checksump = 0;
     } else {
+        printf("CrASH\n");
         *objectidp = (uint32_t)i;
         *offsetp = (wt_off_t)(o + 1) * block->allocsize;
         *sizep = (uint32_t)s * block->allocsize;
