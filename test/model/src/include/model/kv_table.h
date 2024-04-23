@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_TABLE_H
-#define MODEL_KV_TABLE_H
+#pragma once
 
 #include <atomic>
 #include <functional>
@@ -292,7 +291,7 @@ public:
     inline void
     verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr))
     {
-        kv_table_verifier(*this).verify(connection, ckpt);
+        kv_table_verifier(*this).verify(connection, std::move(ckpt));
     }
 
     /*
@@ -304,7 +303,7 @@ public:
     verify_noexcept(
       WT_CONNECTION *connection, kv_checkpoint_ptr ckpt = kv_checkpoint_ptr(nullptr)) noexcept
     {
-        return kv_table_verifier(*this).verify_noexcept(connection, ckpt);
+        return kv_table_verifier(*this).verify_noexcept(connection, std::move(ckpt));
     }
 
     /*
@@ -417,4 +416,3 @@ private:
 using kv_table_ptr = std::shared_ptr<kv_table>;
 
 } /* namespace model */
-#endif

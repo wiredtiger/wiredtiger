@@ -12,7 +12,7 @@
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
  */
-static inline int
+static WT_INLINE int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, size_t upd_memsize)
 {
@@ -43,7 +43,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
  * __rec_delete_hs_upd_save --
  *     Save an update into a WT_DELETE_HS_UPD list to delete it from the history store later.
  */
-static inline int
+static WT_INLINE int
 __rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_UPDATE *upd, WT_UPDATE *tombstone)
 {
@@ -202,7 +202,7 @@ __rec_append_orig_value(
     }
 
     /* Append the new entry into the update list. */
-    WT_PUBLISH(upd->next, append);
+    WT_RELEASE_WRITE_WITH_BARRIER(upd->next, append);
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -257,7 +257,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
  * __rec_need_save_upd --
  *     Return if we need to save the update chain
  */
-static inline bool
+static WT_INLINE bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select,
   WT_CELL_UNPACK_KV *vpack, bool has_newer_updates)
 {
@@ -327,7 +327,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
  *     transaction to insert and then remove a record. We don't want to generate a warning in that
  *     case.
  */
-static inline bool
+static WT_INLINE bool
 __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 {
     char time_string[WT_TIME_STRING_SIZE];
@@ -486,7 +486,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
  * __rec_calc_upd_memsize --
  *     Calculate the saved update size.
  */
-static inline size_t
+static WT_INLINE size_t
 __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_memsize)
 {
     WT_UPDATE *upd;
@@ -524,7 +524,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
-    session_txnid = WT_SESSION_TXN_SHARED(session)->id;
+    session_txnid = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id);
     seen_prepare = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
@@ -844,7 +844,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     WT_ASSERT_ALWAYS(session,
       !WT_IS_METADATA(session->dhandle) || upd == NULL || upd->txnid == WT_TXN_NONE ||
-        upd->txnid != S2C(session)->txn_global.checkpoint_txn_shared.id ||
+        upd->txnid != __wt_atomic_loadv64(&S2C(session)->txn_global.checkpoint_txn_shared.id) ||
         WT_SESSION_IS_CHECKPOINT(session),
       "Metadata updates written from a checkpoint in a concurrent session");
 

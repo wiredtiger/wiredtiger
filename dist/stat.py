@@ -3,9 +3,18 @@
 # Read the source files and output the statistics #defines plus the
 # initialize and refresh code.
 
-import os, textwrap
+import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast([
+            "../dist/dist.py",
+            "../src/include/stat.h",
+            "../src/include/wiredtiger.in",
+            "../src/support/stat.c",
+        ], prefix="../")]:
+    sys.exit(0)
 
 # Read the source files.
 from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
@@ -96,7 +105,7 @@ def print_defines():
  * @name Connection statistics
  * @anchor statistics_keys
  * @anchor statistics_conn
- * Statistics are accessed through cursors with \c "statistics:" URIs.
+ * Statistics are accessed through cursors with \\c "statistics:" URIs.
  * Individual statistics can be queried through the cursor using the following
  * keys.  See @ref data_statistics for more information.
  * @{

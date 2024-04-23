@@ -38,7 +38,6 @@ from wtscenario import make_scenarios
 # Check the behavior of a fast-truncated page where the truncation is not stable but
 # everything else on the page is.
 
-@wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
 @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_rollback_to_stable36(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),verbose=(rts:5)'
@@ -62,7 +61,12 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
         ('runtime', dict(crash=False)),
         ('recovery', dict(crash=True)),
     ]
-    scenarios = make_scenarios(trunc_values, format_values, rollback_modes)
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+    scenarios = make_scenarios(trunc_values, format_values, rollback_modes, worker_thread_values)
 
     # Don't raise errors for these, the expectation is that the RTS verifier will
     # run on the test output.
@@ -174,7 +178,7 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
         if self.crash:
             simulate_crash_restart(self, ".", "RESTART")
         else:
-            self.conn.rollback_to_stable()
+            self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         # Currently rolling back a fast-truncate works by instantiating the pages and
         # rolling back the instantiated updates, so we should see some page instantiations.
@@ -190,6 +194,3 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
         # Validate the data; we should see all of it, since the truncations weren't stable.
         self.check(ds, value_a, nrows, 15)
         self.check(ds, value_a, nrows, 25)
-
-if __name__ == '__main__':
-    wttest.run()

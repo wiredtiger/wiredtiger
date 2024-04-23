@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 #
 # Check that readonly database reading fast truncated pages doesn't lead to cache stuck.
 
-@wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
 class test_truncate15(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
@@ -206,7 +205,3 @@ class test_truncate15(wttest.WiredTigerTestCase):
                 self.assertTrue(False)
             else:
                 raise e
-
-if __name__ == '__main__':
-    wttest.run()
-

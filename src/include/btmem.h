@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -99,7 +101,7 @@ struct __wt_page_header {
  * __wt_page_header_byteswap --
  *     Handle big- and little-endian transformation of a page header.
  */
-static inline void
+static WT_INLINE void
 __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 {
 #ifdef WORDS_BIGENDIAN
@@ -432,6 +434,13 @@ struct __wt_page_modify {
     WT_OVFL_TRACK *ovfl_track;
 
     /*
+     * Stop aggregated timestamp information when all the keys on the page are removed. This time
+     * aggregate information is used to skip these deleted pages as part of the tree walk if the
+     * delete operation is visible to the reader.
+     */
+    wt_shared WT_TIME_AGGREGATE *stop_ta;
+
+    /*
      * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
      * set until the page is reconciled successfully; this indicates that the page_del information
      * in the ref remains valid. The update list remains set (if set at all) until the transaction
@@ -498,6 +507,8 @@ WT_PACKED_STRUCT_END
  *	The page index held by each internal page.
  */
 struct __wt_page_index {
+#define WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES 10
+#define WT_INTERNAL_SPLIT_MIN_KEYS 100
     uint32_t entries;
     wt_shared uint32_t deleted_entries;
     WT_REF **index;
@@ -613,7 +624,7 @@ struct __wt_page {
     } while (0)
 #define WT_INTL_INDEX_SET(page, v)      \
     do {                                \
-        WT_WRITE_BARRIER();             \
+        WT_RELEASE_BARRIER();           \
         ((page)->u.intl.__index) = (v); \
     } while (0)
 
@@ -752,8 +763,6 @@ struct __wt_page {
 #define WT_READGEN_NOTSET 0
 #define WT_READGEN_OLDEST 1
 #define WT_READGEN_WONT_NEED 2
-#define WT_READGEN_EVICT_SOON(readgen) \
-    ((readgen) != WT_READGEN_NOTSET && (readgen) < WT_READGEN_START_VALUE)
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
@@ -789,36 +798,132 @@ struct __wt_page {
 #define WT_PAGE_REF_OFFSET(page, o) ((void *)((uint8_t *)((page)->dsk) + (o)))
 
 /*
- * Prepare update states.
+ * WT_PAGE_WALK_SKIP_STATS --
+ *	Statistics to track how many deleted pages are skipped as part of the tree walk.
+ */
+struct __wt_page_walk_skip_stats {
+    size_t total_del_pages_skipped;
+    size_t total_inmem_del_pages_skipped;
+};
+
+/*
+ * Prepare states.
  *
- * Prepare update synchronization is based on the state field, which has the
- * following possible states:
+ * Prepare states are used by both updates and the fast truncate page_del structure to indicate
+ * which phase of the prepared transaction lifecycle they are in.
  *
  * WT_PREPARE_INIT:
- *	The initial prepare state of either an update or a page_del structure,
- *	indicating a prepare phase has not started yet.
- *	This state has no impact on the visibility of the update's data.
+ *  The default prepare state, indicating that the transaction which created the update or fast
+ *  truncate structure has not yet called prepare transaction. There is no requirement that an
+ *  object moves beyond this state.
+ *
+ *  This state has no impact on the visibility of the associated update or fast truncate structure.
  *
  * WT_PREPARE_INPROGRESS:
- *	Update is in prepared phase.
+ *  When a transaction calls prepare all objects created by it, updates or page_del structures will
+ *  transition to this state.
  *
  * WT_PREPARE_LOCKED:
- *	State is locked as state transition is in progress from INPROGRESS to
- *	RESOLVED. Any reader of the state needs to wait for state transition to
- *	complete.
+ *  This state is a transitional state between INPROGRESS and RESOLVED. It occurs when a prepared
+ *  transaction commits. If a reader sees an object in this state it is required to wait until the
+ *  object transitions out of this state, and then read the associated visibility information. This
+ *  state exists to provide a clear ordering semantic between transitioning the prepare state and
+ *  a reader reading it concurrently. For more details see below.
  *
  * WT_PREPARE_RESOLVED:
- *	Represents the commit state of the prepared update.
+ *  When a prepared transaction calls commit all objects created by it will transition to this
+ *  state, which is the final state.
  *
- * State Transition:
- * 	From uncommitted -> prepare -> commit:
- * 	INIT --> INPROGRESS --> LOCKED --> RESOLVED
- * 	LOCKED will be a momentary phase during timestamp update.
+ * ---
+ * State transitions:
+ * Object created (uncommitted) -> transaction prepare -> transaction commit:
+ *  INIT --> INPROGRESS --> LOCKED --> RESOLVED
+ *  LOCKED will be a momentary phase during timestamp update.
  *
- * 	From uncommitted -> prepare -> rollback:
- * 	INIT --> INPROGRESS
- * 	Prepare state will not be updated during rollback and will continue to
- * 	have the state as INPROGRESS.
+ * Object created -> transaction prepare -> transaction rollback:
+ *  INIT --> INPROGRESS
+ *  The prepare state will not be modified during rollback.
+ *
+ * Object created -> transaction commit:
+ *  INIT
+ *  Preparing a transaction is the uncommon case and most updates and page_del structures will
+ *  never leave the INIT state.
+ *
+ * ---
+ * Ordering complexities of prepare state transitions.
+ *
+ * The prepared transaction system works alongside the timestamp system. When committing a
+ * transaction a user can define a timestamp which represents the time at which a key/value pair
+ * is visible. This is represented by the start_ts in memory on the update structure. The page_del
+ * structure visibility is the same as an update's for the most part, this comment won't refer to it
+ * again.
+ *
+ * Prepared transactions introduce the need for an additional two timestamps, a prepare timestamp.
+ * The point at which an update is "prepared" and the durable timestamp which is when update is to
+ * be made stable by WiredTiger. The purpose of those timestamps is not something that will be
+ * described here.
+ *
+ * When a transaction calls prepare the start_ts field on the update structure is used to represent
+ * the prepare timestamp. The start_ts field is also used to represent the commit timestamp of the
+ * transaction. The prepare state tells the reader which of the two timestamps are available.
+ * However these two fields can't be written atomically and no lock is taken when transitioning
+ * between prepared update states. So the writer must write one field then the other, and a reader
+ * can read at any time. This introduces a need for the WT_PREPARE_LOCKED state and memory barriers.
+ *
+ * Let's construct a simplified example:
+ * We can assume the writing thread does the sane thing by writing the timestamp and then the
+ * prepare state. We also assume the reader thread reads the state then the timestamp. If we ignore
+ * the locked state we can construct a scenario where the reader can't tell which timestamp, commit
+ * or prepare, exists on the update. Ignoring CPU instruction reordering for now.
+ *
+ * The writer performs the following operations:
+ *  1: start_ts = 5
+ *  2: prepare_state = WT_PREPARE_INPROGRESS
+ *  3: start_ts = 10
+ *  4: prepare_state = WT_PREPARE_RESOLVED
+ *
+ * In this scenario it is possible the writer thread context switches between 3 and 4, and therefore
+ * the reader may see a timestamp of 10 for start_ts and wrongly attribute it to the prepare
+ * timestamp. This creates a need for the WT_PREPARE_LOCKED state. The writer thread now performs:
+ *  1: start_ts = 5
+ *  2: prepare_state = WT_PREPARE_INPROGRESS
+ *  3: prepare_state = WT_PREPARE_LOCKED
+ *  3: start_ts = 10
+ *  4: prepare_state = WT_PREPARE_RESOLVED
+ *
+ * The reader thread can, in this scenario, read any prepare state and behave correctly. If it reads
+ * WT_PREPARE_INPROGRESS it knows the start_ts is the prepare timestamp. If it reads
+ * WT_PREPARE_RESOLVED it knows the start_ts is the commit timestamp. If it reads WT_PREPARE_LOCKED
+ * it will wait until it reads WT_PREPARE_RESOLVED.
+ *
+ * By introducing the WT_PREPARE_LOCKED field we resolve some ambiguity about the start_ts. However
+ * as previously mentioned we were ignoring CPU reordering hijinx. CPU reordering will cause issues,
+ * to be fully correct here we need memory barriers. The need for a WT_PREPARE_LOCKED state makes
+ * the ordering requirements somewhat more complex than the typical message passing scenario.
+ *
+ * The writer thread has two orderings:
+ * Prepare transaction:
+ *  - start_ts = X
+ *  - WT_RELEASE_BARRIER
+ *  - prepare_state = WT_PREPARE_INPROGRESS
+ *
+ * Commit transaction:
+ *  - prepare_state = WT_PREPARE_LOCKED
+ *  - WT_RELEASE_BARRIER
+ *  - start_ts = Y
+ *  - durable_ts = Z
+ *  - WT_RELEASE_BARRIER
+ *  - prepare_state = WT_PREPARE_RESOLVED
+ *
+ * The reader does the opposite. The more complex of the two is as follows:
+ *  - read prepare_state
+ *  - WT_ACQUIRE_BARRIER
+ *  - if locked, retry
+ *  - read start_ts
+ *  - read durable_ts
+ *  - WT_ACQUIRE_BARRIER
+ *  - read prepare_state
+ *  - if prepare state has changed, retry
  */
 
 /* Must be 0, as structures will be default initialized with 0. */
@@ -961,7 +1066,7 @@ struct __wt_ref {
     wt_shared WT_PAGE *volatile home;        /* Reference page */
     wt_shared volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t unused[2]; /* Padding: before the flags field so flags can be easily expanded. */
+    uint8_t unused; /* Padding: before the flags field so flags can be easily expanded. */
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -972,17 +1077,33 @@ struct __wt_ref {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
-#define WT_REF_FLAG_PREFETCH 0x4u /* Page is on the pre-fetch queue */
-#define WT_REF_FLAG_READING 0x8u  /* Page is being read in */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
-#define WT_REF_DISK 0                 /* Page is on disk */
-#define WT_REF_DELETED 1              /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2               /* Page locked for exclusive access */
-#define WT_REF_MEM 3                  /* Page is in cache and valid */
-#define WT_REF_SPLIT 4                /* Parent page split (WT_REF dead) */
-    wt_shared volatile uint8_t state; /* Page state */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_REF_FLAG_PREFETCH 0x1u   /* Page is on the pre-fetch queue */
+#define WT_REF_FLAG_READING 0x2u    /* Page is being read in */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    wt_shared uint8_t flags_atomic; /* Atomic flags, use F_*_ATOMIC_8 */
+
+#define WT_REF_DISK 0    /* Page is on disk */
+#define WT_REF_DELETED 1 /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2  /* Page locked for exclusive access */
+#define WT_REF_MEM 3     /* Page is in cache and valid */
+#define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
+
+    /*
+     * Ref state: Obscure the field name as this field shouldn't be accessed directly. The public
+     * interface is made up of five functions:
+     *  - WT_REF_GET_STATE
+     *  - WT_REF_SET_STATE
+     *  - WT_REF_CAS_STATE
+     *  - WT_REF_LOCK
+     *  - WT_REF_UNLOCK
+     *
+     * For more details on these functions see ref_inline.h.
+     */
+    wt_shared volatile uint8_t __state;
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
@@ -1119,63 +1240,28 @@ struct __wt_ref {
     wt_shared WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
 #ifdef HAVE_REF_TRACK
+#define WT_REF_SAVE_STATE_MAX 3
+    /* Capture history of ref state changes. */
+    WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
+    uint64_t histoff;
+#endif
+};
+
+#ifdef HAVE_REF_TRACK
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures, but we want to retain ref
  * state history. Don't overwrite these fields.
  */
 #define WT_REF_CLEAR_SIZE (offsetof(WT_REF, hist))
-#define WT_REF_SAVE_STATE_MAX 3
-    /* Capture history of ref state changes. */
-    WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
-    uint64_t histoff;
-#define WT_REF_SAVE_STATE(ref, s, f, l)                                   \
-    do {                                                                  \
-        (ref)->hist[(ref)->histoff].session = session;                    \
-        (ref)->hist[(ref)->histoff].name = session->name;                 \
-        __wt_seconds32(session, &(ref)->hist[(ref)->histoff].time_sec);   \
-        (ref)->hist[(ref)->histoff].func = (f);                           \
-        (ref)->hist[(ref)->histoff].line = (uint16_t)(l);                 \
-        (ref)->hist[(ref)->histoff].state = (uint16_t)(s);                \
-        (ref)->histoff = ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist); \
-    } while (0)
-#define WT_REF_SET_STATE(ref, s)                                  \
-    do {                                                          \
-        WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        WT_PUBLISH((ref)->state, s);                              \
-    } while (0)
-#else
-#define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
-#define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
-#endif
-};
-
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#ifdef HAVE_REF_TRACK
 #define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
 #define WT_REF_SIZE 48
+#define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
-
-/* A macro wrapper allowing us to remember the callers code location */
-#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
-    __wt_ref_cas_state_int(session, ref, old_state, new_state, __PRETTY_FUNCTION__, __LINE__)
-
-#define WT_REF_LOCK(session, ref, previous_statep)                             \
-    do {                                                                       \
-        uint8_t __previous_state;                                              \
-        for (;; __wt_yield()) {                                                \
-            __previous_state = (ref)->state;                                   \
-            if (__previous_state != WT_REF_LOCKED &&                           \
-              WT_REF_CAS_STATE(session, ref, __previous_state, WT_REF_LOCKED)) \
-                break;                                                         \
-        }                                                                      \
-        *(previous_statep) = __previous_state;                                 \
-    } while (0)
-
-#define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
 
 /*
  * WT_ROW --

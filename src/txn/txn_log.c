@@ -500,15 +500,15 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
         break;
     case WT_TXN_LOG_CKPT_START:
         /* Take a copy of the transaction snapshot. */
-        txn->ckpt_nsnapshot = txn->snapshot_count;
+        txn->ckpt_nsnapshot = txn->snapshot_data.snapshot_count;
         recsize = (size_t)txn->ckpt_nsnapshot * WT_INTPACK64_MAXSIZE;
         WT_ERR(__wt_scr_alloc(session, recsize, &txn->ckpt_snapshot));
         end = p = txn->ckpt_snapshot->mem;
         /* There many not be any snapshot entries. */
         if (end != NULL) {
             end += recsize;
-            for (i = 0; i < txn->snapshot_count; i++)
-                WT_ERR(__wt_vpack_uint(&p, WT_PTRDIFF(end, p), txn->snapshot[i]));
+            for (i = 0; i < txn->snapshot_data.snapshot_count; i++)
+                WT_ERR(__wt_vpack_uint(&p, WT_PTRDIFF(end, p), txn->snapshot_data.snapshot[i]));
         }
         break;
     case WT_TXN_LOG_CKPT_STOP:
@@ -528,11 +528,12 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
         rectype = WT_LOGREC_CHECKPOINT;
         fmt = WT_UNCHECKED_STRING(IIIIu);
         WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype, ckpt_lsn->l.file,
-          ckpt_lsn->l.offset, txn->ckpt_nsnapshot, ckpt_snapshot));
+          __wt_lsn_offset(ckpt_lsn), txn->ckpt_nsnapshot, ckpt_snapshot));
         WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
-        WT_ERR(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt,
-          rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset, txn->ckpt_nsnapshot, ckpt_snapshot));
+        WT_ERR(
+          __wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt, rectype,
+            ckpt_lsn->l.file, __wt_lsn_offset(ckpt_lsn), txn->ckpt_nsnapshot, ckpt_snapshot));
         logrec->size += (uint32_t)recsize;
         WT_ERR(__wt_log_write(
           session, logrec, lsnp, F_ISSET(conn, WT_CONN_CKPT_SYNC) ? WT_LOG_FSYNC : 0));
@@ -696,7 +697,7 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
         WT_RET(__wt_fprintf(session, args->fs, ",\n"));
 
     WT_RET(__wt_fprintf(session, args->fs, "  { \"lsn\" : [%" PRIu32 ",%" PRIu32 "],\n",
-      lsnp->l.file, lsnp->l.offset));
+      lsnp->l.file, __wt_lsn_offset(lsnp)));
     WT_RET(__wt_fprintf(
       session, args->fs, "    \"hdr_flags\" : \"%s\",\n", compressed ? "compressed" : ""));
     WT_RET(__wt_fprintf(session, args->fs, "    \"rec_len\" : %" PRIu32 ",\n", logrec->len));

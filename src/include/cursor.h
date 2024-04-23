@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /* Get the session from any cursor. */
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 
@@ -73,27 +75,22 @@ struct __wt_cursor_backup {
     uint64_t granularity; /* Length, transfer size */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CURBACKUP_CKPT_FAKE 0x001u   /* Object has fake checkpoint */
-#define WT_CURBACKUP_CONSOLIDATE 0x002u /* Consolidate returned info on this object */
-#define WT_CURBACKUP_DUP 0x004u         /* Duplicated backup cursor */
-#define WT_CURBACKUP_EXPORT 0x008u      /* Special backup cursor for export operation */
-#define WT_CURBACKUP_FORCE_FULL 0x010u  /* Force full file copy for this cursor */
-#define WT_CURBACKUP_FORCE_STOP 0x020u  /* Force stop incremental backup */
-#define WT_CURBACKUP_HAS_CB_INFO 0x040u /* Object has checkpoint backup info */
-#define WT_CURBACKUP_INCR 0x080u        /* Incremental backup cursor */
-#define WT_CURBACKUP_INCR_INIT 0x100u   /* Cursor traversal initialized */
-#define WT_CURBACKUP_LOCKER 0x200u      /* Hot-backup started */
-#define WT_CURBACKUP_QUERYID 0x400u     /* Backup cursor for incremental ids */
-#define WT_CURBACKUP_RENAME 0x800u      /* Object had a rename */
-                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_CURBACKUP_CKPT_FAKE 0x0001u   /* Object has fake checkpoint */
+#define WT_CURBACKUP_COMPRESSED 0x0002u  /* Object uses compression */
+#define WT_CURBACKUP_CONSOLIDATE 0x0004u /* Consolidate returned info on this object */
+#define WT_CURBACKUP_DUP 0x0008u         /* Duplicated backup cursor */
+#define WT_CURBACKUP_EXPORT 0x0010u      /* Special backup cursor for export operation */
+#define WT_CURBACKUP_FORCE_FULL 0x0020u  /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x0040u  /* Force stop incremental backup */
+#define WT_CURBACKUP_HAS_CB_INFO 0x0080u /* Object has checkpoint backup info */
+#define WT_CURBACKUP_INCR 0x0100u        /* Incremental backup cursor */
+#define WT_CURBACKUP_INCR_INIT 0x0200u   /* Cursor traversal initialized */
+#define WT_CURBACKUP_LOCKER 0x0400u      /* Hot-backup started */
+#define WT_CURBACKUP_QUERYID 0x0800u     /* Backup cursor for incremental ids */
+#define WT_CURBACKUP_RENAME 0x1000u      /* Object had a rename */
+                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
-
-/* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
-#define CUR2BT(c)                                \
-    (((WT_CURSOR_BTREE *)(c))->dhandle == NULL ? \
-        NULL :                                   \
-        (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
 
 struct __wt_cursor_btree {
     WT_CURSOR iface;
@@ -164,13 +161,13 @@ struct __wt_cursor_btree {
     uint32_t row_iteration_slot; /* Row-store iteration slot */
 
     /*
-     * Variable-length column-store values are run-length encoded and may be overflow values or
-     * Huffman encoded. To avoid repeatedly reading overflow values or decompressing encoded values,
-     * process it once and store the result in a temporary buffer. The cip_saved field is used to
-     * determine if we've switched columns since our last cursor call. Note however that this result
-     * caching is not necessarily safe for all RLE cells. The flag WT_CBT_CACHEABLE_RLE_CELL
-     * indicates that the value is uniform across the whole cell. If it is not set (e.g. if the cell
-     * is not globally visible yet), the cached values should not be used.
+     * Variable-length column-store values are run-length encoded and may be overflow values. To
+     * avoid repeatedly reading overflow values or decompressing encoded values, process it once and
+     * store the result in a temporary buffer. The cip_saved field is used to determine if we've
+     * switched columns since our last cursor call. Note however that this result caching is not
+     * necessarily safe for all RLE cells. The flag WT_CBT_CACHEABLE_RLE_CELL indicates that the
+     * value is uniform across the whole cell. If it is not set (e.g. if the cell is not globally
+     * visible yet), the cached values should not be used.
      */
     WT_COL *cip_saved; /* Last iteration reference */
 
@@ -273,6 +270,30 @@ struct __wt_cursor_btree {
 
     uint32_t flags;
 };
+
+/* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
+#ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+/*
+ * __wt_curbt2bt --
+ *     Safely return the WT_BTREE pointed to by the cursor_btree's dhandle.
+ */
+static WT_INLINE WT_BTREE *
+__wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
+{
+    WT_DATA_HANDLE *dhandle;
+
+    dhandle = cursor_btree->dhandle;
+
+    return (dhandle == NULL ? NULL : (WT_BTREE *)(dhandle->handle));
+}
+
+#define CUR2BT(c) __wt_curbt2bt((WT_CURSOR_BTREE *)(c))
+#else
+#define CUR2BT(c)                                \
+    (((WT_CURSOR_BTREE *)(c))->dhandle == NULL ? \
+        NULL :                                   \
+        (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
+#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
 
 struct __wt_cursor_bulk {
     WT_CURSOR_BTREE cbt;

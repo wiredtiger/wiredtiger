@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #include <wt_internal.h>
 
 typedef struct {
@@ -45,7 +47,6 @@ int util_loadtext(WT_SESSION *, int, char *[]);
 int util_printlog(WT_SESSION *, int, char *[]);
 int util_read(WT_SESSION *, int, char *[]);
 int util_read_line(WT_SESSION *, ULINE *, bool, bool *);
-int util_rename(WT_SESSION *, int, char *[]);
 int util_salvage(WT_SESSION *, int, char *[]);
 int util_stat(WT_SESSION *, int, char *[]);
 int util_str2num(WT_SESSION *, const char *, bool, uint64_t *);

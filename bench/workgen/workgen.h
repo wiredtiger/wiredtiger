@@ -25,6 +25,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+
+#pragma once
+
 #include <map>
 #include <ostream>
 #include <string>
@@ -451,6 +454,7 @@ struct WorkloadOptions {
     int max_idle_table_cycle;
     bool max_idle_table_cycle_fatal;
     int max_latency;
+    int max_num_files;
     std::string mirror_suffix;
     bool mirror_tables;
     double oldest_timestamp_lag;

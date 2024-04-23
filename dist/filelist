@@ -27,7 +27,6 @@ src/btree/bt_debug.c
 src/btree/bt_delete.c
 src/btree/bt_discard.c
 src/btree/bt_handle.c
-src/btree/bt_huffman.c
 src/btree/bt_import.c
 src/btree/bt_misc.c
 src/btree/bt_ovfl.c
@@ -61,6 +60,9 @@ src/checksum/x86/crc32-x86-alt.c                X86_HOST
 src/checksum/x86/crc32-x86.c                    X86_HOST
 src/checksum/zseries/crc32-s390x.c              ZSERIES_HOST
 src/checksum/zseries/crc32le-vx.sx              ZSERIES_HOST
+src/conf/conf_bind.c
+src/conf/conf_compile.c
+src/conf/conf_get.c
 src/config/config.c
 src/config/config_api.c
 src/config/config_check.c
@@ -194,7 +196,6 @@ src/schema/schema_list.c
 src/schema/schema_open.c
 src/schema/schema_plan.c
 src/schema/schema_project.c
-src/schema/schema_rename.c
 src/schema/schema_stat.c
 src/schema/schema_truncate.c
 src/schema/schema_util.c
@@ -219,7 +220,6 @@ src/support/hash_city.c
 src/support/hash_fnv.c
 src/support/hazard.c
 src/support/hex.c
-src/support/huffman.c
 src/support/lock_ext.c
 src/support/modify.c
 src/support/mtx_rw.c
