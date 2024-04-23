@@ -549,6 +549,9 @@ __wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *v
     next = visible_all_upd->next;
     visible_all_upd->next = NULL;
 
+    /* There must be at least a single obsolete update. */
+    WT_ASSERT(session, next != NULL);
+
     for (upd = next; upd != NULL; upd = next) {
         next = upd->next;
         size += WT_UPDATE_MEMSIZE(upd);
