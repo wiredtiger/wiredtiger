@@ -349,7 +349,7 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
  * __random_root_inmem_ref --
  *     Return a random in-mem ref from a root page by applying reservoir sampling.
  */
-static int
+static void
 __random_root_inmem_ref(
   WT_SESSION_IMPL *session, WT_REF *current, WT_REF **refp, WT_RAND_STATE *rnd)
 {
@@ -361,6 +361,9 @@ __random_root_inmem_ref(
 
     WT_ASSERT(session, __wt_ref_is_root(current));
 
+    WT_STAT_CONN_INCR(session, cache_eviction_random_sample_inmem_root);
+    WT_STAT_DATA_INCR(session, cache_eviction_random_sample_inmem_root);
+
     WT_INTL_FOREACH_BEGIN (session, current->page, ref)
         if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
             cnt++;
@@ -369,12 +372,8 @@ __random_root_inmem_ref(
         }
     WT_INTL_FOREACH_END;
 
-    if (cnt == 0)
-        return (0);
-
-    *refp = ref_inmem;
-
-    return (0);
+    if (cnt != 0)
+        *refp = ref_inmem;
 }
 
 /*
@@ -429,7 +428,7 @@ restart:
         if (eviction) {
             descent = pindex->index[__wt_random(rnd) % entries];
             if (sample_inmem_page && __wt_ref_is_root(current))
-                WT_RET(__random_root_inmem_ref(session, current, &descent, rnd));
+                __random_root_inmem_ref(session, current, &descent, rnd);
             goto descend;
         }
 
@@ -489,7 +488,7 @@ descend:
     if (eviction && __wt_ref_is_root(current)) {
         if (--retry > 0)
             goto restart;
-        else if (!sample_inmem_page) {
+        else if (S2C(session)->evict_sample_inmem && !sample_inmem_page) {
             sample_inmem_page = true;
             goto restart;
         }

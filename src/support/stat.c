@@ -119,6 +119,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: internal pages evicted",
   "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction",
+  "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
@@ -469,6 +470,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_internal = 0;
     stats->cache_eviction_split_internal = 0;
     stats->cache_eviction_split_leaf = 0;
+    stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
@@ -803,6 +805,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_internal += from->cache_eviction_internal;
     to->cache_eviction_split_internal += from->cache_eviction_split_internal;
     to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
+    to->cache_eviction_random_sample_inmem_root += from->cache_eviction_random_sample_inmem_root;
     to->cache_eviction_dirty += from->cache_eviction_dirty;
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
@@ -1144,6 +1147,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_internal += WT_STAT_READ(from, cache_eviction_internal);
     to->cache_eviction_split_internal += WT_STAT_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_READ(from, cache_eviction_split_leaf);
+    to->cache_eviction_random_sample_inmem_root +=
+      WT_STAT_READ(from, cache_eviction_random_sample_inmem_root);
     to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
@@ -1564,6 +1569,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: internal pages seen by eviction walk that are already queued",
   "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction",
+  "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: maximum bytes configured",
   "cache: maximum milliseconds spent at a single eviction",
   "cache: maximum page size seen at eviction",
@@ -2306,6 +2312,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_internal_pages_already_queued = 0;
     stats->cache_eviction_split_internal = 0;
     stats->cache_eviction_split_leaf = 0;
+    stats->cache_eviction_random_sample_inmem_root = 0;
     /* not clearing cache_bytes_max */
     /* not clearing cache_eviction_maximum_milliseconds */
     /* not clearing cache_eviction_maximum_page_size */
@@ -3052,6 +3059,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_internal_pages_already_queued);
     to->cache_eviction_split_internal += WT_STAT_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_READ(from, cache_eviction_split_leaf);
+    to->cache_eviction_random_sample_inmem_root +=
+      WT_STAT_READ(from, cache_eviction_random_sample_inmem_root);
     to->cache_bytes_max += WT_STAT_READ(from, cache_bytes_max);
     to->cache_eviction_maximum_milliseconds +=
       WT_STAT_READ(from, cache_eviction_maximum_milliseconds);

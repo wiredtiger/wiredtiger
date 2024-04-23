@@ -1001,6 +1001,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
+    CacheStat('cache_eviction_random_sample_inmem_root', 'locate a random in-mem ref by examining all entries on the root page'),
     CacheStat('cache_eviction_split_internal', 'internal pages split during eviction'),
     CacheStat('cache_eviction_split_leaf', 'leaf pages split during eviction'),
     CacheStat('cache_eviction_target_page_ge128', 'eviction walk target pages histogram - 128 and higher'),
