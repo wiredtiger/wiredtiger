@@ -309,12 +309,9 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      *    size by holding all those unnecessary obsolete updates. The alternative of
      *    removing obsolete updates as part of the reconciliation process can support
      *    the optimizations to prevent needless page splits.
-     *
-     * 3. Randomly look for obsolete updates.
      */
     if (!FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) ||
-      (page->memory_footprint > (S2BT(session)->splitmempage / 2)) ||
-      (__wt_random(&session->rnd) % 16 == 0)) {
+      (page->memory_footprint > (S2BT(session)->splitmempage / 2))) {
         /*
          * Check whether the transaction state has moved forward from the last time we checked for
          * obsolete updates to avoid unnecessary traversal.
