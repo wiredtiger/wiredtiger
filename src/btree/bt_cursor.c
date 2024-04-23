@@ -2279,9 +2279,6 @@ int
 __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(cbt);
 
     /*
      * The in-memory split, history store table, and fast-truncate instantiation code creates
@@ -2295,7 +2292,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     __wt_btcur_free_cached_memory(cbt);
 
 #ifdef HAVE_DIAGNOSTIC
-    __wt_buf_free(session, &cbt->_lastkey);
+    __wt_buf_free(CUR2S(cbt), &cbt->_lastkey);
 #endif
 
     return (ret);
