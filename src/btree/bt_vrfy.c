@@ -121,9 +121,10 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 static int
 __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
 #ifdef HAVE_DIAGNOSTIC
-     ,WT_VSTUFF *vs)
+  ,
+  WT_VSTUFF *vs)
 #else
-     )
+)
 #endif
 {
     WT_CONFIG list;
