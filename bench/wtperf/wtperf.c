@@ -1815,6 +1815,7 @@ execute_workload(WTPERF *wtperf)
     uint32_t interval, run_ops, run_time;
     u_int i;
     int ret;
+    bool finish = false;
 
     opts = wtperf->opts;
 
@@ -1879,13 +1880,18 @@ execute_workload(WTPERF *wtperf)
          * and if we're only tracking run time, go back to sleep.
          */
         sleep(1);
+        ++wtperf->testsec;
         if (run_time != 0) {
+            /* If we're checking run_time, see if we're done. */
+            if (--run_time == 0) {
+                finish = true;
+                goto done;
+            }
             if (!interval && !run_ops)
                 continue;
         }
 
-        ++wtperf->testsec;
-
+done:
         /* Sum the operations we've done. */
         wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
         wtperf->flush_ops = sum_flush_ops(wtperf);
@@ -1896,8 +1902,14 @@ execute_workload(WTPERF *wtperf)
         wtperf->update_ops = sum_update_ops(wtperf);
         wtperf->truncate_ops = sum_truncate_ops(wtperf);
 
+        /* If we're checking total operations, see if we're done. */
+        if (run_ops != 0 &&
+          run_ops <=
+            wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops)
+            finish = true;
+
         /* If writing out throughput information, see if it's time. */
-        if (interval == 0 || --interval > 0)
+        if ((interval == 0 || --interval > 0) && !finish)
             continue;
         interval = opts->report_interval;
         wtperf->totalsec += opts->report_interval;
@@ -1921,17 +1933,7 @@ execute_workload(WTPERF *wtperf)
         last_scans = wtperf->scan_ops;
         last_backup = wtperf->backup_ops;
 
-        if (run_time != 0) {
-            if (--run_time == 0)
-                break;
-            if (!interval && !run_ops)
-                continue;
-        }
-
-        /* If we're checking total operations, see if we're done. */
-        if (run_ops != 0 &&
-          run_ops <=
-            wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops)
+        if (finish)
             break;
     }
 
@@ -2501,8 +2503,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, insert), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
-          " sample max latencay(us)",
+          " sample average latency(us) %" PRIu64 " sample min latency(us) %" PRIu64
+          " sample max latency(us)",
           wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
           wtperf->insert_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2516,8 +2518,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, modify), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " modify operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
-          " sample max latencay(us)",
+          " sample average latency(us) %" PRIu64 " sample min latency(us) %" PRIu64
+          " sample max latency(us)",
           wtperf->modify_ops, (wtperf->modify_ops * 100) / total_ops,
           wtperf->modify_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2531,13 +2533,13 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, read), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " read operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
-          " sample max latencay(us)",
+          " sample average latency(us) %" PRIu64 " sample min latency(us) %" PRIu64
+          " sample max latency(us)",
           wtperf->read_ops, (wtperf->read_ops * 100) / total_ops,
           wtperf->read_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
 
-        /* Rruncate executed info */
+        /* Truncate executed info */
         sample_average_latency =
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, truncate), TRACK_AVERAGE_LATENCY);
         sample_min_latency =
@@ -2546,8 +2548,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, truncate), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " truncate operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
-          " sample max latencay(us)",
+          " sample average latency(us) %" PRIu64 " sample min latency(us) %" PRIu64
+          " sample max latency(us)",
           wtperf->truncate_ops, (wtperf->truncate_ops * 100) / total_ops,
           wtperf->truncate_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2561,8 +2563,8 @@ start_run(WTPERF *wtperf)
           get_track_latency(wtperf, offsetof(WTPERF_THREAD, update), TRACK_MAX_LATENCY);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec, %" PRIu64
-          " sample average latencay(us) %" PRIu64 " sample min latencay(us) %" PRIu64
-          " sample max latencay(us)",
+          " sample average latency(us) %" PRIu64 " sample min latency(us) %" PRIu64
+          " sample max latency(us)",
           wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
           wtperf->update_ops / wtperf->testsec, sample_average_latency, sample_min_latency,
           sample_max_latency);
@@ -2666,7 +2668,6 @@ main(int argc, char *argv[])
     ret = 0;
     config_opts = NULL;
     cc_buf = sess_cfg = tc_buf = user_cconfig = user_tconfig = NULL;
-
     /* Do a basic validation of options, and home is needed before open. */
     while ((ch = __wt_getopt("wtperf", argc, argv, cmdflags)) != EOF)
         switch (ch) {

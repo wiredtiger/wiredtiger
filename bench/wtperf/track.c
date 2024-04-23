@@ -370,9 +370,9 @@ get_track_latency(WTPERF *wtperf, size_t field_offset, int type)
     CONFIG_OPTS *opts;
     TRACK *track;
     WTPERF_THREAD *thread;
+    uint64_t latency, latency_ops;
     int64_t i, th_cnt;
-    uint32_t max_latency, min_latency, average_latency;
-    uint64_t latency_ops, latency;
+    uint64_t average_latency, max_latency, min_latency;
 
     opts = wtperf->opts;
     max_latency = min_latency = average_latency = 0;
@@ -406,12 +406,12 @@ get_track_latency(WTPERF *wtperf, size_t field_offset, int type)
 
     switch (type) {
     case TRACK_MIN_LATENCY:
-        return (uint64_t)min_latency;
+        return (min_latency);
     case TRACK_MAX_LATENCY:
-        return (uint64_t)max_latency;
+        return (max_latency);
     case TRACK_AVERAGE_LATENCY:
         average_latency = latency_ops == 0 ? 0 : latency / latency_ops;
-        return (uint64_t)average_latency;
+        return (average_latency);
     default:
         return 0;
     }
