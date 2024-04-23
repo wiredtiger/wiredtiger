@@ -499,7 +499,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     txn_global = &conn->txn_global;
     strict = LF_ISSET(WT_TXN_OLDEST_STRICT);
     wait = LF_ISSET(WT_TXN_OLDEST_WAIT);
-    
+
     /*
      * When not in strict mode we want to avoid scanning too frequently. Set a minimum transaction
      * ID age threshold before we perform another scan.
@@ -2801,7 +2801,6 @@ __wt_verbose_dump_txn_one(
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint32_t i, buf_len;
-    char snapshot_buf_tmp[32];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
@@ -2824,13 +2823,8 @@ __wt_verbose_dump_txn_one(
     WT_ERR(__wt_scr_alloc(session, 2048, &snapshot_buf));
     WT_ERR(__wt_buf_fmt(session, snapshot_buf, "%s", "["));
     for (i = 0; i < txn->snapshot_data.snapshot_count; i++) {
-        if (i == 0)
-            WT_ERR(__wt_snprintf(
-              snapshot_buf_tmp, sizeof(snapshot_buf_tmp), "%lu", txn->snapshot_data.snapshot[i]));
-        else
-            WT_ERR(__wt_snprintf(
-              snapshot_buf_tmp, sizeof(snapshot_buf_tmp), ", %lu", txn->snapshot_data.snapshot[i]));
-        WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", snapshot_buf_tmp));
+        WT_ERR(__wt_buf_catfmt(
+          session, snapshot_buf, "%s%lu", i == 0 ? "" : ", ", txn->snapshot_data.snapshot[i]));
     }
     WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
 
@@ -2877,8 +2871,8 @@ __wt_verbose_dump_txn_one(
     }
 
 err:
-    __wt_scr_free(session, &snapshot_buf);
     __wt_scr_free(session, &buf);
+    __wt_scr_free(session, &snapshot_buf);
 
     return (ret);
 }
