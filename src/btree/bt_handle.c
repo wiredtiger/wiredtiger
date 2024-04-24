@@ -886,9 +886,10 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
                                                  __col_fix_last_recno(next_walk);
 
     /*
-     * If we skipped reading the page into memory, it's possible that next_walk points to an empty
-     * instantiated page rather than real content. When this happens, it has no entries and the last
-     * record number will be out of bounds, i.e. zero.
+     * If the right-most page is deleted and globally visible, we skip reading the page from disk
+     * and instead instantiate an empty page in memory. It's possible that next_walk points to this
+     * empty page. When this happens, it has no entries and the last record number will be out of
+     * bounds, i.e. zero.
      *
      * In this context, the page also can't have an insert (or append) list, so it's safe to simply
      * take the last ref's starting record number as the last record number of the tree.
