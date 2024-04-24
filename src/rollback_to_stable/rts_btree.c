@@ -25,9 +25,16 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
     dryrun = S2C(session)->rts->dryrun;
 
     stable_upd = tombstone = NULL;
-    txn_id_visible = false;
+    WT_NOT_READ(txn_id_visible, false);
+
     if (stable_update_found != NULL)
         *stable_update_found = false;
+
+    /* Clear flags used by dry run. */
+    if (dryrun)
+        for (upd = first_upd; upd != NULL; upd = upd->next)
+            F_CLR(upd, WT_UPDATE_RTS_DRYRUN_ABORT);
+
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /* Skip the updates that are aborted. */
         if (upd->txnid == WT_TXN_ABORTED)
@@ -58,7 +65,9 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               rollback_timestamp < upd->durable_ts ? "true" : "false",
               __wt_prepare_state_str(upd->prepare_state), upd->flags);
 
-            if (!dryrun)
+            if (dryrun)
+                F_SET(upd, WT_UPDATE_RTS_DRYRUN_ABORT);
+            else
                 upd->txnid = WT_TXN_ABORTED;
             WT_RTS_STAT_CONN_INCR(session, txn_rts_upd_aborted);
         } else {
@@ -321,9 +330,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
      * have moved this value to the history store as a full value. Therefore, we can safely ignore
      * the on page value if it is overflow removed.
      */
-    if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
-        ret = 0;
-    else
+    if (__wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM)
         WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
 
     /* Retrieve the time window from the unpacked value cell. */

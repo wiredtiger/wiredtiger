@@ -54,7 +54,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
          */
         for (i = 0; i < WT_BLKINCR_MAX; ++i) {
             blkincr = &conn->incr_backups[i];
-            if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
+            if (blkincr->id_str != NULL && WT_CONFIG_MATCH(blkincr->id_str, k))
                 break;
         }
         if (i == WT_BLKINCR_MAX)
@@ -231,7 +231,7 @@ __wt_meta_checkpoint_by_name(WT_SESSION_IMPL *session, const char *uri, const ch
      * Take the first match: there should never be more than a single checkpoint of any name.
      */
     while (__wt_config_next(&ckptconf, &k, &v) == 0)
-        if (WT_STRING_MATCH(checkpoint, k.str, k.len)) {
+        if (WT_CONFIG_MATCH(checkpoint, k)) {
 
             WT_ERR(__wt_config_subgets(session, &v, "order", &a));
             if (a.val > 0)
@@ -348,7 +348,7 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
      * Take the first match: there should never be more than a single checkpoint of any name.
      */
     while (__wt_config_next(&ckptconf, &k, &v) == 0)
-        if (WT_STRING_MATCH(checkpoint, k.str, k.len))
+        if (WT_CONFIG_MATCH(checkpoint, k))
             return (__ckpt_load(session, &k, &v, ckpt));
 
     return (WT_NOTFOUND);
@@ -1326,7 +1326,7 @@ __ckpt_get_blkmods(
             if (blocks_value.len == 0)
                 continue;
 
-            if (WT_STRING_MATCH(id_str, blocks_key.str, blocks_key.len)) {
+            if (WT_CONFIG_MATCH(id_str, blocks_key)) {
                 /* We've found the right blocks so read the bit pattern into output_item */
                 ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
                 if ((ret == 0) && (blocks.len > 0)) {
@@ -1488,7 +1488,7 @@ __wt_meta_ckptlist_set(
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
-          ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
+          ckptlsn->l.file, (uintmax_t)__wt_lsn_offset(ckptlsn)));
 
     if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));

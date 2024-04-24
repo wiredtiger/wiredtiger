@@ -203,7 +203,7 @@ __checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len, boo
         WT_RET_MSG(session, EINVAL, "the checkpoint name \"%s\" is reserved", WT_CHECKPOINT);
 
     /* The name "all" is also special. */
-    if (!allow_all && WT_STRING_MATCH("all", name, len))
+    if (!allow_all && WT_STRING_LIT_MATCH("all", name, len))
         WT_RET_MSG(session, EINVAL, "the checkpoint name \"all\" is reserved");
 
     return (0);
@@ -756,8 +756,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     uint64_t original_snap_min;
-    const char *txn_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool flush, flush_force, use_timestamp;
 
@@ -766,7 +764,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    API_CONF(session, WT_SESSION, begin_transaction, txn_cfg, txn_conf);
+    API_CONF(session, WT_SESSION, begin_transaction, "isolation=snapshot", txn_conf);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
@@ -864,7 +862,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             /* A checkpoint should never proceed when timestamps are out of order. */
             if (__wt_atomic_loadbool(&txn_global->has_oldest_timestamp) &&
               txn_global->oldest_timestamp > txn_global->stable_timestamp) {
-                __wt_readunlock(session, &txn_global->rwlock);
+                __wt_writeunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
                   "oldest timestamp %s must not be later than stable timestamp %s when taking a "
                   "checkpoint",
@@ -1592,7 +1590,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     uint32_t orig_flags;
-    bool flush, flush_sync;
+    bool checkpoint_cleanup, flush, flush_sync;
 
     /*
      * Reset open cursors. Do this explicitly, even though it will happen implicitly in the call to
@@ -1621,6 +1619,9 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      */
     orig_flags = F_MASK(session, WT_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
+    checkpoint_cleanup = cval.val;
 
     /*
      * If this checkpoint includes a flush_tier then this call also must wait for any earlier
@@ -1652,6 +1653,10 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
         WT_IGNORE_RET(
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
     WT_ERR(ret);
+
+    /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
+    if (checkpoint_cleanup)
+        __wt_checkpoint_cleanup_trigger(session);
 
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
@@ -1745,7 +1750,7 @@ __drop_from(
     /*
      * There's a special case -- if the name is "all", then we delete all of the checkpoints.
      */
-    if (WT_STRING_MATCH("all", name, len)) {
+    if (WT_STRING_LIT_MATCH("all", name, len)) {
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /* Remember the names of named checkpoints we're dropping. */
             if (drop_list != NULL && !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT))
@@ -2054,9 +2059,9 @@ __checkpoint_lock_dirty_tree(
 
                 if (v.len == 0)
                     WT_ERR(__drop(session, drop_list, ckptbase, k.str, k.len));
-                else if (WT_STRING_MATCH("from", k.str, k.len))
+                else if (WT_CONFIG_LIT_MATCH("from", k))
                     WT_ERR(__drop_from(session, drop_list, ckptbase, v.str, v.len));
-                else if (WT_STRING_MATCH("to", k.str, k.len))
+                else if (WT_CONFIG_LIT_MATCH("to", k))
                     WT_ERR(__drop_to(session, drop_list, ckptbase, v.str, v.len));
                 else
                     WT_ERR_MSG(session, EINVAL, "unexpected value for checkpoint key: %.*s",

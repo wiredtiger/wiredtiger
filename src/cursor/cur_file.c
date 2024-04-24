@@ -9,13 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * Define functions that increment histogram statistics for cursor read and write operations
- * latency.
- */
-WT_STAT_USECS_HIST_INCR_FUNC(opread, perf_hist_opread_latency)
-WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency)
-
-/*
  * Wrapper for substituting checkpoint state when doing checkpoint cursor operations.
  *
  * A checkpoint cursor has two extra things in it: a dummy transaction (always), and a dhandle for
@@ -169,7 +162,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
     ret = __wt_btcur_equals((WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, equalp);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_equals);
 }
 
 /*
@@ -698,7 +691,8 @@ __curfile_cache(WT_CURSOR *cursor)
 
     WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
     WT_TRET(__wt_session_release_dhandle(session));
-    return (ret);
+
+    API_RET_STAT(session, ret, cursor_cache);
 }
 
 /*
@@ -1126,14 +1120,14 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
           (cval.type == WT_CONFIG_ITEM_NUM && (cval.val == 0 || cval.val == 1))) {
             bitmap = false;
             bulk = cval.val != 0;
-        } else if (WT_STRING_MATCH("bitmap", cval.str, cval.len))
+        } else if (WT_CONFIG_LIT_MATCH("bitmap", cval))
             bitmap = bulk = true;
         /*
          * Unordered bulk insert is a special case used internally by index creation on existing
          * tables. It doesn't enforce any special semantics at the file level. It primarily exists
          * to avoid some locking problems between LSM and index creation.
          */
-        else if (!WT_STRING_MATCH("unordered", cval.str, cval.len))
+        else if (!WT_CONFIG_LIT_MATCH("unordered", cval))
             WT_RET_MSG(session, EINVAL, "Value for 'bulk' must be a boolean or 'bitmap'");
 
         if (bulk) {

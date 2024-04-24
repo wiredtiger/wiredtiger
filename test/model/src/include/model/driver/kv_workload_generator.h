@@ -31,6 +31,7 @@
 #include <atomic>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include "model/driver/kv_workload.h"
@@ -73,7 +74,13 @@ struct kv_workload_generator_spec {
     float checkpoint;
     float crash;
     float restart;
+    float rollback_to_stable;
+    float set_oldest_timestamp;
     float set_stable_timestamp;
+
+    /* The probabilities for choosing an existing key, if available. */
+    float remove_existing;
+    float update_existing;
 
     /* The probability of starting a prepared transaction. */
     float prepared_transaction;
@@ -98,6 +105,32 @@ class kv_workload_generator {
 
 protected:
     /*
+     * op_category --
+     *     The operation category.
+     */
+    enum class op_category {
+        none,
+        remove,
+        update,
+    };
+
+    /*
+     * key_state --
+     *     The state of a key.
+     */
+    struct key_state {
+
+        /* The number of operations on the key so far. */
+        size_t num_ops;
+
+        /*
+         * key_state::key_state --
+         *     Create a new key state.
+         */
+        inline key_state(size_t ops = 0) : num_ops(ops) {}
+    };
+
+    /*
      * table_context --
      *     The context for a table.
      */
@@ -110,7 +143,8 @@ protected:
          */
         inline table_context(table_id_t id, const std::string &name, const std::string &key_format,
           const std::string &value_format)
-            : _id(id), _name(name), _key_format(key_format), _value_format(value_format)
+            : _id(id), _name(name), _key_format(key_format), _value_format(value_format),
+              _sum_key_ops(0)
         {
         }
 
@@ -157,10 +191,72 @@ protected:
             return _value_format;
         }
 
+        /*
+         * table_context::empty --
+         *     Check if the table is empty
+         */
+        inline bool
+        empty() const noexcept
+        {
+            return _keys.empty();
+        }
+
+        /*
+         * table_context::remove_key --
+         *     Mark the given key as removed.
+         */
+        inline void
+        remove_key(const data_value &key)
+        {
+            auto iter = _keys.find(key);
+            if (iter != _keys.end()) {
+                _sum_key_ops -= iter->second.num_ops;
+                _keys.erase(iter);
+            }
+        }
+
+        /*
+         * table_context::remove_key_range --
+         *     Mark the given key range as removed.
+         */
+        inline void
+        remove_key_range(const data_value &start, const data_value &stop)
+        {
+            auto start_iter = _keys.lower_bound(start);
+            auto stop_iter = _keys.upper_bound(stop);
+            for (auto i = start_iter; i != stop_iter && i != _keys.end(); i++)
+                _sum_key_ops -= i->second.num_ops;
+            _keys.erase(start_iter, stop_iter);
+        }
+
+        /*
+         * table_context::update_key --
+         *     Mark the given key as updated.
+         */
+        inline void
+        update_key(const data_value &key)
+        {
+            auto iter = _keys.find(key);
+            if (iter == _keys.end())
+                _keys[key] = key_state{1};
+            else
+                iter->second.num_ops++;
+            _sum_key_ops++;
+        }
+
+        /*
+         * table_context::choose_existing_key --
+         *     Randomly select an existing key.
+         */
+        data_value choose_existing_key(random &r);
+
     private:
         table_id_t _id;
         std::string _name;
         std::string _key_format, _value_format;
+
+        std::map<data_value, key_state> _keys;
+        size_t _sum_key_ops;
     };
 
     /*
@@ -341,14 +437,15 @@ protected:
      *     Assert that the timestamps are assigned correctly. Call this function one sequence at a
      *     time.
      */
-    void assert_timestamps(
-      const kv_workload_sequence &sequence, const operation::any &op, timestamp_t &stable);
+    void assert_timestamps(const kv_workload_sequence &sequence, const operation::any &op,
+      timestamp_t &oldest, timestamp_t &stable);
 
     /*
      * kv_workload_generator::assign_timestamps --
      *     Assign timestamps to operations in a sequence.
      */
-    void assign_timestamps(kv_workload_sequence &sequence, timestamp_t first, timestamp_t last);
+    void assign_timestamps(kv_workload_sequence &sequence, timestamp_t first, timestamp_t last,
+      timestamp_t &oldest, timestamp_t &stable);
 
     /*
      * kv_workload_generator::choose_table --
@@ -366,11 +463,7 @@ protected:
      * kv_workload_generator::generate_key --
      *     Generate a key.
      */
-    inline data_value
-    generate_key(table_context_ptr table)
-    {
-        return random_data_value(table->key_format());
-    }
+    data_value generate_key(table_context_ptr table, op_category op = op_category::none);
 
     /*
      * kv_workload_generator::generate_transaction --
