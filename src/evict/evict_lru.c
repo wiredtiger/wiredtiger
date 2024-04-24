@@ -1786,6 +1786,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_BTREE *btree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(queue_buf);
+    WT_DECL_ITEM(urgent_queue_buf);
     WT_DECL_RET;
     WT_EVICT_ENTRY *end, *evict, *start;
     WT_PAGE *last_parent, *page;
@@ -1945,6 +1947,13 @@ rand_next:
     ref = btree->evict_ref;
     btree->evict_ref = NULL;
 
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
+        WT_RET(__wt_scr_alloc(session, 2048, &queue_buf));
+        WT_RET(__wt_buf_fmt(session, queue_buf, "%s", "["));
+        WT_RET(__wt_scr_alloc(session, 2048, &urgent_queue_buf));
+        WT_RET(__wt_buf_fmt(session, urgent_queue_buf, "%s", "["));
+    }
+
     /*
      * !!! Take care terminating this loop.
      *
@@ -2060,7 +2069,7 @@ rand_next:
             if (__wt_page_evict_urgent(session, ref)) {
                 urgent_queued = true;
                 urgent_queued_flag = true;
-                goto wark_statistical;
+                goto walk_statistical;
             }
             continue;
         }
@@ -2166,17 +2175,27 @@ walk_statistical:
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
 
-        if (urgent_queued_flag)
-            __wt_verbose(session, WT_VERB_EVICTSERVER,
-              "walk select: %p, size %" WT_SIZET_FMT "add to urgent queue", (void *)page,
-              page->memory_footprint);
-        else
-            __wt_verbose(session, WT_VERB_EVICTSERVER,
-              "walk select: %p, size %" WT_SIZET_FMT " add to queue", (void *)page,
-              page->memory_footprint);
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
+            if (urgent_queued_flag)
+                WT_RET(__wt_buf_catfmt(session, urgent_queue_buf, "%p, %" PRIu64 "; ", (void *)page,
+                  page->memory_footprint));
+            else
+                WT_RET(__wt_buf_catfmt(
+                  session, queue_buf, "%p, %" PRIu64 "; ", (void *)page, page->memory_footprint));
+        }
+
         urgent_queued_flag = false;
     }
     WT_RET_NOTFOUND_OK(ret);
+
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
+        WT_RET(__wt_buf_catfmt(session, queue_buf, "%s", "]\0"));
+        WT_RET(__wt_buf_catfmt(session, urgent_queue_buf, "%s", "]\0"));
+        __wt_verbose_worker(session, WT_VERB_EVICTSERVER,
+          S2C(session)->verbose[WT_VERB_EVICTSERVER],
+          "walk select, queued pages: %s, urgent queued pages: %s", (const char *)queue_buf->data,
+          (const char *)urgent_queue_buf->data);
+    }
 
     *slotp += (u_int)(evict - start);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
@@ -2236,6 +2255,11 @@ walk_statistical:
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
+
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
+        __wt_scr_free(session, &queue_buf);
+        __wt_scr_free(session, &urgent_queue_buf);
+    }
     return (0);
 }
 
