@@ -71,7 +71,6 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
         *offsetp = 0;
         *sizep = *checksump = 0;
     } else {
-        printf("CrASH\n");
         *objectidp = (uint32_t)i;
         *offsetp = (wt_off_t)(o + 1) * block->allocsize;
         *sizep = (uint32_t)s * block->allocsize;

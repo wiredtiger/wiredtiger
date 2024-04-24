@@ -1564,8 +1564,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
         return (true);
     }
 
-    if (session->dhandle == NULL)
-        printf("HERE\n");
     /* If on-page, the pointer references a cell. */
     __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, unpack);
     WT_TIME_AGGREGATE_COPY(&copy->ta, &unpack->ta);

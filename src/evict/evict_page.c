@@ -913,9 +913,7 @@ __wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message, WT_I
 
     if (addr_str == NULL) {
         if (__wt_ref_addr_copy(session, ref, &addr) && !__wt_scr_alloc(session, 0, &tmp)) {
-//            addr_str = __wt_addr_string(session, addr.addr, addr.size, tmp);
-            int ret = __wt_block_addr_string(session, NULL, tmp, addr.addr, addr.size);
-            (void)ret;
+            addr_str = __wt_addr_string(session, addr.addr, addr.size, tmp);
             addr_str = tmp->data;
         }
         else

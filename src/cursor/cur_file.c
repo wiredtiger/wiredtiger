@@ -331,7 +331,6 @@ __curfile_search(WT_CURSOR *cursor)
 err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
-    __wt_verbose(session, WT_VERB_CACHE_TRACE, "session dhandle is %p for %p\n", (void*) session->dhandle, (void*) session);
     API_END_RET_STAT(session, ret, cursor_search);
 }
 

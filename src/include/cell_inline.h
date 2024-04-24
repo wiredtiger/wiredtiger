@@ -1158,10 +1158,8 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
          */
         write_gen = session->checkpoint_write_gen;
         WT_ASSERT(session, write_gen >= S2BT(session)->base_write_gen);
-    } else if (session->dhandle != NULL)
+    } else
         write_gen = S2BT(session)->base_write_gen;
-    else
-        write_gen = dsk->write_gen;
 
     WT_ASSERT(session, dsk->write_gen != 0);
     if (dsk->write_gen > write_gen)
