@@ -1212,7 +1212,6 @@ retry:
         cbt->compare = 1;
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
-
         cursor->recno = cbt->recno;
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
