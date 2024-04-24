@@ -864,12 +864,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * failure. It sets up a callback for that purpose, and we pay a cache miss per search to make
      * that work.
      */
-    if (session->format_private != NULL) {
-        /* Verbose line only present to make sure fields not optimised out. */
-        __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "format private: ref=%p appended=%s recno=%" PRIu64,
-          cbt->last_insert, cbt->appended ? "true" : "false", cbt->last_recno);
+    if (session->format_private != NULL)
         session->format_private(cursor, ret, session->format_private_arg);
-    }
 
 #ifdef HAVE_DIAGNOSTIC
     if (ret == 0)
@@ -1110,7 +1106,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_REF *next_walk;
     WT_SESSION_IMPL *session;
     size_t insert_bytes;
     uint64_t yield_count, sleep_usecs;
@@ -1218,15 +1213,6 @@ retry:
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
         WT_ERR(__cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD));
 
-        /* Diagnostics. */
-        next_walk = NULL;
-        WT_ERR(__wt_tree_walk(session, &next_walk, WT_READ_PREV | WT_READ_VISIBLE_ALL | WT_READ_SEE_DELETED));
-        if (next_walk != NULL) {
-            if (next_walk->page->type == WT_PAGE_COL_VAR)
-                WT_ASSERT(session, cbt->iface.recno <= __col_var_last_recno(next_walk));
-            WT_ERR(__wt_page_release(session, next_walk, 0));
-        }
-
         cursor->recno = cbt->recno;
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
@@ -1291,10 +1277,6 @@ done:
         if (append_key)
             F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
-    cbt->last_insert = cbt->ref;
-    cbt->last_recno = cbt->iface.recno;
-    cbt->appended = append_key;
-    cbt->insert_compare = cbt->compare;
     WT_TRET(__cursor_reset(cbt));
     if (ret != 0 && ret != WT_DUPLICATE_KEY)
         __cursor_state_restore(cursor, &state);

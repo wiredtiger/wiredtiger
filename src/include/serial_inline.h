@@ -135,10 +135,8 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
      * any append that increases last_recno must be appending to the rightmost page in the btree.
      * Ergo, all changes to last_recno are protected by a lock on the rightmost page in the tree.
      */
-    if (recno > btree->last_recno) {
-        __wt_verbose_info(session, WT_VERB_TEMPORARY, "append: bumping recno to %" PRIu64, recno);
+    if (recno > btree->last_recno)
         btree->last_recno = recno;
-    }
 
     return (0);
 }
