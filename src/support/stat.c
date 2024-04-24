@@ -78,6 +78,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walks gave up because they restarted their walk twice",
   "cache: eviction walks gave up because they saw too many pages and found no candidates",
   "cache: eviction walks gave up because they saw too many pages and found too few candidates",
+  "cache: eviction walks random search fails to locate a page, results in a null position",
   "cache: eviction walks reached end of tree",
   "cache: eviction walks restarted",
   "cache: eviction walks started from root of tree",
@@ -112,6 +113,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: internal pages evicted",
   "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction",
+  "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -417,6 +419,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_walks_stopped = 0;
     stats->cache_eviction_walks_gave_up_no_targets = 0;
     stats->cache_eviction_walks_gave_up_ratio = 0;
+    stats->cache_eviction_walk_random_returns_null_position = 0;
     stats->cache_eviction_walks_ended = 0;
     stats->cache_eviction_walk_restart = 0;
     stats->cache_eviction_walk_from_root = 0;
@@ -445,6 +448,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_internal = 0;
     stats->cache_eviction_split_internal = 0;
     stats->cache_eviction_split_leaf = 0;
+    stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -731,6 +735,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_walks_stopped += from->cache_eviction_walks_stopped;
     to->cache_eviction_walks_gave_up_no_targets += from->cache_eviction_walks_gave_up_no_targets;
     to->cache_eviction_walks_gave_up_ratio += from->cache_eviction_walks_gave_up_ratio;
+    to->cache_eviction_walk_random_returns_null_position +=
+      from->cache_eviction_walk_random_returns_null_position;
     to->cache_eviction_walks_ended += from->cache_eviction_walks_ended;
     to->cache_eviction_walk_restart += from->cache_eviction_walk_restart;
     to->cache_eviction_walk_from_root += from->cache_eviction_walk_from_root;
@@ -761,6 +767,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_internal += from->cache_eviction_internal;
     to->cache_eviction_split_internal += from->cache_eviction_split_internal;
     to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
+    to->cache_eviction_random_sample_inmem_root += from->cache_eviction_random_sample_inmem_root;
     to->cache_eviction_dirty += from->cache_eviction_dirty;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
@@ -1047,6 +1054,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_READ(from, cache_eviction_walks_gave_up_no_targets);
     to->cache_eviction_walks_gave_up_ratio +=
       WT_STAT_READ(from, cache_eviction_walks_gave_up_ratio);
+    to->cache_eviction_walk_random_returns_null_position +=
+      WT_STAT_READ(from, cache_eviction_walk_random_returns_null_position);
     to->cache_eviction_walks_ended += WT_STAT_READ(from, cache_eviction_walks_ended);
     to->cache_eviction_walk_restart += WT_STAT_READ(from, cache_eviction_walk_restart);
     to->cache_eviction_walk_from_root += WT_STAT_READ(from, cache_eviction_walk_from_root);
@@ -1080,6 +1089,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_internal += WT_STAT_READ(from, cache_eviction_internal);
     to->cache_eviction_split_internal += WT_STAT_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_READ(from, cache_eviction_split_leaf);
+    to->cache_eviction_random_sample_inmem_root +=
+      WT_STAT_READ(from, cache_eviction_random_sample_inmem_root);
     to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_READ(from, cache_eviction_blocked_overflow_keys);
@@ -1396,6 +1407,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction walks gave up because they restarted their walk twice",
   "cache: eviction walks gave up because they saw too many pages and found no candidates",
   "cache: eviction walks gave up because they saw too many pages and found too few candidates",
+  "cache: eviction walks random search fails to locate a page, results in a null position",
   "cache: eviction walks reached end of tree",
   "cache: eviction walks restarted",
   "cache: eviction walks started from root of tree",
@@ -1463,6 +1475,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: internal pages seen by eviction walk that are already queued",
   "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction",
+  "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: maximum bytes configured",
   "cache: maximum milliseconds spent at a single eviction",
   "cache: maximum page size seen at eviction",
@@ -2057,6 +2070,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_walks_stopped = 0;
     stats->cache_eviction_walks_gave_up_no_targets = 0;
     stats->cache_eviction_walks_gave_up_ratio = 0;
+    stats->cache_eviction_walk_random_returns_null_position = 0;
     stats->cache_eviction_walks_ended = 0;
     stats->cache_eviction_walk_restart = 0;
     stats->cache_eviction_walk_from_root = 0;
@@ -2114,6 +2128,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_internal_pages_already_queued = 0;
     stats->cache_eviction_split_internal = 0;
     stats->cache_eviction_split_leaf = 0;
+    stats->cache_eviction_random_sample_inmem_root = 0;
     /* not clearing cache_bytes_max */
     /* not clearing cache_eviction_maximum_milliseconds */
     /* not clearing cache_eviction_maximum_page_size */
@@ -2695,6 +2710,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_walks_gave_up_no_targets);
     to->cache_eviction_walks_gave_up_ratio +=
       WT_STAT_READ(from, cache_eviction_walks_gave_up_ratio);
+    to->cache_eviction_walk_random_returns_null_position +=
+      WT_STAT_READ(from, cache_eviction_walk_random_returns_null_position);
     to->cache_eviction_walks_ended += WT_STAT_READ(from, cache_eviction_walks_ended);
     to->cache_eviction_walk_restart += WT_STAT_READ(from, cache_eviction_walk_restart);
     to->cache_eviction_walk_from_root += WT_STAT_READ(from, cache_eviction_walk_from_root);
@@ -2763,6 +2780,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_internal_pages_already_queued);
     to->cache_eviction_split_internal += WT_STAT_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_READ(from, cache_eviction_split_leaf);
+    to->cache_eviction_random_sample_inmem_root +=
+      WT_STAT_READ(from, cache_eviction_random_sample_inmem_root);
     to->cache_bytes_max += WT_STAT_READ(from, cache_bytes_max);
     to->cache_eviction_maximum_milliseconds +=
       WT_STAT_READ(from, cache_eviction_maximum_milliseconds);
