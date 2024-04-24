@@ -378,7 +378,7 @@ kv_table::verify_cursor()
 
 /*
  * kv_table::fill_missing_column_fix_recnos --
- *     Fill in missing recnos for FLCS to ensure that key rages are contiguous.
+ *     Fill in missing recnos for FLCS to ensure that key ranges are contiguous.
  */
 void
 kv_table::fill_missing_column_fix_recnos_nolock(const data_value &key)

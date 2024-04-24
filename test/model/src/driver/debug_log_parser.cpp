@@ -525,6 +525,10 @@ debug_log_parser::metadata_checkpoint_apply(
 void
 debug_log_parser::apply(kv_transaction_ptr txn, const col_put &op)
 {
+    /* Handle metadata operations. */
+    if (op.fileid == 0)
+        throw model_exception("Unsupported metadata operation: col_put");
+
     /* Find the table. */
     kv_table_ptr table = table_by_fileid(op.fileid);
 
@@ -547,7 +551,7 @@ debug_log_parser::apply(kv_transaction_ptr txn, const col_remove &op)
 {
     /* Handle metadata operations. */
     if (op.fileid == 0)
-        throw model_exception("Unsupported metadata operation: row_remove");
+        throw model_exception("Unsupported metadata operation: col_remove");
 
     /* Find the table. */
     kv_table_ptr table = table_by_fileid(op.fileid);
@@ -570,7 +574,7 @@ debug_log_parser::apply(kv_transaction_ptr txn, const col_truncate &op)
 {
     /* Handle metadata operations. */
     if (op.fileid == 0)
-        throw model_exception("Unsupported metadata operation: row_truncate");
+        throw model_exception("Unsupported metadata operation: col_truncate");
 
     /* Find the table. */
     kv_table_ptr table = table_by_fileid(op.fileid);

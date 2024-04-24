@@ -46,7 +46,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     max_sequences = 1000;
     max_concurrent_transactions = 3;
 
-    max_recno = 10'000;
+    max_recno = 100'000;
     max_value_uint64 = 1'000'000;
 
     column_fix = 0.1;

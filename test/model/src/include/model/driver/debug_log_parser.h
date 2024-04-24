@@ -45,7 +45,7 @@ class debug_log_parser {
 public:
     /*
      * debug_log_parser::col_put --
-     *     The row_put log entry.
+     *     The col_put log entry.
      */
     struct col_put {
         uint64_t fileid;
