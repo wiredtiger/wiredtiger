@@ -51,6 +51,17 @@ public:
     random(uint64_t seed = 0) noexcept;
 
     /*
+     * random::next_seed --
+     *     Get the next seed starting from the given seen.
+     */
+    static uint64_t
+    next_seed(uint64_t seed)
+    {
+        random r(seed);
+        return r.next_uint64(std::numeric_limits<uint64_t>::max());
+    }
+
+    /*
      * random::next_double --
      *     Get the next double between 0 and 1.
      */
