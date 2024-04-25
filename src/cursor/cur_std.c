@@ -721,8 +721,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
         cursor->key.size = 0;
         cursor->value.data = NULL;
         cursor->value.size = 0;
-    }
-    else
+    } else
         __wt_cursor_free_cached_memory(cursor);
 
     /*
