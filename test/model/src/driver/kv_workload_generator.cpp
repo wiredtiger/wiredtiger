@@ -495,8 +495,15 @@ kv_workload_generator::generate_transaction(size_t seq_no)
 
                 /*
                  * Don't use truncate on FLCS tables, because a truncate on an FLCS table can
-                 * conflict with operations outside of the truncation range's key range. The
-                 * workload generator is not yet smart enough to account for that.
+                 * conflict with operations adjacent to the truncation range's key range. For
+                 * example, if a user wants to truncate range 10-12 on a table with keys [10, 11,
+                 * 12, 13, 14], a concurrent update to key 13 would result in a conflict (while an
+                 * update to 14 would be able proceed). This does not happen with the other table
+                 * types, which are implemented using bounded cursors; FLCS does not support bounded
+                 * cursors, so it uses a different implementation.
+                 *
+                 * The workload generator cannot currently account for this, so don't use truncate
+                 * with FLCS tables for now.
                  */
                 if (table->type() == kv_table_type::column_fix)
                     break;

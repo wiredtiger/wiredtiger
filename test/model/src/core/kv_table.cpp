@@ -390,20 +390,16 @@ kv_table::fill_missing_column_fix_recnos_nolock(const data_value &key)
         throw model_exception("The key is not compatible with a column store: Not a recno.");
     uint64_t recno = std::get<uint64_t>(key);
 
-    if (_data.empty()) {
-        for (uint64_t i = 1; i <= recno; i++)
-            _data[data_value(i)].add_update(
-              std::make_shared<kv_update>(ZERO, k_timestamp_none, true /* implicit */), false,
-              false);
-    } else {
+    uint64_t last = 0;
+    if (!_data.empty()) {
         if (!std::holds_alternative<uint64_t>(_data.begin()->first))
             throw model_exception("Invalid keys in a column store: Not a recno.");
-        uint64_t last = std::get<uint64_t>(_data.rbegin()->first);
-        for (uint64_t i = last + 1; i <= recno; i++)
-            _data[data_value(i)].add_update(
-              std::make_shared<kv_update>(ZERO, k_timestamp_none, true /* implicit */), false,
-              false);
+        last = std::get<uint64_t>(_data.rbegin()->first);
     }
+
+    for (uint64_t i = last + 1; i <= recno; i++)
+        _data[data_value(i)].add_update(
+          std::make_shared<kv_update>(ZERO, k_timestamp_none, true /* implicit */), false, false);
 }
 
 /*
