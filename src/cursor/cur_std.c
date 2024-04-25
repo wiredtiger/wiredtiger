@@ -715,8 +715,13 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
      * to keep them around, they may be useful for the next use of this cursor. They will be freed
      * by the session cursor sweep. If they are not allocated, free all the buffers in the cursor.
      */
-    if (__wt_cursor_has_cached_memory(cursor))
+    if (__wt_cursor_has_cached_memory(cursor)) {
         F_SET(cursor, WT_CURSTD_CACHED_WITH_MEM);
+        cursor->key.data = NULL;
+        cursor->key.size = 0;
+        cursor->value.data = NULL;
+        cursor->value.size = 0;
+    }
     else
         __wt_cursor_free_cached_memory(cursor);
 
