@@ -393,14 +393,16 @@ kv_table::fill_missing_column_fix_recnos_nolock(const data_value &key)
     if (_data.empty()) {
         for (uint64_t i = 1; i <= recno; i++)
             _data[data_value(i)].add_update(
-              std::make_shared<kv_update>(ZERO, k_timestamp_none), false, false);
+              std::make_shared<kv_update>(ZERO, k_timestamp_none, true /* implicit */), false,
+              false);
     } else {
         if (!std::holds_alternative<uint64_t>(_data.begin()->first))
             throw model_exception("Invalid keys in a column store: Not a recno.");
         uint64_t last = std::get<uint64_t>(_data.rbegin()->first);
         for (uint64_t i = last + 1; i <= recno; i++)
             _data[data_value(i)].add_update(
-              std::make_shared<kv_update>(ZERO, k_timestamp_none), false, false);
+              std::make_shared<kv_update>(ZERO, k_timestamp_none, true /* implicit */), false,
+              false);
     }
 }
 
