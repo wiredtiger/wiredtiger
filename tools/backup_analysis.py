@@ -254,9 +254,9 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
         ts.files_changed += 1
         pct20_blocks = round(abs(pct20_count / chg_blocks * 100))
         pct80_blocks = round(abs(pct80_count / chg_blocks * 100))
-    # Print the time even if no changes because we may want to know how long it took to not
-    # see any changes.
     if not opts.terse:
+        # Print the time even if no changes because we may want to know how long it took to not
+        # see any changes.
         print(f'{filename}: time: started {start} completed {end}')
         if total_bytes_diff == 0:
             # If the file is unchanged return now.
@@ -289,7 +289,6 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
 def print_summary(opts):
     print('SUMMARY:')
     # Calculate overall totals from each of the different types first.
-    total_bytes = 0
     total_chg_bytes = 0
     total_chg_blocks = 0
     total_files = 0
@@ -331,8 +330,8 @@ def print_summary(opts):
                     f'{n}: files: {ts.files_changed} of {ts.files};'
                     f' bytes: {ts.bytes} of {all_bytes} {pct_bytes}%;'
                     f' blocks: {ts.chg_blocks} of {ts.gran_blocks} {chg_blocks}%;'
-                    f' {pct20_blocks}% <20%;'
-                    f' {pct80_blocks}% 80>%')
+                    f' 20-%: {pct20_blocks}%;'
+                    f' 80+%:{pct80_blocks}%')
 
 #
 # This is the wrapper function to compare two backup directories. This function
