@@ -460,7 +460,7 @@ main(int argc, char *argv[])
 {
     model::kv_workload_generator_spec spec;
 
-    uint64_t base_seed = model::random::next_seed(time(NULL));
+    uint64_t base_seed = model::random::next_seed(__wt_rdtsc() ^ time(NULL));
     std::string home = "WT_TEST";
     uint64_t min_iterations = 1;
     uint64_t min_runtime_s = 0;

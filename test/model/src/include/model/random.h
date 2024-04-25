@@ -52,13 +52,12 @@ public:
 
     /*
      * random::next_seed --
-     *     Get the next seed starting from the given seen.
+     *     Get the next seed starting from the given seed.
      */
     static uint64_t
     next_seed(uint64_t seed)
     {
-        random r(seed);
-        return r.next_uint64(std::numeric_limits<uint64_t>::max());
+        return random(seed).next_uint64();
     }
 
     /*
@@ -78,6 +77,12 @@ public:
      *     Get the next index from the list of the given length.
      */
     size_t next_index(size_t length);
+
+    /*
+     * random::next_uint64 --
+     *     Get the next integer.
+     */
+    uint64_t next_uint64() noexcept;
 
     /*
      * random::next_uint64 --
