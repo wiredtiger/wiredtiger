@@ -137,6 +137,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * was saved on a restart later.
      */
     if (!reconfig && __wt_version_defined(max_compat) &&
+      __wt_version_defined(conn->recovery_version) &&
       __wt_version_lt(max_compat, conn->recovery_version))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
@@ -149,6 +150,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * open.
      */
     if (reconfig && __wt_version_defined(conn->compat_req_max) &&
+      __wt_version_defined(conn->recovery_version) &&
       __wt_version_lt(conn->compat_req_max, new_compat))
         WT_RET_MSG(session, ENOTSUP,
           WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
