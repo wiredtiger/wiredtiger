@@ -119,6 +119,32 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
           min_compat.major, min_compat.minor, new_compat.major, new_compat.minor);
 
     /*
+     * The minimum required must be smaller than or equal to the recovery version we're using now.
+     * This is on an open and we're checking the two against each other. We'll check against what
+     * was saved on a restart later.
+     */
+    if (!reconfig && __wt_version_defined(min_compat) &&
+      __wt_version_gt(min_compat, conn->recovery_version))
+        WT_RET_MSG(session, ENOTSUP,
+          WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
+                               "cannot be larger than the recovery version %" PRIu16 ".%" PRIu16,
+          min_compat.major, min_compat.minor, conn->recovery_version.major,
+          conn->recovery_version.minor);
+
+    /*
+     * The maximum required must be larger than or equal to the recovery version we're using now.
+     * This is on an open and we're checking the two against each other. We'll check against what
+     * was saved on a restart later.
+     */
+    if (!reconfig && __wt_version_defined(max_compat) &&
+      __wt_version_lt(max_compat, conn->recovery_version))
+        WT_RET_MSG(session, ENOTSUP,
+          WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
+                               "cannot be smaller than the recovery version %" PRIu16 ".%" PRIu16,
+          max_compat.major, max_compat.minor, conn->recovery_version.major,
+          conn->recovery_version.minor);
+
+    /*
      * On a reconfigure, check the new release version against any required maximum version set on
      * open.
      */
