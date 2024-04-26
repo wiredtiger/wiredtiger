@@ -80,6 +80,7 @@ def create_diff_file(git_working_tree_dir: str, diff_file: str, verbose: bool) -
         print("diff_command:    {}".format(diff_command))
 
     diff_output = run_command(git_working_tree_dir, diff_command)
+    diff_output += "\n"   # Ensure there is a newline on the end of the diff before writing to a file.
 
     file = open(diff_file, "w")
     file.write(diff_output)
