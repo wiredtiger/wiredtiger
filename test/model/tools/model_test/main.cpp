@@ -118,22 +118,6 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
     for (size_t i = 0; i < min_ret_length; i++) {
         if (ret_model[i] == ret_wt[i])
             continue;
-
-        /*
-         * The return codes are allowed to differ for remove operations on FLCS tables, because
-         * inserting a record to FLCS may result in inserting additional recnos with value 0 to keep
-         * the key space contiguous, and the existence of such recnos past the end of the last
-         * committed recno is non-deterministic.
-         *
-         * We don't have enough context at this point to determine whether a table is FLCS or
-         * whether the remove operation is towards the end of the key space, so for now, just check
-         * the allowed difference for all removes.
-         */
-        if (std::holds_alternative<model::operation::remove>((*workload.get())[i].operation) &&
-          ((ret_model[i] == 0 && ret_wt[i] == WT_NOTFOUND) ||
-            (ret_model[i] == WT_NOTFOUND && ret_wt[i] == 0)))
-            continue;
-
         throw std::runtime_error("Return codes differ for operation " + std::to_string(i + 1) +
           ": WiredTiger returned " + std::to_string(ret_wt[i]) + ", but " +
           std::to_string(ret_model[i]) + " was expected.");

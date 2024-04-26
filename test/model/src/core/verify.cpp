@@ -152,18 +152,6 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
             if (!model_cursor.has_next()) {
                 if (_verbose)
                     std::cout << "Verification: Reached the end of the model table." << std::endl;
-                if (_table.type() == kv_table_type::column_fix) {
-                    /* FLCS can have any number of zero values after the end. */
-                    while (ret == 0) {
-                        if (value != ZERO)
-                            throw verify_exception(
-                              "Non-zero value in WiredTiger past the end of the model.");
-                        key = get_wt_cursor_key(wt_cursor);
-                        value = get_wt_cursor_value(wt_cursor);
-                        ret = wt_cursor->next(wt_cursor);
-                    }
-                    break;
-                }
                 throw verify_exception("There are still more key-value pairs in WiredTiger.");
             }
 
@@ -187,22 +175,8 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
             std::cout << "Verification: Reached the end of the WiredTiger table." << std::endl;
 
         /* The model has more key-value pairs than the database. */
-        if (model_cursor.has_next()) {
-            if (_table.type() == kv_table_type::column_fix) {
-                /* FLCS can have any number of zero values after the end. */
-                if (key == NONE)
-                    key = ZERO;
-                if (!std::holds_alternative<uint64_t>(key))
-                    throw model_exception("Unexpected key in a FLCS table.");
-                while (model_cursor.has_next()) {
-                    key = data_value(std::get<uint64_t>(key) + (uint64_t)1);
-                    if (!model_cursor.verify_next(key, ZERO))
-                        throw verify_exception(
-                          "Non-zero value in the model past the end of the WiredTiger table.");
-                }
-            } else
-                throw verify_exception("There are still more key-value pairs in the model.");
-        }
+        if (model_cursor.has_next())
+            throw verify_exception("There are still more key-value pairs in the model.");
     } catch (std::exception &e) {
         if (_verbose)
             std::cerr << "Verification Failed: " << e.what() << std::endl;

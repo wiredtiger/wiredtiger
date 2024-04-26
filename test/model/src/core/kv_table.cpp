@@ -377,6 +377,41 @@ kv_table::verify_cursor()
 }
 
 /*
+ * kv_table::highest_recno --
+ *     Get the highest recno in the table. Return 0 if the table is empty.
+ */
+uint64_t
+kv_table::highest_recno() const
+{
+    std::lock_guard lock_guard(_lock);
+    if (_config.type != kv_table_type::column && _config.type != kv_table_type::column_fix)
+        throw model_exception("Not a column store table");
+    if (_data.empty())
+        return 0;
+    const data_value &last = _data.rbegin()->first;
+    if (!std::holds_alternative<uint64_t>(last))
+        throw model_exception("The last key in the table is not a valid recno");
+    return std::get<uint64_t>(last);
+}
+
+/*
+ * kv_table::truncate_recnos_after --
+ *     Truncate all recnos higher than the given recno.
+ */
+void
+kv_table::truncate_recnos_after(uint64_t recno)
+{
+    std::lock_guard lock_guard(_lock);
+    if (_config.type != kv_table_type::column && _config.type != kv_table_type::column_fix)
+        throw model_exception("Not a column store table");
+
+    data_value r(recno);
+    auto i = _data.upper_bound(r);
+    if (i != _data.end())
+        _data.erase(i, _data.end());
+}
+
+/*
  * kv_table::fill_missing_column_fix_recnos --
  *     Fill in missing recnos for FLCS to ensure that key ranges are contiguous.
  */
