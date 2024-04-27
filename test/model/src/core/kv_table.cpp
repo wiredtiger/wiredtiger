@@ -396,14 +396,14 @@ kv_table::highest_recno() const
 
 /*
  * kv_table::truncate_recnos_after --
- *     Truncate all recnos higher than the given recno.
+ *     Truncate all recnos higher than the given recno on a fixed-length column store table.
  */
 void
 kv_table::truncate_recnos_after(uint64_t recno)
 {
     std::lock_guard lock_guard(_lock);
-    if (_config.type != kv_table_type::column && _config.type != kv_table_type::column_fix)
-        throw model_exception("Not a column store table");
+    if (_config.type != kv_table_type::column_fix)
+        throw model_exception("Not a fixed-length column store table");
 
     data_value r(recno);
     auto i = _data.upper_bound(r);

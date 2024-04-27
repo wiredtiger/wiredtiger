@@ -349,7 +349,7 @@ public:
 
     /*
      * kv_table::truncate_recnos_after --
-     *     Truncate all recnos higher than the given recno.
+     *     Truncate all recnos higher than the given recno on a fixed-length column store table.
      */
     void truncate_recnos_after(uint64_t recno);
 
