@@ -15,7 +15,7 @@
 char *
 __wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
 {
-    WT_IGNORE_RET(__wt_snprintf(ts_string, WT_TS_INT_STRING_SIZE, "(%" PRIu32 ", %" PRIu32 ")",
+    WT_IGNORE_RET(__wt_snprintf(ts_string, WT_TS_INT_STRING_SIZE, "(0x%" PRIx32 ", 0x%" PRIx32 ")",
       (uint32_t)((ts >> 32) & 0xffffffff), (uint32_t)(ts & 0xffffffff)));
     return (ts_string);
 }
