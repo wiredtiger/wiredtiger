@@ -38,7 +38,7 @@ __block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
     WT_EXT **extp, **head, *last;
     int i;
 
-    if (need_traverse == false)
+    if (!need_traverse)
         return (el->last);
 
     last = NULL; /* The list may be empty */
