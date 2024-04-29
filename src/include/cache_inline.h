@@ -240,7 +240,8 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 
 /*
  * __wt_eviction_clean_pressure --
- *     Return if an application thread should do eviction due to the total volume of data in cache.
+ *     Return true if clean cache is stressed and will soon require application threads to evict
+ *     content.
  */
 static WT_INLINE bool
 __wt_eviction_clean_pressure(WT_SESSION_IMPL *session)
