@@ -200,9 +200,9 @@ __wt_op_timer_fired(WT_SESSION_IMPL *session)
     uint64_t diff, now;
 
     /*
-     * Internal threads and operations happening outside of a transaction are usually excluded from
-     * the operation timeout mechanism. Bypass that for pre-fetch until the timeout API decision has
-     * been revisited and/or a better solution is found.
+     * FIXME-WT-12905 Internal threads and operations happening outside of a transaction are usually
+     * excluded from the operation timeout mechanism. Bypass that for pre-fetch until the timeout
+     * API decision has been revisited and/or a better solution is found.
      */
     if (!F_ISSET(session, WT_SESSION_PREFETCH_THREAD) &&
       (!F_ISSET(session->txn, WT_TXN_RUNNING) || session->operation_start_us == 0 ||
