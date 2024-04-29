@@ -570,6 +570,7 @@ struct __wt_connection_impl {
     WT_THREAD_GROUP evict_threads;
     uint32_t evict_threads_max; /* Max eviction threads */
     uint32_t evict_threads_min; /* Min eviction threads */
+    bool evict_sample_inmem;
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
@@ -648,6 +649,7 @@ struct __wt_connection_impl {
     uint32_t log_force_write_wait;         /* Log force write wait configuration */
     const char *log_path;                  /* Logging path format */
     uint32_t log_prealloc;                 /* Log file pre-allocation */
+    uint32_t log_prealloc_init_count;      /* initial number of pre-allocated log files */
     uint16_t log_req_max;                  /* Max required log version */
     uint16_t log_req_min;                  /* Min required log version */
     wt_shared uint32_t txn_logsync;        /* Log sync configuration */
