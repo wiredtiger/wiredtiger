@@ -231,7 +231,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define WT_STAT_DATA_DECRV(session, fld, value)                                   \
     do {                                                                          \
         if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
-            WT_STAT_DECRV_BASE(session, (session)->dhandle->stats, fld, value);   \
+            WT_STAT_DSRC_DECRV(session, (session)->dhandle->stats, fld, value);   \
     } while (0)
 #define WT_STAT_DATA_DECR(session, fld) WT_STAT_DATA_DECRV(session, fld, 1)
 #define WT_STAT_DATA_INCRV(session, fld, value)                                   \
