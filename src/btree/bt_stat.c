@@ -120,7 +120,7 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
         __stat_page_col_fix(session, page, stats);
         break;
     case WT_PAGE_COL_INT:
-        WT_STAT_INCR(session, stats, btree_column_internal);
+        WT_STAT_DSRC_INCR(session, stats, btree_column_internal);
         break;
     case WT_PAGE_COL_VAR:
         __stat_page_col_var(session, page, stats);
@@ -149,7 +149,7 @@ __stat_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
     WT_INSERT *ins;
     uint32_t numtws, stat_entries, stat_tws, tw;
 
-    WT_STAT_INCR(session, stats, btree_column_fix);
+    WT_STAT_DSRC_INCR(session, stats, btree_column_fix);
 
     /*
      * Iterate the page to count time windows. For now at least, don't try to reason about whether
@@ -195,7 +195,7 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
     unpack = &_unpack;
     deleted_cnt = entry_cnt = ovfl_cnt = rle_cnt = 0;
 
-    WT_STAT_INCR(session, stats, btree_column_variable);
+    WT_STAT_DSRC_INCR(session, stats, btree_column_variable);
 
     /*
      * Walk the page counting regular items, adjusting if the item has been subsequently deleted or
@@ -274,7 +274,7 @@ __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
 
     ovfl_cnt = 0;
 
-    WT_STAT_INCR(session, stats, btree_row_internal);
+    WT_STAT_DSRC_INCR(session, stats, btree_row_internal);
 
     /*
      * Overflow keys are hard: we have to walk the disk image to count them, the in-memory
@@ -307,7 +307,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
 
     empty_values = entry_cnt = ovfl_cnt = 0;
 
-    WT_STAT_INCR(session, stats, btree_row_leaf);
+    WT_STAT_DSRC_INCR(session, stats, btree_row_leaf);
 
     /*
      * Walk any K/V pairs inserted into the page before the first from-disk key on the page.

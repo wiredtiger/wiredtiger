@@ -176,21 +176,22 @@ __wt_stats_clear(void *stats_arg, int slot)
     do {                                                                               \
         WT_STAT_DECRV_BASE(session, (stats)[(session)->stat_dsrc_bucket], fld, value); \
     } while (0)
-#define WT_STAT_DECRV_ATOMIC(session, stats, fld, value)                                      \
+#define WT_STAT_DSRC_DECRV_ATOMIC(session, stats, fld, value)                                 \
     do {                                                                                      \
         WT_STAT_DECRV_ATOMIC_BASE(session, (stats)[(session)->stat_dsrc_bucket], fld, value); \
     } while (0)
-#define WT_STAT_DECR(session, stats, fld) WT_STAT_DSRC_DECRV(session, stats, fld, 1)
+#define WT_STAT_DSRC_DECR(session, stats, fld) WT_STAT_DSRC_DECRV(session, stats, fld, 1)
 
 #define WT_STAT_DSRC_INCRV(session, stats, fld, value)                                 \
     do {                                                                               \
         WT_STAT_INCRV_BASE(session, (stats)[(session)->stat_dsrc_bucket], fld, value); \
     } while (0)
-#define WT_STAT_INCRV_ATOMIC(session, stats, fld, value)                                      \
+#define WT_STAT_DSRC_INCRV_ATOMIC(session, stats, fld, value)                                 \
     do {                                                                                      \
         WT_STAT_INCRV_ATOMIC_BASE(session, (stats)[(session)->stat_dsrc_bucket], fld, value); \
     } while (0)
-#define WT_STAT_INCR(session, stats, fld) WT_STAT_DSRC_INCRV(session, stats, fld, 1)
+#define WT_STAT_DSRC_INCR(session, stats, fld) WT_STAT_DSRC_INCRV(session, stats, fld, 1)
+
 #define WT_STAT_SET_BASE(session, stat, fld, value) \
     do {                                            \
         if (WT_STAT_ENABLED(session))               \
