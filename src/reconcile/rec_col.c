@@ -1112,13 +1112,11 @@ static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
   WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool dictionary, bool *ovfl_usedp)
 {
-    WT_BTREE *btree;
     WT_REC_KV *val;
 
     if (ovfl_usedp != NULL)
         *ovfl_usedp = false;
 
-    btree = S2BT(session);
     val = &r->v;
 
     /*
@@ -1170,8 +1168,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     if (__wt_rec_need_split(r, val->len))
         WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
 
-    /* Copy the value onto the page. */
-    if (dictionary && btree->dictionary && !deleted && ovfl_usedp == NULL)
+    /* Copy the value onto the page. Use the dictionary whenever requested. */
+    if (dictionary && !deleted && ovfl_usedp == NULL)
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
@@ -1366,7 +1364,7 @@ record_loop:
                  * page).
                  */
                 if (vpack->raw == WT_CELL_VALUE_COPY)
-                    dictionary = true;
+                    dictionary = btree->dictionary;
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
@@ -1431,12 +1429,12 @@ record_loop:
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
-                    dictionary = true;
+                    dictionary = btree->dictionary;
                     break;
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
-                    dictionary = true;
+                    dictionary = btree->dictionary;
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     deleted = true;
@@ -1577,12 +1575,12 @@ compare:
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
-                    dictionary = true;
+                    dictionary = btree->dictionary;
                     break;
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
-                    dictionary = true;
+                    dictionary = btree->dictionary;
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     twp = &clear_tw;
