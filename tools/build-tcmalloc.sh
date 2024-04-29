@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 #
-# Script to install libtcmalloc.so in the current WiredTiger git
+# Script to build libtcmalloc.so in the current WiredTiger git
 # repository.
 #
-# This is serves the same purpose, but is NOT THE SAME as:
+# There is no justification for building tcmalloc from scratch, this script serves
+# as a break glass "guide" if so needed.
+# Rather you should STGRONGLY prefer to grab a pre-built tcmalloc from a suitable host
+# for the system you are developing on, and copy that into any relevant git workspaces
+# as needed.
+#
+# This is serves the similar purpose, but is NOT THE SAME as:
 #
 # test/evergreen/tcmalloc_install_or_build.sh
 #
-# and the tcmalloc source version referenced here should be updated in
-# sync with that script.
+# and the tcmalloc source version referenced here should be updated in sync with that 
+# script.
 
 set -euf -o pipefail
 
