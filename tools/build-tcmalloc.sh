@@ -18,18 +18,6 @@ HERE=$(git rev-parse --show-toplevel) || die "FATAL Run in root of git workspace
 [[ -f ${HERE}/CMakeLists.txt ]] || die "Does not look like a WT workspace - no CMakeLists.txt"
 [[ -d ${HERE}/TCMALLOC_LIB ]] && die "TCMALLOC_LIB already present"
 
-# Before building look for a prebuilt copy cached on this system.
-SRC_ID=mongo-SERVER-85737
-CACHED_DIR=${HOME}/.cache/wiredtiger/tcmalloc/${SRC_ID}
-CACHED_BIN=${HOME}/.cache/wiredtiger/tcmalloc/${SRC_ID}/TCMALLOC_LIB.tgz
-if [[ -r ${CACHED_BIN} ]]; then
-    echo "Installing cached copy from $CACHED_BIN"
-    tar zxf $CACHED_BIN
-    exit
-fi
-
-echo "No cached copy on this system. Attempting to build."
-
 # Requires bazel.
 which bazel || echo "FATAL Build tool bazel not found in path"
 
@@ -70,9 +58,9 @@ mkdir TCMALLOC_LIB
 cp $PATCHED_SRC_DIR/bazel-bin/libtcmalloc.so TCMALLOC_LIB
 
 # Generate script to define "with_tcmalloc" convenience function. 
-cat <<EOF > TCMALLOC_LIB/with_tcmalloc.sh
+cat << 'EOF' > TCMALLOC_LIB/with_tcmalloc.sh
 with_tcmalloc() {
-TOPDIR=\$(git rev-parse --show-toplevel) || (echo "FATAL Not a git repo" && return)
+TOPDIR=\$(git rev-parse --show-toplevel) || { echo "FATAL Not a git repo" && return
 SOPATH=\$TOPDIR/TCMALLOC_LIB/libtcmalloc.so 
 [[ -f \$SOPATH ]] || echo "FATAL libtcmalloc.so not found"
 eval "with_tcmalloc() { LD_PRELOAD=\$SOPATH \\$* ;}"
@@ -95,7 +83,7 @@ To load tcmalloc into your current environment run:
 
 export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
 
-This will be ineffect until you exit the current shell.
+This will be in effect until you exit the current shell.
 
 NOTE: This will affect ALL binaries run in that environment that
 dynamically link to libc.
