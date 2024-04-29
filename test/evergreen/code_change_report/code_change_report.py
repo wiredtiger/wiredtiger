@@ -501,7 +501,7 @@ def build_pr_comment(code_change_info: dict) -> str | None:
     )
 
     if pct_branches_covered >= 80:
-        coverage_note = "Woohoo, the code changed in this PR is pretty well tested! 🥳"
+        coverage_note = "Woohoo, the code changed in this PR is pretty well tested! :tada:"
     elif pct_branches_covered >= 50 and pct_lines_covered >= 80:
         coverage_note = "Test coverage is ok, please try and improve it if that's feasible."
     else:
@@ -529,7 +529,7 @@ def build_pr_comment(code_change_info: dict) -> str | None:
         )
 
         if highest_complexity_touched > threshold_to_warn:
-            message += "⚠️ This PR touches methods that have an extremely high complexity score!\n"
+            message += ":warning: This PR touches methods that have an extremely high complexity score!\n"
     
         complexity_warnings = [
             f"In `{filename}` the complexity of `{method}` has increased by {info['complexity'] - info['prev_complexity']} to {info['complexity']}."
