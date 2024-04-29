@@ -882,8 +882,6 @@ tasks:
           configure_env_vars: CC=clang-8 CXX=clang++-8 ADD_CFLAGS="-ggdb -fPIC"
 
   - name: make-check-test
-    depends_on:
-      - name: compile
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
