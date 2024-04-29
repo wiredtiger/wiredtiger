@@ -478,7 +478,7 @@ def build_pr_comment(code_change_info: dict) -> str | None:
     # Do nothing if the PR has no relevant changes.
     if int(code_change_info['summary_info']['num_lines']) == 0:
         return None
-    
+
     message = ""
 
     # Code Coverage
@@ -530,7 +530,7 @@ def build_pr_comment(code_change_info: dict) -> str | None:
 
         if highest_complexity_touched > threshold_to_warn:
             message += ":warning: This PR touches methods that have an extremely high complexity score!\n"
-    
+
         complexity_warnings = [
             f"In `{filename}` the complexity of `{method}` has increased by {info['complexity'] - info['prev_complexity']} to {info['complexity']}."
             for filename, methods in changed_functions.items()
@@ -539,7 +539,7 @@ def build_pr_comment(code_change_info: dict) -> str | None:
         ]
         for warning in complexity_warnings:
             message += f"- {warning}\n"
-    
+
     return message
 
 def post_pr_comment(fq_repo, pr_id, token, body):
@@ -559,13 +559,13 @@ def post_pr_comment(fq_repo, pr_id, token, body):
         if magic_string in comment["body"]:
             existing = comment
             break
-    
+
     if body is None:
         if existing:
             resp = requests.delete(existing["url"], headers=headers)
             resp.raise_for_status()
         return
-    
+
     # Now create/update the comment with the new contents
     data = {
         "body": f"{body}\n\n{magic_string}"
