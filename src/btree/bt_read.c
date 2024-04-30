@@ -436,7 +436,6 @@ read:
             }
 
 skip_evict:
-            __wt_page_trace(session, ref, "cache-hit", 0);
             /*
              * If we read the page and are configured to not trash the cache, and no other thread
              * has already used the page, set the read generation so the page is evicted soon.
@@ -454,6 +453,7 @@ skip_evict:
             } else if (!LF_ISSET(WT_READ_NO_GEN))
                 __wt_cache_read_gen_bump(session, page);
 
+            __wt_page_trace(session, ref, "cache-hit", 0);
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger
              * eviction, so skip it if eviction isn't permitted.
