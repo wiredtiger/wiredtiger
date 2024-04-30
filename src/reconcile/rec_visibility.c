@@ -250,10 +250,16 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
             }
         }
 
-        /* Track the first globally visible self-contained value. */
+        /*
+         * Track the first self-contained value that is globally visible, excluding the on-page
+         * tombstone. If we free the updates before the tombstone, due to the tombstone being
+         * globally visible concurrently with the update chain processing, this might be allowed to
+         * access the freed updates further in the reconciliation code.
+         */
         if (FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
-          !F_ISSET(r, WT_REC_EVICT) && visible_all_upd == NULL &&
-          __wt_txn_upd_visible_all(session, delete_upd) && WT_UPDATE_DATA_VALUE(delete_upd))
+          !F_ISSET(r, WT_REC_EVICT) && delete_upd != upd_select->tombstone &&
+          visible_all_upd == NULL && __wt_txn_upd_visible_all(session, delete_upd) &&
+          WT_UPDATE_DATA_VALUE(delete_upd))
             visible_all_upd = delete_upd;
     }
 
