@@ -327,12 +327,10 @@ err:
 int
 __wt_turtle_validate_version(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_VERSION version;
     char *version_string;
 
-    conn = S2C(session);
     version = WT_NO_VERSION;
 
     WT_WITH_TURTLE_LOCK(
@@ -349,30 +347,6 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
 
     if (__wt_version_lt(version, WT_MIN_STARTUP_VERSION))
         WT_ERR_MSG(session, WT_ERROR, "WiredTiger version incompatible with current binary");
-
-    /*
-     * The minimum required must be smaller than or equal to the version we're using now. This is on
-     * an open and we're checking the two against each other. We'll check against what was saved on
-     * a restart later.
-     */
-    if (__wt_version_defined(conn->compat_req_min) &&
-      __wt_version_gt(conn->compat_req_min, version))
-        WT_RET_MSG(session, ENOTSUP,
-          WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
-                               " cannot be larger than the version %" PRIu16 ".%" PRIu16,
-          conn->compat_req_min.major, conn->compat_req_min.minor, version.major, version.minor);
-
-    /*
-     * The maximum required must be larger than or equal to the version we're using now. This is on
-     * an open and we're checking the two against each other. We'll check against what was saved on
-     * a restart later.
-     */
-    if (__wt_version_defined(conn->compat_req_max) &&
-      __wt_version_lt(conn->compat_req_max, version))
-        WT_RET_MSG(session, ENOTSUP,
-          WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
-                               " cannot be smaller than the version %" PRIu16 ".%" PRIu16,
-          conn->compat_req_max.major, conn->compat_req_max.minor, version.major, version.minor);
 
     S2C(session)->recovery_version = version;
 

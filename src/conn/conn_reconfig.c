@@ -166,7 +166,6 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * Check the minimum required against any saved compatibility version in the turtle file saved
      * from an earlier run.
      */
-    new_compat = WT_NO_VERSION;
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_METADATA_COMPAT, &value), true);
     if (ret == 0) {
         WT_ERR(__wt_config_getones(session, value, "major", &cval));
