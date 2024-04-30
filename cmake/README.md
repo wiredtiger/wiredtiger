@@ -1,4 +1,4 @@
-# Building WiredTiger with CMake
+# Building WiredTiger with CMake 
 
 ### Build Dependencies
 
