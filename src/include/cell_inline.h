@@ -332,9 +332,6 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&a, 0, &v));
         WT_RET(__wt_vunpack_uint(&a, 0, &alen)); /* Length */
-        /* We need to adjust the size to ignore the validity window or RLE information. */
-        if ((validity || rle) && alen > WT_CELL_SHORT_MAX)
-            alen -= WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 
@@ -364,9 +361,6 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&b, 0, &v));
         WT_RET(__wt_vunpack_uint(&b, 0, &blen)); /* Length */
-        /* We need to adjust the size to ignore the validity window or RLE information. */
-        if ((validity || rle) && blen > WT_CELL_SHORT_MAX)
-            blen -= WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 
