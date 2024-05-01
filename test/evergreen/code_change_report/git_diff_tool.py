@@ -74,10 +74,10 @@ def create_diff_file(git_working_tree_dir: str, diff_file: str, verbose: bool) -
     diff_command = f"git diff {merge_base_commit} -- {exclude_files_param}"
 
     if verbose:
-        print("head_commit:       {}".format(head_commit))
-        print("merge_base_commit: {}".format(merge_base_commit))
-        print("zero_length_files = {}".format(zero_length_files))
-        print("diff_command:    {}".format(diff_command))
+        print(f"head_commit:       {head_commit}")
+        print(f"merge_base_commit: {merge_base_commit}")
+        print(f"zero_length_files = {zero_length_files}")
+        print(f"diff_command:    {diff_command}")
 
     diff_output = run_command(git_working_tree_dir, diff_command)
     diff_output += "\n"   # Ensure there is a newline on the end of the diff before writing to a file.
