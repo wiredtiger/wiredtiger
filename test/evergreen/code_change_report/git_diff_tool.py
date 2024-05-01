@@ -71,7 +71,7 @@ def create_diff_file(git_working_tree_dir: str, diff_file: str, verbose: bool) -
 
     head_commit = repo.head.target
     merge_base_commit = run_command(git_working_tree_dir, "git merge-base develop HEAD")
-    diff_command = "git diff {} -- {}".format(merge_base_commit, exclude_files_param)
+    diff_command = f"git diff {merge_base_commit} -- {exclude_files_param}"
 
     if verbose:
         print("head_commit:       {}".format(head_commit))
