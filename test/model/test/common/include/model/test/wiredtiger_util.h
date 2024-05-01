@@ -218,15 +218,15 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
  */
 #define wt_model_assert_equal_with_labels(a, b, label_a, label_b)                 \
     {                                                                             \
-        auto ret_a = a;                                                           \
-        auto ret_b = b;                                                           \
+        auto ret_a = (a);                                                         \
+        auto ret_b = (b);                                                         \
         if (ret_a != ret_b) {                                                     \
             std::cerr << std::endl;                                               \
             std::cerr << "Assertion failure in " << __PRETTY_FUNCTION__           \
                       << ": Values are not equal. " << std::endl;                 \
             std::cerr << "  Location: " << __FILE__ ":" << __LINE__ << std::endl; \
-            std::cerr << "  " << label_a << ": " << ret_a << std::endl;           \
-            std::cerr << "  " << label_b << ": " << ret_b << std::endl;           \
+            std::cerr << "  " << (label_a) << ": " << ret_a << std::endl;         \
+            std::cerr << "  " << (label_b) << ": " << ret_b << std::endl;         \
             testutil_die(0, nullptr);                                             \
         }                                                                         \
     }
