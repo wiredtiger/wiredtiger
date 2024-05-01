@@ -41,7 +41,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /* Walk the tree, discarding pages. */
-    walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
+    walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         walk_flags |= WT_READ_VISIBLE_ALL;
 
