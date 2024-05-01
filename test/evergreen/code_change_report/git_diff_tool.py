@@ -102,8 +102,8 @@ def main():
         print('Diff Generation')
         print('===============')
         print('Configuration:')
-        print('  Git root path:              {}'.format(git_working_tree_dir))
-        print('  Git diff output file path:  {}'.format(git_diff_file))
+        print(f'  Git root path:              {git_working_tree_dir}')
+        print(f'  Git diff output file path:  {git_diff_file}')
 
     create_diff_file(git_working_tree_dir=git_working_tree_dir, diff_file=git_diff_file, verbose=verbose)
 
