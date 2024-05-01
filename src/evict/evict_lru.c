@@ -22,6 +22,8 @@ static int __evict_walk_tree(WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, u_int *
 
 #define WT_EVICT_HAS_WORKERS(s) (S2C(s)->evict_threads.current_threads > 1)
 
+static WT_DATA_HANDLE *saved_dhandle = NULL;
+
 /*
  * __evict_lock_handle_list --
  *     Try to get the handle list lock, with yield and sleep back off. Keep timing statistics
@@ -67,6 +69,8 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 
     btree = S2BT(session);
     page = ref->page;
+
+    saved_dhandle = btree->dhandle;
 
     /* Any page set to the oldest generation should be discarded. */
     if (WT_READGEN_EVICT_SOON(page->read_gen)) {
@@ -1266,6 +1270,29 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         queue->evict_current = NULL;
 
     entries = queue->evict_entries;
+
+#if 1
+    if (session->dhandle == NULL && saved_dhandle == NULL)
+        printf("CAN'T PRINT QUEUE\n");
+    else if (session->dhandle == NULL && saved_dhandle != NULL) {
+        session->dhandle = saved_dhandle;
+        printf("EVICT QUEUE BEFORE SORTING: %p\n", (void*)queue);
+        printf("=========================================\n");
+        for (int i = 0; i <  (int)cache->evict_slots; i++) {
+            WT_EVICT_ENTRY *e = &queue->evict_queue[i];
+            if (e != NULL && e->ref != NULL) {
+                printf("*** %d *** ", i);
+                __wt_page_trace(session, e->ref, "evict-queue", NULL);
+                printf("Refptr: %p, EVICT SCORE: %llu\n", (void*)e->ref, e->score);
+            }
+            else
+                printf("*** %d: NULL queue entry ***\n", i);
+        }
+        printf("=========================================\n");
+        session->dhandle = NULL;
+    } else
+        printf("UNEXPECTED DHANDLE\n");
+#endif
     /*
      * Style note: __wt_qsort is a macro that can leave a dangling else. Full curly braces are
      * needed here for the compiler.
@@ -1275,6 +1302,29 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     } else {
         __wt_qsort(queue->evict_queue, entries, sizeof(WT_EVICT_ENTRY), __evict_lru_cmp);
     }
+
+#if 1
+    if (session->dhandle == NULL && saved_dhandle == NULL)
+        printf("CAN'T PRINT QUEUE\n");
+    else if (session->dhandle == NULL && saved_dhandle != NULL) {
+        session->dhandle = saved_dhandle;
+        printf("EVICT QUEUE AFTER SORTING: %p\n", (void*)queue);
+        printf("=========================================\n");
+        for (int i = 0; i <  (int)cache->evict_slots; i++) {
+            WT_EVICT_ENTRY *e = &queue->evict_queue[i];
+            if (e != NULL && e->ref != NULL) {
+                printf("*** %d *** ", i);
+                __wt_page_trace(session, e->ref, "evict-queue", NULL);
+                printf("Refptr: %p, EVICT SCORE: %llu\n", (void*)e->ref, e->score);
+            }
+            else
+                printf("*** %d: NULL queue entry ***\n", i);
+        }
+        printf("=========================================\n");
+        session->dhandle = NULL;
+    } else
+        printf("UNEXPECTED DHANDLE\n");
+#endif
 
     /* Trim empty entries from the end. */
     while (entries > 0 && queue->evict_queue[entries - 1].ref == NULL)
@@ -2355,7 +2405,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
             if (e != NULL && e->ref != NULL) {
                 printf("*** %d *** ", i);
                 __wt_page_trace(session, e->ref, "evict-queue", NULL);
-                printf("EVICT SCORE: %llu\n", e->score);
+                printf("Refptr: %p, EVICT SCORE: %llu\n", (void*)e->ref, e->score);
             }
             else
                 printf("*** %d: NULL queue entry ***\n", i);
