@@ -455,9 +455,11 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG_ITEM cval, value, key;
     WT_DECL_RET;
     wt_timestamp_t newest_stop_durable_ts;
+    size_t addr_size;
     bool logged;
 
     newest_stop_durable_ts = WT_TS_NONE;
+    addr_size = 0;
     logged = false;
 
     /* Checkpoint cleanup cannot remove obsolete pages from tiered tables. */
@@ -477,7 +479,15 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
+        ret = __wt_config_subgets(session, &cval, "addr", &value);
+        if (ret == 0)
+            addr_size = value.len;
+        WT_RET_NOTFOUND_OK(ret);
     }
+
+    /* Ignore the tables that are empty or newly created. */
+    if (addr_size == 0)
+        return (false);
 
     /*
      * The checkpoint cleanup eligibility is decided based on the following:
