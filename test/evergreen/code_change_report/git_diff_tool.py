@@ -54,7 +54,7 @@ def run_command(directory: str, command: str) -> str:
 
 def find_zero_length_files(directory: str) -> List[str]:
     working_directory = PushWorkingDirectory(directory)
-    files = glob.glob('./**/*'.format(directory), recursive=True)
+    files = glob.glob('./**/*', recursive=True)
     zero_length_files = [x for x in files if os.stat(x).st_size == 0]
     working_directory.pop()
     return zero_length_files
