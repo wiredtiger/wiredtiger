@@ -174,7 +174,7 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /*
      * Don't bother rewriting deleted pages but also don't skip. The on-disk block with an address
-     * is discarded by the next checkpoint, if the have not already been freed.
+     * is discarded by the next checkpoint, if it has not already been freed.
      */
     if (previous_state == WT_REF_DELETED && ref->page_del == NULL && ref->addr != NULL)
         *skipp = false;
