@@ -144,7 +144,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
   int *compact_pct_tenths_p)
 {
     WT_EXT *ext;
-    wt_off_t avail_eighty, avail_ninety, eighty, ninty, off, size;
+    wt_off_t avail_eighty, avail_ninety, eighty, ninety, off, size;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
