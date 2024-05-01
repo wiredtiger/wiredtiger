@@ -33,12 +33,16 @@ static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, 
  *     Return the last element in the list, along with a stack for appending.
  */
 static WT_INLINE WT_EXT *
-__block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
+__block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
 {
-    WT_EXT **extp, *last;
+    WT_EXT **extp, **head, *last;
     int i;
 
+    if (!need_traverse)
+        return (el->last);
+
     last = NULL; /* The list may be empty */
+    head = el->off;
 
     /*
      * Start at the highest skip level, then go as far as possible at each level before stepping
@@ -55,13 +59,14 @@ __block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
 
 /*
  * __block_off_srch --
- *     Search a by-offset skiplist (either the primary by-offset list, or the by-offset list
- *     referenced by a size entry), for the specified offset.
+ *     Search a by-offset skiplist and get the penultimate WT_EXT (either the primary by-offset
+ *     list, or the by-offset list referenced by a size entry), for the specified offset.
  */
 static WT_INLINE void
-__block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
+__block_off_srch(
+  WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off, WT_EXT **penultimate_extp)
 {
-    WT_EXT **extp;
+    WT_EXT **extp, *ext_tmp;
     int i;
 
     /*
@@ -74,11 +79,17 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
      * the skip_off flag is set, offset the skiplist array by the depth specified in this particular
      * structure.
      */
-    for (i = WT_SKIP_MAXDEPTH - 1, extp = &head[i]; i >= 0;)
-        if (*extp != NULL && (*extp)->off < off)
+    ext_tmp = NULL;
+    for (i = WT_SKIP_MAXDEPTH - 1, extp = &head[i]; i >= 0;) {
+        if (*extp != NULL && (*extp)->off < off) {
+            ext_tmp = *extp;
             extp = &(*extp)->next[i + (skip_off ? (*extp)->depth : 0)];
-        else
+        } else
             stack[i--] = extp--;
+    }
+
+    if (penultimate_extp != NULL)
+        *penultimate_extp = ext_tmp;
 }
 
 /*
@@ -100,7 +111,7 @@ __block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
         return (false);
 
     /* Build a stack for the offset we want. */
-    __block_off_srch(head, ext->off, stack, false);
+    __block_off_srch(head, ext->off, stack, false, NULL);
     return (true);
 }
 
@@ -194,7 +205,7 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
         /*
          * Insert the new WT_EXT structure into the size element's offset skiplist.
          */
-        __block_off_srch(szp->off, ext->off, astack, true);
+        __block_off_srch(szp->off, ext->off, astack, true, NULL);
         for (i = 0; i < ext->depth; ++i) {
             ext->next[i + ext->depth] = *astack[i];
             *astack[i] = ext;
@@ -207,7 +218,7 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
 #endif
 
     /* Insert the new WT_EXT structure into the offset skiplist. */
-    __block_off_srch(el->off, ext->off, astack, false);
+    __block_off_srch(el->off, ext->off, astack, false, NULL);
     for (i = 0; i < ext->depth; ++i) {
         ext->next[i] = *astack[i];
         *astack[i] = ext;
@@ -331,12 +342,12 @@ static int
 __block_off_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, WT_EXT **extp)
 {
-    WT_EXT *ext, **astack[WT_SKIP_MAXDEPTH];
-    WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext, *penultimate_extp;
+    WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
     u_int i;
 
     /* Find and remove the record from the by-offset skiplist. */
-    __block_off_srch(el->off, off, astack, false);
+    __block_off_srch(el->off, off, astack, false, &penultimate_extp);
     ext = *astack[0];
     if (ext == NULL || ext->off != off)
         goto corrupt;
@@ -352,7 +363,7 @@ __block_off_remove(
         szp = *sstack[0];
         if (szp == NULL || szp->size != ext->size)
             WT_RET_PANIC(session, EINVAL, "extent not found in by-size list during remove");
-        __block_off_srch(szp->off, off, astack, true);
+        __block_off_srch(szp->off, off, astack, true, NULL);
         ext = *astack[0];
         if (ext == NULL || ext->off != off)
             goto corrupt;
@@ -384,8 +395,9 @@ __block_off_remove(
         *extp = ext;
 
     /* Update the cached end-of-list. */
-    if (el->last == ext)
-        el->last = NULL;
+    if (el->last == ext) {
+        el->last = penultimate_extp;
+    }
 
     return (0);
 
@@ -961,6 +973,8 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
         b->bytes = tmp.bytes;
         a->entries = b->entries;
         b->entries = tmp.entries;
+        a->last= b->last;
+        b->last = tmp.last;
         for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             a->off[i] = b->off[i];
             b->off[i] = tmp.off[i];
@@ -1000,7 +1014,7 @@ __block_append(
     if ((ext = el->last) != NULL && ext->off + ext->size == off)
         ext->size += size;
     else {
-        ext = __block_off_srch_last(el->off, astack);
+        ext = __block_off_srch_last(el, astack, true);
         if (ext != NULL && ext->off + ext->size == off)
             ext->size += size;
         else {
@@ -1329,7 +1343,7 @@ __wt_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIS
      * Check if the last available extent is at the end of the file, and if so, truncate the file
      * and discard the extent.
      */
-    if ((ext = __block_off_srch_last(el->off, astack)) == NULL)
+    if ((ext = __block_off_srch_last(el, astack, false)) == NULL)
         return (0);
     WT_ASSERT(session, ext->off + ext->size <= block->size);
     if (ext->off + ext->size < block->size)
@@ -1453,16 +1467,29 @@ err:
 }
 
 #ifdef HAVE_UNITTEST
-WT_EXT *
-__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
+int
+__ut_block_off_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    return (__block_off_srch_last(head, stack));
+    return (__block_off_insert(session, el, off, size));
+}
+
+int
+__ut_block_off_remove(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, WT_EXT **extp)
+{
+    return (__block_off_remove(session, block, el, off, extp));
+}
+
+WT_EXT *
+__ut_block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
+{
+    return (__block_off_srch_last(el, stack, need_traverse));
 }
 
 void
 __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 {
-    __block_off_srch(head, off, stack, skip_off);
+    __block_off_srch(head, off, stack, skip_off, NULL);
 }
 
 bool
