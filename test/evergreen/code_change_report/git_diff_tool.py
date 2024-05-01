@@ -63,7 +63,7 @@ def find_zero_length_files(directory: str) -> List[str]:
 def create_diff_file(git_working_tree_dir: str, diff_file: str, verbose: bool) -> None:
     # Exclude files with 0-length from the diff, as pygit2 doesn't handle such diffs well
     zero_length_files = find_zero_length_files(git_working_tree_dir)
-    exclude_files_param = ' '.join(["':(exclude){}'".format(file) for file in zero_length_files])
+    exclude_files_param = ' '.join([f"':(exclude){file}'" for file in zero_length_files])
 
     repository_path = discover_repository(git_working_tree_dir)
     assert repository_path is not None
