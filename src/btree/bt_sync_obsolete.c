@@ -485,20 +485,18 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         WT_RET_NOTFOUND_OK(ret);
     }
 
-    /* Ignore the tables that are empty or newly created. */
-    if (addr_size == 0)
-        return (false);
-
     /*
      * The checkpoint cleanup eligibility is decided based on the following:
-     * 1. The file has a durable stop timestamp.
-     * 2. Logged table. The logged tables do not support timestamps, so we need
+     * 1. Not an empty or newly created table.
+     * 2. The table has a durable stop timestamp.
+     * 3. Logged table. The logged tables do not support timestamps, so we need
      *    to check for obsolete pages in them.
-     * 3. History store table. This table contains the historical versions that
+     * 4. History store table. This table contains the historical versions that
      *    are needed to be removed regularly. This condition is required when
      *    timestamps are not in use, otherwise, the first condition will be satisfied.
      */
-    if (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0)
+    if ((addr_size != 0) &&
+      (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
         return (true);
 
     return (false);
