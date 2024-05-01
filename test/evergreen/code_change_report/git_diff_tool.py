@@ -49,7 +49,7 @@ def run_command(directory: str, command: str) -> str:
     completed_process = subprocess.run(command, capture_output=True, check=True, shell=True)
     output = completed_process.stdout
     working_directory.pop()
-    return output.decode().strip()
+    return output.decode()
 
 
 def find_zero_length_files(directory: str) -> List[str]:
