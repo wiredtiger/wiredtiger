@@ -49,8 +49,8 @@
  * Default hash table size; use a prime number of buckets rather than assuming a good hash
  * (Reference Sedgewick, Algorithms in C, "Hash Functions").
  */
-#define WT_STAT_CONN_COUNTER_SLOTS 1
-#define WT_STAT_DSRC_COUNTER_SLOTS 299
+#define WT_STAT_CONN_COUNTER_SLOTS 23
+#define WT_STAT_DSRC_COUNTER_SLOTS 23
 
 /*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
