@@ -1134,7 +1134,7 @@ test_model_oldest(void)
     testutil_check(table->insert(key1, value5, 50));
 
     /* Set the oldest timestamp. */
-    database.set_oldest_timestamp(30);
+    testutil_check(database.set_oldest_timestamp(30));
     testutil_assert(database.oldest_timestamp() == 30);
 
     /* Verify the behavior. */
@@ -1146,7 +1146,7 @@ test_model_oldest(void)
     testutil_assert(table->get(key1, 50) == value5);
 
     /* Set the oldest timestamp again. */
-    database.set_oldest_timestamp(50);
+    testutil_check(database.set_oldest_timestamp(50));
     testutil_assert(database.oldest_timestamp() == 50);
 
     /* Verify the behavior. */
@@ -1156,9 +1156,8 @@ test_model_oldest(void)
     testutil_assert(table->get_ext(key1, v, 40) == EINVAL);
     testutil_assert(table->get(key1, 50) == value5);
 
-    /* FIXME-WT-12412: Return an error if the provided timestamp is older than the current one. */
-    /* Test moving the oldest timestamp backwards - this should fail silently. */
-    database.set_oldest_timestamp(10);
+    /* Test moving the oldest timestamp backwards - this should fail. */
+    testutil_assert(database.set_oldest_timestamp(10) == EINVAL);
     testutil_assert(database.oldest_timestamp() == 50);
 
     /* The oldest timestamp should reset, because we don't have the stable timestamp. */
@@ -1166,8 +1165,8 @@ test_model_oldest(void)
     testutil_assert(database.oldest_timestamp() == 0);
 
     /* Now try it with both the oldest and stable timestamps. */
-    database.set_oldest_timestamp(50);
-    database.set_stable_timestamp(55);
+    testutil_check(database.set_oldest_timestamp(50));
+    testutil_check(database.set_stable_timestamp(55));
     database.restart();
     testutil_assert(database.oldest_timestamp() == 50);
 }
@@ -1223,9 +1222,8 @@ test_model_oldest_wt(void)
     wt_model_assert(table, uri, key1, 40);
     wt_model_assert(table, uri, key1, 50);
 
-    /* FIXME-WT-12412: Return an error if the provided timestamp is older than the current one. */
-    /* Test moving the oldest timestamp backwards - this should fail silently. */
-    /* wt_model_set_oldest_timestamp_both(10); */
+    /* Test moving the oldest timestamp backwards - this should fail. */
+    wt_model_set_oldest_timestamp_both(10);
     testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
 
     /* Verify. */
