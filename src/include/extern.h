@@ -1873,6 +1873,7 @@ extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base) WT_GCC_F
 extern void *__wt_ext_scr_alloc(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, size_t size);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_addr_address_safe_free(WT_SESSION_IMPL *session, WT_ADDR *addr);
 extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,

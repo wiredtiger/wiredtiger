@@ -113,7 +113,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ASSERT(session, addr != NULL);
 
     if (__wt_off_page(ref->home, addr))
-        __wt_free(session, addr->addr);
+        __wt_addr_address_safe_free(session, addr);
     else {
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
