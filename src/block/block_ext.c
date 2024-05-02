@@ -395,9 +395,8 @@ __block_off_remove(
         *extp = ext;
 
     /* Update the cached end-of-list. */
-    if (el->last == ext) {
+    if (el->last == ext)
         el->last = penultimate_extp;
-    }
 
     return (0);
 
