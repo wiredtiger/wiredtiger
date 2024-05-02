@@ -46,6 +46,76 @@ __cache_config_abs_to_pct(
     return (0);
 }
 
+
+/*
+ * validate_cache_config --
+ *     Validate trigger and target values of given configs
+ */
+static int 
+validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CACHE temp_cache;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
+    temp_cache.eviction_target = (double)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
+    temp_cache.eviction_trigger = (double)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
+    temp_cache.eviction_dirty_target = (double)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_trigger", &cval));
+    temp_cache.eviction_dirty_trigger = (double)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_updates_target", &cval));
+    temp_cache.eviction_updates_target = (double)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
+    temp_cache.eviction_updates_trigger = (double)cval.val;
+
+	  /*
+     * The target size must be lower than the trigger size or we will never get any work done.
+     */
+    if (create) {
+        if (temp_cache.eviction_target >= temp_cache.eviction_trigger)
+            WT_RET_MSG(session, EINVAL, "eviction target must be lower than the eviction trigger");
+        if (temp_cache.eviction_dirty_target >= temp_cache.eviction_dirty_trigger)
+            WT_RET_MSG(
+              session, EINVAL, "eviction dirty target must be lower than the eviction dirty trigger");
+        if (temp_cache.eviction_updates_target >= temp_cache.eviction_updates_trigger)
+            WT_RET_MSG(session, EINVAL,
+              "eviction updates target must be lower than the eviction updates trigger");
+        return (0);
+    }
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
+    temp_cache.eviction_checkpoint_target = (double)cval.val;
+
+    if (temp_cache.eviction_dirty_target > temp_cache.eviction_target)
+        WT_RET_MSG(session, EINVAL, "dirty target cannot be larger than the overall target");
+
+    if (temp_cache.eviction_checkpoint_target > 0 &&
+      temp_cache.eviction_checkpoint_target < temp_cache.eviction_dirty_target)
+        WT_RET_MSG(session, EINVAL, "checkpoint target cannot be lower than te dirty target");
+
+    if (temp_cache.eviction_dirty_trigger > temp_cache.eviction_trigger)
+        WT_RET_MSG(session, EINVAL, "dirty trigger cannot be larger than the overall trigger");
+
+    if (temp_cache.eviction_updates_target < DBL_EPSILON)
+        temp_cache.eviction_updates_target = temp_cache.eviction_dirty_target / 2;
+
+    if (temp_cache.eviction_updates_trigger < DBL_EPSILON)
+        temp_cache.eviction_updates_trigger = temp_cache.eviction_dirty_trigger / 2;
+
+    /* Don't allow the trigger to be larger than the overall trigger. */
+    if (temp_cache.eviction_updates_trigger > temp_cache.eviction_trigger)
+        WT_RET_MSG(session, EINVAL, "updates trigger cannot be larger than the overall trigger");
+
+    return (0);
+}
+
 /*
  * __cache_config_local --
  *     Configure the underlying cache.
@@ -60,6 +130,10 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
 
     conn = S2C(session);
     cache = conn->cache;
+
+    if (!validate_cache_config(session, cfg, false)){
+        WT_RET_MSG(session, EINVAL, "Invalid config!");
+    }
 
     /*
      * If not using a shared cache configure the cache size, otherwise check for a reserved size.
@@ -93,30 +167,10 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_dirty_target), "eviction dirty target", shared));
 
-    /*
-     * Don't allow the dirty target to be larger than the overall target.
-     */
-    if (cache->eviction_dirty_target > cache->eviction_target)
-        cache->eviction_dirty_target = cache->eviction_target;
-
-    /*
-     * Sanity check the checkpoint target: don't allow a value lower than the dirty target.
-     */
-    if (cache->eviction_checkpoint_target > 0 &&
-      cache->eviction_checkpoint_target < cache->eviction_dirty_target)
-        cache->eviction_checkpoint_target = cache->eviction_dirty_target;
-
     WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_trigger", &cval));
     cache->eviction_dirty_trigger = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_dirty_trigger), "eviction dirty trigger", shared));
-
-    /*
-     * Don't allow the dirty trigger to be larger than the overall trigger or we can get stuck with
-     * a cache full of dirty data.
-     */
-    if (cache->eviction_dirty_trigger > cache->eviction_trigger)
-        cache->eviction_dirty_trigger = cache->eviction_trigger;
 
     /* Configure updates target / trigger */
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_target", &cval));
@@ -251,17 +305,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     cache->read_gen_oldest = WT_READGEN_START_VALUE;
     __wt_atomic_store64(&cache->read_gen, WT_READGEN_START_VALUE);
 
-    /*
-     * The target size must be lower than the trigger size or we will never get any work done.
-     */
-    if (cache->eviction_target >= cache->eviction_trigger)
-        WT_RET_MSG(session, EINVAL, "eviction target must be lower than the eviction trigger");
-    if (cache->eviction_dirty_target >= cache->eviction_dirty_trigger)
-        WT_RET_MSG(
-          session, EINVAL, "eviction dirty target must be lower than the eviction dirty trigger");
-    if (cache->eviction_updates_target >= cache->eviction_updates_trigger)
-        WT_RET_MSG(session, EINVAL,
-          "eviction updates target must be lower than the eviction updates trigger");
+    WT_RET(validate_cache_config(session, cfg, true));
 
     WT_RET(__wt_cond_auto_alloc(
       session, "cache eviction server", 10 * WT_THOUSAND, WT_MILLION, &cache->evict_cond));
