@@ -1160,6 +1160,10 @@ test_model_oldest(void)
     testutil_assert(database.set_oldest_timestamp(10) == EINVAL);
     testutil_assert(database.oldest_timestamp() == 50);
 
+    /* Test setting the stable timestamp to before the oldest timestamp - this should also fail. */
+    testutil_assert(database.set_stable_timestamp(10) == EINVAL);
+    testutil_assert(database.stable_timestamp() == model::k_timestamp_none);
+
     /* The oldest timestamp should reset, because we don't have the stable timestamp. */
     database.restart();
     testutil_assert(database.oldest_timestamp() == 0);
@@ -1169,6 +1173,11 @@ test_model_oldest(void)
     testutil_check(database.set_stable_timestamp(55));
     database.restart();
     testutil_assert(database.oldest_timestamp() == 50);
+
+    /* Try setting the oldest timestamp to, and then ahead of, the stable timestamp. */
+    testutil_check(database.set_oldest_timestamp(55));
+    testutil_assert(database.set_oldest_timestamp(60) == EINVAL);
+    testutil_assert(database.oldest_timestamp() == 55);
 }
 
 /*
@@ -1226,6 +1235,10 @@ test_model_oldest_wt(void)
     wt_model_set_oldest_timestamp_both(10);
     testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
 
+    /* Test setting the stable timestamp to before the oldest timestamp - this should also fail. */
+    wt_model_set_stable_timestamp_both(10);
+    testutil_assert(database.stable_timestamp() == wt_get_stable_timestamp(conn));
+
     /* Verify. */
     testutil_assert(table->verify_noexcept(conn));
 
@@ -1247,6 +1260,11 @@ test_model_oldest_wt(void)
     testutil_check(conn->close(conn, nullptr));
     testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
     testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+    testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+
+    /* Try setting the oldest timestamp to, and then ahead of, the stable timestamp. */
+    wt_model_set_oldest_timestamp_both(55);
+    wt_model_set_oldest_timestamp_both(60);
     testutil_assert(database.oldest_timestamp() == wt_get_oldest_timestamp(conn));
 
     /* Clean up. */

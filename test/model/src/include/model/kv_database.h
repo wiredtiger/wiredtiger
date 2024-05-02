@@ -115,6 +115,8 @@ public:
         std::lock_guard lock_guard(_timestamps_lock);
         if (timestamp < _oldest_timestamp)
             return EINVAL;
+        if (_stable_timestamp != k_timestamp_none && timestamp > _stable_timestamp)
+            return EINVAL;
         _oldest_timestamp = timestamp;
         return 0;
     }
@@ -138,6 +140,8 @@ public:
     {
         std::lock_guard lock_guard(_timestamps_lock);
         if (timestamp < _stable_timestamp)
+            return EINVAL;
+        if (_oldest_timestamp != k_timestamp_none && timestamp < _oldest_timestamp)
             return EINVAL;
         _stable_timestamp = timestamp;
         return 0;
