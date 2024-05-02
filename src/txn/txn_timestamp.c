@@ -859,6 +859,8 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
             __wt_readunlock(session, &txn_global->rwlock);
 
 #if !defined(WT_STANDALONE_BUILD) || defined(HAVE_DIAGNOSTIC)
+            WT_STAT_CONN_INCR(session, txn_set_read_timestamp_more_than_oldest_timestamp);
+
             /*
              * In some cases, MongoDB sets a read timestamp older than the oldest timestamp, relying
              * on WiredTiger's concurrency to detect and fail the set. In other cases it's a bug and

@@ -1033,6 +1033,7 @@ struct __wt_connection_stats {
     int64_t txn_rts_upd_aborted_dryrun;
     int64_t txn_rts_hs_removed_dryrun;
     int64_t txn_sessions_walked;
+    int64_t txn_set_read_timestamp_more_than_oldest_timestamp;
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
