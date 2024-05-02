@@ -2824,7 +2824,7 @@ __wt_verbose_dump_txn_one(
     WT_ERR(__wt_buf_fmt(session, snapshot_buf, "%s", "["));
     for (i = 0; i < txn->snapshot_data.snapshot_count; i++)
         WT_ERR(__wt_buf_catfmt(
-          session, snapshot_buf, "%s%lu", i == 0 ? "" : ", ", txn->snapshot_data.snapshot[i]));
+          session, snapshot_buf, "%s%" PRIu64, i == 0 ? "" : ", ", txn->snapshot_data.snapshot[i]));
     WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
 
     buf_len = (uint32_t)snapshot_buf->size + 512;
