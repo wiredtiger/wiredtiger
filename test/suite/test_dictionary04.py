@@ -56,6 +56,10 @@ class test_dictionary04(wttest.WiredTigerTestCase):
         self.session.create(uri, config)
         cursor = self.session.open_cursor(uri, None)
 
+        # Pin timestamps to ensure new modifications are not globally visible.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+
         # Write two values that should lead to two unique dictionary entries.
         cursor[simple_key(cursor, 1)] = self.value_a
         cursor[simple_key(cursor, 2)] = self.value_b
