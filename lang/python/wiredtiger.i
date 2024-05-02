@@ -629,6 +629,9 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 /* Replace get_raw_key_value method with a Python equivalent */
 %ignore __wt_cursor::get_raw_key_value;
 
+/* Replace set_raw_key_value method with a Python equivalent */
+%ignore __wt_cursor::set_raw_key_value;
+
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);

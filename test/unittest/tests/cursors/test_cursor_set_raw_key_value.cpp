@@ -19,8 +19,7 @@ insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
 {
     item_wrapper item_key(key);
     item_wrapper item_value(value);
-    __wt_cursor_set_raw_key(cursor, item_key.get_item());
-    __wt_cursor_set_raw_value(cursor, item_value.get_item());
+    __wt_cursor_set_raw_key_value(cursor, item_key.get_item(), item_value.get_item());
     return cursor->insert(cursor);
 }
 
@@ -34,7 +33,7 @@ insert_sample_values(WT_CURSOR *cursor)
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 }
 
-TEST_CASE("Cursor: get key and value()", "[cursor]")
+TEST_CASE("Cursor: set key and value()", "[cursor]")
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();

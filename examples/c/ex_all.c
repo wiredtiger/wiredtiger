@@ -178,6 +178,18 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
+        /*! [Set the cursor's raw key and value] */
+        /* Set the cursor's raw key and value. */
+        WT_ITEM key, value; /* Set the cursor's raw key and value. */
+        key.data = "New key";
+        key.size = strlen("New key");
+        value.data = "New value";
+        value.size = strlen("New value");
+        cursor->set_raw_key_value(cursor, &key, &value);
+        /*! [Set the cursor's raw key and value] */
+    }
+
+    {
         /*! [Get the cursor's string value] */
         const char *value; /* Get the cursor's string value. */
         error_check(cursor->get_value(cursor, &value));

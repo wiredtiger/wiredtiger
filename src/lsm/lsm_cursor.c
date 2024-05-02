@@ -1687,6 +1687,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
       __wt_cursor_get_raw_key_value,                  /* get-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
+      __wt_cursor_set_raw_key_value,                  /* set-raw-key-value */
       __clsm_compare,                                 /* compare */
       __wt_cursor_equals,                             /* equals */
       __clsm_next,                                    /* next */

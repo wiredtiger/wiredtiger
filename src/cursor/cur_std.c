@@ -91,6 +91,18 @@ __wt_cursor_set_value_notsup(WT_CURSOR *cursor, ...)
 }
 
 /*
+ * __wt_cursor_set_raw_key_value_notsup --
+ *     WT_CURSOR.set_raw_key_value not-supported.
+ */
+void
+__wt_cursor_set_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
+{
+    WT_UNUSED(key);
+    WT_UNUSED(value);
+    WT_IGNORE_RET(__wt_cursor_notsup(cursor));
+}
+
+/*
  * __wt_cursor_compare_notsup --
  *     Unsupported cursor comparison.
  */
@@ -620,6 +632,61 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
     va_start(ap, cursor);
     WT_IGNORE_RET(__wt_cursor_set_valuev(cursor, cursor->value_format, ap));
     va_end(ap);
+}
+
+/*
+ * __wt_cursor_set_raw_key_value --
+ *     WT_CURSOR->set_raw_key_value default implementation
+ */
+void
+__wt_cursor_set_raw_key_value(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
+{
+    WT_DECL_RET;
+    WT_ITEM *buf;
+    WT_SESSION_IMPL *session;
+
+    CURSOR_API_CALL(cursor, session, ret, set_raw_key_value, NULL);
+    WT_ERR(__cursor_copy_release(cursor));
+
+    if ((key == NULL) || (value == NULL))
+        WT_ERR(__wt_cursor_kv_not_set(cursor, true));
+
+    WT_ERR(__cursor_copy_release(cursor));
+
+    F_CLR(cursor, WT_CURSTD_KEY_SET);
+    buf = &cursor->key;
+    if (WT_DATA_IN_ITEM(buf)) {
+        buf->mem = NULL;
+        buf->memsize = 0;
+    }
+
+    if (key->size == 0)
+        WT_ERR_MSG(session, EINVAL, "Empty keys not permitted");
+    else if ((uint32_t)key->size != key->size)
+        WT_ERR_MSG(session, EINVAL, "Key size (%" PRIu64 ") out of range", (uint64_t)key->size);
+
+    cursor->saved_err = 0;
+    cursor->key.data = key->data;
+    cursor->key.size = key->size;
+    F_SET(cursor, WT_CURSTD_KEY_EXT);
+
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
+    buf = &cursor->value;
+    if (WT_DATA_IN_ITEM(buf)) {
+        buf->mem = NULL;
+        buf->memsize = 0;
+    }
+    cursor->value.data = value->data;
+    cursor->value.size = value->size;
+    F_SET(cursor, WT_CURSTD_VALUE_EXT);
+
+err:
+    if (ret != 0) {
+        ret = __wt_panic(CUR2S(cursor), ret, "failed to set key");
+        cursor->saved_err = ret;
+    }
+    API_END(session, ret);
+    WT_IGNORE_RET(ret);
 }
 
 /*

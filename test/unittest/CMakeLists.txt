@@ -24,6 +24,7 @@ else()
         tests/block/test_block_ckpt.cpp
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
+        tests/cursors/test_cursor_set_raw_key_value.cpp
         tests/packing/test_intpack.cpp
     )
 endif()
@@ -36,6 +37,7 @@ set(unittest_sources
     tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
+    tests/cursors/validate_key_value.cpp
     ${unittests}
 )
 

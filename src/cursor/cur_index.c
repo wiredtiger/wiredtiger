@@ -565,6 +565,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __wt_cursor_get_raw_key_value_notsup,           /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __curindex_set_value,                           /* set-value */
+      __wt_cursor_set_raw_key_value_notsup,           /* set-raw-key-value */
       __curindex_compare,                             /* compare */
       __wt_cursor_equals,                             /* equals */
       __curindex_next,                                /* next */

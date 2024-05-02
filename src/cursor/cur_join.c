@@ -564,6 +564,7 @@ __curjoin_entry_member(
       __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
+      __wt_cursor_set_raw_key_value,                  /* set-raw-key-value */
       __wt_cursor_compare_notsup,                     /* compare */
       __wt_cursor_equals_notsup,                      /* equals */
       __wt_cursor_notsup,                             /* next */
@@ -1214,6 +1215,7 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
       __wt_cursor_get_raw_key_value_notsup,         /* get-raw-key-value */
       __wt_cursor_set_key_notsup,                   /* set-key */
       __wt_cursor_set_value_notsup,                 /* set-value */
+      __wt_cursor_set_raw_key_value_notsup,         /* set-raw-key-value */
       __wt_cursor_compare_notsup,                   /* compare */
       __wt_cursor_equals_notsup,                    /* equals */
       __curjoin_next,                               /* next */

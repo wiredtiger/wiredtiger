@@ -1926,6 +1926,8 @@ extern void __wt_cursor_set_key(WT_CURSOR *cursor, ...);
 extern void __wt_cursor_set_key_notsup(WT_CURSOR *cursor, ...);
 extern void __wt_cursor_set_notsup(WT_CURSOR *cursor);
 extern void __wt_cursor_set_raw_key(WT_CURSOR *cursor, WT_ITEM *key);
+extern void __wt_cursor_set_raw_key_value(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value);
+extern void __wt_cursor_set_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value);
 extern void __wt_cursor_set_raw_value(WT_CURSOR *cursor, WT_ITEM *value);
 extern void __wt_cursor_set_value(WT_CURSOR *cursor, ...);
 extern void __wt_cursor_set_value_notsup(WT_CURSOR *cursor, ...);

@@ -367,6 +367,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt11634_get_set_key_value
+    SOURCES wt11634_get_set_key_value/main.c
+    DIR_NAME wt11634_get_set_key_value
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt11634_get_set_key_value>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_wt8246_compact_rts_data_correctness
     SOURCES wt8246_compact_rts_data_correctness/main.c
     DIR_NAME wt8246_compact_rts_data_correctness

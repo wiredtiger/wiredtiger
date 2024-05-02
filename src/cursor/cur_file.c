@@ -950,6 +950,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
+      __wt_cursor_set_raw_key_value,                  /* set-raw-key-value */
       __curfile_compare,                              /* compare */
       __curfile_equals,                               /* equals */
       __curfile_next,                                 /* next */
