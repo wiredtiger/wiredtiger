@@ -474,7 +474,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
-    for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
+    while ((ret = __wt_config_next(&ckptconf, &key, &cval)) == 0) {
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
         if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
@@ -484,6 +484,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
             addr_size = value.len;
         WT_RET_NOTFOUND_OK(ret);
     }
+    WT_RET_NOTFOUND_OK(ret);
 
     /*
      * The checkpoint cleanup eligibility is decided based on the following:
