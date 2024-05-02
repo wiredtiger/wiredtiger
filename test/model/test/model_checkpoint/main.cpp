@@ -163,7 +163,7 @@ test_checkpoint(void)
     testutil_assert(table->get(ckpt3, key2) == value2); /* The old value. */
     testutil_assert(table->get(ckpt3, key3) == value3);
 
-    /* Test moving the stable timestamp backwards - this should fail silently. */
+    /* Test moving the stable timestamp backwards - this should fail. */
     testutil_assert(database.set_stable_timestamp(50) == EINVAL);
     testutil_assert(database.stable_timestamp() == 60);
     model::kv_checkpoint_ptr ckpt4 = database.create_checkpoint("ckpt4");
