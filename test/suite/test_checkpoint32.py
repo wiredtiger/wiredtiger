@@ -46,6 +46,9 @@ class test_checkpoint32(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values)
 
+    def conn_config(self):
+        return 'statistics=(all)'
+
     def check(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
         count = 0
