@@ -60,11 +60,11 @@ class test_dictionary03(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        # Write two values that should lead to two unique dictionary entries.
+        # Write two values that will lead to two unique dictionary entries.
         cursor[simple_key(cursor, 1)] = self.value_a
         cursor[simple_key(cursor, 2)] = self.value_b
 
-        # The next cells should reuse an existing dictionary entry and have time window validity.
+        # The next cells will reuse an existing dictionary entry and have time window validity.
         self.session.begin_transaction()
         cursor[simple_key(cursor, 3)] = self.value_a
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))

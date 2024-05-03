@@ -59,11 +59,11 @@ class test_dictionary02(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        # Write two values that should lead to two unique dictionary entries.
+        # Write two values that will lead to two unique dictionary entries.
         cursor[simple_key(cursor, 1)] = self.value_a
         cursor[simple_key(cursor, 2)] = self.value_b
 
-        # The next cells should reuse an existing dictionary entry and have RLE information for
+        # The next cells will reuse an existing dictionary entry and have RLE information for
         # VLCS.
         for i in range(3, 10):
             cursor[simple_key(cursor, i)] = self.value_a
@@ -76,10 +76,10 @@ class test_dictionary02(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor('statistics:' + uri, None, None)
         dict_value = cursor[stat.dsrc.rec_dictionary][2]
         if self.key_format == 'S':
-            # Each cell is written for row-store and each should reuse the existing dictionary
+            # Each cell is written for row-store and each will reuse the existing dictionary
             # entry.
             self.assertEqual(dict_value, 7)
         else:
-            # For VLCS, we should benefit from the RLE, only one cell should be written and reuse
+            # For VLCS, we will benefit from the RLE, only one cell will be written and reuse
             # the dictionary entry.
             self.assertEqual(dict_value, 1)
