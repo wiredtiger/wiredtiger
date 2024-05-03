@@ -159,7 +159,7 @@ for line in open('../src/include/wiredtiger.in', 'r'):
 f.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
-def print_func(name, capname, handle, statlist):
+def print_func(name, handle, statlist, capname=None):
     '''Print the structures/functions for the stat.c file.'''
     f.write('\n')
     f.write('static const char * const __stats_' + name + '_desc[] = {\n')
@@ -289,10 +289,11 @@ f = open(tmp_file, 'w')
 f.write('/* DO NOT EDIT: automatically built by dist/stat.py. */\n\n')
 f.write('#include "wt_internal.h"\n')
 
-print_func('dsrc', 'DSRC', 'WT_DATA_HANDLE', sorted_dsrc_statistics)
-print_func('connection','CONN', 'WT_CONNECTION_IMPL', sorted_conn_stats)
-print_func('join', 'CONN', None, join_stats)
-print_func('session', '', None, session_stats)
+print_func('dsrc', 'WT_DATA_HANDLE', sorted_dsrc_statistics, 'DSRC')
+print_func('connection', 'WT_CONNECTION_IMPL', sorted_conn_stats, 'CONN')
+print_func('join', None, join_stats, 'CONN')
+# FIXME-WT-12937 Revise the join stats code. 
+print_func('session', None, session_stats)
 f.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/support/stat.c')
