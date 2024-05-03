@@ -291,8 +291,8 @@ f.write('#include "wt_internal.h"\n')
 
 print_func('dsrc', 'WT_DATA_HANDLE', sorted_dsrc_statistics, 'DSRC')
 print_func('connection', 'WT_CONNECTION_IMPL', sorted_conn_stats, 'CONN')
-print_func('join', None, join_stats, 'CONN')
 # FIXME-WT-12937 Revise the join stats code. 
+print_func('join', None, join_stats, 'CONN')
 print_func('session', None, session_stats)
 f.close()
 format_srcfile(tmp_file)
