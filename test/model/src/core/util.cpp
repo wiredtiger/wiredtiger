@@ -32,6 +32,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <iconv.h>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -281,6 +282,67 @@ shared_memory::~shared_memory()
                   << "\": " << strerror(errno) << " (" << errno << ")" << std::endl;
         abort();
     }
+}
+
+/*
+ * convert_charset --
+ *     Perform a character set conversion. Throw an exception on error.
+ */
+std::string
+decode_charset_bytes(const std::string &str, const char *src_charset)
+{
+    /* Initialize the conversion. */
+    iconv_t conv = iconv_open("WCHAR_T", src_charset);
+    if (conv == (iconv_t)-1)
+        throw std::runtime_error(
+          "Cannot initialize charset conversion: " + std::string(wiredtiger_strerror(errno)));
+    at_cleanup close_conv([&conv] { (void)iconv_close(conv); });
+
+    /* Copy the input buffer, since the conversion library needs a mutable buffer. */
+    size_t src_size = str.size();
+    char *src = (char *)calloc(src_size, 1);
+    if (src == nullptr)
+        throw std::runtime_error("Cannot allocate memory.");
+    at_cleanup free_src([&src] { free(src); });
+    memcpy(src, str.c_str(), src_size);
+
+    /* Allocate the output buffer. */
+    size_t dest_size = src_size + 4; /* Big enough because we're using 1-byte code points. */
+    wchar_t *dest = (wchar_t *)calloc(dest_size, sizeof(wchar_t));
+    if (dest == nullptr)
+        throw std::runtime_error("Cannot allocate memory.");
+    at_cleanup free_dest([&dest] { free(dest); });
+
+    /* Now do the actual conversion. */
+    char *p_src = src;
+    char *p_dest = (char *)dest;
+    size_t src_bytes = src_size;
+    size_t dest_bytes = dest_size * sizeof(wchar_t);
+    size_t dest_bytes_start = dest_bytes;
+    size_t r = iconv(conv, &p_src, &src_bytes, &p_dest, &dest_bytes);
+    if (r == (size_t)-1)
+        throw std::runtime_error(
+          "Charset conversion failed: " + std::string(wiredtiger_strerror(errno)));
+    if (src_bytes != 0)
+        throw std::runtime_error(
+          "Charset conversion did not decode " + std::to_string(src_bytes) + " byte(s)");
+
+    /* Figure out how many code points were actually decoded. */
+    size_t decoded_size = (dest_bytes_start - dest_bytes) / sizeof(wchar_t);
+
+    /* Extract the byte-long code points into an array. */
+    char *decoded = (char *)calloc(decoded_size, 1);
+    if (decoded == nullptr)
+        throw std::runtime_error("Cannot allocate memory.");
+    at_cleanup free_decoded([&decoded] { free(decoded); });
+    for (size_t i = 0; i < decoded_size; i++) {
+        if (dest[i] > 0xFF)
+            throw std::runtime_error(
+              "Not byte-long code point: " + std::to_string((uint64_t)dest[i]));
+        decoded[i] = (char)dest[i];
+    }
+
+    return std::string(decoded, decoded_size);
 }
 
 /*
