@@ -296,22 +296,18 @@ decode_charset_bytes(const std::string &str, const char *src_charset)
     if (conv == (iconv_t)-1)
         throw std::runtime_error(
           "Cannot initialize charset conversion: " + std::string(wiredtiger_strerror(errno)));
-    at_cleanup close_conv([&conv] { (void)iconv_close(conv); });
+    at_cleanup close_conv([conv] { (void)iconv_close(conv); });
 
     /* Copy the input buffer, since the conversion library needs a mutable buffer. */
     size_t src_size = str.size();
-    char *src = (char *)calloc(src_size, 1);
-    if (src == nullptr)
-        throw std::runtime_error("Cannot allocate memory.");
-    at_cleanup free_src([&src] { free(src); });
+    char *src = new char[src_size];
+    at_cleanup free_src([src] { delete[] src; });
     memcpy(src, str.c_str(), src_size);
 
     /* Allocate the output buffer. */
     size_t dest_size = src_size + 4; /* Big enough because we're using 1-byte code points. */
-    wchar_t *dest = (wchar_t *)calloc(dest_size, sizeof(wchar_t));
-    if (dest == nullptr)
-        throw std::runtime_error("Cannot allocate memory.");
-    at_cleanup free_dest([&dest] { free(dest); });
+    wchar_t *dest = new wchar_t[dest_size];
+    at_cleanup free_dest([dest] { delete[] dest; });
 
     /* Now do the actual conversion. */
     char *p_src = src;
@@ -331,10 +327,8 @@ decode_charset_bytes(const std::string &str, const char *src_charset)
     size_t decoded_size = (dest_bytes_start - dest_bytes) / sizeof(wchar_t);
 
     /* Extract the byte-long code points into an array. */
-    char *decoded = (char *)calloc(decoded_size, 1);
-    if (decoded == nullptr)
-        throw std::runtime_error("Cannot allocate memory.");
-    at_cleanup free_decoded([&decoded] { free(decoded); });
+    char *decoded = new char[decoded_size];
+    at_cleanup free_decoded([decoded] { delete[] decoded; });
     for (size_t i = 0; i < decoded_size; i++) {
         if (dest[i] > 0xFF)
             throw std::runtime_error(
