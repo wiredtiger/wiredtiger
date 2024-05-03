@@ -1786,14 +1786,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_BTREE *btree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_ITEM(queue_buf);
-    WT_DECL_ITEM(urgent_queue_buf);
     WT_DECL_RET;
     WT_EVICT_ENTRY *end, *evict, *start;
     WT_PAGE *last_parent, *page;
     WT_REF *ref;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
-    uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
+    uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, pages_urgent_queued,
+      pages_queued_memory, pages_urgent_queued_memory, refs_walked;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, urgent_queued_flag, want_page;
@@ -1803,6 +1802,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     cache = conn->cache;
     last_parent = NULL;
     restarts = 0;
+    pages_queued_memory = pages_urgent_queued_memory = 0;
     give_up = urgent_queued = urgent_queued_flag = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_walk_lock);
@@ -1947,13 +1947,6 @@ rand_next:
     ref = btree->evict_ref;
     btree->evict_ref = NULL;
 
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
-        WT_RET(__wt_scr_alloc(session, 2048, &queue_buf));
-        WT_RET(__wt_buf_fmt(session, queue_buf, "%s", "["));
-        WT_RET(__wt_scr_alloc(session, 2048, &urgent_queue_buf));
-        WT_RET(__wt_buf_fmt(session, urgent_queue_buf, "%s", "["));
-    }
-
     /*
      * !!! Take care terminating this loop.
      *
@@ -1965,7 +1958,8 @@ rand_next:
      * case we are appending and only the last page in the file is live.
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
-    for (evict = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
+    for (evict = start,
+        pages_already_queued = pages_queued = pages_urgent_queued = pages_seen = refs_walked = 0;
          evict < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
@@ -1976,7 +1970,8 @@ rand_next:
          */
         give_up = !__wt_cache_aggressive(session) && !WT_IS_HS(btree->dhandle) &&
           pages_seen > min_pages &&
-          (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
+          (pages_queued + pages_urgent_queued == 0 ||
+            (pages_seen / (pages_queued + pages_urgent_queued)) > (min_pages / target_pages));
         if (give_up) {
             /*
              * Try a different walk start point next time if a walk gave up.
@@ -2000,7 +1995,7 @@ rand_next:
              * We differentiate the reasons we gave up on this walk and increment the stats
              * accordingly.
              */
-            if (pages_queued == 0) {
+            if (pages_queued + pages_urgent_queued == 0) {
                 WT_STAT_CONN_INCR(session, cache_eviction_walks_gave_up_no_targets);
                 WT_STAT_DATA_INCR(session, cache_eviction_walks_gave_up_no_targets);
             } else {
@@ -2167,41 +2162,31 @@ fast:
             continue;
 
 walk_statistical:
-        ++evict;
-        ++pages_queued;
-        ++btree->evict_walk_progress;
-
+        if (!urgent_queued_flag) {
+            ++evict;
+            ++btree->evict_walk_progress;
+            ++pages_queued;
+            pages_queued_memory += page->memory_footprint;
+        } else {
+            ++pages_urgent_queued;
+            pages_urgent_queued_memory += page->memory_footprint;
+        }
         /* Count internal pages queued. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
-
-        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
-            if (urgent_queued_flag)
-                WT_RET(__wt_buf_catfmt(session, urgent_queue_buf, "%p, %" PRIu64 "; ", (void *)page,
-                  page->memory_footprint));
-            else
-                WT_RET(__wt_buf_catfmt(
-                  session, queue_buf, "%p, %" PRIu64 "; ", (void *)page, page->memory_footprint));
-        }
 
         urgent_queued_flag = false;
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
-        WT_RET(__wt_buf_catfmt(session, queue_buf, "%s", "]\0"));
-        WT_RET(__wt_buf_catfmt(session, urgent_queue_buf, "%s", "]\0"));
-        __wt_verbose_worker(session, WT_VERB_EVICTSERVER,
-          S2C(session)->verbose[WT_VERB_EVICTSERVER],
-          "walk select, queued pages: %s, urgent queued pages: %s", (const char *)queue_buf->data,
-          (const char *)urgent_queue_buf->data);
-    }
-
     *slotp += (u_int)(evict - start);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
 
-    __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
-      session->dhandle->name, pages_seen, pages_queued);
+    __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
+      "%s walk: seen %" PRIu64 ", queued %" PRIu64 ", queued pages memory %" PRIu64
+      ", urgent queued %" PRIu64 ", urgent queued pages memory %" PRIu64,
+      session->dhandle->name, pages_seen, pages_queued, pages_queued_memory, pages_urgent_queued,
+      pages_urgent_queued_memory);
 
     /*
      * If we couldn't find the number of pages we were looking for, skip the tree next time.
@@ -2255,11 +2240,6 @@ walk_statistical:
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
-
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
-        __wt_scr_free(session, &queue_buf);
-        __wt_scr_free(session, &urgent_queue_buf);
-    }
     return (0);
 }
 
