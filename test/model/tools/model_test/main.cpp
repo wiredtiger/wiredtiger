@@ -390,12 +390,22 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
                 *w << op;
         }
 
+        /* Validate that we didn't produce a malformed workload. */
+        bool skip = false;
+        if (!w->verify_timestamps())
+            skip = true;
+
         /* Clean up the previous database directory, if it exists. */
-        testutil_remove(home.c_str());
+        if (!skip)
+            testutil_remove(home.c_str());
 
         /* Try the reduced workload. */
         try {
-            run_and_verify(w, home, conn_config, table_config);
+            if (!skip)
+                run_and_verify(w, home, conn_config, table_config);
+            else
+                std::cout << "Counterexample reduction: Skip running a malformed workload"
+                          << std::endl;
 
             /* There was no error, so try removing only just the halves. */
             if (range.first + 1 < range.second) {
