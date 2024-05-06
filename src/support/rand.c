@@ -76,7 +76,6 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
     WT_RAND_STATE rnd;
 
     __wt_epoch(session, &ts);
-    __wt_thread_id(&threadid);
 
     /*
      * Use this, instead of __wt_random_init, to vary the initial state of the RNG. This is
@@ -97,7 +96,6 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
 #ifdef _WIN32
     rnd.v ^= __wt_rdtsc();
 #endif
-    rnd.v ^= (uint64_t)threadid;
     rnd.v ^= rnd.v << 13;
     rnd.v ^= rnd.v >> 7;
     rnd.v ^= rnd.v << 17;
