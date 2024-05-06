@@ -15,7 +15,7 @@
 char *
 __wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
 {
-    WT_IGNORE_RET(__wt_snprintf(ts_string, WT_TS_INT_STRING_SIZE, "(0x%" PRIx32 ", 0x%" PRIx32 ")",
+    WT_IGNORE_RET(__wt_snprintf(ts_string, WT_TS_INT_STRING_SIZE, "(%" PRIu32 ", %" PRIu32 ")",
       (uint32_t)((ts >> 32) & 0xffffffff), (uint32_t)(ts & 0xffffffff)));
     return (ts_string);
 }
@@ -113,10 +113,10 @@ __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp)
 void
 __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg)
 {
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char hex_timestamp[WT_TS_HEX_STRING_SIZE];
 
-    __wt_verbose(
-      session, WT_VERB_TIMESTAMP, "Timestamp %s: %s", __wt_timestamp_to_string(ts, ts_string), msg);
+    __wt_timestamp_to_hex_string(ts, hex_timestamp);
+    __wt_verbose(session, WT_VERB_TIMESTAMP, "Timestamp %s: %s", hex_timestamp, msg);
 }
 
 #define WT_TIME_VALIDATE_RET(session, ...)        \
