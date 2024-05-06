@@ -39,6 +39,8 @@
  * result in a stored value of zero, in which case they will be stuck on zero forever. Take a local
  * copy of the values to avoid that, and read/write in atomic, 8B chunks.
  */
+#undef M_V
+#define M_V(r) r.v
 #undef M_W
 #define M_W(r) r.x.w
 #undef M_Z
@@ -100,6 +102,20 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
     rnd.v ^= rnd.v >> 7;
     rnd.v ^= rnd.v << 17;
 
+    *rnd_state = rnd;
+}
+
+/*
+ * __wt_random_init_custom_seed --
+ *     Initialize the state of a 32-bit pseudo-random number with custom seed.
+ */
+void
+__wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    WT_RAND_STATE rnd;
+
+    M_V(rnd) = v;
     *rnd_state = rnd;
 }
 
