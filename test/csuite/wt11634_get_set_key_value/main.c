@@ -129,7 +129,6 @@ populate(WT_SESSION *session)
     WT_CURSOR *cursor;
     WT_ITEM key, value;
     uint64_t i;
-
     char key_buf[BUF_SIZE], value_buf[BUF_SIZE];
 
     memset(key_buf, 0, sizeof(key_buf));
