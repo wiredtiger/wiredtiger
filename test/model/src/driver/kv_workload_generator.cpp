@@ -283,14 +283,13 @@ kv_workload_generator::assign_timestamps(kv_workload_sequence &sequence, timesta
                 std::get<operation::commit_transaction>(*op).durable_timestamp =
                   std::min((timestamp_t)x, last);
             }
-        }
-        if (std::holds_alternative<operation::prepare_transaction>(*op))
+        } else if (std::holds_alternative<operation::prepare_transaction>(*op))
             std::get<operation::prepare_transaction>(*op).prepare_timestamp = t;
-        if (std::holds_alternative<operation::set_commit_timestamp>(*op))
+        else if (std::holds_alternative<operation::set_commit_timestamp>(*op))
             std::get<operation::set_commit_timestamp>(*op).commit_timestamp = t;
-        if (std::holds_alternative<operation::set_oldest_timestamp>(*op))
+        else if (std::holds_alternative<operation::set_oldest_timestamp>(*op))
             std::get<operation::set_oldest_timestamp>(*op).oldest_timestamp = oldest = t;
-        if (std::holds_alternative<operation::set_stable_timestamp>(*op))
+        else if (std::holds_alternative<operation::set_stable_timestamp>(*op))
             std::get<operation::set_stable_timestamp>(*op).stable_timestamp = stable = t;
     }
 }
