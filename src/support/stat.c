@@ -2062,6 +2062,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: rollback to stable updates that would have been removed from history store in "
   "non-dryrun mode",
   "transaction: sessions scanned in each walk of concurrent sessions",
+  "transaction: set read timestamp more less than oldest timestamp",
   "transaction: set timestamp calls",
   "transaction: set timestamp durable calls",
   "transaction: set timestamp durable updates",
@@ -2794,6 +2795,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_rts_upd_aborted_dryrun = 0;
     stats->txn_rts_hs_removed_dryrun = 0;
     stats->txn_sessions_walked = 0;
+    stats->txn_set_read_timestamp_more_than_oldest_timestamp = 0;
     stats->txn_set_ts = 0;
     stats->txn_set_ts_durable = 0;
     stats->txn_set_ts_durable_upd = 0;
@@ -3587,6 +3589,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rts_upd_aborted_dryrun += WT_STAT_READ(from, txn_rts_upd_aborted_dryrun);
     to->txn_rts_hs_removed_dryrun += WT_STAT_READ(from, txn_rts_hs_removed_dryrun);
     to->txn_sessions_walked += WT_STAT_READ(from, txn_sessions_walked);
+    to->txn_set_read_timestamp_more_than_oldest_timestamp +=
+      WT_STAT_READ(from, txn_set_read_timestamp_more_than_oldest_timestamp);
     to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
     to->txn_set_ts_durable += WT_STAT_READ(from, txn_set_ts_durable);
     to->txn_set_ts_durable_upd += WT_STAT_READ(from, txn_set_ts_durable_upd);

@@ -757,6 +757,7 @@ conn_stats = [
     TxnStat('txn_rts_upd_aborted', 'rollback to stable updates aborted'),
     TxnStat('txn_rts_upd_aborted_dryrun', 'rollback to stable updates that would have been aborted in non-dryrun mode'),
     TxnStat('txn_sessions_walked', 'sessions scanned in each walk of concurrent sessions'),
+    TxnStat('txn_set_read_timestamp_more_than_oldest_timestamp', 'set read timestamp more less than oldest timestamp'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
     TxnStat('txn_set_ts_durable', 'set timestamp durable calls'),
     TxnStat('txn_set_ts_durable_upd', 'set timestamp durable updates'),
