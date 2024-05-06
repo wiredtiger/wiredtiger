@@ -92,11 +92,19 @@ def find_moved_zero_length_files(git_working_tree_dir: str) -> List[str]:
 
 
 def create_diff_file(git_working_tree_dir: str, diff_file: str, verbose: bool) -> None:
-    # Exclude files with 0-length from the diff, as pygit2 doesn't handle such diffs well
+    # Exclude files with 0-length from the diff, as pygit2 doesn't handle such diffs well.
     zero_length_files = find_zero_length_files(directory=git_working_tree_dir)
-    deleted_files = find_deleted_files(git_working_tree_dir=git_working_tree_dir)
+
+    # Deleted files may be 0-length and therefore cause problems with pygit2
+    # It's not easy to detect which deleted files were 0-length, but as deleted
+    # files are not relevant anyway for the code change report, they can all be excluded.
+    all_deleted_files = find_deleted_files(git_working_tree_dir=git_working_tree_dir)
+
+    # Sometimes, Git will treat a combination of a deleted + added 0-length file as a move
+    # of a file. Again, these need to be excluded as pygit2 will have issues with them.
     moved_zero_length_files = find_moved_zero_length_files(git_working_tree_dir=git_working_tree_dir)
-    exclude_files = zero_length_files + deleted_files + moved_zero_length_files
+
+    exclude_files = zero_length_files + all_deleted_files + moved_zero_length_files
     exclude_files_param = ' '.join([f"':(exclude){file}'" for file in exclude_files])
 
     repository_path = discover_repository(git_working_tree_dir)
@@ -112,7 +120,7 @@ def create_diff_file(git_working_tree_dir: str, diff_file: str, verbose: bool) -
         print(f"merge_base_commit:      {merge_base_commit}")
         print(f"zero_length_files:      {zero_length_files}")
         print(f"moved_zero_length_files {moved_zero_length_files}")
-        print(f"deleted_files:          {deleted_files}")
+        print(f"all_deleted_files:      {all_deleted_files}")
         print(f"diff_command:           {diff_command}")
 
     diff_output = run_command(git_working_tree_dir, diff_command)
