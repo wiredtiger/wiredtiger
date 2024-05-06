@@ -1,0 +1,439 @@
+/*! @arch_page arch-tiered-storage Tiered Storage
+
+\warning Tiered storage is considered an experimental part of the WiredTiger
+library, and is not yet ready for production workloads.
+
+@section ts_intro Introduction and Definitions
+
+Tiered storage provides a way to split Btrees into multiple parts,
+with some set of parts stored in cloud storage objects and another
+set of parts stored in local files.
+We often use the term \a object to refer one of these written
+Btree parts, whether it resides on the local disk or in the cloud.
+The mechanism to create new objects is a WT_SESSION::checkpoint API call
+with the \c flush_tier configuration set.
+For brevity, we often call this a \c flush_tier call.
+
+When in use, a tiered Btree, like a regular Btree, may have some
+recently used or modified data that resides in memory pages.
+This in memory representation is the same between a tiered Btree
+and a regular Btree, it is only how data is stored on disk and in
+cloud objects that makes these Btrees different.
+
+@section ts_objectid Object IDs
+
+In response to a \c flush_tier call, WiredTiger creates a new object
+for each changed Btree.  Each new object created gets a new \a
+objectid, incremented from the previous objectid used with that Btree.
+The new object lives initially as a regular disk file, and the disk
+file name includes the name of the table and the objectid.  This makes
+it is easy to see from a directory listing which tables and which
+objects for that table are represented on disk. Once a new (\a N+1)
+object is created, all writes to the previous (\a N) object are
+completed and that \a N object becomes readonly, like all objects
+before it.  At this point, the \a N object is queued to be copied to
+cloud storage.  After that copy takes place, the local copy of \a N is
+queued for removal, see @ref ts_block_local_file_removal.
+
+@section ts_checkpoints Checkpoints 
+
+A normal, non-tiered table, although sometimes thought of as a
+"single" Btree, can also be thought of as an active Btree (a set of
+pages referencing each other, some in memory, some on disk), as well
+as zero or more checkpoints, that are fully represented in the single
+disk file. Each checkpoint has its own root page, and so is really its
+own Btree.  A tiered table is the same, having an active Btree and a
+set of checkpoint Btrees. However, both the active Btree and the
+checkpoints may span multiple files and/or cloud objects.
+
+For tiered storage, each object, other than the current file, is
+guaranteed to contain at least one checkpoint.  When we switch to a
+new (\a N+1) current object, a checkpoint in the previous (\a N) file
+is guaranteed, because a WT_SESSION::checkpoint call with a \c
+flush_tier option is required to switch.  A checkpoint in the \a N
+file refers to blocks in \a N as well as previous (\a N-1, \a N-2, ...)
+objects.
+
+The mechanics for coordinating the separate objects is handled in the
+block manager and the metadata.
+
+@section ts_block_manager Block Manager
+
+A Btree is organized logically as a set of pages. Each page is either
+a leaf page, containing keys and values, or an internal page, which
+has references to subordinate leaf pages. Writing a page goes through
+the block manager, which has the job of locating a free position in
+the file. That position, along with the block size and a checksum of
+the content, is packaged up as an <em>address cookie</em> (a sequence
+of bytes) that is returned to the caller.  The "packaging" uses the
+WiredTiger \a pack format described in \c src/include/intpack_inline.h
+.  The caller to the block manager uses that returned cookie as a
+reference to the written page, it may be stored for example, in an
+internal page. Later, when the application wants to access that page
+and it is no longer cached in memory, the block manager is given
+the address cookie which it must decode to locate and read the block.
+Thus, the block manager "owns" the cookie and how it is packed and
+unpacked; code above the block manager view the cookie as an opaque
+set of bytes.
+
+@subsection ts_cookies Cookies in Tiered Storage
+
+For tiered storage, a reference to a written location needs to
+indicate an objectid. If the reference is from the same object, no
+explicit objectid is needed, and the (position, size, checksum) triple
+can be used.  Otherwise, a four-tuple (position, size, checksum,
+objectid) is used.  Because the byte size of the cookie is given,
+and the objectid appears last, the code that interprets cookies
+can deduce which kind it is given.  If the decoder has seen three
+entries and it has reached the end of its data, then it has a triple.
+
+Object numbering starts at 1, so an objectid of 0 references the same
+object as the cookie's location.  Because of these properties, it's
+straightforward to see that a file from a non-tiered Btree could be
+"upgraded" to the first object of a tiered Btree without changing its
+contents.  Every reference in the non-tiered Btree is a triple,
+meaning there is an implied a zero objectid. Thus each reference must
+be to the same object.
+
+In addition to address cookies, there are also checkpoint cookies.
+Checkpoint cookies fully describe everything needed to access a checkpoint
+on an individual Btree.
+Like an address cookie, a checkpoint cookie is a set of bytes that can
+be unpacked into a set of values.  A checkpoint cookie is logically
+composed of 4 address cookies and two additional values:
+  - an address cookie for the root page
+  - an address cookie for the extent list with allocated entries
+  - an address cookie for the extent list with available entries
+  - an address cookie for the extent list with discarded entries
+  - the file size for the checkpoint
+  - the checkpoint size
+
+So for a non-tiered table, using triples for address cookies, there
+are 14 values in total.  And for a tiered table, using four-tuples for
+address cookies, there are 18 values.  The program in \c
+tools/wt_ckpt_decode.py can be used to unpack a set of bytes and show
+these values.
+
+@subsection ts_block_files Files in the Block Manager
+
+The data structure that the block manager uses for accessing a Btree's
+files is a \c WT_BM.  For non-tiered tables, the \c WT_BM->block field
+references a single \c WT_BLOCK \a handle, which represents the single
+file.  This block handle exists as long as the Btree is open, so no
+locking or coordination is needed to access it.
+
+For tiered tables, multiple objects are associated with a \c
+WT_BM, and each object is referenced by a \c WT_BLOCK.
+The current object is referred to by \c WT_BM->block, and a
+list of objects recently referenced appears in the \c WT_BM->handle_array. The \c
+handle_array always includes the current object.  When an existing
+tiered table is opened from disk, we start with a new \c WT_BM.
+A \c WT_BLOCK for the current object is created, and \c WT_BM->block is
+set to that and also added to the (otherwise empty) \c handle_array.
+As other objects are referenced, new \c WT_BLOCK handles are created
+to represent them, and they are added to the \c handle_array.
+
+Block handles (\c WT_BLOCK) in the handle array are cached from
+the complete list of open block handles kept in the connection
+(\c WT_CONNECTION_IMPL->block_hash). Blocks in the connection
+hash table are reference counted. When the reference count goes
+to zero, the handle is removed and freed.
+
+When a \c flush_tier is done, each table that had changes written as
+part of the checkpoint will have its WT_BM->switch_object function
+called.  This function creates a new \c WT_BLOCK for the new file, and
+adds it to the \c handle_array.  It does not yet point the \c
+WT_BM->block to the new block handle, as there may still be writes in
+progress to the old block.  The block manager participates in the
+checkpoint for the file, and when that is complete, the new active
+file is put into \c WT_BM->block.
+
+Since there are multiple threads accessing the block manager, we use a
+read/write lock on the \c WT_BM to access, modify or grow the array of
+\c WT_BLOCK handles.
+
+@subsection ts_block_local_file_removal Local File Removal
+
+When the tiered server determines that a local file should be removed,
+we know first and foremost that there are no writers to the file. This
+is because local file removal can only be done on files that have
+become readonly. However, there may be active readers in the file.  At
+the time we remove the file, we'd like to remove the corresponding \c
+WT_BLOCK entry from the \c handle_array, but we cannot do that until
+all readers have finished using the block handle.  When we want to
+remove a WT_BLOCK, we set a flag on it for our intent to remove.  We
+also have an atomic reference counter for readers on every WT_BLOCK,
+and when the count goes to zero and the flag is set, we can remove it.
+
+We must deal with a race with the reference count: when the count
+becomes zero and can be removed, a new reader thread can enter the
+system and start using the block as it is being removed.  To resolve
+the race, we get a read lock on the block manager lock before we
+increment the reference count, and a write lock when we decide to free
+it.
+
+@section ts_server Tiered Server and Work Queue
+
+When tiered storage is enabled, a <em>tiered server</em> thread is created.
+Its job is to process items on its work queue.  Work items are actions
+that are generated by API calls that imply that some background action
+should take place.  There is a single work queue, and items on it have
+a type, as follows:
+
+- \c FLUSH: copy a local file to the cloud
+- \c FLUSH_FINISH: notify any local cloud caches that a file has been
+    copied to the cloud, and a local copy is still available to ingest
+- \c REMOVE_LOCAL: remove a local file that is has already been copied
+    to the cloud
+- \c REMOVE_SHARED: remove a cloud file, perhaps as part of a drop operation
+
+There are individual functions to add items of each type, and to get
+the next item, if any, or each type. That allows us to process items
+in a certain order, if we wish. With only one server thread, all operations
+occur sequentially. It would make sense in the future
+to do \c FLUSH operations in parallel.
+
+@section ts_metadata Metadata and Associated Data Structures
+
+@subsection ts_metadata_non Non-tiered Tables
+
+When non-tiered table \c A is created (without named column groups),
+there are two entries in the metadata Btree, having these keys:
+- \c "table:A"
+- \c "file:A.wt"
+
+For brevity, we are showing just the keys; the values in the metadata
+Btree are configuration strings that would show information about
+key/value format and other creation options, checkpoints associated with the table, etc.
+
+The \c "table:A" represents the table interface that the API caller
+uses, and the associated data structure in memory for the table is \c WT_TABLE.  If
+there were column groups or indices, there may be multiple Btrees
+associated with the table, and listed in the metadata,
+but in this example there is just one.  The
+\c "file:" entry represents the Btree stored on disk, as well as parts
+cached in memory.  The data structure implied by this entry is a \c
+WT_BTREE.
+
+In summary, the relationship between prefixes and data structures is as follows:
+
+URI prefix    | struct type    | has dhandle?  |  dhandle notes
+------------- | -------------- | ------------- | --------------------------------------
+\c table:     | WT_TABLE       | yes           | the dhandle is cast to (WT_TABLE *)
+\c file:      | WT_BTREE       | yes           | dhandle->handle is a (WT_BTREE *)
+
+@subsection ts_metadata_tiered Tiered Tables
+
+For a tiered table \c A that has gone through a few flush_tiers, we might have the following
+entries in the metadata table:
+
+- \c "table:A"
+- \c "file:A-0000000004.wtobj"
+- \c "object:A-0000000003.wtobj"
+- \c "object:A-0000000002.wtobj"
+- \c "object:A-0000000001.wtobj"
+- \c "tier:A"
+- \c "tiered:A"
+
+The \c "table:A" entry, like before, is the "top-level" URI that is used for
+API calls.  As before, it maps to a \c WT_TABLE, and the table has the
+\c WT_TABLE->is_tiered_shared flag set.  Given this flag setting,
+WiredTiger knows to construct a matching \c "tiered:A" entry, which relates to
+a \c WT_TIERED struct.
+
+A \c WT_TIERED has most of the useful information about a tiered table.
+In particular the Btree is found in the dhandle. To be precise,
+\c WT_TIERED->iface is the dhandle, and \c WT_TIERED->iface.handle is
+a pointer to a WT_BTREE.  The \c WT_TIERED structure is also ready to
+support union tables, see future work in @ref ts_future_sharing.
+The local tier part of union tables would in WT_TIERED->tiers[WT_TIERED_INDEX_LOCAL],
+this is always NULL in the current system.  Note that \c WT_TIERED_INDEX_LOCAL is 0.
+The second part of the union table, and the part that we use is
+WT_TIERED->tiers[WT_TIERED_INDEX_SHARED]. (\c WT_TIERED_INDEX_SHARED is 0).
+Stored here is a pointer to a \c WT_TIERED_TIERS struct,
+this aligns with the \c "tier:A" entry in the metadata.
+
+Also in the \c WT_TIERED struct is information about the current
+object id, and how many object ids are known. If we know that the
+current object id is 4, we can construct the needed name: \c
+"file:A-0000000004.wtobj", likewise, previous cloud object names can
+be constructed, like \c "object:A-0000000003.wtobj".
+Navigation like this, constructing names to look up in metadata or
+as data handles doesn't happen often, mostly during startup or
+flush_tier. During high performance paths, the \c WT_TIERED struct
+or the \c WT_BM (block manager struct) associated with the Btree have
+everything we need.
+
+A "tiered:" entry (associated with a tiered table) and a "file:" entry
+(associated with a non-tiered table) behave almost identically in
+the WiredTiger system.  In fact, the \c WT_BTREE_PREFIX macro checks
+to see if a URI matches either one of these prefix strings.  The macro basically
+means "does this thing walk and talk like a Btree?".  In both cases,
+the dhandle found with the given name has a \c dhandle->handle that
+points to the open \c WT_BTREE.
+
+The \c "object:" entries do not have separate in-memory data structures
+(there is a \c WT_TIERED_OBJECT defined in \c tiered.h, but it is not used).
+And while \c "table:", \c "file:" and "tiered:" all have data handles
+using those URIs, there are no separate data handles for each object.
+This is probably a good thing, as scaling the number of data handles
+system-wide has been challenging.
+
+The following table summarizes the various relationships.
+
+URI prefix    | struct type         | has dhandle?  |  dhandle notes
+------------- | ------------------- | ------------- | --------------------------------------
+\c table:     | WT_TABLE            | yes           | the dhandle is cast to \c (WT_TABLE *)
+\c file:      | (none)              | yes, but...   | does not relate to a Btree
+\c tiered:    | WT_TIERED, WT_BTREE | yes           | the dhandle is cast to \c (WT_TIERED *), and dhandle->handle is a \c (WT_BTREE *)
+\c tier:      | WT_TIERED_TIERS     | no            | WT_TIERED->tiers[1] is a (WT_TIERED_TIERS *)
+\c object:    | (none)              | no            | no dhandle for objects
+
+@section ts_buckets Storage Sources, Buckets, and Prefixes
+
+The location of objects in the cloud requires some information to be
+stored: the cloud provider, the bucket used, and an id to reference
+any needed credentials in a key management system. When a connection
+is opened for tiered storage, these are specified and are used in
+the default case.  However, we want the ability to have some tables stored in
+different places, so we need cloud location information to live
+in the \c WT_TIERED object as well. To make this happen, all this
+\a location information is abstracted into a \c WT_BUCKET_STORAGE .
+The connection has a pointer to a \c WT_BUCKET_STORAGE, and each
+\c WT_TIERED does as well.
+
+Among the fields of a \c WT_BUCKET_STORAGE is a pointer to a \c
+WT_STORAGE_SOURCE. The storage source can be thought of as a driver,
+or an abstraction of a cloud provider with operations. WiredTiger has a
+several instances of \c WT_STORAGE_SOURCE, these include the drivers
+for the AWS, GCP, and Azure clouds.  A storage source can be asked to
+create a custom file system (returning a \c WT_FILE_SYSTEM) from a
+bucket name and credentials.  A file system created this way is stored
+in the \c WT_BUCKET_STORAGE.
+
+The file system can be used for various readonly operations, like
+listing the bucket contents or opening a \c WT_FILE_HANDLE .  That, in
+turn, can be used to get the contents of a cloud object.  Note that \c
+WT_FILE_SYSTEM and \c WT_FILE_HANDLE are more generic WiredTiger
+concepts, and are used outside of tiered storage.
+
+The file system obtained from a storage source cannot be used to write
+pieces of data to objects, rather there is a method on the \c
+WT_STORAGE_SOURCE (cloud driver) that is used to copy a source file in
+its entirety to the cloud. This makes it clear that objects must be
+written in their entirety, but may be read, if desired, in pieces.
+
+In addition to the cloud providers, there is a storage source called
+\c dirstore that emulates the behavior of a cloud provider, but stores
+objects in a directory. This is used for testing, avoiding the
+complication and expense of using cloud storage.  Typically we use a
+subdirectory of the WiredTiger home directory as our dirstore
+repository. When a test breaks, we already have the "cloud" objects
+available for debugging.
+
+We anticipate that buckets may be shared among multiple nodes, and
+possibly multiple clusters. To avoid name collisions, we provide a
+prefix that can be given on a ::wiredtiger_open call, and assume the
+caller gives us a unique prefix. This prefix is stored as
+part of the \c WT_BUCKET_STORAGE, and so can also be
+specified per table upon creation.  The prefix is prepended to every
+name stored in a bucket.
+
+@section ts_flush flush_tier
+
+A WT_SESSION::checkpoint call with \c flush_tier enabled (also known
+as \c flush_tier) puts everything we discussed on this page together.
+It identifies any tiered btrees that have changes since the previous
+checkpoint, and for each such modified btree:
+    -# eviction is temporarily disabled on this btree, while waiting
+       for any writes to the active file to drain
+    -# update the metadata to know about the next object
+    -# a new empty file is created named with the next object number,
+       this will become the table's active file
+    -# switch the table's active file
+    -# add a FLUSH entry to the work queue for the previously active
+       file to be copied to the cloud
+    -# enable eviction on this btree
+
+When the FLUSH work entry is completed, we:
+    -# tell the chunk cache to ingest the object before it is removed
+    -# update the metadata to reference the new object in the cloud
+    -# queue a FLUSH_FINISH operation
+    -# queue a REMOVE_LOCAL operation
+
+@section ts_future Future
+
+There are some future features that are helpful to know about when
+studying the overall design.
+
+@subsection ts_future_sharing Sharing of Tiered Objects
+
+The current implementation of tiered storage supports Btrees spanning
+objects that are stored locally and in cloud storage.  Each cloud
+object is currently only useful and known to the system that created
+it.  However, a larger design was in mind when the current
+implementation was made, and that informed a number of design
+decisions along the way.
+
+The larger design allows all systems in a cluster to share knowledge
+about tiered objects.  Generally, there is a single designated node in
+a cluster that calls flush_tier, we call this the "flushing"
+node. Information about the objects stored as a result of the flush
+can be returned to the application, where it is transferred to other
+cooperating nodes in the cluster.  These other nodes are known as
+"accepting" nodes, and accept this information, updating their
+metadata and incorporating references to the newly known objects.  The
+mechanism for returning the flush information, and providing a way to
+incorporate the references, has not been implemented.
+
+Another part of the sharing design is new kind of "union" table that
+is used to help incorporate new objects on the accepting nodes.  The
+idea is that a tiered table has an additional layer.  There is a local
+"tier", which is just a local Btree, and a shared "tier" which is the
+tiered Btree with multiple objects that we've talked about thus far.
+The cloud objects in the shared tier is shared among all the nodes of
+a replica set.
+
+On both the flushing node and accepting nodes, any changes to a tiered
+table are inserted or updated into the local Btree.  Any lookups to
+the table consult the local Btree first, then the shared Btree.  When
+a flush_tier is done on the flushing node, the set of changes up to a
+known timestamp \a T is moved from the local Btree to the shared
+Btree, a new object is created, and the previous object, which now
+contains the set changes, is pushed to the cloud.  The accepting nodes
+receive the notification of the new cloud object, and the timestamp \a
+T associated with it.  The accepting nodes trade out their own shared
+Btree for a new shared Btree rooted at the new cloud object.  Any
+entries in an accepting node's local Btree with a timestamp older than
+\a T are redundant as they must be included in the cloud object.  There
+could be multiple strategies to remove the old entries.
+
+The beauty of this design is that it is not difficult to understand
+(versus various alternatives), it does not require any downtime when
+new objects are accepted, nor any downtime if an accepting node is
+upgraded to a flushing node.
+
+@subsection ts_future_garbage Garbage Collection
+
+While we have a mechanism to create new objects, there is no removal,
+or <em>garbage collection</em> of objects that become redundant.  That
+is, as new objects may completely cover sets of keys in the Btree,
+pages having those keys in an older object are no longer needed.
+After all pages in an object are no longer needed, an object can be
+removed.  The trick is in knowing when this can happen.
+
+We expect future solutions to work either synchronously or
+asynchronously.  A synchronous approach would probably have
+WiredTiger track references to all pages in either a checkpoint or a
+file (and persist that information as well), and notice when all
+references to a file have reached zero. This may require enhancements
+to extent lists in the block manager.  An asynchronous approach
+could work mostly separately from WiredTiger (in another process), and
+examine object files, visiting internal pages and tracing the
+references to all objects.  As such, it can notice when an object file
+has no references.  Either approach allows us to identify and remove
+unused objects, and maybe also objects that are lightly filled.  These
+objects could be made redundant by rewriting their useful content
+directly into the active Btree.
+
+*/

@@ -302,6 +302,7 @@ dhandle
 dhandle's
 dhandles
 dir
+dirstore
 disjunction
 disjunctions
 distclean
@@ -409,6 +410,7 @@ iSi
 iaa
 icount
 ie
+iface
 ifdef
 iflag
 incr
@@ -537,6 +539,7 @@ nul
 num
 numa
 nvd
+objectid
 objectsin
 ol
 oltp
@@ -739,6 +742,7 @@ writelock
 writelocks
 wrlock
 wti
+wtobj
 wtperf
 wtstats
 xa
