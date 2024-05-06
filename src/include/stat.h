@@ -51,13 +51,13 @@
  *
  * The counter slots are split into two separate counters, one for connection and the other for
  * data-source. This is because we want to be able to independently increase one counter slot
- * without increasing the other, as for example, increasing the data-source counter by small number
- * would have a greater impact than increasing the connection counter by the same number - depending
- * on the number of dhandles in the system.
+ * without increasing the other, as for example, increasing the data-source counter by a small
+ * number would have a greater impact than increasing the connection counter by the same number -
+ * depending on the number of dhandles in the system.
  *
  */
-#define WT_STAT_CONN_COUNTER_SLOTS 4
-#define WT_STAT_DSRC_COUNTER_SLOTS 299
+#define WT_STAT_CONN_COUNTER_SLOTS 23
+#define WT_STAT_DSRC_COUNTER_SLOTS 23
 
 /*
  * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
