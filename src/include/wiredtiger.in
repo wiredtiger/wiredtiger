@@ -1219,9 +1219,10 @@ struct __wt_session {
      * <code>(column[\,...])</code>. For tables\, the number of entries must match the total number
      * of values in \c key_format and \c value_format.  For colgroups and indices\, all column names
      * must appear in the list of columns for the table., a list of strings; default empty.}
-     * @config{dictionary, the maximum number of unique values remembered in the Btree row-store
-     * leaf page value dictionary; see @ref file_formats_compression for more information., an
-     * integer greater than or equal to \c 0; default \c 0.}
+     * @config{dictionary, the maximum number of unique values remembered in the
+     * row-store/variable-length column-store leaf page value dictionary; see @ref
+     * file_formats_compression for more information., an integer greater than or equal to \c 0;
+     * default \c 0.}
      * @config{encryption = (, configure an encryptor for file blocks.  When a table is created\,
      * its encryptor is not implicitly used for any related indices or column groups., a set of
      * related configuration options defined as follows.}
@@ -2416,12 +2417,13 @@ struct __wt_connection {
      * \c 100; default \c 0.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a
      * boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove
-     * unneeded log files., a boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * zero_fill, manually write zeroes into log files., a boolean flag; default \c false.}
-     * @config{
-     * ),,}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc_init_count, initial
+     * number of pre-allocated log files., an integer between \c 1 and \c 500; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded log files., a boolean
+     * flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into
+     * log files., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @config{lsm_manager = (, configure database wide options for LSM tree management.  The LSM
      * manager is started automatically the first time an LSM tree is opened.  The LSM manager uses
      * a session from the configured session_max., a set of related configuration options defined as
@@ -2482,17 +2484,14 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;on_close, log statistics on database
      * close., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;sources, if
-     * non-empty\, include statistics for the list of data source URIs\, if they are open at the
-     * time of the statistics logging.  The list may include URIs matching a single data source
-     * ("table:mytable")\, or a URI matching all data sources of a particular type ("table:")., a
-     * list of strings; default empty.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp
-     * prepended to each log record.  May contain \c strftime conversion specifications.  When \c
-     * json is configured\, defaults to \c "%Y-%m-%dT%H:%M:%S.000Z"., a string; default \c "%b %d
-     * %H:%M:%S".}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each write of the
-     * log records; setting this value above 0 configures statistics logging., an integer between \c
-     * 0 and \c 100000; default \c 0.}
+     * non-empty\, include statistics for the list of "file:" and "lsm:" data source URIs\, if they
+     * are open at the time of the statistics logging., a list of strings; default empty.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to each log record.  May
+     * contain \c strftime conversion specifications.  When \c json is configured\, defaults to \c
+     * "%Y-%m-%dT%H:%M:%S.000Z"., a string; default \c "%b %d %H:%M:%S".}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each write of the log records;
+     * setting this value above 0 configures statistics logging., an integer between \c 0 and \c
+     * 100000; default \c 0.}
      * @config{ ),,}
      * @config{tiered_storage = (, enable tiered storage.  Enabling tiered storage may use one
      * session from the configured session_max., a set of related configuration options defined as
@@ -3295,15 +3294,16 @@ struct __wt_connection {
  * \c ".".}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag;
  * default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or fail with an error if
- * recovery needs to run after an unclean shutdown., a string\, chosen from the following options:
- * \c "error"\, \c "on"; default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically
- * remove unneeded log files., a boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * zero_fill, manually write zeroes into log files., a boolean flag; default \c false.}
- * @config{
- * ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc_init_count, initial number of
+ * pre-allocated log files., an integer between \c 1 and \c 500; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or fail with an error if recovery needs to
+ * run after an unclean shutdown., a string\, chosen from the following options: \c "error"\, \c
+ * "on"; default \c on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded log
+ * files., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually
+ * write zeroes into log files., a boolean flag; default \c false.}
+ * @config{ ),,}
  * @config{lsm_manager = (, configure database wide options for LSM tree management.  The LSM
  * manager is started automatically the first time an LSM tree is opened.  The LSM manager uses a
  * session from the configured session_max., a set of related configuration options defined as
@@ -3394,13 +3394,11 @@ struct __wt_connection {
  * value is not an absolute path\, the path is relative to the database home (see @ref absolute_path
  * for more information)., a string; default \c ".".}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;sources, if
- * non-empty\, include statistics for the list of data source URIs\, if they are open at the time of
- * the statistics logging.  The list may include URIs matching a single data source
- * ("table:mytable")\, or a URI matching all data sources of a particular type ("table:")., a list
- * of strings; default empty.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to
- * each log record.  May contain \c strftime conversion specifications.  When \c json is
- * configured\, defaults to \c "%Y-%m-%dT%H:%M:%S.000Z"., a string; default \c "%b %d %H:%M:%S".}
+ * non-empty\, include statistics for the list of "file:" and "lsm:" data source URIs\, if they are
+ * open at the time of the statistics logging., a list of strings; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to each log record.  May contain
+ * \c strftime conversion specifications.  When \c json is configured\, defaults to \c
+ * "%Y-%m-%dT%H:%M:%S.000Z"., a string; default \c "%b %d %H:%M:%S".}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each write of the log records;
  * setting this value above 0 configures statistics logging., an integer between \c 0 and \c 100000;
  * default \c 0.}

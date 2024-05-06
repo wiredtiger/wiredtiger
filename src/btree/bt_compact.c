@@ -113,7 +113,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ASSERT(session, addr != NULL);
 
     if (__wt_off_page(ref->home, addr))
-        __wt_free(session, addr->addr);
+        __wt_ref_addr_safe_free(session, addr->addr, addr->size);
     else {
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
@@ -173,10 +173,10 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_REF_LOCK(session, ref, &previous_state);
 
     /*
-     * Don't bother rewriting deleted pages but also don't skip. The on-disk block is discarded by
-     * the next checkpoint.
+     * Don't bother rewriting deleted pages but also don't skip. The on-disk block with an address
+     * is discarded by the next checkpoint, if it has not already been freed.
      */
-    if (previous_state == WT_REF_DELETED && ref->page_del == NULL)
+    if (previous_state == WT_REF_DELETED && ref->page_del == NULL && ref->addr != NULL)
         *skipp = false;
 
     /*
