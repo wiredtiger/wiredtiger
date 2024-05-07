@@ -31,10 +31,10 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CAPACITY *cap;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    uint64_t chunkcache, total;
+    uint64_t checkpoint, chunkcache, total;
 
     conn = S2C(session);
-    chunkcache = total = 0;
+    checkpoint = chunkcache = total = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
     if (cval.val != 0) {
@@ -63,8 +63,27 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
         total -= chunkcache;
     }
 
+    WT_RET(__wt_config_gets(session, cfg, "io_capacity.checkpoint", &cval));
+    if (cval.val != 0) {
+        checkpoint = (uint64_t)cval.val;
+        if (checkpoint < WT_THROTTLE_MIN)
+            WT_RET_MSG(session, EINVAL,
+              "chunk cache I/O capacity value %" PRIu64 " below minimum %d", checkpoint,
+              WT_THROTTLE_MIN);
+        if (total < chunkcache + checkpoint)
+            WT_RET_MSG(session, EINVAL,
+              "chunk cache and checkpoint I/O capacity value %" PRIu64 " below total %" PRIu64,
+              checkpoint, total);
+        if ((total - chunkcache - checkpoint) < WT_THROTTLE_MIN)
+            WT_RET_MSG(session, EINVAL,
+              "chunk cache and checkpoint I/O capacity value %" PRIu64
+              " leaves insufficient capacity for other subsystems (total %" PRIu64
+              ", remaining %" PRIu64 ")",
+              chunkcache + checkpoint, total, total - chunkcache - checkpoint);
+        total -= checkpoint;
+    }
+
     cap = &conn->capacity;
-    cap->chunkcache = chunkcache;
     __wt_atomic_store64(&cap->total, total);
     if (total != 0) {
         /*
@@ -88,7 +107,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (chunkcache != 0)
         cap->chunkcache = chunkcache;
-
+    if (checkpoint != 0)
+        cap->ckpt = checkpoint;
     return (0);
 }
 

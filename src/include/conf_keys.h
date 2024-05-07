@@ -451,6 +451,7 @@ static const struct {
         uint64_t this_id;
     } Incremental;
     struct {
+        uint64_t checkpoint;
         uint64_t chunk_cache;
         uint64_t total;
     } Io_capacity;
@@ -819,6 +820,7 @@ static const struct {
     WT_CONF_ID_Incremental | (WT_CONF_ID_this_id << 16),
   },
   {
+    WT_CONF_ID_Io_capacity | (WT_CONF_ID_checkpoint << 16),
     WT_CONF_ID_Io_capacity | (WT_CONF_ID_chunk_cache << 16),
     WT_CONF_ID_Io_capacity | (WT_CONF_ID_total << 16),
   },
