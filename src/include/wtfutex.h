@@ -24,7 +24,7 @@ enum __wt_futex_wake {
  *
  * \retval -EINVAL Not a futex, or pointer to [val] is null.
  */
-int __wt_fetch(struct __wt_futex *ftx, uint32_t *val);
+int __wt_futex_fetch(struct __wt_futex *ftx, uint32_t *val);
 
 
 /*
@@ -44,7 +44,7 @@ int __wt_fetch(struct __wt_futex *ftx, uint32_t *val);
  *
  * \retval -EINVAL Not a futex.
  */
-int __wt_store(struct __wt_futex *ftx, uint32_t val);
+int __wt_futex_store(struct __wt_futex *ftx, uint32_t val);
 
 
 /*
